@@ -44,22 +44,24 @@ internal static class DepthRanges
     public const float Overlap = 0.01f;
 
     /// <summary>The near plane of a range's projection.</summary>
-    public static float NearOf(int range) => range switch
-    {
-        Near => NearPlane,
-        Middle => NearMiddle * (1 - Overlap),
-        Far => MiddleFar * (1 - Overlap),
-        _ => throw new ArgumentOutOfRangeException(nameof(range))
-    };
+    public static float NearOf(int range) =>
+        range switch
+        {
+            Near => NearPlane,
+            Middle => NearMiddle * (1 - Overlap),
+            Far => MiddleFar * (1 - Overlap),
+            _ => throw new ArgumentOutOfRangeException(nameof(range)),
+        };
 
     /// <summary>The far boundary of a range. The far range is infinite.</summary>
-    public static float FarOf(int range) => range switch
-    {
-        Near => NearMiddle * (1 + Overlap),
-        Middle => MiddleFar * (1 + Overlap),
-        Far => float.PositiveInfinity,
-        _ => throw new ArgumentOutOfRangeException(nameof(range))
-    };
+    public static float FarOf(int range) =>
+        range switch
+        {
+            Near => NearMiddle * (1 + Overlap),
+            Middle => MiddleFar * (1 + Overlap),
+            Far => float.PositiveInfinity,
+            _ => throw new ArgumentOutOfRangeException(nameof(range)),
+        };
 
     /// <summary>
     /// The depth a range's depth buffer is cleared to: the depth of its far boundary under <see cref="RangeProjection"/>,
@@ -120,7 +122,8 @@ internal static class DepthRanges
         float sy = 1f / MathF.Tan(verticalFov * 0.5f);
         float sx = sy / aspect;
         // Clip z = a·z + b and w = −z. depth = (a·z + b) / −z is 1 at z = −near and 0 at z = −far.
-        float a, b;
+        float a,
+            b;
         if (float.IsPositiveInfinity(far))
         {
             a = 0f;
@@ -133,9 +136,22 @@ internal static class DepthRanges
         }
 
         return new(
-            m11: sx, m12: 0, m13: 0, m14: 0,
-            m21: 0, m22: -sy, m23: 0, m24: 0,
-            m31: 0, m32: 0, m33: a, m34: -1,
-            m41: 0, m42: 0, m43: b, m44: 0);
+            m11: sx,
+            m12: 0,
+            m13: 0,
+            m14: 0,
+            m21: 0,
+            m22: -sy,
+            m23: 0,
+            m24: 0,
+            m31: 0,
+            m32: 0,
+            m33: a,
+            m34: -1,
+            m41: 0,
+            m42: 0,
+            m43: b,
+            m44: 0
+        );
     }
 }

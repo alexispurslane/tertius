@@ -46,7 +46,6 @@ public sealed class Sensor : IComponent
     // For each entity whose Entered this sensor relayed and whose Left it has not: the number of its contacts with the
     // sensor's entity that started and have not ended.
     private readonly Dictionary<Entity, int> openContacts = [];
-    private string? topic;
     private Target recipients = new Broadcast();
 
     /// <summary>
@@ -55,10 +54,10 @@ public sealed class Sensor : IComponent
     /// </summary>
     public string? Topic
     {
-        get => topic;
+        get;
         set
         {
-            topic = value;
+            field = value;
             recipients = value is null ? new Broadcast() : Topics.Get(value);
         }
     }

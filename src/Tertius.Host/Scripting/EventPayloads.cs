@@ -114,8 +114,11 @@ internal sealed class EventPayloads
         {
             MethodInfo create = OwnGeneric(nameof(CreateEvent)).MakeGenericMethod(type);
             MethodInfo box = OwnGeneric(nameof(BoxPayload)).MakeGenericMethod(type);
-            payload = new(type, create.CreateDelegate<Func<Target, object, Event>>(),
-                box.CreateDelegate<Func<Event, object>>());
+            payload = new(
+                type,
+                create.CreateDelegate<Func<Target, object, Event>>(),
+                box.CreateDelegate<Func<Event, object>>()
+            );
             bound.Add(type, payload);
         }
 
@@ -124,11 +127,12 @@ internal sealed class EventPayloads
 
     /// <summary>The generic method definition of a private static method of this class, named by <c>nameof</c>.</summary>
     private static MethodInfo OwnGeneric(string name) =>
-        typeof(EventPayloads).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static) ??
-        throw new UnreachableException($"EventPayloads declares the method {name}.");
+        typeof(EventPayloads).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new UnreachableException($"EventPayloads declares the method {name}.");
 
-    private static Event CreateEvent<T>(Target target, object payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target: target, sender: Entity.Null, payload: (T)payload);
+    private static Event CreateEvent<T>(Target target, object payload)
+        where T : unmanaged, IEventPayload => Event.Create(target: target, sender: Entity.Null, payload: (T)payload);
 
-    private static object BoxPayload<T>(Event e) where T : unmanaged, IEventPayload => e.As<T>();
+    private static object BoxPayload<T>(Event e)
+        where T : unmanaged, IEventPayload => e.As<T>();
 }

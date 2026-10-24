@@ -36,9 +36,11 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
     public const int DefaultTiles = 64;
 
     private const FormatFeatureFlags RequiredFeatures =
-        FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit |
-        FormatFeatureFlags.SampledImageFilterLinearBit |
-        FormatFeatureFlags.BlitSrcBit | FormatFeatureFlags.BlitDstBit;
+        FormatFeatureFlags.ColorAttachmentBit
+        | FormatFeatureFlags.SampledImageBit
+        | FormatFeatureFlags.SampledImageFilterLinearBit
+        | FormatFeatureFlags.BlitSrcBit
+        | FormatFeatureFlags.BlitDstBit;
 
     private readonly VulkanDevice device;
     private readonly ImageView[] colorViews;
@@ -53,25 +55,51 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
         foreach (Format format in (ReadOnlySpan<Format>)[ColorFormat, DepthOffsetFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & RequiredFeatures) != RequiredFeatures)
                 throw new NotSupportedException(
-                    $"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}.");
+                    $"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}."
+                );
 
         Tiles = tiles;
         colorViews = new ImageView[tiles];
         depthOffsetViews = new ImageView[tiles];
         var extent = new Extent2D(TileSize, TileSize);
-        const ImageUsageFlags usage = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit |
-                                      ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit;
+        const ImageUsageFlags usage =
+            ImageUsageFlags.ColorAttachmentBit
+            | ImageUsageFlags.SampledBit
+            | ImageUsageFlags.TransferSrcBit
+            | ImageUsageFlags.TransferDstBit;
         try
         {
-            Color = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: ColorFormat,
-                usage: usage, mipLevels: MipLevels, name: "impostor atlas color",
-                arrayLayers: (uint)tiles, arrayView: true);
-            DepthOffset = GpuImage.Create(device: device, allocator: allocator, extent: extent,
-                format: DepthOffsetFormat, usage: usage, mipLevels: MipLevels,
-                name: "impostor atlas depth offset", arrayLayers: (uint)tiles, arrayView: true);
-            CaptureDepth = GpuImage.Create(device: device, allocator: allocator, extent: extent,
+            Color = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: ColorFormat,
+                usage: usage,
+                mipLevels: MipLevels,
+                name: "impostor atlas color",
+                arrayLayers: (uint)tiles,
+                arrayView: true
+            );
+            DepthOffset = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: DepthOffsetFormat,
+                usage: usage,
+                mipLevels: MipLevels,
+                name: "impostor atlas depth offset",
+                arrayLayers: (uint)tiles,
+                arrayView: true
+            );
+            CaptureDepth = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
                 format: CaptureDepthFormat,
-                usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1, name: "impostor capture depth");
+                usage: ImageUsageFlags.DepthStencilAttachmentBit,
+                mipLevels: 1,
+                name: "impostor capture depth"
+            );
             for (int i = 0; i < tiles; i++)
             {
                 colorViews[i] = Color.CreateLayerView((uint)i);

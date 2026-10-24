@@ -1,6 +1,6 @@
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -26,14 +26,23 @@ public sealed class WeightlessCharacterPushTests
     private const float Thrust = 105;
 
     /// <summary>The distance from the character's center to its front, and from the crate's center to its rear face, in m.</summary>
-    private const double PersonRadius = 0.3, CrateHalf = 0.5;
+    private const double PersonRadius = 0.3,
+        CrateHalf = 0.5;
 
-    private static readonly BodyDesc Person =
-        new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: PersonMass, LinearDamping: 0,
-            AngularDamping: 0);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: PersonMass,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
-    private static readonly BodyDesc Crate =
-        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: CrateMass,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A character behind a crate in a frame without gravity, and the pilot that steers the character.</summary>
     private sealed class Pair : IDisposable
@@ -54,11 +63,12 @@ public sealed class WeightlessCharacterPushTests
         public Double3 CrateVelocity => World.VelocityIn(Crate, Space);
 
         /// <summary>From the next tick on, the pilot adds <see cref="Thrust"/> along +x to the character in every tick.</summary>
-        public void StartThrust() => Pilot.EveryTick = body =>
-        {
-            body.AddForce(new(Thrust, 0, 0));
-            pilotCalls++;
-        };
+        public void StartThrust() =>
+            Pilot.EveryTick = body =>
+            {
+                body.AddForce(new(Thrust, 0, 0));
+                pilotCalls++;
+            };
 
         /// <summary>Ticks once. Every call of the pilot before this tick acts in a step up to this tick's step.</summary>
         public void Tick()
@@ -79,15 +89,33 @@ public sealed class WeightlessCharacterPushTests
         World world = NewWorld(backend: out _, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
-        Entity person = world.Spawn(new()
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                LinearVelocity = commonVelocity,
+                Body = Person,
+                Components = [pilot],
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(PersonRadius + startGap + CrateHalf),
+                LinearVelocity = commonVelocity,
+                Body = Crate,
+            }
+        );
+        return new()
         {
-            Frame = space, Pose = At(0), LinearVelocity = commonVelocity, Body = Person, Components = [pilot]
-        });
-        Entity crate = world.Spawn(new()
-        {
-            Frame = space, Pose = At(PersonRadius + startGap + CrateHalf), LinearVelocity = commonVelocity, Body = Crate
-        });
-        return new() { World = world, Space = space, Person = person, Crate = crate, Pilot = pilot };
+            World = world,
+            Space = space,
+            Person = person,
+            Crate = crate,
+            Pilot = pilot,
+        };
     }
 
     /// <summary>
@@ -116,8 +144,12 @@ public sealed class WeightlessCharacterPushTests
             pairPath += PairVelocity(pair.ThrustSteps, dt) * dt;
         }
 
-        (pair.CrateX - crateStart).Should().BeGreaterThan(0.8 * pairPath,
-            $"a pair of 90 kg under {Thrust} N moves {pairPath:F2} m in 2 s, and the crate is pushed along with the character");
+        (pair.CrateX - crateStart)
+            .Should()
+            .BeGreaterThan(
+                0.8 * pairPath,
+                $"a pair of 90 kg under {Thrust} N moves {pairPath:F2} m in 2 s, and the crate is pushed along with the character"
+            );
     }
 
     /// <summary>
@@ -138,9 +170,14 @@ public sealed class WeightlessCharacterPushTests
 
         double momentum = PersonMass * pair.PersonVelocity.X + CrateMass * pair.CrateVelocity.X;
         double impulse = Thrust * pair.ThrustSteps * dt;
-        momentum.Should().BeApproximately(impulse, 0.02 * impulse,
-            $"the thrust gave the pair {impulse:F1} N·s, and the contact between the character and the crate adds none " +
-            $"(character {pair.PersonVelocity.X:F3} m/s, crate {pair.CrateVelocity.X:F3} m/s)");
+        momentum
+            .Should()
+            .BeApproximately(
+                impulse,
+                0.02 * impulse,
+                $"the thrust gave the pair {impulse:F1} N·s, and the contact between the character and the crate adds none "
+                    + $"(character {pair.PersonVelocity.X:F3} m/s, crate {pair.CrateVelocity.X:F3} m/s)"
+            );
     }
 
     /// <summary>
@@ -162,8 +199,12 @@ public sealed class WeightlessCharacterPushTests
 
         double moved = (pair.PersonX - before) / dt;
         double read = pair.PersonVelocity.X;
-        read.Should().BeApproximately(moved, 0.02 * PairVelocity(pair.ThrustSteps, dt),
-            $"the character moved {moved:F3} m/s in the last tick, and its velocity read must say how it moves");
+        read.Should()
+            .BeApproximately(
+                moved,
+                0.02 * PairVelocity(pair.ThrustSteps, dt),
+                $"the character moved {moved:F3} m/s in the last tick, and its velocity read must say how it moves"
+            );
     }
 
     /// <summary>
@@ -178,16 +219,20 @@ public sealed class WeightlessCharacterPushTests
     {
         Double3 drift = new Double3(1, 1, 1).Normalized();
         using Pair pair = CharacterBehindCrate(startGap: 0.02, commonVelocity: drift);
-        Double3 start = pair.World.PoseIn(pair.Crate, pair.Space).Position -
-                        pair.World.PoseIn(pair.Person, pair.Space).Position;
+        Double3 start =
+            pair.World.PoseIn(pair.Crate, pair.Space).Position - pair.World.PoseIn(pair.Person, pair.Space).Position;
 
         Tick(pair, 60);
 
-        Double3 now = pair.World.PoseIn(pair.Crate, pair.Space).Position -
-                      pair.World.PoseIn(pair.Person, pair.Space).Position;
+        Double3 now =
+            pair.World.PoseIn(pair.Crate, pair.Space).Position - pair.World.PoseIn(pair.Person, pair.Space).Position;
         Double3 change = now - start;
-        change.Length.Should().BeLessThan(0.001,
-            $"both bodies drift with the same velocity, but the crate moved ({change.X:F4}, {change.Y:F4}, {change.Z:F4}) m relative to the character");
+        change
+            .Length.Should()
+            .BeLessThan(
+                0.001,
+                $"both bodies drift with the same velocity, but the crate moved ({change.X:F4}, {change.Y:F4}, {change.Z:F4}) m relative to the character"
+            );
     }
 
     private static void Tick(Pair pair, int ticks)

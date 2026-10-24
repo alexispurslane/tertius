@@ -61,7 +61,8 @@ public readonly struct Snapshot
     /// True if the entity had a <typeparamref name="T"/> component at the end of the previous tick. False for an entity
     /// that is not live: a dead entity has no components.
     /// </summary>
-    public bool HasComponent<T>(Entity entity) where T : IComponent =>
+    public bool HasComponent<T>(Entity entity)
+        where T : IComponent =>
         World.Entities.IsAlive(entity) && World.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
 
     /// <summary>
@@ -79,10 +80,16 @@ public readonly struct Snapshot
         }
 
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
-        facts = new(Motion: MotionOf(body, entities.OwnedFrame(entity)), Mass: body.Mass, ShapeKind: body.Shape.Kind,
+        facts = new(
+            Motion: MotionOf(body, entities.OwnedFrame(entity)),
+            Mass: body.Mass,
+            ShapeKind: body.Shape.Kind,
             BoundingRadius: entities.BodyBoundingRadius(entity),
-            CenterOfMass: entities.BodyCenterOfMass(entity), CollisionGroups: collision.Groups,
-            CollisionMask: collision.Mask, IsSensor: body.IsSensor);
+            CenterOfMass: entities.BodyCenterOfMass(entity),
+            CollisionGroups: collision.Groups,
+            CollisionMask: collision.Mask,
+            IsSensor: body.IsSensor
+        );
         return true;
     }
 
@@ -140,8 +147,12 @@ public readonly struct Snapshot
             return false;
         }
 
-        velocity = FrameReads.VelocityIn(frames: World.Frames, entity: entity, row: World.Entities.FrontRow(entity),
-            to: frame);
+        velocity = FrameReads.VelocityIn(
+            frames: World.Frames,
+            entity: entity,
+            row: World.Entities.FrontRow(entity),
+            to: frame
+        );
         return true;
     }
 
@@ -156,8 +167,12 @@ public readonly struct Snapshot
             return false;
         }
 
-        angularVelocity = FrameReads.AngularVelocityIn(frames: World.Frames, entity: entity,
-            row: World.Entities.FrontRow(entity), to: frame);
+        angularVelocity = FrameReads.AngularVelocityIn(
+            frames: World.Frames,
+            entity: entity,
+            row: World.Entities.FrontRow(entity),
+            to: frame
+        );
         return true;
     }
 

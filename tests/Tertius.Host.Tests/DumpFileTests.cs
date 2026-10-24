@@ -36,9 +36,15 @@ public sealed class DumpFileTests : IDisposable
         using World world = NewWorld();
 
         ScriptRunner.Run(
-            script: Parse("""{ "do": "dump", "name": "start" }""", """{ "do": "run", "ticks": 1 }""",
-                """{ "do": "dump", "name": "end" }"""),
-            world: world, scene: Probes(world), outputFolder: folder);
+            script: Parse(
+                """{ "do": "dump", "name": "start" }""",
+                """{ "do": "run", "ticks": 1 }""",
+                """{ "do": "dump", "name": "end" }"""
+            ),
+            world: world,
+            scene: Probes(world),
+            outputFolder: folder
+        );
 
         Directory.GetFiles(folder).Select(Path.GetFileName).Should().BeEquivalentTo("start.json", "end.json");
     }
@@ -46,8 +52,12 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesPosesAsPositionAndQuaternionArraysWithTheirFrames()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: ShipWithCrate,
-            script: Parse("""{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: ShipWithCrate,
+            script: Parse("""{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         JsonElement crate = EntityNamed(dump, "crate");
         crate.GetProperty("pose").GetProperty("frame").GetString().Should().Be("ship");
@@ -55,9 +65,11 @@ public sealed class DumpFileTests : IDisposable
         Numbers(crate.GetProperty("pose").GetProperty("rotation")).Should().Equal(0, 0, 0, 1);
         // In space the crate is at (10, 0, -1), turned 90 degrees about +Y with the ship.
         crate.GetProperty("rootPose").GetProperty("frame").GetString().Should().Be("space");
-        Numbers(crate.GetProperty("rootPose").GetProperty("position")).Should()
+        Numbers(crate.GetProperty("rootPose").GetProperty("position"))
+            .Should()
             .Equal([10, 0, -1], (a, b) => Math.Abs(a - b) < 1e-12);
-        Numbers(crate.GetProperty("rootPose").GetProperty("rotation")).Should()
+        Numbers(crate.GetProperty("rootPose").GetProperty("rotation"))
+            .Should()
             .Equal([0, Math.Sqrt(0.5), 0, Math.Sqrt(0.5)], (a, b) => Math.Abs(a - b) < 1e-12);
         EntityNamed(dump, "space").GetProperty("pose").GetProperty("frame").ValueKind.Should().Be(JsonValueKind.Null);
     }
@@ -66,8 +78,12 @@ public sealed class DumpFileTests : IDisposable
     public void ADumpFileWritesVelocitiesAsArrays()
     {
         // The crate takes its velocities from its first motion intent, at the first sync point.
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: ShipWithCrate,
-            script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: ShipWithCrate,
+            script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         Numbers(EntityNamed(dump, "crate").GetProperty("velocity")).Should().Equal(1, 2, 3);
         Numbers(EntityNamed(dump, "crate").GetProperty("angularVelocity")).Should().Equal(0.25, 0.5, 0.75);
@@ -76,8 +92,12 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesTheTickTheTimeAndTheFrameTree()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: ShipWithCrate,
-            script: Parse("""{ "do": "run", "ticks": 30 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: ShipWithCrate,
+            script: Parse("""{ "do": "run", "ticks": 30 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         dump.GetProperty("name").GetString().Should().Be("now");
         dump.GetProperty("tick").GetInt64().Should().Be(30);
@@ -95,10 +115,16 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesAnEventWithItsTargetAndItsPayloadInScriptForm()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: Probes, script: Parse(
-            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "crew" } }""",
-            """{ "do": "run", "ticks": 1 }""",
-            """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: Probes,
+            script: Parse(
+                """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "crew" } }""",
+                """{ "do": "run", "ticks": 1 }""",
+                """{ "do": "dump", "name": "now" }"""
+            ),
+            dump: "now"
+        );
 
         JsonElement e = dump.GetProperty("events").EnumerateArray().Single();
         e.GetProperty("tick").GetInt64().Should().Be(1);
@@ -112,10 +138,16 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesAFrameTargetAsTheIdOfTheFramesOwner()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: Probes, script: Parse(
-            """{ "do": "post", "to": { "kind": "frame", "id": "ship" }, "event": "Nudge" }""",
-            """{ "do": "run", "ticks": 1 }""",
-            """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: Probes,
+            script: Parse(
+                """{ "do": "post", "to": { "kind": "frame", "id": "ship" }, "event": "Nudge" }""",
+                """{ "do": "run", "ticks": 1 }""",
+                """{ "do": "dump", "name": "now" }"""
+            ),
+            dump: "now"
+        );
 
         JsonElement to = dump.GetProperty("events")[0].GetProperty("to");
         to.GetProperty("kind").GetString().Should().Be("frame");
@@ -125,12 +157,19 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesTheCollisionsOfAFallingBoxWithSceneIds()
     {
-        JsonElement dump = RunAndRead(newWorld: NewJoltWorld, build: BoxOnFloor,
-            script: Parse("""{ "do": "run", "ticks": 60 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewJoltWorld,
+            build: BoxOnFloor,
+            script: Parse("""{ "do": "run", "ticks": 60 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
-        JsonElement hit = dump.GetProperty("events").EnumerateArray()
-            .First(e => e.GetProperty("event").GetString() == "Collision" &&
-                        e.GetProperty("to").GetProperty("id").GetString() == "box");
+        JsonElement hit = dump.GetProperty("events")
+            .EnumerateArray()
+            .First(e =>
+                e.GetProperty("event").GetString() == "Collision"
+                && e.GetProperty("to").GetProperty("id").GetString() == "box"
+            );
         hit.GetProperty("payload").GetProperty("other").GetString().Should().Be("floor");
         Numbers(hit.GetProperty("payload").GetProperty("normal")).Should().HaveCount(3);
     }
@@ -138,8 +177,12 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesStandingForACharacterOnlyAndLeavesItOutForEveryOtherEntity()
     {
-        JsonElement dump = RunAndRead(newWorld: NewJoltWorld, build: StateDumpTests.PeopleOnFloor,
-            script: Parse("""{ "do": "run", "ticks": 60 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewJoltWorld,
+            build: StateDumpTests.PeopleOnFloor,
+            script: Parse("""{ "do": "run", "ticks": 60 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         EntityNamed(dump, "person").GetProperty("standing").GetBoolean().Should().BeTrue();
         EntityNamed(dump, "faller").GetProperty("standing").GetBoolean().Should().BeFalse();
@@ -150,8 +193,12 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void TheSameScriptWritesByteIdenticalDumpsInTwoFreshWorlds()
     {
-        Script script = Parse("""{ "do": "run", "ticks": 45 }""", """{ "do": "dump", "name": "landing" }""",
-            """{ "do": "run", "ticks": 45 }""", """{ "do": "dump", "name": "rest" }""");
+        Script script = Parse(
+            """{ "do": "run", "ticks": 45 }""",
+            """{ "do": "dump", "name": "landing" }""",
+            """{ "do": "run", "ticks": 45 }""",
+            """{ "do": "dump", "name": "rest" }"""
+        );
         string second = Path.Combine(folder, "second");
 
         using (World world = NewJoltWorld())
@@ -165,28 +212,36 @@ public sealed class DumpFileTests : IDisposable
         }
 
         foreach (string name in new[] { "landing.json", "rest.json" })
-            File.ReadAllBytes(Path.Combine(second, name)).Should()
+            File.ReadAllBytes(Path.Combine(second, name))
+                .Should()
                 .Equal(File.ReadAllBytes(Path.Combine(folder, name)), name);
     }
 
     [Fact]
     public void ANumberThatJsonCannotHoldIsWrittenAsAStringSoTheDumpStillWrites()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: world =>
-        {
-            SceneInstance scene = Probes(world);
-            Entity probe = scene["probe"];
-            world.Spawn(new()
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: world =>
             {
-                Frame = world.GetOwnedFrame(scene["space"]),
-                Components =
-                [
-                    SendOnce.Of(probe, new Nudge { Amount = float.NaN }),
-                    SendOnce.Of(probe, new Aim { Direction = new(float.PositiveInfinity, 0, 0) })
-                ]
-            });
-            return scene;
-        }, script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+                SceneInstance scene = Probes(world);
+                Entity probe = scene["probe"];
+                world.Spawn(
+                    new()
+                    {
+                        Frame = world.GetOwnedFrame(scene["space"]),
+                        Components =
+                        [
+                            SendOnce.Of(probe, new Nudge { Amount = float.NaN }),
+                            SendOnce.Of(probe, new Aim { Direction = new(float.PositiveInfinity, 0, 0) }),
+                        ],
+                    }
+                );
+                return scene;
+            },
+            script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         JsonElement[] payloads = [.. dump.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("payload"))];
         payloads[0].GetProperty("amount").GetString().Should().Be("NaN");
@@ -196,30 +251,47 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void NegativeZeroIsWrittenAsZeroSoThatDumpsCompareAsText()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: world =>
-        {
-            SceneInstance scene = Probes(world);
-            Entity probe = scene["probe"];
-            world.Spawn(new()
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: world =>
             {
-                Frame = world.GetOwnedFrame(scene["space"]),
-                Components = [SendOnce.Of(probe, new Aim { Direction = new(-0f, 1, -0f) })]
-            });
-            return scene;
-        }, script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+                SceneInstance scene = Probes(world);
+                Entity probe = scene["probe"];
+                world.Spawn(
+                    new()
+                    {
+                        Frame = world.GetOwnedFrame(scene["space"]),
+                        Components = [SendOnce.Of(probe, new Aim { Direction = new(-0f, 1, -0f) })],
+                    }
+                );
+                return scene;
+            },
+            script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
-        dump.GetProperty("events")[0].GetProperty("payload").GetProperty("direction").GetRawText().Should()
+        dump.GetProperty("events")[0]
+            .GetProperty("payload")
+            .GetProperty("direction")
+            .GetRawText()
+            .Should()
             .Be("[0, 1, 0]");
     }
 
     [Fact]
     public void ADumpFileWritesAnInputEventInTheFormThatAScriptReads()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: Probes, script: Parse(
-            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } }""",
-            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [1.5, -2] } }""",
-            """{ "do": "run", "ticks": 1 }""",
-            """{ "do": "dump", "name": "now" }"""), dump: "now");
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: Probes,
+            script: Parse(
+                """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } }""",
+                """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [1.5, -2] } }""",
+                """{ "do": "run", "ticks": 1 }""",
+                """{ "do": "dump", "name": "now" }"""
+            ),
+            dump: "now"
+        );
 
         JsonElement[] payloads = [.. dump.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("payload"))];
         payloads[0].EnumerateObject().Select(member => member.Name).Should().Equal("kind", "code");
@@ -233,18 +305,28 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpOfAnInputEventThatHoldsNoCaseOrANaNStillWrites()
     {
-        JsonElement dump = RunAndRead(newWorld: NewWorld, build: world =>
-        {
-            SceneInstance scene = Probes(world);
-            Entity probe = scene["probe"];
-            world.Spawn(new()
+        JsonElement dump = RunAndRead(
+            newWorld: NewWorld,
+            build: world =>
             {
-                Frame = world.GetOwnedFrame(scene["space"]),
-                Components =
-                    [SendOnce.Of(probe, default(InputEvent)), SendOnce.Of(probe, InputEvent.Scroll(new(float.NaN, 1)))]
-            });
-            return scene;
-        }, script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), dump: "now");
+                SceneInstance scene = Probes(world);
+                Entity probe = scene["probe"];
+                world.Spawn(
+                    new()
+                    {
+                        Frame = world.GetOwnedFrame(scene["space"]),
+                        Components =
+                        [
+                            SendOnce.Of(probe, default(InputEvent)),
+                            SendOnce.Of(probe, InputEvent.Scroll(new(float.NaN, 1))),
+                        ],
+                    }
+                );
+                return scene;
+            },
+            script: Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""),
+            dump: "now"
+        );
 
         JsonElement[] payloads = [.. dump.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("payload"))];
         payloads[0].ValueKind.Should().Be(JsonValueKind.Null);

@@ -16,8 +16,10 @@ internal sealed record UnionResult(UnionModel? Model, EquatableArray<Diagnostic>
 /// </summary>
 internal static class UnionReader
 {
-    private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat
-        .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+    private static readonly SymbolDisplayFormat TypeFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
+        );
 
     public static UnionResult Read(GeneratorAttributeSyntaxContext context)
     {
@@ -30,12 +32,14 @@ internal static class UnionReader
             diagnostics.Add(Diagnostic.Create(UnionDiagnostics.NotPartial, location, union.Name));
         for (INamedTypeSymbol? outer = union.ContainingType; outer != null; outer = outer.ContainingType)
             if (!IsPartial(outer))
-                diagnostics.Add(Diagnostic.Create(UnionDiagnostics.ContainerNotPartial, location, outer.Name,
-                    union.Name));
+                diagnostics.Add(
+                    Diagnostic.Create(UnionDiagnostics.ContainerNotPartial, location, outer.Name, union.Name)
+                );
 
-        ImmutableArray<ITypeSymbol> cases = attribute.ConstructorArguments.Length == 1
-            ? [.. attribute.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>()]
-            : [];
+        ImmutableArray<ITypeSymbol> cases =
+            attribute.ConstructorArguments.Length == 1
+                ? [.. attribute.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>()]
+                : [];
         if (cases.IsEmpty)
             diagnostics.Add(Diagnostic.Create(UnionDiagnostics.NoCases, location, union.Name));
         var seen = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
@@ -50,13 +54,14 @@ internal static class UnionReader
                 diagnostics.Add(Diagnostic.Create(UnionDiagnostics.DuplicateCase, location, name, union.Name));
         }
 
-        ITypeSymbol? zeroCase = attribute.NamedArguments
-            .Where(argument => argument.Key == "ZeroCase")
+        ITypeSymbol? zeroCase = attribute
+            .NamedArguments.Where(argument => argument.Key == "ZeroCase")
             .Select(argument => argument.Value.Value as ITypeSymbol)
             .FirstOrDefault();
         if (zeroCase != null && !seen.Contains(zeroCase))
-            diagnostics.Add(Diagnostic.Create(UnionDiagnostics.ZeroCaseNotACase, location, zeroCase.ToDisplayString(),
-                union.Name));
+            diagnostics.Add(
+                Diagnostic.Create(UnionDiagnostics.ZeroCaseNotACase, location, zeroCase.ToDisplayString(), union.Name)
+            );
 
         return diagnostics.Count > 0
             ? new(null, new([.. diagnostics]))
@@ -66,10 +71,12 @@ internal static class UnionReader
     private static UnionModel Model(INamedTypeSymbol union, ImmutableArray<ITypeSymbol> cases, ITypeSymbol? zeroCase)
     {
         // The zero case takes kind 0. Without one, kind 0 is the empty value, and the cases count from 1.
-        IEnumerable<ITypeSymbol> kindOrder = zeroCase == null
-            ? cases
-            : cases.Where(type => SymbolEqualityComparer.Default.Equals(type, zeroCase)).Concat(
-                cases.Where(type => !SymbolEqualityComparer.Default.Equals(type, zeroCase)));
+        IEnumerable<ITypeSymbol> kindOrder =
+            zeroCase == null
+                ? cases
+                : cases
+                    .Where(type => SymbolEqualityComparer.Default.Equals(type, zeroCase))
+                    .Concat(cases.Where(type => !SymbolEqualityComparer.Default.Equals(type, zeroCase)));
         var slots = new SlotTable();
         var displays = new HashSet<string>();
         var models = new List<CaseModel>();
@@ -84,32 +91,54 @@ internal static class UnionReader
             ValueModel[] values = parameters is { } fields
                 ? [.. fields.Select(p => new ValueModel(p.Name, slots.Place(p.Type, $"{display}.{p.Name}")))]
                 : [new(null, slots.Place(type, display))];
-            models.Add(new(Type: type.ToDisplayString(TypeFormat), Display: display, Kind: kind++,
-                Values: new([.. values]), Whole: parameters == null));
+            models.Add(
+                new(
+                    Type: type.ToDisplayString(TypeFormat),
+                    Display: display,
+                    Kind: kind++,
+                    Values: new([.. values]),
+                    Whole: parameters == null
+                )
+            );
         }
 
         (ImmutableArray<SlotModel> ordered, int[] renumber) = slots.Ordered();
         EquatableArray<CaseModel> renumbered = new([
-            .. models.Select(model => model with
-            {
-                Values = new([
-                    .. model.Values.Select(value => value with { Slot = renumber[value.Slot] })
-                ])
-            })
+            .. models.Select(model =>
+                model with
+                {
+                    Values = new([.. model.Values.Select(value => value with { Slot = renumber[value.Slot] })]),
+                }
+            ),
         ]);
 
         var containers = new List<string>();
         for (INamedTypeSymbol? outer = union.ContainingType; outer != null; outer = outer.ContainingType)
-            containers.Insert(0,
-                $"partial {Keyword(outer)} {outer.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}");
+            containers.Insert(
+                0,
+                $"partial {Keyword(outer)} {outer.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}"
+            );
         string? space = union.ContainingNamespace.IsGlobalNamespace
             ? null
             : union.ContainingNamespace.ToDisplayString();
-        string hint = string.Join(".", new[] { space }.Concat(containers.Select(c => c.Split(' ').Last()))
-            .Append(union.Name).Where(part => part != null)) + ".g.cs";
-        return new(Namespace: space, Containers: new([.. containers]), Name: union.Name, IsReadOnly: union.IsReadOnly,
-            Cases: renumbered, Slots: new(ordered), HasZeroCase: zeroCase != null,
-            HintName: hint.Replace('<', '{').Replace('>', '}'));
+        string hint =
+            string.Join(
+                ".",
+                new[] { space }
+                    .Concat(containers.Select(c => c.Split(' ').Last()))
+                    .Append(union.Name)
+                    .Where(part => part != null)
+            ) + ".g.cs";
+        return new(
+            Namespace: space,
+            Containers: new([.. containers]),
+            Name: union.Name,
+            IsReadOnly: union.IsReadOnly,
+            Cases: renumbered,
+            Slots: new(ordered),
+            HasZeroCase: zeroCase != null,
+            HintName: hint.Replace('<', '{').Replace('>', '}')
+        );
     }
 
     /// <summary>
@@ -122,40 +151,49 @@ internal static class UnionReader
         if (type is not INamedTypeSymbol { IsRecord: true, IsValueType: true } record)
             return null;
         IMethodSymbol? primary = record.InstanceConstructors.FirstOrDefault(constructor =>
-            constructor.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is RecordDeclarationSyntax));
+            constructor.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is RecordDeclarationSyntax)
+        );
         ImmutableArray<IParameterSymbol> parameters = primary?.Parameters ?? [];
         var properties = new List<IPropertySymbol>();
         foreach (IParameterSymbol parameter in parameters)
         {
             IPropertySymbol? property = record.GetMembers(parameter.Name).OfType<IPropertySymbol>().FirstOrDefault();
             // The compiler's property is declared by the parameter itself. A hand-written one can change the value.
-            if (property == null || !SymbolEqualityComparer.Default.Equals(property.Type, parameter.Type) ||
-                !property.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is ParameterSyntax))
+            if (
+                property == null
+                || !SymbolEqualityComparer.Default.Equals(property.Type, parameter.Type)
+                || !property.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is ParameterSyntax)
+            )
                 return null;
             properties.Add(property);
         }
 
-        bool onlyParameters = record.GetMembers().OfType<IFieldSymbol>()
+        bool onlyParameters = record
+            .GetMembers()
+            .OfType<IFieldSymbol>()
             .Where(field => !field.IsStatic && !field.IsConst)
             .All(field =>
-                properties.Contains(field.AssociatedSymbol as IPropertySymbol, SymbolEqualityComparer.Default));
+                properties.Contains(field.AssociatedSymbol as IPropertySymbol, SymbolEqualityComparer.Default)
+            );
         bool fromSource = record.DeclaringSyntaxReferences.Length > 0;
         return onlyParameters && fromSource ? parameters : null;
     }
 
     private static bool IsPartial(INamedTypeSymbol type) =>
         type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax() is TypeDeclarationSyntax declaration &&
-            declaration.Modifiers.Any(SyntaxKind.PartialKeyword));
+            reference.GetSyntax() is TypeDeclarationSyntax declaration
+            && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)
+        );
 
-    private static string Keyword(INamedTypeSymbol type) => type switch
-    {
-        { IsRecord: true, IsValueType: true } => "record struct",
-        { IsRecord: true } => "record",
-        { TypeKind: TypeKind.Struct } => "struct",
-        { TypeKind: TypeKind.Interface } => "interface",
-        _ => "class"
-    };
+    private static string Keyword(INamedTypeSymbol type) =>
+        type switch
+        {
+            { IsRecord: true, IsValueType: true } => "record struct",
+            { IsRecord: true } => "record",
+            { TypeKind: TypeKind.Struct } => "struct",
+            { TypeKind: TypeKind.Interface } => "interface",
+            _ => "class",
+        };
 
     /// <summary>
     /// The slots of one union: the k-th value of a type in a case takes the k-th slot of that type, so each type gets as
@@ -191,15 +229,22 @@ internal static class UnionReader
         public (ImmutableArray<SlotModel> Slots, int[] Renumber) Ordered()
         {
             int[] order =
-                [.. Enumerable.Range(0, slots.Count).OrderByDescending(i => slots[i].Alignment).ThenBy(i => i)];
+            [
+                .. Enumerable.Range(0, slots.Count).OrderByDescending(i => slots[i].Alignment).ThenBy(i => i),
+            ];
             int[] renumber = new int[slots.Count];
             for (int position = 0; position < order.Length; position++)
                 renumber[order[position]] = position;
             return (
-            [
-                .. order.Select(i =>
-                    new SlotModel(slots[i].Type, string.Join(", ", slots[i].Holds), slots[i].IsReference))
-            ], renumber);
+                [
+                    .. order.Select(i => new SlotModel(
+                        slots[i].Type,
+                        string.Join(", ", slots[i].Holds),
+                        slots[i].IsReference
+                    )),
+                ],
+                renumber
+            );
         }
 
         /// <summary>The alignment of a field of <paramref name="type"/>, in bytes, as the runtime lays out a struct.</summary>
@@ -214,17 +259,25 @@ internal static class UnionReader
                 SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte => 1,
                 SpecialType.System_Char or SpecialType.System_Int16 or SpecialType.System_UInt16 => 2,
                 SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Single => 4,
-                SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Double
-                    or SpecialType.System_IntPtr or SpecialType.System_UIntPtr or SpecialType.System_Decimal => 8,
+                SpecialType.System_Int64
+                or SpecialType.System_UInt64
+                or SpecialType.System_Double
+                or SpecialType.System_IntPtr
+                or SpecialType.System_UIntPtr
+                or SpecialType.System_Decimal => 8,
                 // Not a primitive: a struct, aligned as its most aligned field.
-                _ => 0
+                _ => 0,
             };
             if (primitive > 0)
                 return primitive;
             if (depth > 8)
                 return 8;
-            return type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
-                .Select(field => Alignment(field.Type, depth + 1)).DefaultIfEmpty(1).Max();
+            return type.GetMembers()
+                .OfType<IFieldSymbol>()
+                .Where(field => !field.IsStatic && !field.IsConst)
+                .Select(field => Alignment(field.Type, depth + 1))
+                .DefaultIfEmpty(1)
+                .Max();
         }
     }
 }

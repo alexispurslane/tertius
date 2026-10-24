@@ -50,11 +50,23 @@ public sealed class KeplerAttitudeTests
     [InlineData(0.37)]
     [InlineData(0.8)]
     public void OnAnOvalOrbitTheBellyPointsExactlyAtTheParentAndTheNoseAcrossTheHorizonInTheDirectionOfMotion(
-        double fractionOfPeriod)
+        double fractionOfPeriod
+    )
     {
-        KeplerOrbit orbit = Facing(new(SemiMajorAxis: 1e7, Eccentricity: 0.3, Inclination: 0.4,
-            LongitudeOfAscendingNode: 1.0, ArgumentOfPeriapsis: 0.5, MeanAnomalyAtEpoch: 0, Epoch: 0,
-            AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0));
+        KeplerOrbit orbit = Facing(
+            new(
+                SemiMajorAxis: 1e7,
+                Eccentricity: 0.3,
+                Inclination: 0.4,
+                LongitudeOfAscendingNode: 1.0,
+                ArgumentOfPeriapsis: 0.5,
+                MeanAnomalyAtEpoch: 0,
+                Epoch: 0,
+                AxialTilt: DQuaternion.Identity,
+                SpinRate: 0,
+                SpinPhaseAtEpoch: 0
+            )
+        );
         double time = fractionOfPeriod * orbit.Period(Mu);
         (Double3 position, Double3 velocity) = orbit.StateAt(time, Mu);
 
@@ -82,24 +94,49 @@ public sealed class KeplerAttitudeTests
     public void OnAnOvalOrbitTheFrameTurnsFasterAtPeriapsisThanAtApoapsisByTheSquareOfTheirDistances()
     {
         const double e = 0.3;
-        KeplerOrbit orbit = Facing(new(SemiMajorAxis: 1e7, Eccentricity: e, Inclination: 0, LongitudeOfAscendingNode: 0,
-            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
-            SpinPhaseAtEpoch: 0));
+        KeplerOrbit orbit = Facing(
+            new(
+                SemiMajorAxis: 1e7,
+                Eccentricity: e,
+                Inclination: 0,
+                LongitudeOfAscendingNode: 0,
+                ArgumentOfPeriapsis: 0,
+                MeanAnomalyAtEpoch: 0,
+                Epoch: 0,
+                AxialTilt: DQuaternion.Identity,
+                SpinRate: 0,
+                SpinPhaseAtEpoch: 0
+            )
+        );
 
         double atPeriapsis = orbit.AngularVelocityAt(0, Mu).Length;
         double atApoapsis = orbit.AngularVelocityAt(orbit.Period(Mu) / 2, Mu).Length;
 
         // The turn rate is h / r², and the distances at the apsides are a (1 - e) and a (1 + e).
-        (atPeriapsis / atApoapsis).Should().BeApproximately(Math.Pow((1 + e) / (1 - e), 2), 1e-9);
+        (atPeriapsis / atApoapsis)
+            .Should()
+            .BeApproximately(Math.Pow((1 + e) / (1 - e), 2), 1e-9);
     }
 
     [Fact]
     public void TheRotationTurnsAtItsAngularVelocity()
     {
-        KeplerOrbit orbit = Facing(new(SemiMajorAxis: 1e7, Eccentricity: 0.3, Inclination: 0.4,
-            LongitudeOfAscendingNode: 1.0, ArgumentOfPeriapsis: 0.5, MeanAnomalyAtEpoch: 0, Epoch: 0,
-            AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0));
-        const double time = 1000, step = 0.01;
+        KeplerOrbit orbit = Facing(
+            new(
+                SemiMajorAxis: 1e7,
+                Eccentricity: 0.3,
+                Inclination: 0.4,
+                LongitudeOfAscendingNode: 1.0,
+                ArgumentOfPeriapsis: 0.5,
+                MeanAnomalyAtEpoch: 0,
+                Epoch: 0,
+                AxialTilt: DQuaternion.Identity,
+                SpinRate: 0,
+                SpinPhaseAtEpoch: 0
+            )
+        );
+        const double time = 1000,
+            step = 0.01;
 
         // The change of the rotation over a short step, as an angle about an axis, is the angular velocity times the step.
         DQuaternion change = orbit.RotationAt(time + step, Mu) * orbit.RotationAt(time, Mu).Conjugate();
@@ -123,15 +160,13 @@ public sealed class KeplerAttitudeTests
     [Fact]
     public void ASpinningFrameKeepsItsSpinWhateverItsPlaceOnTheOrbit()
     {
-        KeplerOrbit orbit = KeplerOrbit.Circular(LowOrbit, spinRate: 0.01);
+        var orbit = KeplerOrbit.Circular(LowOrbit, spinRate: 0.01);
 
         orbit.AngularVelocityAt(0, Mu).Should().Be(orbit.AngularVelocityAt(1000, Mu));
         orbit.AngularVelocityAt(0, Mu).Should().Be(new Double3(0, 0.01, 0));
     }
 
     [Fact]
-    public void AnOrbitWithAnAttitudeThatIsNotDefinedIsNotValid()
-    {
+    public void AnOrbitWithAnAttitudeThatIsNotDefinedIsNotValid() =>
         (KeplerOrbit.Circular(LowOrbit) with { Attitude = (KeplerAttitude)7 }).IsValid.Should().BeFalse();
-    }
 }

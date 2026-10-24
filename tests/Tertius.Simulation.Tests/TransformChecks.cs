@@ -16,13 +16,16 @@ internal static class PoseChecks
 
     /// <summary>Checks that two positions are at most <paramref name="metres"/> apart.</summary>
     public static void AssertNear(Double3 actual, Double3 expected, double metres = 1e-9) =>
-        (actual - expected).Length.Should()
-        .BeLessThanOrEqualTo(metres, "{0} should be within {1} m of {2}", actual, metres, expected);
+        (actual - expected)
+            .Length.Should()
+            .BeLessThanOrEqualTo(metres, "{0} should be within {1} m of {2}", actual, metres, expected);
 
     /// <summary>Checks that two vectors are at most <paramref name="tolerance"/> apart.</summary>
     public static void AssertNear(Vector3 actual, Vector3 expected, float tolerance = 1e-5f) =>
-        Vector3.Distance(actual, expected).Should().BeLessThanOrEqualTo(tolerance, "{0} should be within {1} of {2}",
-            actual, tolerance, expected);
+        Vector3
+            .Distance(actual, expected)
+            .Should()
+            .BeLessThanOrEqualTo(tolerance, "{0} should be within {1} of {2}", actual, tolerance, expected);
 
     /// <summary>
     /// Checks that two quaternions turn a vector the same way. A quaternion and its negation are the same rotation, so

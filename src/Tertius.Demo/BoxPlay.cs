@@ -59,7 +59,8 @@ public sealed class BoxPlay(
     float throwSpeed,
     CapsuleShapeDesc body,
     WheelFloor floor,
-    double rate) : IComponent
+    double rate
+) : IComponent
 {
     /// <summary>How long the person holds a box still before it throws it, in ticks: half a second.</summary>
     public const int AimTicks = 30;
@@ -71,14 +72,19 @@ public sealed class BoxPlay(
     public const int WatchTicks = 150;
 
     private readonly FrameHandle station = station;
-    private readonly Waypoint[] shove = [.. shove], toStand = [.. toStand];
+    private readonly Waypoint[] shove = [.. shove],
+        toStand = [.. toStand];
 
-    private readonly BoxThrow[] throws = throws.Count == BoxPlayState.Throws
-        ? [.. throws]
-        : throw new ArgumentException($"A box play has {BoxPlayState.Throws} throws, not {throws.Count}.",
-            nameof(throws));
+    private readonly BoxThrow[] throws =
+        throws.Count == BoxPlayState.Throws
+            ? [.. throws]
+            : throw new ArgumentException(
+                $"A box play has {BoxPlayState.Throws} throws, not {throws.Count}.",
+                nameof(throws)
+            );
 
-    private readonly double walkSpeed = walkSpeed, rate = rate;
+    private readonly double walkSpeed = walkSpeed,
+        rate = rate;
     private readonly float throwSpeed = throwSpeed;
     private readonly CapsuleShapeDesc body = body ?? throw new ArgumentNullException(nameof(body));
     private readonly WheelFloor floor = floor;
@@ -103,9 +109,16 @@ public sealed class BoxPlay(
             if (e.Is<PlayWithBoxes>())
                 Apply(self, new PlayWithBoxes());
             else if (e.Is<CrateOffer>() && State.TryGetValue(out Taking taking) && e.Sender == throws[taking.Throw].Box)
-                Apply(self,
-                    Take(self: self, outbox: outbox, index: taking.Throw, box: e.Sender,
-                        offered: e.As<CrateOffer>().Crate));
+                Apply(
+                    self,
+                    Take(
+                        self: self,
+                        outbox: outbox,
+                        index: taking.Throw,
+                        box: e.Sender,
+                        offered: e.As<CrateOffer>().Crate
+                    )
+                );
         }
 
         BoxPlayEvent? report = null;
@@ -179,8 +192,10 @@ public sealed class BoxPlay(
         taken[index] = offered;
         Pose view = self.Render.ViewOffset;
         (Vector3 aim, Quaternion turn) = AimInPerson(self, index, offered);
-        var grip = Pose.Compose(view.Inverse(),
-            new(Carry.ThrowStart(body: body, carried: offered, eye: view.Position, aim: aim), turn));
+        var grip = Pose.Compose(
+            view.Inverse(),
+            new(Carry.ThrowStart(body: body, carried: offered, eye: view.Position, aim: aim), turn)
+        );
         outbox.Send(box, new CrateTaken());
         return new Took(self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip)));
     }
@@ -198,10 +213,20 @@ public sealed class BoxPlay(
             return null;
         CrateSpec box = taken[aiming.Throw];
         (Vector3 aim, Quaternion turn) = AimInPerson(self, aiming.Throw, box);
-        thrown.Add(Carry.Release(self: self, outbox: outbox, carried: box, copy: aiming.Copy, body: body,
-            eye: self.Render.ViewOffset.Position, aim: aim, turn: turn,
-            speed: throwSpeed,
-            new FlightRecorder(station: station, floor: floor, rate: rate, halfSize: box.HalfExtents.Y)));
+        thrown.Add(
+            Carry.Release(
+                self: self,
+                outbox: outbox,
+                carried: box,
+                copy: aiming.Copy,
+                body: body,
+                eye: self.Render.ViewOffset.Position,
+                aim: aim,
+                turn: turn,
+                speed: throwSpeed,
+                new FlightRecorder(station: station, floor: floor, rate: rate, halfSize: box.HalfExtents.Y)
+            )
+        );
         return new Thrown();
     }
 
@@ -227,8 +252,9 @@ public sealed class BoxPlay(
         DPose person = self.PoseIn(station);
         DQuaternion toPerson = person.Rotation.Conjugate();
         var aim = toPerson.Rotate(throws[index].Aim).ToVector3();
-        Double3 start = person.TransformPoint(Carry.ThrowStart(body: body, carried: box,
-            eye: self.Render.ViewOffset.Position, aim: aim));
+        Double3 start = person.TransformPoint(
+            Carry.ThrowStart(body: body, carried: box, eye: self.Render.ViewOffset.Position, aim: aim)
+        );
         var release = new ThrowRelease(start, self.VelocityIn(station) + throws[index].Aim * throwSpeed);
         int facet = floor.FacetIndex(release.Landing(rate, floor, box.HalfExtents.Y).Place);
         return (aim, (toPerson * floor.FacetTurn(facet)).ToQuaternion());

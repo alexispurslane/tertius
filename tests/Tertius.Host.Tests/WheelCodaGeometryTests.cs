@@ -16,23 +16,33 @@ public sealed class WheelCodaGeometryTests
     private static WheelFloor Floor => DemoStation.WheelFloor;
 
     /// <summary>The predicted landing of throw <paramref name="index"/> of the design: where the straight line of its release lands it.</summary>
-    private static ThrowLanding Landing(int index) => WheelCoda.DesignRelease(index, WheelCoda.PersonBody)
-        .Landing(SpinStation.Rate, Floor, WheelCoda.BoxHalf);
+    private static ThrowLanding Landing(int index) =>
+        WheelCoda.DesignRelease(index, WheelCoda.PersonBody).Landing(SpinStation.Rate, Floor, WheelCoda.BoxHalf);
 
     [Fact]
     public void TheStackStandsOnTheFloorWithItsMiddleInThePersonsWayAndItsSidesClearOfIt()
     {
         (string Id, DPose Pose)[] stack = [.. WheelCoda.Stack()];
         stack.Should().HaveCount(6);
-        stack.Take(3).Should().OnlyContain(box => Math.Abs(Floor.Height(box.Pose.Position) - WheelCoda.BoxHalf) < 1e-9,
-            "the lowest row rests on the floor");
+        stack
+            .Take(3)
+            .Should()
+            .OnlyContain(
+                box => Math.Abs(Floor.Height(box.Pose.Position) - WheelCoda.BoxHalf) < 1e-9,
+                "the lowest row rests on the floor"
+            );
         Waypoint[] shove = WheelCoda.Shove(default);
         double Across(Double3 place) => Floor.Spinward(shove[^1].Position, place);
         Math.Abs(Across(stack[1].Pose.Position)).Should().BeLessThan(1e-9, "the person walks into the middle box");
         foreach (int side in new[] { 0, 2 })
-            Math.Abs(Across(stack[side].Pose.Position)).Should().BeGreaterThan(
-                WheelCoda.BoxHalf + StationExit.PersonRadius, "the side boxes stand clear of the person's way");
-        shove[^1].Position.Y.Should()
+            Math.Abs(Across(stack[side].Pose.Position))
+                .Should()
+                .BeGreaterThan(
+                    WheelCoda.BoxHalf + StationExit.PersonRadius,
+                    "the side boxes stand clear of the person's way"
+                );
+        shove[^1]
+            .Position.Y.Should()
             .BeGreaterThan(WheelCoda.StackY + WheelCoda.BoxHalf, "the walk goes through the stack");
     }
 
@@ -44,13 +54,20 @@ public sealed class WheelCodaGeometryTests
     [Fact]
     public void TheDesignsThrowsRunInTheLaneUnderTheCeilingInTheLight()
     {
-        (Math.Abs(WheelCoda.LaneY) - StationExit.Chute.HalfWidth - StationExit.PlateThickness -
-         WheelCoda.BoxHalf * Math.Sqrt(3)).Should().BeGreaterThan(0.8);
+        (
+            Math.Abs(WheelCoda.LaneY)
+            - StationExit.Chute.HalfWidth
+            - StationExit.PlateThickness
+            - WheelCoda.BoxHalf * Math.Sqrt(3)
+        )
+            .Should()
+            .BeGreaterThan(0.8);
         for (int i = 0; i < BoxPlayState.Throws; i++)
         {
             ThrowRelease release = WheelCoda.DesignRelease(i, WheelCoda.PersonBody);
             ThrowLanding landing = Landing(i);
-            double apex = Enumerable.Range(0, (int)(landing.Time * 1000))
+            double apex = Enumerable
+                .Range(0, (int)(landing.Time * 1000))
                 .Max(ms => Floor.Height(release.PlaceAt(ms / 1000.0, SpinStation.Rate)));
             apex.Should().BeLessThan(5 - 0.5 - WheelCoda.BoxHalf * Math.Sqrt(3), $"throw {i} passes below the ceiling");
             landing.Place.Z.Should().BeInRange(-12, 16);
@@ -65,8 +82,9 @@ public sealed class WheelCodaGeometryTests
         for (int i = 0; i < BoxPlayState.Throws; i++)
         {
             Double3 box = WheelCoda.ThrowBoxPose(i).Position;
-            double apart = Math.Sqrt(Math.Pow(Floor.Spinward(WheelCoda.Stand, box), 2) +
-                                     Math.Pow(box.Y - WheelCoda.Stand.Y, 2));
+            double apart = Math.Sqrt(
+                Math.Pow(Floor.Spinward(WheelCoda.Stand, box), 2) + Math.Pow(box.Y - WheelCoda.Stand.Y, 2)
+            );
             apart.Should().BeInRange(StationExit.PersonRadius + WheelCoda.BoxHalf * Math.Sqrt(2) + 0.1, 1.2);
             Floor.Height(box).Should().BeApproximately(WheelCoda.BoxHalf, 1e-9);
         }
@@ -82,7 +100,9 @@ public sealed class WheelCodaGeometryTests
         Waypoint[] toStand = WheelCoda.ToStand(default);
         toStand[^1].Position.Should().Be(WheelCoda.Stand);
         for (int i = 0; i < BoxPlayState.Throws; i++)
-            WheelCoda.ThrowBoxPose(i).Position.Y.Should()
+            WheelCoda
+                .ThrowBoxPose(i)
+                .Position.Y.Should()
                 .BeLessThan(WheelCoda.Stand.Y - StationExit.PersonRadius - WheelCoda.BoxHalf);
     }
 
@@ -95,9 +115,15 @@ public sealed class WheelCodaGeometryTests
             ThrowRelease release = WheelCoda.DesignRelease(i, WheelCoda.PersonBody);
             Double3 mark = WheelCoda.FlatMark(i, WheelCoda.PersonBody);
             Floor.Height(mark).Should().BeApproximately(0, 1e-9);
-            Floor.Spinward(release.Place, mark).Should().BeApproximately(
-                release.FlatLanding(SpinStation.Rate * SpinStation.Rate * Floor.Radius, Floor, WheelCoda.BoxHalf)
-                    .Spinward, 1e-9);
+            Floor
+                .Spinward(release.Place, mark)
+                .Should()
+                .BeApproximately(
+                    release
+                        .FlatLanding(SpinStation.Rate * SpinStation.Rate * Floor.Radius, Floor, WheelCoda.BoxHalf)
+                        .Spinward,
+                    1e-9
+                );
             mark.Y.Should().Be(WheelCoda.LaneY);
         }
     }
@@ -113,7 +139,8 @@ public sealed class WheelCodaGeometryTests
         static void Sees(DPose view, Double3 point, string what)
         {
             Double3 at = Picture.Project(view, point, VerticalFov);
-            (at.Z > 0.5 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9).Should()
+            (at.Z > 0.5 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9)
+                .Should()
                 .BeTrue($"the camera sees {what} at {at}");
         }
 

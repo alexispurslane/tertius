@@ -17,13 +17,16 @@ public sealed partial class SectionBannerComment : IRule
     public string Message => "A decorative banner comment: delete it, and let the structure of the code speak.";
     public string Source => "scb-check misc.yaml: section-banner-comment";
 
-    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
-    {
-        CompilationUnitSyntax file => file.DescendantTrivia()
-            .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && Banner().IsMatch(trivia.ToString()))
-            .Select(trivia => trivia.Span),
-        _ => []
-    };
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) =>
+        node switch
+        {
+            CompilationUnitSyntax file => file.DescendantTrivia()
+                .Where(trivia =>
+                    trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && Banner().IsMatch(trivia.ToString())
+                )
+                .Select(trivia => trivia.Span),
+            _ => [],
+        };
 
     // A comment that is only a rule of at least 10 dashes or equals signs, as scb-check reads one.
     [GeneratedRegex(@"^//\s*[-=─]{10,}\s*$")]
@@ -46,12 +49,59 @@ public sealed partial class CommentRepeatsCode : IRule
     private const double RepeatedShare = 4.0 / 5.0;
 
     private static readonly FrozenSet<string> CommonWords = FrozenSet.ToFrozenSet(
-    [
-        "the", "and", "for", "with", "from", "into", "onto", "are", "its", "this", "that", "these", "those", "then",
-        "else", "not", "our", "here", "there", "now", "all", "each", "one", "but", "has", "have", "was", "were", "will",
-        "can", "may", "also", "only", "just", "when", "which", "who", "what", "they", "them", "their", "than", "too",
-        "very", "does", "did", "get", "set", "new"
-    ], StringComparer.Ordinal);
+        [
+            "the",
+            "and",
+            "for",
+            "with",
+            "from",
+            "into",
+            "onto",
+            "are",
+            "its",
+            "this",
+            "that",
+            "these",
+            "those",
+            "then",
+            "else",
+            "not",
+            "our",
+            "here",
+            "there",
+            "now",
+            "all",
+            "each",
+            "one",
+            "but",
+            "has",
+            "have",
+            "was",
+            "were",
+            "will",
+            "can",
+            "may",
+            "also",
+            "only",
+            "just",
+            "when",
+            "which",
+            "who",
+            "what",
+            "they",
+            "them",
+            "their",
+            "than",
+            "too",
+            "very",
+            "does",
+            "did",
+            "get",
+            "set",
+            "new",
+        ],
+        StringComparer.Ordinal
+    );
 
     public string Id => "comment-repeats-code";
     public string Message => "A comment that repeats the code under it: delete it, or say why the code does this.";
@@ -59,15 +109,19 @@ public sealed partial class CommentRepeatsCode : IRule
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
-        if (node is not StatementSyntax statement || statement is BlockSyntax ||
-            CommentsAbove(statement.GetFirstToken().LeadingTrivia) is not [var first, ..] comments)
+        if (
+            node is not StatementSyntax statement
+            || statement is BlockSyntax
+            || CommentsAbove(statement.GetFirstToken().LeadingTrivia) is not [var first, ..] comments
+        )
             return [];
         HashSet<string> said = [.. comments.SelectMany(comment => WordsOf(comment.ToString()))];
         HashSet<string> coded =
         [
-            .. statement.DescendantTokens(descendIntoChildren: child => child == statement || child is not BlockSyntax)
+            .. statement
+                .DescendantTokens(descendIntoChildren: child => child == statement || child is not BlockSyntax)
                 .Where(token => token.IsKeyword() || token.IsKind(SyntaxKind.IdentifierToken))
-                .SelectMany(token => WordsOf(token.ValueText))
+                .SelectMany(token => WordsOf(token.ValueText)),
         ];
         bool repeats = said.Count >= LeastWords && said.Count(coded.Contains) >= said.Count * RepeatedShare;
         return repeats ? [TextSpan.FromBounds(first.SpanStart, comments[^1].Span.End)] : [];
@@ -100,16 +154,19 @@ public sealed partial class CommentRepeatsCode : IRule
 
     // The parser reads doc comments as plain comments (SourceFile), so the three slashes tell them apart.
     private static bool IsLineComment(SyntaxTrivia trivia) =>
-        trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) &&
-        !trivia.ToString().StartsWith("///", StringComparison.Ordinal);
+        trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
+        && !trivia.ToString().StartsWith("///", StringComparison.Ordinal);
 
     private static IEnumerable<string> WordsOf(string text) =>
-        Word().Matches(text)
+        Word()
+            .Matches(text)
             .Select(match => match.Value.ToLowerInvariant())
             .Where(word => word.Length >= 3 && !CommonWords.Contains(word))
-            .Select(word => word.Length > 3 && word.EndsWith('s') && !word.EndsWith("ss", StringComparison.Ordinal)
-                ? word[..^1]
-                : word);
+            .Select(word =>
+                word.Length > 3 && word.EndsWith('s') && !word.EndsWith("ss", StringComparison.Ordinal)
+                    ? word[..^1]
+                    : word
+            );
 
     // A word of text or of a name in camel case: a run of capitals before another capital or the end, or an optional
     // capital and lower-case letters.
@@ -128,7 +185,8 @@ public sealed partial class DocCommentRepeatsName : IRule
 {
     private static readonly FrozenSet<string> FillerWords = FrozenSet.ToFrozenSet(
         ["a", "an", "the", "of", "to", "this", "that", "its", "is", "and", "or", "gets", "sets", "returns", "given"],
-        StringComparer.Ordinal);
+        StringComparer.Ordinal
+    );
 
     public string Id => "doc-comment-repeats-name";
 
@@ -143,32 +201,42 @@ public sealed partial class DocCommentRepeatsName : IRule
             return [];
         SyntaxTrivia[] lines =
         [
-            .. member.GetLeadingTrivia().Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) &&
-                                                         trivia.ToString().StartsWith("///", StringComparison.Ordinal))
+            .. member
+                .GetLeadingTrivia()
+                .Where(trivia =>
+                    trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
+                    && trivia.ToString().StartsWith("///", StringComparison.Ordinal)
+                ),
         ];
         string doc = string.Join('\n', lines.Select(line => line.ToString()[3..]));
         (Match Element, string Name)[] elements =
         [
             .. Summary().Matches(doc).Select(match => (match, name)),
-            .. Param().Matches(doc).Select(match => (match, match.Groups["name"].Value))
+            .. Param().Matches(doc).Select(match => (match, match.Groups["name"].Value)),
         ];
-        return elements.Where(element => Repeats(element.Element.Groups["text"].Value, element.Name))
-            .Select(element => TextSpan.FromBounds(lines[LineAt(doc, element.Element.Index)].SpanStart,
-                lines[LineAt(doc, element.Element.Index + element.Element.Length - 1)].Span.End));
+        return elements
+            .Where(element => Repeats(element.Element.Groups["text"].Value, element.Name))
+            .Select(element =>
+                TextSpan.FromBounds(
+                    lines[LineAt(doc, element.Element.Index)].SpanStart,
+                    lines[LineAt(doc, element.Element.Index + element.Element.Length - 1)].Span.End
+                )
+            );
     }
 
-    private static string? DeclaredName(MemberDeclarationSyntax member) => member switch
-    {
-        BaseTypeDeclarationSyntax type => type.Identifier.ValueText,
-        DelegateDeclarationSyntax type => type.Identifier.ValueText,
-        MethodDeclarationSyntax method => method.Identifier.ValueText,
-        ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
-        PropertyDeclarationSyntax property => property.Identifier.ValueText,
-        EventDeclarationSyntax @event => @event.Identifier.ValueText,
-        BaseFieldDeclarationSyntax { Declaration.Variables: [var first, ..] } => first.Identifier.ValueText,
-        EnumMemberDeclarationSyntax value => value.Identifier.ValueText,
-        _ => null
-    };
+    private static string? DeclaredName(MemberDeclarationSyntax member) =>
+        member switch
+        {
+            BaseTypeDeclarationSyntax type => type.Identifier.ValueText,
+            DelegateDeclarationSyntax type => type.Identifier.ValueText,
+            MethodDeclarationSyntax method => method.Identifier.ValueText,
+            ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
+            PropertyDeclarationSyntax property => property.Identifier.ValueText,
+            EventDeclarationSyntax @event => @event.Identifier.ValueText,
+            BaseFieldDeclarationSyntax { Declaration.Variables: [var first, ..] } => first.Identifier.ValueText,
+            EnumMemberDeclarationSyntax value => value.Identifier.ValueText,
+            _ => null,
+        };
 
     // Whether every word of the text is a word of the name, and the text has a word.
     private static bool Repeats(string text, string name)
@@ -212,13 +280,14 @@ public sealed class CommentedOutCode : IRule
     public string Message => "Commented-out code: delete it, the history keeps the old code.";
     public string Source => "The user";
 
-    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
-    {
-        CompilationUnitSyntax file => file.DescendantTrivia()
-            .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && IsCode(trivia.ToString()))
-            .Select(trivia => trivia.Span),
-        _ => []
-    };
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) =>
+        node switch
+        {
+            CompilationUnitSyntax file => file.DescendantTrivia()
+                .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && IsCode(trivia.ToString()))
+                .Select(trivia => trivia.Span),
+            _ => [],
+        };
 
     // A comment is code when it ends in a semicolon and parses as a statement without errors, other than a lone name
     // such as "Done;", which a sentence can be too. A sentence ends in a full stop, and the prose of this project holds
@@ -243,15 +312,18 @@ public sealed partial class TodoWithoutTicket : IRule
     public string Message => "A TODO without a ticket id: make a ticket with tk create and name it, or do the work.";
     public string Source => "The user";
 
-    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
-    {
-        CompilationUnitSyntax file => file.DescendantTrivia()
-            .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) ||
-                             trivia.IsKind(SyntaxKind.MultiLineCommentTrivia))
-            .Where(trivia => Todo().IsMatch(trivia.ToString()) && !Ticket().IsMatch(trivia.ToString()))
-            .Select(trivia => trivia.Span),
-        _ => []
-    };
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) =>
+        node switch
+        {
+            CompilationUnitSyntax file => file.DescendantTrivia()
+                .Where(trivia =>
+                    trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)
+                    || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)
+                )
+                .Where(trivia => Todo().IsMatch(trivia.ToString()) && !Ticket().IsMatch(trivia.ToString()))
+                .Select(trivia => trivia.Span),
+            _ => [],
+        };
 
     [GeneratedRegex(@"\b(TODO|FIXME|HACK|XXX)\b")]
     private static partial Regex Todo();
@@ -267,12 +339,15 @@ public sealed class Region : IRule
     public string Message => "A #region: delete it, and split a type that needs one into smaller types.";
     public string Source => "The user";
 
-    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
-    {
-        CompilationUnitSyntax file => file.DescendantTrivia()
-            .Where(trivia => trivia.IsKind(SyntaxKind.RegionDirectiveTrivia) ||
-                             trivia.IsKind(SyntaxKind.EndRegionDirectiveTrivia))
-            .Select(trivia => trivia.Span),
-        _ => []
-    };
+    public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) =>
+        node switch
+        {
+            CompilationUnitSyntax file => file.DescendantTrivia()
+                .Where(trivia =>
+                    trivia.IsKind(SyntaxKind.RegionDirectiveTrivia)
+                    || trivia.IsKind(SyntaxKind.EndRegionDirectiveTrivia)
+                )
+                .Select(trivia => trivia.Span),
+            _ => [],
+        };
 }

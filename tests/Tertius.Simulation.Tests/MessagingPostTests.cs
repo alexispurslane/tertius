@@ -8,8 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class MessagingPostTests
 {
-    private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target: target, sender: Entity.Null, payload: payload);
+    private static Event Message<T>(Target target, T payload)
+        where T : unmanaged, IEventPayload => Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     [Fact]
     public void AMessagePostedBeforeATickIsHandledOneTickAfterIt()
@@ -61,14 +61,18 @@ public sealed class MessagingPostTests
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
         World world = t.World;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            // Posted first inside the same call, and still after the message in the outbox.
-            world.Post(Message(target, new Ping { Value = 2 }));
-            outbox.Send(target, new Ping { Value = 1 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    // Posted first inside the same call, and still after the message in the outbox.
+                    world.Post(Message(target, new Ping { Value = 2 }));
+                    outbox.Send(target, new Ping { Value = 1 });
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -82,7 +86,14 @@ public sealed class MessagingPostTests
         Topic topic = Topics.Get("tests.messagingpost.topic");
         var subscriber = new Recorder();
         var bystander = new Recorder();
-        t.World.Spawn(new() { Frame = t.Root, Components = [subscriber], Subscriptions = [topic] });
+        t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                Components = [subscriber],
+                Subscriptions = [topic],
+            }
+        );
         t.SpawnWith(bystander);
 
         t.World.Post(Message(topic, new Ping { Value = 1 }));
@@ -130,11 +141,15 @@ public sealed class MessagingPostTests
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
 
-        Parallel.For(0, 4, thread =>
-        {
-            for (int i = 0; i < 250; i++)
-                t.World.Post(Message(target, new Ping { Value = thread * 1000 + i }));
-        });
+        Parallel.For(
+            0,
+            4,
+            thread =>
+            {
+                for (int i = 0; i < 250; i++)
+                    t.World.Post(Message(target, new Ping { Value = thread * 1000 + i }));
+            }
+        );
         t.World.Tick();
         inbox.Runs.Should().Be(0);
         t.World.Tick();

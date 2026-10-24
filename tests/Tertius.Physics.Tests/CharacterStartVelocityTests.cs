@@ -27,27 +27,27 @@ public sealed class CharacterStartVelocityTests
     {
         Vector3 chord = InstantStart.Jump(Jump).FloatChordBehind(HalfStep);
 
-        chord.Should().Be(Jump - HalfStep,
-            "a jump keeps the float rule of before, which never added the home's excess");
+        chord
+            .Should()
+            .Be(Jump - HalfStep, "a jump keeps the float rule of before, which never added the home's excess");
     }
 
     [Fact]
-    public void
-        AVelocityThatTheGameGaveLosesHalfAStepOfGravityAndTheHomesExcessToTheBitOfTheRuleBeforeTheRotationTerms()
+    public void AVelocityThatTheGameGaveLosesHalfAStepOfGravityAndTheHomesExcessToTheBitOfTheRuleBeforeTheRotationTerms()
     {
-        InstantStart start = InstantStart.Given(Jump, Over);
+        var start = InstantStart.Given(Jump, Over);
 
-        start.FloatChordBehind(HalfStep).Should().Be(Jump - (HalfStep + Over),
-            "the float rule of before took both in one subtraction");
-        start.Local.Should().Be(Jump - (Double3)Over,
-            "the exact rule takes the velocity relative to the home's instant velocity");
+        start
+            .FloatChordBehind(HalfStep)
+            .Should()
+            .Be(Jump - (HalfStep + Over), "the float rule of before took both in one subtraction");
+        start
+            .Local.Should()
+            .Be(Jump - (Double3)Over, "the exact rule takes the velocity relative to the home's instant velocity");
     }
 
     [Fact]
-    public void AJumpIsRelativeToTheHomesInstantVelocity()
-    {
-        InstantStart.Jump(Jump).Local.Should().Be((Double3)Jump);
-    }
+    public void AJumpIsRelativeToTheHomesInstantVelocity() => InstantStart.Jump(Jump).Local.Should().Be((Double3)Jump);
 }
 
 /// <summary>
@@ -65,20 +65,23 @@ public sealed class CharacterPressedWeightTests
     private static readonly Vector3 SteepNormal = new(-0.5f, 0, 0.8660254f);
 
     [Fact]
-    public void ACharacterThatDoesNotStandHandsJoltItsWholeWeightWithTheCoriolisTerm()
-    {
-        JoltPhysicsBackend.PressedWeight(weight: Weight, standing: false, up: Up, normal: SteepNormal).Should().Be(
-            Weight,
-            "nothing holds a character that does not stand, so Jolt presses its steep ground with the part of the whole input along the face's normal");
-    }
+    public void ACharacterThatDoesNotStandHandsJoltItsWholeWeightWithTheCoriolisTerm() =>
+        JoltPhysicsBackend
+            .PressedWeight(weight: Weight, standing: false, up: Up, normal: SteepNormal)
+            .Should()
+            .Be(
+                Weight,
+                "nothing holds a character that does not stand, so Jolt presses its steep ground with the part of the whole input along the face's normal"
+            );
 
     [Fact]
     public void AStandingCharacterHandsJoltThePartOfItsWeightAlongUpAlongTheGroundsNormal()
     {
-        Vector3 normal = Vector3.Normalize(new(-0.94f, 0, 0.342f));
+        var normal = Vector3.Normalize(new(-0.94f, 0, 0.342f));
 
-        JoltPhysicsBackend.PressedWeight(weight: Weight, standing: true, up: Up, normal: normal).Should().Be(
-            Vector3.Dot(Weight, Up) * normal,
-            "the ground holds the rest of a standing character's weight");
+        JoltPhysicsBackend
+            .PressedWeight(weight: Weight, standing: true, up: Up, normal: normal)
+            .Should()
+            .Be(Vector3.Dot(Weight, Up) * normal, "the ground holds the rest of a standing character's weight");
     }
 }

@@ -83,11 +83,19 @@ internal readonly partial struct QueryFilter
         switch (this)
         {
             case NearAsker:
-                return TryCenterOfEntity(snapshot: snapshot, center: snapshot.Asker, centerFrame: out frame,
-                    centerPoint: out point);
+                return TryCenterOfEntity(
+                    snapshot: snapshot,
+                    center: snapshot.Asker,
+                    centerFrame: out frame,
+                    centerPoint: out point
+                );
             case NearEntity { Other: var center }:
-                return TryCenterOfEntity(snapshot: snapshot, center: center, centerFrame: out frame,
-                    centerPoint: out point);
+                return TryCenterOfEntity(
+                    snapshot: snapshot,
+                    center: center,
+                    centerFrame: out frame,
+                    centerPoint: out point
+                );
             case NearPoint { Frame: var pointFrame, Point: var center }:
                 frame = pointFrame;
                 point = center;
@@ -111,33 +119,53 @@ internal readonly partial struct QueryFilter
 
     // No discard arm: the compiler checks that every case has an arm, so a new case makes this a warning, not a silent pass.
     // Passes decides the empty filter before it calls, so the null arm only runs for a direct call.
-    private bool PassesHeldCase(in Snapshot snapshot, Entity entity, in TransformRow row) => this switch
-    {
-        InFilter(var inFrame) => row.Frame == inFrame,
-        WhereFilter(var test) => test(snapshot, entity),
-        NearAsker(var distance) => IsWithinRadiusOfEntity(snapshot: snapshot, center: snapshot.Asker, row: row,
-            distance: distance),
-        NearEntity { Other: var center, Radius: var distance } => IsWithinRadiusOfEntity(snapshot: snapshot,
-            center: center, row: row, distance: distance),
-        NearPoint { Frame: var pointFrame, Point: var center, Radius: var distance } =>
-            snapshot.World.Frames.IsAlive(pointFrame) && IsWithin(row: row, centerFrame: pointFrame,
-                centerPoint: center, distance: distance),
-        null => true
-    };
+    private bool PassesHeldCase(in Snapshot snapshot, Entity entity, in TransformRow row) =>
+        this switch
+        {
+            InFilter(var inFrame) => row.Frame == inFrame,
+            WhereFilter(var test) => test(snapshot, entity),
+            NearAsker(var distance) => IsWithinRadiusOfEntity(
+                snapshot: snapshot,
+                center: snapshot.Asker,
+                row: row,
+                distance: distance
+            ),
+            NearEntity { Other: var center, Radius: var distance } => IsWithinRadiusOfEntity(
+                snapshot: snapshot,
+                center: center,
+                row: row,
+                distance: distance
+            ),
+            NearPoint { Frame: var pointFrame, Point: var center, Radius: var distance } =>
+                snapshot.World.Frames.IsAlive(pointFrame)
+                    && IsWithin(row: row, centerFrame: pointFrame, centerPoint: center, distance: distance),
+            null => true,
+        };
 
     /// <summary>True if the row is in the frame of the live entity <paramref name="center"/>, within
     /// <paramref name="distance"/> meters of it.</summary>
-    private static bool IsWithinRadiusOfEntity(in Snapshot snapshot, Entity center, in TransformRow row,
-        double distance) =>
-        TryCenterOfEntity(snapshot: snapshot, center: center, centerFrame: out FrameHandle centerFrame,
-            centerPoint: out Double3 centerPoint)
-        && IsWithin(row: row, centerFrame: centerFrame, centerPoint: centerPoint, distance: distance);
+    private static bool IsWithinRadiusOfEntity(
+        in Snapshot snapshot,
+        Entity center,
+        in TransformRow row,
+        double distance
+    ) =>
+        TryCenterOfEntity(
+            snapshot: snapshot,
+            center: center,
+            centerFrame: out FrameHandle centerFrame,
+            centerPoint: out Double3 centerPoint
+        ) && IsWithin(row: row, centerFrame: centerFrame, centerPoint: centerPoint, distance: distance);
 
     private static bool IsWithin(in TransformRow row, FrameHandle centerFrame, Double3 centerPoint, double distance) =>
         row.Frame == centerFrame && (row.Pose.Position - centerPoint).LengthSquared <= distance * distance;
 
-    private static bool TryCenterOfEntity(in Snapshot snapshot, Entity center, out FrameHandle centerFrame,
-        out Double3 centerPoint)
+    private static bool TryCenterOfEntity(
+        in Snapshot snapshot,
+        Entity center,
+        out FrameHandle centerFrame,
+        out Double3 centerPoint
+    )
     {
         EntityTable entities = snapshot.World.Entities;
         if (!entities.IsAlive(center))
@@ -156,6 +184,9 @@ internal readonly partial struct QueryFilter
     private static double CheckRadius(double radius) =>
         radius >= 0 && double.IsFinite(radius)
             ? radius
-            : throw new ArgumentOutOfRangeException(nameof(radius), radius,
-                "A Near radius must be finite and zero or more.");
+            : throw new ArgumentOutOfRangeException(
+                nameof(radius),
+                radius,
+                "A Near radius must be finite and zero or more."
+            );
 }

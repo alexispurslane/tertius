@@ -9,7 +9,8 @@ namespace Tertius.Simulation;
 /// The enumerator yields references, so <c>foreach (ref var p in ...)</c> edits the payloads in place. Do not add or
 /// remove events while enumerating.
 /// </summary>
-public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
+public readonly ref struct EventsOf<T>
+    where T : unmanaged, IEventPayload
 {
     private readonly EventBuffer buffer;
     private readonly EventQuery<T> query;
@@ -74,7 +75,8 @@ public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
 /// The events of type <typeparamref name="T"/> in an <see cref="EventList"/> that a query with a state predicate
 /// matches, in inbox order. It comes from <see cref="EventsOf{T}.Where{TState}"/> and has the same endings.
 /// </summary>
-public readonly ref struct EventsOf<T, TState> where T : unmanaged, IEventPayload
+public readonly ref struct EventsOf<T, TState>
+    where T : unmanaged, IEventPayload
 {
     private readonly EventBuffer buffer;
     private readonly EventQuery<T, TState> query;
@@ -191,7 +193,8 @@ public readonly ref struct EventsOfAnyType
 }
 
 /// <summary>The walk over an inbox that every query's enumerator runs: it yields the events that a filter matches, in order.</summary>
-internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
+internal ref struct EventCursor<TFilter>
+    where TFilter : struct, IEventFilter
 {
     private readonly EventBuffer buffer;
     private readonly Span<Event> items;
@@ -199,7 +202,9 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
     private readonly int version;
 
     // Not readonly: a call on a readonly field of a generic struct type would copy the filter first.
+#pragma warning disable IDE0044
     private TFilter filter;
+#pragma warning restore IDE0044
     private int index;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -234,5 +239,6 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
     [DoesNotReturn]
     private static void ThrowModified() =>
         throw new InvalidOperationException(
-            "The event list changed during enumeration. Use Where(...).Remove() to remove events by payload.");
+            "The event list changed during enumeration. Use Where(...).Remove() to remove events by payload."
+        );
 }

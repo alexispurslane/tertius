@@ -116,20 +116,35 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         carried = spec;
         outbox.Send(crate, new CrateTaken());
         copy = self.Spawn(
-            spec.HeldCopy(frame: self.Frame, holder: self.Entity, view: self.Render.ViewOffset,
-                grip: new(Hold, Quaternion.Identity)));
+            spec.HeldCopy(
+                frame: self.Frame,
+                holder: self.Entity,
+                view: self.Render.ViewOffset,
+                grip: new(Hold, Quaternion.Identity)
+            )
+        );
     }
 
     private void Throw(Self self, Outbox outbox)
     {
         // Stryker disable once Arithmetic : while ChargeSeconds is 1, dividing by it and multiplying by it give the same speed.
-        float speed = MathF.Min(MaxThrowSpeed,
-            MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
+        float speed = MathF.Min(
+            MaxThrowSpeed,
+            MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds
+        );
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;
-        Release(self: self, outbox: outbox, carried: carried, copy: copy, body: body, eye: view.Position,
+        Release(
+            self: self,
+            outbox: outbox,
+            carried: carried,
+            copy: copy,
+            body: body,
+            eye: view.Position,
             aim: Vector3.Transform(-Vector3.UnitZ, view.Rotation),
-            turn: view.Rotation, speed: speed);
+            turn: view.Rotation,
+            speed: speed
+        );
         copy = Entity.Null;
     }
 
@@ -139,8 +154,14 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     /// bounding sphere touching <paramref name="body"/>, the thrower's capsule, with a gap of <see cref="ThrowGap"/>.
     /// </summary>
     public static Vector3 ThrowStart(CapsuleShapeDesc body, CrateSpec carried, Vector3 eye, Vector3 aim) =>
-        eye + aim * Clearance(eye: eye, aim: aim, halfHeight: body.HalfHeight,
-            radius: body.Radius + carried.BoundingRadius + ThrowGap);
+        eye
+        + aim
+            * Clearance(
+                eye: eye,
+                aim: aim,
+                halfHeight: body.HalfHeight,
+                radius: body.Radius + carried.BoundingRadius + ThrowGap
+            );
 
     /// <summary>
     /// Throws <paramref name="carried"/> from the hands of the thrower of <paramref name="self"/>, whose capsule is
@@ -153,17 +174,28 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     /// tick's step, before the new crate becomes live at the end of the tick. So the crate starts from where the
     /// thrower's velocity takes it in one tick. Returns the new crate.
     /// </summary>
-    public static Entity Release(Self self, Outbox outbox, CrateSpec carried, Entity copy, CapsuleShapeDesc body,
-        Vector3 eye, Vector3 aim, Quaternion turn,
-        float speed, params IComponent[] more)
+    public static Entity Release(
+        Self self,
+        Outbox outbox,
+        CrateSpec carried,
+        Entity copy,
+        CapsuleShapeDesc body,
+        Vector3 eye,
+        Vector3 aim,
+        Quaternion turn,
+        float speed,
+        params IComponent[] more
+    )
     {
         // The thrower's pose at the end of this tick's step, as far as its velocity tells.
         DPose pose = self.PoseIn(self.Frame);
         Double3 velocity = self.VelocityIn(self.Frame);
         DPose thrower = pose with { Position = pose.Position + velocity * self.DeltaTime };
         Vector3 throwVelocity = thrower.Rotation.Rotate(aim) * speed;
-        DPose start = DPose.Compose(thrower,
-            new Pose(ThrowStart(body: body, carried: carried, eye: eye, aim: aim), turn).ToDPose());
+        var start = DPose.Compose(
+            thrower,
+            new Pose(ThrowStart(body: body, carried: carried, eye: eye, aim: aim), turn).ToDPose()
+        );
         Entity crate = self.Spawn(carried.Spawn(self.Frame, start, velocity + throwVelocity, more));
         self.Body.AddImpulse(-carried.Mass * throwVelocity);
         outbox.Send(copy, new Destroy());
@@ -183,10 +215,12 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
             return 0;
         // The aim leaves the capsule through its round side, the cylinder about Y, if the point where it leaves the
         // cylinder lies between the ends of the segment.
-        float across = aim.X * aim.X + aim.Z * aim.Z, end = MathF.Sign(aim.Y) * halfHeight;
+        float across = aim.X * aim.X + aim.Z * aim.Z,
+            end = MathF.Sign(aim.Y) * halfHeight;
         if (across > 0)
         {
-            float b = eye.X * aim.X + eye.Z * aim.Z, c = eye.X * eye.X + eye.Z * eye.Z - radius * radius;
+            float b = eye.X * aim.X + eye.Z * aim.Z,
+                c = eye.X * eye.X + eye.Z * eye.Z - radius * radius;
             float side = (-b + MathF.Sqrt(MathF.Max(0, b * b - across * c))) / across;
             float y = eye.Y + aim.Y * side;
             // Stryker disable once Equality : where the exit point lies exactly at the end of the cylinder, the round side and the rounded end give the same point.

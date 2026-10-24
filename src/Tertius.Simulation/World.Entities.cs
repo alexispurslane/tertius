@@ -155,7 +155,8 @@ public sealed partial class World
         if (!gravity.IsValid)
             throw new ArgumentException(
                 $"Cannot give {frame} this gravity field: the field is not valid (see GravityField.IsValid).",
-                nameof(gravity));
+                nameof(gravity)
+            );
 
         Frames.SetGravity(frame, gravity);
     }
@@ -175,7 +176,9 @@ public sealed partial class World
             throw new ArgumentException($"Cannot set the medium of {frame}: the frame is gone.", nameof(frame));
         if (!medium.IsValid)
             throw new ArgumentException(
-                $"Cannot give {frame} this medium: the medium is not valid (see MediumField.IsValid).", nameof(medium));
+                $"Cannot give {frame} this medium: the medium is not valid (see MediumField.IsValid).",
+                nameof(medium)
+            );
 
         Frames.SetMedium(frame, medium);
     }
@@ -196,7 +199,8 @@ public sealed partial class World
             if (desc.AsFrame is null && desc.AttachTo.IsNull)
                 throw new ArgumentException(
                     "A spawned entity needs a frame. Only a frame entity can be a root, and only an attached entity takes the frame of its parent.",
-                    nameof(desc));
+                    nameof(desc)
+                );
         }
         else if (!Frames.IsAlive(desc.Frame))
         {
@@ -207,13 +211,18 @@ public sealed partial class World
         if (!desc.Pose.IsValid)
             throw new ArgumentException(
                 $"Cannot spawn at the pose {desc.Pose}: its position must be finite, and its rotation finite and not zero.",
-                nameof(desc));
+                nameof(desc)
+            );
         if (!IsFinite(desc.LinearVelocity))
             throw new ArgumentException(
-                $"Cannot spawn with the linear velocity {desc.LinearVelocity}: it must be finite.", nameof(desc));
+                $"Cannot spawn with the linear velocity {desc.LinearVelocity}: it must be finite.",
+                nameof(desc)
+            );
         if (!IsFinite(desc.AngularVelocity))
             throw new ArgumentException(
-                $"Cannot spawn with the angular velocity {desc.AngularVelocity}: it must be finite.", nameof(desc));
+                $"Cannot spawn with the angular velocity {desc.AngularVelocity}: it must be finite.",
+                nameof(desc)
+            );
         if (!desc.AttachTo.IsNull)
         {
             if (desc.Body != null)
@@ -226,7 +235,7 @@ public sealed partial class World
         {
             bool ownsFrame = desc.AsFrame is not null;
             // The body of a frame owner is the frame's hull when the frame has a parent. A root frame has no hull.
-            var role = BodyRole.OwnsNoFrame;
+            BodyRole role = BodyRole.OwnsNoFrame;
             if (ownsFrame)
                 role = desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
             if (body.Problem(role) is { } problem)
@@ -235,8 +244,10 @@ public sealed partial class World
             if (Physics?.ShapeProblem(body.Shape) is { } shape)
                 throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
             if (ownsFrame && body.InteriorShape is { } interior && Physics?.ShapeProblem(interior) is { } inside)
-                throw new ArgumentException($"Physics cannot create this body: its interior shape {inside}.",
-                    nameof(desc));
+                throw new ArgumentException(
+                    $"Physics cannot create this body: its interior shape {inside}.",
+                    nameof(desc)
+                );
         }
 
         if (desc.AsFrame is { } spec)
@@ -246,18 +257,22 @@ public sealed partial class World
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException(
                     "A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).",
-                    nameof(desc));
+                    nameof(desc)
+                );
             if (!spec.Medium.IsValid)
                 throw new ArgumentException(
                     "A frame needs a medium with numbers in their ranges: this medium is not valid (see MediumField.IsValid).",
-                    nameof(desc));
+                    nameof(desc)
+                );
         }
 
         if (SpawnVelocityProblem(desc) is { } velocityProblem)
             throw new ArgumentException(velocityProblem, nameof(desc));
         if (FirstMoveProblem(desc) is { } firstMove)
             throw new ArgumentException(
-                $"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.", nameof(desc));
+                $"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.",
+                nameof(desc)
+            );
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];
@@ -265,14 +280,15 @@ public sealed partial class World
         var wants = new EventMask[source.Count];
         for (int i = 0; i < components.Length; i++)
         {
-            IComponent component = source[i] ??
-                                   throw new ArgumentException($"Component {i} of the spawn description is null.",
-                                       nameof(desc));
+            IComponent component =
+                source[i]
+                ?? throw new ArgumentException($"Component {i} of the spawn description is null.", nameof(desc));
             for (int j = 0; j < i; j++)
                 if (ReferenceEquals(components[j], component))
                     throw new ArgumentException(
                         $"The same {component.GetType().Name} instance appears twice. Each entity needs its own component instances.",
-                        nameof(desc));
+                        nameof(desc)
+                    );
             // The type needs an id for the component flags: a generic type, or one past the cap, fails the spawn here.
             ComponentTypes.IdOf(component.GetType());
             // Stable insertion sort by priority: equal priorities keep the order in which they were given.
@@ -310,9 +326,10 @@ public sealed partial class World
             return null;
         if (OnlyMover(desc) is not { } mover)
             return null;
-        string velocity = desc.LinearVelocity != Double3.Zero
-            ? $"the linear velocity {desc.LinearVelocity}"
-            : $"the angular velocity {desc.AngularVelocity}";
+        string velocity =
+            desc.LinearVelocity != Double3.Zero
+                ? $"the linear velocity {desc.LinearVelocity}"
+                : $"the angular velocity {desc.AngularVelocity}";
         return $"{mover}, so it cannot spawn with {velocity}.";
     }
 
@@ -334,7 +351,7 @@ public sealed partial class World
             BodyMotion.Static => "A static body moves only by its teleports",
             BodyMotion.Kinematic when !ownsFrame =>
                 "A kinematic body that owns no frame moves only by its motion intents and teleports",
-            BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => null
+            BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => null,
         };
     }
 
@@ -350,8 +367,8 @@ public sealed partial class World
     {
         MotionIntent move = desc.FirstMove;
         bool ownsRootFrame = desc.AsFrame is not null && desc.Frame.IsNull;
-        return move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame) ??
-               MotionIntentNumberProblem(move);
+        return move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame)
+            ?? MotionIntentNumberProblem(move);
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
@@ -386,15 +403,21 @@ public sealed partial class World
             Pose = pose,
             HomePosition = pose.Position,
             LinearVelocity = desc.LinearVelocity.ToVector3(),
-            AngularVelocity = desc.AngularVelocity
+            AngularVelocity = desc.AngularVelocity,
         };
         // The velocity relative to the entity's frame, in doubles, that physics converts when it creates the body.
         Double3 velocity = desc.LinearVelocity;
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(frameOwner: entity, parent: frame, localPose: pose, frameBounds: spec.Bounds,
-                field: spec.Gravity, medium: spec.Medium);
+            own = Frames.Create(
+                frameOwner: entity,
+                parent: frame,
+                localPose: pose,
+                frameBounds: spec.Bounds,
+                field: spec.Gravity,
+                medium: spec.Medium
+            );
             // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
             // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
             if (!frame.IsNull && desc.Body is { } hullBody)
@@ -415,12 +438,18 @@ public sealed partial class World
             InitializeComponentType(component.GetType());
         // The backend keeps the shape that it built for the description, so the center of mass costs no second build. The
         // lever of every part of the entity is measured from it (docs/plans/parts.md).
-        Vector3 centerOfMass = desc.Body is { } spawnBody && Physics != null
-            ? Physics.ShapeCenterOfMass(spawnBody.Shape)
-            : Vector3.Zero;
-        Entities.Activate(entity: entity, row: row, render: desc.Render ?? new RenderData(),
-            components: plan.Components, wants: plan.Wants, body: desc.Body,
-            bodyCenterOfMass: centerOfMass, ownedFrame: own);
+        Vector3 centerOfMass =
+            desc.Body is { } spawnBody && Physics != null ? Physics.ShapeCenterOfMass(spawnBody.Shape) : Vector3.Zero;
+        Entities.Activate(
+            entity: entity,
+            row: row,
+            render: desc.Render ?? new RenderData(),
+            components: plan.Components,
+            wants: plan.Wants,
+            body: desc.Body,
+            bodyCenterOfMass: centerOfMass,
+            ownedFrame: own
+        );
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
         // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
@@ -428,9 +457,16 @@ public sealed partial class World
         if (desc.FirstMove.HasValue)
             Entities.SetFirstMove(entity, frame, WithUnitRotation(desc.FirstMove));
         if (desc.Body != null)
-            physicsChanges.BodiesCreated.Add(new(Entity: entity, Frame: row.Frame, Desc: desc.Body, Pose: row.Pose,
-                LinearVelocity: velocity,
-                AngularVelocity: row.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(
+                new(
+                    Entity: entity,
+                    Frame: row.Frame,
+                    Desc: desc.Body,
+                    Pose: row.Pose,
+                    LinearVelocity: velocity,
+                    AngularVelocity: row.AngularVelocity
+                )
+            );
 
         // A new entity joins the members of its frame. That is no change of frame, so it hears no FrameChanged.
         topics.MoveMember(entity, row.Frame, out _);
@@ -459,7 +495,8 @@ public sealed partial class World
             {
                 Report(
                     $"tick {TickNumber}: dropped the spawn of {spawn.Entity}: its frame {frame} was destroyed before it became live.",
-                    isError: true);
+                    isError: true
+                );
                 Entities.Release(spawn.Entity);
                 continue;
             }
@@ -480,7 +517,7 @@ public sealed partial class World
     /// </summary>
     private void MakeAttachedSpawnsLive()
     {
-        for (bool madeOneLive = true; madeOneLive;)
+        for (bool madeOneLive = true; madeOneLive; )
         {
             madeOneLive = false;
             int kept = 0;
@@ -551,7 +588,7 @@ public sealed partial class World
     {
         // Grow the batch until nothing changes. One pass is not enough: an ancestor frame can join the batch after
         // one of its descendants was looked at.
-        for (bool grew = true; grew;)
+        for (bool grew = true; grew; )
         {
             grew = false;
             for (int i = 0; i < dying.Count; i++)
@@ -646,18 +683,26 @@ public sealed partial class World
             FrameHandle from = Entities.NextStepIntent(entity).Frame;
             if (from.IsNull || !dyingMarks[from.Entity])
                 continue;
-            (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(of: from,
+            (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(
+                of: from,
                 to: Entities.BackRow(entity).Frame,
-                stepIntents: Entities.FrontIntents.Span, step: DeltaTime, dying: dying);
+                stepIntents: Entities.FrontIntents.Span,
+                step: DeltaTime,
+                dying: dying
+            );
             dyingFrameConversions.Add(new(entity, start, end));
         }
 
         foreach (IntentConversion conversion in dyingFrameConversions)
         {
             ref readonly TransformRow row = ref Entities.BackRow(conversion.Entity);
-            ConvertIntent(intent: ref Entities.NextStepIntent(conversion.Entity), to: row.Frame,
+            ConvertIntent(
+                intent: ref Entities.NextStepIntent(conversion.Entity),
+                to: row.Frame,
                 position: row.Pose.Position,
-                start: conversion.Start, end: conversion.End);
+                start: conversion.Start,
+                end: conversion.End
+            );
         }
 
         dyingFrameConversions.Clear();
@@ -671,10 +716,13 @@ public sealed partial class World
     {
         ref readonly TransformRow row = ref Entities.BackRow(entity);
         DPose relative = Frames.Relative(from, to);
-        Double3 velocity =
-            Frames.ConvertVelocity(from: from, to: to, position: row.Pose.Position,
-                v: FrameReads.VelocityIn(frames: Frames, entity: entity, row: row, to: from));
-        DPose pose = DPose.Compose(relative, row.Pose);
+        Double3 velocity = Frames.ConvertVelocity(
+            from: from,
+            to: to,
+            position: row.Pose.Position,
+            v: FrameReads.VelocityIn(frames: Frames, entity: entity, row: row, to: from)
+        );
+        var pose = DPose.Compose(relative, row.Pose);
         var moved = new TransformRow
         {
             Frame = to,
@@ -682,9 +730,9 @@ public sealed partial class World
             Pose = pose,
             HomePosition = pose.Position,
             LinearVelocity = velocity.ToVector3(),
-            AngularVelocity =
-                (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to))
-                .ToVector3()
+            AngularVelocity = (
+                relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)
+            ).ToVector3(),
         };
         Entities.SetBackTransform(entity, moved);
         MoveMembership(entity, to);
@@ -698,8 +746,16 @@ public sealed partial class World
             if (!own.IsNull && NextStepHullMotion(own) is { } motion && motion != body.Motion)
                 body = body with { Motion = motion };
             physicsChanges.BodiesDestroyed.Add(entity);
-            physicsChanges.BodiesCreated.Add(new(Entity: entity, Frame: to, Desc: body, Pose: moved.Pose,
-                LinearVelocity: velocity, AngularVelocity: moved.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(
+                new(
+                    Entity: entity,
+                    Frame: to,
+                    Desc: body,
+                    Pose: moved.Pose,
+                    LinearVelocity: velocity,
+                    AngularVelocity: moved.AngularVelocity
+                )
+            );
         }
     }
 
@@ -740,16 +796,22 @@ public sealed partial class World
                 }
                 else if (!Entities.RemoveComponent(change.Entity, change.Component))
                 {
-                    chunk.Messages.Add(new(
-                        $"tick {TickNumber}: {change.Entity}: RemoveComponent: the entity has no such {change.Component.GetType().Name} instance.",
-                        false));
+                    chunk.Messages.Add(
+                        new(
+                            $"tick {TickNumber}: {change.Entity}: RemoveComponent: the entity has no such {change.Component.GetType().Name} instance.",
+                            false
+                        )
+                    );
                 }
             }
             catch (Exception ex) when (ex is not ContractException)
             {
-                chunk.Messages.Add(new(
-                    $"tick {TickNumber}: {change.Entity}: {(change.Add ? "AddComponent" : "RemoveComponent")} {change.Component.GetType().FullName} failed: {ex.GetType().Name}: {ex.Message}",
-                    true));
+                chunk.Messages.Add(
+                    new(
+                        $"tick {TickNumber}: {change.Entity}: {(change.Add ? "AddComponent" : "RemoveComponent")} {change.Component.GetType().FullName} failed: {ex.GetType().Name}: {ex.Message}",
+                        true
+                    )
+                );
             }
 
         chunk.ComponentChanges.Clear();
@@ -774,7 +836,8 @@ public sealed partial class World
         {
             Report(
                 $"tick {TickNumber}: the class constructor of the component type {type.FullName} failed: {ex.InnerException?.GetType().Name}: {ex.InnerException?.Message}",
-                isError: true);
+                isError: true
+            );
         }
 
         initializedComponentTypes.Add(type);
@@ -800,15 +863,16 @@ public sealed partial class World
     /// </summary>
     /// <remarks>Inlined: as a call that returns the 136-byte row, it cost the mirror pass about 10 ns per frame.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static TransformRow OwnerRow(in FrameOwnerView view) => new()
-    {
-        Frame = view.Semantic,
-        PhysicsHome = view.Home,
-        Pose = new(view.PositionInSemantic, view.LocalPose.Rotation),
-        HomePosition = view.LocalPose.Position,
-        LinearVelocity = view.LinearVelocity.ToVector3(),
-        AngularVelocity = view.AngularVelocity
-    };
+    private static TransformRow OwnerRow(in FrameOwnerView view) =>
+        new()
+        {
+            Frame = view.Semantic,
+            PhysicsHome = view.Home,
+            Pose = new(view.PositionInSemantic, view.LocalPose.Rotation),
+            HomePosition = view.LocalPose.Position,
+            LinearVelocity = view.LinearVelocity.ToVector3(),
+            AngularVelocity = view.AngularVelocity,
+        };
 
     /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one (see
     /// <see cref="MirrorOwner"/>).</summary>
@@ -852,8 +916,9 @@ public sealed partial class World
     {
         if (!topics.MoveMember(entity, to, out FrameHandle from))
             return;
-        router.AddEngineEvent(Event.Create(target: new(entity), sender: Entity.Null,
-            payload: new FrameChanged { From = from, To = to }));
+        router.AddEngineEvent(
+            Event.Create(target: new(entity), sender: Entity.Null, payload: new FrameChanged { From = from, To = to })
+        );
     }
 
     /// <summary>Subscribes an entity, or reports why the topic's frame cannot take it. Throws
@@ -861,8 +926,10 @@ public sealed partial class World
     private void SubscribeEntity(Entity entity, Topic topic)
     {
         if (!topics.Subscribe(entity, topic))
-            Report($"tick {TickNumber}: {entity} cannot subscribe to {Topics.NameOf(topic)}: that frame is not alive.",
-                isError: false);
+            Report(
+                $"tick {TickNumber}: {entity} cannot subscribe to {Topics.NameOf(topic)}: that frame is not alive.",
+                isError: false
+            );
     }
 
     /// <summary>

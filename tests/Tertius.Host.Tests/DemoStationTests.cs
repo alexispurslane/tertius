@@ -35,7 +35,8 @@ public sealed class DemoStationTests : IDisposable
     private readonly World world = HostTesting.NewJoltWorld();
     private readonly SceneInstance scene;
     private readonly Entity station;
-    private readonly FrameHandle earth, frame;
+    private readonly FrameHandle earth,
+        frame;
 
     public DemoStationTests()
     {
@@ -63,20 +64,24 @@ public sealed class DemoStationTests : IDisposable
         (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(DemoStation.OverPadAt, DemoScenes.EarthMu);
         Double3 up = place.Normalized();
 
-        Math.Abs(Double3.Dot(incline, OrbitNormal)).Should()
+        Math.Abs(Double3.Dot(incline, OrbitNormal))
+            .Should()
             .BeLessThan(1e-9, $"the incline {incline} lies in the station's plane");
         Double3 across = incline - up * Double3.Dot(incline, up);
-        (Degrees(across, velocity) * Math.PI / 180).Should()
+        (Degrees(across, velocity) * Math.PI / 180)
+            .Should()
             .BeLessThan(1e-6, $"the incline points along the station's motion {velocity}");
     }
 
     /// <summary>The launch plane's normal, in earth's axes, is the prograde normal of the station's orbit, within 1e-9.</summary>
     [Fact]
-    public void TheLaunchPlaneNormalIsTheStationsOrbitNormal()
-    {
-        (DemoSurface.LaunchPlaneNormal - OrbitNormal).Length.Should().BeLessThan(1e-9,
-            $"the launch plane's normal {DemoSurface.LaunchPlaneNormal} is the orbit's {OrbitNormal}");
-    }
+    public void TheLaunchPlaneNormalIsTheStationsOrbitNormal() =>
+        (DemoSurface.LaunchPlaneNormal - OrbitNormal)
+            .Length.Should()
+            .BeLessThan(
+                1e-9,
+                $"the launch plane's normal {DemoSurface.LaunchPlaneNormal} is the orbit's {OrbitNormal}"
+            );
 
     /// <summary>
     /// At the world's time 0, the Sun's direction from Earth lies 56.1 degrees from the station's axis on the slot's side,
@@ -87,7 +92,9 @@ public sealed class DemoStationTests : IDisposable
     public void TheSunLightsTheSlotsFaceAt56DegreesFromTheAxis()
     {
         KeplerOrbit earthOrbit = DemoScenes.EarthOrbit(DemoSurface.Date);
-        Double3 toSun = earthOrbit.RotationAt(0, DemoScenes.SunMu).Conjugate()
+        Double3 toSun = earthOrbit
+            .RotationAt(0, DemoScenes.SunMu)
+            .Conjugate()
             .Rotate(-earthOrbit.StateAt(0, DemoScenes.SunMu).Position);
         Double3 axis = DemoStation.Orbit.RotationAt(0, DemoScenes.EarthMu).Rotate(Double3.UnitY);
 
@@ -105,12 +112,17 @@ public sealed class DemoStationTests : IDisposable
         for (int second = 0; second < 10; second++)
         {
             Tick(world, 60);
-            Double3 place = world.PoseIn(station, earth).Position, velocity = world.VelocityIn(station, earth);
+            Double3 place = world.PoseIn(station, earth).Position,
+                velocity = world.VelocityIn(station, earth);
             place.Length.Should().BeApproximately(radius, 0.01, $"the station is 400 km up after {second + 1} s");
-            Double3.Dot(place, DemoSurface.LaunchPlaneNormal).Should().BeApproximately(0, 0.01,
-                $"the station is in the launch plane after {second + 1} s");
-            Double3.Dot(velocity, DemoSurface.LaunchPlaneNormal).Should().BeApproximately(0, 1e-5,
-                $"the station moves in the launch plane after {second + 1} s");
+            Double3
+                .Dot(place, DemoSurface.LaunchPlaneNormal)
+                .Should()
+                .BeApproximately(0, 0.01, $"the station is in the launch plane after {second + 1} s");
+            Double3
+                .Dot(velocity, DemoSurface.LaunchPlaneNormal)
+                .Should()
+                .BeApproximately(0, 1e-5, $"the station moves in the launch plane after {second + 1} s");
             velocity.Length.Should().BeApproximately(Math.Sqrt(DemoScenes.EarthMu / radius), 1e-5);
         }
     }
@@ -125,9 +137,11 @@ public sealed class DemoStationTests : IDisposable
         (Double3 place, Double3 velocity) = DemoStation.Orbit.StateAt(DemoStation.OverPadAt, DemoScenes.EarthMu);
         Double3 climb = DepartureAxes.Rotate(-Double3.UnitZ);
 
-        (place.Normalized() - Double3.UnitY).Length.Should()
+        (place.Normalized() - Double3.UnitY)
+            .Length.Should()
             .BeLessThan(1e-9, $"the station is over the pad, not at {place}");
-        (velocity.Normalized() - climb).Length.Should()
+        (velocity.Normalized() - climb)
+            .Length.Should()
             .BeLessThan(1e-9, $"the station moves along {climb}, not along {velocity}");
     }
 
@@ -142,12 +156,15 @@ public sealed class DemoStationTests : IDisposable
 
         Double3 axis = -DemoSurface.LaunchPlaneNormal;
         Vector3 turn = world.AngularVelocityIn(station, earth);
-        (turn - axis * DemoScenes.SpinStation.Rate).Length.Should()
+        (turn - axis * DemoScenes.SpinStation.Rate)
+            .Length.Should()
             .BeLessThan(1e-6, $"the station turns about {axis}, not at {turn}");
-        (world.PoseIn(station, earth).Rotation.Rotate(Double3.UnitY) - axis).Length.Should().BeLessThan(1e-9,
-            "the station's axis points along the launch plane's normal, reversed");
+        (world.PoseIn(station, earth).Rotation.Rotate(Double3.UnitY) - axis)
+            .Length.Should()
+            .BeLessThan(1e-9, "the station's axis points along the launch plane's normal, reversed");
         Double3 felt = world.Frames.FeltGravity(frame, new(0, 0, -100));
-        (felt - new Double3(0, 0, -9.81)).Length.Should()
+        (felt - new Double3(0, 0, -9.81))
+            .Length.Should()
             .BeLessThan(0.005, $"the floor has one gravity away from the axis, not {felt}");
     }
 
@@ -163,7 +180,10 @@ public sealed class DemoStationTests : IDisposable
         for (int tick = 1; tick <= 120; tick++)
         {
             world.Tick();
-            world.Frames.ProperAcceleration(frame).Length().Should()
+            world
+                .Frames.ProperAcceleration(frame)
+                .Length()
+                .Should()
                 .BeLessThan(1e-6f, $"the station falls freely in tick {tick}");
         }
     }
@@ -178,18 +198,21 @@ public sealed class DemoStationTests : IDisposable
     public void TheDeckHasTheWeakGravityOfItsRadius()
     {
         const float half = 0.25f;
-        Entity box = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(new(-7, 0, 1), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(half)), Mass: 10)
-        });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(new(-7, 0, 1), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(half)), Mass: 10),
+            }
+        );
 
         Tick(world, 8 * 60);
 
         double rate = DemoScenes.SpinStation.Rate;
         Double3 felt = world.Frames.FeltGravity(frame, new(-8, 0, 0));
-        (felt - new Double3(-rate * rate * 8, 0, 0)).Length.Should()
+        (felt - new Double3(-rate * rate * 8, 0, 0))
+            .Length.Should()
             .BeLessThan(1e-3, $"the deck pulls with ω² · 8 m, not {felt}");
         world.GetFrame(box).Should().Be(frame);
         world.PoseIn(box, frame).Position.X.Should().BeApproximately(-8 + half, 0.02, "the box rests on the deck");
@@ -206,22 +229,30 @@ public sealed class DemoStationTests : IDisposable
     public void ABoxOfTheShuttlesSizeFliesThroughTheSlotAlongTheAxisWithoutAContact()
     {
         var touches = new Touches();
-        Entity box = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(new(0, 22, 0), AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX)),
-            LinearVelocity = new Vector3(0, -1, 0),
-            Body = new(Shape: new BoxShapeDesc(Shuttle.Hull), Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0),
-            Components = [touches]
-        });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(new(0, 22, 0), AttitudeAutopilot.Facing(-Double3.UnitY, Double3.UnitX)),
+                LinearVelocity = new Vector3(0, -1, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(Shuttle.Hull),
+                    Mass: Shuttle.Mass,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [touches],
+            }
+        );
 
         Tick(world, 18 * 60);
 
         touches.Count.Should().Be(0, "the box passes through the slot without touching the hub");
         world.GetFrame(box).Should().Be(frame);
         Double3 place = world.PoseIn(box, frame).Position;
-        (place - new Double3(0, 4, 0)).Length.Should().BeLessThan(0.05,
-            $"the box flies straight along the axis into the bay, not to {place}");
+        (place - new Double3(0, 4, 0))
+            .Length.Should()
+            .BeLessThan(0.05, $"the box flies straight along the axis into the bay, not to {place}");
     }
 
     /// <summary>
@@ -235,20 +266,21 @@ public sealed class DemoStationTests : IDisposable
         FrameBounds bubble = world.Frames.Bounds(frame);
         double hull = DemoStation.HullShape().BoundingRadius();
 
-        hull.Should().BeApproximately(Math.Sqrt(101 * 101 + 10 * 10), 0.01,
-            "the wheel's rim is the hull's farthest point");
+        hull.Should()
+            .BeApproximately(Math.Sqrt(101 * 101 + 10 * 10), 0.01, "the wheel's rim is the hull's farthest point");
         bubble.MinRadius.Should().BeGreaterThan((float)hull + 18, "the bubble holds the hull with room to spare");
-        bubble.MinRadius.Should()
+        bubble
+            .MinRadius.Should()
             .BeGreaterThan(world.GetRender(station).BoundingRadius, "the bubble holds the drawn station");
     }
 
     /// <summary>The shuttle's bubble is less than half the station's, so the shuttle's frame fits in the station's.</summary>
     [Fact]
-    public void TheShuttlesFrameFitsInTheStations()
-    {
-        FrameBounds.Fits(world.Frames.Bounds(world.GetOwnedFrame(scene["shuttle"])), world.Frames.Bounds(frame))
-            .Should().BeTrue();
-    }
+    public void TheShuttlesFrameFitsInTheStations() =>
+        FrameBounds
+            .Fits(world.Frames.Bounds(world.GetOwnedFrame(scene["shuttle"])), world.Frames.Bounds(frame))
+            .Should()
+            .BeTrue();
 
     /// <summary>
     /// On the ground, the parked shuttle's rendezvous autopilot halts at a <see cref="Rendezvous"/> order: the shuttle is in
@@ -285,9 +317,13 @@ public sealed class DemoStationTests : IDisposable
         Tick(world, 2);
 
         world.GetComponent<DockingAutopilot>(scene["shuttle"])!.State.Value.Should().BeOfType<Halted>();
-        logged.Should().ContainSingle().Which.Should()
+        logged
+            .Should()
+            .ContainSingle()
+            .Which.Should()
             .EndWith(
-                $"{nameof(DockingAutopilot)} halts: the shuttle is in neither the station's frame nor the frame that holds the station.");
+                $"{nameof(DockingAutopilot)} halts: the shuttle is in neither the station's frame nor the frame that holds the station."
+            );
         world.Errors.Should().BeEmpty();
     }
 
@@ -300,20 +336,30 @@ public sealed class DemoStationTests : IDisposable
     public void TheBayCameraSeesTheSlotTheParkedHullAndTheSpokeMouth()
     {
         DPose view = world.PoseIn(scene["bay-camera"], frame);
-        BoundingBox slot = DemoStation.Slot, parked = DemoStation.ParkedBounds, mouth = DemoStation.SpokeMouth;
+        BoundingBox slot = DemoStation.Slot,
+            parked = DemoStation.ParkedBounds,
+            mouth = DemoStation.SpokeMouth;
 
-        IEnumerable<Double3> Corners(BoundingBox box) => Enumerable.Range(0, 8).Select(corner => new Double3(
-            (corner & 1) == 0 ? box.Min.X : box.Max.X, (corner & 2) == 0 ? box.Min.Y : box.Max.Y,
-            (corner & 4) == 0 ? box.Min.Z : box.Max.Z));
+        IEnumerable<Double3> Corners(BoundingBox box) =>
+            Enumerable
+                .Range(0, 8)
+                .Select(corner => new Double3(
+                    (corner & 1) == 0 ? box.Min.X : box.Max.X,
+                    (corner & 2) == 0 ? box.Min.Y : box.Max.Y,
+                    (corner & 4) == 0 ? box.Min.Z : box.Max.Z
+                ));
 
         Double3[] seen =
         [
-            .. Corners(slot), .. Corners(parked),
-            .. Corners(mouth with { Min = mouth.Min with { X = DemoStation.Deck } })
+            .. Corners(slot),
+            .. Corners(parked),
+            .. Corners(mouth with { Min = mouth.Min with { X = DemoStation.Deck } }),
         ];
 
         foreach (Double3 corner in seen)
-            Picture.Contains(Picture.Project(view, corner, world.VerticalFov)).Should()
+            Picture
+                .Contains(Picture.Project(view, corner, world.VerticalFov))
+                .Should()
                 .BeTrue($"the corner {corner} lies in the picture");
     }
 
@@ -331,23 +377,36 @@ public sealed class DemoStationTests : IDisposable
         DPose view = world.PoseIn(scene[camera], frame);
         Vector3 hub = DemoStation.HubHalf;
 
-        IEnumerable<Double3> Corners(DPose pose, Vector3 half) => Enumerable.Range(0, 8).Select(corner =>
-            pose.TransformPoint(new(
-                (corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y,
-                (corner & 4) == 0 ? -half.Z : half.Z)));
+        IEnumerable<Double3> Corners(DPose pose, Vector3 half) =>
+            Enumerable
+                .Range(0, 8)
+                .Select(corner =>
+                    pose.TransformPoint(
+                        new(
+                            (corner & 1) == 0 ? -half.X : half.X,
+                            (corner & 2) == 0 ? -half.Y : half.Y,
+                            (corner & 4) == 0 ? -half.Z : half.Z
+                        )
+                    )
+                );
 
         foreach (double roll in Enumerable.Range(0, 8).Select(step => step * Math.PI / 4))
         {
-            var shuttle = new DPose(DemoStation.HoldPoint,
-                DQuaternion.FromAxisAngle(Double3.UnitY, roll) * DemoStation.DockedRotation);
+            var shuttle = new DPose(
+                DemoStation.HoldPoint,
+                DQuaternion.FromAxisAngle(Double3.UnitY, roll) * DemoStation.DockedRotation
+            );
             foreach (Double3 corner in Corners(DPose.Identity, hub).Concat(Corners(shuttle, Shuttle.Hull)))
             {
                 Double3 at = Picture.Project(view, corner, world.VerticalFov);
-                (at.Z > 0.05 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9).Should().BeTrue(
-                    $"the corner {corner} lies well inside the picture at a roll of {roll:F2} rad, at {at}");
+                (at.Z > 0.05 && Math.Abs(at.X) <= 0.9 && Math.Abs(at.Y) <= 0.9)
+                    .Should()
+                    .BeTrue($"the corner {corner} lies well inside the picture at a roll of {roll:F2} rad, at {at}");
             }
 
-            Picture.Cover(view: view, body: shuttle, half: Shuttle.Hull, verticalFov: world.VerticalFov).Should()
+            Picture
+                .Cover(view: view, body: shuttle, half: Shuttle.Hull, verticalFov: world.VerticalFov)
+                .Should()
                 .BeGreaterThan(0.01, $"the shuttle is no speck at a roll of {roll:F2} rad");
         }
     }
@@ -364,14 +423,16 @@ public sealed class DemoStationTests : IDisposable
         DPose pose = world.PoseIn(station, earth);
         Double3 axis = pose.Rotation.Rotate(Double3.UnitY);
         Double3 hold = pose.TransformPoint(DemoStation.HoldPoint);
-        Entity shuttle = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = new(hold, AttitudeAutopilot.Facing(-axis, hold)),
-            LinearVelocity = world.VelocityIn(station, earth),
-            Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new(new(Shuttle.Bubble))
-        });
+        Entity shuttle = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = new(hold, AttitudeAutopilot.Facing(-axis, hold)),
+                LinearVelocity = world.VelocityIn(station, earth),
+                Body = Shuttle.Body(BodyMotion.Dynamic),
+                AsFrame = new(new(Shuttle.Bubble)),
+            }
+        );
 
         for (int tick = 0; tick < 60 * 60; tick++)
         {
@@ -380,7 +441,8 @@ public sealed class DemoStationTests : IDisposable
         }
 
         double distance = (world.PoseIn(shuttle, earth).Position - world.PoseIn(station, earth).Position).Length;
-        distance.Should()
+        distance
+            .Should()
             .BeApproximately(DemoStation.HoldPoint.Length, 1, "the shuttle drifts little from the hold point");
     }
 
@@ -402,16 +464,20 @@ public sealed class DemoStationTests : IDisposable
     public void ABoxReleasedAtRestAboveTheWheelsFloorLandsWhereItsInertialLineSays(double height, double antispinward)
     {
         const double half = 0.2;
-        double rate = DemoScenes.SpinStation.Rate, facet = Math.Tau / DemoStation.Segments;
-        double plane = DemoStation.FloorRadius * Math.Cos(facet / 2), theta = 120.5 * facet;
+        double rate = DemoScenes.SpinStation.Rate,
+            facet = Math.Tau / DemoStation.Segments;
+        double plane = DemoStation.FloorRadius * Math.Cos(facet / 2),
+            theta = 120.5 * facet;
         var normal = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
         Tick(world, 3);
-        Entity box = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(normal * (plane - half - height), DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
-            Body = new(Shape: new BoxShapeDesc(new((float)half)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(normal * (plane - half - height), DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
+                Body = new(Shape: new BoxShapeDesc(new((float)half)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
 
         // The box's place relative to the station's center in earth's axes, which do not turn, and the station's rotation
         // in earth, now and after each tick.
@@ -439,13 +505,15 @@ public sealed class DemoStationTests : IDisposable
         // place can lie below the plane, and the landing comes from the places above it.
         double GapAt(int n) => plane - half - Double3.Dot(turns[n].Conjugate().Rotate(places[n]), normal);
         int above = Enumerable.Range(0, touch).Last(n => GapAt(n) > 0);
-        Double3 last = places[above], step = (last - places[above - 1]) / dt;
+        Double3 last = places[above],
+            step = (last - places[above - 1]) / dt;
 
-        Double3 InStation(double s) => (turns[above] * DQuaternion.FromAxisAngle(Double3.UnitY, rate * s)).Conjugate()
-            .Rotate(last + step * s);
+        Double3 InStation(double s) =>
+            (turns[above] * DQuaternion.FromAxisAngle(Double3.UnitY, rate * s)).Conjugate().Rotate(last + step * s);
 
         double Gap(double s) => plane - half - Double3.Dot(InStation(s), normal);
-        double lo = 0, hi = 2 * dt;
+        double lo = 0,
+            hi = 2 * dt;
         Gap(hi).Should().BeLessThan(0, "the line meets the floor within two steps of the last place above it");
         for (int i = 0; i < 60; i++)
             (lo, hi) = Gap((lo + hi) / 2) > 0 ? ((lo + hi) / 2, hi) : (lo, (lo + hi) / 2);
@@ -456,14 +524,18 @@ public sealed class DemoStationTests : IDisposable
         // place plus ω × r t, turned back by the station's turn ω t.
         Double3 release = turns[0].Conjugate().Rotate(places[0]);
 
-        Double3 Expected(double t) => DQuaternion.FromAxisAngle(Double3.UnitY, -rate * t)
-            .Rotate(release + Double3.Cross(new(0, rate, 0), release) * t);
+        Double3 Expected(double t) =>
+            DQuaternion
+                .FromAxisAngle(Double3.UnitY, -rate * t)
+                .Rotate(release + Double3.Cross(new(0, rate, 0), release) * t);
 
-        double lo2 = 0.1, hi2 = 1;
+        double lo2 = 0.1,
+            hi2 = 1;
         for (int i = 0; i < 60; i++)
-            (lo2, hi2) = plane - half - Double3.Dot(Expected((lo2 + hi2) / 2), normal) > 0
-                ? ((lo2 + hi2) / 2, hi2)
-                : (lo2, (lo2 + hi2) / 2);
+            (lo2, hi2) =
+                plane - half - Double3.Dot(Expected((lo2 + hi2) / 2), normal) > 0
+                    ? ((lo2 + hi2) / 2, hi2)
+                    : (lo2, (lo2 + hi2) / 2);
         Double3 expected = Expected(lo2);
 
         // The place of the landing along the floor, antispinward of the point under the release: spinward is the way of
@@ -471,13 +543,16 @@ public sealed class DemoStationTests : IDisposable
         double Along(Double3 place) => Math.Atan2(-place.Z, place.X);
         double measured = (Along(release) - Along(landing)) * plane;
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"drop from {height} m: worst {worst:E2} m off the line before the touch in step {touch}; lands {time:F7} s after the release, {measured:F6} m antispinward; the line from the release says {lo2:F7} s, {(Along(release) - Along(expected)) * plane:F6} m");
+            $"drop from {height} m: worst {worst:E2} m off the line before the touch in step {touch}; lands {time:F7} s after the release, {measured:F6} m antispinward; the line from the release says {lo2:F7} s, {(Along(release) - Along(expected)) * plane:F6} m"
+        );
 
         world.GetFrame(box).Should().Be(frame);
         touch.Should().BeGreaterThan(20, "the box falls for a while");
         worst.Should().BeLessThan(1e-5, "the box flies on the straight line of its release until it lands");
         time.Should().BeApproximately(lo2, 1e-5, "the box lands when the line of its release meets the floor");
-        Double3.Distance(landing, expected).Should()
+        Double3
+            .Distance(landing, expected)
+            .Should()
             .BeLessThan(1e-5, "the box lands where the line of its release meets the floor");
         measured.Should().BeApproximately(antispinward, 0.002, "the floor turns on under the falling box");
         world.Errors.Should().BeEmpty();

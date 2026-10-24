@@ -140,9 +140,12 @@ public sealed class ComponentTypesTests
 
         Action lookUp = () => ComponentTypes.IdOf(EmittedComponents.TypeNamed(assembly, "C0"));
 
-        lookUp.Should().Throw<InvalidOperationException>()
+        lookUp
+            .Should()
+            .Throw<InvalidOperationException>()
             .WithMessage($"*{ComponentTypes.Capacity + 10} component types*cap of 512*");
-        ComponentTypes.Count.Should()
+        ComponentTypes
+            .Count.Should()
             .BeLessThanOrEqualTo(before + 1, "only another test's dynamic type may have joined meanwhile");
         ComponentTypes.Registry.AssertInvariants();
     }

@@ -10,9 +10,11 @@ namespace Tertius.Simulation.Tests;
 public sealed class ComponentFlagsWorldTests
 {
     /// <summary>A component that records, on each tick, whether <paramref name="target"/> had a <typeparamref name="T"/> in the snapshot.</summary>
-    private static Lambda Watches<T>(Func<Entity> target, List<bool> seen) where T : IComponent =>
-        Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            seen.Add(self.Snapshot.HasComponent<T>(target())));
+    private static Lambda Watches<T>(Func<Entity> target, List<bool> seen)
+        where T : IComponent =>
+        Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) => seen.Add(self.Snapshot.HasComponent<T>(target()))
+        );
 
     [Fact]
     public void AComponentSeesWhichComponentsAnotherEntityHad()
@@ -33,11 +35,15 @@ public sealed class ComponentFlagsWorldTests
     public void AComponentThatAnEntityAddsDuringATickShowsInTheNextTick()
     {
         using var t = new TestWorld();
-        Entity target = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 1)
-                self.AddComponent(new Flammable());
-        }));
+        Entity target = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.AddComponent(new Flammable());
+                }
+            )
+        );
         var seen = new List<bool>();
         // Spawned after the target, so it runs after it in the same chunk: it still reads the end of the previous tick.
         t.SpawnWith(Watches<Flammable>(() => target, seen));
@@ -52,11 +58,16 @@ public sealed class ComponentFlagsWorldTests
     {
         var flammable = new Flammable();
         using var t = new TestWorld();
-        Entity target = t.SpawnWith(flammable, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 1)
-                self.RemoveComponent(self.GetComponent<Flammable>()!);
-        }));
+        Entity target = t.SpawnWith(
+            flammable,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 1)
+                        self.RemoveComponent(self.GetComponent<Flammable>()!);
+                }
+            )
+        );
         var seen = new List<bool>();
         t.SpawnWith(Watches<Flammable>(() => target, seen));
 
@@ -112,11 +123,15 @@ public sealed class ComponentFlagsWorldTests
     {
         using var t = new TestWorld();
         Entity child = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                child = self.Spawn(new() { Frame = self.Frame, Components = [new Crew()] });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        child = self.Spawn(new() { Frame = self.Frame, Components = [new Crew()] });
+                }
+            )
+        );
 
         t.World.Tick();
 
@@ -137,25 +152,29 @@ public sealed class ComponentFlagsWorldTests
             for (int i = 0; i < entities.Length; i++)
             {
                 int me = i;
-                lambdas.Add(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    int seen = 0;
-                    for (int n = Math.Max(0, me - 3); n < Math.Min(entities.Length, me + 4); n++)
-                        if (self.Snapshot.HasComponent<Flammable>(entities[n]))
-                            seen++;
-                    lock (counts)
-                    {
-                        counts.Add((int)(self.Tick * 100_000 + me * 10 + seen));
-                    }
+                lambdas.Add(
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                        {
+                            int seen = 0;
+                            for (int n = Math.Max(0, me - 3); n < Math.Min(entities.Length, me + 4); n++)
+                                if (self.Snapshot.HasComponent<Flammable>(entities[n]))
+                                    seen++;
+                            lock (counts)
+                            {
+                                counts.Add((int)(self.Tick * 100_000 + me * 10 + seen));
+                            }
 
-                    if ((self.Tick + me) % 3 == 0)
-                    {
-                        if (self.GetComponent<Flammable>() is { } flammable)
-                            self.RemoveComponent(flammable);
-                        else
-                            self.AddComponent(new Flammable());
-                    }
-                }));
+                            if ((self.Tick + me) % 3 == 0)
+                            {
+                                if (self.GetComponent<Flammable>() is { } flammable)
+                                    self.RemoveComponent(flammable);
+                                else
+                                    self.AddComponent(new Flammable());
+                            }
+                        }
+                    )
+                );
                 entities[i] = t.SpawnAt(new(i, 0, 0), lambdas[i]);
             }
 

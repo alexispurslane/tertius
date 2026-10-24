@@ -16,8 +16,13 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
 {
     /// <summary>True when every value is finite.</summary>
     public readonly bool IsValid =>
-        double.IsFinite(Rate) && double.IsFinite(PhaseAtEpoch) && double.IsFinite(Epoch) &&
-        double.IsFinite(Tilt.X) && double.IsFinite(Tilt.Y) && double.IsFinite(Tilt.Z) && double.IsFinite(Tilt.W);
+        double.IsFinite(Rate)
+        && double.IsFinite(PhaseAtEpoch)
+        && double.IsFinite(Epoch)
+        && double.IsFinite(Tilt.X)
+        && double.IsFinite(Tilt.Y)
+        && double.IsFinite(Tilt.Z)
+        && double.IsFinite(Tilt.W);
 
     /// <summary>The frame's angular velocity in parent axes, in radians per second: <see cref="Rate"/> about the pole.</summary>
     public readonly Double3 AngularVelocity => Leaning.Rotate(Double3.UnitY) * Rate;
@@ -36,6 +41,12 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
     /// place does not depend on it.
     /// </summary>
     public readonly MotionSample Sample(Double3 place, double stepEnd) =>
-        new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-            Acceleration: Double3.Zero, AngularVelocity: AngularVelocity, AngularAcceleration: Double3.Zero);
+        new(
+            Pose: new(place, RotationAt(stepEnd)),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: AngularVelocity,
+            AngularAcceleration: Double3.Zero
+        );
 }

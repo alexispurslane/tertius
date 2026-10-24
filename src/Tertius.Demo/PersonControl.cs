@@ -55,14 +55,21 @@ public sealed class PersonControl(Vector3 eye) : IComponent
     private const float MaxPitch = MathF.PI / 2 - 0.01f;
 
     // The keys held down. Space is both rise, while held, and jump, once per press.
-    private bool forward, back, left, right, rise, sink;
+    private bool forward,
+        back,
+        left,
+        right,
+        rise,
+        sink;
 
     // A press of Space or of E that the component has not acted on yet.
-    private bool jump, use;
+    private bool jump,
+        use;
 
     // The turn of the view about the entity's +Y, and its tilt about the turned +X, in radians. Mouse right turns right,
     // and mouse down looks down.
-    private float yaw, pitch;
+    private float yaw,
+        pitch;
     private readonly List<Entity> nearby = [];
 
     /// <summary>The person's back jet, which the component spawns in its first tick. Null before it.</summary>
@@ -92,13 +99,19 @@ public sealed class PersonControl(Vector3 eye) : IComponent
         var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw);
         Quaternion view = turn * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
         self.Render.ViewOffset = new(eye, view);
-        var keys = new Vector3((right ? 1 : 0) - (left ? 1 : 0), (rise ? 1 : 0) - (sink ? 1 : 0),
-            (back ? 1 : 0) - (forward ? 1 : 0));
+        var keys = new Vector3(
+            (right ? 1 : 0) - (left ? 1 : 0),
+            (rise ? 1 : 0) - (sink ? 1 : 0),
+            (back ? 1 : 0) - (forward ? 1 : 0)
+        );
         // The person asks for the walk of the keys held now and for a jump on a press, whether it stands or not.
         // Physics ignores both while it does not stand the person. So a held walk goes on in the first step in which
         // the person stands again, a key let go of in the air leaves no walk behind, and a press just before a landing
         // still jumps.
-        Vector3 walk = keys with { Y = 0 };
+        Vector3 walk = keys with
+        {
+            Y = 0,
+        };
         if (walk != Vector3.Zero)
             walk = Vector3.Normalize(walk) * WalkSpeed;
         self.Body.MoveCharacter(Vector3.Transform(walk, body * turn));
@@ -118,8 +131,12 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
         if (use)
         {
-            self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseIn(self.Frame).Position, radius: Reach,
-                results: nearby);
+            self.Snapshot.QueryRadius(
+                frame: self.Frame,
+                center: self.PoseIn(self.Frame).Position,
+                radius: Reach,
+                results: nearby
+            );
             foreach (Entity other in nearby)
                 if (other != self.Entity)
                     outbox.Send(other, new Use { User = self.Entity });

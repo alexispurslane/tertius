@@ -1,7 +1,7 @@
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -44,24 +44,41 @@ public partial class NumericFrameStickOutGhostTests
     private const double EarthMu = 3.986004418e14;
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc ShipHull = new(
+        Shape: new BoxShapeDesc(new(2)),
+        Mass: 1000,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A crate of 2 m by 2 m by 2 m and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc CrateBody = new(
+        Shape: new BoxShapeDesc(new(1)),
+        Mass: 2,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>
     /// A rock: a ball of radius 0.5 m and 1 kg that nothing slows down and that does not bounce. A ghost is kinematic, and
     /// Jolt makes no contact between a kinematic body and a static one, so the rock is dynamic.
     /// </summary>
-    private static readonly BodyDesc RockBody = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc RockBody = new(
+        Shape: new SphereShapeDesc(0.5f),
+        Mass: 1,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(faults: out faults,
-            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+        NewWorldWithFaults(
+            faults: out faults,
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames
+        );
 
     /// <summary>
     /// The scenes of these tests. <see cref="Build"/> runs each for <see cref="OnsetTicks"/> ticks, so the places here are
@@ -107,7 +124,7 @@ public partial class NumericFrameStickOutGhostTests
         /// its reach of the crate's place from the spawn, so the rock joins the hull's group and falls with it in the hull's
         /// falling frame from the onset, where the ghost of the crate lives.
         /// </summary>
-        ShipAndRockBeside
+        ShipAndRockBeside,
     }
 
     /// <summary>
@@ -122,7 +139,8 @@ public partial class NumericFrameStickOutGhostTests
         Entity Crate,
         Entity Rock,
         CollisionLog CrateLog,
-        CollisionLog RockLog);
+        CollisionLog RockLog
+    );
 
     /// <summary>
     /// Builds the scene of <paramref name="layout"/> and runs it for <see cref="OnsetTicks"/> ticks, so that its bodies with
@@ -137,45 +155,59 @@ public partial class NumericFrameStickOutGhostTests
         {
             Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new(FrameBounds.Sphere(40))),
             Layout.ShipAndFarRock => (At(FarOut + 130), new(-60, 0, 0), ShipHull, new(FrameBounds.Sphere(200))),
-            _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200)))
+            _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200))),
         };
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = ownerPose,
-            LinearVelocity = ownerVelocity,
-            Body = hull,
-            AsFrame = bubble,
-            Components = hull is null ? [] : [new Thruster(hull.Mass)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = ownerPose,
+                LinearVelocity = ownerVelocity,
+                Body = hull,
+                AsFrame = bubble,
+                Components = hull is null ? [] : [new Thruster(hull.Mass)],
+            }
+        );
         FrameHandle frame = world.GetOwnedFrame(owner);
         (Double3 cratePlace, Double3 crateVelocity, Double3 rockPlace, Double3 rockVelocity) = layout switch
         {
             Layout.StationAndFastRock => (new(0, 40.5, 0), Double3.Zero, new(1130, 41, 0), new(-60, 0, 0)),
             Layout.ShipAndFarRock => (new(0, -200, 0), Double3.Zero, new(FarOut, -200.6, 0), Double3.Zero),
-            _ => (new Double3(0, -200, 0), new Double3(0, -2, 0), new Double3(1100, -202.6, 0), new Double3(-60, 0, 0))
+            _ => (new Double3(0, -200, 0), new Double3(0, -2, 0), new Double3(1100, -202.6, 0), new Double3(-60, 0, 0)),
         };
         var crateLog = new CollisionLog();
         var rockLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(crateInBubble ?? cratePlace, DQuaternion.Identity),
-            LinearVelocity = crateVelocity,
-            Body = CrateBody,
-            Components = [crateLog]
-        });
-        Entity rock = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(rockPlace + new Double3(0, rockOffset, 0), DQuaternion.Identity),
-            LinearVelocity = rockVelocity,
-            Body = RockBody,
-            Components = layout == Layout.ShipAndFarRock ? [rockLog] : [rockLog, new Thruster(RockBody.Mass)]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(crateInBubble ?? cratePlace, DQuaternion.Identity),
+                LinearVelocity = crateVelocity,
+                Body = CrateBody,
+                Components = [crateLog],
+            }
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(rockPlace + new Double3(0, rockOffset, 0), DQuaternion.Identity),
+                LinearVelocity = rockVelocity,
+                Body = RockBody,
+                Components = layout == Layout.ShipAndFarRock ? [rockLog] : [rockLog, new Thruster(RockBody.Mass)],
+            }
+        );
         Tick(world, OnsetTicks);
-        return new(Layout: layout, Space: space, Owner: owner, Bubble: frame, Crate: crate, Rock: rock,
-            CrateLog: crateLog, RockLog: rockLog);
+        return new(
+            Layout: layout,
+            Space: space,
+            Owner: owner,
+            Bubble: frame,
+            Crate: crate,
+            Rock: rock,
+            CrateLog: crateLog,
+            RockLog: rockLog
+        );
     }
 
     /// <summary>
@@ -195,20 +227,32 @@ public partial class NumericFrameStickOutGhostTests
         }
 
         if (scene.Layout != Layout.StationAndFastRock)
-            world.Frames.Numeric(world.PhysicsHomeOf(scene.Owner)).Should()
+            world
+                .Frames.Numeric(world.PhysicsHomeOf(scene.Owner))
+                .Should()
                 .Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
         if (mayTouchGhost)
         {
-            home.Should().Be(world.Frames.TreeParent(scene.Bubble),
-                "the rock may touch the ghost of the crate, so it lives in the ghost's home");
-            home.Should().Be(scene.Layout == Layout.StationAndFastRock ? scene.Space : world.PhysicsHomeOf(scene.Owner),
-                "the station has no hull, so it holds the ghost fixed in the system of space, and the ship's hull lives in its falling frame");
+            home.Should()
+                .Be(
+                    world.Frames.TreeParent(scene.Bubble),
+                    "the rock may touch the ghost of the crate, so it lives in the ghost's home"
+                );
+            home.Should()
+                .Be(
+                    scene.Layout == Layout.StationAndFastRock ? scene.Space : world.PhysicsHomeOf(scene.Owner),
+                    "the station has no hull, so it holds the ghost fixed in the system of space, and the ship's hull lives in its falling frame"
+                );
             return;
         }
 
-        world.Frames.Numeric(home).Should().Be(
-            scene.Layout == Layout.ShipAndFarRock ? NumericMode.Resting : NumericMode.Falling,
-            "the rock thrusts at 60 m/s, or rests 9,000 km out");
+        world
+            .Frames.Numeric(home)
+            .Should()
+            .Be(
+                scene.Layout == Layout.ShipAndFarRock ? NumericMode.Resting : NumericMode.Falling,
+                "the rock thrusts at 60 m/s, or rests 9,000 km out"
+            );
         world.Frames.SemanticOf(home).Should().Be(scene.Space);
         world.PhysicsHomeOf(scene.Owner).Should().NotBe(home, "the merge test does not link the rock to the hull");
         world.Frames.TreeParent(scene.Bubble).Should().NotBe(home);
@@ -269,7 +313,8 @@ public partial class NumericFrameStickOutGhostTests
         Double3 Position,
         Double3 Velocity,
         List<ContactNews> RockNews,
-        List<ContactNews> CrateNews);
+        List<ContactNews> CrateNews
+    );
 
     /// <summary>
     /// Builds the scene of <paramref name="layout"/>, runs it for <paramref name="ticks"/> more ticks and returns the
@@ -301,10 +346,15 @@ public partial class NumericFrameStickOutGhostTests
         world.Errors.Should().BeEmpty();
         world.GetFrame(scene.Rock).Should().Be(scene.Space, "the rock never touched the bubble");
         world.GetFrame(scene.Crate).Should().Be(scene.Bubble, "the crate never left the bubble");
-        return new(HitTick: hitTick, HitInGhostHome: hitInGhostHome, HitMode: hitMode,
+        return new(
+            HitTick: hitTick,
+            HitInGhostHome: hitInGhostHome,
+            HitMode: hitMode,
             Position: world.PoseIn(scene.Rock, scene.Space).Position,
-            Velocity: world.VelocityIn(scene.Rock, scene.Space), RockNews: scene.RockLog.NewsOf(scene.Crate),
-            CrateNews: scene.CrateLog.NewsOf(scene.Rock));
+            Velocity: world.VelocityIn(scene.Rock, scene.Space),
+            RockNews: scene.RockLog.NewsOf(scene.Crate),
+            CrateNews: scene.CrateLog.NewsOf(scene.Rock)
+        );
     }
 
     /// <summary>
@@ -312,23 +362,30 @@ public partial class NumericFrameStickOutGhostTests
     /// place of the crate's ghost is fixed in the system of space, and the rock, which may touch it, stays there.
     /// </summary>
     [Fact]
-    public void
-        AFastRockStaysInTheSystemOfSpaceAndHitsACrateThatSticksOutOfAParkedStationWithoutAHullAsItDoesWithoutNumericFrames()
+    public void AFastRockStaysInTheSystemOfSpaceAndHitsACrateThatSticksOutOfAParkedStationWithoutAHullAsItDoesWithoutNumericFrames()
     {
         Outcome withNumericFrames = Run(Layout.StationAndFastRock, numericFrames: true, ticks: 150);
         Outcome withoutNumericFrames = Run(Layout.StationAndFastRock, numericFrames: false, ticks: 150);
 
         // The front of the rock reaches the crate's face at x = 1001 in space after 128.5 m from its spawn, or 2.14 s.
-        withoutNumericFrames.HitTick.Should()
+        withoutNumericFrames
+            .HitTick.Should()
             .BeInRange(127, 133, "the rock hits the ghost of the crate in space after about 2.14 s");
         withoutNumericFrames.Velocity.Length.Should().BeLessThan(5, "the ghost of the crate stopped the rock");
         withoutNumericFrames.Position.X.Should().BeGreaterThan(1001, "the rock did not pass through the crate");
-        withNumericFrames.HitInGhostHome.Should()
+        withNumericFrames
+            .HitInGhostHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the crate, which is fixed in the system of space, so it stays there");
+                "the rock may touch the ghost of the crate, which is fixed in the system of space, so it stays there"
+            );
         withNumericFrames.HitMode.Should().Be(NumericMode.None);
-        withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1,
-            "the rock meets the ghost of the crate in the system of space, as without numeric frames");
+        withNumericFrames
+            .HitTick.Should()
+            .BeInRange(
+                withoutNumericFrames.HitTick - 1,
+                withoutNumericFrames.HitTick + 1,
+                "the rock meets the ghost of the crate in the system of space, as without numeric frames"
+            );
         withNumericFrames.Velocity.Length.Should().BeLessThan(5, "the ghost stopped the rock");
         withNumericFrames.Position.X.Should().BeGreaterThan(1001, "the rock did not pass through the crate");
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
@@ -346,25 +403,34 @@ public partial class NumericFrameStickOutGhostTests
     /// differs. From then on the ghost pushes the rock in both runs, so the test compares where the rock ends up.
     /// </summary>
     [Fact]
-    public void
-        ACrateThatSticksOutOfAFallingShipPushesARockThatRestsFarOutInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
+    public void ACrateThatSticksOutOfAFallingShipPushesARockThatRestsFarOutInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
     {
         Outcome withNumericFrames = Run(Layout.ShipAndFarRock, numericFrames: true, ticks: 130);
         Outcome withoutNumericFrames = Run(Layout.ShipAndFarRock, numericFrames: false, ticks: 130);
 
         // The front of the crate reaches the back of the rock, at x = FarOut + 0.5 in space, after 128.5 m from its spawn, or 2.14 s.
-        withoutNumericFrames.HitTick.Should().BeInRange(127, 133,
-            "the ghost of the crate in space reaches the rock after about 2.14 s");
+        withoutNumericFrames
+            .HitTick.Should()
+            .BeInRange(127, 133, "the ghost of the crate in space reaches the rock after about 2.14 s");
         withoutNumericFrames.Velocity.X.Should().BeLessThan(-10, "the ghost pushed the rock along -X");
-        withNumericFrames.HitInGhostHome.Should()
+        withNumericFrames
+            .HitInGhostHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the crate, so it joined the falling frame of the ship's hull, where the ghost lives");
+                "the rock may touch the ghost of the crate, so it joined the falling frame of the ship's hull, where the ghost lives"
+            );
         withNumericFrames.HitMode.Should().Be(NumericMode.Falling);
-        withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick,
-            "in the falling frame Jolt sweeps the rock into the ghost, so it may find the contact one step earlier");
-        (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should()
+        withNumericFrames
+            .HitTick.Should()
+            .BeInRange(
+                withoutNumericFrames.HitTick - 1,
+                withoutNumericFrames.HitTick,
+                "in the falling frame Jolt sweeps the rock into the ghost, so it may find the contact one step earlier"
+            );
+        (withNumericFrames.Position - withoutNumericFrames.Position)
+            .Length.Should()
             .BeLessThan(1e-2, "the ghost pushed the rock to the same place");
-        (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should()
+        (withNumericFrames.Velocity - withoutNumericFrames.Velocity)
+            .Length.Should()
             .BeLessThan(1e-2, "the ghost moves at the same velocity");
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
         withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);
@@ -378,27 +444,36 @@ public partial class NumericFrameStickOutGhostTests
     /// no cast. So the test compares the place across the path of the ship, not along it.
     /// </summary>
     [Fact]
-    public void
-        ACrateThatDriftsOutOfAFallingShipPushesARockThatFliesBesideItInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
+    public void ACrateThatDriftsOutOfAFallingShipPushesARockThatFliesBesideItInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
     {
         Outcome withNumericFrames = Run(Layout.ShipAndRockBeside, numericFrames: true, ticks: 30);
         Outcome withoutNumericFrames = Run(Layout.ShipAndRockBeside, numericFrames: false, ticks: 30);
 
         // The crate's face closes the gap of 1.1 m from the spawn at 2 m/s in 0.55 s, or 33 ticks: 3 ticks after the start.
-        withoutNumericFrames.HitTick.Should()
+        withoutNumericFrames
+            .HitTick.Should()
             .BeInRange(32, 37, "the ghost of the crate in space reaches the rock after about 0.55 s");
-        withoutNumericFrames.Velocity.Y.Should()
+        withoutNumericFrames
+            .Velocity.Y.Should()
             .BeInRange(-2.1, -1.9, "the ghost pushes the rock out along -Y at the crate's speed");
-        withNumericFrames.HitInGhostHome.Should()
+        withNumericFrames
+            .HitInGhostHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the crate, so it lives in the falling frame of the ship's hull, where the ghost lives");
+                "the rock may touch the ghost of the crate, so it lives in the falling frame of the ship's hull, where the ghost lives"
+            );
         withNumericFrames.HitMode.Should().Be(NumericMode.Falling);
-        withNumericFrames.HitTick.Should().Be(withoutNumericFrames.HitTick,
-            "the ghost of the crate meets the rock in the ship's falling frame as it does in space");
-        withNumericFrames.Position.Y.Should().BeApproximately(withoutNumericFrames.Position.Y, 0.05,
-            "the ghost pushed the rock out as far");
+        withNumericFrames
+            .HitTick.Should()
+            .Be(
+                withoutNumericFrames.HitTick,
+                "the ghost of the crate meets the rock in the ship's falling frame as it does in space"
+            );
+        withNumericFrames
+            .Position.Y.Should()
+            .BeApproximately(withoutNumericFrames.Position.Y, 0.05, "the ghost pushed the rock out as far");
         withNumericFrames.Position.Z.Should().BeApproximately(withoutNumericFrames.Position.Z, 1e-6);
-        (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should()
+        (withNumericFrames.Velocity - withoutNumericFrames.Velocity)
+            .Length.Should()
             .BeLessThan(1e-2, "the ghost moves at the same velocity");
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
         withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);
@@ -408,7 +483,15 @@ public partial class NumericFrameStickOutGhostTests
     /// <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
         world.GetOwnedFrame(
-            world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow. The rock may touch the
@@ -429,7 +512,9 @@ public partial class NumericFrameStickOutGhostTests
         Tick(world, 2);
         RockHomeShouldBe(world: world, scene: scene, numericFrames: true, mayTouchGhost: true);
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
-        faults.Jolt.HasGhostIn(scene.Crate, home).Should()
+        faults
+            .Jolt.HasGhostIn(scene.Crate, home)
+            .Should()
             .BeTrue("the crate sticks out of the bubble into its tree parent");
         faults.Jolt.GhostCount(scene.Crate).Should().Be(1, "no other system holds a ghost of the crate");
 
@@ -438,7 +523,9 @@ public partial class NumericFrameStickOutGhostTests
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new(), world.Frames);
 
-        faults.Jolt.HasGhostIn(scene.Crate, home).Should()
+        faults
+            .Jolt.HasGhostIn(scene.Crate, home)
+            .Should()
             .BeTrue("the tree allows a ghost of the crate in the bubble's tree parent, also when it is numeric");
         faults.Jolt.GhostCount(scene.Crate).Should().Be(1);
         world.Tick();
@@ -470,20 +557,26 @@ public partial class NumericFrameStickOutGhostTests
         {
             world.Tick();
             FrameHandle rockHome = world.PhysicsHomeOf(scene.Rock);
-            sawGhostBesideRock |= rockHome == world.Frames.TreeParent(scene.Bubble) &&
-                                  faults.Jolt.HasGhostIn(scene.Crate, rockHome);
+            sawGhostBesideRock |=
+                rockHome == world.Frames.TreeParent(scene.Bubble) && faults.Jolt.HasGhostIn(scene.Crate, rockHome);
             systems.Clear();
             world.Frames.GetAllInTree(systems);
             foreach (FrameHandle frame in systems)
             {
                 List<JoltPhysicsBackend.BodyFacts> bodies = faults.Jolt.BodiesIn(frame);
                 foreach (Entity entity in entities)
-                    bodies.Count(facts => BodyUserData.Names(facts.UserData, entity)).Should().BeLessThanOrEqualTo(1,
-                        $"after tick {tick} the system of {frame} holds the real body of {entity} or one ghost of it, or neither");
+                    bodies
+                        .Count(facts => BodyUserData.Names(facts.UserData, entity))
+                        .Should()
+                        .BeLessThanOrEqualTo(
+                            1,
+                            $"after tick {tick} the system of {frame} holds the real body of {entity} or one ghost of it, or neither"
+                        );
             }
         }
 
-        sawGhostBesideRock.Should()
+        sawGhostBesideRock
+            .Should()
             .BeTrue("the rock lived in the bubble's tree parent, which held a ghost of the crate");
         world.Errors.Should().BeEmpty();
     }
@@ -500,8 +593,10 @@ public partial class NumericFrameStickOutGhostTests
     [InlineData(Layout.ShipAndFarRock, false)]
     [InlineData(Layout.ShipAndRockBeside, true)]
     [InlineData(Layout.ShipAndRockBeside, false)]
-    public void ACrateFarFromEveryBubbleBoundaryHasNoGhostInTheNumericFrameOfARockNearItsBubble(Layout layout,
-        bool numericFrames)
+    public void ACrateFarFromEveryBubbleBoundaryHasNoGhostInTheNumericFrameOfARockNearItsBubble(
+        Layout layout,
+        bool numericFrames
+    )
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         Double3 deepInside = layout == Layout.StationAndFastRock ? new(0, 20, 0) : new Double3(0, -100, 0);
@@ -512,7 +607,9 @@ public partial class NumericFrameStickOutGhostTests
         for (int tick = 0; tick < 60; tick++)
         {
             world.Tick();
-            faults.Jolt.GhostCount(scene.Crate).Should()
+            faults
+                .Jolt.GhostCount(scene.Crate)
+                .Should()
                 .Be(0, $"after tick {tick} the crate is far inside its frame's bubble");
         }
 
@@ -539,13 +636,19 @@ public partial class NumericFrameStickOutGhostTests
         for (int tick = 0; tick < 120; tick++)
         {
             world.Tick();
-            faults.Jolt.GhostCount(scene.Crate).Should().Be(1,
-                $"after tick {tick} the crate has its one ghost in the ship's tree parent");
+            faults
+                .Jolt.GhostCount(scene.Crate)
+                .Should()
+                .Be(1, $"after tick {tick} the crate has its one ghost in the ship's tree parent");
             faults.Jolt.HasGhostIn(scene.Crate, world.Frames.TreeParent(scene.Bubble)).Should().BeTrue();
-            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().Be(!numericFrames,
-                "with numeric frames, the ship's tree parent is the hull's falling frame");
+            faults
+                .Jolt.HasGhostIn(scene.Crate, scene.Space)
+                .Should()
+                .Be(!numericFrames, "with numeric frames, the ship's tree parent is the hull's falling frame");
             if (numericFrames)
-                faults.Jolt.HasGhostIn(scene.Crate, world.PhysicsHomeOf(scene.Rock)).Should()
+                faults
+                    .Jolt.HasGhostIn(scene.Crate, world.PhysicsHomeOf(scene.Rock))
+                    .Should()
                     .BeFalse("the rock is 800 m beyond the reach of the crate's ghost");
         }
 
@@ -563,7 +666,8 @@ public partial class NumericFrameStickOutGhostTests
         bool HitInHullHome,
         NumericMode HitMode,
         Double3 RockInStation,
-        List<ContactNews> RockNews);
+        List<ContactNews> RockNews
+    );
 
     /// <summary>
     /// A planet whose point gravity has the G·M <paramref name="mu"/>, and a station on a circular orbit 7,000 km from its
@@ -582,12 +686,14 @@ public partial class NumericFrameStickOutGhostTests
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
-        Entity owner = world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = ShipHull with { Motion = BodyMotion.Kinematic },
-            AsFrame = new(FrameBounds.Sphere(40))
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(7_000_000)));
+        Entity owner = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = planet,
+                Body = ShipHull with { Motion = BodyMotion.Kinematic },
+                AsFrame = new(FrameBounds.Sphere(40)),
+            }.OnKeplerOrbit(world, KeplerOrbit.Circular(7_000_000))
+        );
         FrameHandle station = world.GetOwnedFrame(owner);
         // The station holds still for its first step, so the planet's gravity pulls on its contents then, and stands on its
         // rails from the second sync point on. The crate and the rock come once it falls freely on its orbit, as they did
@@ -598,16 +704,25 @@ public partial class NumericFrameStickOutGhostTests
         long start = world.TickNumber;
         Double3 stationPlace = world.Frames.LocalPose(station).Position;
         Double3 stationVelocity = world.Frames.LinearVelocity(station);
-        Entity crate = world.Spawn(new() { Frame = station, Pose = At(0, 40.5), Body = CrateBody });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(0, 40.5),
+                Body = CrateBody,
+            }
+        );
         var rockLog = new CollisionLog();
-        Entity rock = world.Spawn(new()
-        {
-            Frame = planet,
-            Pose = new(stationPlace + new Double3(3, 41, 0), DQuaternion.Identity),
-            LinearVelocity = stationVelocity + new Double3(-1, 0, 0),
-            Body = RockBody,
-            Components = rockThrusts ? [rockLog, new Thruster(RockBody.Mass)] : [rockLog]
-        });
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = planet,
+                Pose = new(stationPlace + new Double3(3, 41, 0), DQuaternion.Identity),
+                LinearVelocity = stationVelocity + new Double3(-1, 0, 0),
+                Body = RockBody,
+                Components = rockThrusts ? [rockLog, new Thruster(RockBody.Mass)] : [rockLog],
+            }
+        );
 
         long hitTick = -1;
         bool hitInHullHome = false;
@@ -628,8 +743,13 @@ public partial class NumericFrameStickOutGhostTests
 
         world.Errors.Should().BeEmpty();
         world.GetFrame(rock).Should().Be(planet, "the rock never touched the bubble");
-        return new(HitTick: hitTick, HitInHullHome: hitInHullHome, HitMode: hitMode,
-            RockInStation: world.PoseIn(rock, station).Position, RockNews: rockLog.NewsOf(crate));
+        return new(
+            HitTick: hitTick,
+            HitInHullHome: hitInHullHome,
+            HitMode: hitMode,
+            RockInStation: world.PoseIn(rock, station).Position,
+            RockNews: rockLog.NewsOf(crate)
+        );
     }
 
     /// <summary>
@@ -643,15 +763,23 @@ public partial class NumericFrameStickOutGhostTests
         OrbitOutcome withoutNumericFrames = RunStationOnAnOrbit(numericFrames: false, EarthMu);
 
         // The rock's face closes the gap of 1.5 m to the crate's face at 1 m/s in 1.5 s, or 90 ticks.
-        withoutNumericFrames.HitTick.Should()
+        withoutNumericFrames
+            .HitTick.Should()
             .BeInRange(87, 94, "the ghost of the crate in the planet's system stops the rock");
         withoutNumericFrames.RockInStation.X.Should().BeGreaterThan(1.4, "the rock did not pass through the crate");
-        withNumericFrames.HitInHullHome.Should()
+        withNumericFrames
+            .HitInHullHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the crate, so it joined the following frame of the station's hull, where the ghost lives");
+                "the rock may touch the ghost of the crate, so it joined the following frame of the station's hull, where the ghost lives"
+            );
         withNumericFrames.HitMode.Should().Be(NumericMode.Following);
-        withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1,
-            "the rock meets the ghost of the crate in the hull's following frame as it does in the planet's system");
+        withNumericFrames
+            .HitTick.Should()
+            .BeInRange(
+                withoutNumericFrames.HitTick - 1,
+                withoutNumericFrames.HitTick + 1,
+                "the rock meets the ghost of the crate in the hull's following frame as it does in the planet's system"
+            );
         withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
         withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);
@@ -672,11 +800,14 @@ public partial class NumericFrameStickOutGhostTests
         OrbitOutcome withoutNumericFrames = RunStationOnAnOrbit(numericFrames: false, slowMu, rockThrusts: true);
 
         withoutNumericFrames.HitTick.Should().BeInRange(87, 94);
-        withNumericFrames.HitInHullHome.Should()
+        withNumericFrames
+            .HitInHullHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the crate, so it joined the home of the station's hull, the planet's own system");
+                "the rock may touch the ghost of the crate, so it joined the home of the station's hull, the planet's own system"
+            );
         withNumericFrames.HitMode.Should().Be(NumericMode.None);
-        withNumericFrames.HitTick.Should()
+        withNumericFrames
+            .HitTick.Should()
             .BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1);
         withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
@@ -688,9 +819,14 @@ public partial class NumericFrameStickOutGhostTests
     /// <paramref name="expectedHome"/> gives in the step of the contact, and the mode of its home then (see
     /// <see cref="ContactHome"/>): false and None when the body never hears the other.
     /// </summary>
-    private static (bool InExpectedHome, NumericMode Mode) WatchFirstContact(World world, Entity body, CollisionLog log,
+    private static (bool InExpectedHome, NumericMode Mode) WatchFirstContact(
+        World world,
+        Entity body,
+        CollisionLog log,
         Entity other,
-        Func<FrameHandle> expectedHome, int ticks)
+        Func<FrameHandle> expectedHome,
+        int ticks
+    )
     {
         var homes = new ContactHome(world, body, expectedHome);
         (bool InExpectedHome, NumericMode Mode)? contact = null;
@@ -715,33 +851,53 @@ public partial class NumericFrameStickOutGhostTests
     /// it stays in the system of space. The outcome says whether the sensor was in the home of the station's hull in the
     /// step of its first contact with the crate, and gives the mode of its home then and its home at the end.
     /// </summary>
-    private static (List<ContactNews> SensorNews, bool SensorInHullHome, NumericMode SensorMode, FrameHandle SensorHome,
-        FrameHandle Space)
-        RunStaticSensorBesideAStation(bool numericFrames)
+    private static (
+        List<ContactNews> SensorNews,
+        bool SensorInHullHome,
+        NumericMode SensorMode,
+        FrameHandle SensorHome,
+        FrameHandle Space
+    ) RunStaticSensorBesideAStation(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity station = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
-            AsFrame = new(FrameBounds.Sphere(40))
-        });
+        Entity station = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(40)),
+            }
+        );
         FrameHandle bubble = world.GetOwnedFrame(station);
-        Entity crate = world.Spawn(new()
-            { Frame = bubble, Pose = At(0, 39), LinearVelocity = new(0, 1, 0), Body = CrateBody });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(0, 39),
+                LinearVelocity = new(0, 1, 0),
+                Body = CrateBody,
+            }
+        );
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut, 43.5),
-            Body = new(Shape: new SphereShapeDesc(1f), Motion: BodyMotion.Static) { IsSensor = true },
-            Components = [sensorLog]
-        });
-        (bool InExpectedHome, NumericMode Mode) contact =
-            WatchFirstContact(world: world, body: sensor, log: sensorLog, other: crate,
-                expectedHome: () => world.PhysicsHomeOf(station), ticks: 200);
+        Entity sensor = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut, 43.5),
+                Body = new(Shape: new SphereShapeDesc(1f), Motion: BodyMotion.Static) { IsSensor = true },
+                Components = [sensorLog],
+            }
+        );
+        (bool InExpectedHome, NumericMode Mode) contact = WatchFirstContact(
+            world: world,
+            body: sensor,
+            log: sensorLog,
+            other: crate,
+            expectedHome: () => world.PhysicsHomeOf(station),
+            ticks: 200
+        );
         world.Errors.Should().BeEmpty();
         world.GetFrame(crate).Should().Be(bubble, "the crate still sticks out of the station's bubble");
         return (sensorLog.NewsOf(crate), contact.InExpectedHome, contact.Mode, world.PhysicsHomeOf(sensor), space);
@@ -750,16 +906,27 @@ public partial class NumericFrameStickOutGhostTests
     [Fact]
     public void AStaticSensorFarOutDetectsACrateThatSticksOutOfAParkedStationAsItDoesWithoutNumericFrames()
     {
-        (List<ContactNews> SensorNews, bool SensorInHullHome, NumericMode SensorMode, FrameHandle SensorHome,
-            FrameHandle Space) with = RunStaticSensorBesideAStation(numericFrames: true);
-        (List<ContactNews> SensorNews, bool SensorInHullHome, NumericMode SensorMode, FrameHandle SensorHome,
-            FrameHandle Space) without = RunStaticSensorBesideAStation(numericFrames: false);
+        (
+            List<ContactNews> SensorNews,
+            bool SensorInHullHome,
+            NumericMode SensorMode,
+            FrameHandle SensorHome,
+            FrameHandle Space
+        ) with = RunStaticSensorBesideAStation(numericFrames: true);
+        (
+            List<ContactNews> SensorNews,
+            bool SensorInHullHome,
+            NumericMode SensorMode,
+            FrameHandle SensorHome,
+            FrameHandle Space
+        ) without = RunStaticSensorBesideAStation(numericFrames: false);
 
         without.SensorHome.Should().Be(without.Space);
         without.SensorNews.Should().StartWith(ContactNews.Started);
         with.SensorInHullHome.Should()
             .BeTrue(
-                "the sensor may touch the ghost of the crate, so it joined the home of the station's static hull, the system of space");
+                "the sensor may touch the ghost of the crate, so it joined the home of the station's static hull, the system of space"
+            );
         with.SensorMode.Should().Be(NumericMode.None);
         with.SensorNews.Should().Equal(without.SensorNews, "numeric frames do not change which events gameplay hears");
     }
@@ -775,59 +942,97 @@ public partial class NumericFrameStickOutGhostTests
     /// whether the rock was in the home of the station's hull in the step of its first contact with the radar's hull, and
     /// gives the mode of its home then and its home at the end.
     /// </summary>
-    private static (List<ContactNews> RockNews, Double3 RockPosition, Double3 RockVelocity, bool RockInHullHome,
-        NumericMode RockMode, FrameHandle RockHome,
-        FrameHandle Space) RunRadarAndRock(bool numericFrames)
+    private static (
+        List<ContactNews> RockNews,
+        Double3 RockPosition,
+        Double3 RockVelocity,
+        bool RockInHullHome,
+        NumericMode RockMode,
+        FrameHandle RockHome,
+        FrameHandle Space
+    ) RunRadarAndRock(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity station = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
-            AsFrame = new(FrameBounds.Sphere(40))
-        });
-        Entity radar = world.Spawn(new SpawnDesc
-        {
-            Frame = world.GetOwnedFrame(station),
-            Pose = At(0, 39),
-            Body = new(Shape: new SphereShapeDesc(5f), Motion: BodyMotion.Kinematic),
-            AsFrame = new(FrameBounds.Sphere(6))
-        }.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1)));
+        Entity station = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(40)),
+            }
+        );
+        Entity radar = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = world.GetOwnedFrame(station),
+                Pose = At(0, 39),
+                Body = new(Shape: new SphereShapeDesc(5f), Motion: BodyMotion.Kinematic),
+                AsFrame = new(FrameBounds.Sphere(6)),
+            }.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1))
+        );
         var rockLog = new CollisionLog();
-        Entity rock = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut, 44.55),
-            LinearVelocity = new(0, -0.3, 0),
-            Body = RockBody,
-            Components = [rockLog]
-        });
-        (bool InExpectedHome, NumericMode Mode) contact =
-            WatchFirstContact(world: world, body: rock, log: rockLog, other: radar,
-                expectedHome: () => world.PhysicsHomeOf(station), ticks: 120);
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut, 44.55),
+                LinearVelocity = new(0, -0.3, 0),
+                Body = RockBody,
+                Components = [rockLog],
+            }
+        );
+        (bool InExpectedHome, NumericMode Mode) contact = WatchFirstContact(
+            world: world,
+            body: rock,
+            log: rockLog,
+            other: radar,
+            expectedHome: () => world.PhysicsHomeOf(station),
+            ticks: 120
+        );
         world.Errors.Should().BeEmpty();
         world.GetFrame(rock).Should().Be(space, "the rock never touched the station's bubble");
-        return (rockLog.NewsOf(radar), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space),
-            contact.InExpectedHome, contact.Mode,
-            world.PhysicsHomeOf(rock), space);
+        return (
+            rockLog.NewsOf(radar),
+            world.PoseIn(rock, space).Position,
+            world.VelocityIn(rock, space),
+            contact.InExpectedHome,
+            contact.Mode,
+            world.PhysicsHomeOf(rock),
+            space
+        );
     }
 
     [Fact]
     public void ARockFarOutHitsTheHullOfASpinningRadarThatSticksOutOfAParkedStationAsItDoesWithoutNumericFrames()
     {
-        (List<ContactNews> RockNews, Double3 RockPosition, Double3 RockVelocity, bool RockInHullHome, NumericMode
-            RockMode, FrameHandle RockHome, FrameHandle Space) with = RunRadarAndRock(numericFrames: true);
-        (List<ContactNews> RockNews, Double3 RockPosition, Double3 RockVelocity, bool RockInHullHome, NumericMode
-            RockMode, FrameHandle RockHome, FrameHandle Space) without = RunRadarAndRock(numericFrames: false);
+        (
+            List<ContactNews> RockNews,
+            Double3 RockPosition,
+            Double3 RockVelocity,
+            bool RockInHullHome,
+            NumericMode RockMode,
+            FrameHandle RockHome,
+            FrameHandle Space
+        ) with = RunRadarAndRock(numericFrames: true);
+        (
+            List<ContactNews> RockNews,
+            Double3 RockPosition,
+            Double3 RockVelocity,
+            bool RockInHullHome,
+            NumericMode RockMode,
+            FrameHandle RockHome,
+            FrameHandle Space
+        ) without = RunRadarAndRock(numericFrames: false);
 
         without.RockHome.Should().Be(without.Space);
         without.RockNews.Should().StartWith(ContactNews.Started);
         without.RockPosition.Y.Should().BeGreaterThan(44.4, "the ghost of the radar's hull stopped the rock");
         with.RockInHullHome.Should()
             .BeTrue(
-                "the rock may touch the ghost of the radar's hull, so it joined the home of the station's static hull, the system of space");
+                "the rock may touch the ghost of the radar's hull, so it joined the home of the station's static hull, the system of space"
+            );
         with.RockMode.Should().Be(NumericMode.None);
         with.RockNews.Should().Equal(without.RockNews, "numeric frames do not change which events gameplay hears");
         (with.RockPosition - without.RockPosition).Length.Should().BeLessThan(1e-2);

@@ -24,8 +24,11 @@ public sealed class RenderSnapshotParallelBuildTests
     /// every fiftieth one carrying a point light, after two ticks. With <paramref name="parallelThreshold"/>, the builder
     /// goes to the workers from that many slots on.
     /// </summary>
-    private static RenderSnapshot BuildAfterTwoTicks(int maxDegreeOfParallelism, int entityCount,
-        int? parallelThreshold = null)
+    private static RenderSnapshot BuildAfterTwoTicks(
+        int maxDegreeOfParallelism,
+        int entityCount,
+        int? parallelThreshold = null
+    )
     {
         // Debug checks cost O(capacity) per tick, which adds up for 12 000 entities and says nothing about the snapshot.
         using var test = new TestWorld(maxDegreeOfParallelism: maxDegreeOfParallelism, debugChecks: false);
@@ -36,15 +39,21 @@ public sealed class RenderSnapshotParallelBuildTests
         {
             RenderData render = Visible(i % 5);
             if (i % 50 == 0)
-                render.Light = new PointLightData(Offset: Pose.Identity, Color: new(1, 0.5f, 0.25f), Intensity: 1,
-                    Range: 20);
-            test.World.Spawn(new()
-            {
-                Frame = i % 3 == 0 ? side : test.Root,
-                Pose = TestWorld.At(i * 0.5, i % 7, -i % 11),
-                Render = render,
-                Components = i % 4 == 0 ? [new Mover(new(0.25, 0, 0))] : []
-            });
+                render.Light = new PointLightData(
+                    Offset: Pose.Identity,
+                    Color: new(1, 0.5f, 0.25f),
+                    Intensity: 1,
+                    Range: 20
+                );
+            test.World.Spawn(
+                new()
+                {
+                    Frame = i % 3 == 0 ? side : test.Root,
+                    Pose = TestWorld.At(i * 0.5, i % 7, -i % 11),
+                    Render = render,
+                    Components = i % 4 == 0 ? [new Mover(new(0.25, 0, 0))] : [],
+                }
+            );
         }
 
         test.World.Camera = test.SpawnCamera(test.Root, TestWorld.At(100));
@@ -79,8 +88,11 @@ public sealed class RenderSnapshotParallelBuildTests
     public void ASmallWorldThatBuildsOnTheWorkersFromOneSlotOnBuildsTheSnapshotOfAWorldOnOneThread()
     {
         RenderSnapshot serial = BuildAfterTwoTicks(maxDegreeOfParallelism: 1, SmallEntityCount);
-        RenderSnapshot onWorkers =
-            BuildAfterTwoTicks(maxDegreeOfParallelism: 4, SmallEntityCount, parallelThreshold: 1);
+        RenderSnapshot onWorkers = BuildAfterTwoTicks(
+            maxDegreeOfParallelism: 4,
+            SmallEntityCount,
+            parallelThreshold: 1
+        );
 
         serial.Instances.Should().HaveCount(SmallEntityCount);
         serial.Lights.Should().HaveCount(SmallEntityCount / 50);
@@ -107,10 +119,22 @@ public sealed class RenderSnapshotParallelBuildTests
             entities = new(chunkSize: 64, initialCapacity: visible + 2);
             var frames = new FrameTree();
             Entity owner = entities.Reserve();
-            FrameHandle root = frames.Create(frameOwner: owner, parent: FrameHandle.Null, localPose: DPose.Identity,
-                frameBounds: FrameBounds.Sphere(1e9f));
-            entities.Activate(entity: owner, row: new() { Pose = DPose.Identity }, render: new(), components: [],
-                wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: root);
+            FrameHandle root = frames.Create(
+                frameOwner: owner,
+                parent: FrameHandle.Null,
+                localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e9f)
+            );
+            entities.Activate(
+                entity: owner,
+                row: new() { Pose = DPose.Identity },
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: root
+            );
             camera = Spawn(root, new(), 0);
             for (int i = 0; i < visible; i++)
                 Spawn(root, Visible(), i + 1);
@@ -127,19 +151,42 @@ public sealed class RenderSnapshotParallelBuildTests
         public RenderSnapshot Build()
         {
             var snapshot = new RenderSnapshot();
-            Builder.Build(snapshot,
-                new(Tick: 0, Time: 0, Camera: camera, VerticalFov: 1, SunFrame: FrameHandle.Null, SunColor: Vector3.One,
-                    SunIntensity: 0, Ambient: new(),
-                    ShowFrameOutlines: false), puffs: default);
+            Builder.Build(
+                snapshot,
+                new(
+                    Tick: 0,
+                    Time: 0,
+                    Camera: camera,
+                    VerticalFov: 1,
+                    SunFrame: FrameHandle.Null,
+                    SunColor: Vector3.One,
+                    SunIntensity: 0,
+                    Ambient: new(),
+                    ShowFrameOutlines: false
+                ),
+                puffs: default
+            );
             return snapshot;
         }
 
         private Entity Spawn(FrameHandle frame, in RenderData render, double x)
         {
             Entity entity = entities.Reserve();
-            entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) },
-                render: render, components: [],
-                wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            entities.Activate(
+                entity: entity,
+                row: new()
+                {
+                    Frame = frame,
+                    PhysicsHome = frame,
+                    Pose = TestWorld.At(x),
+                },
+                render: render,
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
             return entity;
         }
     }
@@ -189,7 +236,7 @@ public sealed class RenderSnapshotParallelBuildTests
         Action set = () => h.Builder.ParallelThreshold = threshold;
 
         set.Should().Throw<ArgumentOutOfRangeException>();
-        h.Builder.ParallelThreshold.Should().Be(RenderSnapshotBuilder.DefaultParallelThreshold,
-            "a refused threshold changes nothing");
+        h.Builder.ParallelThreshold.Should()
+            .Be(RenderSnapshotBuilder.DefaultParallelThreshold, "a refused threshold changes nothing");
     }
 }

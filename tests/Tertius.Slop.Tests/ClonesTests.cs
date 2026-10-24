@@ -10,15 +10,15 @@ public sealed class ClonesTests : IDisposable
 {
     // A method of more than 70 tokens, the least that jscpd reports with the settings of the commit report.
     private const string Method = """
-                                      public int Sum(int first, int second, int third)
-                                      {
-                                          int total = first * 3 + second * 5 + third * 7;
-                                          total = total + first * second * third + 11;
-                                          total = total - first - second - third + 13;
-                                          total = total * 2 + first + second + third + 17;
-                                          return total + first + second + third + 19;
-                                      }
-                                  """;
+            public int Sum(int first, int second, int third)
+            {
+                int total = first * 3 + second * 5 + third * 7;
+                total = total + first * second * third + 11;
+                total = total - first - second - third + 13;
+                total = total * 2 + first + second + third + 17;
+                return total + first + second + third + 19;
+            }
+        """;
 
     private readonly string root = Directory.CreateTempSubdirectory("tertius-slop-").FullName;
 
@@ -27,7 +27,7 @@ public sealed class ClonesTests : IDisposable
     [Fact]
     public void EachFragmentOfAReportGivesItsLinesUnderSrc()
     {
-        Clones clones = Clones.FromReport(VerbosityReportTests.Report(("Tertius.Core/A.cs", 3, 5), ("B.cs", 7, 7)));
+        var clones = Clones.FromReport(VerbosityReportTests.Report(("Tertius.Core/A.cs", 3, 5), ("B.cs", 7, 7)));
 
         clones.LinesIn("src/Tertius.Core/A.cs").Should().BeEquivalentTo([3, 4, 5]);
         clones.LinesIn("src/B.cs").Should().BeEquivalentTo([7]);
@@ -43,7 +43,7 @@ public sealed class ClonesTests : IDisposable
         Write("src/A.cs", $"class A\n{{\n{Method}\n}}\n");
         Write("src/B.cs", $"class B\n{{\n{Method}\n}}\n");
 
-        Clones clones = Clones.Find(root, "jscpd");
+        var clones = Clones.Find(root, "jscpd");
 
         clones.LinesIn("src/A.cs").Should().NotBeEmpty();
         clones.LinesIn("src/B.cs").Should().NotBeEmpty();

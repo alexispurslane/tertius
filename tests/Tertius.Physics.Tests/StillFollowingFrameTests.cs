@@ -47,14 +47,23 @@ public sealed class StillFollowingFrameTests
     /// </summary>
     private static (World World, FrameHandle Space, Entity Ball) StillBall(double distance, bool numericFrames)
     {
-        World world = NewWorld(backend: out _,
+        World world = NewWorld(
+            backend: out _,
             configure: numericFrames
                 ? null
-                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
-        FrameHandle space =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Uniform(new(0, -9.81f, 0))));
-        Entity ball = world.Spawn(new()
-            { Frame = space, Pose = At(distance), Body = Ball() with { Motion = BodyMotion.Kinematic } });
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
+        FrameHandle space = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e8f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(distance),
+                Body = Ball() with { Motion = BodyMotion.Kinematic },
+            }
+        );
         return (world, space, ball);
     }
 
@@ -73,15 +82,21 @@ public sealed class StillFollowingFrameTests
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(ball);
-            world.Frames.Anchors(home, ball).Should().Be(distance >= FollowDistance,
-                "only a far kinematic body anchors a following frame");
+            world
+                .Frames.Anchors(home, ball)
+                .Should()
+                .Be(distance >= FollowDistance, "only a far kinematic body anchors a following frame");
 
             for (int tick = 0; tick < 600; tick++)
             {
                 world.Tick();
-                world.PoseIn(ball, space).Should()
+                world
+                    .PoseIn(ball, space)
+                    .Should()
                     .Be(At(distance), "the ball holds still at tick {0}", world.TickNumber);
-                world.VelocityIn(ball, space).Should()
+                world
+                    .VelocityIn(ball, space)
+                    .Should()
                     .Be(Double3.Zero, "the ball has no velocity at tick {0}", world.TickNumber);
             }
 
@@ -119,27 +134,33 @@ public sealed class StillFollowingFrameTests
         SkippingHull(numericFrames, out _);
 
     /// <summary>The scene of <see cref="SkippingHull(bool)"/>, whose backend is <paramref name="backend"/>.</summary>
-    private static (World World, FrameHandle Space, Entity Owner) SkippingHull(bool numericFrames,
-        out JoltPhysicsBackend backend)
+    private static (World World, FrameHandle Space, Entity Owner) SkippingHull(
+        bool numericFrames,
+        out JoltPhysicsBackend backend
+    )
     {
-        World world = NewWorld(backend: out backend,
+        World world = NewWorld(
+            backend: out backend,
             configure: numericFrames
                 ? null
-                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
         FrameHandle space = Scenes.AsteroidSpace(world);
         double time = world.Time;
         (Double3 position, Double3 velocity) = Fast.StateAt(time, Mu);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = new(position, Fast.RotationAt(time, Mu)),
-            LinearVelocity = velocity,
-            AngularVelocity = Fast.AngularVelocityAt(time, Mu).ToVector3(),
-            FirstMove = new(Fast.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-            Body = Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = new(FrameBounds.Sphere(0.01f)),
-            Components = [new SkippingKepler(Fast)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(position, Fast.RotationAt(time, Mu)),
+                LinearVelocity = velocity,
+                AngularVelocity = Fast.AngularVelocityAt(time, Mu).ToVector3(),
+                FirstMove = new(Fast.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                Body = Ball() with { Motion = BodyMotion.Kinematic },
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+                Components = [new SkippingKepler(Fast)],
+            }
+        );
         return (world, space, owner);
     }
 
@@ -153,14 +174,15 @@ public sealed class StillFollowingFrameTests
     /// frame for that step, about along its orbit.
     /// </summary>
     [Fact]
-    public void
-        AKinematicHullOnAKeplerOrbitWhoseComponentSkipsATickHoldsStillForThatStepAndIsBackOnItsOrbitAfterItsNextSample()
+    public void AKinematicHullOnAKeplerOrbitWhoseComponentSkipsATickHoldsStillForThatStepAndIsBackOnItsOrbitAfterItsNextSample()
     {
         (World world, FrameHandle space, Entity owner) = SkippingHull(numericFrames: true);
         using (world)
         {
             world.Tick();
-            world.Frames.Anchors(world.PhysicsHomeOf(owner), owner).Should()
+            world
+                .Frames.Anchors(world.PhysicsHomeOf(owner), owner)
+                .Should()
                 .BeTrue("the hull moves at 2 km/s, so it anchors a following frame");
             // The tick SkippedTick writes no sample, so the step that ends at the time of tick SkippedTick + 2 applies none.
             double heldStepEnd = world.TimeAt(SkippedTick + 2);
@@ -178,15 +200,19 @@ public sealed class StillFollowingFrameTests
                     // its frame's rotation passes through the following frame's, which rounds its last bit.
                     DQuaternion turn = pose.Rotation.Conjugate() * start.Rotation;
                     new Double3(turn.X, turn.Y, turn.Z).Length.Should().BeLessThan(1e-15, "the hull does not turn");
-                    world.VelocityIn(owner, space).Should().Be(Double3.Zero,
-                        "the hull has no velocity in the step without a sample");
-                    world.AngularVelocityIn(owner, space).Should().Be(Vector3.Zero,
-                        "the hull does not turn in the step without a sample");
+                    world
+                        .VelocityIn(owner, space)
+                        .Should()
+                        .Be(Double3.Zero, "the hull has no velocity in the step without a sample");
+                    world
+                        .AngularVelocityIn(owner, space)
+                        .Should()
+                        .Be(Vector3.Zero, "the hull does not turn in the step without a sample");
                     continue;
                 }
 
-                pose.Should().Be(RailsPose(world.Time), "the hull stands on its orbit at sync point {0}",
-                    world.TickNumber);
+                pose.Should()
+                    .Be(RailsPose(world.Time), "the hull stands on its orbit at sync point {0}", world.TickNumber);
             }
 
             held.Should().Be(1);
@@ -224,30 +250,46 @@ public sealed class StillFollowingFrameTests
     /// frame with numeric frames, and space without them. With <paramref name="ship"/> the crate is the dynamic hull of a
     /// ship, a frame with a bubble of 10 cm.
     /// </summary>
-    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames,
-        long stopTick, bool ship = false)
+    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) LeavingCrate(
+        bool numericFrames,
+        long stopTick,
+        bool ship = false
+    )
     {
-        World world = NewWorld(backend: out _,
+        World world = NewWorld(
+            backend: out _,
             configure: numericFrames
                 ? null
-                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
         FrameHandle space = Ground(world, 0);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
-            AsFrame = new(FrameBounds.Sphere(16)),
-            LinearVelocity = Drift,
-            FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
-            Components = [new StoppingDrift(stopTick)]
-        });
-        Entity crate = world.Spawn(new()
-        {
-            Frame = world.GetOwnedFrame(owner), Pose = At(0, 15), LinearVelocity = new(0, 2, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            AsFrame = ship ? new FrameSpec(FrameBounds.Sphere(0.1f)) : null
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
+                AsFrame = new(FrameBounds.Sphere(16)),
+                LinearVelocity = Drift,
+                FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
+                Components = [new StoppingDrift(stopTick)],
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = world.GetOwnedFrame(owner),
+                Pose = At(0, 15),
+                LinearVelocity = new(0, 2, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.25f)),
+                    Mass: 2,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                AsFrame = ship ? new FrameSpec(FrameBounds.Sphere(0.1f)) : null,
+            }
+        );
         return (world, space, owner, crate);
     }
 
@@ -264,8 +306,11 @@ public sealed class StillFollowingFrameTests
     public void ACrateThatLeavesTheBubbleOfAHullThatStopsMovesOnInSpaceAsWithoutNumericFrames(bool ship)
     {
         long exitTick;
-        (World probe, FrameHandle probeSpace, Entity _, Entity probeCrate) =
-            LeavingCrate(numericFrames: true, stopTick: long.MaxValue, ship);
+        (World probe, FrameHandle probeSpace, Entity _, Entity probeCrate) = LeavingCrate(
+            numericFrames: true,
+            stopTick: long.MaxValue,
+            ship
+        );
         using (probe)
         {
             TickUntil(probe, () => probe.GetFrame(probeCrate) == probeSpace, 120);
@@ -275,10 +320,16 @@ public sealed class StillFollowingFrameTests
 
         for (long stopTick = exitTick - 3; stopTick <= exitTick; stopTick++)
         {
-            (World world, FrameHandle space, Entity owner, Entity crate) =
-                LeavingCrate(numericFrames: true, stopTick, ship);
-            (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) =
-                LeavingCrate(numericFrames: false, stopTick, ship);
+            (World world, FrameHandle space, Entity owner, Entity crate) = LeavingCrate(
+                numericFrames: true,
+                stopTick,
+                ship
+            );
+            (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) = LeavingCrate(
+                numericFrames: false,
+                stopTick,
+                ship
+            );
             using (world)
             using (plain)
             {
@@ -286,19 +337,27 @@ public sealed class StillFollowingFrameTests
                 {
                     world.Tick();
                     plain.Tick();
-                    (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
-                        .Should().BeLessThan(1e-3,
-                            "the crate is where it is without numeric frames, stop tick {0}, sync point {1}", stopTick,
-                            world.TickNumber);
-                    (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length
-                        .Should().BeLessThan(1e-3,
+                    (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position)
+                        .Length.Should()
+                        .BeLessThan(
+                            1e-3,
+                            "the crate is where it is without numeric frames, stop tick {0}, sync point {1}",
+                            stopTick,
+                            world.TickNumber
+                        );
+                    (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace))
+                        .Length.Should()
+                        .BeLessThan(
+                            1e-3,
                             "the crate moves as it does without numeric frames, stop tick {0}, sync point {1}",
-                            stopTick, world.TickNumber);
+                            stopTick,
+                            world.TickNumber
+                        );
                 }
 
-                (world.PoseIn(owner, space).Position - plain.PoseIn(plainOwner, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-6, "the hull stopped where it does without numeric frames, stop tick {0}",
-                        stopTick);
+                (world.PoseIn(owner, space).Position - plain.PoseIn(plainOwner, plainSpace).Position)
+                    .Length.Should()
+                    .BeLessThan(1e-6, "the hull stopped where it does without numeric frames, stop tick {0}", stopTick);
                 world.Errors.Should().BeEmpty();
             }
         }
@@ -314,32 +373,47 @@ public sealed class StillFollowingFrameTests
     /// when the hull stops, and in that step it moves on by 33.5 m relative to the hull, and ends the step 13.9 m from it,
     /// inside the bubble.
     /// </summary>
-    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) EnteringCrate(bool numericFrames,
+    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) EnteringCrate(
+        bool numericFrames,
         bool character,
-        out JoltPhysicsBackend backend)
+        out JoltPhysicsBackend backend
+    )
     {
-        World world = NewWorld(backend: out backend,
+        World world = NewWorld(
+            backend: out backend,
             configure: numericFrames
                 ? null
-                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
         FrameHandle space = Ground(world, 0);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
-            AsFrame = new(FrameBounds.Sphere(16)),
-            LinearVelocity = Drift,
-            FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
-            Components = [new StoppingDrift(StopTick)]
-        });
-        Entity crate = world.Spawn(new()
-        {
-            Frame = space, Pose = At(-24, 5), LinearVelocity = Drift + new Double3(10, 0, 0),
-            Body = character
-                ? new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
-                : new BodyDesc(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0,
-                    AngularDamping: 0)
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
+                AsFrame = new(FrameBounds.Sphere(16)),
+                LinearVelocity = Drift,
+                FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
+                Components = [new StoppingDrift(StopTick)],
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(-24, 5),
+                LinearVelocity = Drift + new Double3(10, 0, 0),
+                Body = character
+                    ? new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
+                    : new BodyDesc(
+                        Shape: new BoxShapeDesc(new(0.25f)),
+                        Mass: 2,
+                        Restitution: 0,
+                        LinearDamping: 0,
+                        AngularDamping: 0
+                    ),
+            }
+        );
         return (world, space, owner, crate);
     }
 
@@ -356,18 +430,27 @@ public sealed class StillFollowingFrameTests
     [InlineData(false)]
     [InlineData(true)]
     public void ABodyThatEntersTheBubbleOfAHullInTheStepInWhichTheHullStopsMovesOnInSpaceAsWithoutNumericFrames(
-        bool character)
+        bool character
+    )
     {
-        (World world, FrameHandle space, Entity owner, Entity crate) =
-            EnteringCrate(numericFrames: true, character, out JoltPhysicsBackend backend);
-        (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) =
-            EnteringCrate(numericFrames: false, character, out _);
+        (World world, FrameHandle space, Entity owner, Entity crate) = EnteringCrate(
+            numericFrames: true,
+            character,
+            out JoltPhysicsBackend backend
+        );
+        (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) = EnteringCrate(
+            numericFrames: false,
+            character,
+            out _
+        );
         using (world)
         using (plain)
         {
             world.Tick();
             plain.Tick();
-            world.PhysicsHomeOf(crate).Should()
+            world
+                .PhysicsHomeOf(crate)
+                .Should()
                 .Be(world.PhysicsHomeOf(owner), "the crate rests in the hull's following frame");
             int inside = 0;
             for (int tick = 0; tick < 60; tick++)
@@ -375,20 +458,37 @@ public sealed class StillFollowingFrameTests
                 world.Tick();
                 plain.Tick();
                 bool entered = world.GetFrame(crate) == world.GetOwnedFrame(owner);
-                entered.Should().Be(plain.GetFrame(plainCrate) == plain.GetOwnedFrame(plainOwner),
-                    "the body is in the hull's frame at the same sync points");
+                entered
+                    .Should()
+                    .Be(
+                        plain.GetFrame(plainCrate) == plain.GetOwnedFrame(plainOwner),
+                        "the body is in the hull's frame at the same sync points"
+                    );
                 if (entered)
                     inside++;
                 if (character)
-                    backend.HasRigidForm(crate).Should().Be(!entered,
-                        "the character walks only in the step in which the hull stops, at sync point {0}",
-                        world.TickNumber);
-                (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-3, "the crate is where it is without numeric frames at sync point {0}",
-                        world.TickNumber);
-                (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length
-                    .Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames at sync point {0}",
-                        world.TickNumber);
+                    backend
+                        .HasRigidForm(crate)
+                        .Should()
+                        .Be(
+                            !entered,
+                            "the character walks only in the step in which the hull stops, at sync point {0}",
+                            world.TickNumber
+                        );
+                (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position)
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-3,
+                        "the crate is where it is without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
+                (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace))
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-3,
+                        "the crate moves as it does without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
             }
 
             inside.Should().BeGreaterThan(0, "the crate enters the hull's bubble");
@@ -406,28 +506,43 @@ public sealed class StillFollowingFrameTests
     /// hull's following frame, and its frame hangs there.
     /// </summary>
     private static (World World, FrameHandle Space, Entity Owner, Entity Ship) ShipBesideAStoppingHull(
-        bool numericFrames)
+        bool numericFrames
+    )
     {
-        World world = NewWorld(backend: out _,
+        World world = NewWorld(
+            backend: out _,
             configure: numericFrames
                 ? null
-                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+                : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames
+        );
         FrameHandle space = Ground(world, 0);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
-            AsFrame = new(FrameBounds.Sphere(16)),
-            LinearVelocity = Drift,
-            FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
-            Components = [new StoppingDrift(StopTick)]
-        });
-        Entity ship = world.Spawn(new()
-        {
-            Frame = space, Pose = At(-10, 22), LinearVelocity = Drift + new Double3(10, 0, 0),
-            AsFrame = new(FrameBounds.Sphere(3)),
-            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
+                AsFrame = new(FrameBounds.Sphere(16)),
+                LinearVelocity = Drift,
+                FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
+                Components = [new StoppingDrift(StopTick)],
+            }
+        );
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(-10, 22),
+                LinearVelocity = Drift + new Double3(10, 0, 0),
+                AsFrame = new(FrameBounds.Sphere(3)),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(1)),
+                    Mass: 1000,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+            }
+        );
         return (world, space, owner, ship);
     }
 
@@ -442,25 +557,36 @@ public sealed class StillFollowingFrameTests
     public void ADynamicShipBesideAHullThatStopsReadsItsVelocityInSpaceAsWithoutNumericFrames()
     {
         (World world, FrameHandle space, Entity owner, Entity ship) = ShipBesideAStoppingHull(numericFrames: true);
-        (World plain, FrameHandle plainSpace, Entity _, Entity plainShip) =
-            ShipBesideAStoppingHull(numericFrames: false);
+        (World plain, FrameHandle plainSpace, Entity _, Entity plainShip) = ShipBesideAStoppingHull(
+            numericFrames: false
+        );
         using (world)
         using (plain)
         {
             world.Tick();
             plain.Tick();
-            world.PhysicsHomeOf(ship).Should().Be(world.PhysicsHomeOf(owner),
-                "the ship's hull lives in the hull's following frame");
+            world
+                .PhysicsHomeOf(ship)
+                .Should()
+                .Be(world.PhysicsHomeOf(owner), "the ship's hull lives in the hull's following frame");
             for (int tick = 0; tick < 60; tick++)
             {
                 world.Tick();
                 plain.Tick();
-                (world.PoseIn(ship, space).Position - plain.PoseIn(plainShip, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}",
-                        world.TickNumber);
-                (world.VelocityIn(ship, space) - plain.VelocityIn(plainShip, plainSpace)).Length
-                    .Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}",
-                        world.TickNumber);
+                (world.PoseIn(ship, space).Position - plain.PoseIn(plainShip, plainSpace).Position)
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-3,
+                        "the ship is where it is without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
+                (world.VelocityIn(ship, space) - plain.VelocityIn(plainShip, plainSpace))
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-3,
+                        "the ship moves as it does without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
             }
 
             world.Errors.Should().BeEmpty();
@@ -481,32 +607,42 @@ public sealed class StillFollowingFrameTests
     [InlineData("skipping hull")]
     public void AnAnchorWithoutAMotionIntentMovesAsItDoesWithoutNumericFrames(string scene)
     {
-        (World world, FrameHandle space, Entity body) = scene == "still ball"
-            ? StillBall(1e7, numericFrames: true)
-            : SkippingHull(numericFrames: true);
-        (World plain, FrameHandle plainSpace, Entity plainBody) = scene == "still ball"
-            ? StillBall(1e7, numericFrames: false)
-            : SkippingHull(numericFrames: false);
+        (World world, FrameHandle space, Entity body) =
+            scene == "still ball" ? StillBall(1e7, numericFrames: true) : SkippingHull(numericFrames: true);
+        (World plain, FrameHandle plainSpace, Entity plainBody) =
+            scene == "still ball" ? StillBall(1e7, numericFrames: false) : SkippingHull(numericFrames: false);
         using (world)
         using (plain)
         {
             world.Tick();
             plain.Tick();
-            world.Frames.Anchors(world.PhysicsHomeOf(body), body).Should()
+            world
+                .Frames.Anchors(world.PhysicsHomeOf(body), body)
+                .Should()
                 .BeTrue("the body anchors a following frame with numeric frames");
-            plain.PhysicsHomeOf(plainBody).Should().Be(plainSpace,
-                "without numeric frames the body lives in its frame's own system");
+            plain
+                .PhysicsHomeOf(plainBody)
+                .Should()
+                .Be(plainSpace, "without numeric frames the body lives in its frame's own system");
             for (int tick = 0; tick < 120; tick++)
             {
                 world.Tick();
                 plain.Tick();
-                (world.PoseIn(body, space).Position - plain.PoseIn(plainBody, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-6, "the body is where it is without numeric frames at sync point {0}",
-                        world.TickNumber);
+                (world.PoseIn(body, space).Position - plain.PoseIn(plainBody, plainSpace).Position)
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-6,
+                        "the body is where it is without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
                 // Without numeric frames the row keeps the hull's 2 km/s as a float, to 6.1e-5 m/s.
-                (world.VelocityIn(body, space) - plain.VelocityIn(plainBody, plainSpace)).Length
-                    .Should().BeLessThan(1e-4, "the body moves as it does without numeric frames at sync point {0}",
-                        world.TickNumber);
+                (world.VelocityIn(body, space) - plain.VelocityIn(plainBody, plainSpace))
+                    .Length.Should()
+                    .BeLessThan(
+                        1e-4,
+                        "the body moves as it does without numeric frames at sync point {0}",
+                        world.TickNumber
+                    );
             }
 
             world.Errors.Should().BeEmpty();
@@ -518,21 +654,28 @@ public sealed class StillFollowingFrameTests
     /// The scene of <see cref="SkippingHull(bool)"/>, and in space beside it a character at rest relative to the hull, 3.5 m from it
     /// along -Y, with the orbit's velocity, which lives in the hull's following frame with numeric frames.
     /// </summary>
-    private static (World World, FrameHandle Space, Entity Person) PersonBesideASkippingHull(bool numericFrames,
-        out JoltPhysicsBackend backend)
+    private static (World World, FrameHandle Space, Entity Person) PersonBesideASkippingHull(
+        bool numericFrames,
+        out JoltPhysicsBackend backend
+    )
     {
         (World world, FrameHandle space, Entity owner) = SkippingHull(numericFrames, out backend);
         (Double3 position, Double3 velocity) = Fast.StateAt(world.Time, Mu);
-        Entity person = world.Spawn(new()
-        {
-            Frame = space, Pose = new(position + new Double3(0, -3.5, 0), DQuaternion.Identity),
-            LinearVelocity = velocity,
-            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = new(position + new Double3(0, -3.5, 0), DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+            }
+        );
         world.Tick();
         if (numericFrames)
-            world.PhysicsHomeOf(person).Should().Be(world.PhysicsHomeOf(owner),
-                "the character lives in the hull's following frame");
+            world
+                .PhysicsHomeOf(person)
+                .Should()
+                .Be(world.PhysicsHomeOf(owner), "the character lives in the hull's following frame");
         return (world, space, person);
     }
 
@@ -547,26 +690,37 @@ public sealed class StillFollowingFrameTests
     [Fact]
     public void ACharacterBesideAKeplerHullWhoseComponentSkipsATickMovesAsItDoesWithoutNumericFrames()
     {
-        (World world, FrameHandle space, Entity person) =
-            PersonBesideASkippingHull(numericFrames: true, out JoltPhysicsBackend backend);
-        (World plain, FrameHandle plainSpace, Entity plainPerson) =
-            PersonBesideASkippingHull(numericFrames: false, out _);
+        (World world, FrameHandle space, Entity person) = PersonBesideASkippingHull(
+            numericFrames: true,
+            out JoltPhysicsBackend backend
+        );
+        (World plain, FrameHandle plainSpace, Entity plainPerson) = PersonBesideASkippingHull(
+            numericFrames: false,
+            out _
+        );
         using (world)
         using (plain)
         {
             double heldStepEnd = world.TimeAt(SkippedTick + 2);
-            double worstPlace = 0, worstVelocity = 0;
+            double worstPlace = 0,
+                worstVelocity = 0;
             for (int tick = 0; tick < 120; tick++)
             {
                 world.Tick();
                 plain.Tick();
                 if (world.Time == heldStepEnd)
-                    backend.HasRigidForm(person).Should()
+                    backend
+                        .HasRigidForm(person)
+                        .Should()
                         .BeFalse("the frame's system shows the orbit's speed lost in one step");
-                worstPlace = Math.Max(worstPlace,
-                    (world.PoseIn(person, space).Position - plain.PoseIn(plainPerson, plainSpace).Position).Length);
-                worstVelocity = Math.Max(worstVelocity,
-                    (world.VelocityIn(person, space) - plain.VelocityIn(plainPerson, plainSpace)).Length);
+                worstPlace = Math.Max(
+                    worstPlace,
+                    (world.PoseIn(person, space).Position - plain.PoseIn(plainPerson, plainSpace).Position).Length
+                );
+                worstVelocity = Math.Max(
+                    worstVelocity,
+                    (world.VelocityIn(person, space) - plain.VelocityIn(plainPerson, plainSpace)).Length
+                );
             }
 
             worstPlace.Should().BeLessThan(1e-3, "the character is where it is without numeric frames");

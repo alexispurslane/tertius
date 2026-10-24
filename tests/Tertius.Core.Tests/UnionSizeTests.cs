@@ -21,38 +21,28 @@ public sealed class UnionSizeTests
     }
 
     [Fact]
-    public void AGravityFieldTakesFiftySixBytes()
-    {
+    public void AGravityFieldTakesFiftySixBytes() =>
         // The G·M, the acceleration and the optional region, each in its own slot, and the kind.
         Unsafe.SizeOf<GravityField>().Should().Be(56);
-    }
 
     [Fact]
-    public void AMediumFieldTakesFiftySixBytes()
-    {
+    public void AMediumFieldTakesFiftySixBytes() =>
         // The two cases share their float slots, so the medium is smaller than the 72 bytes of two whole cases side by side.
         Unsafe.SizeOf<MediumField>().Should().Be(56);
-    }
 
     [Fact]
-    public void AQueryShapeTakesTwentyFourBytes()
-    {
+    public void AQueryShapeTakesTwentyFourBytes() =>
         // The sphere's radius shares a float slot with the capsule's half height.
         Unsafe.SizeOf<QueryShape>().Should().Be(24);
-    }
 
     [Fact]
-    public void AMotionIntentTakesOneSampleAndItsKind()
-    {
+    public void AMotionIntentTakesOneSampleAndItsKind() =>
         // The three cases share the pose slot, and only the full sample fills the five velocity slots. Every entity's
         // intent holds one.
         Unsafe.SizeOf<MotionIntent>().Should().Be(184);
-    }
 
     [Fact]
-    public void AnInputEventTakesSixteenBytes()
-    {
+    public void AnInputEventTakesSixteenBytes() =>
         // The key and the button share the code and the flag, and the move and the scroll share the delta.
         Unsafe.SizeOf<InputEvent>().Should().Be(16);
-    }
 }

@@ -44,8 +44,16 @@ public readonly record struct Docked;
 /// start time. The default value is <see cref="Standby"/>. It is a generated union, like
 /// <see cref="RendezvousState"/>.
 /// </summary>
-[GeneratedUnion(typeof(Standby), typeof(Waiting), typeof(SpinUp), typeof(Entry), typeof(MoveOut), typeof(Docked),
-    typeof(Halted), ZeroCase = typeof(Standby))]
+[GeneratedUnion(
+    typeof(Standby),
+    typeof(Waiting),
+    typeof(SpinUp),
+    typeof(Entry),
+    typeof(MoveOut),
+    typeof(Docked),
+    typeof(Halted),
+    ZeroCase = typeof(Standby)
+)]
 public readonly partial struct DockingState;
 
 /// <summary>
@@ -81,8 +89,15 @@ public readonly record struct Lost(string Reason);
 /// <see cref="EntryEnded"/>, <see cref="Landed"/> or <see cref="Lost"/>. It is a generated union, like
 /// <see cref="DockingState"/>. The default value is <see cref="Dock"/>.
 /// </summary>
-[GeneratedUnion(typeof(Dock), typeof(AtRollWindow), typeof(SpunUp), typeof(EntryEnded), typeof(Landed), typeof(Lost),
-    ZeroCase = typeof(Dock))]
+[GeneratedUnion(
+    typeof(Dock),
+    typeof(AtRollWindow),
+    typeof(SpunUp),
+    typeof(EntryEnded),
+    typeof(Landed),
+    typeof(Lost),
+    ZeroCase = typeof(Dock)
+)]
 public readonly partial struct DockingEvent;
 
 /// <summary>
@@ -209,16 +224,17 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// nothing, and <see cref="Docked"/> and <see cref="Halted"/> are final.</item>
     /// </list>
     /// </summary>
-    public static DockingState Next(DockingState state, DockingEvent report) => (state, report) switch
-    {
-        (Standby, Dock) => new Waiting(),
-        (Waiting, AtRollWindow { Time: var time }) => new SpinUp(time),
-        (SpinUp, SpunUp) => new Entry(),
-        (Entry, EntryEnded) => new MoveOut(),
-        (MoveOut, Landed) => new Docked(),
-        (Waiting or SpinUp or Entry or MoveOut, Lost) => new Halted(),
-        _ => state
-    };
+    public static DockingState Next(DockingState state, DockingEvent report) =>
+        (state, report) switch
+        {
+            (Standby, Dock) => new Waiting(),
+            (Waiting, AtRollWindow { Time: var time }) => new SpinUp(time),
+            (SpinUp, SpunUp) => new Entry(),
+            (Entry, EntryEnded) => new MoveOut(),
+            (MoveOut, Landed) => new Docked(),
+            (Waiting or SpinUp or Entry or MoveOut, Lost) => new Halted(),
+            _ => state,
+        };
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
@@ -264,7 +280,8 @@ public sealed class DockingAutopilot(Entity station) : IComponent
         // Every read is in the station's frame, whichever frame holds the shuttle. Outside the bubble the engine converts
         // them from the frame that holds the station, with the station's turn.
         DPose pose = self.PoseIn(stationFrame);
-        Double3 velocity = self.VelocityIn(stationFrame), turn = self.AngularVelocityIn(stationFrame);
+        Double3 velocity = self.VelocityIn(stationFrame),
+            turn = self.AngularVelocityIn(stationFrame);
         // The station's angular velocity relative to the virtual root above the roots, in its own axes.
         Double3 rate = -frames.AngularVelocityRelative(FrameHandle.Null, stationFrame);
         var profile = new SpinUpProfile(rate.Y, SpinUpTime, DemoStation.DockedRotation);
@@ -273,34 +290,66 @@ public sealed class DockingAutopilot(Entity station) : IComponent
         switch (State)
         {
             case Waiting:
-                return AtTheHold(pose, velocity) &&
-                       profile.InRollWindow(profile.RollAngle(pose.Rotation), self.DeltaTime)
+                return
+                    AtTheHold(pose, velocity) && profile.InRollWindow(profile.RollAngle(pose.Rotation), self.DeltaTime)
                     ? new AtRollWindow(time)
                     : null;
             case SpinUp { StartTime: var start }:
                 // The profile ends at the docked rotation at rest, and holds it there until the tolerances hold.
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
-                    body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: profile.Target(time - start), targetTurn: profile.TurnRate(time - start),
+                Steer(
+                    self: self,
+                    events: ref events,
+                    frames: frames,
+                    stationFrame: stationFrame,
+                    inside: inside,
+                    body: body,
+                    pose: pose,
+                    velocity: velocity,
+                    rate: rate,
+                    target: profile.Target(time - start),
+                    targetTurn: profile.TurnRate(time - start),
                     point: DemoStation.HoldPoint,
-                    guidance: ApproachGuidance.ForGlide());
+                    guidance: ApproachGuidance.ForGlide()
+                );
                 return time - start >= SpinUpTime && SpinUpDone(pose, turn) ? new SpunUp() : null;
             case Entry:
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
-                    body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: DemoStation.DockedRotation, targetTurn: 0, point: EntryEnd,
-                    guidance: ApproachGuidance.ForEntry());
-                return pose.Position.Y <= EntryEnd.Y + EntryEndDistance &&
-                       FromTheAxis(pose.Position) <= EntryEndDistance
+                Steer(
+                    self: self,
+                    events: ref events,
+                    frames: frames,
+                    stationFrame: stationFrame,
+                    inside: inside,
+                    body: body,
+                    pose: pose,
+                    velocity: velocity,
+                    rate: rate,
+                    target: DemoStation.DockedRotation,
+                    targetTurn: 0,
+                    point: EntryEnd,
+                    guidance: ApproachGuidance.ForEntry()
+                );
+                return
+                    pose.Position.Y <= EntryEnd.Y + EntryEndDistance && FromTheAxis(pose.Position) <= EntryEndDistance
                     ? new EntryEnded()
                     : null;
             case MoveOut:
                 if (RestsAtTheParkedPose(pose, velocity, turn))
                     return new Landed();
-                Steer(self: self, events: ref events, frames: frames, stationFrame: stationFrame, inside: inside,
-                    body: body, pose: pose, velocity: velocity, rate: rate,
-                    target: DemoStation.DockedRotation, targetTurn: 0, point: LandingPoint,
-                    guidance: ApproachGuidance.ForMoveOut());
+                Steer(
+                    self: self,
+                    events: ref events,
+                    frames: frames,
+                    stationFrame: stationFrame,
+                    inside: inside,
+                    body: body,
+                    pose: pose,
+                    velocity: velocity,
+                    rate: rate,
+                    target: DemoStation.DockedRotation,
+                    targetTurn: 0,
+                    point: LandingPoint,
+                    guidance: ApproachGuidance.ForMoveOut()
+                );
                 return null;
             case Standby or Docked or Halted:
                 throw new UnreachableException($"Fly returns at once in the docking state {State}.");
@@ -315,10 +364,21 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     /// <paramref name="point"/> by <paramref name="guidance"/>, all in the station's axes. The writes are relative to the
     /// shuttle's frame, in its axes.
     /// </summary>
-    private void Steer(Self self, scoped ref EventList events, FrameTree frames, FrameHandle stationFrame, bool inside,
+    private void Steer(
+        Self self,
+        scoped ref EventList events,
+        FrameTree frames,
+        FrameHandle stationFrame,
+        bool inside,
         in BodyFacts body,
-        in DPose pose, Double3 velocity, Double3 rate, DQuaternion target, double targetTurn, Double3 point,
-        ApproachGuidance guidance)
+        in DPose pose,
+        Double3 velocity,
+        Double3 rate,
+        DQuaternion target,
+        double targetTurn,
+        Double3 point,
+        ApproachGuidance guidance
+    )
     {
         // The station frame's pose in the shuttle's frame turns what the autopilot computed in the station's axes into the
         // axes of the shuttle's frame, in which every write is. Inside the bubble it is the identity.
@@ -330,23 +390,30 @@ public sealed class DockingAutopilot(Entity station) : IComponent
             // frame gives its contents no tidal gravity.
             double mu = KeplerOrbit.MuFrom(frames.Gravity(self.Frame));
             Double3 shuttle = self.PoseIn(self.Frame).Position;
-            gravityDifference = stationAxes.Rotation.Conjugate().Rotate(KeplerOrbit.Acceleration(shuttle, mu) -
-                                                                        KeplerOrbit.Acceleration(stationAxes.Position,
-                                                                            mu));
+            gravityDifference = stationAxes
+                .Rotation.Conjugate()
+                .Rotate(KeplerOrbit.Acceleration(shuttle, mu) - KeplerOrbit.Acceleration(stationAxes.Position, mu));
         }
 
         // The spin's terms act at the hull's center of mass, which the engine computes for the hull's shape.
-        Double3 free = ApproachGuidance.FreeAcceleration(rate: rate,
-            centerOfMass: pose.TransformPoint(body.CenterOfMass), velocity: velocity,
-            gravityDifference: gravityDifference);
+        Double3 free = ApproachGuidance.FreeAcceleration(
+            rate: rate,
+            centerOfMass: pose.TransformPoint(body.CenterOfMass),
+            velocity: velocity,
+            gravityDifference: gravityDifference
+        );
         Double3 push = guidance.Push(position: pose.Position, velocity: velocity, target: point, free: free);
-        Double3 feedForward = stationAxes.Rotation.Rotate(Double3.UnitY * targetTurn) +
-                              frames.AngularVelocityRelative(stationFrame, self.Frame);
-        events.Add(new AttitudeTarget
-        {
-            Rotation = stationAxes.Rotation * target, FeedForward = feedForward.ToVector3(),
-            MaxTurnRate = AttitudeAutopilot.MaxTurnRate
-        });
+        Double3 feedForward =
+            stationAxes.Rotation.Rotate(Double3.UnitY * targetTurn)
+            + frames.AngularVelocityRelative(stationFrame, self.Frame);
+        events.Add(
+            new AttitudeTarget
+            {
+                Rotation = stationAxes.Rotation * target,
+                FeedForward = feedForward.ToVector3(),
+                MaxTurnRate = AttitudeAutopilot.MaxTurnRate,
+            }
+        );
         events.Add(new Translation { Force = stationAxes.Rotation.Rotate(push) * body.Mass });
     }
 
@@ -381,9 +448,12 @@ public sealed class DockingAutopilot(Entity station) : IComponent
     private static bool RestsAtTheParkedPose(in DPose pose, Double3 velocity, Double3 turn)
     {
         Double3 off = pose.Position - DemoStation.ParkedPose.Position;
-        return Math.Abs(off.X) < LandedAcross && Math.Abs(off.Z) < LandedAcross && Math.Abs(off.Y) < LandedAlong
-               && pose.Rotation.AngularVelocityTo(DemoStation.DockedRotation, 1).Length < LandedAttitude
-               && velocity.Length < LandedSpeed && turn.Length < LandedTurn;
+        return Math.Abs(off.X) < LandedAcross
+            && Math.Abs(off.Z) < LandedAcross
+            && Math.Abs(off.Y) < LandedAlong
+            && pose.Rotation.AngularVelocityTo(DemoStation.DockedRotation, 1).Length < LandedAttitude
+            && velocity.Length < LandedSpeed
+            && turn.Length < LandedTurn;
     }
 
     /// <summary>How far <paramref name="position"/> lies from the station's axis, +Y, in meters.</summary>

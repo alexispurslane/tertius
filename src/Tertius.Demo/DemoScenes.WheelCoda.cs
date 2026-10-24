@@ -87,11 +87,18 @@ public static partial class DemoScenes
         {
             (double Along, double Height)[] boxes = [(-0.62, 1), (0, 1), (0.62, 1), (-0.31, 3), (0.31, 3), (0, 5)];
             for (int i = 0; i < boxes.Length; i++)
-                yield return ($"stack-{i}",
+                yield return (
+                    $"stack-{i}",
                     new(
-                        Floor.OnFacet(facet: Facet, height: boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1),
+                        Floor.OnFacet(
+                            facet: Facet,
+                            height: boxes[i].Height * BoxHalf + 0.002 * (boxes[i].Height - 1),
                             y: StackY,
-                            along: boxes[i].Along), Floor.FacetTurn(Facet)));
+                            along: boxes[i].Along
+                        ),
+                        Floor.FacetTurn(Facet)
+                    )
+                );
         }
 
         /// <summary>The scene id of the box of throw <paramref name="index"/>.</summary>
@@ -99,23 +106,25 @@ public static partial class DemoScenes
 
         /// <summary>Where the box of throw <paramref name="index"/> rests before the person takes it: in front of the stand, on the side of its throw.</summary>
         public static DPose ThrowBoxPose(int index) =>
-            new(Floor.OnFacet(facet: Facet, height: BoxHalf, y: LaneY - 0.8, along: index == 0 ? 0.45 : -0.45),
-                Floor.FacetTurn(Facet));
+            new(
+                Floor.OnFacet(facet: Facet, height: BoxHalf, y: LaneY - 0.8, along: index == 0 ? 0.45 : -0.45),
+                Floor.FacetTurn(Facet)
+            );
 
         /// <summary>The unit direction of throw <paramref name="index"/> at the stand: 30 degrees above the floor, spinward for 0 and antispinward for 1.</summary>
         public static Double3 Aim(int index) =>
-            WheelFloor.SpinwardAt(Stand) * ((index == 0 ? 1 : -1) * Math.Cos(ThrowAngle)) +
-            WheelFloor.UpAt(Stand) * Math.Sin(ThrowAngle);
+            WheelFloor.SpinwardAt(Stand) * ((index == 0 ? 1 : -1) * Math.Cos(ThrowAngle))
+            + WheelFloor.UpAt(Stand) * Math.Sin(ThrowAngle);
 
         /// <summary>
         /// The walk into the stack and through it, from where the stroll ends: to the stack's line across the floor, and
         /// along +Y into the stack's middle, 1.15 m past its near face.
         /// </summary>
         public static Waypoint[] Shove(FrameHandle station) =>
-        [
-            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)),
-            new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9))
-        ];
+            [
+                new(station, Floor.OnFacet(facet: Facet, height: Standing, y: 1)),
+                new(station, Floor.OnFacet(facet: Facet, height: Standing, y: StackY + 0.9)),
+            ];
 
         /// <summary>The walk to the stand, straight back along -Y.</summary>
         public static Waypoint[] ToStand(FrameHandle station) => [new(station, Stand)];
@@ -133,7 +142,8 @@ public static partial class DemoScenes
             // In axes with +Y along the person's up and +X along the throw's part across it.
             var aim = new Vector3((float)Math.Cos(ThrowAngle), (float)Math.Sin(ThrowAngle), 0);
             Vector3 start = Carry.ThrowStart(body: body, carried: box, eye: eye, aim: aim);
-            Double3 up = WheelFloor.UpAt(Stand), across = Aim(index) - up * Math.Sin(ThrowAngle);
+            Double3 up = WheelFloor.UpAt(Stand),
+                across = Aim(index) - up * Math.Sin(ThrowAngle);
             Double3 place = Stand + up * start.Y + across.Normalized() * start.X;
             return new(place, Aim(index) * ThrowSpeed);
         }
@@ -146,17 +156,25 @@ public static partial class DemoScenes
             double gravity = SpinStation.Rate * SpinStation.Rate * Floor.Radius;
             return Floor.Above(
                 WheelFloor.Theta(release.Place) + release.FlatLanding(gravity, Floor, BoxHalf).Spinward / Floor.Radius,
-                0, LaneY);
+                0,
+                LaneY
+            );
         }
 
         /// <summary>The play of the person in <paramref name="station"/>, the station's frame, with the boxes of
         /// <paramref name="scene"/>.</summary>
-        public static BoxPlay Play(SceneInstance scene, FrameHandle station) => new(station: station,
-            shove: Shove(station),
-            toStand: ToStand(station),
-            throws: [new(scene[ThrowBoxId(0)], Aim(0)), new(scene[ThrowBoxId(1)], Aim(1))],
-            walkSpeed: StationExit.WalkSpeed, throwSpeed: ThrowSpeed, body: PersonBody, floor: Floor,
-            rate: SpinStation.Rate);
+        public static BoxPlay Play(SceneInstance scene, FrameHandle station) =>
+            new(
+                station: station,
+                shove: Shove(station),
+                toStand: ToStand(station),
+                throws: [new(scene[ThrowBoxId(0)], Aim(0)), new(scene[ThrowBoxId(1)], Aim(1))],
+                walkSpeed: StationExit.WalkSpeed,
+                throwSpeed: ThrowSpeed,
+                body: PersonBody,
+                floor: Floor,
+                rate: SpinStation.Rate
+            );
 
         /// <summary>The place <paramref name="height"/> above the floor, <paramref name="along"/> meters spinward of the middle of
         /// <see cref="Facet"/> along the floor, at <paramref name="y"/>.</summary>
@@ -174,8 +192,14 @@ public static partial class DemoScenes
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(new(BoxHalf)));
 
-            CrateSpec Box(Vector4 color) => new(HalfExtents: new(BoxHalf), Mass: BoxMass, Mesh: mesh,
-                Material: resources.CreateMaterial(MaterialDesc.Color(color)), NoImpostor: true);
+            CrateSpec Box(Vector4 color) =>
+                new(
+                    HalfExtents: new(BoxHalf),
+                    Mass: BoxMass,
+                    Mesh: mesh,
+                    Material: resources.CreateMaterial(MaterialDesc.Color(color)),
+                    NoImpostor: true
+                );
 
             CrateSpec stackBox = Box(new(x: 0.72f, y: 0.55f, z: 0.32f, w: 1));
             foreach ((string id, DPose pose) in Stack())
@@ -186,24 +210,60 @@ public static partial class DemoScenes
                 scene.Add(ThrowBoxId(i), world.Spawn(Box(colors[i]).Spawn(station, ThrowBoxPose(i), Double3.Zero)));
                 Double3 mark = FlatMark(i, PersonBody);
                 var plate = new Vector3(0.004f, 0.75f, 0.1f);
-                scene.Add($"flat-mark-{i}", world.Spawn(new()
-                {
-                    Frame = station,
-                    Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
-                    Render = Drawn(resources: resources, mesh: Primitives.Box(plate), color: colors[i],
-                            boundingRadius: plate.Length()) with
+                scene.Add(
+                    $"flat-mark-{i}",
+                    world.Spawn(
+                        new()
                         {
-                            Flags = RenderFlags.Visible | RenderFlags.NoImpostor
+                            Frame = station,
+                            Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
+                            Render = Drawn(
+                                resources: resources,
+                                mesh: Primitives.Box(plate),
+                                color: colors[i],
+                                boundingRadius: plate.Length()
+                            ) with
+                            {
+                                Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
+                            },
                         }
-                }));
+                    )
+                );
             }
 
-            scene.Add("stack-camera",
-                world.Spawn(new() { Frame = station, Pose = StackCamera, Render = new RenderData() }));
-            scene.Add("spinward-camera",
-                world.Spawn(new() { Frame = station, Pose = SpinwardCamera, Render = new RenderData() }));
-            scene.Add("antispinward-camera",
-                world.Spawn(new() { Frame = station, Pose = AntispinwardCamera, Render = new RenderData() }));
+            scene.Add(
+                "stack-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = station,
+                        Pose = StackCamera,
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "spinward-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = station,
+                        Pose = SpinwardCamera,
+                        Render = new RenderData(),
+                    }
+                )
+            );
+            scene.Add(
+                "antispinward-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = station,
+                        Pose = AntispinwardCamera,
+                        Render = new RenderData(),
+                    }
+                )
+            );
         }
     }
 }

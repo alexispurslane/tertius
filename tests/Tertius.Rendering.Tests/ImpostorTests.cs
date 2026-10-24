@@ -30,21 +30,31 @@ public sealed class ImpostorTests(ITestOutputHelper output)
 
         public static Assets Create(VulkanRenderer renderer)
         {
-            TextureId checker =
-                renderer.CreateTexture(TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170)));
+            TextureId checker = renderer.CreateTexture(
+                TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170))
+            );
             TextureId tiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 4));
             return new()
             {
                 Box = renderer.CreateMesh(Primitives.Box(new(0.5f))),
                 Sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24)),
-                Checker = renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0.6f, Gloss: 0.6f,
-                    Albedo: checker, Normal: tiles, SpecularGloss: TextureId.None)),
+                Checker = renderer.CreateMaterial(
+                    new(
+                        BaseColor: Vector4.One,
+                        SpecularIntensity: 0.6f,
+                        Gloss: 0.6f,
+                        Albedo: checker,
+                        Normal: tiles,
+                        SpecularGloss: TextureId.None
+                    )
+                ),
                 Red = renderer.CreateMaterial(
                     MaterialDesc.Color(new(x: 0.75f, y: 0.08f, z: 0.06f, w: 1), gloss: 0.8f) with
                     {
-                        SpecularIntensity = 1f
-                    }),
-                Ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f))
+                        SpecularIntensity = 1f,
+                    }
+                ),
+                Ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f)),
             };
         }
     }
@@ -52,30 +62,51 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void ObjectBecomesAnImpostorBelow200PixelsAndReturnsAbove300WithHysteresis()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
             var assets = Assets.Create(renderer);
-            var key = new ImpostorKey(EntityIndex: 7, Part: 0, Mesh: assets.Sphere.Value,
-                Material: MaterialStore.Slot(assets.Red));
+            var key = new ImpostorKey(
+                EntityIndex: 7,
+                Part: 0,
+                Mesh: assets.Sphere.Value,
+                Material: MaterialStore.Slot(assets.Red)
+            );
             // Heights in pixels and the expected result: geometry above 300, impostor below 200, and between them
             // whatever the object was before.
             (float Height, bool Impostor)[] steps =
             [
-                (250, false), (210, false), (190, true), (250, true), (295, true), (310, false), (250, false),
-                (205, false), (199, true)
+                (250, false),
+                (210, false),
+                (190, true),
+                (250, true),
+                (295, true),
+                (310, false),
+                (250, false),
+                (205, false),
+                (199, true),
             ];
             int frame = 0;
             foreach ((float h, bool expected) in steps)
             {
                 float distance = DistanceForHeight(height: h, radius: 1f, outputHeight: height);
                 RenderSnapshot snapshot = Gpu.Snapshot(Sun);
-                snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red,
-                    position: new(0, 0, -distance), scale: Vector3.One,
-                    entity: 7));
-                Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot,
-                    name: $"impostor-hysteresis-{frame++}-{h:0}px");
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: assets.Sphere,
+                        material: assets.Red,
+                        position: new(0, 0, -distance),
+                        scale: Vector3.One,
+                        entity: 7
+                    )
+                );
+                Capture image = Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    name: $"impostor-hysteresis-{frame++}-{h:0}px"
+                );
                 RenderStats stats = renderer.LastFrameStats;
                 renderer.Impostors!.TryGetStatus(key, out ImpostorStatus status).Should().BeTrue();
                 status.ProjectedHeight.Should().BeApproximately(h, 0.5f);
@@ -84,8 +115,10 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 stats.VisibleInstances.Should().Be(1);
                 // Drawn either way: the center pixel is the lit red sphere.
                 Vector3 center = image.Color(width / 2, height / 2);
-                center.X.Should().BeGreaterThan(0.3f, "the sphere is lit at {0} px", h).And
-                    .BeGreaterThan(2 * center.Y, "it is red at {0} px: {1}", h, center);
+                center
+                    .X.Should()
+                    .BeGreaterThan(0.3f, "the sphere is lit at {0} px", h)
+                    .And.BeGreaterThan(2 * center.Y, "it is red at {0} px: {1}", h, center);
             }
         }
         finally
@@ -97,7 +130,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void TwoPartsOfOneEntityWithTheSameMeshAndMaterialAreSeparateImpostors()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
@@ -110,19 +144,38 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 RenderSnapshot snapshot = Gpu.Snapshot(Sun);
                 if (objects)
                 {
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red,
-                        position: new(-1.6f, 0, -distance),
-                        scale: Vector3.One, flags: flags, entity: 4, part: 0));
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red,
-                        position: new(1.6f, 0.4f, -distance),
-                        scale: Vector3.One, flags: flags, entity: 4, part: 1));
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Sphere,
+                            material: assets.Red,
+                            position: new(-1.6f, 0, -distance),
+                            scale: Vector3.One,
+                            flags: flags,
+                            entity: 4,
+                            part: 0
+                        )
+                    );
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Sphere,
+                            material: assets.Red,
+                            position: new(1.6f, 0.4f, -distance),
+                            scale: Vector3.One,
+                            flags: flags,
+                            entity: 4,
+                            part: 1
+                        )
+                    );
                 }
 
                 return snapshot;
             }
 
-            (Capture background, Capture geometry, Capture impostor) =
-                GeometryAndImpostor(renderer, Scene, "impostor-two-parts");
+            (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(
+                renderer,
+                Scene,
+                "impostor-two-parts"
+            );
             RenderStats stats = renderer.LastFrameStats;
             stats.Impostors.Should().Be(2, "each part is an impostor of its own");
             stats.ImpostorsWaiting.Should().Be(0);
@@ -131,9 +184,14 @@ public sealed class ImpostorTests(ITestOutputHelper output)
 
             int Tile(ushort part) =>
                 manager.TryGetStatus(
-                    new(EntityIndex: 4, Part: part, Mesh: assets.Sphere.Value,
-                        Material: MaterialStore.Slot(assets.Red)),
-                    out ImpostorStatus status)
+                    new(
+                        EntityIndex: 4,
+                        Part: part,
+                        Mesh: assets.Sphere.Value,
+                        Material: MaterialStore.Slot(assets.Red)
+                    ),
+                    out ImpostorStatus status
+                )
                     ? status.Tile
                     : -1;
 
@@ -154,29 +212,43 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void ACapturedImpostorLooksLikeTheGeometry()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
             var assets = Assets.Create(renderer);
             float radius = MathF.Sqrt(0.75f) * 1.5f;
-            Vector3 direction = Vector3.Normalize(new(0.12f, -0.05f, -1f));
+            var direction = Vector3.Normalize(new(0.12f, -0.05f, -1f));
 
             RenderSnapshot Scene(float distance)
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(Sun);
-                snapshot.Instances.Add(Gpu.Instance(mesh: assets.Box, material: assets.Checker,
-                    position: direction * distance, scale: new(1.5f),
-                    rotation: BoxTurn, entity: 3));
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: assets.Box,
+                        material: assets.Checker,
+                        position: direction * distance,
+                        scale: new(1.5f),
+                        rotation: BoxTurn,
+                        entity: 3
+                    )
+                );
                 return snapshot;
             }
 
             float near = DistanceForHeight(height: 210, radius: radius, outputHeight: height);
             float far = DistanceForHeight(height: 195, radius: radius, outputHeight: height);
-            Capture background = Gpu.RenderAndCapture(renderer: renderer, snapshot: Gpu.Snapshot(Sun),
-                name: "impostor-accuracy-background");
-            Capture geometry = Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(near),
-                name: "impostor-accuracy-geometry");
+            Capture background = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Gpu.Snapshot(Sun),
+                name: "impostor-accuracy-background"
+            );
+            Capture geometry = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Scene(near),
+                name: "impostor-accuracy-geometry"
+            );
             renderer.LastFrameStats.Impostors.Should().Be(0);
             // Below 200 px: captured and drawn as an impostor in the same frame.
             Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(far), name: "impostor-accuracy-195px");
@@ -187,21 +259,27 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             renderer.Render(Scene(near), 1f);
             renderer.LastFrameStats.Impostors.Should().Be(1);
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(1);
-            Capture impostor = Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(near),
-                name: "impostor-accuracy-impostor");
+            Capture impostor = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Scene(near),
+                name: "impostor-accuracy-impostor"
+            );
             renderer.LastFrameStats.Impostors.Should().Be(1);
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(0);
             SaveTile(renderer, 0, "impostor-accuracy-tile");
 
             (float meanDifference, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine(
-                $"silhouette {pixels} px, overlap (IoU) {overlap:0.000}, mean |Δ| inside {meanDifference * 255:0.00} / 255");
+                $"silhouette {pixels} px, overlap (IoU) {overlap:0.000}, mean |Δ| inside {meanDifference * 255:0.00} / 255"
+            );
             pixels.Should().BeGreaterThan(20_000, "the object covers a large part of the frame");
             overlap.Should().BeGreaterThan(0.97f, "the silhouettes match");
             // Documented threshold: within the silhouette the impostor differs from the geometry by less than 6/255
             // per channel on average (display-encoded). The differences come from resampling the 512 px capture to
             // ~210 px through the mip chain.
-            (meanDifference * 255).Should().BeLessThan(6f, "the impostor looks like the geometry, in 1/255 steps");
+            (meanDifference * 255)
+                .Should()
+                .BeLessThan(6f, "the impostor looks like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -212,12 +290,14 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void TurningTheViewByMoreThanTwoOverHRecapturesAndLessDoesNot()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
             var assets = Assets.Create(renderer);
-            float radius = MathF.Sqrt(0.75f) * 1.5f, h = 100f;
+            float radius = MathF.Sqrt(0.75f) * 1.5f,
+                h = 100f;
             float distance = DistanceForHeight(height: h, radius: radius, outputHeight: height);
             float limit = 2f / h;
 
@@ -228,11 +308,20 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 snapshot.Camera.Rotation = rotation;
                 snapshot.Camera.PreviousRotation = rotation;
                 // The camera goes around the object at a constant distance: in camera-relative terms the object moves.
-                Vector3 position = Vector3.Transform(new(0, 0, -distance),
-                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, angle));
+                var position = Vector3.Transform(
+                    new(0, 0, -distance),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, angle)
+                );
                 snapshot.Instances.Add(
-                    Gpu.Instance(mesh: assets.Box, material: assets.Checker, position: position, scale: new(1.5f),
-                        rotation: BoxTurn, entity: 9));
+                    Gpu.Instance(
+                        mesh: assets.Box,
+                        material: assets.Checker,
+                        position: position,
+                        scale: new(1.5f),
+                        rotation: BoxTurn,
+                        entity: 9
+                    )
+                );
                 return snapshot;
             }
 
@@ -267,7 +356,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void TheCaptureBudgetIsRespectedWithFiftyCandidates()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true, impostorTiles: 64);
         try
         {
@@ -277,7 +367,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1), gloss: 0.7f)),
                 renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), gloss: 0.3f)),
                 renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.3f, z: 0.8f, w: 1), gloss: 0.5f)),
-                assets.Checker
+                assets.Checker,
             ];
             // 50 objects in a 10 × 5 grid, every one between 25 and 150 px tall.
             RenderSnapshot snapshot = Gpu.Snapshot(Sun);
@@ -287,19 +377,33 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 bool box = i % 2 == 0;
                 float radius = box ? MathF.Sqrt(0.75f) : 1f;
                 float distance = DistanceForHeight(height: h, radius: radius, outputHeight: height);
-                var direction =
-                    Quaternion.CreateFromYawPitchRoll((i % 10 - 4.5f) * 0.12f, ((int)(i / 10) - 2) * 0.16f, 0);
-                snapshot.Instances.Add(Gpu.Instance(mesh: box ? assets.Box : assets.Sphere, material: colors[i % 4],
-                    position: Vector3.Transform(new(0, 0, -distance), direction), scale: Vector3.One, rotation: BoxTurn,
-                    entity: 1000 + i));
+                var direction = Quaternion.CreateFromYawPitchRoll(
+                    (i % 10 - 4.5f) * 0.12f,
+                    ((int)(i / 10) - 2) * 0.16f,
+                    0
+                );
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: box ? assets.Box : assets.Sphere,
+                        material: colors[i % 4],
+                        position: Vector3.Transform(new(0, 0, -distance), direction),
+                        scale: Vector3.One,
+                        rotation: BoxTurn,
+                        entity: 1000 + i
+                    )
+                );
             }
 
             Capture? first = null;
-            int captured = 0, frames = 0;
+            int captured = 0,
+                frames = 0;
             while (captured < 50)
             {
-                Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot,
-                    name: $"impostor-budget-frame-{frames}");
+                Capture image = Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    name: $"impostor-budget-frame-{frames}"
+                );
                 first ??= image;
                 frames++;
                 RenderStats stats = renderer.LastFrameStats;
@@ -322,10 +426,11 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
-                Vector3 a = first!.Color(x, y), b = last.Color(x, y);
+                Vector3 a = first!.Color(x, y),
+                    b = last.Color(x, y);
                 if (MaxAbs(a) < 4f / 255f && MaxAbs(b) < 4f / 255f)
                     continue;
-                Vector3 d = Vector3.Abs(a - b);
+                var d = Vector3.Abs(a - b);
                 sum += (d.X + d.Y + d.Z) / 3f;
                 pixels++;
             }
@@ -343,20 +448,26 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void TheAtlasEvictsTheLeastRecentlyUsedTileOfAKeyThatIsGoneOrBackToGeometry()
     {
-        const int width = 640, height = 360;
+        const int width = 640,
+            height = 360;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true, impostorTiles: 4);
         try
         {
             var assets = Assets.Create(renderer);
             Vector4[] tints =
             [
-                new(x: 0.9f, y: 0.1f, z: 0.1f, w: 1), new(x: 0.1f, y: 0.9f, z: 0.1f, w: 1),
-                new(x: 0.1f, y: 0.1f, z: 0.9f, w: 1), new(x: 0.9f, y: 0.9f, z: 0.1f, w: 1),
-                new(x: 0.1f, y: 0.9f, z: 0.9f, w: 1), new(x: 0.9f, y: 0.1f, z: 0.9f, w: 1),
-                new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1)
+                new(x: 0.9f, y: 0.1f, z: 0.1f, w: 1),
+                new(x: 0.1f, y: 0.9f, z: 0.1f, w: 1),
+                new(x: 0.1f, y: 0.1f, z: 0.9f, w: 1),
+                new(x: 0.9f, y: 0.9f, z: 0.1f, w: 1),
+                new(x: 0.1f, y: 0.9f, z: 0.9f, w: 1),
+                new(x: 0.9f, y: 0.1f, z: 0.9f, w: 1),
+                new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1),
             ];
             MaterialId[] materials =
-                [.. tints.Select(t => renderer.CreateMaterial(MaterialDesc.Color(t, gloss: 0.3f)))];
+            [
+                .. tints.Select(t => renderer.CreateMaterial(MaterialDesc.Color(t, gloss: 0.3f))),
+            ];
             float far = DistanceForHeight(height: 80f, radius: 1f, outputHeight: height),
                 close = DistanceForHeight(height: 320f, radius: 1f, outputHeight: height);
 
@@ -366,9 +477,15 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 foreach ((int index, float distance) in objects)
                 {
                     var position = new Vector3((index - 3f) * 0.12f * distance, 0, -distance);
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: materials[index],
-                        position: position, scale: Vector3.One,
-                        entity: (uint)index));
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Sphere,
+                            material: materials[index],
+                            position: position,
+                            scale: Vector3.One,
+                            entity: (uint)index
+                        )
+                    );
                 }
 
                 return snapshot;
@@ -378,9 +495,14 @@ public sealed class ImpostorTests(ITestOutputHelper output)
 
             int Tile(int index) =>
                 manager.TryGetStatus(
-                    new(EntityIndex: (uint)index, Part: 0, Mesh: assets.Sphere.Value,
-                        Material: MaterialStore.Slot(materials[index])),
-                    out ImpostorStatus s)
+                    new(
+                        EntityIndex: (uint)index,
+                        Part: 0,
+                        Mesh: assets.Sphere.Value,
+                        Material: MaterialStore.Slot(materials[index])
+                    ),
+                    out ImpostorStatus s
+                )
                     ? s.Tile
                     : -1;
 
@@ -402,8 +524,10 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             {
                 Vector3 color = TileColor(tile),
                     expected = Vector3.Normalize(new(tints[index].X, tints[index].Y, tints[index].Z));
-                Vector3.Dot(color, expected).Should().BeGreaterThan(0.95f, "tile {0} shows {1}, and object {2} is {3}",
-                    tile, color, index, expected);
+                Vector3
+                    .Dot(color, expected)
+                    .Should()
+                    .BeGreaterThan(0.95f, "tile {0} shows {1}, and object {2} is {3}", tile, color, index, expected);
             }
 
             renderer.Render(Scene((0, far), (1, far), (2, far), (3, far)), 1f);
@@ -413,8 +537,11 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 AssertTileShows(tiles[i], i);
             // Object 0 leaves, then object 1; object 4 arrives and takes the least recently used tile: object 0's.
             renderer.Render(Scene((1, far), (2, far), (3, far)), 1f);
-            Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene((2, far), (3, far), (4, far)),
-                name: "impostor-eviction-1");
+            Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Scene((2, far), (3, far), (4, far)),
+                name: "impostor-eviction-1"
+            );
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(1);
             Tile(4).Should().Be(tiles[0]);
             Tile(0).Should().Be(-1);
@@ -425,19 +552,26 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             Tile(5).Should().Be(tiles[1]);
             AssertTileShows(tiles[1], 5);
             // Object 6 finds every tile in use by a drawn impostor: it waits, drawn as geometry.
-            Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene((2, far), (3, far), (4, far), (5, far), (6, far)),
-                name: "impostor-eviction-waiting");
+            Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Scene((2, far), (3, far), (4, far), (5, far), (6, far)),
+                name: "impostor-eviction-waiting"
+            );
             RenderStats stats = renderer.LastFrameStats;
-            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.VisibleInstances).Should()
+            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.VisibleInstances)
+                .Should()
                 .Be((4, 1, 0, 5));
             // Object 2 comes close and returns to geometry: object 6 takes its tile.
-            Gpu.RenderAndCapture(renderer: renderer,
+            Gpu.RenderAndCapture(
+                renderer: renderer,
                 snapshot: Scene((2, close), (3, far), (4, far), (5, far), (6, far)),
-                name: "impostor-eviction-2");
+                name: "impostor-eviction-2"
+            );
             Tile(6).Should().Be(tiles[2]);
             AssertTileShows(tiles[2], 6);
             stats = renderer.LastFrameStats;
-            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.ImpostorTilesInUse).Should()
+            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.ImpostorTilesInUse)
+                .Should()
                 .Be((4, 0, 1, 4));
         }
         finally
@@ -450,18 +584,30 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     /// Renders a scene with every instance flagged <see cref="RenderFlags.NoImpostor"/>, then without the flag until
     /// the impostors are captured, and returns the empty background, the geometry render and the impostor render.
     /// </summary>
-    private static (Capture Background, Capture Geometry, Capture Impostor) GeometryAndImpostor(VulkanRenderer renderer,
-        Func<RenderFlags, bool, RenderSnapshot> scene, string name)
+    private static (Capture Background, Capture Geometry, Capture Impostor) GeometryAndImpostor(
+        VulkanRenderer renderer,
+        Func<RenderFlags, bool, RenderSnapshot> scene,
+        string name
+    )
     {
-        Capture background = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(RenderFlags.None, false),
-            name: name + "-background");
-        Capture geometry = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(RenderFlags.NoImpostor, true),
-            name: name + "-geometry");
+        Capture background = Gpu.RenderAndCapture(
+            renderer: renderer,
+            snapshot: scene(RenderFlags.None, false),
+            name: name + "-background"
+        );
+        Capture geometry = Gpu.RenderAndCapture(
+            renderer: renderer,
+            snapshot: scene(RenderFlags.NoImpostor, true),
+            name: name + "-geometry"
+        );
         renderer.LastFrameStats.Impostors.Should().Be(0, "NoImpostor keeps every object geometry");
         for (int i = 0; i < 4; i++)
             renderer.Render(scene(RenderFlags.None, true), 1f);
-        Capture impostor = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(RenderFlags.None, true),
-            name: name + "-impostor");
+        Capture impostor = Gpu.RenderAndCapture(
+            renderer: renderer,
+            snapshot: scene(RenderFlags.None, true),
+            name: name + "-impostor"
+        );
         renderer.LastFrameStats.ImpostorCaptures.Should().Be(0, "every impostor is captured by now");
         return (background, geometry, impostor);
     }
@@ -469,7 +615,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void ImpostorsWriteTheirSurfaceDepthSoTheyIntersectGeometryLikeTheObject()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
@@ -484,27 +631,48 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 RenderSnapshot snapshot = Gpu.Snapshot(Sun);
                 snapshot.Camera.Rotation = pitch;
                 snapshot.Camera.PreviousRotation = pitch;
-                snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: assets.Ground, position: new(0, -1.2f, -20f),
-                    scale: new(40f, 1f, 40f),
-                    flags: RenderFlags.CastsShadow));
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: plane,
+                        material: assets.Ground,
+                        position: new(0, -1.2f, -20f),
+                        scale: new(40f, 1f, 40f),
+                        flags: RenderFlags.CastsShadow
+                    )
+                );
                 if (objects)
                 {
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red,
-                        position: new(-0.9f, -1.2f, -distance),
-                        scale: Vector3.One, flags: flags | RenderFlags.CastsShadow, entity: 1));
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Box, material: assets.Checker,
-                        position: new(1.3f, -1.2f, -distance),
-                        scale: new(1.1f),
-                        rotation: Quaternion.CreateFromYawPitchRoll(0.5f, 0.6f, 0.3f),
-                        flags: flags | RenderFlags.CastsShadow,
-                        entity: 2));
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Sphere,
+                            material: assets.Red,
+                            position: new(-0.9f, -1.2f, -distance),
+                            scale: Vector3.One,
+                            flags: flags | RenderFlags.CastsShadow,
+                            entity: 1
+                        )
+                    );
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Box,
+                            material: assets.Checker,
+                            position: new(1.3f, -1.2f, -distance),
+                            scale: new(1.1f),
+                            rotation: Quaternion.CreateFromYawPitchRoll(0.5f, 0.6f, 0.3f),
+                            flags: flags | RenderFlags.CastsShadow,
+                            entity: 2
+                        )
+                    );
                 }
 
                 return snapshot;
             }
 
-            (Capture background, Capture geometry, Capture impostor) =
-                GeometryAndImpostor(renderer, Scene, "impostor-ground");
+            (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(
+                renderer,
+                Scene,
+                "impostor-ground"
+            );
             renderer.LastFrameStats.Impostors.Should().Be(2);
             (float mean, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine($"silhouette {pixels} px, IoU {overlap:0.000}, mean |Δ| {mean * 255:0.00} / 255");
@@ -522,7 +690,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void AnImpostorAcrossTheTwoKilometreBoundaryAndOneInTheMiddleRangeLookLikeTheirGeometry()
     {
-        const int width = 960, height = 540;
+        const int width = 960,
+            height = 540;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
@@ -534,23 +703,45 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 RenderSnapshot snapshot = Gpu.Snapshot(Sun);
                 if (objects)
                 {
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red,
-                        position: new(-250f, 0, -2_000f), scale: new(400f),
-                        flags: flags, entity: 1));
-                    snapshot.Instances.Add(Gpu.Instance(mesh: assets.Box, material: assets.Checker,
-                        position: new(20_000f, 3_000f, -50_000f),
-                        scale: new(1_000f), rotation: BoxTurn, flags: flags, entity: 2));
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Sphere,
+                            material: assets.Red,
+                            position: new(-250f, 0, -2_000f),
+                            scale: new(400f),
+                            flags: flags,
+                            entity: 1
+                        )
+                    );
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: assets.Box,
+                            material: assets.Checker,
+                            position: new(20_000f, 3_000f, -50_000f),
+                            scale: new(1_000f),
+                            rotation: BoxTurn,
+                            flags: flags,
+                            entity: 2
+                        )
+                    );
                 }
 
                 return snapshot;
             }
 
-            (Capture background, Capture geometry, Capture impostor) =
-                GeometryAndImpostor(renderer, Scene, "impostor-ranges");
+            (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(
+                renderer,
+                Scene,
+                "impostor-ranges"
+            );
             renderer.LastFrameStats.Impostors.Should().Be(2);
-            renderer.LastScene.Impostors[DepthRanges.Near].Count.Should()
+            renderer
+                .LastScene.Impostors[DepthRanges.Near]
+                .Count.Should()
                 .Be(1, "the sphere is drawn in the near range");
-            renderer.LastScene.Impostors[DepthRanges.Middle].Count.Should()
+            renderer
+                .LastScene.Impostors[DepthRanges.Middle]
+                .Count.Should()
                 .Be(2, "the sphere and the box are drawn in the middle range");
             (float mean, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine($"silhouette {pixels} px, IoU {overlap:0.000}, mean |Δ| {mean * 255:0.00} / 255");
@@ -566,7 +757,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void TheReferenceSceneWithImpostorsLooksLikeTheGeometry()
     {
-        const int width = 640, height = 360;
+        const int width = 640,
+            height = 360;
         VulkanRenderer renderer = Gpu.Headless(width: width, height: height, impostors: true);
         try
         {
@@ -587,13 +779,18 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 return snapshot;
             }
 
-            Capture geometry =
-                Gpu.RenderAndCapture(renderer: renderer, snapshot: Snapshot(RenderFlags.NoImpostor),
-                    name: "impostor-scene-geometry");
+            Capture geometry = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Snapshot(RenderFlags.NoImpostor),
+                name: "impostor-scene-geometry"
+            );
             for (int i = 0; i < 4; i++)
                 renderer.Render(Snapshot(RenderFlags.None), 1f);
-            Capture impostors = Gpu.RenderAndCapture(renderer: renderer, snapshot: Snapshot(RenderFlags.None),
-                name: "impostor-scene");
+            Capture impostors = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: Snapshot(RenderFlags.None),
+                name: "impostor-scene"
+            );
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
             // The boxes, the opaque spheres and the station; not the ground (too large), the glass, planet or star.
@@ -604,7 +801,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
-                Vector3 d = Vector3.Abs(geometry.Color(x, y) - impostors.Color(x, y));
+                var d = Vector3.Abs(geometry.Color(x, y) - impostors.Color(x, y));
                 sum += (d.X + d.Y + d.Z) / 3f;
             }
 
@@ -612,7 +809,9 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             output.WriteLine($"mean |Δ| over the frame {mean * 255:0.00} / 255");
             // Captures bake the sun, the ambient light and the point and spot lights, but not the shadow maps: the
             // shadows other objects cast onto the impostors are missing, which is most of the difference.
-            (mean * 255).Should().BeLessThan(2f, "the frame with impostors looks like the geometry, in 1/255 steps");
+            (mean * 255)
+                .Should()
+                .BeLessThan(2f, "the frame with impostors looks like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -657,9 +856,15 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [InlineData(3)]
     public void RecapturesEveryFrameAreSynchronizedForAnyNumberOfFramesInFlight(int framesInFlight)
     {
-        const int width = 320, height = 180;
-        VulkanRenderer renderer = Gpu.Headless(width: width, height: height, framesInFlight: framesInFlight,
-            impostors: true, impostorTiles: 4);
+        const int width = 320,
+            height = 180;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            framesInFlight: framesInFlight,
+            impostors: true,
+            impostorTiles: 4
+        );
         try
         {
             var assets = Assets.Create(renderer);
@@ -675,19 +880,29 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         continue;
                     float angle = frame * 0.05f + i;
                     var position = new Vector3(MathF.Sin(i * 1.1f) * 4f, MathF.Cos(i * 0.7f) * 2f, -14f - i);
-                    snapshot.Instances.Add(Gpu.Instance(mesh: i % 2 == 0 ? assets.Box : assets.Sphere,
-                        material: assets.Checker,
-                        position: position, scale: Vector3.One,
-                        rotation: Quaternion.CreateFromYawPitchRoll(angle, angle * 0.5f, 0), entity: i));
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: i % 2 == 0 ? assets.Box : assets.Sphere,
+                            material: assets.Checker,
+                            position: position,
+                            scale: Vector3.One,
+                            rotation: Quaternion.CreateFromYawPitchRoll(angle, angle * 0.5f, 0),
+                            entity: i
+                        )
+                    );
                 }
 
                 if (frame == 23)
-                    Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot,
-                        name: $"impostor-in-flight-{framesInFlight}");
+                    Gpu.RenderAndCapture(
+                        renderer: renderer,
+                        snapshot: snapshot,
+                        name: $"impostor-in-flight-{framesInFlight}"
+                    );
                 else
                     renderer.Render(snapshot, 1f);
                 captures += renderer.LastFrameStats.ImpostorCaptures;
-                renderer.LastFrameStats.ImpostorCaptures.Should()
+                renderer
+                    .LastFrameStats.ImpostorCaptures.Should()
                     .BeInRange(1, 4, "every frame recaptures within the budget");
             }
 
@@ -703,13 +918,32 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     public void ImpostorOptionsAreCheckedAndImpostorsCanBeTurnedOff()
     {
         FluentActions
-            .Invoking(() => VulkanRenderer.CreateHeadless(new() { Width = 64, Height = 64, ImpostorTiles = 0 }))
-            .Should().ThrowExactly<ArgumentOutOfRangeException>();
-        FluentActions.Invoking(() =>
-                VulkanRenderer.CreateHeadless(new()
-                    { Validation = true, Width = 64, Height = 64, ImpostorTiles = 1_000_000 }))
-            .Should().ThrowExactly<ArgumentOutOfRangeException>(
-                "the atlas cannot have more layers than the device allows");
+            .Invoking(() =>
+                VulkanRenderer.CreateHeadless(
+                    new()
+                    {
+                        Width = 64,
+                        Height = 64,
+                        ImpostorTiles = 0,
+                    }
+                )
+            )
+            .Should()
+            .ThrowExactly<ArgumentOutOfRangeException>();
+        FluentActions
+            .Invoking(() =>
+                VulkanRenderer.CreateHeadless(
+                    new()
+                    {
+                        Validation = true,
+                        Width = 64,
+                        Height = 64,
+                        ImpostorTiles = 1_000_000,
+                    }
+                )
+            )
+            .Should()
+            .ThrowExactly<ArgumentOutOfRangeException>("the atlas cannot have more layers than the device allows");
         new RendererOptions().ImpostorTiles.Should().Be(64);
         new RendererOptions().Impostors.Should().BeTrue();
 
@@ -720,12 +954,26 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             var assets = Assets.Create(renderer);
             renderer.Impostors.Should().BeNull();
             RenderSnapshot snapshot = Gpu.Snapshot(Sun);
-            snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red, position: new(0, 0, -40f),
-                scale: Vector3.One, entity: 1));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: assets.Sphere,
+                    material: assets.Red,
+                    position: new(0, 0, -40f),
+                    scale: Vector3.One,
+                    entity: 1
+                )
+            );
             renderer.Render(snapshot, 1f);
-            (renderer.LastFrameStats.Impostors, renderer.LastFrameStats.ImpostorCaptures,
-                renderer.LastFrameStats.NearCommands).Should().Be((0, 0, 1));
-            FluentActions.Invoking(() => renderer.ReadImpostorTile(0)).Should()
+            (
+                renderer.LastFrameStats.Impostors,
+                renderer.LastFrameStats.ImpostorCaptures,
+                renderer.LastFrameStats.NearCommands
+            )
+                .Should()
+                .Be((0, 0, 1));
+            FluentActions
+                .Invoking(() => renderer.ReadImpostorTile(0))
+                .Should()
                 .ThrowExactly<InvalidOperationException>();
         }
         finally
@@ -739,13 +987,22 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         {
             var assets = Assets.Create(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(Sun);
-            snapshot.Instances.Add(Gpu.Instance(mesh: assets.Sphere, material: assets.Red, position: new(0, 0, -40f),
-                scale: Vector3.One, entity: 1));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: assets.Sphere,
+                    material: assets.Red,
+                    position: new(0, 0, -40f),
+                    scale: Vector3.One,
+                    entity: 1
+                )
+            );
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "impostor-one-tile");
             renderer.LastFrameStats.Impostors.Should().Be(1);
             Vector3 center = image.Color(160, 90);
-            center.X.Should().BeGreaterThan(0.2f, "the impostor is lit").And
-                .BeGreaterThan(2 * center.Y, "it is red: {0}", center);
+            center
+                .X.Should()
+                .BeGreaterThan(0.2f, "the impostor is lit")
+                .And.BeGreaterThan(2 * center.Y, "it is red: {0}", center);
         }
         finally
         {
@@ -761,12 +1018,15 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     private static (float MeanDifference, float Overlap, int Pixels) Compare(Capture background, Capture a, Capture b)
     {
         double sum = 0;
-        int inA = 0, inB = 0, both = 0;
+        int inA = 0,
+            inB = 0,
+            both = 0;
         for (int y = 0; y < a.Height; y++)
         for (int x = 0; x < a.Width; x++)
         {
             Vector3 bg = background.Color(x, y);
-            Vector3 ca = a.Color(x, y), cb = b.Color(x, y);
+            Vector3 ca = a.Color(x, y),
+                cb = b.Color(x, y);
             bool maskA = MaxAbs(ca - bg) > 4f / 255f;
             bool maskB = MaxAbs(cb - bg) > 4f / 255f;
             inA += maskA ? 1 : 0;
@@ -774,7 +1034,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             both += maskA && maskB ? 1 : 0;
             if (maskA)
             {
-                Vector3 d = Vector3.Abs(ca - cb);
+                var d = Vector3.Abs(ca - cb);
                 sum += (d.X + d.Y + d.Z) / 3f;
             }
         }
@@ -817,8 +1077,13 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         string path = Gpu.CapturePath(name);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using FileStream stream = File.Create(path);
-        new ImageWriter().WritePng(data: pixels, width: size * 2, height: size,
-            components: ColorComponents.RedGreenBlueAlpha, dest: stream);
+        new ImageWriter().WritePng(
+            data: pixels,
+            width: size * 2,
+            height: size,
+            components: ColorComponents.RedGreenBlueAlpha,
+            dest: stream
+        );
     }
 
     private static float Srgb(float c) => c <= 0.0031308f ? 12.92f * c : 1.055f * MathF.Pow(c, 1 / 2.4f) - 0.055f;

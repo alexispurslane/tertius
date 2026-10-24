@@ -24,8 +24,10 @@ public sealed class PassThroughMethod : IRule
     {
         // An override, an explicit interface member and a method with an attribute exist for their contract, not for
         // their body.
-        if (node is not MethodDeclarationSyntax { AttributeLists.Count: 0, ExplicitInterfaceSpecifier: null } method ||
-            method.Modifiers.Any(SyntaxKind.OverrideKeyword))
+        if (
+            node is not MethodDeclarationSyntax { AttributeLists.Count: 0, ExplicitInterfaceSpecifier: null } method
+            || method.Modifiers.Any(SyntaxKind.OverrideKeyword)
+        )
             return [];
         string[] parameters = [.. method.ParameterList.Parameters.Select(parameter => parameter.Identifier.ValueText)];
         return method.SingleExpression is InvocationExpressionSyntax call && call.PassesOn(parameters)
@@ -57,8 +59,13 @@ public sealed class LowUseShortFunction : IRule
             return [];
         var callee = new Function(node);
         SimpleNameSyntax[] uses = [.. context.UsesOf(name).Where(use => !use.Ancestors().Contains(node))];
-        if (callee.Sloc > MostSloc || uses is not [var use] || use.Call is not { } call || IsDispatch(call) ||
-            Function.Holding(call) is not { } caller)
+        if (
+            callee.Sloc > MostSloc
+            || uses is not [var use]
+            || use.Call is not { } call
+            || IsDispatch(call)
+            || Function.Holding(call) is not { } caller
+        )
             return [];
         bool callerStaysSimple = caller.Complexity + callee.Complexity - 1 <= ErosionReport.ComplexityLimit;
         bool callerStaysShort = caller.Sloc + callee.Sloc - 1 <= MostCallerSloc;
@@ -66,36 +73,40 @@ public sealed class LowUseShortFunction : IRule
     }
 
     // The name of a private method or of a local function, or null for another function.
-    private static string? PrivateName(SyntaxNode node) => node switch
-    {
-        LocalFunctionStatementSyntax local => local.Identifier.ValueText,
-        // An attribute gives a method a job beside its code, such as [Conditional], which inlining would lose.
-        MethodDeclarationSyntax
+    private static string? PrivateName(SyntaxNode node) =>
+        node switch
+        {
+            LocalFunctionStatementSyntax local => local.Identifier.ValueText,
+            // An attribute gives a method a job beside its code, such as [Conditional], which inlining would lose.
+            MethodDeclarationSyntax
             {
-                Parent: TypeDeclarationSyntax and not InterfaceDeclarationSyntax, AttributeLists.Count: 0
-            } method
-            when IsPrivate(method.Modifiers) => method.Identifier.ValueText,
-        _ => null
-    };
+                Parent: TypeDeclarationSyntax and not InterfaceDeclarationSyntax,
+                AttributeLists.Count: 0
+            } method when IsPrivate(method.Modifiers) => method.Identifier.ValueText,
+            _ => null,
+        };
 
     // Private by its modifiers: private and not protected, or no access modifier at all. A partial method keeps its
     // declaration. An override or an abstract method is never private (CS0621), and an extern method has no body.
     private static bool IsPrivate(SyntaxTokenList modifiers)
     {
-        bool widened = modifiers.Any(SyntaxKind.PublicKeyword) || modifiers.Any(SyntaxKind.ProtectedKeyword) ||
-                       modifiers.Any(SyntaxKind.InternalKeyword);
+        bool widened =
+            modifiers.Any(SyntaxKind.PublicKeyword)
+            || modifiers.Any(SyntaxKind.ProtectedKeyword)
+            || modifiers.Any(SyntaxKind.InternalKeyword);
         return !modifiers.Any(SyntaxKind.PartialKeyword) && !widened;
     }
 
     // Whether a call is the whole job of one case of a switch. The state machines of STYLE.md give each case a method of
     // its own, so such a method stays.
-    private static bool IsDispatch(InvocationExpressionSyntax call) => call.Parent switch
-    {
-        SwitchExpressionArmSyntax arm => arm.Expression == call,
-        ExpressionStatementSyntax { Parent: SwitchSectionSyntax }
+    private static bool IsDispatch(InvocationExpressionSyntax call) =>
+        call.Parent switch
+        {
+            SwitchExpressionArmSyntax arm => arm.Expression == call,
+            ExpressionStatementSyntax { Parent: SwitchSectionSyntax }
             or ReturnStatementSyntax { Parent: SwitchSectionSyntax } => true,
-        _ => false
-    };
+            _ => false,
+        };
 }
 
 /// <summary>A local whose name adds nothing and that only feeds the next statement.</summary>
@@ -108,7 +119,8 @@ public sealed class SingleUseLocal : IRule
 {
     private static readonly FrozenSet<string> GenericNames = FrozenSet.ToFrozenSet(
         ["result", "res", "ret", "temp", "tmp", "value", "val", "data", "output", "obj", "item"],
-        StringComparer.Ordinal);
+        StringComparer.Ordinal
+    );
 
     public string Id => "single-use-local";
 
@@ -120,22 +132,34 @@ public sealed class SingleUseLocal : IRule
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
-        if (node is not LocalDeclarationStatementSyntax
-            {
-                IsConst: false, UsingKeyword.RawKind: 0, AwaitKeyword.RawKind: 0,
-                Declaration: { Type: var type, Variables: [{ Initializer.Value: var value } variable] }
-            } local || type is RefTypeSyntax || KeepsName(type, value))
+        if (
+            node
+                is not LocalDeclarationStatementSyntax
+                {
+                    IsConst: false,
+                    UsingKeyword.RawKind: 0,
+                    AwaitKeyword.RawKind: 0,
+                    Declaration: { Type: var type, Variables: [{ Initializer.Value: var value } variable] }
+                } local
+            || type is RefTypeSyntax
+            || KeepsName(type, value)
+        )
             return [];
         string name = variable.Identifier.ValueText;
         IdentifierNameSyntax[] uses =
         [
-            .. local.FollowingStatements.SelectMany(statement => statement.DescendantNodes())
+            .. local
+                .FollowingStatements.SelectMany(statement => statement.DescendantNodes())
                 .OfType<IdentifierNameSyntax>()
-                .Where(use => use.Identifier.ValueText == name && use.Parent is not NameColonSyntax)
+                .Where(use => use.Identifier.ValueText == name && use.Parent is not NameColonSyntax),
         ];
-        return local.NextStatement is { } next && !IsLoop(next) && uses is [var only] &&
-               next.Span.Contains(only.Span) &&
-               CanTakeValue(only, next) && (GenericNames.Contains(name) || OnlyHandsOn(only, next))
+        return
+            local.NextStatement is { } next
+            && !IsLoop(next)
+            && uses is [var only]
+            && next.Span.Contains(only.Span)
+            && CanTakeValue(only, next)
+            && (GenericNames.Contains(name) || OnlyHandsOn(only, next))
             ? [local.Span]
             : [];
     }
@@ -145,8 +169,9 @@ public sealed class SingleUseLocal : IRule
     private static bool OnlyHandsOn(IdentifierNameSyntax use, StatementSyntax next)
     {
         bool returned = next is ReturnStatementSyntax { Expression: { } value } && value.Unwrapped == use;
-        bool passedByName = use.Parent is ArgumentSyntax { NameColon.Name.Identifier.ValueText: var parameter } &&
-                            parameter == use.Identifier.ValueText;
+        bool passedByName =
+            use.Parent is ArgumentSyntax { NameColon.Name.Identifier.ValueText: var parameter }
+            && parameter == use.Identifier.ValueText;
         return returned || passedByName;
     }
 
@@ -154,17 +179,27 @@ public sealed class SingleUseLocal : IRule
     // takes its type from the declaration.
     private static bool KeepsName(TypeSyntax type, ExpressionSyntax value)
     {
-        bool isCondition = type is PredefinedTypeSyntax { Keyword.RawKind: (int)SyntaxKind.BoolKeyword } ||
-                           value.Unwrapped is IsPatternExpressionSyntax ||
-                           value.Unwrapped.Kind() is SyntaxKind.LogicalAndExpression or SyntaxKind.LogicalOrExpression
-                               or SyntaxKind.LogicalNotExpression or SyntaxKind.EqualsExpression
-                               or SyntaxKind.NotEqualsExpression or SyntaxKind.GreaterThanExpression
-                               or SyntaxKind.GreaterThanOrEqualExpression or SyntaxKind.LessThanExpression
-                               or SyntaxKind.LessThanOrEqualExpression or SyntaxKind.IsExpression;
-        bool isTargetTyped = value is ImplicitObjectCreationExpressionSyntax or CollectionExpressionSyntax
-                                 or AnonymousFunctionExpressionSyntax
-                                 or ImplicitStackAllocArrayCreationExpressionSyntax ||
-                             value.Kind() is SyntaxKind.DefaultLiteralExpression or SyntaxKind.NullLiteralExpression;
+        bool isCondition =
+            type is PredefinedTypeSyntax { Keyword.RawKind: (int)SyntaxKind.BoolKeyword }
+            || value.Unwrapped is IsPatternExpressionSyntax
+            || value.Unwrapped.Kind()
+                is SyntaxKind.LogicalAndExpression
+                    or SyntaxKind.LogicalOrExpression
+                    or SyntaxKind.LogicalNotExpression
+                    or SyntaxKind.EqualsExpression
+                    or SyntaxKind.NotEqualsExpression
+                    or SyntaxKind.GreaterThanExpression
+                    or SyntaxKind.GreaterThanOrEqualExpression
+                    or SyntaxKind.LessThanExpression
+                    or SyntaxKind.LessThanOrEqualExpression
+                    or SyntaxKind.IsExpression;
+        bool isTargetTyped =
+            value
+                is ImplicitObjectCreationExpressionSyntax
+                    or CollectionExpressionSyntax
+                    or AnonymousFunctionExpressionSyntax
+                    or ImplicitStackAllocArrayCreationExpressionSyntax
+            || value.Kind() is SyntaxKind.DefaultLiteralExpression or SyntaxKind.NullLiteralExpression;
         return isCondition || isTargetTyped;
     }
 
@@ -176,17 +211,20 @@ public sealed class SingleUseLocal : IRule
     // could run it later or again, and not as a variable that the statement changes or refers to.
     private static bool CanTakeValue(IdentifierNameSyntax use, StatementSyntax next)
     {
-        bool deferred = use.Ancestors().TakeWhile(ancestor => ancestor != next)
+        bool deferred = use.Ancestors()
+            .TakeWhile(ancestor => ancestor != next)
             .Any(ancestor => ancestor is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax);
         bool asVariable = use.Parent switch
         {
             ArgumentSyntax argument => argument.RefKindKeyword.RawKind != 0,
             AssignmentExpressionSyntax assignment => assignment.Left == use,
-            PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax => use.Parent.Kind() is
-                SyntaxKind.PreIncrementExpression or SyntaxKind.PreDecrementExpression
-                or SyntaxKind.PostIncrementExpression or SyntaxKind.PostDecrementExpression
-                or SyntaxKind.AddressOfExpression,
-            _ => false
+            PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax => use.Parent.Kind()
+                is SyntaxKind.PreIncrementExpression
+                    or SyntaxKind.PreDecrementExpression
+                    or SyntaxKind.PostIncrementExpression
+                    or SyntaxKind.PostDecrementExpression
+                    or SyntaxKind.AddressOfExpression,
+            _ => false,
         };
         return !deferred && !asVariable;
     }
@@ -211,20 +249,23 @@ public sealed class GuardRepeatsCallerCheck : IRule
         {
             BaseMethodDeclarationSyntax method => method.ParameterList,
             LocalFunctionStatementSyntax local => local.ParameterList,
-            _ => null
+            _ => null,
         };
         if (list is null || !Function.IsFunction(node) || node.IsPublicApi)
             return [];
         HashSet<string> typeParameters = [.. node.AncestorsAndSelf().SelectMany(TypeParameters)];
         HashSet<string> notNullable =
         [
-            .. list.Parameters.Where(parameter => parameter.Type is { } type && type is not NullableTypeSyntax &&
-                                                  !(type is IdentifierNameSyntax
-                                                    {
-                                                        Identifier.ValueText: var typeName
-                                                    } &&
-                                                    typeParameters.Contains(typeName)))
-                .Select(parameter => parameter.Identifier.ValueText)
+            .. list
+                .Parameters.Where(parameter =>
+                    parameter.Type is { } type
+                    && type is not NullableTypeSyntax
+                    && !(
+                        type is IdentifierNameSyntax { Identifier.ValueText: var typeName }
+                        && typeParameters.Contains(typeName)
+                    )
+                )
+                .Select(parameter => parameter.Identifier.ValueText),
         ];
         return new Function(node).OwnNodes.SelectMany(each => Guard(each, notNullable));
     }
@@ -236,29 +277,32 @@ public sealed class GuardRepeatsCallerCheck : IRule
             MethodDeclarationSyntax method => method.TypeParameterList,
             LocalFunctionStatementSyntax local => local.TypeParameterList,
             TypeDeclarationSyntax type => type.TypeParameterList,
-            _ => null
+            _ => null,
         };
         return list?.Parameters.Select(parameter => parameter.Identifier.ValueText) ?? [];
     }
 
     // The span of a guard on one of the parameters: an if that returns or throws when it is null, ThrowIfNull, or
     // `?? throw`.
-    private static IEnumerable<TextSpan> Guard(SyntaxNode node, HashSet<string> parameters) => node switch
-    {
-        IfStatementSyntax { Condition.NullTested: IdentifierNameSyntax { Identifier.ValueText: var name } } branch
-            when parameters.Contains(name) &&
-                 branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax =>
-            [branch.Span],
-        InvocationExpressionSyntax
+    private static IEnumerable<TextSpan> Guard(SyntaxNode node, HashSet<string> parameters) =>
+        node switch
         {
-            Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ThrowIfNull" },
-            ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var name } }, ..]
-        } call when parameters.Contains(name) => [call.Span],
-        BinaryExpressionSyntax
+            IfStatementSyntax { Condition.NullTested: IdentifierNameSyntax { Identifier.ValueText: var name } } branch
+                when parameters.Contains(name)
+                    && branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax => [branch.Span],
+            InvocationExpressionSyntax
             {
-                Left: IdentifierNameSyntax { Identifier.ValueText: var name }, Right: ThrowExpressionSyntax
-            } coalesce
-            when coalesce.IsKind(SyntaxKind.CoalesceExpression) && parameters.Contains(name) => [coalesce.Span],
-        _ => []
-    };
+                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ThrowIfNull" },
+                ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var name } }, ..]
+            } call when parameters.Contains(name) => [call.Span],
+            BinaryExpressionSyntax
+            {
+                Left: IdentifierNameSyntax { Identifier.ValueText: var name },
+                Right: ThrowExpressionSyntax
+            } coalesce when coalesce.IsKind(SyntaxKind.CoalesceExpression) && parameters.Contains(name) =>
+            [
+                coalesce.Span,
+            ],
+            _ => [],
+        };
 }

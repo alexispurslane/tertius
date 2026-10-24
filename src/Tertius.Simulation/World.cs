@@ -16,7 +16,8 @@ public readonly record struct WorldStats(
     int Frames,
     int RoutedEvents,
     int Deliveries,
-    long FallbackSpawns);
+    long FallbackSpawns
+);
 
 /// <summary>
 /// The gameplay simulation: entities and their components, the message router, the parallel scheduler, the sync
@@ -90,12 +91,20 @@ public sealed partial class World : IDisposable
         Attachments = new(Entities);
         Spatial = new(Entities, Frames, workers);
         renderBuilder = new(Entities, Frames, workers);
-        queryRunner = new(world: this, physics: physics, router: router,
-            reportError: message => Report(message, isError: true));
+        queryRunner = new(
+            world: this,
+            physics: physics,
+            router: router,
+            reportError: message => Report(message, isError: true)
+        );
         dyingMarks = Entities.AddColumn<bool>();
         characterStanding = Entities.AddColumn<bool>();
-        Puffs = new(entities: Entities, frames: Frames, capacity: Options.PuffCapacity,
-            reportError: message => Report(message, isError: true));
+        Puffs = new(
+            entities: Entities,
+            frames: Frames,
+            capacity: Options.PuffCapacity,
+            reportError: message => Report(message, isError: true)
+        );
         heirOf = HeirOf;
         Frames.NumericOptions = Options.NumericFrames;
         if (physics != null)
@@ -158,7 +167,12 @@ public sealed partial class World : IDisposable
 
     /// <summary>The hemisphere ambient light of the render snapshot.</summary>
     public AmbientLight Ambient { get; set; } =
-        new() { SkyColor = new(0.08f), GroundColor = new(0.03f), Intensity = 1 };
+        new()
+        {
+            SkyColor = new(0.08f),
+            GroundColor = new(0.03f),
+            Intensity = 1,
+        };
 
     /// <summary>The front view. During a tick it shows the previous tick, like <see cref="Self.Snapshot"/>.</summary>
     public Snapshot Snapshot => new(this);
@@ -180,9 +194,15 @@ public sealed partial class World : IDisposable
     public ReadOnlySpan<Event> RoutedEvents => router.Routed;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(LiveEntities: Entities.LiveCount, Capacity: Entities.Capacity,
-        Frames: Frames.Count - Frames.NumericCount,
-        RoutedEvents: router.RoutedCount, Deliveries: router.DeliveryCount, FallbackSpawns: fallbackSpawnTotal);
+    public WorldStats Stats =>
+        new(
+            LiveEntities: Entities.LiveCount,
+            Capacity: Entities.Capacity,
+            Frames: Frames.Count - Frames.NumericCount,
+            RoutedEvents: router.RoutedCount,
+            Deliveries: router.DeliveryCount,
+            FallbackSpawns: fallbackSpawnTotal
+        );
 
     // ---- For Self, BodyHandle and Snapshot ---------------------------------------------------------------------------
     // These views read and write the subsystems directly, through the same checked members that the world uses.
@@ -230,8 +250,12 @@ public sealed partial class World : IDisposable
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Vector3 AngularVelocityIn(Entity entity, FrameHandle frame) =>
-        FrameReads.AngularVelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity),
-            to: LiveFrame(frame));
+        FrameReads.AngularVelocityIn(
+            frames: Frames,
+            entity: entity,
+            row: Entities.FrontRow(entity),
+            to: LiveFrame(frame)
+        );
 
     /// <summary>Returns <paramref name="frame"/> if it is live. Throws <see cref="ArgumentException"/> if it is stale or null.</summary>
     private FrameHandle LiveFrame(FrameHandle frame) =>
@@ -259,8 +283,8 @@ public sealed partial class World : IDisposable
     /// The entity's first component that is a <typeparamref name="T"/>, or null if it has none. Throws
     /// <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
-    public T? GetComponent<T>(Entity entity) where T : class, IComponent =>
-        FindComponent<T>(Entities.Components(entity));
+    public T? GetComponent<T>(Entity entity)
+        where T : class, IComponent => FindComponent<T>(Entities.Components(entity));
 
     /// <summary>Adds every live entity to <paramref name="results"/>, in slot order.</summary>
     public void CopyLiveEntities(List<Entity> results)
@@ -315,7 +339,8 @@ public sealed partial class World : IDisposable
     /// </summary>
     internal bool IsStanding(Entity entity) => characterStanding[entity];
 
-    internal static T? FindComponent<T>(ReadOnlySpan<IComponent> components) where T : class, IComponent
+    internal static T? FindComponent<T>(ReadOnlySpan<IComponent> components)
+        where T : class, IComponent
     {
         foreach (IComponent component in components)
             if (component is T match)
@@ -384,8 +409,10 @@ public sealed partial class World : IDisposable
 
         if (Physics != null)
             foreach (Entity entity in Entities.BodyEntities)
-                Contract.Invariant(Entities.Body(entity) is { } body &&
-                                   Entities.BodyCenterOfMass(entity) == Physics.ShapeCenterOfMass(body.Shape));
+                Contract.Invariant(
+                    Entities.Body(entity) is { } body
+                        && Entities.BodyCenterOfMass(entity) == Physics.ShapeCenterOfMass(body.Shape)
+                );
         foreach (Entity entity in Entities.LiveEntities)
         {
             ref readonly TransformRow row = ref Entities.BackRow(entity);
@@ -395,9 +422,14 @@ public sealed partial class World : IDisposable
             else
                 Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
             // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
-            Contract.Invariant(row.PhysicsHome == row.Frame ||
-                               (!row.Frame.IsNull && Frames.IsAlive(row.PhysicsHome) &&
-                                Frames.SemanticOf(row.PhysicsHome) == row.Frame));
+            Contract.Invariant(
+                row.PhysicsHome == row.Frame
+                    || (
+                        !row.Frame.IsNull
+                        && Frames.IsAlive(row.PhysicsHome)
+                        && Frames.SemanticOf(row.PhysicsHome) == row.Frame
+                    )
+            );
             if (row.PhysicsHome != row.Frame)
             {
                 // The sums round at the scale of the larger term, a few times at most.
@@ -410,17 +442,23 @@ public sealed partial class World : IDisposable
             {
                 Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
                 TransformRow mirror = FrameOwnerRow(own);
-                Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome &&
-                                   Poses.BitEquals(row.Pose, mirror.Pose)
-                                   && Poses.BitEquals(row.HomePose, mirror.HomePose));
-                Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) &&
-                                   row.AngularVelocity.Equals(mirror.AngularVelocity));
+                Contract.Invariant(
+                    row.Frame == mirror.Frame
+                        && row.PhysicsHome == mirror.PhysicsHome
+                        && Poses.BitEquals(row.Pose, mirror.Pose)
+                        && Poses.BitEquals(row.HomePose, mirror.HomePose)
+                );
+                Contract.Invariant(
+                    row.LinearVelocity.Equals(mirror.LinearVelocity)
+                        && row.AngularVelocity.Equals(mirror.AngularVelocity)
+                );
                 BodyMotion? hullMotion = Frames.HullMotion(own);
                 if (Frames.Parent(own).IsNull || Entities.Body(entity) is not { } hull)
                     Contract.Invariant(hullMotion is null);
                 else
-                    Contract.Invariant(hullMotion is { } motion &&
-                                       (hull with { Motion = motion }).Problem(BodyRole.Hull) is null);
+                    Contract.Invariant(
+                        hullMotion is { } motion && (hull with { Motion = motion }).Problem(BodyRole.Hull) is null
+                    );
             }
 
             if (characterStanding[entity])
@@ -433,8 +471,9 @@ public sealed partial class World : IDisposable
             // A numeric frame has no owner and no topic: nothing public can name it.
             if (Frames.IsNumeric(frame))
                 continue;
-            Contract.Invariant(Entities.IsAlive(frame.Entity) && Entities.OwnedFrame(frame.Entity) == frame &&
-                               topics.IsLive(frame));
+            Contract.Invariant(
+                Entities.IsAlive(frame.Entity) && Entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame)
+            );
         }
 
         // The numeric frames are planned for the next step, which applies the front intents.
@@ -447,10 +486,21 @@ public sealed partial class World : IDisposable
     private void BuildRenderSnapshot()
     {
         RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
-        renderBuilder.Build(snapshot,
-            new(Tick: TickNumber, Time: Time, Camera: Camera, VerticalFov: VerticalFov, SunFrame: SunFrame,
-                SunColor: SunColor, SunIntensity: SunIntensity, Ambient: Ambient, ShowFrameOutlines: ShowFrameOutlines),
-            Puffs.View);
+        renderBuilder.Build(
+            snapshot,
+            new(
+                Tick: TickNumber,
+                Time: Time,
+                Camera: Camera,
+                VerticalFov: VerticalFov,
+                SunFrame: SunFrame,
+                SunColor: SunColor,
+                SunIntensity: SunIntensity,
+                Ambient: Ambient,
+                ShowFrameOutlines: ShowFrameOutlines
+            ),
+            Puffs.View
+        );
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();
     }
@@ -468,7 +518,8 @@ public sealed partial class World : IDisposable
         ThrowIfDisposed();
         if (inTick)
             throw new InvalidOperationException(
-                $"World.{operation} cannot run during a tick. Components use Self instead.");
+                $"World.{operation} cannot run during a tick. Components use Self instead."
+            );
     }
 
     private void Report(string message, bool isError)

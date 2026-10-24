@@ -24,10 +24,14 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
     [Fact]
     public void ATransferWhoseAngleFallsBelowLambertsRefusalBeforeTheLastMinuteFliesWithoutAnError()
     {
-        run.Log.Should().Contain(record => record.State is Transfer && record.TimeLeft > TransferGuidance.CoastTime
-                                                                    && record.RemainingAngle <
-                                                                    KeplerOrbit.LambertRefusedAngle * 180 / Math.PI,
-            "the plan must reach the case");
+        run.Log.Should()
+            .Contain(
+                record =>
+                    record.State is Transfer
+                    && record.TimeLeft > TransferGuidance.CoastTime
+                    && record.RemainingAngle < KeplerOrbit.LambertRefusedAngle * 180 / Math.PI,
+                "the plan must reach the case"
+            );
         run.Errors.Should().BeEmpty();
         run.Log.Should().Contain(record => record.State is Brake);
     }
@@ -43,11 +47,19 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
     {
         double coastDegrees = 2 * KeplerOrbit.LambertRefusedAngle * 180 / Math.PI;
         HighOrbitRun.Record[] transfer = [.. run.Log.Where(record => record.State is Transfer)];
-        transfer.Where(record => record.RemainingAngle > coastDegrees + 0.01).Should().NotBeEmpty()
+        transfer
+            .Where(record => record.RemainingAngle > coastDegrees + 0.01)
+            .Should()
+            .NotBeEmpty()
             .And.OnlyContain(record => record.Translates);
-        transfer.Where(record => record.RemainingAngle < coastDegrees - 0.01).Should().NotBeEmpty()
+        transfer
+            .Where(record => record.RemainingAngle < coastDegrees - 0.01)
+            .Should()
+            .NotBeEmpty()
             .And.OnlyContain(record => !record.Translates && record.Throttle == null);
-        transfer.First(record => record.RemainingAngle < coastDegrees).TimeLeft.Should()
+        transfer
+            .First(record => record.RemainingAngle < coastDegrees)
+            .TimeLeft.Should()
             .BeGreaterThan(TransferGuidance.CoastTime);
     }
 
@@ -67,14 +79,23 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
         /// falls to Lambert's refused angle of 1 degree about 240 s before the arrival. The shuttle carries no crew, so
         /// the nose turns at the attitude autopilot's full rate.
         /// </summary>
-        public static RendezvousPlan Plan { get; } = new(TransferTime: 1000, ArrivalDistance: 400,
-            HoldDistance: DemoStation.HoldPoint.Y,
-            WindowOpens: 30 * Math.PI / 180, WindowCloses: 2 * Math.PI / 180,
-            WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate);
+        public static RendezvousPlan Plan { get; } =
+            new(
+                TransferTime: 1000,
+                ArrivalDistance: 400,
+                HoldDistance: DemoStation.HoldPoint.Y,
+                WindowOpens: 30 * Math.PI / 180,
+                WindowCloses: 2 * Math.PI / 180,
+                WeightlessTurnRate: AttitudeAutopilot.MaxTurnRate
+            );
 
         /// <summary>The station's orbit: the demo station's, at <see cref="OrbitRadius"/>, at mean anomaly 0 at the epoch.</summary>
         public static KeplerOrbit StationOrbit { get; } =
-            DemoStation.Orbit with { SemiMajorAxis = OrbitRadius, MeanAnomalyAtEpoch = 0 };
+            DemoStation.Orbit with
+            {
+                SemiMajorAxis = OrbitRadius,
+                MeanAnomalyAtEpoch = 0,
+            };
 
         private readonly World world = NewWorld();
 
@@ -83,34 +104,64 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
             FrameHandle earth = Earth(world);
             Entity station = SpawnStation(world, earth);
             KeplerOrbit orbit = StationOrbit;
-            (Double3 position, Double3 velocity) =
-                (orbit with { MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / OrbitRadius }).StateAt(world.Time,
-                    Mu);
+            (Double3 position, Double3 velocity) = (
+                orbit with
+                {
+                    MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch - 5000 / OrbitRadius,
+                }
+            ).StateAt(world.Time, Mu);
             RendezvousAutopilotTests.Recorder recorder = new();
-            Entity shuttle = Fly(world: world, frame: earth, station: station, plan: Plan, position: position,
-                velocity: velocity, recorder: recorder);
-            var autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
+            Entity shuttle = Fly(
+                world: world,
+                frame: earth,
+                station: station,
+                plan: Plan,
+                position: position,
+                velocity: velocity,
+                recorder: recorder
+            );
+            RendezvousAutopilot autopilot = world.GetComponent<RendezvousAutopilot>(shuttle)!;
             world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Rendezvous()));
             Tick(world, 2);
 
             for (int tick = 0; tick < 1100 * 60 && autopilot.State.Value is not Brake; tick++)
             {
                 world.Tick();
-                double timeLeft = double.NaN, remaining = double.NaN;
+                double timeLeft = double.NaN,
+                    remaining = double.NaN;
                 if (autopilot.State.TryGetValue(out Transfer transfer))
                 {
                     timeLeft = transfer.ArrivalTime - world.Time;
                     (Double3 center, Double3 stationVelocity, Double3 axis) = StationNow(world, station, earth);
-                    Double3 arrival = transfer.Guidance
-                        .Arrival(stationPosition: center, stationVelocity: stationVelocity, axis: axis,
-                            arrivalDistance: Plan.ArrivalDistance, time: timeLeft).Point;
-                    double angle = TransferGuidance.TransferAngle(world.PoseIn(shuttle, earth).Position, arrival,
-                        TransferGuidance.OrbitNormal(center, stationVelocity)) * 180 / Math.PI;
+                    Double3 arrival = transfer
+                        .Guidance.Arrival(
+                            stationPosition: center,
+                            stationVelocity: stationVelocity,
+                            axis: axis,
+                            arrivalDistance: Plan.ArrivalDistance,
+                            time: timeLeft
+                        )
+                        .Point;
+                    double angle =
+                        TransferGuidance.TransferAngle(
+                            world.PoseIn(shuttle, earth).Position,
+                            arrival,
+                            TransferGuidance.OrbitNormal(center, stationVelocity)
+                        )
+                        * 180
+                        / Math.PI;
                     remaining = Math.Min(angle, 360 - angle);
                 }
 
-                Log.Add(new(State: autopilot.State.Value, TimeLeft: timeLeft, RemainingAngle: remaining,
-                    Translates: recorder.Translates, Throttle: recorder.Throttle));
+                Log.Add(
+                    new(
+                        State: autopilot.State.Value,
+                        TimeLeft: timeLeft,
+                        RemainingAngle: remaining,
+                        Translates: recorder.Translates,
+                        Throttle: recorder.Throttle
+                    )
+                );
             }
 
             Errors = [.. world.Errors];
@@ -137,7 +188,8 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
             double TimeLeft,
             double RemainingAngle,
             bool Translates,
-            float? Throttle);
+            float? Throttle
+        );
 
         public void Dispose() => world.Dispose();
 
@@ -150,17 +202,19 @@ public sealed class RendezvousCoastTests(RendezvousCoastTests.HighOrbitRun run)
         {
             KeplerOrbit orbit = StationOrbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, Mu);
-            return world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(place, orbit.RotationAt(world.Time, Mu)),
-                LinearVelocity = velocity,
-                AngularVelocity = orbit.AngularVelocityAt(world.Time, Mu).ToVector3(),
-                FirstMove = new(orbit.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-                Components = [new KeplerMotion { Orbit = orbit }],
-                Body = new(Shape: new BoxShapeDesc(new(10)), Motion: BodyMotion.Kinematic, Mass: 100_000),
-                AsFrame = new(FrameBounds.Sphere(30))
-            });
+            return world.Spawn(
+                new()
+                {
+                    Frame = frame,
+                    Pose = new(place, orbit.RotationAt(world.Time, Mu)),
+                    LinearVelocity = velocity,
+                    AngularVelocity = orbit.AngularVelocityAt(world.Time, Mu).ToVector3(),
+                    FirstMove = new(orbit.Sample(Mu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                    Components = [new KeplerMotion { Orbit = orbit }],
+                    Body = new(Shape: new BoxShapeDesc(new(10)), Motion: BodyMotion.Kinematic, Mass: 100_000),
+                    AsFrame = new(FrameBounds.Sphere(30)),
+                }
+            );
         }
     }
 }

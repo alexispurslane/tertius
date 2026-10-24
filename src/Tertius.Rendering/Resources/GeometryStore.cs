@@ -42,36 +42,58 @@ internal sealed unsafe class GeometryStore : IDisposable
     public ulong IndexCount { get; private set; }
 
     /// <summary>Records the upload of queued meshes. They are usable by draws recorded after this call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(MeshId Id, MeshData Data)> pending, StagingArena staging,
-        BarrierBatch barriers, DeferredReleases releases, long frame)
+    public void Upload(
+        CommandBuffer commandBuffer,
+        List<(MeshId Id, MeshData Data)> pending,
+        StagingArena staging,
+        BarrierBatch barriers,
+        DeferredReleases releases,
+        long frame
+    )
     {
         if (pending.Count == 0)
             return;
-        ulong newVertices = 0, newIndices = 0;
+        ulong newVertices = 0,
+            newIndices = 0;
         foreach ((_, MeshData data) in pending)
         {
             newVertices += (ulong)data.Vertices.Length;
             newIndices += (ulong)data.Indices.Length;
         }
 
-        Grow(commandBuffer: commandBuffer, vertices: VertexCount + newVertices, indices: IndexCount + newIndices,
-            barriers: barriers, releases: releases, frame: frame);
+        Grow(
+            commandBuffer: commandBuffer,
+            vertices: VertexCount + newVertices,
+            indices: IndexCount + newIndices,
+            barriers: barriers,
+            releases: releases,
+            frame: frame
+        );
 
         int vertexSize = Unsafe.SizeOf<Vertex>();
         StagingSlice vertexStage = staging.Allocate(newVertices * (ulong)vertexSize);
         StagingSlice indexStage = staging.Allocate(newIndices * sizeof(uint));
-        ulong vertexCursor = 0, indexCursor = 0;
+        ulong vertexCursor = 0,
+            indexCursor = 0;
         foreach ((MeshId id, MeshData data) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
             // slot. If that broke, an instance would draw another mesh.
             Contract.Assert(id.Value == meshes.Count);
-            MemoryMarshal.AsBytes(data.Vertices.AsSpan()).CopyTo(
-                new(vertexStage.Pointer + vertexCursor * (ulong)vertexSize, data.Vertices.Length * vertexSize));
-            MemoryMarshal.AsBytes(data.Indices.AsSpan()).CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint),
-                data.Indices.Length * sizeof(uint)));
-            meshes.Add(new(FirstIndex: (uint)(IndexCount + indexCursor), IndexCount: (uint)data.Indices.Length,
-                VertexOffset: checked((int)(VertexCount + vertexCursor)), Radius: Radius(data.Vertices)));
+            MemoryMarshal
+                .AsBytes(data.Vertices.AsSpan())
+                .CopyTo(new(vertexStage.Pointer + vertexCursor * (ulong)vertexSize, data.Vertices.Length * vertexSize));
+            MemoryMarshal
+                .AsBytes(data.Indices.AsSpan())
+                .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
+            meshes.Add(
+                new(
+                    FirstIndex: (uint)(IndexCount + indexCursor),
+                    IndexCount: (uint)data.Indices.Length,
+                    VertexOffset: checked((int)(VertexCount + vertexCursor)),
+                    Radius: Radius(data.Vertices)
+                )
+            );
             vertexCursor += (ulong)data.Vertices.Length;
             indexCursor += (ulong)data.Indices.Length;
         }
@@ -81,26 +103,47 @@ internal sealed unsafe class GeometryStore : IDisposable
         barriers.Flush(device.Vk, commandBuffer);
         var vertexCopy = new BufferCopy(vertexStage.Offset, VertexCount * (ulong)vertexSize, vertexStage.Size);
         var indexCopy = new BufferCopy(indexStage.Offset, IndexCount * sizeof(uint), indexStage.Size);
-        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: vertexStage.Buffer.Handle,
-            dstBuffer: VertexBuffer.Handle, regionCount: 1, pRegions: &vertexCopy);
-        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: indexStage.Buffer.Handle,
-            dstBuffer: IndexBuffer.Handle, regionCount: 1, pRegions: &indexCopy);
+        device.Vk.CmdCopyBuffer(
+            commandBuffer: commandBuffer,
+            srcBuffer: vertexStage.Buffer.Handle,
+            dstBuffer: VertexBuffer.Handle,
+            regionCount: 1,
+            pRegions: &vertexCopy
+        );
+        device.Vk.CmdCopyBuffer(
+            commandBuffer: commandBuffer,
+            srcBuffer: indexStage.Buffer.Handle,
+            dstBuffer: IndexBuffer.Handle,
+            regionCount: 1,
+            pRegions: &indexCopy
+        );
         VertexCount += newVertices;
         IndexCount += newIndices;
     }
 
-    private void Grow(CommandBuffer commandBuffer, ulong vertices, ulong indices, BarrierBatch barriers,
-        DeferredReleases releases, long frame)
+    private void Grow(
+        CommandBuffer commandBuffer,
+        ulong vertices,
+        ulong indices,
+        BarrierBatch barriers,
+        DeferredReleases releases,
+        long frame
+    )
     {
         if (vertices > vertexCapacity)
         {
             ulong capacity = vertexCapacity;
             while (capacity < vertices)
                 capacity *= 2;
-            VertexBuffer = Replace(commandBuffer: commandBuffer, old: VertexBuffer,
+            VertexBuffer = Replace(
+                commandBuffer: commandBuffer,
+                old: VertexBuffer,
                 replacement: CreateVertexBuffer(capacity),
-                usedBytes: VertexCount * (ulong)Unsafe.SizeOf<Vertex>(), barriers: barriers, releases: releases,
-                frame: frame);
+                usedBytes: VertexCount * (ulong)Unsafe.SizeOf<Vertex>(),
+                barriers: barriers,
+                releases: releases,
+                frame: frame
+            );
             vertexCapacity = capacity;
         }
 
@@ -109,15 +152,28 @@ internal sealed unsafe class GeometryStore : IDisposable
             ulong capacity = indexCapacity;
             while (capacity < indices)
                 capacity *= 2;
-            IndexBuffer = Replace(commandBuffer: commandBuffer, old: IndexBuffer,
-                replacement: CreateIndexBuffer(capacity), usedBytes: IndexCount * sizeof(uint),
-                barriers: barriers, releases: releases, frame: frame);
+            IndexBuffer = Replace(
+                commandBuffer: commandBuffer,
+                old: IndexBuffer,
+                replacement: CreateIndexBuffer(capacity),
+                usedBytes: IndexCount * sizeof(uint),
+                barriers: barriers,
+                releases: releases,
+                frame: frame
+            );
             indexCapacity = capacity;
         }
     }
 
-    private GpuBuffer Replace(CommandBuffer commandBuffer, GpuBuffer old, GpuBuffer replacement, ulong usedBytes,
-        BarrierBatch barriers, DeferredReleases releases, long frame)
+    private GpuBuffer Replace(
+        CommandBuffer commandBuffer,
+        GpuBuffer old,
+        GpuBuffer replacement,
+        ulong usedBytes,
+        BarrierBatch barriers,
+        DeferredReleases releases,
+        long frame
+    )
     {
         if (usedBytes > 0)
         {
@@ -125,23 +181,38 @@ internal sealed unsafe class GeometryStore : IDisposable
             barriers.Buffer(replacement, BufferUse.TransferDestination);
             barriers.Flush(device.Vk, commandBuffer);
             var copy = new BufferCopy(0, 0, usedBytes);
-            device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: old.Handle, dstBuffer: replacement.Handle,
-                regionCount: 1, pRegions: &copy);
+            device.Vk.CmdCopyBuffer(
+                commandBuffer: commandBuffer,
+                srcBuffer: old.Handle,
+                dstBuffer: replacement.Handle,
+                regionCount: 1,
+                pRegions: &copy
+            );
         }
 
         releases.Retire(old, frame);
         return replacement;
     }
 
-    private GpuBuffer CreateVertexBuffer(ulong vertices) => GpuBuffer.Create(device: device, allocator: allocator,
-        size: vertices * (ulong)Unsafe.SizeOf<Vertex>(),
-        usage: BufferUsageFlags.VertexBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
-        memoryUsage: MemoryUsage.GpuOnly, name: "global vertices");
+    private GpuBuffer CreateVertexBuffer(ulong vertices) =>
+        GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: vertices * (ulong)Unsafe.SizeOf<Vertex>(),
+            usage: BufferUsageFlags.VertexBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "global vertices"
+        );
 
-    private GpuBuffer CreateIndexBuffer(ulong indices) => GpuBuffer.Create(device: device, allocator: allocator,
-        size: indices * sizeof(uint),
-        usage: BufferUsageFlags.IndexBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
-        memoryUsage: MemoryUsage.GpuOnly, name: "global indices");
+    private GpuBuffer CreateIndexBuffer(ulong indices) =>
+        GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: indices * sizeof(uint),
+            usage: BufferUsageFlags.IndexBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "global indices"
+        );
 
     public void Dispose()
     {

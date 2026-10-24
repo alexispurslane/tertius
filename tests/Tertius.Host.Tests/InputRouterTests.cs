@@ -18,10 +18,15 @@ public sealed class InputRouterTests
         public int ViewChanges { get; private set; }
 
         public void Post(InputEvent e) => Posted.Add(e);
+
         public void Fly(FlyKey key, bool down) => FlyKeys.Add((key, down));
+
         public void Turn(Vector2 movement) => Turns.Add(movement);
+
         public void FlyChanged(bool flying) => FlyChanges.Add(flying);
+
         public void Close() => Closes++;
+
         public void NextView() => ViewChanges++;
     }
 
@@ -75,12 +80,15 @@ public sealed class InputRouterTests
         router.MouseButton(MouseButton.Left, down: false);
         router.Scroll(new(0, -2));
 
-        window.Posted.Should().Equal(
-            InputEvent.MouseMove(Vector2.Zero),
-            InputEvent.MouseMove(new(3, -4)),
-            InputEvent.MouseDown((int)MouseButton.Left),
-            InputEvent.MouseUp((int)MouseButton.Left),
-            InputEvent.Scroll(new(0, -2)));
+        window
+            .Posted.Should()
+            .Equal(
+                InputEvent.MouseMove(Vector2.Zero),
+                InputEvent.MouseMove(new(3, -4)),
+                InputEvent.MouseDown((int)MouseButton.Left),
+                InputEvent.MouseUp((int)MouseButton.Left),
+                InputEvent.Scroll(new(0, -2))
+            );
     }
 
     [Fact]
@@ -141,8 +149,11 @@ public sealed class InputRouterTests
 
         router.Key(Key.F1, down: true);
 
-        window.Posted.Should().HaveCount(2).And.Contain(InputEvent.KeyUp((int)Key.W)).And
-            .Contain(InputEvent.MouseUp((int)MouseButton.Right));
+        window
+            .Posted.Should()
+            .HaveCount(2)
+            .And.Contain(InputEvent.KeyUp((int)Key.W))
+            .And.Contain(InputEvent.MouseUp((int)MouseButton.Right));
     }
 
     [Fact]
@@ -226,7 +237,9 @@ public sealed class InputRouterTests
         router.Key(Key.F1, down: true);
 
         // The game turns its view with the mouse, so the cursor never leaves the window.
-        (before, flying, router.CapturesCursor).Should().Be((true, true, true));
+        (before, flying, router.CapturesCursor)
+            .Should()
+            .Be((true, true, true));
     }
 
     [Fact]
@@ -240,6 +253,8 @@ public sealed class InputRouterTests
         router.Key(Key.F1, down: true);
 
         // The game sees no input during a script, so the cursor stays free unless the fly camera turns with it.
-        (before, flying, router.CapturesCursor).Should().Be((false, true, false));
+        (before, flying, router.CapturesCursor)
+            .Should()
+            .Be((false, true, false));
     }
 }

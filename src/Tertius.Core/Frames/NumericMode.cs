@@ -42,5 +42,5 @@ internal enum NumericMode : byte
     /// intent holds still in the semantic frame's own system (ticket ter-zsku). It never rotates: the anchor's rotation stays
     /// with the anchor.
     /// </summary>
-    Following = 4
+    Following = 4,
 }

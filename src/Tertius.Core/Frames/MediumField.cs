@@ -43,24 +43,30 @@ public readonly partial struct MediumField
     /// True for a medium that the World accepts: every number is finite, the densities, the drags and the radius are 0 or
     /// more, the scale height is above 0, and a region has finite corners. No medium is valid.
     /// </summary>
-    public bool IsValid => this switch
-    {
-        UniformMedium { Density: var density, Drag: var drag, Region: var region } =>
-            NotNegative(density) && NotNegative(drag) &&
-            (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
-        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
-            double.IsFinite(radius) && radius >= 0 && NotNegative(surface) && float.IsFinite(scale) && scale > 0 &&
-            NotNegative(drag),
-        null => true
-    };
+    public bool IsValid =>
+        this switch
+        {
+            UniformMedium { Density: var density, Drag: var drag, Region: var region } => NotNegative(density)
+                && NotNegative(drag)
+                && (region is not { } box || (IsFinite(box.Min) && IsFinite(box.Max))),
+            PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale, Drag: var drag } =>
+                double.IsFinite(radius)
+                    && radius >= 0
+                    && NotNegative(surface)
+                    && float.IsFinite(scale)
+                    && scale > 0
+                    && NotNegative(drag),
+            null => true,
+        };
 
     /// <summary>The medium's drag, in 1/s, and 0 in vacuum.</summary>
-    public float Drag => this switch
-    {
-        UniformMedium { Drag: var drag } => drag,
-        PlanetMedium { Drag: var drag } => drag,
-        null => 0
-    };
+    public float Drag =>
+        this switch
+        {
+            UniformMedium { Drag: var drag } => drag,
+            PlanetMedium { Drag: var drag } => drag,
+            null => 0,
+        };
 
     /// <summary>A uniform medium. Without a <paramref name="region"/>, it fills the whole frame.</summary>
     /// <param name="density">The density, in kg/m³.</param>
@@ -87,13 +93,14 @@ public readonly partial struct MediumField
     /// so only when its density, or its surface density, is above 0. It never calls <see cref="Math.Exp"/>, so the step of a
     /// puff reads it at no cost beyond a box test.
     /// </summary>
-    public bool Fills(Double3 place) => this switch
-    {
-        UniformMedium { Density: var density, Region: var region } =>
-            density > 0 && (region is not { } box || box.Contains(place.ToVector3())),
-        PlanetMedium { SurfaceDensity: var surface } => surface > 0,
-        null => false
-    };
+    public bool Fills(Double3 place) =>
+        this switch
+        {
+            UniformMedium { Density: var density, Region: var region } => density > 0
+                && (region is not { } box || box.Contains(place.ToVector3())),
+            PlanetMedium { SurfaceDensity: var surface } => surface > 0,
+            null => false,
+        };
 
     /// <summary>
     /// The medium's density at <paramref name="place"/>, a place in the frame, in m, in the frame's axes, in kg/m³, and 0 in
@@ -101,12 +108,15 @@ public readonly partial struct MediumField
     /// e^(−height / scale height). It serves game code now, and bodies when a later ticket lets them read the medium. Puffs
     /// read only <see cref="Fills"/> and <see cref="Drag"/>.
     /// </summary>
-    public double DensityAt(Double3 place) => this switch
-    {
-        UniformMedium { Density: var density, Region: var region } =>
-            region is { } box && !box.Contains(place.ToVector3()) ? 0 : density,
-        PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } =>
-            surface * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
-        null => 0
-    };
+    public double DensityAt(Double3 place) =>
+        this switch
+        {
+            UniformMedium { Density: var density, Region: var region } => region is { } box
+            && !box.Contains(place.ToVector3())
+                ? 0
+                : density,
+            PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } => surface
+                * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
+            null => 0,
+        };
 }

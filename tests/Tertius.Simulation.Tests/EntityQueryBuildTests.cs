@@ -37,12 +37,18 @@ public sealed class EntityQueryBuildTests
         CollisionGroup wall = registry.Register("Wall");
         CollisionGroup person = registry.Register("Person");
 
-        EntityQuery query = EntityQuery.With<Crew>().Without<Dead>().InAll(CollisionGroup.Solid).InNone(wall)
-            .InAny(wall).InAny(person);
+        EntityQuery query = EntityQuery
+            .With<Crew>()
+            .Without<Dead>()
+            .InAll(CollisionGroup.Solid)
+            .InNone(wall)
+            .InAny(wall)
+            .InAny(person);
 
         query.Components.With.Should().Be(ComponentFlags.Of([new Crew()]));
         query.Components.Without.Should().Be(ComponentFlags.Of([new Dead()]));
-        query.Collision.Should()
+        query
+            .Collision.Should()
             .Be(CollisionMask.Empty.InAll(CollisionGroup.Solid).InNone(wall).InAny(wall).InAny(person));
     }
 
@@ -64,8 +70,10 @@ public sealed class EntityQueryBuildTests
 
         EntityQuery query = EntityQuery.Where(Always).Near(3).In(frame).Where(Always).Near(new(2, 1), 4).In(frame);
 
-        query.Extras!.Filters.ToArray().Should().Equal(QueryFilter.Where(Always), QueryFilter.Near(new(2, 1), 4),
-            QueryFilter.In(frame));
+        query
+            .Extras!.Filters.ToArray()
+            .Should()
+            .Equal(QueryFilter.Where(Always), QueryFilter.Near(new(2, 1), 4), QueryFilter.In(frame));
     }
 
     [Fact]
@@ -113,8 +121,11 @@ public sealed class EntityQueryBuildTests
     public void BuildingTheHeapPartDuringAnEntityRunThrowsAndSaysToBuildTheQueryOnceInAStaticField()
     {
         using var t = new TestWorld();
-        t.SpawnWith(Lambda.OnTick(static (self, scoped ref events, scoped ref outbox) =>
-            _ = EntityQuery.Where(Always).Where(Always)));
+        t.SpawnWith(
+            Lambda.OnTick(
+                static (self, scoped ref events, scoped ref outbox) => _ = EntityQuery.Where(Always).Where(Always)
+            )
+        );
 
         t.World.Tick();
 
@@ -153,16 +164,23 @@ public sealed class EntityQueryBuildTests
         Entity entity = t.SpawnWith(new BrokenStatics());
 
         t.World.IsAlive(entity).Should().BeTrue();
-        t.World.Errors.Should().ContainSingle().Which.Should().Contain("class constructor").And
-            .Contain(nameof(BrokenStatics));
+        t.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain("class constructor")
+            .And.Contain(nameof(BrokenStatics));
     }
 
     [Fact]
     public void AnInlineQueryBuiltDuringAnEntityRunIsAllowed()
     {
         using var t = new TestWorld();
-        t.SpawnWith(Lambda.OnTick(static (self, scoped ref events, scoped ref outbox) =>
-            _ = EntityQuery.With<Crew>().Near(2).Where(Always).In(self.Frame)));
+        t.SpawnWith(
+            Lambda.OnTick(
+                static (self, scoped ref events, scoped ref outbox) =>
+                    _ = EntityQuery.With<Crew>().Near(2).Where(Always).In(self.Frame)
+            )
+        );
 
         t.World.Tick();
 
@@ -219,12 +237,16 @@ public sealed class EntityQueryBuildTests
         t.SpawnWith(new Crew());
         var counter = new CountsCrewTwiceWhenAdded();
         bool added = false;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (!added)
-                self.AddComponent(counter);
-            added = true;
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (!added)
+                        self.AddComponent(counter);
+                    added = true;
+                }
+            )
+        );
 
         t.World.Run(2);
 

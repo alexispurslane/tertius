@@ -16,17 +16,26 @@ public sealed class RayHitTests
         Assert.True(EventType<RayHit>.Id >= 0);
     }
 
-    public static TheoryData<float, float, float> Normals() => new()
-    {
-        { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 },
-        { 0.6f, 0, -0.8f }, { -0.48f, 0.6f, -0.64f }, { 0.1f, -0.2f, -0.9747f }, { 0.577f, 0.577f, 0.578f }
-    };
+    public static TheoryData<float, float, float> Normals() =>
+        new()
+        {
+            { 1, 0, 0 },
+            { -1, 0, 0 },
+            { 0, 1, 0 },
+            { 0, -1, 0 },
+            { 0, 0, 1 },
+            { 0, 0, -1 },
+            { 0.6f, 0, -0.8f },
+            { -0.48f, 0.6f, -0.64f },
+            { 0.1f, -0.2f, -0.9747f },
+            { 0.577f, 0.577f, 0.578f },
+        };
 
     [Theory]
     [MemberData(nameof(Normals))]
     public void TheNormalOfAHitComesBackAsTheUnitVectorThatWentIn(float x, float y, float z)
     {
-        Vector3 normal = Vector3.Normalize(new(x, y, z));
+        var normal = Vector3.Normalize(new(x, y, z));
 
         var hit = new RayHit { Entity = new(3, 1), Normal = normal };
 
@@ -42,9 +51,13 @@ public sealed class RayHitTests
         for (int i = 0; i < 64; i++)
         for (int j = 0; j <= 32; j++)
         {
-            double azimuth = 2 * Math.PI * i / 64, polar = Math.PI * j / 32;
-            var normal = new Vector3((float)(Math.Sin(polar) * Math.Cos(azimuth)),
-                (float)(Math.Sin(polar) * Math.Sin(azimuth)), (float)Math.Cos(polar));
+            double azimuth = 2 * Math.PI * i / 64,
+                polar = Math.PI * j / 32;
+            var normal = new Vector3(
+                (float)(Math.Sin(polar) * Math.Cos(azimuth)),
+                (float)(Math.Sin(polar) * Math.Sin(azimuth)),
+                (float)Math.Cos(polar)
+            );
             normal = Vector3.Normalize(normal);
             Vector3 back = new RayHit { Entity = new(1, 1), Normal = normal }.Normal;
             // The angle between two unit vectors from the chord between them, in doubles: an arccosine of their dot

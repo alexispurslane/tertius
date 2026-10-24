@@ -31,14 +31,19 @@ internal static class Analysis
     /// </summary>
     public static async Task<ImmutableArray<Diagnostic>> Diagnostics(string rule, CSharpCompilation compilation)
     {
-        ImmutableArray<Diagnostic> found = await compilation.WithAnalyzers([new StyleAnalyzer()])
+        ImmutableArray<Diagnostic> found = await compilation
+            .WithAnalyzers([new StyleAnalyzer()])
             .GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-        found.Where(diagnostic => diagnostic.Id == "AD0001").Select(diagnostic => diagnostic.GetMessage())
-            .Should().BeEmpty("an analyzer that throws reports nothing for the code that it fails on");
+        found
+            .Where(diagnostic => diagnostic.Id == "AD0001")
+            .Select(diagnostic => diagnostic.GetMessage())
+            .Should()
+            .BeEmpty("an analyzer that throws reports nothing for the code that it fails on");
         return
         [
-            .. found.Where(diagnostic => diagnostic.Id == rule)
-                .OrderBy(diagnostic => diagnostic.Location.SourceSpan.Start)
+            .. found
+                .Where(diagnostic => diagnostic.Id == rule)
+                .OrderBy(diagnostic => diagnostic.Location.SourceSpan.Start),
         ];
     }
 }

@@ -12,8 +12,11 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class WorldCharacterContactTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>A heavy box, which the character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
     private static readonly BodyDesc HeavyBox = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 500);
@@ -32,19 +35,39 @@ public sealed class WorldCharacterContactTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         if (keepStepping)
-            world.Spawn(KinematicDrift.Drifting(
-                new()
-                {
-                    Frame = ground, Pose = At(-40, 20),
-                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
-                },
-                world, new(0, 0, 0.1)));
+            world.Spawn(
+                KinematicDrift.Drifting(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(-40, 20),
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic),
+                    },
+                    world,
+                    new(0, 0, 0.1)
+                )
+            );
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1, 0.5),
+                Body = HeavyBox,
+                Components = [boxLog],
+            }
+        );
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.95),
+                Body = Person,
+                Components = [pilot, personLog],
+            }
+        );
 
         pilot.EveryTick = body => body.MoveCharacter(new(0.5f, 0, 0));
         Tick(world, 120);
@@ -75,10 +98,25 @@ public sealed class WorldCharacterContactTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1, 0.5),
+                Body = HeavyBox,
+            }
+        );
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        world.Spawn(new() { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.95),
+                Body = Person,
+                Components = [pilot, personLog],
+            }
+        );
 
         pilot.EveryTick = body => body.MoveCharacter(new(0.5f, 0, 0));
         Tick(world, 120);
@@ -103,11 +141,26 @@ public sealed class WorldCharacterContactTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(1, 0.5), Body = Cube(10), Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1, 0.5),
+                Body = Cube(10),
+                Components = [boxLog],
+            }
+        );
         var pilot = new Pilot();
         var personLog = new CollisionLog();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.95),
+                Body = Person,
+                Components = [pilot, personLog],
+            }
+        );
 
         pilot.EveryTick = body => body.MoveCharacter(new(0.2f, 0, 0));
         Tick(world, 180);
@@ -126,11 +179,26 @@ public sealed class WorldCharacterContactTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = HeavyBox, Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = HeavyBox,
+                Components = [boxLog],
+            }
+        );
         var personLog = new CollisionLog();
         // The bottom of the capsule starts 0.3 m above the top of the box.
-        Entity person =
-            world.Spawn(new() { Frame = ground, Pose = At(0, 2.2), Body = Person, Components = [personLog] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2.2),
+                Body = Person,
+                Components = [personLog],
+            }
+        );
 
         Tick(world, 90);
 
@@ -151,7 +219,15 @@ public sealed class WorldCharacterContactTests
         FrameHandle ground = Ground(world, 9.81f);
         Entity floor = Floor(world, ground);
         var personLog = new CollisionLog();
-        world.Spawn(new() { Frame = ground, Pose = At(0, 0.9 + 1), Body = Person, Components = [personLog] });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.9 + 1),
+                Body = Person,
+                Components = [personLog],
+            }
+        );
 
         Tick(world, 60);
 

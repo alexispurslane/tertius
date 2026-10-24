@@ -45,19 +45,27 @@ internal sealed class UploadQueue(int maxTextureSize)
     {
         ArgumentNullException.ThrowIfNull(texture);
         ArgumentNullException.ThrowIfNull(texture.Rgba);
-        if (texture.Width <= 0 || texture.Height <= 0 || texture.Width > maxTextureSize ||
-            texture.Height > maxTextureSize)
-            throw new ArgumentOutOfRangeException(nameof(texture),
-                $"Texture size must be 1 to {maxTextureSize} pixels per side.");
+        if (
+            texture.Width <= 0
+            || texture.Height <= 0
+            || texture.Width > maxTextureSize
+            || texture.Height > maxTextureSize
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(texture),
+                $"Texture size must be 1 to {maxTextureSize} pixels per side."
+            );
         if (texture.Rgba.Length != texture.Width * texture.Height * 4)
             throw new ArgumentException(
                 $"Expected {texture.Width * texture.Height * 4} bytes of RGBA8, got {texture.Rgba.Length}.",
-                nameof(texture));
+                nameof(texture)
+            );
         lock (gate)
         {
             if (textureCount >= TextureStore.UserCapacity)
                 throw new InvalidOperationException(
-                    $"The bindless texture array is full ({TextureStore.UserCapacity} textures besides the defaults).");
+                    $"The bindless texture array is full ({TextureStore.UserCapacity} textures besides the defaults)."
+                );
             var id = new TextureId(Next(ref textureCount, "textures"));
             pending.Textures.Add((id, texture));
             return id;
@@ -82,9 +90,10 @@ internal sealed class UploadQueue(int maxTextureSize)
     /// Takes the next id from a counter. The counter must not wrap: after <see cref="int.MaxValue"/> it would count
     /// up through the negative numbers to −1, the value of None, and a real resource would then read as None.
     /// </summary>
-    private static int Next(ref int counter, string kind) => counter == int.MaxValue
-        ? throw new InvalidOperationException($"This renderer has run out of ids for {kind}.")
-        : counter++;
+    private static int Next(ref int counter, string kind) =>
+        counter == int.MaxValue
+            ? throw new InvalidOperationException($"This renderer has run out of ids for {kind}.")
+            : counter++;
 
     /// <summary>A material's texture slot is None (the default texture) or a texture this renderer created.</summary>
     private void CheckTexture(TextureId texture, string slot)

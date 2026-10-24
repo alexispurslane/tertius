@@ -32,28 +32,27 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     }
 
     [Fact]
-    public void HoldingWWalksThePersonTowardTheShipsNoseAtWalkingSpeed()
-    {
+    public void HoldingWWalksThePersonTowardTheShipsNoseAtWalkingSpeed() =>
         // 120 ticks are 2 s, at 3 m/s. The key's release reaches the person as late after its press as the press came after
         // the post.
         ExpectNear(PersonAt("walked") - PersonAt("standing"), new(0, 0, -6), 0.01);
-    }
 
     [Fact]
-    public void AfterTheMouseTurnsTheViewAQuarterTurnLeftWWalksTowardTheShipsLeftSide()
-    {
+    public void AfterTheMouseTurnsTheViewAQuarterTurnLeftWWalksTowardTheShipsLeftSide() =>
         ExpectNear(PersonAt("turned") - PersonAt("walked"), new(-6, 0, 0), 0.01);
-    }
 
     [Fact]
     public void AJumpInTheOrbitingShipRisesStraightOffTheDeckAndLandsWhereItLeft()
     {
-        Double3 start = PersonAt("turned"), top = PersonAt("jumping");
+        Double3 start = PersonAt("turned"),
+            top = PersonAt("jumping");
 
         // A jump at 4 m/s in 9.81 m/s² peaks 0.41 s later, 0.82 m up. The jump acts in the third tick after its post, so the
         // dump comes after 25 moves. The jump speed is an instant velocity and physics moves the person by the chord of
         // each step, so the person is 4 m/s · t - 9.81 m/s² · t² / 2 = 0.815 m up, t = 25/60 s.
-        (top.Y - start.Y).Should().BeApproximately(0.815, 0.005);
+        (top.Y - start.Y)
+            .Should()
+            .BeApproximately(0.815, 0.005);
         ExpectNear(top with { Y = 0 }, start with { Y = 0 }, 0.01);
         ExpectNear(PersonAt("landed"), start, 0.02);
     }
@@ -74,11 +73,13 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     {
         static Double3 InEarth(StateDump dump)
         {
-            FramePose ship = dump.Entity("ship").Pose, person = dump.Entity("person").Pose;
+            FramePose ship = dump.Entity("ship").Pose,
+                person = dump.Entity("person").Pose;
             return ship.Position + ship.Rotation.Rotate(person.Position);
         }
 
-        StateDump first = run.Result.Dump("standing"), last = run.Result.Dump("landed");
+        StateDump first = run.Result.Dump("standing"),
+            last = run.Result.Dump("landed");
 
         // 387 ticks, 6.45 s, at 7.67 km/s.
         Double3.Distance(InEarth(last), InEarth(first)).Should().BeInRange(49e3, 50e3);
@@ -119,7 +120,8 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
         // Space is black, and the pane in the window adds its own lamp-lit color, a dark blue gray.
         (int r, int g, int b) window = run.Capture("cabin").Average(640, 360);
 
-        (window.r + window.g + window.b < 90 && window.b > window.r).Should()
+        (window.r + window.g + window.b < 90 && window.b > window.r)
+            .Should()
             .BeTrue($"dark space shows through the pane, not {window}");
     }
 
@@ -131,9 +133,11 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
         (int r, int g, int b) roof = run.Capture("cabin").Average(300, 100);
         (int r, int g, int b) wall = run.Capture("turned").Average(300, 100);
 
-        (roof.r + roof.g + roof.b < 90).Should()
+        (roof.r + roof.g + roof.b < 90)
+            .Should()
             .BeTrue($"facing the nose, the top left shows the dark roof, not {roof}");
-        (wall.r > 80 && wall.r > wall.b).Should()
+        (wall.r > 80 && wall.r > wall.b)
+            .Should()
             .BeTrue($"after the turn, the top left shows the lamp-lit port wall, not {wall}");
     }
 }

@@ -32,8 +32,12 @@ public sealed class DemoExitScriptTests
 
             exit.Should().Be(ScriptCommand.Ok, error.ToString());
             output.ToString().Split('\n')[0].Trim().Should().Be(written);
-            File.ReadAllText(written).Should().Be(File.ReadAllText(CheckedIn),
-                "scripts/demo-exit.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/demo-exit.json demo-exit`");
+            File.ReadAllText(written)
+                .Should()
+                .Be(
+                    File.ReadAllText(CheckedIn),
+                    "scripts/demo-exit.json must be what the generator writes: run `dotnet run --project src/Tertius.Demo -- --generate scripts/demo-exit.json demo-exit`"
+                );
         }
         finally
         {
@@ -48,15 +52,24 @@ public sealed class DemoExitScriptTests
     [Fact]
     public void TheCheckedInScriptFilmsTheExitsSectionsAndTheCodasAndPassesTheChecksOfARun()
     {
-        Script script = Script.Load(CheckedIn);
+        var script = Script.Load(CheckedIn);
         script.Scene.Should().Be(BlueDanube.ExitSceneName);
-        script.Steps.Select(step => step.Value).OfType<FilmStep>().Select(film => film.Name)
-            .Should().Equal(BlueDanube.ExitSections.Concat(BlueDanube.CodaSections).Select(section => section.Name));
+        script
+            .Steps.Select(step => step.Value)
+            .OfType<FilmStep>()
+            .Select(film => film.Name)
+            .Should()
+            .Equal(BlueDanube.ExitSections.Concat(BlueDanube.CodaSections).Select(section => section.Name));
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
 
-        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null,
-            playback: new StopsAtOnce());
+        RunResult result = ScriptRunner.Run(
+            script: script,
+            world: world,
+            scene: scene,
+            outputFolder: null,
+            playback: new StopsAtOnce()
+        );
 
         result.Stopped.Should().BeTrue();
         world.TickNumber.Should().Be(0);

@@ -81,25 +81,37 @@ public sealed class ShuttleJetControl : IComponent
     /// body, <see cref="ArgumentOutOfRangeException"/> for a thrust that is not positive and finite and as
     /// <see cref="ShuttleJets"/> does, and <see cref="InvalidOperationException"/> during a tick.
     /// </summary>
-    public static ShuttleJetControl Fit(World world, Entity hull, float mainThrust, PrincipalInertia inertia,
-        double translationThrust)
+    public static ShuttleJetControl Fit(
+        World world,
+        Entity hull,
+        float mainThrust,
+        PrincipalInertia inertia,
+        double translationThrust
+    )
     {
         if (!(mainThrust > 0 && float.IsFinite(mainThrust)))
-            throw new ArgumentOutOfRangeException(nameof(mainThrust), mainThrust,
-                "The thrust of an engine must be positive and finite.");
+            throw new ArgumentOutOfRangeException(
+                nameof(mainThrust),
+                mainThrust,
+                "The thrust of an engine must be positive and finite."
+            );
         if (!world.Snapshot.TryGetBody(hull, out BodyFacts body))
             throw new ArgumentException(
                 $"The jets need a live hull with a body, whose center of mass they are placed for, not {hull}.",
-                nameof(hull));
+                nameof(hull)
+            );
         var layout = new ShuttleJets(body.CenterOfMass, inertia, translationThrust);
 
         // Each part's -Z, along which its puffs leave, points against its push.
-        Entity Part(Double3 place, Double3 exhaust, IComponent component) => world.Spawn(new()
-        {
-            AttachTo = hull,
-            AttachOffset = Plume.AimedOffset(place.ToVector3(), exhaust),
-            Components = [component]
-        });
+        Entity Part(Double3 place, Double3 exhaust, IComponent component) =>
+            world.Spawn(
+                new()
+                {
+                    AttachTo = hull,
+                    AttachOffset = Plume.AimedOffset(place.ToVector3(), exhaust),
+                    Components = [component],
+                }
+            );
 
         Entity mainEngine = Part(layout.MainEnginePlace, Double3.UnitZ, new MainEngine(mainThrust));
         var jets = new Entity[2 * ShuttleJets.PairCount];
@@ -126,7 +138,8 @@ public sealed class ShuttleJetControl : IComponent
         Throttle? throttle = null;
         foreach (ref Throttle each in events.Of<Throttle>())
             throttle = each;
-        Double3 torque = Double3.Zero, force = Double3.Zero;
+        Double3 torque = Double3.Zero,
+            force = Double3.Zero;
         foreach (ref Torque each in events.Of<Torque>())
             torque = each.Value;
         foreach (ref Translation each in events.Of<Translation>())

@@ -47,7 +47,8 @@ public readonly record struct ThrowRelease(Double3 Place, Double3 Velocity)
             after += SearchStep;
             if (after > LongestFlight)
                 throw new InvalidOperationException(
-                    $"The line of the release at {Place} does not come down to the floor within {LongestFlight} s.");
+                    $"The line of the release at {Place} does not come down to the floor within {LongestFlight} s."
+                );
         }
 
         double before = Math.Max(0, after - SearchStep);
@@ -71,8 +72,10 @@ public readonly record struct ThrowRelease(Double3 Place, Double3 Velocity)
     /// </summary>
     public (double Time, double Spinward) FlatLanding(double gravity, WheelFloor floor, double halfSize)
     {
-        Double3 up = -floor.Normal(Place), spinward = WheelFloor.SpinwardAt(Place);
-        double rise = Double3.Dot(Velocity, up), height = floor.Height(Place) - halfSize;
+        Double3 up = -floor.Normal(Place),
+            spinward = WheelFloor.SpinwardAt(Place);
+        double rise = Double3.Dot(Velocity, up),
+            height = floor.Height(Place) - halfSize;
         double time = (rise + Math.Sqrt(rise * rise + 2 * gravity * height)) / gravity;
         return (time, Double3.Dot(Velocity, spinward) * time);
     }

@@ -20,8 +20,9 @@ internal sealed unsafe class ShadowMap : IDisposable
     public const int MinimumSize = 256;
 
     private const FormatFeatureFlags RequiredFeatures =
-        FormatFeatureFlags.DepthStencilAttachmentBit | FormatFeatureFlags.SampledImageBit |
-        FormatFeatureFlags.SampledImageFilterLinearBit;
+        FormatFeatureFlags.DepthStencilAttachmentBit
+        | FormatFeatureFlags.SampledImageBit
+        | FormatFeatureFlags.SampledImageFilterLinearBit;
 
     private readonly VulkanDevice device;
     private readonly ImageView[] layerViews = new ImageView[ShadowCascades.Count];
@@ -30,15 +31,24 @@ internal sealed unsafe class ShadowMap : IDisposable
     {
         this.device = device;
         if (size < MinimumSize || size > device.Properties.Limits.MaxImageDimension2D)
-            throw new ArgumentOutOfRangeException(nameof(size),
-                $"The shadow map size must be {MinimumSize} to {device.Properties.Limits.MaxImageDimension2D}.");
+            throw new ArgumentOutOfRangeException(
+                nameof(size),
+                $"The shadow map size must be {MinimumSize} to {device.Properties.Limits.MaxImageDimension2D}."
+            );
         Size = size;
         Format = ChooseFormat(device);
-        Image = GpuImage.Create(device: device, allocator: allocator, extent: new((uint)size, (uint)size),
+        Image = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: new((uint)size, (uint)size),
             format: Format,
-            usage: ImageUsageFlags.DepthStencilAttachmentBit | ImageUsageFlags.SampledBit |
-                   ImageUsageFlags.TransferSrcBit, mipLevels: 1,
-            name: "sun shadow cascades", arrayLayers: ShadowCascades.Count);
+            usage: ImageUsageFlags.DepthStencilAttachmentBit
+                | ImageUsageFlags.SampledBit
+                | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: "sun shadow cascades",
+            arrayLayers: ShadowCascades.Count
+        );
         try
         {
             for (int i = 0; i < layerViews.Length; i++)

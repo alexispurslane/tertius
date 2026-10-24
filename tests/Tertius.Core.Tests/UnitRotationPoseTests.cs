@@ -15,14 +15,17 @@ public sealed class UnitRotationPoseTests
     /// A rotation that came out of a float quaternion, as Jolt gives it. The float quaternion is (1, 2, 3, 4) / sqrt(30), with
     /// its last component one step of a float too long, so the square of its length is 1.7E-7 above 1.
     /// </summary>
-    private static readonly DQuaternion Widened =
-        DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
+    private static readonly DQuaternion Widened = DQuaternion.FromQuaternion(
+        new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f)
+    );
 
     /// <summary>The place of a ship in a low orbit round Earth, in Earth's axes, 6.77E6 m from the center.</summary>
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
 
     private static void ExpectNear(Double3 actual, Double3 expected, double metres) =>
-        Double3.Distance(actual, expected).Should()
+        Double3
+            .Distance(actual, expected)
+            .Should()
             .BeLessThan(metres, $"{actual} should be within {metres} m of {expected}");
 
     private static void ExpectSameComponents(DQuaternion actual, DQuaternion expected, double tolerance)
@@ -34,11 +37,11 @@ public sealed class UnitRotationPoseTests
     }
 
     [Fact]
-    public void TheTestRotationIsAsFarFromUnitLengthAsAFloatRotationFromJoltCan()
-    {
+    public void TheTestRotationIsAsFarFromUnitLengthAsAFloatRotationFromJoltCan() =>
         // The squares of the lengths that Jolt gave in a run lay between -7.3E-8 and +2.1E-7.
-        (Widened.LengthSquared - 1).Should().BeInRange(1e-7, 2.1e-7);
-    }
+        (Widened.LengthSquared - 1)
+            .Should()
+            .BeInRange(1e-7, 2.1e-7);
 
     [Fact]
     public void ComposeMovesAPositionByTheNormalizedRotationOfItsParent()
@@ -46,9 +49,9 @@ public sealed class UnitRotationPoseTests
         var parent = new DPose(InOrbit, Widened);
         var local = new DPose(new(3000, 2000, -4000), DQuaternion.Identity);
 
-        DPose composed = DPose.Compose(parent, local);
+        var composed = DPose.Compose(parent, local);
 
-        DPose expected = DPose.Compose(parent with { Rotation = Widened.Normalized() }, local);
+        var expected = DPose.Compose(parent with { Rotation = Widened.Normalized() }, local);
         ExpectNear(composed.Position, expected.Position, 1e-9);
         ExpectSameComponents(composed.Rotation, expected.Rotation, 1e-12);
     }
@@ -56,7 +59,7 @@ public sealed class UnitRotationPoseTests
     [Fact]
     public void ComposeGivesARotationOfUnitLength()
     {
-        DPose composed = DPose.Compose(new(InOrbit, Widened), new(Double3.Zero, Widened));
+        var composed = DPose.Compose(new(InOrbit, Widened), new(Double3.Zero, Widened));
 
         (composed.Rotation.LengthSquared - 1).Should().BeApproximately(0, 1e-14);
     }
@@ -86,7 +89,7 @@ public sealed class UnitRotationPoseTests
     {
         var pose = new DPose(InOrbit, Widened);
 
-        DPose composed = DPose.Compose(pose, pose.Inverse());
+        var composed = DPose.Compose(pose, pose.Inverse());
 
         ExpectNear(composed.Position, Double3.Zero, 1e-6);
         ExpectSameComponents(composed.Rotation, DQuaternion.Identity, 1e-12);
@@ -97,7 +100,7 @@ public sealed class UnitRotationPoseTests
     {
         var pose = new DPose(InOrbit, Widened);
 
-        DPose composed = DPose.Compose(pose.Inverse(), pose);
+        var composed = DPose.Compose(pose.Inverse(), pose);
 
         ExpectNear(composed.Position, Double3.Zero, 1e-6);
         ExpectSameComponents(composed.Rotation, DQuaternion.Identity, 1e-12);

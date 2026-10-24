@@ -56,8 +56,9 @@ public sealed class DeviceTests
         {
             // The same view of the sky, from a camera in the root frame and from one in a frame turned by `turn`: in the
             // turned frame's axes, the camera's rotation and the root's axes are both turned back by it.
-            Quaternion view = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f) *
-                              Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f);
+            Quaternion view =
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f)
+                * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f);
             var turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(1, 1, 0)), 0.7f);
             RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
             inRoot.Camera.Rotation = inRoot.Camera.PreviousRotation = view;
@@ -65,10 +66,12 @@ public sealed class DeviceTests
             inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
             inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
 
-            HashSet<(int X, int Y)> rootStars =
-                Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root"));
-            HashSet<(int X, int Y)> turnedStars =
-                Stars(Gpu.RenderAndCapture(renderer: renderer, snapshot: inTurned, name: "stars-turned"));
+            HashSet<(int X, int Y)> rootStars = Stars(
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root")
+            );
+            HashSet<(int X, int Y)> turnedStars = Stars(
+                Gpu.RenderAndCapture(renderer: renderer, snapshot: inTurned, name: "stars-turned")
+            );
 
             rootStars.Count.Should().BeGreaterThan(10);
             // Rounding can move a star's edge by a pixel.
@@ -102,8 +105,9 @@ public sealed class DeviceTests
                 MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
                 MaterialId material = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.3f, z: 0.2f, w: 1)));
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1, 0.5f));
-                snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4),
-                    scale: Vector3.One));
+                snapshot.Instances.Add(
+                    Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4), scale: Vector3.One)
+                );
                 for (int i = 0; i < 8; i++)
                     renderer.Render(snapshot, 1f);
                 renderer.LastFrameStats.NearCommands.Should().Be(1, "with {0} frames in flight", framesInFlight);
@@ -118,11 +122,28 @@ public sealed class DeviceTests
     [Fact]
     public void TheShadowMapSizeIsAnOptionWithALowerBound()
     {
-        FluentActions.Invoking(() =>
-                VulkanRenderer.CreateHeadless(new() { Width = 64, Height = 64, ShadowMapSize = 100 }))
-            .Should().ThrowExactly<ArgumentOutOfRangeException>();
-        var renderer = VulkanRenderer.CreateHeadless(new()
-            { Validation = true, Width = 160, Height = 90, ShadowMapSize = 1024 });
+        FluentActions
+            .Invoking(() =>
+                VulkanRenderer.CreateHeadless(
+                    new()
+                    {
+                        Width = 64,
+                        Height = 64,
+                        ShadowMapSize = 100,
+                    }
+                )
+            )
+            .Should()
+            .ThrowExactly<ArgumentOutOfRangeException>();
+        var renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = 160,
+                Height = 90,
+                ShadowMapSize = 1024,
+            }
+        );
         try
         {
             renderer.ShadowMap.Size.Should().Be(1024);
@@ -130,8 +151,15 @@ public sealed class DeviceTests
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: new(0, 0, -5), scale: Vector3.One,
-                flags: RenderFlags.CastsShadow));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: new(0, 0, -5),
+                    scale: Vector3.One,
+                    flags: RenderFlags.CastsShadow
+                )
+            );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
             renderer.ReadShadowCascade(0).Should().HaveCount(1024 * 1024);

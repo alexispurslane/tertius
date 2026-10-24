@@ -47,35 +47,68 @@ public sealed class PushedContactMeasurement
 
     /// <summary>The CSV header: each column's name ends with its unit, or names a count or a label.</summary>
     private const string Header =
-        "scene,direction,run,speed_m_per_s,common_speed_in_run_m_per_s,start_distance_m,largest_distance_in_run_m,time_s,force_steps," +
-        "creep_m,lateral_slip_m,relative_velocity_rms_m_per_s,relative_velocity_max_m_per_s," +
-        "common_velocity_error_m_per_s,common_position_error_m,common_position_error_vs_step_rule_m," +
-        "collision_events_total,collision_events_after_first,collision_ended_events," +
-        "pusher_tilt_deg,pushed_tilt_deg,largest_distance_so_far_m,world_errors,backend_warnings";
+        "scene,direction,run,speed_m_per_s,common_speed_in_run_m_per_s,start_distance_m,largest_distance_in_run_m,time_s,force_steps,"
+        + "creep_m,lateral_slip_m,relative_velocity_rms_m_per_s,relative_velocity_max_m_per_s,"
+        + "common_velocity_error_m_per_s,common_position_error_m,common_position_error_vs_step_rule_m,"
+        + "collision_events_total,collision_events_after_first,collision_ended_events,"
+        + "pusher_tilt_deg,pushed_tilt_deg,largest_distance_so_far_m,world_errors,backend_warnings";
 
     /// <summary>The common speeds V of the moving runs, in m/s.</summary>
     private static readonly double[] Speeds =
-        [0, 1, 10, 50, 100, 200, 500, 1000, 2000, 5000, 7672, 10000, 20000, 50000, 100000, 300000];
+    [
+        0,
+        1,
+        10,
+        50,
+        100,
+        200,
+        500,
+        1000,
+        2000,
+        5000,
+        7672,
+        10000,
+        20000,
+        50000,
+        100000,
+        300000,
+    ];
 
     /// <summary>The direction d of the common velocity: across the push (the easy case), and along the space diagonal.</summary>
     private static readonly (string Name, Double3 Direction)[] Directions =
-        [("y", Double3.UnitY), ("diagonal", new Double3(1, 1, 1).Normalized())];
+    [
+        ("y", Double3.UnitY),
+        ("diagonal", new Double3(1, 1, 1).Normalized()),
+    ];
 
     /// <summary>The ticks after the start at which a run writes a row: 5 s, 20 s and 60 s at 60 Hz.</summary>
     private static readonly int[] SampleTicks = [300, 1200, 3600];
 
     private static readonly PairScene CharacterPushesCrate = new(
         Name: "character-pushes-crate",
-        Pusher: new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70, LinearDamping: 0,
-            AngularDamping: 0),
+        Pusher: new(
+            Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+            Motion: BodyMotion.Character,
+            Mass: 70,
+            LinearDamping: 0,
+            AngularDamping: 0
+        ),
         Pushed: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 20, LinearDamping: 0, AngularDamping: 0),
-        Thrust: 105, PusherHalfDepth: 0.3, PushedHalfDepth: 0.5, StartGap: 0.02);
+        Thrust: 105,
+        PusherHalfDepth: 0.3,
+        PushedHalfDepth: 0.5,
+        StartGap: 0.02
+    );
 
     private static readonly PairScene BoxPushesBox = new(
         Name: "box-pushes-box",
         Pusher: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
         Pushed: new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 2, LinearDamping: 0, AngularDamping: 0),
-        Thrust: 10, PusherHalfDepth: 0.5, PushedHalfDepth: 0.5, StartGap: 0);
+        Thrust: 10,
+        PusherHalfDepth: 0.5,
+        PushedHalfDepth: 0.5,
+        StartGap: 0
+    );
 
     /// <summary>
     /// A pair of bodies in contact along x.
@@ -94,7 +127,8 @@ public sealed class PushedContactMeasurement
         float Thrust,
         double PusherHalfDepth,
         double PushedHalfDepth,
-        double StartGap)
+        double StartGap
+    )
     {
         /// <summary>The distance between the two centers along x at the start, in m.</summary>
         public double StartSeparation => PusherHalfDepth + StartGap + PushedHalfDepth;
@@ -123,11 +157,25 @@ public sealed class PushedContactMeasurement
         {
             Double3 start = direction * (-speed * RunTicks / 60.0 / 2);
             RunResult moving = Run(scene: scene, direction: direction, speed: speed, start: start);
-            lines.AddRange(moving.Rows(scene: scene.Name, direction: directionName, run: "moving", speed: speed,
-                commonSpeed: speed));
+            lines.AddRange(
+                moving.Rows(
+                    scene: scene.Name,
+                    direction: directionName,
+                    run: "moving",
+                    speed: speed,
+                    commonSpeed: speed
+                )
+            );
             RunResult control = Run(scene: scene, direction: direction, speed: 0, start: moving.FarthestPoint);
-            lines.AddRange(control.Rows(scene: scene.Name, direction: directionName, run: "distance-control",
-                speed: speed, commonSpeed: 0));
+            lines.AddRange(
+                control.Rows(
+                    scene: scene.Name,
+                    direction: directionName,
+                    run: "distance-control",
+                    speed: speed,
+                    commonSpeed: 0
+                )
+            );
         }
 
         File.WriteAllLines(path, lines);
@@ -161,28 +209,47 @@ public sealed class PushedContactMeasurement
         double PushedTilt,
         double LargestDistanceSoFar,
         int WorldErrors,
-        int BackendWarnings);
+        int BackendWarnings
+    );
 
     /// <summary>The samples of one run, and where the pair's center of mass was farthest from the origin.</summary>
     private sealed record RunResult(
         Double3 StartPoint,
         List<Sample> Samples,
         Double3 FarthestPoint,
-        double LargestDistance)
+        double LargestDistance
+    )
     {
         public IEnumerable<string> Rows(string scene, string direction, string run, double speed, double commonSpeed) =>
-            Samples.Select(s => string.Join(',',
-                scene, direction, run, F(speed), F(commonSpeed), F(StartPoint.Length), F(LargestDistance),
-                F(s.Tick / 60.0),
-                s.ForceSteps.ToString(CultureInfo.InvariantCulture),
-                F(s.Creep), F(s.LateralSlip), F(s.RelativeVelocityRms), F(s.RelativeVelocityMax),
-                F(s.CommonVelocityError), F(s.CommonPositionError), F(s.CommonPositionErrorVsStepRule),
-                s.CollisionsTotal.ToString(CultureInfo.InvariantCulture),
-                Math.Max(0, s.CollisionsTotal - 1).ToString(CultureInfo.InvariantCulture),
-                s.CollisionsEnded.ToString(CultureInfo.InvariantCulture),
-                F(s.PusherTilt), F(s.PushedTilt), F(s.LargestDistanceSoFar),
-                s.WorldErrors.ToString(CultureInfo.InvariantCulture),
-                s.BackendWarnings.ToString(CultureInfo.InvariantCulture)));
+            Samples.Select(s =>
+                string.Join(
+                    ',',
+                    scene,
+                    direction,
+                    run,
+                    F(speed),
+                    F(commonSpeed),
+                    F(StartPoint.Length),
+                    F(LargestDistance),
+                    F(s.Tick / 60.0),
+                    s.ForceSteps.ToString(CultureInfo.InvariantCulture),
+                    F(s.Creep),
+                    F(s.LateralSlip),
+                    F(s.RelativeVelocityRms),
+                    F(s.RelativeVelocityMax),
+                    F(s.CommonVelocityError),
+                    F(s.CommonPositionError),
+                    F(s.CommonPositionErrorVsStepRule),
+                    s.CollisionsTotal.ToString(CultureInfo.InvariantCulture),
+                    Math.Max(0, s.CollisionsTotal - 1).ToString(CultureInfo.InvariantCulture),
+                    s.CollisionsEnded.ToString(CultureInfo.InvariantCulture),
+                    F(s.PusherTilt),
+                    F(s.PushedTilt),
+                    F(s.LargestDistanceSoFar),
+                    s.WorldErrors.ToString(CultureInfo.InvariantCulture),
+                    s.BackendWarnings.ToString(CultureInfo.InvariantCulture)
+                )
+            );
 
         private static string F(double value) => value.ToString("R", CultureInfo.InvariantCulture);
     }
@@ -194,15 +261,20 @@ public sealed class PushedContactMeasurement
     private static RunResult Run(PairScene scene, Double3 direction, double speed, Double3 start)
     {
         int warnings = 0;
-        var backend = new JoltPhysicsBackend(new()
-        {
-            WorkerThreads = 2,
-            MaxLinearVelocity = SpeedLimit,
-            Log = _ => Interlocked.Increment(ref warnings)
-        });
+        var backend = new JoltPhysicsBackend(
+            new()
+            {
+                WorkerThreads = 2,
+                MaxLinearVelocity = SpeedLimit,
+                Log = _ => Interlocked.Increment(ref warnings),
+            }
+        );
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true, NumericFrames = WithoutNumericFrames
+            MaxDegreeOfParallelism = 1,
+            DebugChecks = false,
+            DisposePhysics = true,
+            NumericFrames = WithoutNumericFrames,
         };
         using var world = new World(options, backend);
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));
@@ -224,25 +296,29 @@ public sealed class PushedContactMeasurement
             {
                 body.AddForce(thrust);
                 pilotCalls++;
-            }
+            },
         };
-        Entity pusher = world.Spawn(new()
-        {
-            Frame = root,
-            Pose = new(pusherStart, DQuaternion.Identity),
-            LinearVelocity = velocity,
-            Body = scene.Pusher,
-            Components = [pilot]
-        });
+        Entity pusher = world.Spawn(
+            new()
+            {
+                Frame = root,
+                Pose = new(pusherStart, DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = scene.Pusher,
+                Components = [pilot],
+            }
+        );
         var pushedLog = new CollisionLog();
-        Entity pushed = world.Spawn(new()
-        {
-            Frame = root,
-            Pose = new(pushedStart, DQuaternion.Identity),
-            LinearVelocity = velocity,
-            Body = scene.Pushed,
-            Components = [pushedLog]
-        });
+        Entity pushed = world.Spawn(
+            new()
+            {
+                Frame = root,
+                Pose = new(pushedStart, DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = scene.Pushed,
+                Components = [pushedLog],
+            }
+        );
 
         double dt = world.DeltaTime;
         double acceleration = scene.Thrust / totalMass;
@@ -292,22 +368,26 @@ public sealed class PushedContactMeasurement
             Double3 offset = pushedPose.Position - pusherPose.Position;
             int collisions = pushedLog.Seen.Count(seen => seen.Other == pusher);
             int ended = pushedLog.Ended.Count(end => end.Other == pusher);
-            samples.Add(new(
-                Tick: tick, ForceSteps: forceSteps,
-                Creep: offset.X - separation,
-                LateralSlip: Math.Sqrt(offset.Y * offset.Y + offset.Z * offset.Z),
-                RelativeVelocityRms: Math.Sqrt(relativeSpeedSquares / tick),
-                RelativeVelocityMax: relativeSpeedMax,
-                CommonVelocityError: (centerVelocity - exactVelocity).Length,
-                CommonPositionError: (center - exactPosition).Length,
-                CommonPositionErrorVsStepRule: (center - stepRulePosition).Length,
-                CollisionsTotal: collisions,
-                CollisionsEnded: ended,
-                PusherTilt: TiltDegrees(pusherPose.Rotation),
-                PushedTilt: TiltDegrees(pushedPose.Rotation),
-                LargestDistanceSoFar: largestDistance,
-                WorldErrors: world.Errors.Count,
-                BackendWarnings: Volatile.Read(ref warnings)));
+            samples.Add(
+                new(
+                    Tick: tick,
+                    ForceSteps: forceSteps,
+                    Creep: offset.X - separation,
+                    LateralSlip: Math.Sqrt(offset.Y * offset.Y + offset.Z * offset.Z),
+                    RelativeVelocityRms: Math.Sqrt(relativeSpeedSquares / tick),
+                    RelativeVelocityMax: relativeSpeedMax,
+                    CommonVelocityError: (centerVelocity - exactVelocity).Length,
+                    CommonPositionError: (center - exactPosition).Length,
+                    CommonPositionErrorVsStepRule: (center - stepRulePosition).Length,
+                    CollisionsTotal: collisions,
+                    CollisionsEnded: ended,
+                    PusherTilt: TiltDegrees(pusherPose.Rotation),
+                    PushedTilt: TiltDegrees(pushedPose.Rotation),
+                    LargestDistanceSoFar: largestDistance,
+                    WorldErrors: world.Errors.Count,
+                    BackendWarnings: Volatile.Read(ref warnings)
+                )
+            );
         }
 
         return new(StartPoint: start, Samples: samples, FarthestPoint: farthestPoint, LargestDistance: largestDistance);

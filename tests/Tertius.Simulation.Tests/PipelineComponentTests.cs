@@ -13,9 +13,7 @@ public sealed class PipelineComponentTests
         public int Priority => 0;
         public EventMask Wants => throw new NotSupportedException("no wants");
 
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-        }
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) { }
     }
 
     /// <summary>What a component does to its entity on one tick. A delegate of our own, because <see cref="Self"/> is a ref struct and cannot be a type argument of Action.</summary>
@@ -23,11 +21,13 @@ public sealed class PipelineComponentTests
 
     /// <summary>A component that, on one tick, runs <paramref name="change"/> against its entity.</summary>
     private static Lambda OnTick(long tick, SelfAction change) =>
-        Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == tick)
-                change(self);
-        });
+        Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == tick)
+                    change(self);
+            }
+        );
 
     // ---- Adding and removing during a run ---------------------------------------------------------------------------
 
@@ -37,13 +37,17 @@ public sealed class PipelineComponentTests
         using var t = new TestWorld();
         var added = new Recorder(EventMask.Of<Tick>());
         Recorder? visibleDuringTheRun = added;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            self.AddComponent(added);
-            visibleDuringTheRun = self.GetComponent<Recorder>();
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    self.AddComponent(added);
+                    visibleDuringTheRun = self.GetComponent<Recorder>();
+                }
+            )
+        );
 
         t.Run(3);
 
@@ -211,8 +215,9 @@ public sealed class PipelineComponentTests
     public void AComponentThatThrowsDoesNotStopTheComponentsAfterItOrTheOtherEntities()
     {
         using var t = new TestWorld();
-        Lambda thrower = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            throw new InvalidOperationException("kaboom"));
+        var thrower = Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) => throw new InvalidOperationException("kaboom")
+        );
         var later = new Recorder(EventMask.Of<Tick>(), priority: 1);
         Entity bad = t.SpawnWith(thrower, later);
         var bystander = new Recorder(EventMask.Of<Tick>());
@@ -231,13 +236,18 @@ public sealed class PipelineComponentTests
         using var t = new TestWorld();
         var logged = new List<string>();
         t.World.Log += logged.Add;
-        Entity bad = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            throw new InvalidOperationException("kaboom")));
+        Entity bad = t.SpawnWith(
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => throw new InvalidOperationException("kaboom"))
+        );
 
         t.Run(2);
 
         t.World.Errors.Should().HaveCount(2);
-        t.World.Errors[0].Should().Contain(bad.ToString()).And.Contain(typeof(Lambda).FullName!).And.Contain("kaboom")
+        t.World.Errors[0]
+            .Should()
+            .Contain(bad.ToString())
+            .And.Contain(typeof(Lambda).FullName!)
+            .And.Contain("kaboom")
             .And.Contain("tick 0");
         t.World.Errors[1].Should().Contain("tick 1");
         logged.Count(line => line.Contains("kaboom")).Should().Be(2);
@@ -249,8 +259,9 @@ public sealed class PipelineComponentTests
         using var t = new TestWorld();
         var log = new List<string>();
         t.World.Log += log.Add;
-        Entity e = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.Log($"hello {self.Tick}")));
+        Entity e = t.SpawnWith(
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Log($"hello {self.Tick}"))
+        );
 
         t.Run(3);
 
@@ -264,8 +275,12 @@ public sealed class PipelineComponentTests
     public void TheErrorListKeepsOnlyTheNewestUpToMaxErrorsAndCanBeCleared()
     {
         using var t = new TestWorld(configure: options => options.MaxErrors = 3);
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            throw new InvalidOperationException($"failure {self.Tick}")));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                    throw new InvalidOperationException($"failure {self.Tick}")
+            )
+        );
 
         t.Run(5);
 

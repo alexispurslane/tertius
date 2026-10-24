@@ -18,8 +18,10 @@ public sealed class BoxMeshTests
     /// <summary>A doorway through <see cref="Slab"/>: 1 m wide along Z and 2 m tall, centered.</summary>
     private static readonly Opening Doorway = Opening.ThroughX(new(new(0, -1, -0.5f), new(0.5f, 1, 0.5f)));
 
-    private static readonly MeshData
-        SlabWithDoorway = new BoxMesh().Box(Slab, openings: Doorway).Sides(Doorway).Build();
+    private static readonly MeshData SlabWithDoorway = new BoxMesh()
+        .Box(Slab, openings: Doorway)
+        .Sides(Doorway)
+        .Build();
 
     /// <summary>A slab 0.5 m thick across Z, 6 m wide along X and 4 m tall.</summary>
     private static readonly BoundingBox SlabAcrossZ = new(new(-3, -2, 0), new(3, 2, 0.5f));
@@ -39,7 +41,7 @@ public sealed class BoxMeshTests
         Opening.ThroughX(new(new(0, -1.8f, -4.5f), new(0.5f, 0.2f, -3.5f))),
         Opening.ThroughX(new(new(0, -0.5f, -2), new(0.5f, 1, 0))),
         Opening.ThroughX(new(new(0, -0.5f, 1), new(0.5f, 1, 3))),
-        Opening.ThroughX(new(new(0, 0, 4), new(0.5f, 1.5f, 5)))
+        Opening.ThroughX(new(new(0, 0, 4), new(0.5f, 1.5f, 5))),
     ];
 
     /// <summary>
@@ -64,7 +66,7 @@ public sealed class BoxMeshTests
         Opening.ThroughX(new(new(4.5f, -1, -6), new(5, 0.2f, -4))),
         Opening.ThroughX(new(new(4.5f, -1, -2), new(5, 0.2f, 0))),
         Opening.ThroughX(new(new(4.5f, -1, 4), new(5, 0.2f, 6))),
-        Opening.ThroughZ(new(new(-2, -1, -10), new(2, 0.5f, -9.5f)))
+        Opening.ThroughZ(new(new(-2, -1, -10), new(2, 0.5f, -9.5f))),
     ];
 
     private static IEnumerable<(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal)> Triangles(MeshData mesh)
@@ -100,24 +102,32 @@ public sealed class BoxMeshTests
     /// that must miss one proves nothing on a diagonal.
     /// </summary>
     private static bool LineHits(MeshData mesh, Vector3 axis, float u, float v, Func<Vector3, bool>? keep = null) =>
-        Triangles(mesh).Where(t => keep is null || keep((t.A + t.B + t.C) / 3)).Any(t =>
-        {
-            // The triangle's shadow on the plane across the axis contains the point.
-            static float Side(Vector2 p, Vector2 q, Vector2 r) => (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X);
-
-            Vector2 Shadow(Vector3 point)
+        Triangles(mesh)
+            .Where(t => keep is null || keep((t.A + t.B + t.C) / 3))
+            .Any(t =>
             {
-                if (axis == Vector3.UnitX)
-                    return new(point.Y, point.Z);
-                if (axis == Vector3.UnitY)
-                    return new(point.X, point.Z);
-                return new(point.X, point.Y);
-            }
+                // The triangle's shadow on the plane across the axis contains the point.
+                static float Side(Vector2 p, Vector2 q, Vector2 r) =>
+                    (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X);
 
-            Vector2 p = new(u, v), a = Shadow(t.A), b = Shadow(t.B), c = Shadow(t.C);
-            float ab = Side(a, b, p), bc = Side(b, c, p), ca = Side(c, a, p);
-            return (ab > 0 && bc > 0 && ca > 0) || (ab < 0 && bc < 0 && ca < 0);
-        });
+                Vector2 Shadow(Vector3 point)
+                {
+                    if (axis == Vector3.UnitX)
+                        return new(point.Y, point.Z);
+                    if (axis == Vector3.UnitY)
+                        return new(point.X, point.Z);
+                    return new(point.X, point.Y);
+                }
+
+                Vector2 p = new(u, v),
+                    a = Shadow(t.A),
+                    b = Shadow(t.B),
+                    c = Shadow(t.C);
+                float ab = Side(a, b, p),
+                    bc = Side(b, c, p),
+                    ca = Side(c, a, p);
+                return (ab > 0 && bc > 0 && ca > 0) || (ab < 0 && bc < 0 && ca < 0);
+            });
 
     /// <summary>True if the line along X through (<paramref name="y"/>, <paramref name="z"/>) crosses a triangle.</summary>
     private static bool LineAlongXHits(MeshData mesh, float y, float z) =>
@@ -164,7 +174,8 @@ public sealed class BoxMeshTests
     {
         // (0.2, 0.1) is inside the doorway and on neither diagonal of the slab's faces, which run along y = z and y = -z.
         // A plain slab without the doorway would be crossed there.
-        LineAlongXHits(SlabWithDoorway, 0.2f, 0.1f).Should()
+        LineAlongXHits(SlabWithDoorway, 0.2f, 0.1f)
+            .Should()
             .BeFalse("the line goes through the doorway and is not on an edge of a triangle");
         LineAlongXHits(SlabWithDoorway, 0, 1.5f).Should().BeTrue();
         LineAlongXHits(SlabWithDoorway, 1.5f, 0).Should().BeTrue();
@@ -177,9 +188,12 @@ public sealed class BoxMeshTests
         // through the room's -X wall near its floor.
         var outer = new BoundingBox(new(-10, -4, -30), new(10, 4, 30));
         var room = new BoundingBox(new(-9.5f, -3.5f, -29.5f), new(9.5f, 3.5f, 29.5f));
-        Opening doorway = Opening.ThroughX(new(new(-10, -3.3f, 9.4f), new(-9.5f, -1.2f, 10.6f)));
-        MeshData hull = new BoxMesh().Box(outer, openings: doorway).Box(room, inward: true, openings: doorway)
-            .Sides(doorway).Build();
+        var doorway = Opening.ThroughX(new(new(-10, -3.3f, 9.4f), new(-9.5f, -1.2f, 10.6f)));
+        MeshData hull = new BoxMesh()
+            .Box(outer, openings: doorway)
+            .Box(room, inward: true, openings: doorway)
+            .Sides(doorway)
+            .Build();
 
         hull.Indices.Length.Should().Be((2 * 4 * 2 + 10 * 2 + 4 * 2) * 3);
         ExpectClosed(hull);
@@ -231,20 +245,32 @@ public sealed class BoxMeshTests
         MeshData slab = LongSlabWithRow();
 
         foreach (Opening opening in Row)
-            LineAlongXHits(slab, opening.Bounds.Center.Y, opening.Bounds.Center.Z).Should()
+            LineAlongXHits(slab, opening.Bounds.Center.Y, opening.Bounds.Center.Z)
+                .Should()
                 .BeFalse($"the line through {opening.Bounds.Center} goes through the opening");
         // Between the openings, above the lower ones and below the higher one, and at the slab's ends.
-        foreach ((float y, float z) in new (float Y, float Z)[]
-                 {
-                     (0, -3), (0, 0.5f), (0, 3.5f), (1.3f, -1), (1.3f, 2), (-1, 4.5f), (1.8f, -4), (-1.9f, 0),
-                     (0, -5.5f), (0, 5.5f)
-                 })
+        foreach (
+            (float y, float z) in new (float Y, float Z)[]
+            {
+                (0, -3),
+                (0, 0.5f),
+                (0, 3.5f),
+                (1.3f, -1),
+                (1.3f, 2),
+                (-1, 4.5f),
+                (1.8f, -4),
+                (-1.9f, 0),
+                (0, -5.5f),
+                (0, 5.5f),
+            }
+        )
             LineAlongXHits(slab, y, z).Should().BeTrue($"the line through ({y}, {z}) meets the slab");
     }
 
     private static MeshData HollowBoxWithOpenings()
     {
-        BoxMesh mesh = new BoxMesh().Box(HollowOuter, openings: HollowOpenings)
+        BoxMesh mesh = new BoxMesh()
+            .Box(HollowOuter, openings: HollowOpenings)
             .Box(HollowRoom, inward: true, openings: HollowOpenings);
         foreach (Opening opening in HollowOpenings)
             mesh.Sides(opening);
@@ -268,17 +294,19 @@ public sealed class BoxMeshTests
         // (0.1, 0.1) is inside the window in the -Z wall, and on neither diagonal of the faces of the +Z wall, which has
         // no window. A line along the edge of a triangle crosses none, so the middle of the room, (0, 0), would prove
         // nothing: it is on the diagonals of both walls.
-        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z < 0).Should()
+        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z < 0)
+            .Should()
             .BeFalse("a line along the room goes out through the window in the -Z wall");
-        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z > 0).Should()
+        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z > 0)
+            .Should()
             .BeTrue("the +Z wall has no window, so the same line meets both of its faces");
     }
 
     [Fact]
     public void TwoOpeningsThatOverlapAlongTheirWallAreAnError()
     {
-        Opening low = Opening.ThroughX(new(new(0, -1.5f, -1), new(0.5f, -0.5f, 1)));
-        Opening high = Opening.ThroughX(new(new(0, 0.5f, 0), new(0.5f, 1.5f, 1.5f)));
+        var low = Opening.ThroughX(new(new(0, -1.5f, -1), new(0.5f, -0.5f, 1)));
+        var high = Opening.ThroughX(new(new(0, 0.5f, 0), new(0.5f, 1.5f, 1.5f)));
 
         Action stacked = () => new BoxMesh().Box(Slab, openings: [low, high]);
 
@@ -289,7 +317,7 @@ public sealed class BoxMeshTests
     public void AnOpeningThatReachesTheEdgeOfItsFaceIsAnError()
     {
         // A doorway down to the floor would cut the slab's bottom face too.
-        Opening toTheFloor = Opening.ThroughX(new(new(0, -2, -0.5f), new(0.5f, 1, 0.5f)));
+        var toTheFloor = Opening.ThroughX(new(new(0, -2, -0.5f), new(0.5f, 1, 0.5f)));
 
         Action cut = () => new BoxMesh().Box(Slab, openings: toTheFloor);
 

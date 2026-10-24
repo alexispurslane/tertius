@@ -1,8 +1,8 @@
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -18,14 +18,20 @@ public sealed class HandOffTests
     private const float Dt = 1f / 60f;
 
     /// <summary>A world on the fault-injecting backend with no numeric frames.</summary>
-    private static World
-        NewWorldWithoutNumericFrames(out FaultInjectingBackend faults, List<string>? warnings = null) =>
-        NewWorldWithFaults(faults: out faults, warnings: warnings,
-            configure: options => options.NumericFrames = WithoutNumericFrames);
+    private static World NewWorldWithoutNumericFrames(
+        out FaultInjectingBackend faults,
+        List<string>? warnings = null
+    ) =>
+        NewWorldWithFaults(
+            faults: out faults,
+            warnings: warnings,
+            configure: options => options.NumericFrames = WithoutNumericFrames
+        );
 
     private static Double3 ToParentVelocity(FrameMotionData frame, Double3 positionInFrame, Double3 velocityInFrame) =>
-        frame.Pose.TransformDirection(velocityInFrame) + frame.Velocity + Double3.Cross(frame.AngularVelocity,
-            frame.Pose.TransformDirection(positionInFrame));
+        frame.Pose.TransformDirection(velocityInFrame)
+        + frame.Velocity
+        + Double3.Cross(frame.AngularVelocity, frame.Pose.TransformDirection(positionInFrame));
 
     private readonly record struct FrameMotionData(DPose Pose, Double3 Velocity, Double3 AngularVelocity);
 
@@ -51,14 +57,23 @@ public sealed class HandOffTests
         world.CreateRootFrame(new(FrameBounds.Sphere(radius)));
 
     /// <summary>A frame without a body, as a child of <paramref name="parent"/>.</summary>
-    private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius,
-        GravityField gravity = default) =>
-        world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = parent,
-            Pose = pose,
-            AsFrame = new(FrameBounds.Sphere(radius), gravity)
-        }));
+    private static FrameHandle Bubble(
+        World world,
+        FrameHandle parent,
+        DPose pose,
+        float radius,
+        GravityField gravity = default
+    ) =>
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius), gravity),
+                }
+            )
+        );
 
     /// <summary>The hand-offs that Jolt sent, in the order of the steps.</summary>
     private static List<HandOff> HandOffsSent(FaultInjectingBackend faults) =>
@@ -68,18 +83,34 @@ public sealed class HandOffTests
     /// Ticks until the output of a step holds a hand-off of <paramref name="entity"/>, at most <paramref name="limit"/>
     /// times. Returns the hand-off, or null. <paramref name="before"/> is the state of the entity before the last tick.
     /// </summary>
-    private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit,
-        out Placed before) =>
-        TickUntilHandedOff(world: world, faults: faults, entity: entity, limit: limit, before: out before,
-            startInParent: out _);
+    private static HandOff? TickUntilHandedOff(
+        World world,
+        FaultInjectingBackend faults,
+        Entity entity,
+        int limit,
+        out Placed before
+    ) =>
+        TickUntilHandedOff(
+            world: world,
+            faults: faults,
+            entity: entity,
+            limit: limit,
+            before: out before,
+            startInParent: out _
+        );
 
     /// <summary>
     /// Like the overload above, and <paramref name="startInParent"/> is the entity's place before the last tick in the
     /// tree parent of its frame then, which is where a hand-off out of that frame lands, or zero in a root frame.
     /// </summary>
-    private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit,
+    private static HandOff? TickUntilHandedOff(
+        World world,
+        FaultInjectingBackend faults,
+        Entity entity,
+        int limit,
         out Placed before,
-        out Double3 startInParent)
+        out Double3 startInParent
+    )
     {
         startInParent = default;
         before = PlacedNow(world, entity);
@@ -111,20 +142,34 @@ public sealed class HandOffTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         // A sphere hull keeps its spin constant. No damping anywhere, so the motion is exact.
-        var hull = new BodyDesc(Shape: new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-            InteriorShape: new SphereShapeDesc(2));
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(100),
-            LinearVelocity = new Vector3(0, 0, 20),
-            AngularVelocity = new(0, 0.2f, 0),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(30))
-        });
+        var hull = new BodyDesc(
+            Shape: new SphereShapeDesc(5),
+            Mass: 1000,
+            LinearDamping: 0,
+            AngularDamping: 0,
+            InteriorShape: new SphereShapeDesc(2)
+        );
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(100),
+                LinearVelocity = new Vector3(0, 0, 20),
+                AngularVelocity = new(0, 0.2f, 0),
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(30)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
-        Entity ball = world.Spawn(new()
-            { Frame = ship, Pose = At(8), LinearVelocity = new Vector3(6, 0, 1), Body = BallBody(0.25f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(8),
+                LinearVelocity = new Vector3(6, 0, 1),
+                Body = BallBody(0.25f),
+            }
+        );
         // The bodies join their systems at the first sync point, and the ball's line in space is fixed from its second tick.
         Tick(world, 2);
         Double3 previous = world.PoseIn(ball, space).Position;
@@ -143,14 +188,15 @@ public sealed class HandOffTests
                 if (handOff.Entity == ball)
                     exit = handOff;
             if (exit is null)
-                Double3.Distance(world.PoseIn(ball, space).Position, line + velocity * ((ticks + 1) * (double)Dt))
-                    .Should().BeLessThan(1e-4,
-                        $"the ball keeps its line in space in the ship, after tick {ticks + 1}");
+                Double3
+                    .Distance(world.PoseIn(ball, space).Position, line + velocity * ((ticks + 1) * (double)Dt))
+                    .Should()
+                    .BeLessThan(1e-4, $"the ball keeps its line in space in the ship, after tick {ticks + 1}");
         }
 
         exit.Should().NotBeNull("the ball leaves the ship within 400 ticks");
 
-        HandOff result = exit!.Value;
+        HandOff result = exit.Value;
         result.From.Should().Be(ship);
         result.To.Should().Be(space);
         // The World applied the hand-off that Jolt sent.
@@ -159,7 +205,9 @@ public sealed class HandOffTests
         world.VelocityInOwnFrame(ball).Should().Be(result.LinearVelocity);
 
         // The hand-off keeps the ball on its line in space, at its velocity there.
-        (result.LinearVelocity - velocity).Length.Should().BeLessThan(1e-3 * velocity.Length);
+        (result.LinearVelocity - velocity)
+            .Length.Should()
+            .BeLessThan(1e-3 * velocity.Length);
         (result.Pose.Position - (line + velocity * (ticks * (double)Dt))).Length.Should().BeLessThan(1e-3);
 
         // The spin term matters: without ω × r the ball's velocity in space would be off by meters per second.
@@ -175,20 +223,39 @@ public sealed class HandOffTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
-        KeplerOrbit orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
-            InteriorShape: new SphereShapeDesc(1));
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(25))
-        }.OnKeplerOrbit(world, orbit)));
-        Entity ball = world.Spawn(new()
-            { Frame = station, Pose = At(0, 3, 10), LinearVelocity = new Vector3(0, 1, 8), Body = BallBody(0.2f) });
+        var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(4)),
+            Motion: BodyMotion.Kinematic,
+            InteriorShape: new SphereShapeDesc(1)
+        );
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = planet,
+                    Body = hull,
+                    AsFrame = new(FrameBounds.Sphere(25)),
+                }.OnKeplerOrbit(world, orbit)
+            )
+        );
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(0, 3, 10),
+                LinearVelocity = new Vector3(0, 1, 8),
+                Body = BallBody(0.2f),
+            }
+        );
 
-        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 400,
-            before: out Placed before);
+        HandOff? exit = TickUntilHandedOff(
+            world: world,
+            faults: faults,
+            entity: ball,
+            limit: 400,
+            before: out Placed before
+        );
         exit.Should().NotBeNull();
         exit!.Value.From.Should().Be(station);
         exit.Value.To.Should().Be(planet);
@@ -218,31 +285,63 @@ public sealed class HandOffTests
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
         // at 0.113 rad/s at apoapsis.
-        var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0, LongitudeOfAscendingNode: 0,
-            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
-            SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.FacesParent);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
-            InteriorShape: new SphereShapeDesc(1));
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(25))
-        }.OnKeplerOrbit(world, orbit, firstMove: true)));
+        var orbit = new KeplerOrbit(
+            SemiMajorAxis: 5000,
+            Eccentricity: 0.3,
+            Inclination: 0,
+            LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0,
+            MeanAnomalyAtEpoch: 0,
+            Epoch: 0,
+            AxialTilt: DQuaternion.Identity,
+            SpinRate: 0,
+            SpinPhaseAtEpoch: 0,
+            Attitude: KeplerAttitude.FacesParent
+        );
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(4)),
+            Motion: BodyMotion.Kinematic,
+            InteriorShape: new SphereShapeDesc(1)
+        );
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = planet,
+                    Body = hull,
+                    AsFrame = new(FrameBounds.Sphere(25)),
+                }.OnKeplerOrbit(world, orbit, firstMove: true)
+            )
+        );
         // The ball comes 5 s before apoapsis and drifts out along +Z at 3 m/s, so it leaves the bubble near apoapsis. The
         // station's turn flings a body away from its axis (docs/plans/spin-gravity.md, "The two-turn update"): before the
         // rotation terms the test spawned the ball with the station at periapsis, drifting at 1 m/s, and it left 15.7 s
         // later, but in a station turning at 0.389 rad/s that ball leaves after 5.3 s, far from apoapsis.
         TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
-        Entity ball = world.Spawn(new()
-            { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 3), Body = BallBody(0.2f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(0, 0, 10),
+                LinearVelocity = new Vector3(0, 0, 3),
+                Body = BallBody(0.2f),
+            }
+        );
 
-        HandOff? exit = TickUntilHandedOff(world: world, faults: faults, entity: ball, limit: 1200,
-            before: out Placed before, startInParent: out Double3 startInPlanet);
+        HandOff? exit = TickUntilHandedOff(
+            world: world,
+            faults: faults,
+            entity: ball,
+            limit: 1200,
+            before: out Placed before,
+            startInParent: out Double3 startInPlanet
+        );
         exit.Should().NotBeNull();
         world.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
         world.GetFrame(ball).Should().Be(planet);
-        world.VelocityInOwnFrame(ball).Should()
+        world
+            .VelocityInOwnFrame(ball)
+            .Should()
             .Be(exit!.Value.LinearVelocity, "the World applied the hand-off that Jolt sent");
 
         // Jolt gets the chord of the ball's motion in the planet over the hand-off step: the change of its place there,
@@ -252,8 +351,11 @@ public sealed class HandOffTests
 
         // The turn rate matters: the rate at periapsis would be off by about 7 m/s.
         Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
-        FrameMotionData atPeriapsis = new(world.Frames.LocalPose(station), world.Frames.LinearVelocity(station),
-            orbit.AngularVelocityAt(0, mu));
+        FrameMotionData atPeriapsis = new(
+            world.Frames.LocalPose(station),
+            world.Frames.LinearVelocity(station),
+            orbit.AngularVelocityAt(0, mu)
+        );
         (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - chord).Length.Should().BeGreaterThan(5);
         world.Errors.Should().BeEmpty();
     }
@@ -282,42 +384,73 @@ public sealed class HandOffTests
             using World world = numericFrames ? NewWorldWithFaults(faults: out _) : NewWorldWithoutNumericFrames(out _);
             const double mu = 5e9;
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
-            var orbit = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0,
-                LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0,
-                AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
-                Attitude: KeplerAttitude.FacesParent);
-            FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-            {
-                Frame = planet,
-                Body = new(Shape: new BoxShapeDesc(new(4)), Motion: BodyMotion.Kinematic,
-                    InteriorShape: new SphereShapeDesc(1)),
-                AsFrame = new(FrameBounds.Sphere(25))
-            }.OnKeplerOrbit(world, orbit, firstMove: true)));
+            var orbit = new KeplerOrbit(
+                SemiMajorAxis: 5000,
+                Eccentricity: 0.3,
+                Inclination: 0,
+                LongitudeOfAscendingNode: 0,
+                ArgumentOfPeriapsis: 0,
+                MeanAnomalyAtEpoch: 0,
+                Epoch: 0,
+                AxialTilt: DQuaternion.Identity,
+                SpinRate: 0,
+                SpinPhaseAtEpoch: 0,
+                Attitude: KeplerAttitude.FacesParent
+            );
+            FrameHandle station = world.GetOwnedFrame(
+                world.Spawn(
+                    new SpawnDesc
+                    {
+                        Frame = planet,
+                        Body = new(
+                            Shape: new BoxShapeDesc(new(4)),
+                            Motion: BodyMotion.Kinematic,
+                            InteriorShape: new SphereShapeDesc(1)
+                        ),
+                        AsFrame = new(FrameBounds.Sphere(25)),
+                    }.OnKeplerOrbit(world, orbit, firstMove: true)
+                )
+            );
             BodyDesc ballBody = BallBody(0.2f);
             TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
-            Entity ball = world.Spawn(new()
-            {
-                Frame = station,
-                Pose = At(0, 0, 10),
-                LinearVelocity = new Vector3(0, 0, 3),
-                Body = ballBody,
-                Components = [new Thruster(ballBody.Mass) { Direction = Vector3.UnitZ }]
-            });
+            Entity ball = world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = At(0, 0, 10),
+                    LinearVelocity = new Vector3(0, 0, 3),
+                    Body = ballBody,
+                    Components = [new Thruster(ballBody.Mass) { Direction = Vector3.UnitZ }],
+                }
+            );
             TickUntil(world, () => world.GetFrame(ball) == planet, 1200);
             if (numericFrames)
             {
-                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following,
-                    "the station's hull rests in a following frame of its own when the ball leaves");
-                world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
-                    "the sync point of the hand-off moves the ball into a falling frame of its own");
+                world
+                    .Frames.Numeric(world.Frames.TreeParent(station))
+                    .Should()
+                    .Be(
+                        NumericMode.Following,
+                        "the station's hull rests in a following frame of its own when the ball leaves"
+                    );
+                world
+                    .Frames.Numeric(world.PhysicsHomeOf(ball))
+                    .Should()
+                    .Be(
+                        NumericMode.Falling,
+                        "the sync point of the hand-off moves the ball into a falling frame of its own"
+                    );
                 world.PhysicsHomeOf(ball).Should().NotBe(world.Frames.TreeParent(station));
             }
 
             Tick(world, 60);
             world.Errors.Should().BeEmpty();
             FrameHandle home = world.PhysicsHomeOf(ball);
-            return (world.PoseIn(ball, planet).Position, world.VelocityIn(ball, planet),
-                home == planet ? "planet" : world.Frames.Numeric(home).ToString());
+            return (
+                world.PoseIn(ball, planet).Position,
+                world.VelocityIn(ball, planet),
+                home == planet ? "planet" : world.Frames.Numeric(home).ToString()
+            );
         }
 
         (Double3 Position, Double3 Velocity, string Home) with = Run(numericFrames: true);
@@ -337,51 +470,63 @@ public sealed class HandOffTests
         FrameHandle bubble = Bubble(world: world, parent: space, pose: new(center, DQuaternion.Identity), radius: 20);
         const float radius = 0.5f;
         var pilot = new Pilot();
-        Entity ball = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(25),
-            LinearVelocity = new Vector3(5, 0, 0),
-            Body = BallBody(radius),
-            Components = [pilot]
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(25),
+                LinearVelocity = new Vector3(5, 0, 0),
+                Body = BallBody(radius),
+                Components = [pilot],
+            }
+        );
 
         // Approach: the ball enters on the first step that ends with its sphere touching the bubble.
         Placed last = PlacedNow(world, ball);
-        TickUntil(world, () =>
-        {
-            if (HandOffsSent(faults).Count > 0)
-                return true;
-            last = PlacedNow(world, ball);
-            return false;
-        }, 120);
+        TickUntil(
+            world,
+            () =>
+            {
+                if (HandOffsSent(faults).Count > 0)
+                    return true;
+                last = PlacedNow(world, ball);
+                return false;
+            },
+            120
+        );
         HandOff entry = HandOffsSent(faults).Should().ContainSingle().Which;
         entry.From.Should().Be(space);
         entry.To.Should().Be(bubble);
         world.GetFrame(ball).Should().Be(bubble);
-        ((last.Pose.Position - center).Length - 20).Should()
+        ((last.Pose.Position - center).Length - 20)
+            .Should()
             .BeGreaterThan(radius, "the ball did not touch the bubble one step earlier");
         double depth = entry.Pose.Position.Length - 20;
         depth.Should().BeLessThanOrEqualTo(radius).And.BeGreaterThan(radius - 5 * Dt - 1e-6);
-        (entry.Pose.Position - (last.Pose.Position + (Double3)last.LinearVelocity * Dt - center)).Length.Should()
+        (entry.Pose.Position - (last.Pose.Position + (Double3)last.LinearVelocity * Dt - center))
+            .Length.Should()
             .BeLessThan(1e-6);
 
         // Turn back slowly. The ball stays in the child until it is fully outside plus the margin. A body's intent acts in
         // the step of the tick after the one that writes it, so the turn starts one step later than the tick that sets it.
         pilot.Once = body => body.SetVelocity(new(-1, 0, 0));
         world.Tick();
-        FrameBounds bounds = FrameBounds.Sphere(20);
+        var bounds = FrameBounds.Sphere(20);
         double margin = bounds.ExitMargin(radius);
         int ticksInside = 0;
-        TickUntil(world, () =>
-        {
-            if (HandOffsSent(faults).Count > 1)
-                return true;
-            world.GetFrame(ball).Should().Be(bubble);
-            bounds.FullyOutside(world.PoseInOwnFrame(ball).Position, radius, margin).Should().BeFalse();
-            ticksInside++;
-            return false;
-        }, 300);
+        TickUntil(
+            world,
+            () =>
+            {
+                if (HandOffsSent(faults).Count > 1)
+                    return true;
+                world.GetFrame(ball).Should().Be(bubble);
+                bounds.FullyOutside(world.PoseInOwnFrame(ball).Position, radius, margin).Should().BeFalse();
+                ticksInside++;
+                return false;
+            },
+            300
+        );
         HandOffsSent(faults).Should().HaveCount(2);
         HandOff exit = HandOffsSent(faults)[1];
         exit.From.Should().Be(bubble);
@@ -404,7 +549,14 @@ public sealed class HandOffTests
         FrameHandle left = Bubble(world: world, parent: space, pose: At(-10.6), radius: 10);
         FrameHandle right = Bubble(world: world, parent: space, pose: At(10.4), radius: 10);
         // A ball of radius 1 between them touches both bubbles, the right one more deeply.
-        Entity ball = world.Spawn(new() { Frame = space, Pose = At(0), Body = BallBody(1f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = BallBody(1f),
+            }
+        );
 
         world.Tick();
 
@@ -421,32 +573,51 @@ public sealed class HandOffTests
         // Numeric frames off: the test checks that the fighter's hull leaves the system of space.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        var carrierHull = new BodyDesc(Shape: new BoxShapeDesc(new(20, 10, 60)), Mass: 1e6f, LinearDamping: 0,
-            AngularDamping: 0);
-        Entity carrierOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = carrierHull,
-            AsFrame = new(FrameBounds.Sphere(200))
-        });
+        var carrierHull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(20, 10, 60)),
+            Mass: 1e6f,
+            LinearDamping: 0,
+            AngularDamping: 0
+        );
+        Entity carrierOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = carrierHull,
+                AsFrame = new(FrameBounds.Sphere(200)),
+            }
+        );
         FrameHandle carrier = world.GetOwnedFrame(carrierOwner);
         var cockpitFloor = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(1, 0.1f, 1)), new(new(0, -0.9f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(1, 0.1f, 1)), new(new(0, -0.9f, 0), Quaternion.Identity)),
         ]);
-        var fighterHull = new BodyDesc(Shape: new BoxShapeDesc(new(2, 1, 4)), Mass: 1000, LinearDamping: 0,
+        var fighterHull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(2, 1, 4)),
+            Mass: 1000,
+            LinearDamping: 0,
             AngularDamping: 0,
-            InteriorShape: cockpitFloor);
-        Entity fighterOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(260),
-            LinearVelocity = new Vector3(-60, 0, 0),
-            Body = fighterHull,
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+            InteriorShape: cockpitFloor
+        );
+        Entity fighterOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(260),
+                LinearVelocity = new Vector3(-60, 0, 0),
+                Body = fighterHull,
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         FrameHandle fighter = world.GetOwnedFrame(fighterOwner);
-        Entity pilot = world.Spawn(new() { Frame = fighter, Pose = At(0), Body = BoxBody(0.3f) });
+        Entity pilot = world.Spawn(
+            new()
+            {
+                Frame = fighter,
+                Pose = At(0),
+                Body = BoxBody(0.3f),
+            }
+        );
 
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 120);
 
@@ -469,7 +640,8 @@ public sealed class HandOffTests
         Tick(world, 10);
         HandOffsSent(faults).Should().ContainSingle();
         world.GetFrame(fighterOwner).Should().Be(carrier);
-        (world.Frames.LocalPose(fighter).Position - world.PoseInOwnFrame(fighterOwner).Position).Length.Should()
+        (world.Frames.LocalPose(fighter).Position - world.PoseInOwnFrame(fighterOwner).Position)
+            .Length.Should()
             .BeLessThan(1e-9);
         world.Errors.Should().BeEmpty();
     }
@@ -479,24 +651,34 @@ public sealed class HandOffTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(5)), Mass: 1000, Restitution: 0, LinearDamping: 0,
-            AngularDamping: 0);
-        Entity ownerA = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(50))
-        });
-        Entity ownerB = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(40),
-            LinearVelocity = new Vector3(-10, 0, 0),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(60))
-        });
-        FrameHandle a = world.GetOwnedFrame(ownerA), b = world.GetOwnedFrame(ownerB);
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(5)),
+            Mass: 1000,
+            Restitution: 0,
+            LinearDamping: 0,
+            AngularDamping: 0
+        );
+        Entity ownerA = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(50)),
+            }
+        );
+        Entity ownerB = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(40),
+                LinearVelocity = new Vector3(-10, 0, 0),
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(60)),
+            }
+        );
+        FrameHandle a = world.GetOwnedFrame(ownerA),
+            b = world.GetOwnedFrame(ownerB);
         // The bubbles overlap from the start, so each hull has a ghost in the other frame.
         world.Tick();
         faults.Jolt.HasGhostIn(ownerA, b).Should().BeTrue();
@@ -512,8 +694,10 @@ public sealed class HandOffTests
         world.Frames.LinearVelocity(b).X.Should().BeGreaterThan(-7);
         double gap = world.Frames.LocalPose(b).Position.X - world.Frames.LocalPose(a).Position.X;
         gap.Should().BeGreaterThan(9.9, "the hull centers are that far apart when the hulls do not overlap");
-        faults.Outputs.SelectMany(output => output.Contacts).Should().Contain(c =>
-            (c.A == ownerA && c.B == ownerB) || (c.A == ownerB && c.B == ownerA));
+        faults
+            .Outputs.SelectMany(output => output.Contacts)
+            .Should()
+            .Contain(c => (c.A == ownerA && c.B == ownerB) || (c.A == ownerB && c.B == ownerA));
         world.Errors.Should().BeEmpty();
     }
 
@@ -522,13 +706,15 @@ public sealed class HandOffTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world, 1e6f);
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = BoxBody(2, mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = BoxBody(2, mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A big hall inside the ship. The ship's hull would fit in the hall's bubble, and touches it.
         Bubble(world: world, parent: ship, pose: At(5), radius: 30);
@@ -546,25 +732,29 @@ public sealed class HandOffTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world, 1e6f);
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = BoxBody(2, mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = BoxBody(2, mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A big annex of the ship, whose hull is outside the ship's bubble, so every step hands the annex out into
         // space. The test turns each of those reports into a move of the annex into itself, as a bug would, so the
         // sync point refuses it and the tree keeps the annex inside the ship. Beside the ship, the annex's bubble would
         // touch the ship's hull, which would fit in it.
-        Entity annexOwner = world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = At(33),
-            Body = BoxBody(1, mass: 10),
-            AsFrame = new(FrameBounds.Sphere(30))
-        });
+        Entity annexOwner = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(33),
+                Body = BoxBody(1, mass: 10),
+                AsFrame = new(FrameBounds.Sphere(30)),
+            }
+        );
         FrameHandle annex = world.GetOwnedFrame(annexOwner);
         faults.EditOutput = output =>
         {
@@ -585,8 +775,13 @@ public sealed class HandOffTests
         sent.Should().NotContain(handOff => handOff.Entity == shipOwner, "the tree keeps the annex inside the ship");
         // Physics follows the tree, so each step starts with the annex's hull back in the ship's system, and each step
         // sends the same wrong hand-off again. The sync point refuses each one and records it once.
-        sent.Should().HaveCount(3).And.OnlyContain(handOff => handOff.Entity == annexOwner && handOff.From == ship && handOff.To == annex);
-        world.Errors.Should().HaveCount(3).And.OnlyContain(error => error.Contains(annexOwner.ToString()) && error.Contains("refused the hand-off"));
+        sent.Should()
+            .HaveCount(3)
+            .And.OnlyContain(handOff => handOff.Entity == annexOwner && handOff.From == ship && handOff.To == annex);
+        world
+            .Errors.Should()
+            .HaveCount(3)
+            .And.OnlyContain(error => error.Contains(annexOwner.ToString()) && error.Contains("refused the hand-off"));
 #endif
     }
 
@@ -594,20 +789,26 @@ public sealed class HandOffTests
     /// A carrier bubble of radius 200 m, 1 km along +X from the origin of space, and a fighter 1,260 m along +X that
     /// flies at 60 m/s toward the carrier, whose bubble it fits in.
     /// </summary>
-    private static (FrameHandle Space, FrameHandle Carrier, Entity FighterOwner, FrameHandle Fighter)
-        FighterApproachingCarrier(World world, Pilot? pilot = null)
+    private static (
+        FrameHandle Space,
+        FrameHandle Carrier,
+        Entity FighterOwner,
+        FrameHandle Fighter
+    ) FighterApproachingCarrier(World world, Pilot? pilot = null)
     {
         FrameHandle space = Space(world);
         FrameHandle carrier = Bubble(world: world, parent: space, pose: At(1000), radius: 200);
-        Entity fighterOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(1260),
-            LinearVelocity = new Vector3(-60, 0, 0),
-            Body = BoxBody(2, mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = pilot is null ? [] : [pilot]
-        });
+        Entity fighterOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1260),
+                LinearVelocity = new Vector3(-60, 0, 0),
+                Body = BoxBody(2, mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Components = pilot is null ? [] : [pilot],
+            }
+        );
         return (space, carrier, fighterOwner, world.GetOwnedFrame(fighterOwner));
     }
 
@@ -620,8 +821,10 @@ public sealed class HandOffTests
         // acts in the step of the tick after the one that writes it. So the tick that sees the hull one step short of
         // the bubble writes the stop, and the step of the next tick starts from the tree's pose with no speed.
         var pilot = new Pilot();
-        (FrameHandle space, FrameHandle carrier, Entity fighterOwner, FrameHandle fighter) =
-            FighterApproachingCarrier(world, pilot);
+        (FrameHandle space, FrameHandle carrier, Entity fighterOwner, FrameHandle fighter) = FighterApproachingCarrier(
+            world,
+            pilot
+        );
         double touchingX = 1000 + 200 + BoxBody(2).Shape.BoundingRadius();
         pilot.EveryTick = body =>
         {
@@ -642,7 +845,12 @@ public sealed class HandOffTests
         ticks.Should().Throw<ContractException>().WithMessage($"*{fighterOwner}*");
 #else
         TickUntil(world, () => world.Errors.Count > 0, 120);
-        world.Errors.Should().ContainSingle().Which.Should().Contain(fighterOwner.ToString()).And.Contain("ignored the hand-off");
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(fighterOwner.ToString())
+            .And.Contain("ignored the hand-off");
         faults.Outputs[^1].HandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);
 
         // The tree still has the fighter in space, where it was before the refused step. It stopped there, so the next
@@ -667,8 +875,9 @@ public sealed class HandOffTests
     {
         // Numeric frames off: the test checks that the fighter's hull is in the system of space after the reparent.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
-        (FrameHandle space, FrameHandle carrier, Entity fighterOwner, FrameHandle fighter) =
-            FighterApproachingCarrier(world);
+        (FrameHandle space, FrameHandle carrier, Entity fighterOwner, FrameHandle fighter) = FighterApproachingCarrier(
+            world
+        );
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 120);
         world.Frames.Parent(fighter).Should().Be(carrier);
 
@@ -698,14 +907,16 @@ public sealed class HandOffTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         FrameHandle hangar = Bubble(world: world, parent: space, pose: At(1000), radius: 30);
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(1040),
-            LinearVelocity = new Vector3(-60, 0, 0),
-            Body = BoxBody(2, mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(10))
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1040),
+                LinearVelocity = new Vector3(-60, 0, 0),
+                Body = BoxBody(2, mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(10)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 60);
         HandOffsSent(faults).Should().ContainSingle().Which.To.Should().Be(hangar);
@@ -729,16 +940,38 @@ public sealed class HandOffTests
     public void CharacterWalkingOutOfAFrameIsRecreatedInTheParent()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        var gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
-        world.Spawn(new() { Frame = ground, Pose = At(0, -0.5), Body = FloorBody(100) });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = FloorBody(100),
+            }
+        );
         // A frame for a building on the ground. The same gravity holds inside.
         FrameHandle building = Bubble(world: world, parent: ground, pose: At(0, 0, 0), radius: 10, gravity: gravity);
         // The building's floor reaches past its bubble, so the walker has ground under it until it leaves the frame.
-        world.Spawn(new() { Frame = building, Pose = At(0, -0.5), Body = FloorBody(15) });
+        world.Spawn(
+            new()
+            {
+                Frame = building,
+                Pose = At(0, -0.5),
+                Body = FloorBody(15),
+            }
+        );
         var body = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
         var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new(4, 0, 0)) };
-        Entity walker = world.Spawn(new() { Frame = building, Pose = At(0, 0.95), Body = body, Components = [pilot] });
+        Entity walker = world.Spawn(
+            new()
+            {
+                Frame = building,
+                Pose = At(0, 0.95),
+                Body = body,
+                Components = [pilot],
+            }
+        );
 
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 300);
 
@@ -767,13 +1000,28 @@ public sealed class HandOffTests
     public void CharacterWalkingOutOfAFrameWithoutAFloorOfItsOwnStandsOnTheGhostOfTheParentsFloor()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        var gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
-        world.Spawn(new() { Frame = ground, Pose = At(0, -0.5), Body = FloorBody(100) });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = FloorBody(100),
+            }
+        );
         FrameHandle building = Bubble(world: world, parent: ground, pose: At(0, 0, 0), radius: 10, gravity: gravity);
         var body = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
         var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new(4, 0, 0)) };
-        Entity walker = world.Spawn(new() { Frame = building, Pose = At(0, 0.95), Body = body, Components = [pilot] });
+        Entity walker = world.Spawn(
+            new()
+            {
+                Frame = building,
+                Pose = At(0, 0.95),
+                Body = body,
+                Components = [pilot],
+            }
+        );
 
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 300);
 

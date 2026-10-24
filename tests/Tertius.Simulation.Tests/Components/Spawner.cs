@@ -19,7 +19,8 @@ public sealed class Spawner(
     int count = 1,
     long onTick = 0,
     int every = 0,
-    int priority = 0) : IComponent
+    int priority = 0
+) : IComponent
 {
     private bool spawnedOnce;
     public int Priority => priority;
@@ -34,12 +35,16 @@ public sealed class Spawner(
             return;
         spawnedOnce = true;
         for (int i = 0; i < count; i++)
-            Children.Add(self.Spawn(new()
-            {
-                Frame = self.Frame,
-                Pose = self.PoseInOwnFrame(),
-                Components = childComponents?.Invoke() ?? []
-            }));
+            Children.Add(
+                self.Spawn(
+                    new()
+                    {
+                        Frame = self.Frame,
+                        Pose = self.PoseInOwnFrame(),
+                        Components = childComponents?.Invoke() ?? [],
+                    }
+                )
+            );
     }
 
     // A spawner with every == 0 spawns on the first tick it runs at or after onTick. Testing the tick number and not a

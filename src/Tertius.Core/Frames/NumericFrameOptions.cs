@@ -108,39 +108,69 @@ internal sealed record NumericFrameOptions
         Check(RecenterDistance, nameof(RecenterDistance));
         Check(NestDistance, nameof(NestDistance));
         if (!(ThrustWindow > 0))
-            throw new ArgumentOutOfRangeException(nameof(ThrustWindow), ThrustWindow,
-                "The thrust window must be longer than zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ThrustWindow),
+                ThrustWindow,
+                "The thrust window must be longer than zero."
+            );
         // At zero, the thrust clock counts every body as one that thrusts, also a body without intents.
         if (!(MinThrustAcceleration > 0))
-            throw new ArgumentOutOfRangeException(nameof(MinThrustAcceleration), MinThrustAcceleration,
-                "The minimum thrust acceleration must be more than zero, or every tick is a thrust tick.");
+            throw new ArgumentOutOfRangeException(
+                nameof(MinThrustAcceleration),
+                MinThrustAcceleration,
+                "The minimum thrust acceleration must be more than zero, or every tick is a thrust tick."
+            );
         if (!(ThrustOnset > 0))
-            throw new ArgumentOutOfRangeException(nameof(ThrustOnset), ThrustOnset,
-                "The thrust onset must be longer than zero, or every body thrusts.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ThrustOnset),
+                ThrustOnset,
+                "The thrust onset must be longer than zero, or every body thrusts."
+            );
         if (!(NestGrid > 0) || double.IsInfinity(NestGrid) || Math.ScaleB(1, Math.ILogB(NestGrid)) != NestGrid)
-            throw new ArgumentOutOfRangeException(nameof(NestGrid), NestGrid,
-                "The grid of nesting frames must be a power of two meters.");
+            throw new ArgumentOutOfRangeException(
+                nameof(NestGrid),
+                NestGrid,
+                "The grid of nesting frames must be a power of two meters."
+            );
         // A frame lands within 0.87 grid steps of its nest, which must be inside half the nest distance.
         if (NestDistance < 2 * NestGrid)
-            throw new ArgumentOutOfRangeException(nameof(NestDistance), NestDistance,
-                "The nest distance must be at least two grid steps.");
+            throw new ArgumentOutOfRangeException(
+                nameof(NestDistance),
+                NestDistance,
+                "The nest distance must be at least two grid steps."
+            );
         if (LeaveSpeed > CreateSpeed)
-            throw new ArgumentOutOfRangeException(nameof(LeaveSpeed), LeaveSpeed,
-                "The speed to leave a numeric frame cannot pass the speed to get one.");
+            throw new ArgumentOutOfRangeException(
+                nameof(LeaveSpeed),
+                LeaveSpeed,
+                "The speed to leave a numeric frame cannot pass the speed to get one."
+            );
         if (ThrustLeaveSpeed > ThrustCreateSpeed)
-            throw new ArgumentOutOfRangeException(nameof(ThrustLeaveSpeed), ThrustLeaveSpeed,
-                "The speed to leave a numeric frame cannot pass the speed to get one.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ThrustLeaveSpeed),
+                ThrustLeaveSpeed,
+                "The speed to leave a numeric frame cannot pass the speed to get one."
+            );
         // A group that thrusts gets a falling frame from a lower speed than a group of free bodies, and keeps it down to a
         // lower speed. The update's first test of a semantic frame relies on it (see FrameTree.NeedsWork).
         if (ThrustCreateSpeed > CreateSpeed)
-            throw new ArgumentOutOfRangeException(nameof(ThrustCreateSpeed), ThrustCreateSpeed,
-                "A group that thrusts cannot need more speed to get a numeric frame than a group of free bodies.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ThrustCreateSpeed),
+                ThrustCreateSpeed,
+                "A group that thrusts cannot need more speed to get a numeric frame than a group of free bodies."
+            );
         if (ThrustLeaveSpeed > LeaveSpeed)
-            throw new ArgumentOutOfRangeException(nameof(ThrustLeaveSpeed), ThrustLeaveSpeed,
-                "A group that thrusts cannot need more speed to keep a numeric frame than a group of free bodies.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ThrustLeaveSpeed),
+                ThrustLeaveSpeed,
+                "A group that thrusts cannot need more speed to keep a numeric frame than a group of free bodies."
+            );
         if (LeaveDistance > CreateDistance)
-            throw new ArgumentOutOfRangeException(nameof(LeaveDistance), LeaveDistance,
-                "The distance to leave a numeric frame cannot pass the distance to get one.");
+            throw new ArgumentOutOfRangeException(
+                nameof(LeaveDistance),
+                LeaveDistance,
+                "The distance to leave a numeric frame cannot pass the distance to get one."
+            );
     }
 
     private static void Check(double value, string name)

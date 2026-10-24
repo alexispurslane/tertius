@@ -17,13 +17,20 @@ public sealed class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
-        faults.EditNextOutput =
-            output => output.Bodies.Add(new(Entity: body, Frame: gone, Pose: TestWorld.At(3),
-                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+        faults.EditNextOutput = output =>
+            output.Bodies.Add(
+                new(
+                    Entity: body,
+                    Frame: gone,
+                    Pose: TestWorld.At(3),
+                    LinearVelocity: Vector3.Zero,
+                    AngularVelocity: Vector3.Zero
+                )
+            );
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = world.Tick;
@@ -48,15 +55,26 @@ public sealed class InvariantHandOffTests
             Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
             // The edit runs on the physics thread during the first tick, after the constructor has set the fields it reads.
             faults.EditNextOutput = output =>
-                output.HandOffs.Add(new HandOff(Entity: HullOwner, From: Test.Root, To: handOffTo(Hull, Inner), Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
-            HullOwner = Test.World.Spawn(new SpawnDesc
-            {
-                Frame = Test.Root,
-                Pose = TestWorld.At(100),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-                Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-                LinearVelocity = new Vector3(1, 2, 3),
-            });
+                output.HandOffs.Add(
+                    new HandOff(
+                        Entity: HullOwner,
+                        From: Test.Root,
+                        To: handOffTo(Hull, Inner),
+                        Pose: TestWorld.At(1),
+                        LinearVelocity: Vector3.Zero,
+                        AngularVelocity: Vector3.Zero
+                    )
+                );
+            HullOwner = Test.World.Spawn(
+                new SpawnDesc
+                {
+                    Frame = Test.Root,
+                    Pose = TestWorld.At(100),
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+                    Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                    LinearVelocity = new Vector3(1, 2, 3),
+                }
+            );
             Hull = Test.World.GetOwnedFrame(HullOwner);
             Inner = Test.World.SpawnStaticFrame(Hull, TestWorld.At(10), radius: 5);
         }
@@ -73,8 +91,14 @@ public sealed class InvariantHandOffTests
 
         scene.World.Tick();
 
-        scene.World.Frames.Parent(scene.Hull).Should().Be(scene.Test.Root, "a frame cannot become a child of its own descendant");
-        scene.World.GetFrame(scene.HullOwner).Should().Be(scene.Test.Root, "the owner's row follows the frame's parent");
+        scene
+            .World.Frames.Parent(scene.Hull)
+            .Should()
+            .Be(scene.Test.Root, "a frame cannot become a child of its own descendant");
+        scene
+            .World.GetFrame(scene.HullOwner)
+            .Should()
+            .Be(scene.Test.Root, "the owner's row follows the frame's parent");
         scene.World.Errors.Should().ContainSingle(error => error.Contains("refused the hand-off"));
         scene.World.AssertInvariants();
     }
@@ -128,13 +152,22 @@ public sealed class InvariantHandOffTests
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        faults.EditNextOutput =
- output => output.Bodies.Add(new BodyState(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+        faults.EditNextOutput = output =>
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: body,
+                    Frame: gone,
+                    Pose: TestWorld.At(3),
+                    LinearVelocity: Vector3.Zero,
+                    AngularVelocity: Vector3.Zero
+                )
+            );
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = () => world.Tick();
 
-        tick.Should().NotThrow("the report names a frame that was destroyed, and a bad report must not break the world");
+        tick.Should()
+            .NotThrow("the report names a frame that was destroyed, and a bad report must not break the world");
         world.GetFrame(body).Should().Be(test.Root);
         world.AssertInvariants();
     }
@@ -145,10 +178,25 @@ public sealed class InvariantHandOffTests
         using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity =
- new Vector3(1, 2, 3), Body = TestWorld.Ball });
-        faults.EditNextOutput =
- output => output.Bodies.Add(new BodyState(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: new Vector3(4, 5, 6), AngularVelocity: new Vector3(0, 1, 0)));
+        Entity body = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(7),
+                LinearVelocity = new Vector3(1, 2, 3),
+                Body = TestWorld.Ball,
+            }
+        );
+        faults.EditNextOutput = output =>
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: body,
+                    Frame: gone,
+                    Pose: TestWorld.At(3),
+                    LinearVelocity: new Vector3(4, 5, 6),
+                    AngularVelocity: new Vector3(0, 1, 0)
+                )
+            );
         world.Destroy(gone.Entity).Should().BeTrue();
 
         world.Tick();
@@ -167,21 +215,40 @@ public sealed class InvariantHandOffTests
         World world = test.World;
         FrameHandle station = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 100);
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(500), radius: 5);
-        Entity owner = world.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-            Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-            LinearVelocity = new Vector3(1, 2, 3),
-        });
+        Entity owner = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(100),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+                Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                LinearVelocity = new Vector3(1, 2, 3),
+            }
+        );
         FrameHandle hull = world.GetOwnedFrame(owner);
         // Jolt sends the state of the hull's frame in this step, because the hull moves. The edit adds the broken body
         // state and a legal hand-off next to it.
         faults.EditNextOutput = output =>
         {
-            output.Bodies.Add(new BodyState(Entity: owner, Frame: gone, Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
-            output.HandOffs.Add(new HandOff(Entity: owner, From: test.Root, To: station, Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+            output.Bodies.Add(
+                new BodyState(
+                    Entity: owner,
+                    Frame: gone,
+                    Pose: TestWorld.At(1),
+                    LinearVelocity: Vector3.Zero,
+                    AngularVelocity: Vector3.Zero
+                )
+            );
+            output.HandOffs.Add(
+                new HandOff(
+                    Entity: owner,
+                    From: test.Root,
+                    To: station,
+                    Pose: TestWorld.At(1),
+                    LinearVelocity: Vector3.Zero,
+                    AngularVelocity: Vector3.Zero
+                )
+            );
         };
         world.Destroy(gone.Entity).Should().BeTrue();
 

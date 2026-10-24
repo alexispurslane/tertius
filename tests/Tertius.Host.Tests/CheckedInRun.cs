@@ -12,14 +12,15 @@ namespace Tertius.Host.Tests;
 /// backend, with the headless renderer for its captures. A test class takes a subclass as its fixture, so that all of its
 /// tests read the one run.
 /// </summary>
-[SuppressMessage("Tertius.Unions", "TU0004",
-    Justification =
-        "An open set: the base of the test fixtures, one per checked-in script. A new script adds a fixture, and no code switches over them.")]
+[SuppressMessage(
+    "Tertius.Unions",
+    "TU0004",
+    Justification = "An open set: the base of the test fixtures, one per checked-in script. A new script adds a fixture, and no code switches over them."
+)]
 public abstract class CheckedInRun : IDisposable
 {
-    protected CheckedInRun(string name) : this(name, beforeEachTick: null)
-    {
-    }
+    protected CheckedInRun(string name)
+        : this(name, beforeEachTick: null) { }
 
     /// <summary>
     /// With <paramref name="beforeEachTick"/>, the run calls it with the world and the scene at every tick from tick 0 to
@@ -43,13 +44,18 @@ public abstract class CheckedInRun : IDisposable
                 if (World.TickNumber == lastWatched)
                     return;
                 lastWatched = World.TickNumber;
-                beforeEachTick!(World, Scene);
+                beforeEachTick(World, Scene);
             }
 
             if (beforeEachTick != null)
                 playback = new WatchedPlayback(playback, Watch);
-            Result = ScriptRunner.Run(script: Script, world: World, scene: Scene, outputFolder: Folder,
-                playback: playback);
+            Result = ScriptRunner.Run(
+                script: Script,
+                world: World,
+                scene: Scene,
+                outputFolder: Folder,
+                playback: playback
+            );
             if (beforeEachTick != null)
                 Watch();
         }

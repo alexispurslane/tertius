@@ -134,8 +134,10 @@ public sealed class EventListTests
 
         Event[] events = list.AsSpan().ToArray();
 
-        events.Select(e => e.Is<Note>() ? $"note {e.As<Note>().Value}" : $"heal {e.As<Heal>().Amount}")
-            .Should().Equal("note 1", "heal 2", "note 3");
+        events
+            .Select(e => e.Is<Note>() ? $"note {e.As<Note>().Value}" : $"heal {e.As<Heal>().Amount}")
+            .Should()
+            .Equal("note 1", "heal 2", "note 3");
     }
 
     [Fact]
@@ -339,10 +341,14 @@ public sealed class EventListTests
                 list.Add(new Note { Value = i });
             try
             {
-                list.Of<Note>().Where((ref n) =>
-                {
-                    return ++calls == 4 ? throw new InvalidOperationException("boom") : n.Value % 2 == 0;
-                }).Remove();
+                list.Of<Note>()
+                    .Where(
+                        (ref n) =>
+                        {
+                            return ++calls == 4 ? throw new InvalidOperationException("boom") : n.Value % 2 == 0;
+                        }
+                    )
+                    .Remove();
             }
             finally
             {

@@ -148,15 +148,16 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
 
     private void Post(InputEvent e) => target.Post(e);
 
-    private static FlyKey? FlyKeyOf(Key key) => key switch
-    {
-        Silk.NET.Input.Key.W => FlyKey.Forward,
-        Silk.NET.Input.Key.S => FlyKey.Back,
-        Silk.NET.Input.Key.A => FlyKey.Left,
-        Silk.NET.Input.Key.D => FlyKey.Right,
-        Silk.NET.Input.Key.Q => FlyKey.Down,
-        Silk.NET.Input.Key.E => FlyKey.Up,
-        Silk.NET.Input.Key.ShiftLeft or Silk.NET.Input.Key.ShiftRight => FlyKey.Fast,
-        _ => null
-    };
+    private static FlyKey? FlyKeyOf(Key key) =>
+        key switch
+        {
+            Silk.NET.Input.Key.W => FlyKey.Forward,
+            Silk.NET.Input.Key.S => FlyKey.Back,
+            Silk.NET.Input.Key.A => FlyKey.Left,
+            Silk.NET.Input.Key.D => FlyKey.Right,
+            Silk.NET.Input.Key.Q => FlyKey.Down,
+            Silk.NET.Input.Key.E => FlyKey.Up,
+            Silk.NET.Input.Key.ShiftLeft or Silk.NET.Input.Key.ShiftRight => FlyKey.Fast,
+            _ => null,
+        };
 }

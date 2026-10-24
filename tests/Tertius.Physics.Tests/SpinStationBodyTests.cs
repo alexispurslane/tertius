@@ -24,19 +24,30 @@ public sealed class SpinStationBodyTests
 {
     private const double StationRate = 0.31321;
 
-    private static readonly BodyDesc UndampedCrate =
-        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc UndampedCrate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
 
     // A ball of 10 kg and radius 0.5 m has the moment of inertia 2/5 m r² = 1 kg m² about every axis.
-    private static readonly BodyDesc UndampedBall =
-        new(Shape: new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc UndampedBall = new(
+        Shape: new SphereShapeDesc(0.5f),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     private static readonly BodyDesc Ball = new(Shape: new SphereShapeDesc(0.5f), Mass: 10);
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame)
     {
@@ -51,22 +62,34 @@ public sealed class SpinStationBodyTests
     private static Station SpawnStation(World world, bool firstMove, float bubble = 150, double rate = StationRate)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(bubble)) }
-            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: rate), firstMove));
+        Entity owner = world.Spawn(
+            new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(bubble)) }.Spinning(
+                world,
+                new(Tilt: DQuaternion.Identity, Rate: rate),
+                firstMove
+            )
+        );
         return new(space, world.GetOwnedFrame(owner));
     }
 
-    private static Entity SpawnIn(World world, Station station, BodyDesc body, Double3 place,
+    private static Entity SpawnIn(
+        World world,
+        Station station,
+        BodyDesc body,
+        Double3 place,
         Vector3 angularVelocity = default,
-        IComponent? component = null) =>
-        world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = new(place, DQuaternion.Identity),
-            AngularVelocity = angularVelocity,
-            Body = body,
-            Components = component is null ? [] : [component]
-        });
+        IComponent? component = null
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = new(place, DQuaternion.Identity),
+                AngularVelocity = angularVelocity,
+                Body = body,
+                Components = component is null ? [] : [component],
+            }
+        );
 
     /// <summary>The angle between two rotations, in radians.</summary>
     private static double AngleBetween(DQuaternion a, DQuaternion b) =>
@@ -127,8 +150,7 @@ public sealed class SpinStationBodyTests
         public void Step(DQuaternion start, DQuaternion end)
         {
             Double3 chord = DQuaternion.Identity.AngularVelocityTo(end.Conjugate() * turn * start, dt) * factor;
-            DQuaternion inStation =
-                DQuaternion.FromAxisAngle(chord, chord.Length * dt) * start.Conjugate() * Rotation;
+            DQuaternion inStation = DQuaternion.FromAxisAngle(chord, chord.Length * dt) * start.Conjugate() * Rotation;
             DQuaternion next = end * inStation;
             turn = next * Rotation.Conjugate();
             Rotation = next;
@@ -148,26 +170,32 @@ public sealed class SpinStationBodyTests
         Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
         Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
-        DPose start = DPose.Compose(station.Pose(world), new(place, DQuaternion.Identity));
+        var start = DPose.Compose(station.Pose(world), new(place, DQuaternion.Identity));
 
-        double worstPlace = 0, worstAngle = 0, farthestInStation = 0;
+        double worstPlace = 0,
+            worstAngle = 0,
+            farthestInStation = 0;
         for (int tick = 0; tick < 600 * world.Options.TickRate; tick++)
         {
             world.Tick();
             DPose pose = world.PoseIn(crate, station.Space);
             worstPlace = Math.Max(worstPlace, Double3.Distance(pose.Position, start.Position));
             worstAngle = Math.Max(worstAngle, AngleBetween(pose.Rotation, start.Rotation));
-            farthestInStation = Math.Max(farthestInStation,
-                Double3.Distance(world.PoseIn(crate, station.Frame).Position, place));
+            farthestInStation = Math.Max(
+                farthestInStation,
+                Double3.Distance(world.PoseIn(crate, station.Frame).Position, place)
+            );
         }
 
         // Within 1 mm, as the design asks, and in fact within 0.5 µm: the shadow also takes back Jolt's rounding of the
         // crate's place in every step, without which the crate drifted 1.6 µm in a run of this test.
-        worstPlace.Should().BeLessThan(5e-7,
-            "a free body moves on a straight line in inertial space, and this one is at rest there");
+        worstPlace
+            .Should()
+            .BeLessThan(5e-7, "a free body moves on a straight line in inertial space, and this one is at rest there");
         worstAngle.Should().BeLessThan(1e-4, "a free body keeps its inertial angular velocity, which is zero here");
-        farthestInStation.Should().BeGreaterThan(99,
-            "the station turned under the crate, so in its axes the crate went round the axis");
+        farthestInStation
+            .Should()
+            .BeGreaterThan(99, "the station turned under the crate, so in its axes the crate went round the axis");
         world.GetFrame(crate).Should().Be(station.Frame);
         world.Errors.Should().BeEmpty();
     }
@@ -179,8 +207,11 @@ public sealed class SpinStationBodyTests
         // The frame's origin moves on the inertial line of a free body at its place, and the crate's update acts on its
         // semantic place and chord, its home's offset and frame velocity included, so it feels only the difference
         // (docs/plans/spin-gravity.md, "The origin of a falling frame").
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls);
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls
+        );
         Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
         Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
@@ -208,16 +239,25 @@ public sealed class SpinStationBodyTests
         // axes, and it moves from the station's system into a falling frame below it. Its velocity shadow moves with it, by
         // the difference of the two homes' places and frame velocities, as its state does. A shadow that stayed behind would
         // read the move as a contact of 15.7 m/s and turn it.
-        NumericFrameOptions rules = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 };
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: options => options.NumericFrames = rules);
+        NumericFrameOptions rules = NumericFrameTesting.EveryGroupFalls with
+        {
+            CreateSpeed = 10,
+            LeaveSpeed = 4,
+        };
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: options => options.NumericFrames = rules
+        );
         Station station = SpawnStation(world: world, firstMove: false);
         var place = new Double3(50, 0, 0);
         Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: place);
         Double3 start = station.Pose(world).TransformPoint(place);
         world.Tick();
-        world.PhysicsHomeOf(crate).Should().Be(station.Frame,
-            "the crate rested in the station's axes while the station held still");
+        world
+            .PhysicsHomeOf(crate)
+            .Should()
+            .Be(station.Frame, "the crate rested in the station's axes while the station held still");
 
         double worst = 0;
         bool fell = false;
@@ -243,8 +283,11 @@ public sealed class SpinStationBodyTests
         Station station = SpawnStation(world: world, firstMove: false, bubble: 1000);
         var place = new Double3(20, 0, 0);
         Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
-        var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping,
-            dt: world.DeltaTime);
+        var path = new ExpectedPath(
+            place: station.Pose(world).TransformPoint(place),
+            damping: Crate.LinearDamping,
+            dt: world.DeltaTime
+        );
         // In its first step the station holds still, and the crate with it.
         world.Tick();
 
@@ -259,8 +302,9 @@ public sealed class SpinStationBodyTests
 
         worst.Should().BeLessThan(1e-3);
         Double3 inStation = world.PoseIn(crate, station.Frame).Position;
-        Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z).Should().BeGreaterThan(21,
-            "the damping drew the crate into the turn, and it drifted outward");
+        Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z)
+            .Should()
+            .BeGreaterThan(21, "the damping drew the crate into the turn, and it drifted outward");
         world.GetFrame(crate).Should().Be(station.Frame);
         world.Errors.Should().BeEmpty();
     }
@@ -284,15 +328,19 @@ public sealed class SpinStationBodyTests
             Station station = SpawnStation(world: world, firstMove: false, bubble: 2000, rate: 0.02);
             var place = new Double3(30, 0, 0);
             Entity crate = SpawnIn(world: world, station: station, body: Crate, place: place);
-            var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: Crate.LinearDamping,
-                dt: world.DeltaTime);
+            var path = new ExpectedPath(
+                place: station.Pose(world).TransformPoint(place),
+                damping: Crate.LinearDamping,
+                dt: world.DeltaTime
+            );
             double dt = world.DeltaTime;
             // In its first step the station holds still, and the crate with it. Its second step is the first that
             // turns, whose update starts from Jolt's state and writes the first shadow.
             world.Tick();
 
             double worst = 0;
-            int broken = 0, missing = 0;
+            int broken = 0,
+                missing = 0;
             ShadowTracking? last = null;
             for (int tick = 1; tick < 600 * world.Options.TickRate; tick++)
             {
@@ -307,19 +355,23 @@ public sealed class SpinStationBodyTests
                     continue;
                 }
 
-                if (last is { } before &&
-                    (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
+                if (
+                    last is { } before
+                    && (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt)
+                )
                     broken++;
                 last = shadow;
             }
 
             missing.Should().Be(0, "a dynamic body in a turning frame keeps a shadow after every update");
-            broken.Should()
+            broken
+                .Should()
                 .Be(0, "every update after the first starts from the shadow, and none takes the contact branch");
             worst.Should().BeLessThan(1e-3);
             Double3 inStation = world.PoseIn(crate, station.Frame).Position;
-            Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z).Should().BeGreaterThan(300,
-                "the damping drew the crate into the turn, and it drifted outward");
+            Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z)
+                .Should()
+                .BeGreaterThan(300, "the damping drew the crate into the turn, and it drifted outward");
             world.GetFrame(crate).Should().Be(station.Frame);
             world.Errors.Should().BeEmpty();
         }
@@ -337,8 +389,16 @@ public sealed class SpinStationBodyTests
         Station station = SpawnStation(world: world, firstMove: false, bubble: 1000);
         var place = new Double3(30, 0, 0);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate with { Mass = 16 }, place: place,
-            component: pilot);
+        Entity crate = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedCrate with
+            {
+                Mass = 16,
+            },
+            place: place,
+            component: pilot
+        );
         var path = new ExpectedPath(place: station.Pose(world).TransformPoint(place), damping: 0, dt: world.DeltaTime);
         double dt = world.DeltaTime;
         world.Tick();
@@ -356,8 +416,10 @@ public sealed class SpinStationBodyTests
             path.Step(start, station.Pose(world), tick == 1 ? Double3.Zero : push);
             worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, path.Place));
             backend.ShadowOf(crate).TryGetValue(out ShadowTracking shadow).Should().BeTrue();
-            if (last is { } before &&
-                (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
+            if (
+                last is { } before
+                && (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt)
+            )
                 broken++;
             last = shadow;
         }
@@ -378,12 +440,20 @@ public sealed class SpinStationBodyTests
         // The impulse acts at the start of its step, in the station's axes at that moment, so the crate leaves its place in
         // inertial space along that direction, at Δv = J / m = 1 m/s. If the update carried the change as a chord of the step
         // that ended, it would turn it once more, by the station's turn of a step: 5.2 mm/s sideways at 60 Hz.
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: options => options.TickRate = tickRate);
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: options => options.TickRate = tickRate
+        );
         Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(30, 0, 0),
-            component: pilot);
+        Entity crate = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedCrate,
+            place: new(30, 0, 0),
+            component: pilot
+        );
         Double3 rest = station.Pose(world).TransformPoint(new(30, 0, 0));
         Tick(world, tickRate / 2);
 
@@ -418,18 +488,33 @@ public sealed class SpinStationBodyTests
         // over, and its origin moves to the crate once the crate is 1 m from it. Either shift moves every member, its
         // velocity shadow too. A shadow that kept its old velocities would read the shift as a contact and turn it, and one
         // that kept its old place would take the offset back in one step.
-        NumericFrameOptions rules = shift == "drain"
-            ? NumericFrameTesting.EveryGroupFalls
-            : NumericFrameTesting.EveryGroupFalls with { DrainSpeed = 1e6, RecenterDistance = 1 };
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: options => options.NumericFrames = rules);
+        NumericFrameOptions rules =
+            shift == "drain"
+                ? NumericFrameTesting.EveryGroupFalls
+                : NumericFrameTesting.EveryGroupFalls with
+                {
+                    DrainSpeed = 1e6,
+                    RecenterDistance = 1,
+                };
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: options => options.NumericFrames = rules
+        );
         Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(30, 0, 0),
-            component: pilot);
+        Entity crate = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedCrate,
+            place: new(30, 0, 0),
+            component: pilot
+        );
         Double3 rest = station.Pose(world).TransformPoint(new(30, 0, 0));
         Tick(world, 30);
-        world.Frames.IsNumeric(world.PhysicsHomeOf(crate)).Should()
+        world
+            .Frames.IsNumeric(world.PhysicsHomeOf(crate))
+            .Should()
             .BeTrue("the crate fell in a numeric frame below the station");
 
         var change = new Double3(0, 1.2, 1.6);
@@ -460,8 +545,13 @@ public sealed class SpinStationBodyTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero,
-            component: pilot);
+        Entity ball = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedBall,
+            place: Double3.Zero,
+            component: pilot
+        );
         DQuaternion still = station.Pose(world).Rotation;
         Tick(world, 30);
 
@@ -499,8 +589,13 @@ public sealed class SpinStationBodyTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world: world, firstMove: false);
         var pilot = new Pilot();
-        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero,
-            component: pilot);
+        Entity ball = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedBall,
+            place: Double3.Zero,
+            component: pilot
+        );
         DQuaternion rotation = station.Pose(world).Rotation;
         double dt = world.DeltaTime;
         world.Tick();
@@ -540,8 +635,13 @@ public sealed class SpinStationBodyTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world: world, firstMove: false);
         var spin = new Vector3(2, 0, 0);
-        Entity ball = SpawnIn(world: world, station: station, body: UndampedBall, place: Double3.Zero,
-            angularVelocity: spin);
+        Entity ball = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedBall,
+            place: Double3.Zero,
+            angularVelocity: spin
+        );
         DQuaternion start = station.Pose(world).Rotation;
         Double3 inertialSpin = start.Rotate((Double3)spin);
         double spawnTime = world.Time;
@@ -571,11 +671,15 @@ public sealed class SpinStationBodyTests
         // In its first step the station holds still. Jolt turns the ball by its chord, the spin plus half a step of its
         // damping (see AngularChord), shrunk by the damping factor.
         float dt = world.DeltaTime;
-        double firstChord = spin.X * (1 + Ball.AngularDamping * 0.5f * dt) *
-                            MathF.Max(0f, 1f - Ball.AngularDamping * dt);
-        DQuaternion firstTurn = DQuaternion.FromAxisAngle(still.Rotate(Double3.UnitX), firstChord * dt);
-        var tumble = new ExpectedTumble(rotation: firstTurn * still, firstTurn: firstTurn, damping: Ball.AngularDamping,
-            dt: dt);
+        double firstChord =
+            spin.X * (1 + Ball.AngularDamping * 0.5f * dt) * MathF.Max(0f, 1f - Ball.AngularDamping * dt);
+        var firstTurn = DQuaternion.FromAxisAngle(still.Rotate(Double3.UnitX), firstChord * dt);
+        var tumble = new ExpectedTumble(
+            rotation: firstTurn * still,
+            firstTurn: firstTurn,
+            damping: Ball.AngularDamping,
+            dt: dt
+        );
         world.Tick();
 
         double worst = 0;
@@ -604,8 +708,13 @@ public sealed class SpinStationBodyTests
         Tick(world, 10);
         var pilot = new Pilot();
         // Without damping, so that Jolt's damping does not shorten the steering chord.
-        Entity crate = SpawnIn(world: world, station: station, body: UndampedCrate, place: new(100, 0, 0),
-            component: pilot);
+        Entity crate = SpawnIn(
+            world: world,
+            station: station,
+            body: UndampedCrate,
+            place: new(100, 0, 0),
+            component: pilot
+        );
         var target = new DPose(new(99.9, 0.2, 0.1), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.2));
         pilot.EveryTick = body => body.SteerTo(target);
         world.Tick();
@@ -650,10 +759,16 @@ public sealed class SpinStationBodyTests
         }
 
         worst.Should().BeLessThan(1e-3);
-        backend.BodiesIn(station.Frame).Should().Contain(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Primary &&
-                BodyUserData.Names(facts.UserData, person) && facts.Motion == MotionType.Dynamic,
-            "the person is in its rigid form");
+        backend
+            .BodiesIn(station.Frame)
+            .Should()
+            .Contain(
+                facts =>
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Primary
+                    && BodyUserData.Names(facts.UserData, person)
+                    && facts.Motion == MotionType.Dynamic,
+                "the person is in its rigid form"
+            );
         world.Errors.Should().BeEmpty();
     }
 
@@ -671,7 +786,8 @@ public sealed class SpinStationBodyTests
         Entity person = SpawnIn(world: world, station: station, body: Person, place: new(0.2, 0, 0));
         DQuaternion rotation = world.PoseIn(person, station.Frame).Rotation;
 
-        double worstAngle = 0, worstSpin = 0;
+        double worstAngle = 0,
+            worstSpin = 0;
         for (int tick = 0; tick < 120; tick++)
         {
             world.Tick();
@@ -679,10 +795,16 @@ public sealed class SpinStationBodyTests
             worstSpin = Math.Max(worstSpin, world.AngularVelocityIn(person, station.Frame).Length());
         }
 
-        backend.BodiesIn(station.Frame).Should().Contain(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Primary &&
-                BodyUserData.Names(facts.UserData, person) && facts.Motion == MotionType.Dynamic,
-            "the person is in its rigid form");
+        backend
+            .BodiesIn(station.Frame)
+            .Should()
+            .Contain(
+                facts =>
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Primary
+                    && BodyUserData.Names(facts.UserData, person)
+                    && facts.Motion == MotionType.Dynamic,
+                "the person is in its rigid form"
+            );
         worstAngle.Should().BeLessThan(1e-6);
         worstSpin.Should().BeLessThan(1e-6f);
         world.Errors.Should().BeEmpty();

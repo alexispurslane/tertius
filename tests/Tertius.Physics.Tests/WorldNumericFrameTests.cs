@@ -1,7 +1,7 @@
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -33,22 +33,37 @@ public sealed class WorldNumericFrameTests
 
     private static readonly double OrbitSpeed = Math.Sqrt(EarthMu / OrbitRadius);
 
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
-    private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
+    private static readonly BodyDesc Hull = new(
+        Shape: new BoxShapeDesc(new(5)),
+        Mass: 1e4f,
+        LinearDamping: 0,
         AngularDamping: 0,
-        InteriorShape: new SphereShapeDesc(0.05f));
+        InteriorShape: new SphereShapeDesc(0.05f)
+    );
 
     /// <summary>
     /// The hull of a ship of <see cref="StickingWall"/>: a ball of radius 10 cm and 1 kg, light beside a crate of 10 kg,
     /// that nothing slows down. A hull meets only static bodies and other hulls, so the crates pass it by.
     /// </summary>
-    private static readonly BodyDesc WallHull = new(Shape: new SphereShapeDesc(0.1f), Mass: 1, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc WallHull = new(
+        Shape: new SphereShapeDesc(0.1f),
+        Mass: 1,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     private static FrameHandle Earth(World world) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
@@ -61,26 +76,39 @@ public sealed class WorldNumericFrameTests
     {
         // The lookahead links the crate to a heavy block 100 m away, so their frame's origin stays near the block and the
         // crate drifts away from it, where tidal gravity acts.
-        using World world = NewWorld(backend: out _, debugChecks: false,
-            configure: o => o.NumericFrames = new() { LookaheadTime = 1e4 });
+        using World world = NewWorld(
+            backend: out _,
+            debugChecks: false,
+            configure: o => o.NumericFrames = new() { LookaheadTime = 1e4 }
+        );
         FrameHandle earth = Earth(world);
-        world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius),
-            LinearVelocity = new(0, 0, OrbitSpeed),
-            Body = Crate with { Mass = 1e5f }
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius),
+                LinearVelocity = new(0, 0, OrbitSpeed),
+                Body = Crate with { Mass = 1e5f },
+            }
+        );
         var start = new Double3(OrbitRadius + 100, 0, 30);
         var startVelocity = new Double3(0.1, 0, OrbitSpeed + 0.05);
-        Entity crate = world.Spawn(new()
-            { Frame = earth, Pose = new(start, DQuaternion.Identity), LinearVelocity = startVelocity, Body = Crate });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = new(start, DQuaternion.Identity),
+                LinearVelocity = startVelocity,
+                Body = Crate,
+            }
+        );
 
         // The orbit of the spawn's state, stepped in doubles with the scheme that Jolt uses for every body. A float of
         // 7,672 m/s steps by 488 µm/s, which would move the crate by up to 3 cm in the two minutes.
         double dt = world.DeltaTime;
         // Jolt steps a chord, so the scheme starts from the chord of the spawn's instant velocity: half a step of gravity behind it.
-        Double3 position = start, velocity = startVelocity - GravityField.Point(EarthMu).AtPrecise(start) * (dt / 2);
+        Double3 position = start,
+            velocity = startVelocity - GravityField.Point(EarthMu).AtPrecise(start) * (dt / 2);
         const int ticks = 120 * 60;
         for (int i = 0; i < ticks; i++)
         {
@@ -95,7 +123,8 @@ public sealed class WorldNumericFrameTests
         Double3 reached = world.PoseIn(crate, earth).Position;
         (reached - position).Length.Should().BeLessThan(1e-3, $"the crate reached {reached}, and the orbit {position}");
         FrameHandle home = world.PhysicsHomeOf(crate);
-        (reached - world.Frames.HomeOffset(home, earth)).Length.Should()
+        (reached - world.Frames.HomeOffset(home, earth))
+            .Length.Should()
             .BeGreaterThan(100, "the crate stayed away from the frame's origin");
     }
 
@@ -105,14 +134,16 @@ public sealed class WorldNumericFrameTests
         using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
         var pilot = new Pilot();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(0, OrbitRadius),
-            LinearVelocity = new(OrbitSpeed, 0, 0),
-            Body = Crate,
-            Components = [pilot]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(0, OrbitRadius),
+                LinearVelocity = new(OrbitSpeed, 0, 0),
+                Body = Crate,
+                Components = [pilot],
+            }
+        );
 
         pilot.Once = body => body.SetVelocity(new(7672.123456, 0, 0));
         Tick(world, 1);
@@ -137,8 +168,15 @@ public sealed class WorldNumericFrameTests
         using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
         var velocity = new Double3(7672.123456, 0, 0);
-        Entity crate = world.Spawn(new()
-            { Frame = earth, Pose = At(0, OrbitRadius), LinearVelocity = velocity, Body = Crate });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(0, OrbitRadius),
+                LinearVelocity = velocity,
+                Body = Crate,
+            }
+        );
 
         Tick(world, 1);
 
@@ -157,9 +195,24 @@ public sealed class WorldNumericFrameTests
         FrameHandle ground = Ground(world, 0);
         var lighter = new Pilot();
         var heavier = new Pilot();
-        Entity a = world.Spawn(new() { Frame = ground, Pose = At(FarOut), Body = Crate, Components = [lighter] });
-        world.Spawn(new()
-            { Frame = ground, Pose = At(FarOut, 0, 1.5), Body = Crate with { Mass = 20 }, Components = [heavier] });
+        Entity a = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(FarOut),
+                Body = Crate,
+                Components = [lighter],
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(FarOut, 0, 1.5),
+                Body = Crate with { Mass = 20 },
+                Components = [heavier],
+            }
+        );
         Tick(world, 2);
         world.Frames.Numeric(world.PhysicsHomeOf(a)).Should().Be(NumericMode.Resting);
 
@@ -186,15 +239,30 @@ public sealed class WorldNumericFrameTests
         var upperLog = new CollisionLog();
         var lowerFrames = new FrameChangedLog();
         var upperFrames = new FrameChangedLog();
-        Entity lower = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [lowerLog, lowerFrames] });
+        Entity lower = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = Cube(),
+                Components = [lowerLog, lowerFrames],
+            }
+        );
         var nudge = new Pilot();
-        Entity upper = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 1.5), Body = Cube(), Components = [upperLog, upperFrames, nudge] });
+        Entity upper = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1.5),
+                Body = Cube(),
+                Components = [upperLog, upperFrames, nudge],
+            }
+        );
         Tick(world, 1);
         TickUntil(world, () => !IsAwake(backend, ground, lower) && !IsAwake(backend, ground, upper), 600);
         IsAwake(backend, ground, upper).Should().BeFalse("the stack came to rest");
-        int lowerContacts = lowerLog.Seen.Count, upperContacts = upperLog.Seen.Count;
+        int lowerContacts = lowerLog.Seen.Count,
+            upperContacts = upperLog.Seen.Count;
         DPose upperPose = world.PoseIn(upper, ground);
 
         // From now on, every slow group gets a resting frame: the floor and the stack on it.
@@ -227,20 +295,31 @@ public sealed class WorldNumericFrameTests
     {
         using World world = NewWorld(backend: out _, configure: o => o.NumericFrames = EverySlowGroupRests);
         FrameHandle ground = Ground(world, 0);
-        Entity crate = world.Spawn(new() { Frame = ground, Pose = At(2), Body = Cube() });
-        Entity owner = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(-20, 0, 3),
-            Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
-            AsFrame = new(FrameBounds.Sphere(5))
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(2),
+                Body = Cube(),
+            }
+        );
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-20, 0, 3),
+                Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
+                AsFrame = new(FrameBounds.Sphere(5)),
+            }
+        );
         FrameHandle ship = world.Frames.TryGetFrame(owner, out FrameHandle own) ? own : FrameHandle.Null;
 
         Tick(world, 5);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should()
+        world
+            .Frames.IsNumeric(world.Frames.TreeParent(ship))
+            .Should()
             .BeTrue("the ship's frame lies in its hull's numeric frame");
         var all = new List<FrameHandle>();
         world.Frames.GetAll(all);
@@ -258,7 +337,9 @@ public sealed class WorldNumericFrameTests
         near.Should().Contain(crate);
 
         // The frame's pose and motion read relative to its parent, ground, not to the numeric frame between them.
-        (world.Frames.LocalPose(ship).Position - new Double3(-20, 0, 3)).Length.Should().BeLessThan(1e-6);
+        (world.Frames.LocalPose(ship).Position - new Double3(-20, 0, 3))
+            .Length.Should()
+            .BeLessThan(1e-6);
         world.Frames.LinearVelocity(ship).Length.Should().BeLessThan(1e-6);
         (world.Frames.PointToParent(ship, Double3.Zero) - new Double3(-20, 0, 3)).Length.Should().BeLessThan(1e-6);
         world.Frames.PointFromParent(ship, new(-20, 0, 3)).Length.Should().BeLessThan(1e-6);
@@ -274,20 +355,24 @@ public sealed class WorldNumericFrameTests
         using World world = NewWorld(backend: out _, configure: o => o.NumericFrames = EverySlowGroupRests);
         FrameHandle ground = Ground(world, 0);
         var frames = new FrameChangedLog();
-        Entity owner = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(-20, 0, 3),
-            Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
-            AsFrame = new(FrameBounds.Sphere(5)),
-            Components = [frames]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-20, 0, 3),
+                Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
+                AsFrame = new(FrameBounds.Sphere(5)),
+                Components = [frames],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
 
         Tick(world, 5);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should()
+        world
+            .Frames.IsNumeric(world.Frames.TreeParent(ship))
+            .Should()
             .BeTrue("the ship's frame lies in its hull's numeric frame");
         world.GetFrame(owner).Should().Be(ground);
         frames.Seen.Should().BeEmpty();
@@ -316,16 +401,23 @@ public sealed class WorldNumericFrameTests
             DPose start = self.PoseAtNextStepStartIn(self.Frame);
             Double3 chord = velocity + gravity * (dt / 2);
             Double3 end = velocity + gravity * dt;
-            self.MoveOnRails(new(Pose: new(start.Position + chord * dt, start.Rotation), ChordVelocity: chord,
-                Velocity: end, Acceleration: gravity, AngularVelocity: Double3.Zero,
-                AngularAcceleration: Double3.Zero));
+            self.MoveOnRails(
+                new(
+                    Pose: new(start.Position + chord * dt, start.Rotation),
+                    ChordVelocity: chord,
+                    Velocity: end,
+                    Acceleration: gravity,
+                    AngularVelocity: Double3.Zero,
+                    AngularAcceleration: Double3.Zero
+                )
+            );
             velocity = end;
         }
     }
 
     /// <summary>
     /// As outside a ship in orbit: a person, and what it touches, fall freely in a numeric frame. Under the rules of
-    /// <see cref="NumericFrameTesting.EveryGroupFalls"/> a kinematic floor needs a following frame at any speed, so the
+    /// <see cref="EveryGroupFalls"/> a kinematic floor needs a following frame at any speed, so the
     /// person's group takes it. The floor's <see cref="FreeFall"/> drops it with the field, so the following frame lands on
     /// that fall and falls with the field. Before ticket ter-zsku the floor had no motion intent, and its following frame
     /// fell by the field all the same. Since ter-zsku such a frame holds still, as its floor does without numeric frames.
@@ -337,14 +429,23 @@ public sealed class WorldNumericFrameTests
         FrameHandle ground = Ground(world, 9.81f);
         // A kinematic floor, which can fall with a numeric frame. A static body never does: it stays in its own system.
         var fall = new FreeFall(new(0, -9.81f, 0));
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Kinematic),
-            Components = [fall]
-        });
-        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, 0.92), Body = Person });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Kinematic),
+                Components = [fall],
+            }
+        );
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.92),
+                Body = Person,
+            }
+        );
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue("the person stands on the floor in the frame ground");
 
@@ -355,14 +456,17 @@ public sealed class WorldNumericFrameTests
         world.Errors.Should().BeEmpty();
         world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Following);
         world.Frames.Anchors(world.PhysicsHomeOf(person), floor).Should().BeTrue("the floor anchors the person's home");
-        (world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground) - new Double3(0, -9.81f, 0)).Length
-            .Should().BeLessThan(1e-6, "the home lands on the floor's fall, so it falls with the field");
+        (world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground) - new Double3(0, -9.81f, 0))
+            .Length.Should()
+            .BeLessThan(1e-6, "the home lands on the floor's fall, so it falls with the field");
         world.PhysicsHomeOf(floor).Should().Be(world.PhysicsHomeOf(person));
-        world.Snapshot.IsStanding(person).Should()
+        world
+            .Snapshot.IsStanding(person)
+            .Should()
             .BeFalse("in free fall the effective gravity is below the zero-gravity threshold");
-        (world.PoseIn(person, ground).Position.Y - world.PoseIn(floor, ground).Position.Y).Should().BeApproximately(
-            1.42, 0.05,
-            "the person floats where it stood, above the floor that falls with it");
+        (world.PoseIn(person, ground).Position.Y - world.PoseIn(floor, ground).Position.Y)
+            .Should()
+            .BeApproximately(1.42, 0.05, "the person floats where it stood, above the floor that falls with it");
     }
 
     [Fact]
@@ -370,16 +474,25 @@ public sealed class WorldNumericFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius),
-            LinearVelocity = new(0, 0, OrbitSpeed),
-            Body = Hull,
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius),
+                LinearVelocity = new(0, 0, OrbitSpeed),
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
-        Entity cargo = world.Spawn(new() { Frame = ship, Pose = At(1, 2, 3), Body = Crate });
+        Entity cargo = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(1, 2, 3),
+                Body = Crate,
+            }
+        );
 
         DPose start = world.PoseIn(owner, earth);
         Tick(world, 120);
@@ -388,13 +501,16 @@ public sealed class WorldNumericFrameTests
         InFallingFrame(world, owner).Should().BeTrue();
         world.Frames.Parent(ship).Should().Be(earth);
         world.GetFrame(cargo).Should().Be(ship);
-        (world.PoseIn(cargo, ship).Position - new Double3(1, 2, 3)).Length.Should()
+        (world.PoseIn(cargo, ship).Position - new Double3(1, 2, 3))
+            .Length.Should()
             .BeLessThan(1e-3, "the cargo floats where it was in the ship");
         DPose shipPose = world.PoseIn(owner, earth);
-        (shipPose.Position - start.Position).Length.Should()
+        (shipPose.Position - start.Position)
+            .Length.Should()
             .BeGreaterThan(15_000, "the ship moved along its orbit for 2 s");
-        (world.PoseIn(cargo, earth).Position - shipPose.TransformPoint(new(1, 2, 3))).Length.Should().BeLessThan(1e-3,
-            "the cargo moved with the ship");
+        (world.PoseIn(cargo, earth).Position - shipPose.TransformPoint(new(1, 2, 3)))
+            .Length.Should()
+            .BeLessThan(1e-3, "the cargo moved with the ship");
     }
 
     /// <summary>
@@ -407,14 +523,16 @@ public sealed class WorldNumericFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius),
-            LinearVelocity = new(0, 0, OrbitSpeed),
-            Body = Hull,
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius),
+                LinearVelocity = new(0, 0, OrbitSpeed),
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
         Tick(world, 2);
         InFallingFrame(world, owner).Should().BeTrue();
@@ -425,10 +543,13 @@ public sealed class WorldNumericFrameTests
         Tick(world, 60);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.TreeParent(ship).Should()
+        world
+            .Frames.TreeParent(ship)
+            .Should()
             .Be(earth, "a frame with a static hull moves relative to its semantic parent");
         world.PhysicsHomeOf(owner).Should().Be(earth);
-        (world.PoseIn(owner, earth).Position - parked.Position).Length.Should()
+        (world.PoseIn(owner, earth).Position - parked.Position)
+            .Length.Should()
             .BeLessThan(1e-6, "a parked ship does not fall");
         world.VelocityIn(owner, earth).Length.Should().BeLessThan(1e-6);
     }
@@ -443,21 +564,31 @@ public sealed class WorldNumericFrameTests
     /// lookahead time of 2 s. So at the sync point of its thirtieth tick of thrust the crate is 170 m from the wall's center
     /// and falls, and about 43 ticks later the wall comes within the reach, about 2 s before the crate hits it.
     /// </summary>
-    private static (Entity Wall, Entity Crate) CrateThatThrustsAtAWall(World world, FrameHandle ground,
+    private static (Entity Wall, Entity Crate) CrateThatThrustsAtAWall(
+        World world,
+        FrameHandle ground,
         IComponent[] wallComponents,
-        IComponent[] crateComponents)
+        IComponent[] crateComponents
+    )
     {
-        Entity wall = world.Spawn(new()
-        {
-            Frame = ground,
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static),
-            Components = wallComponents
-        });
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(-200), LinearVelocity = new(60, 0, 0), Body = Crate,
-            Components = [new Thruster(Crate.Mass), .. crateComponents]
-        });
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static),
+                Components = wallComponents,
+            }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-200),
+                LinearVelocity = new(60, 0, 0),
+                Body = Crate,
+                Components = [new Thruster(Crate.Mass), .. crateComponents],
+            }
+        );
         return (wall, crate);
     }
 
@@ -473,25 +604,35 @@ public sealed class WorldNumericFrameTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
-        (Entity wall, Entity crate) =
-            CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [], crateComponents: []);
+        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(
+            world: world,
+            ground: ground,
+            wallComponents: [],
+            crateComponents: []
+        );
         Tick(world, OnsetTicks);
-        InFallingFrame(world, crate).Should()
+        InFallingFrame(world, crate)
+            .Should()
             .BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");
 
         TickUntil(world, () => world.PhysicsHomeOf(crate) == ground, 60);
 
         world.PhysicsHomeOf(crate).Should().Be(ground, "the group of the crate and the wall takes the wall's home");
-        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(-100,
-            "the crate joins the wall's system about 2 s before it hits the wall");
+        world
+            .PoseIn(crate, ground)
+            .Position.X.Should()
+            .BeLessThan(-100, "the crate joins the wall's system about 2 s before it hits the wall");
         world.PhysicsHomeOf(wall).Should().Be(ground, "a static body stays in its own system");
-        world.Frames.AnchorGhosts.IsEmpty.Should()
+        world
+            .Frames.AnchorGhosts.IsEmpty.Should()
             .BeTrue("the wall is a real body of the crate's system, so no frame keeps a ghost of it");
 
         Tick(world, 180);
         world.Errors.Should().BeEmpty();
         world.PhysicsHomeOf(crate).Should().Be(ground);
-        world.PoseIn(crate, ground).Position.X.Should()
+        world
+            .PoseIn(crate, ground)
+            .Position.X.Should()
             .BeLessThan(0, "the crate hit the wall and did not pass through");
     }
 
@@ -510,10 +651,15 @@ public sealed class WorldNumericFrameTests
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
         var crateLog = new CollisionLog();
-        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world: world, ground: ground, wallComponents: [wallLog],
-            crateComponents: [crateLog]);
+        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(
+            world: world,
+            ground: ground,
+            wallComponents: [wallLog],
+            crateComponents: [crateLog]
+        );
         Tick(world, OnsetTicks);
-        InFallingFrame(world, crate).Should()
+        InFallingFrame(world, crate)
+            .Should()
             .BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");
         TickUntil(world, () => world.PhysicsHomeOf(crate) == ground, 60);
         world.PhysicsHomeOf(crate).Should().Be(ground, "the merge test links the crate to the wall");
@@ -523,17 +669,21 @@ public sealed class WorldNumericFrameTests
         Tick(world, 300);
 
         world.Errors.Should().BeEmpty();
-        world.PoseIn(crate, ground).Position.X.Should()
+        world
+            .PoseIn(crate, ground)
+            .Position.X.Should()
             .BeLessThan(0, "the crate hit the wall and did not pass through");
         crateLog.NewsOf(wall).Should().Equal([Started], "the crate rests against the wall");
         wallLog.NewsOf(crate).Should().Equal(Started);
-        crateLog.Seen.Single().Impulse.Should()
+        crateLog
+            .Seen.Single()
+            .Impulse.Should()
             .BeApproximately(600f, 30f, "the crate of 10 kg approached the static wall at 60 m/s");
     }
 
     /// <summary>
     /// With no gravity, a crate rests against a static wall, and then every group falls
-    /// (<see cref="NumericFrameTesting.EveryGroupFalls"/>). The merge test links the crate to the wall, and a group with a
+    /// (<see cref="EveryGroupFalls"/>). The merge test links the crate to the wall, and a group with a
     /// static body never falls, so the crate stays in the wall's system, and the contact goes on there (ter-dhkf).
     /// </summary>
     [Fact]
@@ -542,12 +692,19 @@ public sealed class WorldNumericFrameTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 0);
         var crateLog = new CollisionLog();
-        Entity wall = world.Spawn(new()
-            { Frame = ground, Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static) });
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(-1.1), LinearVelocity = new(0.2, 0, 0), Body = Crate, Components = [crateLog]
-        });
+        Entity wall = world.Spawn(
+            new() { Frame = ground, Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static) }
+        );
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-1.1),
+                LinearVelocity = new(0.2, 0, 0),
+                Body = Crate,
+                Components = [crateLog],
+            }
+        );
         Tick(world, 60);
         crateLog.NewsOf(wall).Should().Equal(Started);
 
@@ -563,7 +720,7 @@ public sealed class WorldNumericFrameTests
     /// <summary>
     /// With no gravity, two crates touch, and then one drifts away at 1 cm/s. Jolt holds their pair while they are within
     /// its speculative contact distance of 2 cm, so their contact goes on for about 2 s. Meanwhile every slow group gets a
-    /// resting frame (<see cref="NumericFrameTesting.EverySlowGroupRests"/>), and both crates move into one. In the new
+    /// resting frame (<see cref="EverySlowGroupRests"/>), and both crates move into one. In the new
     /// system, Jolt finds their pair a few millimeters apart, without a touch, which would wait for a touch as a new pair.
     /// The move hands it the contact instead, so the contact ends only when the crates are 2 cm apart, and not at the move.
     /// </summary>
@@ -574,9 +731,23 @@ public sealed class WorldNumericFrameTests
         FrameHandle ground = Ground(world, 0);
         var leftLog = new CollisionLog();
         var pilot = new Pilot();
-        Entity left =
-            world.Spawn(new() { Frame = ground, Pose = At(-0.5), Body = Crate, Components = [leftLog, pilot] });
-        Entity right = world.Spawn(new() { Frame = ground, Pose = At(0.5), Body = Crate });
+        Entity left = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-0.5),
+                Body = Crate,
+                Components = [leftLog, pilot],
+            }
+        );
+        Entity right = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0.5),
+                Body = Crate,
+            }
+        );
         Tick(world, 10);
         leftLog.NewsOf(right).Should().Equal(Started);
 
@@ -597,12 +768,13 @@ public sealed class WorldNumericFrameTests
         leftLog.NewsOf(right).Should().Equal(Started, Ended);
         long ended = leftLog.Ended.Single().Tick;
         ended.Should().BeGreaterThan(moved + 5, "the move did not end the contact");
-        (ended - drift).Should()
+        (ended - drift)
+            .Should()
             .BeInRange(110, 160, "the contact ends when the crates are about 2 cm apart, after about 2 s");
     }
 
     /// <summary>
-    /// With no gravity and every group falling (<see cref="NumericFrameTesting.EveryGroupFalls"/>), a crate of 10 kg flies
+    /// With no gravity and every group falling (<see cref="EveryGroupFalls"/>), a crate of 10 kg flies
     /// at 3 m/s at a static cube of triangles. The merge test links the crate to the cube, an anchor, and a group with a
     /// static body never falls, so the crate stays in the cube's system and meets the real cube (ter-dhkf). Each hears one
     /// Collision, whose impulse is the crate's mass times 3 m/s. Before, the crate fell in a frame of its own, and the ghost
@@ -614,11 +786,25 @@ public sealed class WorldNumericFrameTests
         using World world = NewWorld(backend: out _, configure: o => o.NumericFrames = EveryGroupFalls);
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
-        Entity wall = world.Spawn(new()
-            { Frame = ground, Body = new(Shape: MeshCube(0.5f), Motion: BodyMotion.Static), Components = [wallLog] });
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Body = new(Shape: MeshCube(0.5f), Motion: BodyMotion.Static),
+                Components = [wallLog],
+            }
+        );
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-            { Frame = ground, Pose = At(-3), LinearVelocity = new(3, 0, 0), Body = Crate, Components = [crateLog] });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(-3),
+                LinearVelocity = new(3, 0, 0),
+                Body = Crate,
+                Components = [crateLog],
+            }
+        );
         Tick(world, 2);
         world.PhysicsHomeOf(crate).Should().Be(ground, "the group with the static cube takes the cube's home");
         world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue();
@@ -628,7 +814,9 @@ public sealed class WorldNumericFrameTests
         world.Errors.Should().BeEmpty();
         crateLog.NewsOf(wall).Should().Equal(Started);
         wallLog.NewsOf(crate).Should().Equal(Started);
-        crateLog.Seen.Single().Impulse.Should()
+        crateLog
+            .Seen.Single()
+            .Impulse.Should()
             .BeApproximately(30f, 3f, "the cube came at the crate of 10 kg at 3 m/s");
     }
 
@@ -646,19 +834,39 @@ public sealed class WorldNumericFrameTests
         // distance at which Jolt makes a contact. The wall's hull, 2 m behind the wall's center, is a member too, and a
         // second crate in the frame puts the members' center of mass 3.9 m from the center of mass of the hull and the
         // sleeper.
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
+        using World world = NewWorld(
+            backend: out JoltPhysicsBackend backend,
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 }
+        );
         FrameHandle ground = Space(world);
         WallInShip wall = StickingWall(world: world, space: ground, x: 1000, cratesSide: 1);
-        Entity sleeper = world.Spawn(new() { Frame = ground, Pose = At(1001.04), Body = Crate });
-        Entity other = world.Spawn(new() { Frame = ground, Pose = At(1009), Body = Crate });
+        Entity sleeper = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1001.04),
+                Body = Crate,
+            }
+        );
+        Entity other = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1009),
+                Body = Crate,
+            }
+        );
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(sleeper);
         world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
         world.PhysicsHomeOf(other).Should().Be(home);
-        world.PhysicsHomeOf(wall.Hull).Should()
+        world
+            .PhysicsHomeOf(wall.Hull)
+            .Should()
             .Be(home, "the merge test links the wall's hull to the crates near the wall");
-        backend.HasGhostIn(wall.Wall, home).Should()
+        backend
+            .HasGhostIn(wall.Wall, home)
+            .Should()
             .BeTrue("the wall sticks out of its ship into the ship's tree parent");
         TickUntil(world, () => !IsAwake(backend, home, sleeper), 600);
         IsAwake(backend, home, sleeper).Should().BeFalse("the crate came to rest next to the wall's ghost");
@@ -668,11 +876,15 @@ public sealed class WorldNumericFrameTests
 
         world.Errors.Should().BeEmpty();
         world.PhysicsHomeOf(sleeper).Should().Be(home);
-        double center = (world.PoseIn(wall.Hull, ground).Position.X * WallHull.Mass +
-                         world.PoseIn(sleeper, ground).Position.X * Crate.Mass)
-                        / (WallHull.Mass + Crate.Mass);
-        world.Frames.HomeOffset(home, ground).X.Should().BeApproximately(center, 1e-6,
-            "the frame's origin moved to the center of mass of the hull and the crate");
+        double center =
+            (
+                world.PoseIn(wall.Hull, ground).Position.X * WallHull.Mass
+                + world.PoseIn(sleeper, ground).Position.X * Crate.Mass
+            ) / (WallHull.Mass + Crate.Mass);
+        world
+            .Frames.HomeOffset(home, ground)
+            .X.Should()
+            .BeApproximately(center, 1e-6, "the frame's origin moved to the center of mass of the hull and the crate");
         IsAwake(backend, home, sleeper).Should().BeFalse("the ghost moved without waking the crate next to it");
         backend.HasGhostIn(wall.Wall, home).Should().BeTrue();
     }
@@ -685,17 +897,54 @@ public sealed class WorldNumericFrameTests
         // crate above them puts the members' center of mass 2.5 m above the center of the two crates and the two hulls.
         // Far away, a second falling frame holds a crate that sleeps 4 cm from the ghost of a third wall. The ghost pass puts
         // back a ghost that is not where its wall is relative to the frame, and so wakes the crate next to it.
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
+        using World world = NewWorld(
+            backend: out JoltPhysicsBackend backend,
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 }
+        );
         FrameHandle ground = Space(world);
         StickingWall(world: world, space: ground, x: 1000, cratesSide: 1);
         StickingWall(world: world, space: ground, x: 1010, cratesSide: -1);
         Entity farWall = StickingWall(world: world, space: ground, x: 1200, cratesSide: 1).Wall;
-        Entity left = world.Spawn(new() { Frame = ground, Pose = At(1001.04), Body = Crate });
-        Entity right = world.Spawn(new() { Frame = ground, Pose = At(1008.96), Body = Crate });
-        Entity above = world.Spawn(new() { Frame = ground, Pose = At(1005, 8), Body = Crate });
-        Entity far = world.Spawn(new() { Frame = ground, Pose = At(1201.04), Body = Crate });
-        world.Spawn(new() { Frame = ground, Pose = At(1209), Body = Crate });
+        Entity left = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1001.04),
+                Body = Crate,
+            }
+        );
+        Entity right = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1008.96),
+                Body = Crate,
+            }
+        );
+        Entity above = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1005, 8),
+                Body = Crate,
+            }
+        );
+        Entity far = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1201.04),
+                Body = Crate,
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1209),
+                Body = Crate,
+            }
+        );
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
         FrameHandle farHome = world.PhysicsHomeOf(far);
@@ -704,9 +953,11 @@ public sealed class WorldNumericFrameTests
         world.PhysicsHomeOf(right).Should().Be(home);
         farHome.Should().NotBe(home);
         GhostsIn(backend, home).Should().HaveCount(2, "the frame keeps a ghost of each wall next to its crates");
-        TickUntil(world,
+        TickUntil(
+            world,
             () => !IsAwake(backend, home, left) && !IsAwake(backend, home, right) && !IsAwake(backend, farHome, far),
-            600);
+            600
+        );
         IsAwake(backend, farHome, far).Should().BeFalse("the far crate came to rest next to its wall's ghost");
         Double3 farOrigin = world.Frames.HomeOffset(farHome, ground);
         Double3 farGhost = GhostPosition(backend, farHome, farWall);
@@ -722,7 +973,8 @@ public sealed class WorldNumericFrameTests
         IsAwake(backend, home, right).Should().BeFalse("the ghost of the right wall moved with the frame");
         world.Frames.HomeOffset(farHome, ground).Should().Be(farOrigin, "only the near frame shifted");
         IsAwake(backend, farHome, far).Should().BeFalse("the ghost in the far frame did not move");
-        (GhostPosition(backend, farHome, farWall) - farGhost).Length.Should()
+        (GhostPosition(backend, farHome, farWall) - farGhost)
+            .Length.Should()
             .BeLessThan(1e-6, "the far wall holds still, and its ghost with it");
         backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
     }
@@ -732,14 +984,37 @@ public sealed class WorldNumericFrameTests
     {
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
         // The right wall's hull stays in the frame, which the merge test links to the right crate beside it.
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
+        using World world = NewWorld(
+            backend: out JoltPhysicsBackend backend,
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 }
+        );
         FrameHandle ground = Space(world);
         Entity leftWall = StickingWall(world: world, space: ground, x: 1000, cratesSide: 1).Wall;
         Entity rightWall = StickingWall(world: world, space: ground, x: 1010, cratesSide: -1).Wall;
-        Entity left = world.Spawn(new() { Frame = ground, Pose = At(1001.04), Body = Crate });
-        Entity right = world.Spawn(new() { Frame = ground, Pose = At(1008.96), Body = Crate });
-        Entity above = world.Spawn(new() { Frame = ground, Pose = At(1005, 8), Body = Crate });
+        Entity left = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1001.04),
+                Body = Crate,
+            }
+        );
+        Entity right = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1008.96),
+                Body = Crate,
+            }
+        );
+        Entity above = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1005, 8),
+                Body = Crate,
+            }
+        );
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
         world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
@@ -774,20 +1049,28 @@ public sealed class WorldNumericFrameTests
     /// behind the wall's center. A body that sticks out of a bubble has a ghost in the bubble's tree parent, the home of the
     /// bubble's hull. The merge test links each crate that may touch that ghost to the place of the ghost, whose target is
     /// the hull (ticket ter-4psc), and the hull lies within its reach of the crates near the wall too. So under
-    /// <see cref="NumericFrameTesting.EveryGroupFalls"/> the hull and those crates fall in one numeric frame, which holds the
+    /// <see cref="EveryGroupFalls"/> the hull and those crates fall in one numeric frame, which holds the
     /// wall's ghost.
     /// </summary>
     private static WallInShip StickingWall(World world, FrameHandle space, double x, int cratesSide)
     {
-        Entity hull = world.Spawn(new()
-        {
-            Frame = space, Pose = At(x - 2 * cratesSide), Body = WallHull, AsFrame = new(FrameBounds.Sphere(2))
-        });
-        Entity wall = world.Spawn(new()
-        {
-            Frame = world.GetOwnedFrame(hull), Pose = At(2 * cratesSide),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Kinematic)
-        });
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(x - 2 * cratesSide),
+                Body = WallHull,
+                AsFrame = new(FrameBounds.Sphere(2)),
+            }
+        );
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = world.GetOwnedFrame(hull),
+                Pose = At(2 * cratesSide),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Kinematic),
+            }
+        );
         return new(wall, hull);
     }
 

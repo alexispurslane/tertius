@@ -40,43 +40,57 @@ public static partial class DemoScenes
 
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
-        Entity astronaut = world.Spawn(new()
-        {
-            Frame = shipFrame,
-            Pose = new(AstronautStart, DQuaternion.Identity),
-            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-            Render = new RenderData
+        Entity astronaut = world.Spawn(
+            new()
             {
-                Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
-                BoundingRadius = 1,
-                Flags = RenderFlags.Visible | RenderFlags.CastsShadow
-            },
-            Components = [new PersonControl(new(0, 0.75f, 0))],
-            Subscriptions = [Topics.Input]
-        });
+                Frame = shipFrame,
+                Pose = new(AstronautStart, DQuaternion.Identity),
+                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
+                    Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
+                    BoundingRadius = 1,
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                },
+                Components = [new PersonControl(new(0, 0.75f, 0))],
+                Subscriptions = [Topics.Input],
+            }
+        );
         scene.Add("astronaut", astronaut);
 
         var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
-        var crate = new CrateSpec(HalfExtents: PushedCrateHalfExtents, Mass: PushedCrateMass,
+        var crate = new CrateSpec(
+            HalfExtents: PushedCrateHalfExtents,
+            Mass: PushedCrateMass,
             Mesh: resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
-            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))));
-        var cratePose = new DPose(AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),
-            DQuaternion.Identity);
+            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange)))
+        );
+        var cratePose = new DPose(
+            AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),
+            DQuaternion.Identity
+        );
         scene.Add("free-crate", world.Spawn(crate.Spawn(shipFrame, cratePose, Double3.Zero)));
 
         // A view looks along its -Z. A quarter turn about +Y turns that to +X, toward the hull's port face, after a tilt
         // about the view's own +X has tipped it down by 10 degrees. It stands 8 m to port of the astronaut, 1.5 m above it,
         // and 4.5 m toward the nose. A view 60 degrees high and 16 by 9 sees 8.2 m to each side at that distance, so the
         // astronaut's way of about 11 m toward the nose in the script stays in view.
-        scene.Add("side", world.Spawn(new()
-        {
-            Frame = shipFrame,
-            Pose = new(AstronautStart + new Double3(-8, 1.5, -4.5),
-                DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2) *
-                DQuaternion.FromAxisAngle(Double3.UnitX, -10 * Math.PI / 180)),
-            Render = new RenderData()
-        }));
+        scene.Add(
+            "side",
+            world.Spawn(
+                new()
+                {
+                    Frame = shipFrame,
+                    Pose = new(
+                        AstronautStart + new Double3(-8, 1.5, -4.5),
+                        DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2)
+                            * DQuaternion.FromAxisAngle(Double3.UnitX, -10 * Math.PI / 180)
+                    ),
+                    Render = new RenderData(),
+                }
+            )
+        );
         scene.AddView("astronaut");
         scene.AddView("side");
         world.Camera = astronaut;

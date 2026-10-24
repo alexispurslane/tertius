@@ -39,21 +39,18 @@ public sealed class QueryShapeUnionTests
         return (sphere, box, capsule);
     }
 
-    private static string ArmOf(QueryShape shape) => shape switch
-    {
-        QuerySphere(var radius) => $"sphere {radius}",
-        QueryBox(var halfExtents) => $"box {halfExtents.X} {halfExtents.Y} {halfExtents.Z}",
-        QueryCapsule { HalfHeight: var halfHeight, Radius: var radius } => $"capsule {halfHeight} {radius}",
-        null => "none"
-    };
+    private static string ArmOf(QueryShape shape) =>
+        shape switch
+        {
+            QuerySphere(var radius) => $"sphere {radius}",
+            QueryBox(var halfExtents) => $"box {halfExtents.X} {halfExtents.Y} {halfExtents.Z}",
+            QueryCapsule { HalfHeight: var halfHeight, Radius: var radius } => $"capsule {halfHeight} {radius}",
+            null => "none",
+        };
 
     /// <summary>One shape of each case.</summary>
     private static QueryShape[] OneOfEachCase() =>
-    [
-        new(new QuerySphere(5)),
-        new(new QueryBox(Half)),
-        new(new QueryCapsule(3, 0.5f))
-    ];
+        [new(new QuerySphere(5)), new(new QueryBox(Half)), new(new QueryCapsule(3, 0.5f))];
 
     // ---- The default value ---------------------------------------------------------------------------------------
 
@@ -68,10 +65,7 @@ public sealed class QueryShapeUnionTests
     }
 
     [Fact]
-    public void TheDefaultShapeHasNoReach()
-    {
-        default(QueryShape).BoundingRadius.Should().Be(0);
-    }
+    public void TheDefaultShapeHasNoReach() => default(QueryShape).BoundingRadius.Should().Be(0);
 
     [Fact]
     public void TheDefaultShapeIsRefusedWithAProblemThatSaysItHoldsNoShape()
@@ -230,7 +224,9 @@ public sealed class QueryShapeUnionTests
     {
         // A sphere and a capsule of half height 0 have the same radius and the same zero half height, so only the case
         // can tell them apart. They are two cases even though a query makes one native shape of both.
-        new QueryShape(new QuerySphere(1)).Should().NotBe(new QueryShape(new QueryCapsule(0, 1)));
+        new QueryShape(new QuerySphere(1))
+            .Should()
+            .NotBe(new QueryShape(new QueryCapsule(0, 1)));
         new QueryShape(new QueryCapsule(0, 1)).Should().NotBe(new QueryShape(new QuerySphere(1)));
         (new QueryShape(new QuerySphere(1)) == new QueryShape(new QueryCapsule(0, 1))).Should().BeFalse();
     }
@@ -261,7 +257,11 @@ public sealed class QueryShapeUnionTests
     public void ToStringNamesTheCaseAndItsFieldsAndSaysNoneForTheDefault()
     {
         default(QueryShape).ToString().Should().Be("QueryShape(none)");
-        new QueryShape(new QuerySphere(5)).ToString().Should().StartWith("QueryShape(").And.Contain(nameof(QuerySphere))
+        new QueryShape(new QuerySphere(5))
+            .ToString()
+            .Should()
+            .StartWith("QueryShape(")
+            .And.Contain(nameof(QuerySphere))
             .And.Contain("5");
         new QueryShape(new QueryBox(Half)).ToString().Should().Contain(nameof(QueryBox)).And.Contain("2");
         new QueryShape(new QueryCapsule(3, 0.5f)).ToString().Should().Contain(nameof(QueryCapsule)).And.Contain("0.5");

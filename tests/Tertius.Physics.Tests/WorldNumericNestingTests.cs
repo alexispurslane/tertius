@@ -31,12 +31,20 @@ public sealed class WorldNumericNestingTests
     /// <summary>The grid of a resting frame that nests, in meters: 2^20 m.</summary>
     private const double Grid = 1 << 20;
 
-    private static readonly BodyDesc PodHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
+    private static readonly BodyDesc PodHull = new(
+        Shape: new BoxShapeDesc(new(2)),
+        Mass: 1000,
+        LinearDamping: 0,
         AngularDamping: 0,
-        InteriorShape: new SphereShapeDesc(0.05f));
+        InteriorShape: new SphereShapeDesc(0.05f)
+    );
 
-    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc CrateBody = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A pod with its own frame and a camera in it, and a crate beside it, a light-year out in a frame without gravity.</summary>
     private sealed record Scene(World World, FrameHandle Pod, Entity Crate);
@@ -49,31 +57,50 @@ public sealed class WorldNumericNestingTests
     /// </summary>
     private static Scene PodAndCrate(double speed, NumericFrameOptions? options = null)
     {
-        World world = WorldTesting.NewWorld(backend: out _, configure: o =>
-        {
-            if (options is not null)
-                o.NumericFrames = options;
-        });
+        World world = WorldTesting.NewWorld(
+            backend: out _,
+            configure: o =>
+            {
+                if (options is not null)
+                    o.NumericFrames = options;
+            }
+        );
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e18f), GravityField.None));
-        Entity hull = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = WorldTesting.At(LightYear),
-            LinearVelocity = new(speed, 0, 0),
-            Body = PodHull,
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = WorldTesting.At(LightYear),
+                LinearVelocity = new(speed, 0, 0),
+                Body = PodHull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         FrameHandle pod = world.GetOwnedFrame(hull);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = WorldTesting.At(LightYear, 50),
-            LinearVelocity = new(speed + Drift, 0, 0),
-            Body = CrateBody,
-            Render = new RenderData
-                { Mesh = new(0), Flags = RenderFlags.Visible, BoundingRadius = 1, Scale = Vector3.One }
-        });
-        world.Camera = world.Spawn(new() { Frame = pod, Pose = DPose.Identity, Render = new RenderData() });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = WorldTesting.At(LightYear, 50),
+                LinearVelocity = new(speed + Drift, 0, 0),
+                Body = CrateBody,
+                Render = new RenderData
+                {
+                    Mesh = new(0),
+                    Flags = RenderFlags.Visible,
+                    BoundingRadius = 1,
+                    Scale = Vector3.One,
+                },
+            }
+        );
+        world.Camera = world.Spawn(
+            new()
+            {
+                Frame = pod,
+                Pose = DPose.Identity,
+                Render = new RenderData(),
+            }
+        );
         return new(world, pod, crate);
     }
 
@@ -83,21 +110,29 @@ public sealed class WorldNumericNestingTests
         World world = scene.World;
         world.Snapshot.TryGetPoseIn(scene.Crate, scene.Pod, out DPose inSnapshot).Should().BeTrue();
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot render).Should().BeTrue();
-        RenderInstance instance =
-            render.Instances.Should().ContainSingle(i => i.EntityIndex == scene.Crate.Index).Subject;
+        RenderInstance instance = render
+            .Instances.Should()
+            .ContainSingle(i => i.EntityIndex == scene.Crate.Index)
+            .Subject;
         return (world.PoseIn(scene.Crate, scene.Pod).Position.X, inSnapshot.Position.X, instance.Position.X);
     }
 
     /// <summary>Checks that each read of the crate moved about a millimeter along X since the previous tick.</summary>
-    private static void ShouldStepByAMillimeter((double World, double Snapshot, double Render) before,
-        (double World, double Snapshot, double Render) after, int tick)
+    private static void ShouldStepByAMillimeter(
+        (double World, double Snapshot, double Render) before,
+        (double World, double Snapshot, double Render) after,
+        int tick
+    )
     {
         double step = Drift / 60;
-        (after.World - before.World).Should()
+        (after.World - before.World)
+            .Should()
             .BeApproximately(step, 1e-4, $"the World's read steps by a millimeter at tick {tick}");
-        (after.Snapshot - before.Snapshot).Should()
+        (after.Snapshot - before.Snapshot)
+            .Should()
             .BeApproximately(step, 1e-4, $"the Snapshot's read steps by a millimeter at tick {tick}");
-        (after.Render - before.Render).Should()
+        (after.Render - before.Render)
+            .Should()
             .BeApproximately(step, 1e-4, $"the render snapshot steps by a millimeter at tick {tick}");
     }
 
@@ -119,7 +154,9 @@ public sealed class WorldNumericNestingTests
 
         world.Errors.Should().BeEmpty();
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
-        world.Frames.Numeric(crateHome).Should()
+        world
+            .Frames.Numeric(crateHome)
+            .Should()
             .Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
         world.Frames.TreeLocalPose(crateHome).Position.Length.Should().BeLessThan(1e9, "its frame nests near it");
     }
@@ -133,9 +170,13 @@ public sealed class WorldNumericNestingTests
 
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
         FrameHandle podHome = world.Frames.TreeParent(scene.Pod);
-        world.Frames.Numeric(crateHome).Should()
+        world
+            .Frames.Numeric(crateHome)
+            .Should()
             .Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
-        world.Frames.Numeric(podHome).Should()
+        world
+            .Frames.Numeric(podHome)
+            .Should()
             .Be(NumericMode.Falling, "the pod is fast, so it falls in a numeric frame");
         crateHome.Should().NotBe(podHome, "the crate and the pod are too far apart to share a numeric frame");
         FrameHandle nest = world.Frames.TreeParent(crateHome);
@@ -169,7 +210,8 @@ public sealed class WorldNumericNestingTests
         }
 
         world.Errors.Should().BeEmpty();
-        (world.Frames.TreeLocalPose(nest).Position.X - start.X).Should()
+        (world.Frames.TreeLocalPose(nest).Position.X - start.X)
+            .Should()
             .BeGreaterThan(0, "the nest jumped after its frames");
     }
 

@@ -24,7 +24,7 @@ public sealed class QueryShapeTests
     [InlineData(-0.48f, 0.6f, -0.64f)]
     public void TheNormalOfAShapeHitComesBackAsTheUnitVectorThatWentIn(float x, float y, float z)
     {
-        Vector3 normal = Vector3.Normalize(new(x, y, z));
+        var normal = Vector3.Normalize(new(x, y, z));
 
         var hit = new ShapeHit { Entity = new(3, 1), Normal = normal };
 
@@ -43,24 +43,27 @@ public sealed class QueryShapeTests
         Assert.True(new OverlapHit { Entity = new(1, 1) }.IsHit);
     }
 
-    public static TheoryData<string, double> BoundingRadii() => new()
-    {
-        { "sphere", 2 },
-        { "box", 3 },
-        { "capsule", 1.5 }
-    };
+    public static TheoryData<string, double> BoundingRadii() =>
+        new()
+        {
+            { "sphere", 2 },
+            { "box", 3 },
+            { "capsule", 1.5 },
+        };
 
     [Theory]
     [MemberData(nameof(BoundingRadii))]
-    public void TheBoundingRadiusIsTheRadiusOfTheSmallestSphereAboutTheCenterThatHoldsTheShape(string kind,
-        double radius)
+    public void TheBoundingRadiusIsTheRadiusOfTheSmallestSphereAboutTheCenterThatHoldsTheShape(
+        string kind,
+        double radius
+    )
     {
         QueryShape shape = kind switch
         {
             "sphere" => QueryShape.Sphere(2),
             // The corner of a box with half extents 1, 2 and 2 is 3 m from its center.
             "box" => QueryShape.Box(new(1, 2, 2)),
-            _ => QueryShape.Capsule(1, 0.5f)
+            _ => QueryShape.Capsule(1, 0.5f),
         };
 
         Assert.Equal(radius, shape.BoundingRadius, 1e-12);
@@ -75,19 +78,20 @@ public sealed class QueryShapeTests
         Assert.Null(QueryShape.Capsule(0, 0.5f).Problem());
     }
 
-    public static TheoryData<string, string> Refused() => new()
-    {
-        { "sphere 0", "radius" },
-        { "sphere -1", "radius" },
-        { "sphere NaN", "radius" },
-        { "sphere infinite", "radius" },
-        { "box with a zero side", "half extents" },
-        { "box with a NaN side", "half extents" },
-        { "box with an infinite side", "half extents" },
-        { "capsule with radius 0", "radius" },
-        { "capsule with a negative half height", "half height" },
-        { "capsule with an infinite half height", "half height" }
-    };
+    public static TheoryData<string, string> Refused() =>
+        new()
+        {
+            { "sphere 0", "radius" },
+            { "sphere -1", "radius" },
+            { "sphere NaN", "radius" },
+            { "sphere infinite", "radius" },
+            { "box with a zero side", "half extents" },
+            { "box with a NaN side", "half extents" },
+            { "box with an infinite side", "half extents" },
+            { "capsule with radius 0", "radius" },
+            { "capsule with a negative half height", "half height" },
+            { "capsule with an infinite half height", "half height" },
+        };
 
     [Theory]
     [MemberData(nameof(Refused))]
@@ -105,7 +109,7 @@ public sealed class QueryShapeTests
             "capsule with radius 0" => QueryShape.Capsule(1, 0),
             "capsule with a negative half height" => QueryShape.Capsule(-0.1f, 1),
             "capsule with an infinite half height" => QueryShape.Capsule(float.PositiveInfinity, 1),
-            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "No such shape.")
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "No such shape."),
         };
 
         string? problem = shape.Problem();

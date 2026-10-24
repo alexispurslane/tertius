@@ -54,8 +54,17 @@ public readonly record struct BoxGone;
 /// union like <see cref="DisembarkState"/>, and <see cref="Next"/> is the whole table of its changes
 /// (docs/plans/blue-danube-demo.md, "The box play component").
 /// </summary>
-[GeneratedUnion(typeof(Idle), typeof(Shoving), typeof(ToStand), typeof(Taking), typeof(Aiming), typeof(Watching),
-    typeof(Played), typeof(Halted), ZeroCase = typeof(Idle))]
+[GeneratedUnion(
+    typeof(Idle),
+    typeof(Shoving),
+    typeof(ToStand),
+    typeof(Taking),
+    typeof(Aiming),
+    typeof(Watching),
+    typeof(Played),
+    typeof(Halted),
+    ZeroCase = typeof(Idle)
+)]
 public readonly partial struct BoxPlayState
 {
     /// <summary>The number of throws: one spinward and one antispinward.</summary>
@@ -65,19 +74,20 @@ public readonly partial struct BoxPlayState
     /// The state that <paramref name="change"/> leads to from <paramref name="state"/>, or null when the pair has no row.
     /// It reads nothing but its two arguments.
     /// </summary>
-    public static BoxPlayState? Next(BoxPlayState state, BoxPlayEvent change) => (state, change) switch
-    {
-        (Idle, PlayWithBoxes) => new Shoving(WalkProgress.Start),
-        (Shoving, WalkDone) => new ToStand(WalkProgress.Start),
-        (ToStand, WalkDone) => new Taking(0),
-        (Taking { Throw: var index }, Took { Copy: var held }) => new Aiming(index, held, 0),
-        (Aiming { Throw: var index }, Thrown) => new Watching(index, 0),
-        (Watching { Throw: var index }, Watched) when index + 1 < Throws => new Taking(index + 1),
-        (Watching, Watched) => new Played(),
-        (Shoving or ToStand or Taking or Aiming or Watching, StationGone) => new Halted(),
-        (Taking, BoxGone) => new Halted(),
-        _ => null
-    };
+    public static BoxPlayState? Next(BoxPlayState state, BoxPlayEvent change) =>
+        (state, change) switch
+        {
+            (Idle, PlayWithBoxes) => new Shoving(WalkProgress.Start),
+            (Shoving, WalkDone) => new ToStand(WalkProgress.Start),
+            (ToStand, WalkDone) => new Taking(0),
+            (Taking { Throw: var index }, Took { Copy: var held }) => new Aiming(index, held, 0),
+            (Aiming { Throw: var index }, Thrown) => new Watching(index, 0),
+            (Watching { Throw: var index }, Watched) when index + 1 < Throws => new Taking(index + 1),
+            (Watching, Watched) => new Played(),
+            (Shoving or ToStand or Taking or Aiming or Watching, StationGone) => new Halted(),
+            (Taking, BoxGone) => new Halted(),
+            _ => null,
+        };
 }
 
 /// <summary>
@@ -86,6 +96,14 @@ public readonly partial struct BoxPlayState
 /// <see cref="Took"/>, <see cref="Thrown"/>, <see cref="Watched"/>, <see cref="StationGone"/> or <see cref="BoxGone"/>. A
 /// generated union, whose all-zero value is <see cref="PlayWithBoxes"/>.
 /// </summary>
-[GeneratedUnion(typeof(PlayWithBoxes), typeof(WalkDone), typeof(Took), typeof(Thrown), typeof(Watched),
-    typeof(StationGone), typeof(BoxGone), ZeroCase = typeof(PlayWithBoxes))]
+[GeneratedUnion(
+    typeof(PlayWithBoxes),
+    typeof(WalkDone),
+    typeof(Took),
+    typeof(Thrown),
+    typeof(Watched),
+    typeof(StationGone),
+    typeof(BoxGone),
+    ZeroCase = typeof(PlayWithBoxes)
+)]
 public readonly partial struct BoxPlayEvent;

@@ -12,11 +12,11 @@ internal enum MemoryUsage
     Upload,
 
     /// <summary>The GPU writes it, the CPU reads it through a persistent mapping.</summary>
-    Readback
+    Readback,
 }
 
 /// <summary>A piece of device memory handed out by <see cref="DeviceAllocator"/>.</summary>
-internal readonly unsafe struct MemoryAllocation
+internal readonly struct MemoryAllocation
 {
     internal MemoryAllocation(DeviceMemory memory, ulong offset, ulong size, byte* mapped, object owner)
     {
@@ -84,15 +84,22 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
         (MemoryPropertyFlags required, MemoryPropertyFlags preferred) = usage switch
         {
             MemoryUsage.GpuOnly => (MemoryPropertyFlags.DeviceLocalBit, MemoryPropertyFlags.None),
-            MemoryUsage.Upload => (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
-                MemoryPropertyFlags.DeviceLocalBit),
-            MemoryUsage.Readback => (MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
-                MemoryPropertyFlags.HostCachedBit)
+            MemoryUsage.Upload => (
+                MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+                MemoryPropertyFlags.DeviceLocalBit
+            ),
+            MemoryUsage.Readback => (
+                MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+                MemoryPropertyFlags.HostCachedBit
+            ),
         };
         int type = device.FindMemoryType(requirements.MemoryTypeBits, required, preferred);
         if (type < 0 && usage == MemoryUsage.GpuOnly)
-            type = device.FindMemoryType(requirements.MemoryTypeBits, MemoryPropertyFlags.None,
-                MemoryPropertyFlags.None);
+            type = device.FindMemoryType(
+                requirements.MemoryTypeBits,
+                MemoryPropertyFlags.None,
+                MemoryPropertyFlags.None
+            );
         if (type < 0)
             throw new NotSupportedException($"No memory type for {name} ({usage}).");
         bool mapped = usage != MemoryUsage.GpuOnly;
@@ -104,37 +111,60 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             {
                 var allocation = new Dedicated(
                     AllocateMemory(size: requirements.Size, type: (uint)type, map: mapped, pointer: out byte* pointer),
-                    pointer);
+                    pointer
+                );
                 dedicated.Add(allocation);
                 liveAllocations++;
                 device.SetName(ObjectType.DeviceMemory, allocation.Memory.Handle, name);
-                return new(memory: allocation.Memory, offset: 0, size: requirements.Size, mapped: pointer,
-                    owner: allocation);
+                return new(
+                    memory: allocation.Memory,
+                    offset: 0,
+                    size: requirements.Size,
+                    mapped: pointer,
+                    owner: allocation
+                );
             }
 
             ulong alignment = Math.Max(requirements.Alignment, 16);
             foreach (Block block in blocks)
-                if (block.Type == type && block.Linear == linear &&
-                    block.Space.TryAllocate(requirements.Size, alignment, out ulong offset))
+                if (
+                    block.Type == type
+                    && block.Linear == linear
+                    && block.Space.TryAllocate(requirements.Size, alignment, out ulong offset)
+                )
                 {
                     liveAllocations++;
-                    return new(memory: block.Memory, offset: offset, size: requirements.Size,
-                        mapped: block.Mapped == null ? null : block.Mapped + offset, owner: block);
+                    return new(
+                        memory: block.Memory,
+                        offset: offset,
+                        size: requirements.Size,
+                        mapped: block.Mapped == null ? null : block.Mapped + offset,
+                        owner: block
+                    );
                 }
 
             var created = new Block(
                 memory: AllocateMemory(size: BlockSize, type: (uint)type, map: mapped, pointer: out byte* blockPointer),
                 mapped: blockPointer,
-                type: type, linear: linear);
-            device.SetName(ObjectType.DeviceMemory, created.Memory.Handle,
-                $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})");
+                type: type,
+                linear: linear
+            );
+            device.SetName(
+                ObjectType.DeviceMemory,
+                created.Memory.Handle,
+                $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})"
+            );
             blocks.Add(created);
             if (!created.Space.TryAllocate(requirements.Size, alignment, out ulong first))
                 throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
             liveAllocations++;
-            return new(memory: created.Memory, offset: first, size: requirements.Size,
+            return new(
+                memory: created.Memory,
+                offset: first,
+                size: requirements.Size,
                 mapped: blockPointer == null ? null : blockPointer + first,
-                owner: created);
+                owner: created
+            );
         }
     }
 
@@ -155,8 +185,10 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                     device.Vk.FreeMemory(device.Device, single.Memory, null);
                     break;
                 default:
-                    throw new ArgumentException("The allocation does not come from this allocator.",
-                        nameof(allocation));
+                    throw new ArgumentException(
+                        "The allocation does not come from this allocator.",
+                        nameof(allocation)
+                    );
             }
 
             liveAllocations--;
@@ -169,16 +201,28 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
         {
             SType = StructureType.MemoryAllocateInfo,
             AllocationSize = size,
-            MemoryTypeIndex = type
+            MemoryTypeIndex = type,
         };
-        device.Vk.AllocateMemory(device: device.Device, pAllocateInfo: &info, pAllocator: null,
-            pMemory: out DeviceMemory memory).Check("vkAllocateMemory");
+        device
+            .Vk.AllocateMemory(
+                device: device.Device,
+                pAllocateInfo: &info,
+                pAllocator: null,
+                pMemory: out DeviceMemory memory
+            )
+            .Check("vkAllocateMemory");
         pointer = null;
         if (map)
         {
             void* p;
-            Result result = device.Vk.MapMemory(device: device.Device, memory: memory, offset: 0, size: Vk.WholeSize,
-                flags: 0, ppData: &p);
+            Result result = device.Vk.MapMemory(
+                device: device.Device,
+                memory: memory,
+                offset: 0,
+                size: Vk.WholeSize,
+                flags: 0,
+                ppData: &p
+            );
             if (result != Result.Success)
             {
                 device.Vk.FreeMemory(device.Device, memory, null);

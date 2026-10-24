@@ -21,7 +21,8 @@ public readonly record struct Chute(
     double BrakeFrom,
     double End,
     double Coefficient,
-    double BrakeCoefficient)
+    double BrakeCoefficient
+)
 {
     /// <summary>
     /// How far a person's center lies beyond its radius from the back plate's face, at most, in meters, while it touches
@@ -37,8 +38,11 @@ public readonly record struct Chute(
     /// of a person who stands over the chute's top, 0.9 m up, as well as one in the trough.
     /// </summary>
     public bool Holds(Double3 position) =>
-        Math.Abs(position.Y) <= HalfWidth && position.Z >= BackFace && position.Z <= BackFace + Depth &&
-        position.X <= Top + 1 && position.X >= End;
+        Math.Abs(position.Y) <= HalfWidth
+        && position.Z >= BackFace
+        && position.Z <= BackFace + Depth
+        && position.X <= Top + 1
+        && position.X >= End;
 
     /// <summary>
     /// The acceleration, in m/s² in the station's axes, that the chute's friction gives a person whose center is at
@@ -58,8 +62,11 @@ public readonly record struct Chute(
     /// <param name="dt">The length of one step, in seconds.</param>
     public Double3 Friction(Double3 position, Double3 velocity, Double3 omega, double radius, double dt)
     {
-        bool touches = position.Z - BackFace <= radius + ContactMargin && Math.Abs(position.Y) <= HalfWidth &&
-                       position.X <= Top && position.X >= End;
+        bool touches =
+            position.Z - BackFace <= radius + ContactMargin
+            && Math.Abs(position.Y) <= HalfWidth
+            && position.X <= Top
+            && position.X >= End;
         if (!touches)
             return Double3.Zero;
         // The back plate's normal toward the person is +Z, so the press is the free acceleration's part along -Z.

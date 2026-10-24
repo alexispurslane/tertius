@@ -26,14 +26,18 @@ public sealed class SoakTests(ITestOutputHelper output)
         int seeds = FromEnvironment("TERTIUS_SOAK_SEEDS", 6);
         int ticksPerSeed = FromEnvironment("TERTIUS_SOAK_TICKS", 150);
         int workers = FromEnvironment("TERTIUS_SOAK_WORKERS", 1);
-        long ticks = 0, entityTicks = 0;
+        long ticks = 0,
+            entityTicks = 0;
         var failures = new List<string>();
 
         for (int i = 0; i < seeds; i++)
         {
             int seed = FirstSeed + i;
-            using var workload = new ChaoticWorkload(seed: seed, chunkSize: ChunkSizes[i % ChunkSizes.Length],
-                maxDegreeOfParallelism: workers);
+            using var workload = new ChaoticWorkload(
+                seed: seed,
+                chunkSize: ChunkSizes[i % ChunkSizes.Length],
+                maxDegreeOfParallelism: workers
+            );
             try
             {
                 workload.Run(ticksPerSeed);
@@ -51,8 +55,10 @@ public sealed class SoakTests(ITestOutputHelper output)
         // With no failure, the mean time between failures is at least a third of the exposure, with 95 percent confidence.
         string mtbf = failures.Count == 0 ? $"> {ticks / 3} ticks" : $"{ticks / failures.Count} ticks";
         output.WriteLine(
-            $"soak: {seeds} seeds on {workers} workers, {ticks} ticks, {entityTicks} entity-ticks, {failures.Count} failures, MTBF {mtbf}");
-        failures.Should().BeEmpty("exposure was {0} ticks over seeds {1} to {2}", ticks, FirstSeed,
-            FirstSeed + seeds - 1);
+            $"soak: {seeds} seeds on {workers} workers, {ticks} ticks, {entityTicks} entity-ticks, {failures.Count} failures, MTBF {mtbf}"
+        );
+        failures
+            .Should()
+            .BeEmpty("exposure was {0} ticks over seeds {1} to {2}", ticks, FirstSeed, FirstSeed + seeds - 1);
     }
 }

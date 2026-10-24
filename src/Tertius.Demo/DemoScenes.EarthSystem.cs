@@ -49,28 +49,46 @@ public static partial class DemoScenes
             DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
 
             // The pad lies on the ground at the pole, the vertex of Earth's sphere on +Y.
-            scene.Add("pad", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = new(new(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
-                Body = new(Shape: new BoxShapeDesc(PadHalf), Motion: BodyMotion.Static),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(PadHalf),
-                        color: new(x: 0.75f, y: 0.74f, z: 0.7f, w: 1), boundingRadius: PadHalf.Length()) with
+            scene.Add(
+                "pad",
+                world.Spawn(
+                    new()
                     {
-                        Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                        Frame = surface,
+                        Pose = new(new(0, PadTop - PadHalf.Y, 0), DQuaternion.Identity),
+                        Body = new(Shape: new BoxShapeDesc(PadHalf), Motion: BodyMotion.Static),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(PadHalf),
+                            color: new(x: 0.75f, y: 0.74f, z: 0.7f, w: 1),
+                            boundingRadius: PadHalf.Length()
+                        ) with
+                        {
+                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                        },
                     }
-            }));
+                )
+            );
             var mastHalf = new Vector3(0.3f, 5, 0.3f);
-            scene.Add("mast", world.Spawn(new()
-            {
-                Frame = surface,
-                Pose = new(new(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(mastHalf),
-                        color: new(x: 0.8f, y: 0.15f, z: 0.1f, w: 1), boundingRadius: mastHalf.Length()) with
+            scene.Add(
+                "mast",
+                world.Spawn(
+                    new()
                     {
-                        Flags = RenderFlags.Visible | RenderFlags.CastsShadow
+                        Frame = surface,
+                        Pose = new(new(5, PadTop + mastHalf.Y, -5), DQuaternion.Identity),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(mastHalf),
+                            color: new(x: 0.8f, y: 0.15f, z: 0.1f, w: 1),
+                            boundingRadius: mastHalf.Length()
+                        ) with
+                        {
+                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                        },
                     }
-            }));
+                )
+            );
 
             // Where the Sun stands from Earth at the world's time, in earth's axes.
             KeplerOrbit earthOrbit = EarthOrbit(date);
@@ -79,7 +97,17 @@ public static partial class DemoScenes
 
             void View(string id, FrameHandle frame, DPose pose)
             {
-                scene.Add(id, world.Spawn(new() { Frame = frame, Pose = pose, Render = new RenderData() }));
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = frame,
+                            Pose = pose,
+                            Render = new RenderData(),
+                        }
+                    )
+                );
                 scene.AddView(id);
             }
 
@@ -89,19 +117,27 @@ public static partial class DemoScenes
             View("sun-from-earth", earth, LookingAt(sunWatch, sunWatch + toSun));
 
             // The Moon and Earth: 50,000 km from the Moon, on its sunward side and beyond it, looking between the two.
-            Double3 moon = MoonOrbit.StateAt(world.Time, EarthMu).Position, outward = moon.Normalized();
+            Double3 moon = MoonOrbit.StateAt(world.Time, EarthMu).Position,
+                outward = moon.Normalized();
             Double3 sunward = (toSun - outward * Double3.Dot(toSun, outward)).Normalized();
             Double3 moonWatch = moon + outward * 30e6 + sunward * 40e6;
-            View("earth-moon", earth,
-                LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized()));
+            View(
+                "earth-moon",
+                earth,
+                LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized())
+            );
 
             // The station over Earth's limb: 300 m out along its axis, looking 11 degrees below it, with the roof away from Earth.
             KeplerOrbit stationOrbit = DemoStation.Orbit;
-            Double3 station = stationOrbit.StateAt(world.Time, EarthMu).Position, up = station.Normalized();
+            Double3 station = stationOrbit.StateAt(world.Time, EarthMu).Position,
+                up = station.Normalized();
             Double3 axis = stationOrbit.RotationAt(world.Time, EarthMu).Rotate(Double3.UnitY);
             double down = 11 * Math.PI / 180;
-            View("station-view", earth,
-                new(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)));
+            View(
+                "station-view",
+                earth,
+                new(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up))
+            );
 
             // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
             // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by

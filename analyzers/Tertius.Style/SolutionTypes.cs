@@ -15,7 +15,9 @@ internal static class SolutionTypes
 
     /// <summary>True for a type that a project of this solution declares.</summary>
     public static bool Declares(ITypeSymbol type, Compilation compilation) =>
-        type.ContainingAssembly is { } assembly &&
-        (SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly) ||
-         assembly.Name.StartsWith(Prefix, StringComparison.Ordinal));
+        type.ContainingAssembly is { } assembly
+        && (
+            SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly)
+            || assembly.Name.StartsWith(Prefix, StringComparison.Ordinal)
+        );
 }

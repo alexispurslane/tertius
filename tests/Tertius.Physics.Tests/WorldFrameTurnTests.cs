@@ -23,20 +23,26 @@ public sealed class WorldFrameTurnTests
     public void AStationSpawnedWithItsFirstSpinTurnsSteadilyFromItsFirstStep()
     {
         using World world = NewWorld(backend: out _);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = Space(world), AsFrame = Station }
-            .Spinning(world, StationSpin, firstMove: true)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = Space(world), AsFrame = Station }.Spinning(world, StationSpin, firstMove: true)
+            )
+        );
 
         world.Tick();
 
         FrameTurns first = world.Frames.Turns(station);
         first.Step.IsIdentity.Should().BeFalse("the station turns in its first step, by its first motion intent");
-        first.Last.Should().Be(first.Step,
-            "a new frame has no last turn, so its first step assumes a steady turn: no spin-up");
+        first
+            .Last.Should()
+            .Be(first.Step, "a new frame has no last turn, so its first step assumes a steady turn: no spin-up");
         first.Step.AngularVelocity.Y.Should().BeApproximately(StationRate, 1e-12);
 
         world.Tick();
 
-        world.Frames.Turns(station).Last.Should()
+        world
+            .Frames.Turns(station)
+            .Last.Should()
             .Be(first.Step, "the station left the list of frames without a last turn");
         world.Errors.Should().BeEmpty();
     }
@@ -45,21 +51,33 @@ public sealed class WorldFrameTurnTests
     public void AStationSpawnedWithoutAFirstMotionIntentHoldsStillInItsFirstStepAndSpinsUpInItsSecond()
     {
         using World world = NewWorld(backend: out _);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = Space(world), AsFrame = Station }
-            .Spinning(world, StationSpin)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(new SpawnDesc { Frame = Space(world), AsFrame = Station }.Spinning(world, StationSpin))
+        );
 
         world.Tick();
 
-        world.Frames.Turns(station).Should().Be(new FrameTurns(FrameTurn.None, FrameTurn.None),
-            "the station's components first write a motion intent in the tick beside its first step");
+        world
+            .Frames.Turns(station)
+            .Should()
+            .Be(
+                new FrameTurns(FrameTurn.None, FrameTurn.None),
+                "the station's components first write a motion intent in the tick beside its first step"
+            );
 
         world.Tick();
 
         FrameTurns second = world.Frames.Turns(station);
         second.Last.Should().Be(FrameTurn.None);
         second.Step.AngularVelocity.Y.Should().BeApproximately(StationRate, 1e-12);
-        second.AngularAcceleration(world.DeltaTime).Y.Should().BeApproximately(StationRate / world.DeltaTime, 1e-9,
-            "the station turns at once from rest to its full rate in its second step");
+        second
+            .AngularAcceleration(world.DeltaTime)
+            .Y.Should()
+            .BeApproximately(
+                StationRate / world.DeltaTime,
+                1e-9,
+                "the station turns at once from rest to its full rate in its second step"
+            );
         world.Errors.Should().BeEmpty();
     }
 
@@ -68,9 +86,9 @@ public sealed class WorldFrameTurnTests
     {
         const double spinUp = 0.01;
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        FrameHandle station =
-            world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world,
-                spinUp)));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world, spinUp))
+        );
         Tick(world, 3);
         world.Frames.Turns(station).AngularAcceleration(world.DeltaTime).Y.Should().BeApproximately(spinUp, 1e-9);
 
@@ -79,13 +97,20 @@ public sealed class WorldFrameTurnTests
         world.Tick();
 
         FrameTurns afterFailure = world.Frames.Turns(station);
-        afterFailure.Last.Should().Be(afterFailure.Step,
-            "the results of the failed step were dropped, so the step after it assumes a steady turn");
+        afterFailure
+            .Last.Should()
+            .Be(
+                afterFailure.Step,
+                "the results of the failed step were dropped, so the step after it assumes a steady turn"
+            );
 
         world.Tick();
 
-        world.Frames.Turns(station).AngularAcceleration(world.DeltaTime).Y.Should().BeApproximately(spinUp, 1e-9,
-            "the station left the list at the step after the failure");
+        world
+            .Frames.Turns(station)
+            .AngularAcceleration(world.DeltaTime)
+            .Y.Should()
+            .BeApproximately(spinUp, 1e-9, "the station left the list at the step after the failure");
         world.Errors.Should().ContainSingle().Which.Should().Contain("the physics step failed");
     }
 }

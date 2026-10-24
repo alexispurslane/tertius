@@ -21,7 +21,7 @@ internal static class NumericFrameTesting
         ThrustCreateSpeed = double.PositiveInfinity,
         ThrustLeaveSpeed = double.PositiveInfinity,
         CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity
+        LeaveDistance = double.PositiveInfinity,
     };
 
     /// <summary>
@@ -34,7 +34,7 @@ internal static class NumericFrameTesting
         CreateSpeed = 0,
         LeaveSpeed = 0,
         ThrustCreateSpeed = 0,
-        ThrustLeaveSpeed = 0
+        ThrustLeaveSpeed = 0,
     };
 
     /// <summary>
@@ -42,9 +42,5 @@ internal static class NumericFrameTesting
     /// semantic frame's origin: both distances are 0. A test uses them to put slow bodies in resting frames without the
     /// distance of 8,389 km that the defaults need.
     /// </summary>
-    internal static readonly NumericFrameOptions EverySlowGroupRests = new()
-    {
-        CreateDistance = 0,
-        LeaveDistance = 0
-    };
+    internal static readonly NumericFrameOptions EverySlowGroupRests = new() { CreateDistance = 0, LeaveDistance = 0 };
 }

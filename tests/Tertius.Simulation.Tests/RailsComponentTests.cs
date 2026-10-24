@@ -15,15 +15,16 @@ public sealed class RailsComponentTests
     private const double Mu = 4e14;
 
     /// <summary>An orbit that a <see cref="KeplerMotion"/> cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
-    public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
-    {
-        { "the default orbit", default },
-        { "no semi-major axis", KeplerOrbit.Circular(0) },
-        { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
-        { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
-        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
-        { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) }
-    };
+    public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid =>
+        new()
+        {
+            { "the default orbit", default },
+            { "no semi-major axis", KeplerOrbit.Circular(0) },
+            { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
+            { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
+            { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
+            { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) },
+        };
 
     // ---- The checks of the properties ---------------------------------------------------------------------------
 
@@ -37,7 +38,7 @@ public sealed class RailsComponentTests
         {
             "the default orbit" => default,
             "an open orbit" => KeplerOrbit.Circular(1000) with { Eccentricity = 1 },
-            _ => KeplerOrbit.Circular(double.PositiveInfinity)
+            _ => KeplerOrbit.Circular(double.PositiveInfinity),
         };
 
         FluentActions.Invoking(() => new KeplerMotion { Orbit = orbit }).Should().Throw<ArgumentException>();
@@ -64,7 +65,7 @@ public sealed class RailsComponentTests
     [Fact]
     public void ABlueprintMakesAKeplerMotionFromItsProperties()
     {
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.4);
+        var orbit = KeplerOrbit.Circular(7e6, phase: 0.4);
         var blueprints = new Blueprints();
         blueprints.Register(new(Name: "moon", Components: [new(typeof(KeplerMotion), Fields(("Orbit", orbit)))]));
 
@@ -76,8 +77,12 @@ public sealed class RailsComponentTests
     [Fact]
     public void ABlueprintMakesASpinMotionFromItsProperties()
     {
-        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3,
-            Epoch: 2);
+        var spin = new FrameSpin(
+            Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4),
+            Rate: 0.7,
+            PhaseAtEpoch: 0.3,
+            Epoch: 2
+        );
         var blueprints = new Blueprints();
         blueprints.Register(new(Name: "ground", Components: [new(typeof(SpinMotion), Fields(("Spin", spin)))]));
 
@@ -93,7 +98,7 @@ public sealed class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.4, spinRate: 0.01);
+        var orbit = KeplerOrbit.Circular(7e6, phase: 0.4, spinRate: 0.01);
         FrameHandle moon = SpawnFrame(test, components: new KeplerMotion { Orbit = orbit });
 
         test.Run(3);
@@ -107,8 +112,12 @@ public sealed class RailsComponentTests
     public void SpinMotionWritesTheSpinsSampleAtItsFramesPlace()
     {
         using var test = new TestWorld();
-        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), Rate: 0.7, PhaseAtEpoch: 0.3,
-            Epoch: 2);
+        var spin = new FrameSpin(
+            Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4),
+            Rate: 0.7,
+            PhaseAtEpoch: 0.3,
+            Epoch: 2
+        );
         var place = new Double3(5, -6, 7);
         FrameHandle ground = SpawnFrame(test, place, new SpinMotion { Spin = spin });
 
@@ -122,15 +131,23 @@ public sealed class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        var parked = new MotionSample(Pose: new(new(1, 2, 3), DQuaternion.Identity), ChordVelocity: Double3.Zero,
-            Velocity: Double3.Zero, Acceleration: Double3.Zero,
-            AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var parked = new MotionSample(
+            Pose: new(new(1, 2, 3), DQuaternion.Identity),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
         // The other component comes first in the list, so only the priority of KeplerMotion makes it run first.
-        FrameHandle moon = SpawnFrame(test, components:
-        [
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(parked)),
-            new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
-        ]);
+        FrameHandle moon = SpawnFrame(
+            test,
+            components:
+            [
+                Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(parked)),
+                new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) },
+            ]
+        );
 
         test.Run(1);
 
@@ -147,13 +164,22 @@ public sealed class RailsComponentTests
     {
         using var test = new TestWorld();
         var velocity = new Double3(10, -2, 0.5);
-        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            Double3 place = velocity * self.TimeAt(self.Tick + 2);
-            self.MoveOnRails(new(Pose: new(place, DQuaternion.Identity), ChordVelocity: velocity, Velocity: velocity,
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-                AngularAcceleration: Double3.Zero));
-        });
+        var flight = Lambda.OnTick(
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                Double3 place = velocity * self.TimeAt(self.Tick + 2);
+                self.MoveOnRails(
+                    new(
+                        Pose: new(place, DQuaternion.Identity),
+                        ChordVelocity: velocity,
+                        Velocity: velocity,
+                        Acceleration: Double3.Zero,
+                        AngularVelocity: Double3.Zero,
+                        AngularAcceleration: Double3.Zero
+                    )
+                );
+            }
+        );
         var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), Rate: 0.7);
         FrameHandle frame = SpawnFrame(test, components: flight);
         test.Run(10);
@@ -162,15 +188,16 @@ public sealed class RailsComponentTests
         test.World.AddComponent(frame.Entity, new SpinMotion { Spin = spin });
         test.Run(1);
         Double3 stop = velocity * test.World.Time;
-        test.World.Frames.LocalPose(frame).Position.Should()
+        test.World.Frames.LocalPose(frame)
+            .Position.Should()
             .Be(stop, "the flight's last sample moves the frame in the step of the swap");
 
         test.Run(3);
 
-        test.World.Frames.LocalPose(frame).Position.Should()
+        test.World.Frames.LocalPose(frame)
+            .Position.Should()
             .Be(stop, "the spin turns the frame where the flight left it");
-        Applied(test, frame)!.Value.Should()
-            .Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1)));
+        Applied(test, frame)!.Value.Should().Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1)));
     }
 
     // ---- The checks of a run ------------------------------------------------------------------------------------
@@ -236,8 +263,11 @@ public sealed class RailsComponentTests
 
         test.Run(3);
 
-        log.Should().Contain(line => line.Contains(moon.Entity.ToString()),
-            "the component logged that it holds its frame still");
+        log.Should()
+            .Contain(
+                line => line.Contains(moon.Entity.ToString()),
+                "the component logged that it holds its frame still"
+            );
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -248,9 +278,10 @@ public sealed class RailsComponentTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
-        IComponent rails = component == "KeplerMotion"
-            ? new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
-            : new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) };
+        IComponent rails =
+            component == "KeplerMotion"
+                ? new KeplerMotion { Orbit = KeplerOrbit.Circular(7e6) }
+                : new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.5) };
         FrameHandle frame = SpawnFrame(test, components: rails);
 
         test.Run(2);
@@ -264,13 +295,17 @@ public sealed class RailsComponentTests
 
     /// <summary>Spawns a frame without a body at <paramref name="place"/> in the root, and returns it.</summary>
     private static FrameHandle SpawnFrame(TestWorld test, Double3 place = default, params IComponent[] components) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(place, DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = components
-        }));
+        test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = new(place, DQuaternion.Identity),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = components,
+                }
+            )
+        );
 
     /// <summary>The full sample that the next step applies to the owner of <paramref name="frame"/>, between two ticks, or null.</summary>
     private static MotionSample? Applied(TestWorld test, FrameHandle frame) =>

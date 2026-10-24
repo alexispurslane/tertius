@@ -14,8 +14,11 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class PhysicsOutputCheckTests
 {
-    private static readonly BodyDesc PersonBody = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
-        Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc PersonBody = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
@@ -40,53 +43,92 @@ public sealed class PhysicsOutputCheckTests
             World = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
             Faults = faults;
             Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Point(1)));
-            Entity shipOwner = World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(10),
-                Body = BoxBody(3, 100),
-                AsFrame = new(FrameBounds.Sphere(30))
-            });
+            Entity shipOwner = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = At(10),
+                    Body = BoxBody(3, 100),
+                    AsFrame = new(FrameBounds.Sphere(30)),
+                }
+            );
             Ship = World.GetOwnedFrame(shipOwner);
             Cockpit = FrameOf(Ship, At(1), 2);
-            Ball = World.Spawn(new() { Frame = Space, Pose = At(-100), Body = BallBody(0.5f, 1) });
-            Wreck = World.Spawn(new() { Frame = Space, Pose = At(-200), Body = BallBody(0.5f, 1) });
-            Person = World.Spawn(new() { Frame = Space, Pose = At(0, 0, 100), Body = PersonBody });
-            Drifter = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(300),
-                AsFrame = new(FrameBounds.Sphere(5))
-            }));
-            Island = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Body = new(Shape: new SphereShapeDesc(5), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(10))
-            }));
-            Raft = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Body = BoxBody(2, 100),
-                AsFrame = new(FrameBounds.Sphere(10))
-            }));
-            Dock = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(0, -200),
-                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(5))
-            }));
-            Moon = World.GetOwnedFrame(World.Spawn(new SpawnDesc
-            {
-                Frame = Space,
-                Body = BoxBody(1, 10) with { Motion = BodyMotion.Kinematic },
-                AsFrame = new(FrameBounds.Sphere(5))
-            }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))));
-            Entity goneOwner = World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(-500),
-                AsFrame = new(FrameBounds.Sphere(5))
-            });
+            Ball = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = At(-100),
+                    Body = BallBody(0.5f, 1),
+                }
+            );
+            Wreck = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = At(-200),
+                    Body = BallBody(0.5f, 1),
+                }
+            );
+            Person = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = At(0, 0, 100),
+                    Body = PersonBody,
+                }
+            );
+            Drifter = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Space,
+                        Pose = At(300),
+                        AsFrame = new(FrameBounds.Sphere(5)),
+                    }
+                )
+            );
+            Island = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Body = new(Shape: new SphereShapeDesc(5), Motion: BodyMotion.Static),
+                        AsFrame = new(FrameBounds.Sphere(10)),
+                    }
+                )
+            );
+            Raft = World.GetOwnedFrame(
+                World.Spawn(new() { Body = BoxBody(2, 100), AsFrame = new(FrameBounds.Sphere(10)) })
+            );
+            Dock = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Space,
+                        Pose = At(0, -200),
+                        Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
+                        AsFrame = new(FrameBounds.Sphere(5)),
+                    }
+                )
+            );
+            Moon = World.GetOwnedFrame(
+                World.Spawn(
+                    new SpawnDesc
+                    {
+                        Frame = Space,
+                        Body = BoxBody(1, 10) with { Motion = BodyMotion.Kinematic },
+                        AsFrame = new(FrameBounds.Sphere(5)),
+                    }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))
+                )
+            );
+            Entity goneOwner = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = At(-500),
+                    AsFrame = new(FrameBounds.Sphere(5)),
+                }
+            );
             Gone = World.GetOwnedFrame(goneOwner);
             World.Tick();
             World.Destroy(goneOwner);
@@ -110,8 +152,16 @@ public sealed class PhysicsOutputCheckTests
         public FrameHandle Gone { get; }
 
         private FrameHandle FrameOf(FrameHandle parent, DPose pose, float radius) =>
-            World.GetOwnedFrame(World.Spawn(new()
-                { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
+            World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Frame = parent,
+                        Pose = pose,
+                        AsFrame = new(FrameBounds.Sphere(radius)),
+                    }
+                )
+            );
 
         /// <summary>
         /// Adds <paramref name="broken"/> to the output of the next step, and expects the sync point to refuse the output. A
@@ -137,8 +187,14 @@ public sealed class PhysicsOutputCheckTests
     }
 
     private static HandOff HandOffOf(Entity entity, FrameHandle from, FrameHandle to) =>
-        new(Entity: entity, From: from, To: to, Pose: DPose.Identity, LinearVelocity: Vector3.Zero,
-            AngularVelocity: Vector3.Zero);
+        new(
+            Entity: entity,
+            From: from,
+            To: to,
+            Pose: DPose.Identity,
+            LinearVelocity: Vector3.Zero,
+            AngularVelocity: Vector3.Zero
+        );
 
     private static ContactStarted ContactOf(Entity a, Entity b, FrameHandle frame) =>
         new(A: a, B: b, Frame: frame, Point: Double3.Zero, Normal: Vector3.UnitX, Impulse: 0);
@@ -148,8 +204,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Ship.Entity, scene.Space, scene.Cockpit)),
-            $"*refused the hand-off of {scene.Ship.Entity}*{scene.Ship}*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Ship.Entity, scene.Space, scene.Cockpit)),
+            $"*refused the hand-off of {scene.Ship.Entity}*{scene.Ship}*"
+        );
 
         scene.World.Frames.Parent(scene.Ship).Should().Be(scene.Space);
     }
@@ -160,9 +218,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(Entity: scene.Ball, Frame: scene.Gone, Pose: DPose.Identity,
-                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
-            $"*body state of {scene.Ball}*{scene.Gone}*");
+            output =>
+                output.Bodies.Add(
+                    new(
+                        Entity: scene.Ball,
+                        Frame: scene.Gone,
+                        Pose: DPose.Identity,
+                        LinearVelocity: Vector3.Zero,
+                        AngularVelocity: Vector3.Zero
+                    )
+                ),
+            $"*body state of {scene.Ball}*{scene.Gone}*"
+        );
     }
 
     [Fact]
@@ -171,9 +238,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(Entity: scene.Wreck, Frame: scene.Space, Pose: DPose.Identity,
-                LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
-            $"*body state of {scene.Wreck}*no longer exists*");
+            output =>
+                output.Bodies.Add(
+                    new(
+                        Entity: scene.Wreck,
+                        Frame: scene.Space,
+                        Pose: DPose.Identity,
+                        LinearVelocity: Vector3.Zero,
+                        AngularVelocity: Vector3.Zero
+                    )
+                ),
+            $"*body state of {scene.Wreck}*no longer exists*"
+        );
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
         scene.Faults.Jolt.TryGetBodyFrame(scene.Wreck, out _).Should().BeFalse();
@@ -185,10 +261,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(
-                new(Entity: scene.Space.Entity, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero,
-                    AngularVelocity: Vector3.Zero)),
-            $"*body state of {scene.Space.Entity}*has no body*");
+            output =>
+                output.Bodies.Add(
+                    new(
+                        Entity: scene.Space.Entity,
+                        Frame: scene.Space,
+                        Pose: DPose.Identity,
+                        LinearVelocity: Vector3.Zero,
+                        AngularVelocity: Vector3.Zero
+                    )
+                ),
+            $"*body state of {scene.Space.Entity}*has no body*"
+        );
     }
 
     [Fact]
@@ -196,8 +280,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Gone)),
-            $"*hand-off of {scene.Ball}*{scene.Gone}*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Gone)),
+            $"*hand-off of {scene.Ball}*{scene.Gone}*"
+        );
     }
 
     [Fact]
@@ -205,8 +291,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Wreck, scene.Space, scene.Ship)),
-            $"*hand-off of {scene.Wreck}*no longer exists*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Wreck, scene.Space, scene.Ship)),
+            $"*hand-off of {scene.Wreck}*no longer exists*"
+        );
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
         scene.Faults.Jolt.TryGetBodyFrame(scene.Wreck, out _).Should().BeFalse();
@@ -217,8 +305,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Ship, scene.Cockpit)),
-            $"*hand-off of {scene.Ball}*is in {scene.Space}, not in {scene.Ship}*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Ship, scene.Cockpit)),
+            $"*hand-off of {scene.Ball}*is in {scene.Space}, not in {scene.Ship}*"
+        );
     }
 
     [Fact]
@@ -226,8 +316,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Island.Entity, scene.Space, scene.Ship)),
-            $"*hand-off of {scene.Island.Entity}*is in no frame*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Island.Entity, scene.Space, scene.Ship)),
+            $"*hand-off of {scene.Island.Entity}*is in no frame*"
+        );
 
         scene.World.Frames.Parent(scene.Island).Should().Be(FrameHandle.Null);
     }
@@ -237,8 +329,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Space)),
-            $"*hand-off of {scene.Ball}*which it is in already*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Space)),
+            $"*hand-off of {scene.Ball}*which it is in already*"
+        );
     }
 
     [Fact]
@@ -246,11 +340,14 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output =>
+        scene.ShouldRefuse(
+            output =>
             {
                 output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Ship));
                 output.HandOffs.Add(HandOffOf(scene.Ball, scene.Space, scene.Ship));
-            }, $"*hand-off of {scene.Ball}*another hand-off in this step*");
+            },
+            $"*hand-off of {scene.Ball}*another hand-off in this step*"
+        );
     }
 
     [Fact]
@@ -259,10 +356,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Drifter, pose: DPose.Identity,
-                velocity: Double3.Zero, angularVelocity: Vector3.Zero,
-                measured: Vector3.Zero)),
-            $"*step record of {scene.Drifter}*has no body*");
+            output =>
+                output.Frames.Add(
+                    StepRecords.Of(
+                        frame: scene.Drifter,
+                        pose: DPose.Identity,
+                        velocity: Double3.Zero,
+                        angularVelocity: Vector3.Zero,
+                        measured: Vector3.Zero
+                    )
+                ),
+            $"*step record of {scene.Drifter}*has no body*"
+        );
     }
 
     [Fact]
@@ -271,10 +376,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Raft, pose: DPose.Identity, velocity: Double3.Zero,
-                angularVelocity: Vector3.Zero,
-                measured: Vector3.Zero)),
-            $"*step record of {scene.Raft}*root frame*");
+            output =>
+                output.Frames.Add(
+                    StepRecords.Of(
+                        frame: scene.Raft,
+                        pose: DPose.Identity,
+                        velocity: Double3.Zero,
+                        angularVelocity: Vector3.Zero,
+                        measured: Vector3.Zero
+                    )
+                ),
+            $"*step record of {scene.Raft}*root frame*"
+        );
     }
 
     [Theory]
@@ -285,8 +398,10 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
         FrameHandle frame = motion == BodyMotion.Kinematic ? scene.Moon : scene.Dock;
 
-        scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(frame.Entity, scene.Space, scene.Ship)),
-            $"*hand-off of {frame.Entity}*hull of {frame}*only a dynamic hull hands off*");
+        scene.ShouldRefuse(
+            output => output.HandOffs.Add(HandOffOf(frame.Entity, scene.Space, scene.Ship)),
+            $"*hand-off of {frame.Entity}*hull of {frame}*only a dynamic hull hands off*"
+        );
 
         scene.World.Frames.Parent(frame).Should().Be(scene.Space);
     }
@@ -297,10 +412,18 @@ public sealed class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(frame: scene.Gone, pose: DPose.Identity, velocity: Double3.Zero,
-                angularVelocity: Vector3.Zero,
-                measured: Vector3.Zero)),
-            $"*step record of the stale frame {scene.Gone}*");
+            output =>
+                output.Frames.Add(
+                    StepRecords.Of(
+                        frame: scene.Gone,
+                        pose: DPose.Identity,
+                        velocity: Double3.Zero,
+                        angularVelocity: Vector3.Zero,
+                        measured: Vector3.Zero
+                    )
+                ),
+            $"*step record of the stale frame {scene.Gone}*"
+        );
     }
 
     [Fact]
@@ -308,8 +431,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Contacts.Add(ContactOf(scene.Ball, scene.Wreck, scene.Space)),
-            $"*contact of {scene.Ball} and {scene.Wreck}*no longer exists*");
+        scene.ShouldRefuse(
+            output => output.Contacts.Add(ContactOf(scene.Ball, scene.Wreck, scene.Space)),
+            $"*contact of {scene.Ball} and {scene.Wreck}*no longer exists*"
+        );
     }
 
     [Fact]
@@ -317,8 +442,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Contacts.Add(ContactOf(scene.Ball, scene.Ship.Entity, FrameHandle.Null)),
-            $"*contact of {scene.Ball} and {scene.Ship.Entity}*names no frame*");
+        scene.ShouldRefuse(
+            output => output.Contacts.Add(ContactOf(scene.Ball, scene.Ship.Entity, FrameHandle.Null)),
+            $"*contact of {scene.Ball} and {scene.Ship.Entity}*names no frame*"
+        );
     }
 
     [Fact]
@@ -326,8 +453,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Contacts.Add(ContactOf(scene.Ball, scene.Ball, scene.Space)),
-            $"*contact of {scene.Ball} and {scene.Ball}*cannot touch itself*");
+        scene.ShouldRefuse(
+            output => output.Contacts.Add(ContactOf(scene.Ball, scene.Ball, scene.Space)),
+            $"*contact of {scene.Ball} and {scene.Ball}*cannot touch itself*"
+        );
     }
 
     [Fact]
@@ -335,8 +464,10 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Characters.Add(new(scene.Wreck, Standing: true)),
-            $"*character state of {scene.Wreck}*no longer exists*");
+        scene.ShouldRefuse(
+            output => output.Characters.Add(new(scene.Wreck, Standing: true)),
+            $"*character state of {scene.Wreck}*no longer exists*"
+        );
     }
 
     [Fact]
@@ -344,19 +475,26 @@ public sealed class PhysicsOutputCheckTests
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Characters.Add(new(scene.Ball, Standing: true)),
-            $"*character state of {scene.Ball}*is not a character*");
+        scene.ShouldRefuse(
+            output => output.Characters.Add(new(scene.Ball, Standing: true)),
+            $"*character state of {scene.Ball}*is not a character*"
+        );
     }
 
     [Fact]
     public void ASecondCharacterStateOfOneCharacterInOneStepThrowsOutOfTheStep()
     {
         using var scene = new Scene();
-        scene.Faults.Outputs[^1].Characters.Select(state => state.Entity).Should().Contain(scene.Person,
-            "the backend reports every character once in each step");
+        scene
+            .Faults.Outputs[^1]
+            .Characters.Select(state => state.Entity)
+            .Should()
+            .Contain(scene.Person, "the backend reports every character once in each step");
 
-        scene.ShouldRefuse(output => output.Characters.Add(new(scene.Person, Standing: true)),
-            $"*character state of {scene.Person}*another character state in this step*");
+        scene.ShouldRefuse(
+            output => output.Characters.Add(new(scene.Person, Standing: true)),
+            $"*character state of {scene.Person}*another character state in this step*"
+        );
     }
 
     /// <summary>
@@ -366,24 +504,32 @@ public sealed class PhysicsOutputCheckTests
     /// <paramref name="fighterOwnsFrame"/>, the fighter is a ship with a hull and a frame, as a frame owner hands off with the
     /// frame; otherwise it is a plain body.
     /// </summary>
-    private static (FrameHandle Space, FrameHandle Carrier, Entity Fighter) FighterApproachingCarrier(World world,
-        bool fighterOwnsFrame)
+    private static (FrameHandle Space, FrameHandle Carrier, Entity Fighter) FighterApproachingCarrier(
+        World world,
+        bool fighterOwnsFrame
+    )
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle carrier = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(1000),
-            AsFrame = new(FrameBounds.Sphere(200))
-        }));
-        Entity fighter = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(1260),
-            LinearVelocity = new(-45, 0, 0),
-            Body = BoxBody(2, 1000),
-            AsFrame = fighterOwnsFrame ? new FrameSpec(FrameBounds.Sphere(10)) : null
-        });
+        FrameHandle carrier = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1000),
+                    AsFrame = new(FrameBounds.Sphere(200)),
+                }
+            )
+        );
+        Entity fighter = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1260),
+                LinearVelocity = new(-45, 0, 0),
+                Body = BoxBody(2, 1000),
+                AsFrame = fighterOwnsFrame ? new FrameSpec(FrameBounds.Sphere(10)) : null,
+            }
+        );
         return (space, carrier, fighter);
     }
 
@@ -411,7 +557,7 @@ public sealed class PhysicsOutputCheckTests
                 reportedBoth = true;
                 output.Bodies[i] = state with
                 {
-                    Pose = new(state.Pose.Position + new Double3(1, 0, 0), state.Pose.Rotation)
+                    Pose = new(state.Pose.Position + new Double3(1, 0, 0), state.Pose.Rotation),
                 };
             }
         };
@@ -438,8 +584,10 @@ public sealed class PhysicsOutputCheckTests
     public void AnEntityWhoseBrokenHandOffATestRefusesKeepsTheStateItHadBeforeTheStep()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        (FrameHandle space, FrameHandle carrier, Entity fighter) =
-            FighterApproachingCarrier(world, fighterOwnsFrame: true);
+        (FrameHandle space, FrameHandle carrier, Entity fighter) = FighterApproachingCarrier(
+            world,
+            fighterOwnsFrame: true
+        );
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
         faults.EditOutput = output =>
         {
@@ -450,25 +598,40 @@ public sealed class PhysicsOutputCheckTests
         DPose poseBefore = default;
         DPose ownerBefore = default;
         Double3 velocityBefore = default;
-        Action run = () => TickUntil(world, () =>
-        {
-            if (world.Errors.Count > 0)
-                return true;
-            poseBefore = world.Frames.LocalPose(fighterFrame);
-            ownerBefore = world.PoseIn(fighter, space);
-            velocityBefore = world.Frames.LinearVelocity(fighterFrame);
-            return false;
-        }, 120);
+        Action run = () =>
+            TickUntil(
+                world,
+                () =>
+                {
+                    if (world.Errors.Count > 0)
+                        return true;
+                    poseBefore = world.Frames.LocalPose(fighterFrame);
+                    ownerBefore = world.PoseIn(fighter, space);
+                    velocityBefore = world.Frames.LinearVelocity(fighterFrame);
+                    return false;
+                },
+                120
+            );
 
 #if TERTIUS_CONTRACTS
         run.Should().Throw<ContractException>().WithMessage($"*hand-off of {fighter}*is in {space}, not in {carrier}*");
 #else
         run.Should().NotThrow();
-        world.Errors.Should().ContainSingle().Which.Should().Match($"*hand-off of {fighter}*is in {space}, not in {carrier}*");
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Match($"*hand-off of {fighter}*is in {space}, not in {carrier}*");
         faults.Outputs.SelectMany(output => output.HandOffs).Should().ContainSingle().Which.To.Should().Be(carrier);
-        world.PoseIn(fighter, space).Should().Be(ownerBefore, "the World skips the body state that came with the refused hand-off");
+        world
+            .PoseIn(fighter, space)
+            .Should()
+            .Be(ownerBefore, "the World skips the body state that came with the refused hand-off");
         world.Frames.Parent(fighterFrame).Should().Be(space);
-        world.Frames.LocalPose(fighterFrame).Should().Be(poseBefore, "the World skips the frame state that came with the refused hand-off");
+        world
+            .Frames.LocalPose(fighterFrame)
+            .Should()
+            .Be(poseBefore, "the World skips the frame state that came with the refused hand-off");
         world.Frames.LinearVelocity(fighterFrame).Should().Be(velocityBefore);
 #endif
     }
@@ -483,26 +646,37 @@ public sealed class PhysicsOutputCheckTests
     public void ACharacterWhoseBrokenHandOffATestRefusesKeepsTheStandingStateOfItsLastStep()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        var gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
-        world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static)
-        });
-        FrameHandle building = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = ground,
-            AsFrame = new(FrameBounds.Sphere(10), gravity)
-        }));
-        world.Spawn(new()
-        {
-            Frame = building, Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static),
+            }
+        );
+        FrameHandle building = world.GetOwnedFrame(
+            world.Spawn(new() { Frame = ground, AsFrame = new(FrameBounds.Sphere(10), gravity) })
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = building,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static),
+            }
+        );
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(4, 0, 0)) };
-        Entity walker = world.Spawn(new()
-            { Frame = building, Pose = At(0, 0.95), Body = PersonBody, Components = [pilot] });
+        Entity walker = world.Spawn(
+            new()
+            {
+                Frame = building,
+                Pose = At(0, 0.95),
+                Body = PersonBody,
+                Components = [pilot],
+            }
+        );
         bool reportedNotStanding = false;
         faults.EditOutput = output =>
         {
@@ -511,21 +685,30 @@ public sealed class PhysicsOutputCheckTests
             for (int i = 0; i < output.HandOffs.Count; i++)
                 if (output.HandOffs[i].Entity == walker)
                     output.HandOffs[i] = output.HandOffs[i] with { From = ground };
-            reportedNotStanding = output.Characters.Single(state => state.Entity == walker) ==
-                                  new CharacterState(walker, Standing: false);
+            reportedNotStanding =
+                output.Characters.Single(state => state.Entity == walker)
+                == new CharacterState(walker, Standing: false);
         };
         Action run = () => TickUntil(world, () => world.Errors.Count > 0, 300);
 
 #if TERTIUS_CONTRACTS
-        run.Should().Throw<ContractException>()
+        run.Should()
+            .Throw<ContractException>()
             .WithMessage($"*hand-off of {walker}*is in {building}, not in {ground}*");
         reportedNotStanding.Should().BeTrue("the backend reports a character that it hands off as not standing");
 #else
         run.Should().NotThrow();
-        world.Errors.Should().ContainSingle().Which.Should().Match($"*hand-off of {walker}*is in {building}, not in {ground}*");
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Match($"*hand-off of {walker}*is in {building}, not in {ground}*");
         faults.Outputs.SelectMany(output => output.HandOffs).Should().ContainSingle().Which.To.Should().Be(ground);
         reportedNotStanding.Should().BeTrue("the backend reports a character that it hands off as not standing");
-        world.Snapshot.IsStanding(walker).Should().BeTrue("the World skips the character state that came with the refused hand-off");
+        world
+            .Snapshot.IsStanding(walker)
+            .Should()
+            .BeTrue("the World skips the character state that came with the refused hand-off");
 #endif
     }
 }

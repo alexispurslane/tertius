@@ -4,7 +4,7 @@ using StationExit = Tertius.Demo.DemoScenes.StationExit;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The chute's friction law, <see cref="Demo.Chute.Friction"/> (docs/plans/blue-danube-demo.md, "The exit", "The slide"), with
+/// The chute's friction law, <see cref="Chute.Friction"/> (docs/plans/blue-danube-demo.md, "The exit", "The slide"), with
 /// no World: the friction opposes the slide along the back plate, by the coefficient times the press of the free
 /// acceleration into the plate, only while the person touches the plate between the rails, and never by more than the
 /// slide in one step. Every place and velocity is in the station's axes, which spin about +Y.
@@ -53,8 +53,8 @@ public sealed class ChuteFrictionTests
         Double3 velocity = new(-6, 0.8, -0.5);
         Double3 friction = Friction(new(-40, 0.2, OnThePlate), velocity);
         Double3 slide = new(-6, 0.8, 0);
-        Double3 free = -Double3.Cross(Omega, Double3.Cross(Omega, new(-40, 0.2, OnThePlate))) -
-                       2 * Double3.Cross(Omega, velocity);
+        Double3 free =
+            -Double3.Cross(Omega, Double3.Cross(Omega, new(-40, 0.2, OnThePlate))) - 2 * Double3.Cross(Omega, velocity);
         double press = -free.Z;
         Double3 expected = -Chute.Coefficient * press * slide / slide.Length;
         (friction - expected).Length.Should().BeLessThan(1e-9, $"the friction is {friction}, the law gives {expected}");
@@ -65,9 +65,11 @@ public sealed class ChuteFrictionTests
     public void InTheBrakeRunTheBrakesCoefficientActs()
     {
         double press = 2 * Rate * 3 + Rate * Rate * -OnThePlate;
-        Friction(new(Chute.BrakeFrom - 0.01, 0, OnThePlate), new(-3, 0, 0)).X.Should()
+        Friction(new(Chute.BrakeFrom - 0.01, 0, OnThePlate), new(-3, 0, 0))
+            .X.Should()
             .BeApproximately(Chute.BrakeCoefficient * press, 1e-9);
-        Friction(new(Chute.BrakeFrom + 0.01, 0, OnThePlate), new(-3, 0, 0)).X.Should()
+        Friction(new(Chute.BrakeFrom + 0.01, 0, OnThePlate), new(-3, 0, 0))
+            .X.Should()
             .BeApproximately(Chute.Coefficient * press, 1e-9);
     }
 
@@ -78,9 +80,11 @@ public sealed class ChuteFrictionTests
     [Fact]
     public void APersonOffTheBackPlateGetsNoFriction()
     {
-        Friction(new(-50, 0, Chute.BackFace + 0.39), new(-8, 0, 0)).X.Should()
+        Friction(new(-50, 0, Chute.BackFace + 0.39), new(-8, 0, 0))
+            .X.Should()
             .BeGreaterThan(0, "the person touches the plate");
-        Friction(new(-50, 0, Chute.BackFace + 0.41), new(-8, 0, 0)).Should()
+        Friction(new(-50, 0, Chute.BackFace + 0.41), new(-8, 0, 0))
+            .Should()
             .Be(Double3.Zero, "the person is off the plate");
     }
 
@@ -120,9 +124,11 @@ public sealed class ChuteFrictionTests
     {
         Double3 slide = new(-0.0006, 0.0008, 0);
         Double3 friction = Friction(new(-97, 0, OnThePlate), slide);
-        (friction + slide / Dt).Length.Should()
+        (friction + slide / Dt)
+            .Length.Should()
             .BeLessThan(1e-9, "the friction stops the slide in one step and no more");
-        Friction(new(-97, 0, OnThePlate), new(0, 0, -0.2)).Should()
+        Friction(new(-97, 0, OnThePlate), new(0, 0, -0.2))
+            .Should()
             .Be(Double3.Zero, "a person who does not slide gets no friction");
     }
 }

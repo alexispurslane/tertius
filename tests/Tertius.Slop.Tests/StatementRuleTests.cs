@@ -98,14 +98,23 @@ public sealed class StatementRuleTests
 
     [Fact]
     public void ARunOfMoreThanTenPlainStatementsWithNoBlankLineIsFlagged() =>
-        Source.Findings(Method(Lines(11))).Should().ContainSingle().Which.Should().Be(new Finding
-        {
-            Rule = "statement-wall", File = Source.FileName, Line = 5, EndLine = 15
-        });
+        Source
+            .Findings(Method(Lines(11)))
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(
+                new Finding
+                {
+                    Rule = "statement-wall",
+                    File = Source.FileName,
+                    Line = 5,
+                    EndLine = 15,
+                }
+            );
 
     [Fact]
-    public void ARunOfTenStatementsIsNotFlagged() =>
-        Source.RulesIn(Method(Lines(10))).Should().BeEmpty();
+    public void ARunOfTenStatementsIsNotFlagged() => Source.RulesIn(Method(Lines(10))).Should().BeEmpty();
 
     [Fact]
     public void ABlankLineBreaksARunOfStatements() =>
@@ -124,23 +133,29 @@ public sealed class StatementRuleTests
 
     [Fact]
     public void TheMainMethodThatHandsTheConsoleToTheProgramIsNotFlagged() =>
-        Source.RulesIn("""
-                       static class Program
-                       {
-                           public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
-                       }
-                       """).Should().BeEmpty();
+        Source
+            .RulesIn(
+                """
+                static class Program
+                {
+                    public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
+                }
+                """
+            )
+            .Should()
+            .BeEmpty();
 
     // A class whose one method has the body text.
-    private static string Method(string body) => $$"""
-                                                   class C
-                                                   {
-                                                       void F()
-                                                       {
-                                                   {{body}}
-                                                       }
-                                                   }
-                                                   """;
+    private static string Method(string body) =>
+        $$"""
+            class C
+            {
+                void F()
+                {
+            {{body}}
+                }
+            }
+            """;
 
     // Lines of plain statements, one per line, with no blank line between.
     private static string Lines(int count) =>

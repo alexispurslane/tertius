@@ -179,8 +179,9 @@ internal sealed class TopicSets
         EntitySet? set = SetOf(topic, create: true);
         if (set == null)
             return false;
-        (entry.Subscriptions ??= spareSubscriptionLists.Count > 0 ? spareSubscriptionLists.Pop() : [with(2)])
-            .Add(topic);
+        (entry.Subscriptions ??= spareSubscriptionLists.Count > 0 ? spareSubscriptionLists.Pop() : [with(2)]).Add(
+            topic
+        );
         set.Queue(entity, true);
         return true;
     }
@@ -241,8 +242,10 @@ internal sealed class TopicSets
                 Contract.Invariant(!frame.IsNull || subscribers.Items.IsEmpty);
                 foreach (Entity subscriber in subscribers.Items)
                 {
-                    Contract.Invariant(entities.IsAlive(subscriber) &&
-                                       byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true);
+                    Contract.Invariant(
+                        entities.IsAlive(subscriber)
+                            && byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true
+                    );
                     subscriberSets[subscriber.Index]++;
                 }
             }
@@ -255,8 +258,9 @@ internal sealed class TopicSets
             subscribers.AssertInvariants();
             foreach (Entity subscriber in subscribers.Items)
             {
-                Contract.Invariant(entities.IsAlive(subscriber) &&
-                                   byEntity[subscriber].Subscriptions?.Contains(new(id)) == true);
+                Contract.Invariant(
+                    entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(new(id)) == true
+                );
                 subscriberSets[subscriber.Index]++;
             }
         }
@@ -265,9 +269,9 @@ internal sealed class TopicSets
         {
             ref readonly EntityTopics entry = ref byEntity[entity];
             uint slot = entity.Index;
-            Contract.Invariant(entry.Member.IsNull
-                ? memberSets[slot] == 0
-                : IsLive(entry.Member) && memberSets[slot] == 1);
+            Contract.Invariant(
+                entry.Member.IsNull ? memberSets[slot] == 0 : IsLive(entry.Member) && memberSets[slot] == 1
+            );
             List<Topic>? subscriptions = entry.Subscriptions;
             Contract.Invariant(subscriberSets[slot] == (subscriptions?.Count ?? 0));
             if (subscriptions is not null)
@@ -298,8 +302,9 @@ internal sealed class TopicSets
     private bool IsLive(Topic frameTopic)
     {
         int index = frameTopic.FrameIndex;
-        return (uint)index < (uint)frameAt.Length && !frameAt[index].IsNull &&
-               frameAt[index].Generation == frameTopic.Generation;
+        return (uint)index < (uint)frameAt.Length
+            && !frameAt[index].IsNull
+            && frameAt[index].Generation == frameTopic.Generation;
     }
 
     /// <summary>The explicit subscriber set of a topic. Null for the topic of a frame that is not alive.</summary>
@@ -349,7 +354,8 @@ internal sealed class TopicSets
             {
                 if (j < b.Length)
                 {
-                    Entity x = a[i], y = b[j];
+                    Entity x = a[i],
+                        y = b[j];
                     int order = x.CompareTo(y);
                     if (order <= 0)
                     {

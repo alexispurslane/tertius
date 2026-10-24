@@ -24,22 +24,30 @@ public sealed class DemoFollowCameraRun : IDisposable
 
     public DemoFollowCameraRun()
     {
-        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+        var full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
         int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
         if (last < 0)
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
         World = NewJoltWorld();
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
-        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene,
+        ScriptRunner.Run(
+            script: full with
+            {
+                Steps = [.. full.Steps.Take(last + 1)],
+            },
+            world: World,
+            scene: Scene,
             outputFolder: null,
-            playback: new Recorder(this));
+            playback: new Recorder(this)
+        );
         Record();
         SeatedTick = Ticks.First(tick => tick.Seated).Tick;
         // A posted event joins the routing of the next tick, and the shuttle handles it in the tick after that.
         IgnitionTick = Ticks.First(tick => tick.Riding).Tick - 2;
-        ShuttleTravel =
-            Double3.Distance(World.PoseIn(Scene["shuttle"], World.GetOwnedFrame(Scene["earth-surface"])).Position,
-                DemoSurface.ShuttleParked.Position);
+        ShuttleTravel = Double3.Distance(
+            World.PoseIn(Scene["shuttle"], World.GetOwnedFrame(Scene["earth-surface"])).Position,
+            DemoSurface.ShuttleParked.Position
+        );
     }
 
     public World World { get; }
@@ -64,11 +72,13 @@ public sealed class DemoFollowCameraRun : IDisposable
     {
         if (World.TickNumber == 0 || (Ticks.Count > 0 && Ticks[^1].Tick == World.TickNumber))
             return;
-        Entity person = Scene["person"], camera = Scene["follow-camera"];
+        Entity person = Scene["person"],
+            camera = Scene["follow-camera"];
         Ticks.Add(Read(person, camera, World.GetOwnedFrame(Scene["shuttle"])));
         if (World.TickNumber == 1)
-            FirstBack = World.PoseIn(camera, World.GetFrame(person)).Position -
-                        World.PoseIn(person, World.GetFrame(person)).Position;
+            FirstBack =
+                World.PoseIn(camera, World.GetFrame(person)).Position
+                - World.PoseIn(person, World.GetFrame(person)).Position;
     }
 
     private FollowTick Read(Entity person, Entity camera, FrameHandle cabin)
@@ -76,17 +86,26 @@ public sealed class DemoFollowCameraRun : IDisposable
         bool riding = World.GetComponent<AscentAutopilot>(Scene["shuttle"])!.State is not Parked;
         bool seated = World.GetComponent<Passenger>(person)!.State.Value is not Boarding;
         FrameHandle frame = World.GetFrame(person);
-        DPose view = World.PoseIn(camera, frame), body = World.PoseIn(person, frame);
+        DPose view = World.PoseIn(camera, frame),
+            body = World.PoseIn(person, frame);
         Double3 eye = body.TransformPoint(DemoSurface.Eye);
         Double3 look = view.Rotation.Rotate(-Double3.UnitZ),
             toEye = eye - view.Position,
             up = body.Rotation.Rotate(Double3.UnitY);
-        var tick = new FollowTick(Tick: World.TickNumber, Riding: riding, Seated: seated,
-            AngleToEye: Degrees(look, toEye), Distance: toEye.Length,
+        var tick = new FollowTick(
+            Tick: World.TickNumber,
+            Riding: riding,
+            Seated: seated,
+            AngleToEye: Degrees(look, toEye),
+            Distance: toEye.Length,
             UpTurn: Degrees(up, lastUp),
             InCabin: World.GetFrame(camera) == cabin ? World.PoseIn(camera, cabin).Position : null,
-            Reach: Reach(view, body), Frame: frame,
-            Camera: view.Position, EyeInPicture: InPicture(view, eye), Eye: eye);
+            Reach: Reach(view, body),
+            Frame: frame,
+            Camera: view.Position,
+            EyeInPicture: InPicture(view, eye),
+            Eye: eye
+        );
         lastUp = up;
         return tick;
     }
@@ -98,13 +117,17 @@ public sealed class DemoFollowCameraRun : IDisposable
     /// </summary>
     private double Reach(DPose view, DPose body)
     {
-        double tanY = Math.Tan(World.VerticalFov / 2), tanX = tanY * BlueDanube.Window.Width / BlueDanube.Window.Height;
+        double tanY = Math.Tan(World.VerticalFov / 2),
+            tanX = tanY * BlueDanube.Window.Width / BlueDanube.Window.Height;
         var half = (Double3)DemoSurface.PersonHalf;
         double reach = 0;
         for (int corner = 0; corner < 8; corner++)
         {
-            var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y,
-                (corner & 4) == 0 ? -half.Z : half.Z);
+            var local = new Double3(
+                (corner & 1) == 0 ? -half.X : half.X,
+                (corner & 2) == 0 ? -half.Y : half.Y,
+                (corner & 4) == 0 ? -half.Z : half.Z
+            );
             Double3 seen = view.Rotation.Conjugate().Rotate(body.TransformPoint(local) - view.Position);
             if (seen.Z > -1e-3)
                 return double.PositiveInfinity;
@@ -168,7 +191,8 @@ public sealed record FollowTick(
     FrameHandle Frame,
     Double3 Camera,
     Double3 EyeInPicture,
-    Double3 Eye);
+    Double3 Eye
+);
 
 public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixture<DemoFollowCameraRun>
 {
@@ -180,7 +204,7 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
     [Fact]
     public void TheRunIsTheCheckedInScriptThroughTheFilmClimbCabin()
     {
-        Script script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+        var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
         int ignition = script.Steps.ToList().FindIndex(step => step.Value is PostStep { Event: nameof(Ignition) });
         int climbCabin = script.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: "climb-cabin" });
 
@@ -189,12 +213,15 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
     }
 
     /// <summary>How many ticks <paramref name="steps"/> run: the ticks of each run step, and the frames times the ticks per frame of each film.</summary>
-    private static long TicksOf(IEnumerable<ScriptStep> steps) => steps.Sum(step => step.Value switch
-    {
-        RunStep run => run.Ticks,
-        FilmStep film => (long)film.Frames * film.Every,
-        _ => 0L
-    });
+    private static long TicksOf(IEnumerable<ScriptStep> steps) =>
+        steps.Sum(step =>
+            step.Value switch
+            {
+                RunStep run => run.Ticks,
+                FilmStep film => (long)film.Frames * film.Every,
+                _ => 0L,
+            }
+        );
 
     [Fact]
     public void ThePersonReachesItsSeatAndTheShuttleLeavesThePad()
@@ -205,20 +232,16 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
 
     /// <summary>The person starts its walk along -X, toward the terminal's entrance, and the camera starts behind it, along +X.</summary>
     [Fact]
-    public void TheFollowCameraStartsBehindThePersonOnItsWayToTheEntrance()
-    {
+    public void TheFollowCameraStartsBehindThePersonOnItsWayToTheEntrance() =>
         run.FirstBack.X.Should().BeGreaterThan(3);
-    }
 
     /// <summary>
     /// Through the walk and the ride, the person's eye stays within 20 degrees of the middle of the view, which is 60
     /// degrees high, and between 0.4 m and 4.5 m from the camera.
     /// </summary>
     [Fact]
-    public void TheFollowCameraKeepsThePersonInItsFramingThroughTheWalkAndTheRide()
-    {
+    public void TheFollowCameraKeepsThePersonInItsFramingThroughTheWalkAndTheRide() =>
         run.Ticks.Should().OnlyContain(tick => tick.AngleToEye < 20 && tick.Distance > 0.4 && tick.Distance < 4.5);
-    }
 
     /// <summary>
     /// From the person's seat on, through the ramp and its jolt, the camera stays in the shuttle's frame, inside the cabin's
@@ -234,12 +257,17 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
         List<FollowTick> steady = [.. seated.Where(tick => tick.UpTurn < 5)];
 
         seated.Should().HaveCount((int)(run.Ticks[^1].Tick - run.SeatedTick + 1));
-        (seated.Count - steady.Count).Should()
+        (seated.Count - steady.Count)
+            .Should()
             .BeInRange(1, 5, "the person's up turns at the ignition and at the ramp's ends");
-        steady.Should().OnlyContain(tick => tick.InCabin.HasValue
-                                            && Math.Abs(tick.InCabin.Value.X) < Shuttle.Cabin.X - 0.05
-                                            && Math.Abs(tick.InCabin.Value.Y) < Shuttle.Cabin.Y - 0.05
-                                            && Math.Abs(tick.InCabin.Value.Z) < Shuttle.Cabin.Z - 0.05);
+        steady
+            .Should()
+            .OnlyContain(tick =>
+                tick.InCabin.HasValue
+                && Math.Abs(tick.InCabin.Value.X) < Shuttle.Cabin.X - 0.05
+                && Math.Abs(tick.InCabin.Value.Y) < Shuttle.Cabin.Y - 0.05
+                && Math.Abs(tick.InCabin.Value.Z) < Shuttle.Cabin.Z - 0.05
+            );
     }
 
     /// <summary>
@@ -252,8 +280,9 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
         List<FollowTick> steady = [.. run.Ticks.Where(tick => tick.UpTurn < 5)];
         FollowTick worst = steady.MaxBy(tick => tick.Reach)!;
 
-        worst.Reach.Should().BeLessThan(0.95,
-            $"at tick {worst.Tick} the person's box reaches {worst.Reach:F3} of the half picture");
+        worst
+            .Reach.Should()
+            .BeLessThan(0.95, $"at tick {worst.Tick} the person's box reaches {worst.Reach:F3} of the half picture");
     }
 
     /// <summary>
@@ -284,10 +313,15 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
                 jumps.Add(walk[i].Tick);
             if (Enumerable.Range(i - 3, 4).Any(j => walk[j].Frame != walk[i].Frame || jumps.Contains(walk[j].Tick)))
                 continue;
-            (walk[i].EyeInPicture - walk[i - 1].EyeInPicture).Length.Should()
+            (walk[i].EyeInPicture - walk[i - 1].EyeInPicture)
+                .Length.Should()
                 .BeLessThan(0.02, $"at tick {walk[i].Tick} the person moved in the picture");
-            bool cameraZigzags = Zigzags(a: walk[i - 3].Camera, b: walk[i - 2].Camera, c: walk[i - 1].Camera,
-                d: walk[i].Camera);
+            bool cameraZigzags = Zigzags(
+                a: walk[i - 3].Camera,
+                b: walk[i - 2].Camera,
+                c: walk[i - 1].Camera,
+                d: walk[i].Camera
+            );
             bool eyeZigzags = Zigzags(a: walk[i - 3].Eye, b: walk[i - 2].Eye, c: walk[i - 1].Eye, d: walk[i].Eye);
             (cameraZigzags && !eyeZigzags).Should().BeFalse($"at tick {walk[i].Tick} the camera zigzagged");
         }
@@ -301,7 +335,8 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
     /// </summary>
     private static bool Zigzags(Double3 a, Double3 b, Double3 c, Double3 d)
     {
-        Double3 before = c - 2 * b + a, now = d - 2 * c + b;
+        Double3 before = c - 2 * b + a,
+            now = d - 2 * c + b;
         return before.Length > 0.01 && Double3.Dot(before, now) < -0.5 * Double3.Dot(before, before);
     }
 
@@ -324,8 +359,12 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
         {
             Double3 local = tick.Camera - DemoSurface.TerminalCenter;
             foreach (BoundingBox box in terminal)
-                Outside(local, box).Should().BeGreaterThan(0.1,
-                    $"at tick {tick.Tick} the camera at {local} in the terminal's axes is near the box {box}");
+                Outside(local, box)
+                    .Should()
+                    .BeGreaterThan(
+                        0.1,
+                        $"at tick {tick.Tick} the camera at {local} in the terminal's axes is near the box {box}"
+                    );
         }
     }
 

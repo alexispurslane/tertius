@@ -11,7 +11,7 @@ public enum FlyKey
     Right,
     Down,
     Up,
-    Fast
+    Fast,
 }
 
 /// <summary>
@@ -34,7 +34,8 @@ public sealed class FlyCamera
 
     private readonly bool[] held = new bool[Enum.GetValues<FlyKey>().Length];
     private Quaternion start = Quaternion.Identity;
-    private float yaw, pitch;
+    private float yaw,
+        pitch;
 
     /// <summary>The position relative to the world's camera, in meters, in the axes of the camera's frame.</summary>
     public Vector3 Position { get; private set; }
@@ -44,8 +45,9 @@ public sealed class FlyCamera
     /// the yaw about the frame's +Y.
     /// </summary>
     public Quaternion Rotation =>
-        Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw) * start *
-        Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
+        Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw)
+        * start
+        * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
 
     /// <summary>The id of the world camera's frame when the camera started, as <see cref="RenderSnapshot.OriginFrameId"/>
     /// gives it.</summary>
@@ -84,15 +86,21 @@ public sealed class FlyCamera
     public void Advance(float seconds)
     {
         Quaternion rotation = Rotation;
-        Vector3 forward = Vector3.Transform(-Vector3.UnitZ, rotation);
-        Vector3 right = Vector3.Transform(Vector3.UnitX, rotation);
+        var forward = Vector3.Transform(-Vector3.UnitZ, rotation);
+        var right = Vector3.Transform(Vector3.UnitX, rotation);
         Vector3 move = Vector3.Zero;
-        if (held[(int)FlyKey.Forward]) move += forward;
-        if (held[(int)FlyKey.Back]) move -= forward;
-        if (held[(int)FlyKey.Right]) move += right;
-        if (held[(int)FlyKey.Left]) move -= right;
-        if (held[(int)FlyKey.Up]) move += Vector3.UnitY;
-        if (held[(int)FlyKey.Down]) move -= Vector3.UnitY;
+        if (held[(int)FlyKey.Forward])
+            move += forward;
+        if (held[(int)FlyKey.Back])
+            move -= forward;
+        if (held[(int)FlyKey.Right])
+            move += right;
+        if (held[(int)FlyKey.Left])
+            move -= right;
+        if (held[(int)FlyKey.Up])
+            move += Vector3.UnitY;
+        if (held[(int)FlyKey.Down])
+            move -= Vector3.UnitY;
         float speed = held[(int)FlyKey.Fast] ? Speed * FastFactor : Speed;
         Position += move * speed * seconds;
     }

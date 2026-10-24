@@ -17,7 +17,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
 {
     // In the ship's axes, a crate's center lies 3.3 m below the ship's center on the floor, and a standing person's eye
     // 1.85 m below it. The cabin's gravity changes a velocity by 9.81 m/s² / 60 = 0.1635 m/s in a tick.
-    private const double CrateOnTheFloor = -3.3, Eye = -1.85;
+    private const double CrateOnTheFloor = -3.3,
+        Eye = -1.85;
     private const float GravityPerTick = 9.81f / 60;
     private const double HandOffTolerance = 0.25;
 
@@ -56,14 +57,15 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     /// </summary>
     private (Double3 Position, Double3 Velocity) RelativeToShip(string name)
     {
-        EntityRecord crate = Dump(name).Entity(Thrown), ship = Dump(name).Entity("ship");
+        EntityRecord crate = Dump(name).Entity(Thrown),
+            ship = Dump(name).Entity("ship");
         if (crate.Pose.Frame == "ship")
             return (crate.Pose.Position, crate.Velocity);
         crate.Pose.Frame.Should().Be("earth");
         ship.Pose.Frame.Should().Be("earth");
         Double3 offset = crate.Pose.Position - ship.Pose.Position;
-        Double3 crateVelocity = crate.Velocity +
-                                GravityField.Point(DemoScenes.EarthMu).AtPrecise(crate.Pose.Position) * (0.5 / 60);
+        Double3 crateVelocity =
+            crate.Velocity + GravityField.Point(DemoScenes.EarthMu).AtPrecise(crate.Pose.Position) * (0.5 / 60);
         Double3 velocity = crateVelocity - ship.Velocity - Double3.Cross(ship.AngularVelocity, offset);
         DQuaternion toShip = ship.Pose.Rotation.Conjugate();
         return (toShip.Rotate(offset), toShip.Rotate(velocity));
@@ -76,16 +78,20 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     public void PressingEInTheChamberPicksUpItsCrateAndADrawnCopyRidesInFrontOfThePersonsEye()
     {
         Dump("in-chamber").Entity("chamber-crate").Pose.Position.Y.Should().BeApproximately(CrateOnTheFloor, 0.005);
-        Dump("carrying").Entities.Should()
+        Dump("carrying")
+            .Entities.Should()
             .NotContain(e => e.Id == "chamber-crate", "the crate went when the person took it");
-        Dump("carrying").Events.Should().Contain(e =>
-            e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == EntityTarget("person"));
-        Dump("carrying").Events.Should().Contain(e =>
-            e.Event == nameof(CrateTaken) && e.From == "person" && e.To == EntityTarget("chamber-crate"));
+        Dump("carrying")
+            .Events.Should()
+            .Contain(e => e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == EntityTarget("person"));
+        Dump("carrying")
+            .Events.Should()
+            .Contain(e => e.Event == nameof(CrateTaken) && e.From == "person" && e.To == EntityTarget("chamber-crate"));
 
         // The person faces the ship's -X, so its right is the ship's -Z. The copy rides 0.35 m to the right of the eye,
         // 0.5 m below it and 0.9 m ahead. The eye is 0.75 m above the person's center.
-        EntityRecord person = Dump("carrying").Entity("person"), copy = Dump("carrying").Entity(Copy);
+        EntityRecord person = Dump("carrying").Entity("person"),
+            copy = Dump("carrying").Entity(Copy);
         copy.Pose.Frame.Should().Be("ship");
         ExpectNear(copy.Pose.Position - person.Pose.Position, new(-0.9, 0.75 - 0.5, -0.35), 1e-4);
     }
@@ -95,7 +101,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     {
         string copy = Copy;
 
-        Dump("thrown").Events.Should()
+        Dump("thrown")
+            .Events.Should()
             .Contain(e => e.Event == "Destroy" && e.From == "person" && e.To == EntityTarget(copy));
         Dump("thrown").Entities.Should().NotContain(e => e.Id == copy);
     }
@@ -140,9 +147,14 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         string crate = Thrown;
 
         foreach (string name in InShip.Concat(InEarth))
-            Dump(name).Events.Should().NotContain(e => e.Event == "Collision" && e.To == EntityTarget(crate),
-                $"nothing touched the crate before {name}");
-        RelativeToShip("leaving").Position.X.Should()
+            Dump(name)
+                .Events.Should()
+                .NotContain(
+                    e => e.Event == "Collision" && e.To == EntityTarget(crate),
+                    $"nothing touched the crate before {name}"
+                );
+        RelativeToShip("leaving")
+            .Position.X.Should()
             .BeLessThan(-10, "the crate is out of the hull, whose port face is at x = -10 m");
     }
 
@@ -160,10 +172,12 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // known to within 0.25 m.
         double leavingDistance = ShipBubble.Outside(RelativeToShip("leaving").Position),
             inEarthDistance = ShipBubble.Outside(RelativeToShip("in-earth").Position);
-        leavingDistance.Should().BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance,
-            "the crate is still in the ship's frame");
-        inEarthDistance.Should().BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance,
-            "the crate has just passed into earth");
+        leavingDistance
+            .Should()
+            .BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance, "the crate is still in the ship's frame");
+        inEarthDistance
+            .Should()
+            .BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance, "the crate has just passed into earth");
         Dump("in-earth").Events.Should().ContainSingle(e => e.Event == "FrameChanged" && e.To == EntityTarget(Thrown));
         // So the crate passes into earth within 25 m of the ship's center.
         RelativeToShip("in-earth").Position.Length.Should().BeLessThan(25);
@@ -172,7 +186,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     [Fact]
     public void TheHandOffKeepsTheCratesPositionRelativeToTheShip()
     {
-        (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"), inEarth = RelativeToShip("in-earth");
+        (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"),
+            inEarth = RelativeToShip("in-earth");
         double seconds = Dump("in-earth").Time - Dump("leaving").Time;
 
         // Between the two dumps, the crate is out of the cabin and goes through the hand-off. The ship's frame and earth
@@ -225,8 +240,9 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     }
 
     private static void ExpectGreen((int R, int G, int B) color, string what) =>
-        (color.G > color.R + 20 && color.G > color.B + 20).Should()
-        .BeTrue($"{what} is the green of a crate, not {color}");
+        (color.G > color.R + 20 && color.G > color.B + 20)
+            .Should()
+            .BeTrue($"{what} is the green of a crate, not {color}");
 
     [Fact]
     public void ThePersonSeesTheCarriedCrateLowOnTheRightAndThenTheThrownCrateInTheHatch()
@@ -235,13 +251,16 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // spans columns 774 to 1130 and rows 627 to 720, below its top face. Black space shows through the hatch above
         // Earth. Three ticks after the throw, the crate is 1.5 m ahead in the hatch, against space, and spans columns 544
         // to 736 and rows 283 to 475. The copy is gone from the bottom right, where the chamber's lamp-lit wall shows.
-        Png aim = run.Capture("aim"), thrown = run.Capture("throw");
-        (int r, int g, int b) space = aim.Average(640, 300), wall = thrown.Average(950, 680);
+        Png aim = run.Capture("aim"),
+            thrown = run.Capture("throw");
+        (int r, int g, int b) space = aim.Average(640, 300),
+            wall = thrown.Average(950, 680);
 
         ExpectGreen(aim.Average(950, 680), "the front of the carried crate");
         (space.r + space.g + space.b).Should().BeLessThan(30, $"black space shows through the hatch, not {space}");
         ExpectGreen(thrown.Average(640, 380), "the thrown crate in the hatch");
-        (wall.r > wall.g && wall.g > wall.b).Should()
+        (wall.r > wall.g && wall.g > wall.b)
+            .Should()
             .BeTrue($"the chamber's warm gray wall shows where the copy was, not {wall}");
     }
 }

@@ -35,24 +35,36 @@ public sealed class AttachedSpawnHandOffTests
         public Scene()
         {
             var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
-            World = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
+            World = new(
+                new()
+                {
+                    MaxDegreeOfParallelism = 1,
+                    DebugChecks = true,
+                    DisposePhysics = true,
+                },
+                backend
+            );
             Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             Station = World.SpawnStaticFrame(Space, TestWorld.At(10), radius: 5);
-            Ball = World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = TestWorld.At(3.5),
-                LinearVelocity = new Vector3(6, 0, 0),
-                Body = new(Shape: new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
-                Components =
-                [
-                    Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    {
-                        if (self.Frame == Space)
-                            Children.Add(SpawnAttached(self, ChildOffset, [ChildBehavior()]));
-                    })
-                ]
-            });
+            Ball = World.Spawn(
+                new()
+                {
+                    Frame = Space,
+                    Pose = TestWorld.At(3.5),
+                    LinearVelocity = new Vector3(6, 0, 0),
+                    Body = new(Shape: new SphereShapeDesc(0.5f), LinearDamping: 0, AngularDamping: 0),
+                    Components =
+                    [
+                        Lambda.OnTick(
+                            (self, scoped ref events, scoped ref outbox) =>
+                            {
+                                if (self.Frame == Space)
+                                    Children.Add(SpawnAttached(self, ChildOffset, [ChildBehavior()]));
+                            }
+                        ),
+                    ],
+                }
+            );
         }
 
         public World World { get; }
@@ -82,13 +94,15 @@ public sealed class AttachedSpawnHandOffTests
         private static Spawn SpawnAttached(Self self, Pose offset, IComponent[] components)
         {
             var log = new Recorder(EventMask.Of<FrameChanged>());
-            Entity spawned = self.Spawn(new()
-            {
-                Frame = self.Frame,
-                AttachTo = self.Entity,
-                AttachOffset = offset,
-                Components = [log, .. components]
-            });
+            Entity spawned = self.Spawn(
+                new()
+                {
+                    Frame = self.Frame,
+                    AttachTo = self.Entity,
+                    AttachOffset = offset,
+                    Components = [log, .. components],
+                }
+            );
             return new(self.Tick, spawned, log);
         }
 
@@ -96,13 +110,15 @@ public sealed class AttachedSpawnHandOffTests
         private Lambda ChildBehavior()
         {
             bool spawned = false;
-            return Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (spawned)
-                    return;
-                spawned = true;
-                Grandchildren.Add(SpawnAttached(self, GrandchildOffset, []));
-            });
+            return Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (spawned)
+                        return;
+                    spawned = true;
+                    Grandchildren.Add(SpawnAttached(self, GrandchildOffset, []));
+                }
+            );
         }
     }
 
@@ -113,11 +129,13 @@ public sealed class AttachedSpawnHandOffTests
 
         long handOff = scene.RunUntilHandOff();
 
-        Spawn child = scene.Children.Should()
-            .ContainSingle(c => c.Tick == handOff, "the ball still saw itself in space then").Subject;
+        Spawn child = scene
+            .Children.Should()
+            .ContainSingle(c => c.Tick == handOff, "the ball still saw itself in space then")
+            .Subject;
         scene.World.IsAlive(child.Entity).Should().BeTrue();
         scene.World.GetFrame(child.Entity).Should().Be(scene.Station);
-        DPose expected = DPose.Compose(scene.World.PoseInOwnFrame(scene.Ball), ChildOffset.ToDPose());
+        var expected = DPose.Compose(scene.World.PoseInOwnFrame(scene.Ball), ChildOffset.ToDPose());
         PoseChecks.AssertNear(scene.World.PoseInOwnFrame(child.Entity).Position, expected.Position, 1e-9);
         scene.World.Errors.Should().BeEmpty();
     }
@@ -151,7 +169,7 @@ public sealed class AttachedSpawnHandOffTests
         Spawn grandchild = scene.Grandchildren.Should().ContainSingle(g => g.Tick == handOff).Subject;
         scene.World.Attachments.ParentOf(grandchild.Entity).Should().Be(middle);
         scene.World.GetFrame(grandchild.Entity).Should().Be(scene.Station);
-        DPose expected = DPose.Compose(scene.World.PoseInOwnFrame(middle), GrandchildOffset.ToDPose());
+        var expected = DPose.Compose(scene.World.PoseInOwnFrame(middle), GrandchildOffset.ToDPose());
         PoseChecks.AssertNear(scene.World.PoseInOwnFrame(grandchild.Entity).Position, expected.Position, 1e-9);
         grandchild.FrameChangesHeard.Should().Be(0);
         scene.World.Errors.Should().BeEmpty();

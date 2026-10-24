@@ -41,13 +41,24 @@ public static class Scenes
     /// released at rest <paramref name="height"/> m above the floor, measured to the bottom of the ball. The ball has
     /// <paramref name="ballComponents"/>.
     /// </summary>
-    public static FloorAndBall FloorWithBall(World world, float g = 9.81f, double height = 2,
-        params IComponent[] ballComponents)
+    public static FloorAndBall FloorWithBall(
+        World world,
+        float g = 9.81f,
+        double height = 2,
+        params IComponent[] ballComponents
+    )
     {
         FrameHandle ground = Ground(world, g);
         Entity floor = Floor(world, ground);
-        Entity ball = world.Spawn(new()
-            { Frame = ground, Pose = At(0, height + 0.5), Body = Ball(), Components = ballComponents });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, height + 0.5),
+                Body = Ball(),
+                Components = ballComponents,
+            }
+        );
         return new(ground, floor, ball);
     }
 
@@ -63,21 +74,33 @@ public static class Scenes
     /// uniform gravity of <paramref name="g"/> m/s² along -Y in its own frame, or none when <paramref name="g"/> is 0. The
     /// ship starts at rest.
     /// </summary>
-    public static ShipScene ShipWithInterior(World world, FrameHandle space, Double3 position = default,
-        float bubbleRadius = 50, float g = 0)
+    public static ShipScene ShipWithInterior(
+        World world,
+        FrameHandle space,
+        Double3 position = default,
+        float bubbleRadius = 50,
+        float g = 0
+    )
     {
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(4.5f, 0.25f, 14.5f)), new(new(0, (float)DeckTop - 0.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(4.5f, 0.25f, 14.5f)), new(new(0, (float)DeckTop - 0.25f, 0), Quaternion.Identity)),
         ]);
         GravityField gravity = g == 0 ? default : GravityField.Uniform(new(0, -g, 0));
-        Entity hull = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(position.X, position.Y, position.Z),
-            Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: deck),
-            AsFrame = new(FrameBounds.Sphere(bubbleRadius), gravity)
-        });
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(position.X, position.Y, position.Z),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(5, 3, 15)),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: deck
+                ),
+                AsFrame = new(FrameBounds.Sphere(bubbleRadius), gravity),
+            }
+        );
         return new(hull, world.GetOwnedFrame(hull));
     }
 
@@ -93,16 +116,24 @@ public static class Scenes
     /// and a <see cref="KeplerMotion"/> moves it from the second sync point after its spawn on (see <see cref="RailsSpawn"/>).
     /// The moon takes its G·M from the planet's point gravity, and so does every loose body in the planet's frame.
     /// </summary>
-    public static MoonScene MoonOnKeplerOrbit(World world, double planetMu = EarthMu, double orbitRadius = 7e6,
-        float bubbleRadius = 50, double phase = 0.7)
+    public static MoonScene MoonOnKeplerOrbit(
+        World world,
+        double planetMu = EarthMu,
+        double orbitRadius = 7e6,
+        float bubbleRadius = 50,
+        double phase = 0.7
+    )
     {
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(planetMu)));
-        KeplerOrbit orbit = KeplerOrbit.Circular(orbitRadius, phase: phase);
-        FrameHandle moon = world.GetOwnedFrame(world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            AsFrame = new(FrameBounds.Sphere(bubbleRadius))
-        }.OnKeplerOrbit(world, orbit)));
+        var orbit = KeplerOrbit.Circular(orbitRadius, phase: phase);
+        FrameHandle moon = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = planet, AsFrame = new(FrameBounds.Sphere(bubbleRadius)) }.OnKeplerOrbit(
+                    world,
+                    orbit
+                )
+            )
+        );
         return new(planet, moon);
     }
 
@@ -121,15 +152,21 @@ public static class Scenes
     /// its orbit from its first step. Without it, the hull would hold still for its first step, in its following frame too
     /// (ticket ter-zsku), and get its following frame again only after its first sample.
     /// </summary>
-    public static Entity
-        FastKeplerHull(World world, FrameHandle space, BodyDesc body, params IComponent[] components) => world.Spawn(
-        new SpawnDesc
-        {
-            Frame = space,
-            Body = body,
-            AsFrame = new(FrameBounds.Sphere(0.01f)),
-            Components = components
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000), firstMove: true));
+    public static Entity FastKeplerHull(
+        World world,
+        FrameHandle space,
+        BodyDesc body,
+        params IComponent[] components
+    ) =>
+        world.Spawn(
+            new SpawnDesc
+            {
+                Frame = space,
+                Body = body,
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+                Components = components,
+            }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000), firstMove: true)
+        );
 
     /// <summary>Where a ball starts and how fast it flies, so that it enters a bubble in a chosen tick. See
     /// <see cref="BallApproachingBubble"/>.</summary>
@@ -147,9 +184,15 @@ public static class Scenes
     /// ends half a step short of touching, and the step of the hand-off ends half a step past it. Tick 0 is the first tick
     /// of the world. Two balls with different <paramref name="lateral"/> values fly side by side without touching.
     /// </summary>
-    /// <param name="ballRadius">The radius of the ball in meters. 0.5 is the radius of <see cref="WorldTesting.Ball"/>.</param>
-    public static Approach ApproachToBubble(World world, FrameHandle into, long tick, float ballRadius = 0.5f,
-        double speed = 12, double lateral = 0)
+    /// <param name="ballRadius">The radius of the ball in meters. 0.5 is the radius of <see cref="Ball"/>.</param>
+    public static Approach ApproachToBubble(
+        World world,
+        FrameHandle into,
+        long tick,
+        float ballRadius = 0.5f,
+        double speed = 12,
+        double lateral = 0
+    )
     {
         DPose bubble = world.Frames.LocalPose(into);
         double metersPerStep = speed * world.DeltaTime;
@@ -160,19 +203,29 @@ public static class Scenes
     }
 
     /// <summary>
-    /// Spawns a ball of <see cref="WorldTesting.Ball"/> in <paramref name="from"/> that Jolt hands off into the bubble of
+    /// Spawns a ball of <see cref="Ball"/> in <paramref name="from"/> that Jolt hands off into the bubble of
     /// <paramref name="into"/> in the step of tick <paramref name="tick"/>, and in no step before it (see
     /// <see cref="ApproachToBubble"/>
     /// for the conditions). The ball has <paramref name="components"/>.
     /// </summary>
-    public static Entity BallApproachingBubble(World world, FrameHandle from, FrameHandle into, long tick,
-        params IComponent[] components)
+    public static Entity BallApproachingBubble(
+        World world,
+        FrameHandle from,
+        FrameHandle into,
+        long tick,
+        params IComponent[] components
+    )
     {
         Approach approach = ApproachToBubble(world: world, into: into, tick: tick);
-        return world.Spawn(new()
-        {
-            Frame = from, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(),
-            Components = components
-        });
+        return world.Spawn(
+            new()
+            {
+                Frame = from,
+                Pose = approach.Pose,
+                LinearVelocity = approach.Velocity,
+                Body = Ball(),
+                Components = components,
+            }
+        );
     }
 }

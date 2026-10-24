@@ -19,32 +19,35 @@ public sealed class ShapeCenterOfMassTests
 
     /// <summary>A compound of a heavy box and a light sphere, with a turned child, so its center is not any child's center.</summary>
     private static CompoundShapeDesc TwoChildren() =>
-        new(
-        [
-            new(new BoxShapeDesc(new(1, 0.2f, 0.5f)),
-                new(new(-0.5f, 0, 0.3f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f))),
-            new(new SphereShapeDesc(0.4f), new(new(0.9f, 0.6f, -0.2f), Quaternion.Identity))
+        new([
+            new(
+                new BoxShapeDesc(new(1, 0.2f, 0.5f)),
+                new(new(-0.5f, 0, 0.3f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f))
+            ),
+            new(new SphereShapeDesc(0.4f), new(new(0.9f, 0.6f, -0.2f), Quaternion.Identity)),
         ]);
 
     /// <summary>A convex hull of a tetrahedron that does not surround the body's origin.</summary>
     private static ConvexHullShapeDesc LopsidedHull() =>
         new([new(1, 0, 0), new(3, 0, 0), new(1, 2, 0), new(1, 0, 1.5f)]);
 
-    private static ShapeDesc ShapeNamed(string name) => name switch
-    {
-        "offset box" => OffsetBox(),
-        "two children" => TwoChildren(),
-        "lopsided hull" => LopsidedHull(),
-        _ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
-    };
+    private static ShapeDesc ShapeNamed(string name) =>
+        name switch
+        {
+            "offset box" => OffsetBox(),
+            "two children" => TwoChildren(),
+            "lopsided hull" => LopsidedHull(),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
+        };
 
     private static void ShouldBeBitForBit(Vector3 actual, Vector3 expected, string because)
     {
         static int[] Bits(Vector3 v) =>
-        [
-            BitConverter.SingleToInt32Bits(v.X), BitConverter.SingleToInt32Bits(v.Y),
-            BitConverter.SingleToInt32Bits(v.Z)
-        ];
+            [
+                BitConverter.SingleToInt32Bits(v.X),
+                BitConverter.SingleToInt32Bits(v.Y),
+                BitConverter.SingleToInt32Bits(v.Z),
+            ];
 
         Bits(actual).Should().Equal(Bits(expected), because);
     }
@@ -66,20 +69,34 @@ public sealed class ShapeCenterOfMassTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         ShapeDesc shape = ShapeNamed(name);
-        Entity body = world.Spawn(new() { Frame = space, Pose = DPose.Identity, Body = new(Shape: shape, Mass: 3) });
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: shape, Mass: 3),
+            }
+        );
         Tick(world, 1);
 
-        BodyID id = backend.BodiesIn(space).Single(facts =>
-            BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, body)).Id;
+        BodyID id = backend
+            .BodiesIn(space)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, body)
+            )
+            .Id;
         backend.SystemOf(space)!.BodyInterface.GetRCenterOfMassPosition(id, out RVector3 joltCenter);
         var jolts = joltCenter.ToDouble3();
 
         Vector3 center = backend.ShapeCenterOfMass(shape);
 
-        center.Length().Should()
+        center
+            .Length()
+            .Should()
             .BeGreaterThan(0.1f, "the shape is chosen so that its center of mass is off the body's origin");
-        new Double3(center.X, center.Y, center.Z).Should().Be(jolts,
-            "a body at rest at the origin, unturned, has its center of mass where the shape has it");
+        new Double3(center.X, center.Y, center.Z)
+            .Should()
+            .Be(jolts, "a body at rest at the origin, unturned, has its center of mass where the shape has it");
         world.Errors.Should().BeEmpty();
     }
 
@@ -93,10 +110,16 @@ public sealed class ShapeCenterOfMassTests
 
         Vector3 answer = backend.ShapeCenterOfMass(shape);
 
-        ShouldBeBitForBit(backend.ShapeCenterOfMass(shape), answer,
-            "a second question about the same description gets the same answer");
-        ShouldBeBitForBit(other.ShapeCenterOfMass(shape), answer,
-            "another backend builds the same native shape from the same description");
+        ShouldBeBitForBit(
+            backend.ShapeCenterOfMass(shape),
+            answer,
+            "a second question about the same description gets the same answer"
+        );
+        ShouldBeBitForBit(
+            other.ShapeCenterOfMass(shape),
+            answer,
+            "another backend builds the same native shape from the same description"
+        );
     }
 
     [Fact]
@@ -112,7 +135,9 @@ public sealed class ShapeCenterOfMassTests
         try
         {
             asker.Start();
-            asker.Join(TimeSpan.FromMilliseconds(200)).Should()
+            asker
+                .Join(TimeSpan.FromMilliseconds(200))
+                .Should()
                 .BeFalse("the first question about a shape builds it, which takes the backend's gate");
         }
         finally
@@ -123,8 +148,11 @@ public sealed class ShapeCenterOfMassTests
         asker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue("the question goes on once the gate is free");
 
         using World other = NewWorld(backend: out JoltPhysicsBackend quiet);
-        ShouldBeBitForBit(answer!.Value, quiet.ShapeCenterOfMass(unbuilt),
-            "a question that waited for the gate gets the answer of a quiet backend");
+        ShouldBeBitForBit(
+            answer!.Value,
+            quiet.ShapeCenterOfMass(unbuilt),
+            "a question that waited for the gate gets the answer of a quiet backend"
+        );
     }
 
     [Fact]
@@ -140,7 +168,9 @@ public sealed class ShapeCenterOfMassTests
         try
         {
             asker.Start();
-            asker.Join(TimeSpan.FromSeconds(10)).Should()
+            asker
+                .Join(TimeSpan.FromSeconds(10))
+                .Should()
                 .BeTrue("the backend keeps the answer, so a later question takes no lock");
         }
         finally
@@ -168,8 +198,12 @@ public sealed class ShapeCenterOfMassTests
             }
         });
 
-        allocated.Should().Be(0,
-            "the World asks both at every spawn, and the center of mass in every sync point with debug checks once per body");
+        allocated
+            .Should()
+            .Be(
+                0,
+                "the World asks both at every spawn, and the center of mass in every sync point with debug checks once per body"
+            );
     }
 
     [Fact]

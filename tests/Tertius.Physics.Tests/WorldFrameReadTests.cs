@@ -11,35 +11,44 @@ namespace Tertius.Physics.Tests;
 public sealed class WorldFrameReadTests
 {
     /// <summary>A ball without damping, so that it keeps its velocity in a weightless frame.</summary>
-    private static readonly BodyDesc
-        Ball = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Ball = new(
+        Shape: new SphereShapeDesc(0.5f),
+        Mass: 1,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A weightless root frame, so that a body keeps the velocity that it was given.</summary>
-    private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
     /// <summary>A frame 10 m along X in <paramref name="parent"/>, tilted, that turns at 0.5 rad/s.</summary>
     private static FrameHandle SpinningChild(World world, FrameHandle parent)
     {
         var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitX, 0.3), Rate: 0.5);
-        Entity owner = world.Spawn(new SpawnDesc
-        {
-            Frame = parent,
-            Pose = WorldTesting.At(10, 0, 0),
-            AsFrame = new(FrameBounds.Sphere(100))
-        }.Spinning(world, spin));
+        Entity owner = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = parent,
+                Pose = WorldTesting.At(10, 0, 0),
+                AsFrame = new(FrameBounds.Sphere(100)),
+            }.Spinning(world, spin)
+        );
         return world.GetOwnedFrame(owner);
     }
 
     /// <summary>A frame that was live and is now gone.</summary>
     private static FrameHandle StaleFrame(World world, FrameHandle parent)
     {
-        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = parent,
-            Pose = WorldTesting.At(-20),
-            AsFrame = new(FrameBounds.Sphere(10))
-        }));
+        FrameHandle frame = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = WorldTesting.At(-20),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                }
+            )
+        );
         world.Destroy(frame.Entity);
         world.Tick();
         world.Frames.IsAlive(frame).Should().BeFalse();
@@ -66,7 +75,14 @@ public sealed class WorldFrameReadTests
         using World world = WorldTesting.NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot { Once = body => body.SetVelocity(new(3, -1, 0.5)) };
-        Entity ball = world.Spawn(new() { Frame = space, Body = Ball, Components = [pilot] });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                Components = [pilot],
+            }
+        );
 
         WorldTesting.Tick(world, 3);
 
@@ -79,7 +95,14 @@ public sealed class WorldFrameReadTests
     {
         using World world = WorldTesting.NewWorld(backend: out _);
         FrameHandle space = Space(world);
-        Entity ball = world.Spawn(new() { Frame = space, Body = Ball, LinearVelocity = new(0, 0, -2) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                LinearVelocity = new(0, 0, -2),
+            }
+        );
 
         WorldTesting.Tick(world, 2);
 
@@ -93,17 +116,28 @@ public sealed class WorldFrameReadTests
         using World world = WorldTesting.NewWorld(backend: out _);
         FrameHandle space = Space(world);
         FrameHandle turning = SpinningChild(world, space);
-        Entity ball = world.Spawn(new()
-            { Frame = space, Body = Ball, Pose = WorldTesting.At(4, 2, 1), LinearVelocity = new(1, 0, 0) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                Pose = WorldTesting.At(4, 2, 1),
+                LinearVelocity = new(1, 0, 0),
+            }
+        );
         WorldTesting.Tick(world, 3);
 
         DPose pose = world.PoseIn(ball, turning);
 
         world.Snapshot.TryGetPoseIn(ball, turning, out DPose expected).Should().BeTrue();
         pose.Should().Be(expected);
-        TestPrecision.RoughlyEqual(pose.Position,
-                world.Frames.Relative(space, turning).TransformPoint(world.PoseIn(ball, space).Position))
-            .Should().BeTrue();
+        TestPrecision
+            .RoughlyEqual(
+                pose.Position,
+                world.Frames.Relative(space, turning).TransformPoint(world.PoseIn(ball, space).Position)
+            )
+            .Should()
+            .BeTrue();
     }
 
     [Fact]
@@ -112,17 +146,29 @@ public sealed class WorldFrameReadTests
         using World world = WorldTesting.NewWorld(backend: out _);
         FrameHandle space = Space(world);
         FrameHandle turning = SpinningChild(world, space);
-        Entity ball = world.Spawn(new()
-            { Frame = space, Body = Ball, Pose = WorldTesting.At(4, 2, 1), LinearVelocity = new(1, 2, 0) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                Pose = WorldTesting.At(4, 2, 1),
+                LinearVelocity = new(1, 2, 0),
+            }
+        );
         WorldTesting.Tick(world, 3);
 
         Double3 velocity = world.VelocityIn(ball, turning);
 
-        Double3 expected = world.Frames.ConvertVelocity(from: space, to: turning,
+        Double3 expected = world.Frames.ConvertVelocity(
+            from: space,
+            to: turning,
             position: world.PoseIn(ball, space).Position,
-            v: world.VelocityIn(ball, space));
+            v: world.VelocityIn(ball, space)
+        );
         // The same conversion, up to the last bit of rounding.
-        TestPrecision.RoughlyEqual(velocity, expected, 1e-12).Should()
+        TestPrecision
+            .RoughlyEqual(velocity, expected, 1e-12)
+            .Should()
             .BeTrue($"the read gave {velocity}, not {expected}");
         world.Snapshot.TryGetVelocityIn(ball, turning, out Double3 fromSnapshot).Should().BeTrue();
         fromSnapshot.Should().Be(velocity);
@@ -134,15 +180,25 @@ public sealed class WorldFrameReadTests
         using World world = WorldTesting.NewWorld(backend: out _);
         FrameHandle space = Space(world);
         FrameHandle turning = SpinningChild(world, space);
-        Entity ball = world.Spawn(new() { Frame = space, Body = Ball, AngularVelocity = new(0, 0, 2) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                AngularVelocity = new(0, 0, 2),
+            }
+        );
         WorldTesting.Tick(world, 3);
 
         Vector3 omega = world.AngularVelocityIn(ball, turning);
 
         DPose relative = world.Frames.Relative(space, turning);
-        Double3 expected = relative.TransformDirection(world.AngularVelocityIn(ball, space)) +
-                           world.Frames.AngularVelocityRelative(space, turning);
-        TestPrecision.RoughlyEqual(omega, expected.ToVector3(), 1e-5f).Should()
+        Double3 expected =
+            relative.TransformDirection(world.AngularVelocityIn(ball, space))
+            + world.Frames.AngularVelocityRelative(space, turning);
+        TestPrecision
+            .RoughlyEqual(omega, expected.ToVector3(), 1e-5f)
+            .Should()
             .BeTrue($"the read gave {omega}, not {expected}");
         world.Snapshot.TryGetAngularVelocityIn(ball, turning, out Vector3 fromSnapshot).Should().BeTrue();
         fromSnapshot.Should().Be(omega);
@@ -172,8 +228,14 @@ public sealed class WorldFrameReadTests
         reader.Read = self =>
         {
             reader.Read = null;
-            foreach (SelfRead read in new SelfRead[]
-                         { s => s.PoseIn(stale), s => s.VelocityIn(stale), s => s.AngularVelocityIn(stale) })
+            foreach (
+                SelfRead read in new SelfRead[]
+                {
+                    s => s.PoseIn(stale),
+                    s => s.VelocityIn(stale),
+                    s => s.AngularVelocityIn(stale),
+                }
+            )
                 try
                 {
                     read(self);
@@ -183,7 +245,14 @@ public sealed class WorldFrameReadTests
                     thrown.Add(ex.GetType());
                 }
         };
-        world.Spawn(new() { Frame = space, Body = Ball, Components = [reader] });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                Components = [reader],
+            }
+        );
 
         WorldTesting.Tick(world, 2);
 
@@ -216,10 +285,17 @@ public sealed class WorldFrameReadTests
             {
                 body.Teleport(WorldTesting.At(7, 8, 9));
                 body.SetVelocity(new(0, 0, 0));
-            }
+            },
         };
-        Entity ball = world.Spawn(new()
-            { Frame = space, Body = Ball, LinearVelocity = new(1, 0, 0), Components = [pilot] });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                LinearVelocity = new(1, 0, 0),
+                Components = [pilot],
+            }
+        );
 
         WorldTesting.Tick(world, 2);
 

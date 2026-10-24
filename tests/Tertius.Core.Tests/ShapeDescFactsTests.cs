@@ -9,51 +9,44 @@ namespace Tertius.Core.Tests;
 /// </summary>
 public sealed class ShapeDescFactsTests
 {
-    private static readonly CompoundShapeDesc SphereAndTurnedCube = new(
-    [
+    private static readonly CompoundShapeDesc SphereAndTurnedCube = new([
         new(new SphereShapeDesc(1), new(new(3, 0, 0), Quaternion.Identity)),
-        new(new BoxShapeDesc(new(1)), new(new(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4)))
+        new(new BoxShapeDesc(new(1)), new(new(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4))),
     ]);
 
-    public static TheoryData<string, ShapeKind> Shapes() => new()
-    {
-        { "box", ShapeKind.Box },
-        { "sphere", ShapeKind.Sphere },
-        { "capsule", ShapeKind.Capsule },
-        { "convex hull", ShapeKind.ConvexHull },
-        { "mesh", ShapeKind.Mesh },
-        { "compound", ShapeKind.Compound }
-    };
+    public static TheoryData<string, ShapeKind> Shapes() =>
+        new()
+        {
+            { "box", ShapeKind.Box },
+            { "sphere", ShapeKind.Sphere },
+            { "capsule", ShapeKind.Capsule },
+            { "convex hull", ShapeKind.ConvexHull },
+            { "mesh", ShapeKind.Mesh },
+            { "compound", ShapeKind.Compound },
+        };
 
-    private static ShapeDesc Shape(string name) => name switch
-    {
-        "box" => new BoxShapeDesc(new(1)),
-        "sphere" => new SphereShapeDesc(1),
-        "capsule" => new CapsuleShapeDesc(1, 0.5f),
-        "convex hull" => new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]),
-        "mesh" => new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)], [0, 1, 2]),
-        "compound" => SphereAndTurnedCube,
-        _ => throw new ArgumentOutOfRangeException(nameof(name))
-    };
+    private static ShapeDesc Shape(string name) =>
+        name switch
+        {
+            "box" => new BoxShapeDesc(new(1)),
+            "sphere" => new SphereShapeDesc(1),
+            "capsule" => new CapsuleShapeDesc(1, 0.5f),
+            "convex hull" => new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]),
+            "mesh" => new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)], [0, 1, 2]),
+            "compound" => SphereAndTurnedCube,
+            _ => throw new ArgumentOutOfRangeException(nameof(name)),
+        };
 
     [Theory]
     [MemberData(nameof(Shapes))]
-    public void EachShapeRecordNamesItsOwnKind(string shape, ShapeKind kind)
-    {
-        Shape(shape).Kind.Should().Be(kind);
-    }
+    public void EachShapeRecordNamesItsOwnKind(string shape, ShapeKind kind) => Shape(shape).Kind.Should().Be(kind);
 
     [Fact]
-    public void TheBoundingRadiusOfABoxReachesItsCorners()
-    {
+    public void TheBoundingRadiusOfABoxReachesItsCorners() =>
         new BoxShapeDesc(new(1, 2, 2)).BoundingRadius().Should().BeApproximately(3f, 5e-6f);
-    }
 
     [Fact]
-    public void TheBoundingRadiusOfASphereIsItsRadius()
-    {
-        new SphereShapeDesc(1.5f).BoundingRadius().Should().Be(1.5f);
-    }
+    public void TheBoundingRadiusOfASphereIsItsRadius() => new SphereShapeDesc(1.5f).BoundingRadius().Should().Be(1.5f);
 
     [Fact]
     public void TheBoundingRadiusOfACapsuleReachesTheTopOfItsCap()
@@ -63,10 +56,8 @@ public sealed class ShapeDescFactsTests
     }
 
     [Fact]
-    public void TheBoundingRadiusOfAConvexHullReachesItsFarthestPoint()
-    {
+    public void TheBoundingRadiusOfAConvexHullReachesItsFarthestPoint() =>
         Shape("convex hull").BoundingRadius().Should().BeApproximately(3f, 5e-6f);
-    }
 
     [Fact]
     public void TheBoundingRadiusOfAMeshCountsOnlyTheVerticesThatATriangleUses()
@@ -91,7 +82,8 @@ public sealed class ShapeDescFactsTests
     {
         var nested = new CompoundShapeDesc([new(SphereAndTurnedCube, new(new(0, 0, 10), Quaternion.Identity))]);
 
-        ((double)nested.BoundingRadius()).Should()
+        ((double)nested.BoundingRadius())
+            .Should()
             .BeApproximately(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), 5e-5);
     }
 
@@ -100,7 +92,8 @@ public sealed class ShapeDescFactsTests
     {
         var box = new BoxShapeDesc(new(0.1f, 0.2f, 0.3f));
 
-        ((double)box.BoundingRadius()).Should()
+        ((double)box.BoundingRadius())
+            .Should()
             .BeGreaterThanOrEqualTo(Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
     }
 }

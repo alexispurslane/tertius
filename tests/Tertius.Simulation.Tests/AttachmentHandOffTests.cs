@@ -21,30 +21,36 @@ public sealed class AttachmentHandOffTests
             Faults = faults;
             Station = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
             Scenes.Approach flight = Scenes.ApproachToBubble(world: Test.World, into: Station, tick: 1);
-            Parent = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                Pose = flight.Pose,
-                LinearVelocity = flight.Velocity,
-                AngularVelocity = ParentSpin,
-                Body = WorldTesting.Ball()
-            });
+            Parent = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    Pose = flight.Pose,
+                    LinearVelocity = flight.Velocity,
+                    AngularVelocity = ParentSpin,
+                    Body = WorldTesting.Ball(),
+                }
+            );
             ChildLog = new(EventMask.Of<FrameChanged>().And<Ping>());
             GrandchildLog = new(EventMask.Of<FrameChanged>());
-            Child = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                AttachTo = Parent,
-                AttachOffset = new(new(0, 0, 2), Quaternion.Identity),
-                Components = [ChildLog]
-            });
-            Grandchild = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                AttachTo = Child,
-                AttachOffset = new(new(0, 1, 0), Quaternion.Identity),
-                Components = [GrandchildLog]
-            });
+            Child = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    AttachTo = Parent,
+                    AttachOffset = new(new(0, 0, 2), Quaternion.Identity),
+                    Components = [ChildLog],
+                }
+            );
+            Grandchild = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    AttachTo = Child,
+                    AttachOffset = new(new(0, 1, 0), Quaternion.Identity),
+                    Components = [GrandchildLog],
+                }
+            );
         }
 
         public FaultInjectingBackend Faults { get; }
@@ -100,8 +106,11 @@ public sealed class AttachmentHandOffTests
         // in its two steps, and so have they.
         scene.ParentHandOff.Entity.Should().Be(scene.Parent);
         PoseChecks.AssertNear(scene.World.PoseInOwnFrame(scene.Child).Position, scene.InStation(new(0, 0, 2)), 1e-6);
-        PoseChecks.AssertNear(scene.World.PoseInOwnFrame(scene.Grandchild).Position, scene.InStation(new(0, 1, 2)),
-            1e-6);
+        PoseChecks.AssertNear(
+            scene.World.PoseInOwnFrame(scene.Grandchild).Position,
+            scene.InStation(new(0, 1, 2)),
+            1e-6
+        );
     }
 
     [Fact]
@@ -114,8 +123,10 @@ public sealed class AttachmentHandOffTests
         // v + w x r, with r the lever arm of 2 m along the parent's +Z in the axes of the station.
         HandOff handOff = scene.ParentHandOff;
         Vector3 leverArm = handOff.Pose.Rotation.Rotate(new(0, 0, 2));
-        PoseChecks.AssertNear(scene.World.VelocityInOwnFrame(scene.Child),
-            handOff.LinearVelocity + Vector3.Cross(handOff.AngularVelocity, leverArm));
+        PoseChecks.AssertNear(
+            scene.World.VelocityInOwnFrame(scene.Child),
+            handOff.LinearVelocity + Vector3.Cross(handOff.AngularVelocity, leverArm)
+        );
     }
 
     [Fact]
@@ -126,8 +137,10 @@ public sealed class AttachmentHandOffTests
         scene.Test.Run(5);
 
         // The sync point of tick 1 derives the child, so the child handles the message in tick 2.
-        (long tick, Event received) =
-            scene.ChildLog.Seen.Should().ContainSingle(s => s.Event.Is<FrameChanged>()).Subject;
+        (long tick, Event received) = scene
+            .ChildLog.Seen.Should()
+            .ContainSingle(s => s.Event.Is<FrameChanged>())
+            .Subject;
         tick.Should().Be(2);
         received.As<FrameChanged>().From.Should().Be(scene.Test.Root);
         received.As<FrameChanged>().To.Should().Be(scene.Station);
@@ -147,8 +160,9 @@ public sealed class AttachmentHandOffTests
     public void AChildHearsTheTopicOfTheNewFrameAfterItsParentIsHandedOff()
     {
         using var scene = new Scene();
-        scene.Test.SpawnWith(SendEvery.Of(target: scene.Station.Topic,
-            payloadAt: tick => new Ping { Value = (int)tick }));
+        scene.Test.SpawnWith(
+            SendEvery.Of(target: scene.Station.Topic, payloadAt: tick => new Ping { Value = (int)tick })
+        );
 
         scene.Test.Run(5);
 

@@ -31,19 +31,29 @@ public sealed partial class Codebase(IReadOnlyList<SourceFile> files, IReadOnlyS
 
     /// <summary>The source under <c>src</c> in the repository at <paramref name="root"/>, parsed in parallel.</summary>
     public static Codebase Under(string root) =>
-        new(files:
+        new(
+            files:
             [
                 .. PathsUnder(folder: Path.Combine(root, "src"), extensions: [".cs"])
                     .AsParallel()
-                    .Select(path => SourceFile.Parse(Path.GetRelativePath(root, path).Replace('\\', '/'),
-                        File.ReadAllText(path)))
+                    .Select(path =>
+                        SourceFile.Parse(Path.GetRelativePath(root, path).Replace('\\', '/'), File.ReadAllText(path))
+                    )
                     .Where(file => !file.IsGenerated)
-                    .OrderBy(file => file.Path, StringComparer.Ordinal)
+                    .OrderBy(file => file.Path, StringComparer.Ordinal),
             ],
-            namesOutside: NamesIn(string.Join('\n',
-                OutsideFolders.Select(folder => Path.Combine(root, folder)).Where(Directory.Exists)
-                    .SelectMany(folder => PathsUnder(folder: folder, extensions: [".cs", ".json"]))
-                    .AsParallel().Select(File.ReadAllText))));
+            namesOutside: NamesIn(
+                string.Join(
+                    '\n',
+                    OutsideFolders
+                        .Select(folder => Path.Combine(root, folder))
+                        .Where(Directory.Exists)
+                        .SelectMany(folder => PathsUnder(folder: folder, extensions: [".cs", ".json"]))
+                        .AsParallel()
+                        .Select(File.ReadAllText)
+                )
+            )
+        );
 
     /// <summary>Every name in <paramref name="text"/>: each word of letters, digits and <c>_</c>, without case.</summary>
     public static IReadOnlySet<string> NamesIn(string text) =>
@@ -56,9 +66,9 @@ public sealed partial class Codebase(IReadOnlyList<SourceFile> files, IReadOnlyS
             ShouldIncludePredicate = (ref entry) =>
             {
                 string name = entry.FileName.ToString();
-                return !entry.IsDirectory &&
-                       extensions.Any(extension => name.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
-            }
+                return !entry.IsDirectory
+                    && extensions.Any(extension => name.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+            },
         };
 
     [GeneratedRegex("[A-Za-z_][A-Za-z0-9_]*")]

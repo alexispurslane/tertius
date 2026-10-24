@@ -34,13 +34,20 @@ public sealed class PuffScriptCostMeasurement
         string reportPath = Environment.GetEnvironmentVariable(Variable) is { Length: > 0 } path
             ? path
             : throw new InvalidOperationException($"Set {Variable} to the file of the report.");
-        Script script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "puff-yard.json"));
+        var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "puff-yard.json"));
         int ticks = script.Steps.Sum(step => step.Value is RunStep run ? run.Ticks : 0);
         string folder = NewFolder();
         try
         {
-            using var vulkan = VulkanRenderer.CreateHeadless(new()
-                { Width = script.Window.Width, Height = script.Window.Height, Impostors = false, Validation = false });
+            using var vulkan = VulkanRenderer.CreateHeadless(
+                new()
+                {
+                    Width = script.Window.Width,
+                    Height = script.Window.Height,
+                    Impostors = false,
+                    Validation = false,
+                }
+            );
             var seconds = new Dictionary<int, List<double>> { [4096] = [], [0] = [] };
             var puffs = new Dictionary<int, int>();
             for (int round = 0; round <= Rounds; round++)
@@ -49,13 +56,20 @@ public sealed class PuffScriptCostMeasurement
                 int[] order = round % 2 == 0 ? [4096, 0] : [0, 4096];
                 foreach (int capacity in order)
                 {
-                    using var world = new World(new() { DisposePhysics = true, PuffCapacity = capacity },
-                        new JoltPhysicsBackend());
+                    using var world = new World(
+                        new() { DisposePhysics = true, PuffCapacity = capacity },
+                        new JoltPhysicsBackend()
+                    );
                     SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, vulkan);
                     using var playback = new HeadlessPlayback(vulkan, script.Window, new PngFolder(folder));
                     long start = Stopwatch.GetTimestamp();
-                    ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null,
-                        playback: playback);
+                    ScriptRunner.Run(
+                        script: script,
+                        world: world,
+                        scene: scene,
+                        outputFolder: null,
+                        playback: playback
+                    );
                     double elapsed = Stopwatch.GetElapsedTime(start).TotalSeconds;
                     if (round > 0)
                         seconds[capacity].Add(elapsed);
@@ -83,14 +97,20 @@ public sealed class PuffScriptCostMeasurement
 
         var report = new StringBuilder();
         CultureInfo inv = CultureInfo.InvariantCulture;
-        report.AppendLine(inv,
-            $"scripts/puff-yard.json, {ticks} ticks, 4 captures at 1280x720, {Rounds} rounds after one of warm-up.");
+        report.AppendLine(
+            inv,
+            $"scripts/puff-yard.json, {ticks} ticks, 4 captures at 1280x720, {Rounds} rounds after one of warm-up."
+        );
         foreach (int capacity in new[] { 4096, 0 })
-            report.AppendLine(inv,
-                $"capacity {capacity}: median {Median(seconds[capacity]) * 1e3:F1} ms, runs {string.Join(", ", seconds[capacity].Select(s => (s * 1e3).ToString("F1", inv)))} ms, {puffs[capacity]} live puffs at the end");
+            report.AppendLine(
+                inv,
+                $"capacity {capacity}: median {Median(seconds[capacity]) * 1e3:F1} ms, runs {string.Join(", ", seconds[capacity].Select(s => (s * 1e3).ToString("F1", inv)))} ms, {puffs[capacity]} live puffs at the end"
+            );
         double difference = Median(seconds[4096]) - Median(seconds[0]);
-        report.AppendLine(inv,
-            $"difference: {difference * 1e3:F1} ms in all, {difference / ticks * 1e6:F1} us per tick");
+        report.AppendLine(
+            inv,
+            $"difference: {difference * 1e3:F1} ms in all, {difference / ticks * 1e6:F1} us per tick"
+        );
         return report.ToString();
     }
 }

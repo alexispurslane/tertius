@@ -52,17 +52,16 @@ public sealed class FrameSpinTests
     }
 
     [Fact]
-    public void TheAngularVelocityIsTheRateAboutThePole()
-    {
+    public void TheAngularVelocityIsTheRateAboutThePole() =>
         ExpectNear(new FrameSpin(Tilt: Obliquity, Rate: 0.25).AngularVelocity, Pole * 0.25);
-    }
 
     [Fact]
     public void ATiltThatIsNotUnitLengthLeansTheFrameByItsDirectionAlone()
     {
         var spin = new FrameSpin(
             Tilt: new(X: Obliquity.X * 1.5, Y: Obliquity.Y * 1.5, Z: Obliquity.Z * 1.5, W: Obliquity.W * 1.5),
-            Rate: 0.25);
+            Rate: 0.25
+        );
 
         ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
         ExpectNear(spin.AngularVelocity, Pole * 0.25);
@@ -98,17 +97,15 @@ public sealed class FrameSpinTests
             "tilt NaN" => new(Tilt: new(X: double.NaN, Y: 0, Z: 0, W: 1), Rate: 1),
             "tilt Y NaN" => new(Tilt: new(X: 0, Y: double.NaN, Z: 0, W: 1), Rate: 1),
             "tilt Z infinite" => new(Tilt: new(X: 0, Y: 0, Z: double.PositiveInfinity, W: 1), Rate: 1),
-            _ => new(Tilt: new(X: 0, Y: 0, Z: 0, W: double.PositiveInfinity), Rate: 1)
+            _ => new(Tilt: new(X: 0, Y: 0, Z: 0, W: double.PositiveInfinity), Rate: 1),
         };
 
         spin.IsValid.Should().BeFalse();
     }
 
     [Fact]
-    public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()
-    {
+    public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step() =>
         Turning.Sample(Place, 12.5).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
-    }
 
     [Fact]
     public void A_spin_sample_does_not_move()

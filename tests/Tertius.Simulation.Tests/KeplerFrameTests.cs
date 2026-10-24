@@ -38,9 +38,18 @@ public sealed class KeplerFrameTests
         KeplerOrbit.Circular(radius, spinRate: spinRate);
 
     private static KeplerOrbit Ellipse(double semiMajorAxis, double eccentricity) =>
-        new(SemiMajorAxis: semiMajorAxis, Eccentricity: eccentricity, Inclination: 0, LongitudeOfAscendingNode: 0,
-            ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: 0,
-            SpinPhaseAtEpoch: 0);
+        new(
+            SemiMajorAxis: semiMajorAxis,
+            Eccentricity: eccentricity,
+            Inclination: 0,
+            LongitudeOfAscendingNode: 0,
+            ArgumentOfPeriapsis: 0,
+            MeanAnomalyAtEpoch: 0,
+            Epoch: 0,
+            AxialTilt: DQuaternion.Identity,
+            SpinRate: 0,
+            SpinPhaseAtEpoch: 0
+        );
 
     private static TestWorld NewWorld(double startTime = 0)
     {
@@ -53,20 +62,30 @@ public sealed class KeplerFrameTests
         return test;
     }
 
-    private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, FrameHandle parent = default,
-        GravityField gravity = default,
-        params IComponent[] components) => SpawnKeplerFrame(test: test, orbit: orbit, firstMove: false, parent: parent,
-        gravity: gravity, components);
-
-    private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, bool firstMove,
+    private static Entity SpawnKeplerFrame(
+        TestWorld test,
+        KeplerOrbit orbit,
         FrameHandle parent = default,
-        GravityField gravity = default, params IComponent[] components) =>
-        test.World.Spawn(new SpawnDesc
-        {
-            Frame = parent.IsNull ? test.Root : parent,
-            AsFrame = new(FrameBounds.Sphere(1), gravity),
-            Components = components
-        }.OnKeplerOrbit(test.World, orbit, firstMove));
+        GravityField gravity = default,
+        params IComponent[] components
+    ) => SpawnKeplerFrame(test: test, orbit: orbit, firstMove: false, parent: parent, gravity: gravity, components);
+
+    private static Entity SpawnKeplerFrame(
+        TestWorld test,
+        KeplerOrbit orbit,
+        bool firstMove,
+        FrameHandle parent = default,
+        GravityField gravity = default,
+        params IComponent[] components
+    ) =>
+        test.World.Spawn(
+            new SpawnDesc
+            {
+                Frame = parent.IsNull ? test.Root : parent,
+                AsFrame = new(FrameBounds.Sphere(1), gravity),
+                Components = components,
+            }.OnKeplerOrbit(test.World, orbit, firstMove)
+        );
 
     /// <summary>
     /// The frame has no body, so only its motion intents move it, and it spawns with no velocity. Its first motion intent
@@ -84,8 +103,11 @@ public sealed class KeplerFrameTests
         test.Run(1);
         // At mean anomaly M the body moves along (-sin M, 0, -cos M), so at M = 0 toward -Z, at the orbital speed.
         double m = MeanMotion * test.World.Time;
-        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(moon),
-            1000 * MeanMotion * new Double3(-Math.Sin(m), 0, -Math.Cos(m)), 1e-9);
+        PoseChecks.AssertNear(
+            test.World.Frames.LinearVelocity(moon),
+            1000 * MeanMotion * new Double3(-Math.Sin(m), 0, -Math.Cos(m)),
+            1e-9
+        );
     }
 
     [Theory]
@@ -94,8 +116,11 @@ public sealed class KeplerFrameTests
     [InlineData(2, -1000, 0)]
     [InlineData(3, 0, 1000)]
     [InlineData(4, 1000, 0)]
-    public void ACircularKeplerFrameIsAtTheOrbitPointForTheTimeThatHasPassed(int quarterPeriods, double expectedX,
-        double expectedZ)
+    public void ACircularKeplerFrameIsAtTheOrbitPointForTheTimeThatHasPassed(
+        int quarterPeriods,
+        double expectedX,
+        double expectedZ
+    )
     {
         using TestWorld test = NewWorld();
         FrameHandle moon = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000)));
@@ -125,23 +150,29 @@ public sealed class KeplerFrameTests
     [Fact]
     public void AKeplerFrameOnAnEllipseStartsAtPeriapsisWhereItIsClosestAndFastest()
     {
-        const double a = 1000, e = 0.5;
+        const double a = 1000,
+            e = 0.5;
         using TestWorld test = NewWorld(startTime: -1.0 / 64);
-        FrameHandle comet =
-            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Ellipse(a, e), firstMove: true));
+        FrameHandle comet = test.World.GetOwnedFrame(
+            SpawnKeplerFrame(test: test, orbit: Ellipse(a, e), firstMove: true)
+        );
 
         test.Run(1);
 
         // Periapsis is at a (1 - e) on the +X axis, and the vis-viva speed there is a n sqrt((1 + e) / (1 - e)).
         PoseChecks.AssertNear(test.World.Frames.LocalPose(comet).Position, new(a * (1 - e), 0, 0), 1e-9);
-        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(comet),
-            new(0, 0, -a * MeanMotion * Math.Sqrt((1 + e) / (1 - e))), 1e-6);
+        PoseChecks.AssertNear(
+            test.World.Frames.LinearVelocity(comet),
+            new(0, 0, -a * MeanMotion * Math.Sqrt((1 + e) / (1 - e))),
+            1e-6
+        );
     }
 
     [Fact]
     public void AKeplerFrameOnAnEllipseIsAtApoapsisWhereItIsFarthestAndSlowestAfterHalfAPeriod()
     {
-        const double a = 1000, e = 0.5;
+        const double a = 1000,
+            e = 0.5;
         using TestWorld test = NewWorld();
         FrameHandle comet = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Ellipse(a, e)));
 
@@ -149,8 +180,11 @@ public sealed class KeplerFrameTests
 
         // Apoapsis is at a (1 + e) on the -X axis, and the speed there is a n sqrt((1 - e) / (1 + e)), now toward +Z.
         PoseChecks.AssertNear(test.World.Frames.LocalPose(comet).Position, new(-a * (1 + e), 0, 0), 1e-6);
-        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(comet),
-            new(0, 0, a * MeanMotion * Math.Sqrt((1 - e) / (1 + e))), 1e-6);
+        PoseChecks.AssertNear(
+            test.World.Frames.LinearVelocity(comet),
+            new(0, 0, a * MeanMotion * Math.Sqrt((1 - e) / (1 + e))),
+            1e-6
+        );
     }
 
     [Fact]
@@ -158,8 +192,9 @@ public sealed class KeplerFrameTests
     {
         using TestWorld test = NewWorld();
         // One turn per period: a quarter turn after a quarter period.
-        FrameHandle planet =
-            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
+        FrameHandle planet = test.World.GetOwnedFrame(
+            SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion))
+        );
 
         test.Run(TicksPerQuarterPeriod);
 
@@ -186,8 +221,9 @@ public sealed class KeplerFrameTests
     public void AnEntityInASpinningKeplerFrameTurnsWithTheFrame()
     {
         using TestWorld test = NewWorld();
-        FrameHandle planet =
-            test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion)));
+        FrameHandle planet = test.World.GetOwnedFrame(
+            SpawnKeplerFrame(test: test, orbit: Circle(1000, spinRate: MeanMotion))
+        );
         Entity lander = test.World.SpawnAt(planet, new(10, 0, 0));
 
         test.Run(TicksPerQuarterPeriod);
@@ -232,9 +268,10 @@ public sealed class KeplerFrameTests
         using TestWorld test = NewWorld();
         // The moon's period is 2 s, so it is half a turn round the planet after one second, when the planet is a quarter turn round the root.
         // The planet's own point gravity has the G·M that gives a circle of 10 m the period 2 s.
-        FrameHandle planet = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: Circle(1000),
-            gravity: GravityField.Point(MuFor(10, periodSeconds: 2))));
-        KeplerOrbit moonOrbit = KeplerOrbit.Circular(10);
+        FrameHandle planet = test.World.GetOwnedFrame(
+            SpawnKeplerFrame(test: test, orbit: Circle(1000), gravity: GravityField.Point(MuFor(10, periodSeconds: 2)))
+        );
+        var moonOrbit = KeplerOrbit.Circular(10);
         FrameHandle moon = test.World.GetOwnedFrame(SpawnKeplerFrame(test: test, orbit: moonOrbit, parent: planet));
         Entity base_ = test.World.SpawnAt(moon, Double3.Zero);
 
@@ -266,13 +303,18 @@ public sealed class KeplerFrameTests
     {
         using TestWorld test = NewWorld();
         bool write = false;
-        Entity owner = SpawnKeplerFrame(test: test, orbit: Circle(1000),
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (write)
-                    self.SetTransform(TestWorld.At(5));
-                write = false;
-            }));
+        Entity owner = SpawnKeplerFrame(
+            test: test,
+            orbit: Circle(1000),
+            components: Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (write)
+                        self.SetTransform(TestWorld.At(5));
+                    write = false;
+                }
+            )
+        );
         FrameHandle moon = test.World.GetOwnedFrame(owner);
         double mu = KeplerOrbit.MuFrom(test.World.Frames.Gravity(test.Root));
         test.Run(3);
@@ -281,11 +323,13 @@ public sealed class KeplerFrameTests
         test.Run(1);
 
         test.World.Errors.Should().BeEmpty();
-        test.World.Frames.LocalPose(moon).Position.Should().Be(new Double3(5, 0, 0),
-            "the write moves the frame at the sync point of its tick");
+        test.World.Frames.LocalPose(moon)
+            .Position.Should()
+            .Be(new Double3(5, 0, 0), "the write moves the frame at the sync point of its tick");
         test.Run(1);
 
-        test.World.Frames.LocalPose(moon).Position.Should().Be(Circle(1000).StateAt(test.World.Time, mu).Position,
-            "the next sample puts the frame back on its orbit");
+        test.World.Frames.LocalPose(moon)
+            .Position.Should()
+            .Be(Circle(1000).StateAt(test.World.Time, mu).Position, "the next sample puts the frame back on its orbit");
     }
 }

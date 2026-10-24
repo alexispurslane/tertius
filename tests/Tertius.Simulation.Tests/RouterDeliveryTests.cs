@@ -150,7 +150,9 @@ public class RouterDeliveryTests
         h.Route(tick: 0);
 
         string[] inbox =
-            [.. h.Inbox(both).Select(e => e.Is<Ping>() ? $"ping {e.As<Ping>().Value}" : $"heal {e.As<Heal>().Amount}")];
+        [
+            .. h.Inbox(both).Select(e => e.Is<Ping>() ? $"ping {e.As<Ping>().Value}" : $"heal {e.As<Heal>().Amount}"),
+        ];
         inbox.Should().Equal("ping 1", "heal 2", "ping 3");
     }
 

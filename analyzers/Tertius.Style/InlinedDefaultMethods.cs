@@ -42,11 +42,17 @@ internal sealed class InlinedDefaultMethods
     private void RecordConstraint(SyntaxNodeAnalysisContext context)
     {
         var clause = (TypeParameterConstraintClauseSyntax)context.Node;
-        if (context.SemanticModel.GetSymbolInfo(clause.Name, context.CancellationToken).Symbol is not
-                ITypeParameterSymbol parameter || !GenericStructs.IsStructConstrained(parameter))
+        if (
+            context.SemanticModel.GetSymbolInfo(clause.Name, context.CancellationToken).Symbol
+                is not ITypeParameterSymbol parameter
+            || !GenericStructs.IsStructConstrained(parameter)
+        )
             return;
-        foreach (INamedTypeSymbol constraint in parameter.ConstraintTypes.OfType<INamedTypeSymbol>()
-                     .Where(type => type.TypeKind == TypeKind.Interface))
+        foreach (
+            INamedTypeSymbol constraint in parameter
+                .ConstraintTypes.OfType<INamedTypeSymbol>()
+                .Where(type => type.TypeKind == TypeKind.Interface)
+        )
         foreach (INamedTypeSymbol named in constraint.AllInterfaces.Prepend(constraint))
             constrained[named.OriginalDefinition] = true;
     }
@@ -54,23 +60,35 @@ internal sealed class InlinedDefaultMethods
     private void RecordMethod(SymbolAnalysisContext context)
     {
         var method = (IMethodSymbol)context.Symbol;
-        if (method is { MethodKind: MethodKind.Ordinary, IsStatic: false, IsAbstract: false } &&
-            method.DeclaredAccessibility != Accessibility.Private &&
-            method.ContainingType.TypeKind == TypeKind.Interface && !IsInlined(method))
+        if (
+            method is { MethodKind: MethodKind.Ordinary, IsStatic: false, IsAbstract: false }
+            && method.DeclaredAccessibility != Accessibility.Private
+            && method.ContainingType.TypeKind == TypeKind.Interface
+            && !IsInlined(method)
+        )
             notInlined[method] = true;
     }
 
     private void Report(CompilationAnalysisContext context)
     {
-        foreach (IMethodSymbol method in
-                 notInlined.Keys.Where(method => constrained.ContainsKey(method.ContainingType)))
-            context.ReportDiagnostic(Diagnostic.Create(StyleRules.DefaultMethodNotInlined, method.Locations[0],
-                $"{method.ContainingType.Name}.{method.Name}"));
+        foreach (
+            IMethodSymbol method in notInlined.Keys.Where(method => constrained.ContainsKey(method.ContainingType))
+        )
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.DefaultMethodNotInlined,
+                    method.Locations[0],
+                    $"{method.ContainingType.Name}.{method.Name}"
+                )
+            );
     }
 
     private static bool IsInlined(IMethodSymbol method) =>
-        method.GetAttributes().Any(attribute =>
-            attribute.AttributeClass?.ToDisplayString() == MethodImplAttribute &&
-            attribute.ConstructorArguments.FirstOrDefault().Value is { } options &&
-            (Convert.ToInt32(options, CultureInfo.InvariantCulture) & AggressiveInlining) != 0);
+        method
+            .GetAttributes()
+            .Any(attribute =>
+                attribute.AttributeClass?.ToDisplayString() == MethodImplAttribute
+                && attribute.ConstructorArguments.FirstOrDefault().Value is { } options
+                && (Convert.ToInt32(options, CultureInfo.InvariantCulture) & AggressiveInlining) != 0
+            );
 }

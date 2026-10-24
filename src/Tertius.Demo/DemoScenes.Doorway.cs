@@ -45,76 +45,121 @@ public static partial class DemoScenes
     private static SceneInstance Doorway(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
         scene.Add("ground", ground);
-        scene.Add("floor", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(25, 0.5f, 25)), Motion: BodyMotion.Static),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(25, 0.5f, 25)),
-                color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1), boundingRadius: 36)
-        }));
+        scene.Add(
+            "floor",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(new(25, 0.5f, 25)), Motion: BodyMotion.Static),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(25, 0.5f, 25)),
+                        color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
+                        boundingRadius: 36
+                    ),
+                }
+            )
+        );
 
         var doorHalf = new Vector3(1, (float)DoorwayDoorShutY, 0.05f);
-        scene.Add("door", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, DoorwayDoorShutY, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(doorHalf), Motion: BodyMotion.Kinematic),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(doorHalf),
-                color: new(x: 0.6f, y: 0.35f, z: 0.2f, w: 1), boundingRadius: 1.6f),
-            Components = [new Door(new(0, DoorwayDoorRise, 0), openSeconds: 1)],
-            Subscriptions = [Topics.Get(DoorwayTopic)]
-        }));
+        scene.Add(
+            "door",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, DoorwayDoorShutY, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(doorHalf), Motion: BodyMotion.Kinematic),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(doorHalf),
+                        color: new(x: 0.6f, y: 0.35f, z: 0.2f, w: 1),
+                        boundingRadius: 1.6f
+                    ),
+                    Components = [new Door(new(0, DoorwayDoorRise, 0), openSeconds: 1)],
+                    Subscriptions = [Topics.Get(DoorwayTopic)],
+                }
+            )
+        );
 
         var sensorHalf = new Vector3(1, 1, DoorwaySensorHalfDepth);
-        scene.Add("doorway-sensor", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, 1, DoorwaySensorZ), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(sensorHalf), Motion: BodyMotion.Static) { IsSensor = true },
-            Components = [new Sensor { Topic = DoorwayTopic }]
-        }));
+        scene.Add(
+            "doorway-sensor",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, 1, DoorwaySensorZ), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(sensorHalf), Motion: BodyMotion.Static) { IsSensor = true },
+                    Components = [new Sensor { Topic = DoorwayTopic }],
+                }
+            )
+        );
         // The mat is only drawn: it has no body, so nothing touches it.
         var matHalf = new Vector3(1, 0.005f, DoorwaySensorHalfDepth);
-        scene.Add("mat", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, 0.005, DoorwaySensorZ), DQuaternion.Identity),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(matHalf),
-                color: new(x: 0.2f, y: 0.4f, z: 0.8f, w: 1), boundingRadius: 1.3f)
-        }));
+        scene.Add(
+            "mat",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, 0.005, DoorwaySensorZ), DQuaternion.Identity),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(matHalf),
+                        color: new(x: 0.2f, y: 0.4f, z: 0.8f, w: 1),
+                        boundingRadius: 1.3f
+                    ),
+                }
+            )
+        );
 
         // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        scene.Add("person", world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
-            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
-            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
-                color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                boundingRadius: 1),
-            Components = [new PersonControl(new(0, 0.75f, 0))],
-            Subscriptions = [Topics.Input]
-        }));
+        scene.Add(
+            "person",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
+                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                        boundingRadius: 1
+                    ),
+                    Components = [new PersonControl(new(0, 0.75f, 0))],
+                    Subscriptions = [Topics.Input],
+                }
+            )
+        );
 
-        Entity camera = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = LookingAt(new(8, 3, 3), new(0, 1, 2)),
-            Render = new RenderData()
-        });
+        Entity camera = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = LookingAt(new(8, 3, 3), new(0, 1, 2)),
+                Render = new RenderData(),
+            }
+        );
         scene.Add("camera", camera);
 
-        Entity sun = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(new(30, 50, 20), DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(1))
-        });
+        Entity sun = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(new(30, 50, 20), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(1)),
+            }
+        );
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
 

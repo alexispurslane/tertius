@@ -17,11 +17,15 @@ public sealed class LifecycleTests
     public void AnEntityThatDestroysItselfLivesUntilTheEndOfThatTick()
     {
         using var t = new TestWorld();
-        Entity entity = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 2)
-                self.Destroy();
-        }));
+        Entity entity = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 2)
+                        self.Destroy();
+                }
+            )
+        );
 
         t.Run(2);
         t.World.IsAlive(entity).Should().BeTrue();
@@ -47,11 +51,17 @@ public sealed class LifecycleTests
     {
         using var t = new TestWorld();
         var recorder = new Recorder(EventMask.Of<Tick>());
-        t.SpawnWith(recorder, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 2)
-                self.Destroy();
-        }, priority: 1));
+        t.SpawnWith(
+            recorder,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 2)
+                        self.Destroy();
+                },
+                priority: 1
+            )
+        );
 
         t.Run(6);
 
@@ -165,8 +175,10 @@ public sealed class LifecycleTests
         using var t = new TestWorld();
         Entity shielded = t.SpawnWith(new Invulnerable());
         Entity exposed = t.SpawnWith();
-        t.SpawnWith(SendOnce.Of(target: shielded, payload: new Destroy()),
-            SendOnce.Of(target: exposed, payload: new Destroy()));
+        t.SpawnWith(
+            SendOnce.Of(target: shielded, payload: new Destroy()),
+            SendOnce.Of(target: exposed, payload: new Destroy())
+        );
 
         t.Run(2);
 
@@ -282,8 +294,11 @@ public sealed class LifecycleTests
         using var t = new TestWorld(chunkSize: 1);
         Entity[] doomed =
         [
-            .. Enumerable.Range(0, 3).Select(_ =>
-                t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())))
+            .. Enumerable
+                .Range(0, 3)
+                .Select(_ =>
+                    t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()))
+                ),
         ];
         t.Run(1);
 
@@ -298,7 +313,7 @@ public sealed class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithABodyOutsideATickTellsPhysicsToDropTheBody()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = t.World.Spawn(new() { Frame = t.Root, Body = TestWorld.Ball });
         t.Run(1);
@@ -312,21 +327,25 @@ public sealed class LifecycleTests
     [Fact]
     public void AnEntityWithABodyThatDestroysItselfIsDroppedFromPhysicsAtTheSyncPoint()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
-        Entity ball = t.World.Spawn(new()
-        {
-            Frame = t.Root,
-            Body = TestWorld.Ball,
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                {
-                    if (self.Tick == 1)
-                        self.Destroy();
-                })
-            ]
-        });
+        Entity ball = t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                Body = TestWorld.Ball,
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                        {
+                            if (self.Tick == 1)
+                                self.Destroy();
+                        }
+                    ),
+                ],
+            }
+        );
 
         t.Run(2);
 
@@ -336,7 +355,7 @@ public sealed class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithoutABodyTellsPhysicsNothingAboutBodies()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity plain = t.SpawnWith();
         t.Run(1);

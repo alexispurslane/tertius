@@ -32,8 +32,12 @@ public sealed class FrameTreeNumericUpdateTests
 
     public FrameTreeNumericUpdateTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        ground = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -42,9 +46,15 @@ public sealed class FrameTreeNumericUpdateTests
     /// A body of the frame ground at <paramref name="x"/>, whose place in its home the tree gives now. A
     /// <paramref name="character"/> always thrusts, so its group falls from 50 m/s and keeps falling down to 20 m/s.
     /// </summary>
-    private NumericBody Body(uint id, double x, double vx = 0, double radius = 1, FrameHandle home = default,
+    private NumericBody Body(
+        uint id,
+        double x,
+        double vx = 0,
+        double radius = 1,
+        FrameHandle home = default,
         double mass = 1,
-        bool character = false)
+        bool character = false
+    )
     {
         FrameHandle physicsHome = home.IsNull ? ground : home;
         return new()
@@ -57,7 +67,7 @@ public sealed class FrameTreeNumericUpdateTests
             Velocity = X(vx),
             Radius = radius,
             Mass = mass,
-            Character = character
+            Character = character,
         };
     }
 
@@ -66,15 +76,23 @@ public sealed class FrameTreeNumericUpdateTests
     {
         changes.Clear();
         moves = [];
-        frames.UpdateNumericFrames(bodies: bodies, dt: dt, step: 1.0 / 60, changes: changes, applyMoves: handed =>
-        {
-            foreach (NumericMove move in handed)
-                frames.IsAlive(move.From).Should()
-                    .BeTrue("physics converts each move through the frame that the body leaves");
-            moves.AddRange(handed);
-        });
+        frames.UpdateNumericFrames(
+            bodies: bodies,
+            dt: dt,
+            step: 1.0 / 60,
+            changes: changes,
+            applyMoves: handed =>
+            {
+                foreach (NumericMove move in handed)
+                    frames
+                        .IsAlive(move.From)
+                        .Should()
+                        .BeTrue("physics converts each move through the frame that the body leaves");
+                moves.AddRange(handed);
+            }
+        );
         frames.AssertInvariants();
-        Dictionary<Entity, FrameHandle> homes = moves.ToDictionary(move => move.Entity, move => move.To);
+        var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         foreach (NumericMove move in moves)
         {
             NumericBody body = bodies.Single(b => b.Entity == move.Entity);
@@ -90,7 +108,7 @@ public sealed class FrameTreeNumericUpdateTests
             {
                 FrameHandle home = homes.TryGetValue(body.Entity, out FrameHandle to) ? to : body.Home;
                 return body with { Home = home, HomePosition = body.Position - frames.HomeOffset(home, body.Semantic) };
-            })
+            }),
         ];
     }
 
@@ -141,9 +159,12 @@ public sealed class FrameTreeNumericUpdateTests
     public void Three_bodies_in_a_chain_share_one_frame()
     {
         // Each body reaches 4 m: the first and the last are 6 m apart and link only through the middle one.
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 0, vx: 60, radius: 2, character: true),
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, radius: 2, character: true),
             Body(id: 11, x: 3, vx: 60, radius: 2, character: true),
-            Body(id: 12, x: 6, vx: 60, radius: 2, character: true));
+            Body(id: 12, x: 6, vx: 60, radius: 2, character: true)
+        );
         after.Select(body => body.Home).Distinct().Should().ContainSingle().Which.Should().NotBe(ground);
         frames.NumericCount.Should().Be(1);
     }
@@ -151,9 +172,12 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void Groups_get_their_frames_and_moves_in_the_order_of_their_first_body()
     {
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 0, vx: 60, character: true),
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, character: true),
             Body(id: 11, x: 1_000, vx: 60, character: true),
-            Body(id: 12, x: 2, vx: 60, character: true));
+            Body(id: 12, x: 2, vx: 60, character: true)
+        );
         changes.FramesCreated.Should().Equal(after[0].Home, after[1].Home);
         after[2].Home.Should().Be(after[0].Home);
         moves.Select(move => move.Entity.Index).Should().Equal(10u, 12u, 11u);
@@ -178,28 +202,44 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_fast_body_near_a_static_body_joins_the_static_bodys_system_and_keeps_no_ghost()
     {
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 0) with { Static = true },
-            Body(id: 11, x: 2, vx: 60, character: true));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 0) with
+            {
+                Static = true,
+            },
+            Body(id: 11, x: 2, vx: 60, character: true)
+        );
         after[0].Home.Should().Be(ground, "a static body stays in its own system");
         after[1].Home.Should().Be(ground, "the static body is infinitely heavy, so the group takes its home");
         moves.Should().BeEmpty();
         frames.NumericCount.Should().Be(0);
         frames.AnchorGhosts.IsEmpty.Should().BeTrue("the static body is a real body of the group's system");
 
-        frames.Numeric(Update(0.1, Body(id: 11, x: 2, vx: 60, character: true))[0].Home).Should()
+        frames
+            .Numeric(Update(0.1, Body(id: 11, x: 2, vx: 60, character: true))[0].Home)
+            .Should()
             .Be(NumericMode.Falling, "alone, the body falls");
     }
 
     [Fact]
     public void A_fast_body_near_the_hull_of_a_Static_or_Spin_frame_joins_the_hulls_system()
     {
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 0) with { Fixed = true },
-            Body(id: 11, x: 2, vx: 60, character: true));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 0) with
+            {
+                Fixed = true,
+            },
+            Body(id: 11, x: 2, vx: 60, character: true)
+        );
         after[0].Home.Should().Be(ground);
         after[1].Home.Should().Be(ground, "the hull's center rests in the system of ground");
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
 
-        frames.Numeric(Update(0.1, Body(id: 11, x: 2, vx: 60, character: true))[0].Home).Should()
+        frames
+            .Numeric(Update(0.1, Body(id: 11, x: 2, vx: 60, character: true))[0].Home)
+            .Should()
             .Be(NumericMode.Falling, "alone, the body falls");
     }
 
@@ -207,8 +247,14 @@ public sealed class FrameTreeNumericUpdateTests
     public void A_falling_frame_that_reaches_a_static_body_hands_its_body_to_the_static_bodys_system()
     {
         FrameHandle pod = Update(0.1, Body(id: 11, x: 0, vx: 7_700))[0].Home;
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 3) with { Static = true },
-            Body(id: 11, x: 0, vx: 7_700, home: pod));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 3) with
+            {
+                Static = true,
+            },
+            Body(id: 11, x: 0, vx: 7_700, home: pod)
+        );
         after[1].Home.Should().Be(ground);
         moves.Should().Equal(new NumericMove(new(11, 1), pod, ground));
         frames.IsAlive(pod).Should().BeFalse("the falling frame lost its only member");
@@ -219,17 +265,24 @@ public sealed class FrameTreeNumericUpdateTests
     public void A_fast_body_that_passes_a_static_body_joins_it_within_the_lookahead_lets_go_and_falls_again()
     {
         // Reach: radii of 1 m each plus 60 m/s for 2 s, 122 m, and 10 m more while both share a system.
-        NumericBody wall = Body(id: 10, x: 0) with { Static = true };
+        NumericBody wall = Body(id: 10, x: 0) with
+        {
+            Static = true,
+        };
         FrameHandle pod = Update(0.1, wall, Body(id: 11, x: -133, vx: 60, character: true))[1].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling, "the body is beyond the reach and the split margin");
 
-        Update(0.1, wall, Body(id: 11, x: -121, vx: 60, home: pod, character: true))[1].Home.Should()
+        Update(0.1, wall, Body(id: 11, x: -121, vx: 60, home: pod, character: true))[1]
+            .Home.Should()
             .Be(ground, "the merge test reaches the wall");
-        Update(0.1, wall, Body(id: 11, x: 131, vx: 60, character: true))[1].Home.Should()
+        Update(0.1, wall, Body(id: 11, x: 131, vx: 60, character: true))[1]
+            .Home.Should()
             .Be(ground, "the split margin holds the body");
 
         FrameHandle again = Update(0.1, wall, Body(id: 11, x: 133, vx: 60, character: true))[1].Home;
-        frames.Numeric(again).Should()
+        frames
+            .Numeric(again)
+            .Should()
             .Be(NumericMode.Falling, "the body falls again as soon as the merge test lets go");
         frames.LinearVelocity(again).Should().Be(X(60));
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
@@ -241,8 +294,14 @@ public sealed class FrameTreeNumericUpdateTests
         FrameHandle raft = Update(0.1, Body(id: 10, x: Far) with { Static = true })[0].Home;
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
 
-        NumericBody[] after = Update(0.1, Body(id: 10, x: Far, home: raft) with { Static = true },
-            Body(id: 11, x: Far + 50, vx: 60, character: true));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: Far, home: raft) with
+            {
+                Static = true,
+            },
+            Body(id: 11, x: Far + 50, vx: 60, character: true)
+        );
         after[1].Home.Should().Be(raft);
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
         frames.LinearVelocity(raft).Should().Be(Double3.Zero);
@@ -259,8 +318,14 @@ public sealed class FrameTreeNumericUpdateTests
         const double wall = 6e6;
         FrameHandle pod = Update(0.1, Body(id: 11, x: wall - 200, vx: 60, mass: 1_000, character: true))[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
-        NumericBody[] after = Update(0.1, Body(id: 10, x: wall) with { Static = true },
-            Body(id: 11, x: wall - 100, vx: 60, home: pod, mass: 1_000, character: true));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: wall) with
+            {
+                Static = true,
+            },
+            Body(id: 11, x: wall - 100, vx: 60, home: pod, mass: 1_000, character: true)
+        );
         after[0].Home.Should().Be(ground);
         after[1].Home.Should().Be(ground);
         frames.NumericCount.Should().Be(0);
@@ -272,8 +337,17 @@ public sealed class FrameTreeNumericUpdateTests
         // The near rock lies within the create distance of 2^23 m, so it stays in the system of ground; the far rock rests in
         // a frame.
         const double edge = 1 << 23;
-        NumericBody[] before = Update(0.1, Body(id: 10, x: edge - 20) with { Static = true },
-            Body(id: 12, x: edge + 20) with { Static = true });
+        NumericBody[] before = Update(
+            0.1,
+            Body(id: 10, x: edge - 20) with
+            {
+                Static = true,
+            },
+            Body(id: 12, x: edge + 20) with
+            {
+                Static = true,
+            }
+        );
         FrameHandle raft = before[1].Home;
         before[0].Home.Should().Be(ground);
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
@@ -290,16 +364,26 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_group_with_a_static_body_keeps_its_frame_when_a_heavier_group_without_one_splits_off()
     {
-        NumericBody[] together =
-            Update(0.1, Body(id: 10, x: Far) with { Static = true }, Body(id: 11, x: Far + 1, mass: 1_000));
+        NumericBody[] together = Update(
+            0.1,
+            Body(id: 10, x: Far) with
+            {
+                Static = true,
+            },
+            Body(id: 11, x: Far + 1, mass: 1_000)
+        );
         FrameHandle raft = together[0].Home;
         together[1].Home.Should().Be(raft);
 
-        NumericBody[] after = Update(0.1, together[0],
+        NumericBody[] after = Update(
+            0.1,
+            together[0],
             together[1] with
             {
-                Position = X(Far + 500), HomePosition = X(Far + 500) - frames.HomeOffset(raft, ground)
-            });
+                Position = X(Far + 500),
+                HomePosition = X(Far + 500) - frames.HomeOffset(raft, ground),
+            }
+        );
         after[0].Home.Should().Be(raft, "a static body outweighs any mass");
         after[1].Home.Should().NotBe(raft);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting);
@@ -309,7 +393,10 @@ public sealed class FrameTreeNumericUpdateTests
     public void A_body_at_the_edge_of_the_reach_of_a_fixed_hull_does_not_go_in_and_out_of_the_semantic_frames_system()
     {
         // Alone, the slow body far out gets a resting frame; with the fixed hull, it stays in the system of ground.
-        NumericBody hull = Body(id: 20, x: Far) with { Fixed = true };
+        NumericBody hull = Body(id: 20, x: Far) with
+        {
+            Fixed = true,
+        };
         Update(0.1, hull, Body(id: 10, x: Far + 1));
         moves.Should().BeEmpty();
 
@@ -338,8 +425,7 @@ public sealed class FrameTreeNumericUpdateTests
         Body(id: 10, x: Far + 15, vx: vx, home: home);
 
     [Fact]
-    public void
-        A_body_that_crosses_the_edge_of_a_fixed_hulls_reach_every_update_changes_its_home_at_most_once_per_cooldown()
+    public void A_body_that_crosses_the_edge_of_a_fixed_hulls_reach_every_update_changes_its_home_at_most_once_per_cooldown()
     {
         FrameHandle home = ground;
         var changedAt = new List<int>();
@@ -350,8 +436,10 @@ public sealed class FrameTreeNumericUpdateTests
                 changedAt.Add(update);
         }
 
-        changedAt.Zip(changedAt.Skip(1), (first, next) => next - first).Should().OnlyContain(gap => gap >= 10,
-            "a split cooldown of 1 s is 10 updates of 0.1 s");
+        changedAt
+            .Zip(changedAt.Skip(1), (first, next) => next - first)
+            .Should()
+            .OnlyContain(gap => gap >= 10, "a split cooldown of 1 s is 10 updates of 0.1 s");
 
         // Beyond the reach for longer than a cooldown, the body leaves into a resting frame: the hold kept it, not the scene.
         for (int update = 0; update < 11; update++)
@@ -384,7 +472,9 @@ public sealed class FrameTreeNumericUpdateTests
 
         Update(0.25, FarHull());
         NumericBody[] after = Update(0.25, FarHull(), EdgeBody());
-        frames.Numeric(after[1].Home).Should()
+        frames
+            .Numeric(after[1].Home)
+            .Should()
             .Be(NumericMode.Resting, "nothing keeps it in the system of ground any more");
     }
 
@@ -405,7 +495,9 @@ public sealed class FrameTreeNumericUpdateTests
         Update(0.25, FarHull(), EdgeBody(vx: 7) with { Character = true });
         // At 60 m/s the merge test reaches 122 m, and 132 m in one system: a fast body nearer than that joins the hull.
         NumericBody[] after = Update(0.25, FarHull(), Body(id: 10, x: Far + 200, vx: 60, character: true));
-        frames.Numeric(after[1].Home).Should()
+        frames
+            .Numeric(after[1].Home)
+            .Should()
             .Be(NumericMode.Falling, "falling has its own hysteresis, so no cooldown holds it");
     }
 
@@ -421,8 +513,12 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_fixed_hull_in_a_numeric_frame_goes_back_to_its_semantic_frame_with_its_frame()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
-            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(
+            frameOwner: new(20, 1),
+            parent: ground,
+            localPose: new(X(50), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50)
+        );
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull };
@@ -446,8 +542,12 @@ public sealed class FrameTreeNumericUpdateTests
     [InlineData(null)]
     public void A_frame_without_a_dynamic_hull_under_a_numeric_frame_breaks_an_invariant(BodyMotion? motion)
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
-            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(
+            frameOwner: new(20, 1),
+            parent: ground,
+            localPose: new(X(50), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50)
+        );
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
@@ -492,8 +592,11 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void Members_that_drift_apart_split_only_after_the_cooldown()
     {
-        NumericBody[] bodies = Update(0.1, Body(id: 10, x: 0, vx: 60, character: true),
-            Body(id: 11, x: 1, vx: 60, character: true));
+        NumericBody[] bodies = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, character: true),
+            Body(id: 11, x: 1, vx: 60, character: true)
+        );
         FrameHandle pod = bodies[0].Home;
         bodies = [bodies[0], Body(id: 11, x: 100, vx: 60, home: pod, character: true)];
         Update(0.5, bodies);
@@ -508,9 +611,11 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void Members_that_come_together_again_restart_the_split_clock()
     {
-        FrameHandle pod =
-            Update(0.1, Body(id: 10, x: 0, vx: 60, character: true), Body(id: 11, x: 1, vx: 60, character: true))[0]
-                .Home;
+        FrameHandle pod = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, character: true),
+            Body(id: 11, x: 1, vx: 60, character: true)
+        )[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         NumericBody near = Body(id: 10, x: 0, vx: 60, home: pod, character: true),
             far = Body(id: 11, x: 100, vx: 60, home: pod, character: true);
@@ -523,12 +628,15 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_heavier_group_that_splits_off_later_takes_the_frame_from_the_first_group()
     {
-        FrameHandle pod = Update(0.1, Body(id: 10, x: 0, vx: 60, mass: 1, character: true),
-            Body(id: 11, x: 1, vx: 60, mass: 5, character: true))[0].Home;
+        FrameHandle pod = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, mass: 1, character: true),
+            Body(id: 11, x: 1, vx: 60, mass: 5, character: true)
+        )[0].Home;
         NumericBody[] bodies =
         [
             Body(id: 10, x: 0, vx: 60, home: pod, mass: 1, character: true),
-            Body(id: 11, x: 100, vx: 60, home: pod, mass: 5, character: true)
+            Body(id: 11, x: 100, vx: 60, home: pod, mass: 5, character: true),
         ];
         Update(0.5, bodies);
         NumericBody[] after = Update(0.5, bodies);
@@ -540,13 +648,20 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void Two_numeric_frames_whose_members_meet_merge_into_the_one_with_more_mass()
     {
-        NumericBody[] first = Update(0.1, Body(id: 10, x: 0, vx: 60, mass: 1, character: true),
-            Body(id: 11, x: 1_000, vx: 60, mass: 5, character: true));
-        FrameHandle light = first[0].Home, heavy = first[1].Home;
+        NumericBody[] first = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, mass: 1, character: true),
+            Body(id: 11, x: 1_000, vx: 60, mass: 5, character: true)
+        );
+        FrameHandle light = first[0].Home,
+            heavy = first[1].Home;
         light.Should().NotBe(heavy);
 
-        Update(0.1, Body(id: 10, x: 0, vx: 60, home: light, mass: 1, character: true),
-            Body(id: 11, x: 1.5, vx: 60, home: heavy, mass: 5, character: true));
+        Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, home: light, mass: 1, character: true),
+            Body(id: 11, x: 1.5, vx: 60, home: heavy, mass: 5, character: true)
+        );
 
         moves.Should().Equal(new NumericMove(new(10, 1), light, heavy));
         frames.IsAlive(light).Should().BeFalse("the frame that lost its bodies goes");
@@ -556,10 +671,21 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void Bodies_of_two_semantic_frames_never_link()
     {
-        FrameHandle other = frames.Create(frameOwner: new(2, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 0, vx: 60, character: true),
-            Body(id: 11, x: 0, vx: 60, character: true) with { Semantic = other, Home = other });
+        FrameHandle other = frames.Create(
+            frameOwner: new(2, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 0, vx: 60, character: true),
+            Body(id: 11, x: 0, vx: 60, character: true) with
+            {
+                Semantic = other,
+                Home = other,
+            }
+        );
         after[0].Home.Should().NotBe(after[1].Home);
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
@@ -579,8 +705,12 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_drain_and_a_recenter_keep_the_pose_and_velocity_of_a_ship_frame_in_its_semantic_frame()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
-            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(
+            frameOwner: new(20, 1),
+            parent: ground,
+            localPose: new(X(50), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50)
+        );
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         FrameHandle pod = Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
@@ -619,8 +749,12 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_moving_owner_takes_its_frame_into_its_new_home()
     {
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: ground,
-            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(
+            frameOwner: new(20, 1),
+            parent: ground,
+            localPose: new(X(50), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50)
+        );
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         FrameHandle home = Update(0.1, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
@@ -641,8 +775,11 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_second_far_frame_joins_the_nearest_nest()
     {
-        NumericBody[] after = Update(0.1, Body(id: 10, x: 3e9, vx: 60, character: true),
-            Body(id: 11, x: 3.1e9, vx: 60, character: true));
+        NumericBody[] after = Update(
+            0.1,
+            Body(id: 10, x: 3e9, vx: 60, character: true),
+            Body(id: 11, x: 3.1e9, vx: 60, character: true)
+        );
         frames.TreeParent(after[1].Home).Should().Be(frames.TreeParent(after[0].Home));
         frames.NumericCount.Should().Be(3);
     }
@@ -671,17 +808,24 @@ public sealed class FrameTreeNumericUpdateTests
     {
         const double place = 3L << 30;
         // A falling pod and a resting raft share one nest.
-        NumericBody[] first = Update(0.1, Body(id: 10, x: place, vx: 60, character: true),
-            Body(id: 11, x: place + 1e8));
-        FrameHandle pod = first[0].Home, raft = first[1].Home;
+        NumericBody[] first = Update(
+            0.1,
+            Body(id: 10, x: place, vx: 60, character: true),
+            Body(id: 11, x: place + 1e8)
+        );
+        FrameHandle pod = first[0].Home,
+            raft = first[1].Home;
         FrameHandle nest = frames.TreeParent(pod);
         frames.TreeParent(raft).Should().Be(nest);
 
         // The pod drifts 2e9 m away: a jump of the nest would leave the raft far from it.
         Advance(2e9 / 60);
         Double3 drift = frames.TreeLocalPose(pod).Position;
-        Update(0.1, Body(id: 10, x: place + drift.X, vx: 60, home: pod, character: true),
-            Body(id: 11, x: place + 1e8, home: raft));
+        Update(
+            0.1,
+            Body(id: 10, x: place + drift.X, vx: 60, home: pod, character: true),
+            Body(id: 11, x: place + 1e8, home: raft)
+        );
         FrameHandle newNest = frames.TreeParent(pod);
         newNest.Should().NotBe(nest);
         frames.Numeric(newNest).Should().Be(NumericMode.Nesting);
@@ -697,20 +841,24 @@ public sealed class FrameTreeNumericUpdateTests
     public void The_merge_test_far_from_the_origin_measures_bodies_by_their_places_in_their_homes()
     {
         frames.NumericOptions = new() { RecenterDistance = 1e12 };
-        NumericBody[] first = Update(0.1, Body(id: 10, x: LightYear, vx: 60, character: true),
-            Body(id: 11, x: LightYear + 1_000, vx: 60, character: true));
-        FrameHandle a = first[0].Home, b = first[1].Home;
+        NumericBody[] first = Update(
+            0.1,
+            Body(id: 10, x: LightYear, vx: 60, character: true),
+            Body(id: 11, x: LightYear + 1_000, vx: 60, character: true)
+        );
+        FrameHandle a = first[0].Home,
+            b = first[1].Home;
         frames.TreeParent(a).Should().Be(frames.TreeParent(b));
         double between = frames.Relative(b, a).Position.X;
 
         // A light-year out, a double steps by 2 m, so both rows round to one place. In their homes, they are 3 m apart.
         NumericBody bodyA = Body(id: 10, x: LightYear, vx: 60, home: a, character: true) with
         {
-            HomePosition = Double3.Zero
+            HomePosition = Double3.Zero,
         };
         NumericBody bodyB = Body(id: 11, x: LightYear, vx: 60, home: b, character: true) with
         {
-            HomePosition = X(3 - between)
+            HomePosition = X(3 - between),
         };
         Update(0.1, bodyA, bodyB);
         moves.Should().BeEmpty("radii of 1 m do not reach 3 m");
@@ -735,17 +883,28 @@ public sealed class FrameTreeNumericUpdateTests
     [Fact]
     public void A_semantic_frame_that_dies_takes_its_numeric_frames_with_it_and_its_ship_frames_keep_their_places()
     {
-        DQuaternion turned = DQuaternion.FromAxisAngle(new(0, 1, 0), 0.5);
-        FrameHandle station = frames.Create(frameOwner: new(2, 1), parent: ground, localPose: new(X(1_000), turned),
-            frameBounds: FrameBounds.Sphere(1e6f));
+        var turned = DQuaternion.FromAxisAngle(new(0, 1, 0), 0.5);
+        FrameHandle station = frames.Create(
+            frameOwner: new(2, 1),
+            parent: ground,
+            localPose: new(X(1_000), turned),
+            frameBounds: FrameBounds.Sphere(1e6f)
+        );
         frames.SetAngularVelocity(station, new(0, 0.1f, 0));
-        FrameHandle hull = frames.Create(frameOwner: new(20, 1), parent: station,
-            localPose: new(X(50), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(50));
+        FrameHandle hull = frames.Create(
+            frameOwner: new(20, 1),
+            parent: station,
+            localPose: new(X(50), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(50)
+        );
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(id: 20, x: 50, vx: 60, character: true) with
         {
-            Semantic = station, Home = station, HomePosition = X(50), OwnedFrame = hull
+            Semantic = station,
+            Home = station,
+            HomePosition = X(50),
+            OwnedFrame = hull,
         };
         FrameHandle pod = Update(0.1, owner)[0].Home;
         frames.TreeParent(hull).Should().Be(pod);
@@ -771,11 +930,17 @@ public sealed class FrameTreeNumericUpdateTests
         static (List<NumericMove> Moves, List<Double3> Places) Run()
         {
             var test = new FrameTreeNumericUpdateTests();
-            test.Update(0.1, test.Body(id: 10, x: 0, vx: 60, character: true), test.Body(id: 11, x: 3e9, vx: 0),
+            test.Update(
+                0.1,
+                test.Body(id: 10, x: 0, vx: 60, character: true),
+                test.Body(id: 11, x: 3e9, vx: 0),
                 test.Body(id: 12, x: 1, vx: 60, character: true),
-                test.Body(id: 13, x: Far));
-            return (test.moves,
-                test.changes.FramesCreated.Select(frame => test.frames.HomeOffset(frame, test.ground)).ToList());
+                test.Body(id: 13, x: Far)
+            );
+            return (
+                test.moves,
+                test.changes.FramesCreated.Select(frame => test.frames.HomeOffset(frame, test.ground)).ToList()
+            );
         }
 
         (List<NumericMove> moves, List<Double3> places) = Run();

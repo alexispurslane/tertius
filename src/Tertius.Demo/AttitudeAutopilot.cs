@@ -113,9 +113,10 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         Double3 across = roof - z * Double3.Dot(roof, z);
         if (across.Length < 1e-9 * roof.Length)
             throw new ArgumentException(
-                $"The roof {roof} lies along the nose {nose}, so it gives no turn about the nose.");
+                $"The roof {roof} lies along the nose {nose}, so it gives no turn about the nose."
+            );
         Double3 y = across.Normalized();
-        Double3 x = Double3.Cross(y, z);
+        var x = Double3.Cross(y, z);
         return FromAxes(x, y, z);
     }
 
@@ -127,7 +128,8 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
     /// </summary>
     public static DQuaternion Facing(Double3 nose, in DPose pose)
     {
-        Double3 up = pose.Position.Normalized(), along = nose.Normalized();
+        Double3 up = pose.Position.Normalized(),
+            along = nose.Normalized();
         Double3 roof = up - along * Double3.Dot(up, along);
         return Facing(nose, roof.Length > 1e-6 ? roof : pose.Rotation.Rotate(Double3.UnitY));
     }
@@ -139,12 +141,21 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
             target = each;
         if (target.MaxTurnRate is not >= 0)
-            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate,
-                "A turn rate lies from 0 up.");
-        if (!float.IsFinite(target.FeedForward.X) || !float.IsFinite(target.FeedForward.Y) ||
-            !float.IsFinite(target.FeedForward.Z))
-            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.FeedForward), target.FeedForward,
-                "A feed-forward is finite.");
+            throw new ArgumentOutOfRangeException(
+                nameof(AttitudeTarget.MaxTurnRate),
+                target.MaxTurnRate,
+                "A turn rate lies from 0 up."
+            );
+        if (
+            !float.IsFinite(target.FeedForward.X)
+            || !float.IsFinite(target.FeedForward.Y)
+            || !float.IsFinite(target.FeedForward.Z)
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(AttitudeTarget.FeedForward),
+                target.FeedForward,
+                "A feed-forward is finite."
+            );
         DPose pose = self.PoseIn(self.Frame);
         // The turn that is left, as a rotation vector in the frame's axes, and the correction toward it that the autopilot
         // asks for. The cap takes only the correction: the feed-forward is the target's own turn, which needs none.

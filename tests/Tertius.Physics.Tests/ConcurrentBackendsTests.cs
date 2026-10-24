@@ -22,19 +22,22 @@ public sealed class ConcurrentBackendsTests
         using var start = new Barrier(Worlds);
         Thread[] threads =
         [
-            .. Enumerable.Range(0, Worlds).Select(i => new Thread(() =>
-            {
-                start.SignalAndWait();
-                hashes[i] = HeapAndCharacterRun();
-            }))
+            .. Enumerable
+                .Range(0, Worlds)
+                .Select(i => new Thread(() =>
+                {
+                    start.SignalAndWait();
+                    hashes[i] = HeapAndCharacterRun();
+                })),
         ];
         foreach (Thread thread in threads)
             thread.Start();
         foreach (Thread thread in threads)
             thread.Join();
 
-        hashes.Should().AllBeEquivalentTo(alone,
-            "a step uses only its own thread's temp allocator and its own backend's state");
+        hashes
+            .Should()
+            .AllBeEquivalentTo(alone, "a step uses only its own thread's temp allocator and its own backend's state");
     }
 
     /// <summary>
@@ -48,13 +51,22 @@ public sealed class ConcurrentBackendsTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         for (int i = 0; i < 24; i++)
-            world.Spawn(new() { Frame = ground, Pose = At(i % 3 * 0.6, 1 + i * 1.1, i / 3 % 2 * 0.6), Body = Cube() });
-        world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(4, 0.91),
-            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
-        });
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(i % 3 * 0.6, 1 + i * 1.1, i / 3 % 2 * 0.6),
+                    Body = Cube(),
+                }
+            );
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(4, 0.91),
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+            }
+        );
         for (int tick = 0; tick < Ticks; tick++)
             world.Tick();
         return WorldHash.Of(world);

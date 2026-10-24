@@ -22,7 +22,8 @@ public sealed partial class JoltPhysicsBackend
             if (!frames.IsAlive(shift.Frame) || !frames.IsNumeric(shift.Frame))
             {
                 ReportBug(
-                    $"Physics: cannot shift {shift.Frame}, which is not a live numeric frame. Only a bug sends such a shift, so it was skipped.");
+                    $"Physics: cannot shift {shift.Frame}, which is not a live numeric frame. Only a bug sends such a shift, so it was skipped."
+                );
                 continue;
             }
 
@@ -42,8 +43,12 @@ public sealed partial class JoltPhysicsBackend
                 }
 
                 BodySnapshot s = ReadPrimary(record);
-                bodies.SetRPositionAndRotation(bodyID: record.Body, position: (s.Pose.Position - shift.Offset).ToJolt(),
-                    rotation: s.Pose.Rotation.ToJolt(), activationMode: Activation.DontActivate);
+                bodies.SetRPositionAndRotation(
+                    bodyID: record.Body,
+                    position: (s.Pose.Position - shift.Offset).ToJolt(),
+                    rotation: s.Pose.Rotation.ToJolt(),
+                    activationMode: Activation.DontActivate
+                );
                 // A nonzero velocity wakes a sleeping body, as it must: the body now moves in the system.
                 if (record.IsMovable && velocity != Double3.Zero)
                     bodies.SetLinearVelocity(record.Body, (s.Linear - velocity).ToVector3());

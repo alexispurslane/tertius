@@ -34,34 +34,47 @@ public sealed class NameArgumentsFix : CodeFixProvider
     /// both apply.
     /// </summary>
     public override FixAllProvider GetFixAllProvider() =>
-        FixAllProvider.Create(async (context, document, diagnostics) => await Named(document,
-                diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
-            .ConfigureAwait(false));
+        FixAllProvider.Create(
+            async (context, document, diagnostics) =>
+                await Named(
+                        document,
+                        diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan),
+                        context.CancellationToken
+                    )
+                    .ConfigureAwait(false)
+        );
 
     /// <inheritdoc/>
     public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         foreach (Diagnostic diagnostic in context.Diagnostics)
-            context.RegisterCodeFix(CodeAction.Create(title: "Name the arguments",
-                createChangedDocument: cancel => Named(context.Document, [diagnostic.Location.SourceSpan], cancel),
-                equivalenceKey: EquivalenceKey), diagnostic);
+            context.RegisterCodeFix(
+                CodeAction.Create(
+                    title: "Name the arguments",
+                    createChangedDocument: cancel => Named(context.Document, [diagnostic.Location.SourceSpan], cancel),
+                    equivalenceKey: EquivalenceKey
+                ),
+                diagnostic
+            );
         return Task.CompletedTask;
     }
 
     /// <summary>The document with the arguments of each argument list at <paramref name="spans"/> named.</summary>
-    private static async Task<Document> Named(Document document, IEnumerable<TextSpan> spans,
-        CancellationToken cancel)
+    private static async Task<Document> Named(Document document, IEnumerable<TextSpan> spans, CancellationToken cancel)
     {
-        if (await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root ||
-            await document.GetSemanticModelAsync(cancel).ConfigureAwait(false) is not { } model)
+        if (
+            await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root
+            || await document.GetSemanticModelAsync(cancel).ConfigureAwait(false) is not { } model
+        )
             return document;
         Dictionary<SyntaxNode, string> names = [];
         foreach (TextSpan span in spans)
             if (ArgumentNames.Find(root.FindNode(span), model, cancel) is { } call)
                 foreach ((SyntaxNode argument, string parameter) in call.Arguments)
                     names[argument] = parameter;
-        return document.WithSyntaxRoot(root.ReplaceNodes(names.Keys,
-            (original, current) => WithName(current, names[original])));
+        return document.WithSyntaxRoot(
+            root.ReplaceNodes(names.Keys, (original, current) => WithName(current, names[original]))
+        );
     }
 
     /// <summary>
@@ -70,13 +83,15 @@ public sealed class NameArgumentsFix : CodeFixProvider
     /// </summary>
     private static SyntaxNode WithName(SyntaxNode argument, string parameter)
     {
-        NameColonSyntax name = SyntaxFactory.NameColon(SyntaxFactory.IdentifierName(Identifier(parameter)))
-            .WithLeadingTrivia(argument.GetLeadingTrivia()).WithTrailingTrivia(SyntaxFactory.Space);
+        NameColonSyntax name = SyntaxFactory
+            .NameColon(SyntaxFactory.IdentifierName(Identifier(parameter)))
+            .WithLeadingTrivia(argument.GetLeadingTrivia())
+            .WithTrailingTrivia(SyntaxFactory.Space);
         return argument switch
         {
             ArgumentSyntax plain => plain.WithoutLeadingTrivia().WithNameColon(name),
             AttributeArgumentSyntax attribute => attribute.WithoutLeadingTrivia().WithNameColon(name),
-            _ => argument
+            _ => argument,
         };
     }
 
@@ -84,6 +99,11 @@ public sealed class NameArgumentsFix : CodeFixProvider
     private static SyntaxToken Identifier(string name) =>
         SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None
             ? SyntaxFactory.Identifier(name)
-            : SyntaxFactory.Identifier(leading: SyntaxTriviaList.Empty, contextualKind: SyntaxKind.IdentifierToken,
-                text: "@" + name, valueText: name, trailing: SyntaxTriviaList.Empty);
+            : SyntaxFactory.Identifier(
+                leading: SyntaxTriviaList.Empty,
+                contextualKind: SyntaxKind.IdentifierToken,
+                text: "@" + name,
+                valueText: name,
+                trailing: SyntaxTriviaList.Empty
+            );
 }

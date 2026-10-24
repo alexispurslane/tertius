@@ -22,7 +22,8 @@ public partial class NumericFrameStickOutGhostTests
         Double3 RockVelocity,
         FrameHandle CrateFrame,
         FrameHandle RockHome,
-        NumericMode RockMode);
+        NumericMode RockMode
+    );
 
     /// <summary>
     /// Space, and <see cref="FarOut"/>, 9,000 km, out in it a parked station: a static hull of 4 m by 4 m by 4 m with a
@@ -39,31 +40,56 @@ public partial class NumericFrameStickOutGhostTests
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
-            AsFrame = new(FrameBounds.Sphere(40))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(40)),
+            }
+        );
         FrameHandle station = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-            { Frame = station, Pose = At(0, 40.5), LinearVelocity = new(0, 2, 0), Body = CrateBody });
-        Entity rock = world.Spawn(new()
-            { Frame = space, Pose = At(FarOut, 42.1), Body = RockBody, Components = [rockLog] });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(0, 40.5),
+                LinearVelocity = new(0, 2, 0),
+                Body = CrateBody,
+            }
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut, 42.1),
+                Body = RockBody,
+                Components = [rockLog],
+            }
+        );
         Tick(world, 30);
         world.GetFrame(crate).Should().Be(station, "the crate leaves the station later");
         rockLog.NewsOf(crate).Should().StartWith(ContactNews.Started, "the ghost of the crate pushes the rock");
-        world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner),
-            "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
+        world
+            .PhysicsHomeOf(rock)
+            .Should()
+            .Be(
+                world.PhysicsHomeOf(owner),
+                "the rock may touch the ghost of the crate, which lives in the home of the station's hull"
+            );
         NumericMode rockMode = world.Frames.Numeric(world.PhysicsHomeOf(rock));
         Tick(world, 130);
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+        return new(
+            RockNews: rockLog.NewsOf(crate),
+            RockPosition: world.PoseIn(rock, space).Position,
             RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
-            RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
+            RockHome: world.PhysicsHomeOf(rock),
+            RockMode: rockMode
+        );
     }
 
     [Fact]
@@ -72,18 +98,27 @@ public partial class NumericFrameStickOutGhostTests
         HandOffOutcome withNumericFrames = RunCrateThatLeavesAStation(numericFrames: true);
         HandOffOutcome withoutNumericFrames = RunCrateThatLeavesAStation(numericFrames: false);
 
-        withoutNumericFrames.CrateFrame.Should()
+        withoutNumericFrames
+            .CrateFrame.Should()
             .Be(withoutNumericFrames.RockHome, "the crate left the station into space");
-        withoutNumericFrames.RockNews.Should()
+        withoutNumericFrames
+            .RockNews.Should()
             .Equal([ContactNews.Started], "the crate pushes the rock without a break");
-        withoutNumericFrames.RockVelocity.Y.Should()
+        withoutNumericFrames
+            .RockVelocity.Y.Should()
             .BeApproximately(2, 0.05, "the crate pushed the rock at its own speed");
-        withNumericFrames.RockMode.Should().Be(NumericMode.None,
-            "the ghost of the crate pushes the rock in the system of space, the home of the station's static hull");
-        withNumericFrames.CrateFrame.Should()
+        withNumericFrames
+            .RockMode.Should()
+            .Be(
+                NumericMode.None,
+                "the ghost of the crate pushes the rock in the system of space, the home of the station's static hull"
+            );
+        withNumericFrames
+            .CrateFrame.Should()
             .Be(withoutNumericFrames.CrateFrame, "the crate left the station into space");
-        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews,
-            "numeric frames do not change which events gameplay hears");
+        withNumericFrames
+            .RockNews.Should()
+            .Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
         (withNumericFrames.RockPosition - withoutNumericFrames.RockPosition).Length.Should().BeLessThan(1e-2);
         (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);
     }
@@ -105,46 +140,67 @@ public partial class NumericFrameStickOutGhostTests
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut),
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
-            AsFrame = new(FrameBounds.Sphere(40))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut),
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
+                AsFrame = new(FrameBounds.Sphere(40)),
+            }
+        );
         FrameHandle station = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
-        Entity crate = world.Spawn(KinematicDrift.Drifting(new()
-        {
-            Frame = space,
-            Pose = At(FarOut + 38, 20),
-            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic)
-        }, world, new(-2, 0, 0)));
-        Entity rock = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(FarOut + 39.55, 20),
-            LinearVelocity = new(-2.2, 0, 0),
-            Body = RockBody,
-            Components = [rockLog]
-        });
+        Entity crate = world.Spawn(
+            KinematicDrift.Drifting(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(FarOut + 38, 20),
+                    Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
+                },
+                world,
+                new(-2, 0, 0)
+            )
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOut + 39.55, 20),
+                LinearVelocity = new(-2.2, 0, 0),
+                Body = RockBody,
+                Components = [rockLog],
+            }
+        );
         world.Tick();
         if (numericFrames)
-            world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(crate),
-                "the merge test links the crate and the rock behind it");
+            world
+                .PhysicsHomeOf(rock)
+                .Should()
+                .Be(world.PhysicsHomeOf(crate), "the merge test links the crate and the rock behind it");
         NumericMode rockMode = world.Frames.Numeric(world.PhysicsHomeOf(rock));
         int ticks = TickUntil(world, () => world.GetFrame(crate) == station, 100);
         ticks.Should().BeInRange(30, 50, "the crate touches the station's bubble after about 0.7 s");
         world.GetFrame(rock).Should().Be(space, "the rock touches the bubble later");
         Tick(world, 40);
         world.GetFrame(rock).Should().Be(space, "the rock touches the bubble later");
-        world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner),
-            "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
+        world
+            .PhysicsHomeOf(rock)
+            .Should()
+            .Be(
+                world.PhysicsHomeOf(owner),
+                "the rock may touch the ghost of the crate, which lives in the home of the station's hull"
+            );
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+        return new(
+            RockNews: rockLog.NewsOf(crate),
+            RockPosition: world.PoseIn(rock, space).Position,
             RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
-            RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
+            RockHome: world.PhysicsHomeOf(rock),
+            RockMode: rockMode
+        );
     }
 
     [Fact]
@@ -153,14 +209,21 @@ public partial class NumericFrameStickOutGhostTests
         HandOffOutcome withNumericFrames = RunCrateThatEntersAnEmptyStation(numericFrames: true);
         HandOffOutcome withoutNumericFrames = RunCrateThatEntersAnEmptyStation(numericFrames: false);
 
-        withoutNumericFrames.RockNews.Should()
+        withoutNumericFrames
+            .RockNews.Should()
             .Equal([ContactNews.Started], "the rock rides on the crate without a break");
-        withoutNumericFrames.RockVelocity.X.Should()
+        withoutNumericFrames
+            .RockVelocity.X.Should()
             .BeApproximately(-2, 0.05, "the rock rides on the crate at the crate's speed");
-        withNumericFrames.RockMode.Should().Be(NumericMode.Following,
-            "the kinematic crate is 9,000 km out, so it anchors a following frame, which the rock shares (docs/plans/numeric-frames.md, \"Following frames\")");
-        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews,
-            "numeric frames do not change which events gameplay hears");
+        withNumericFrames
+            .RockMode.Should()
+            .Be(
+                NumericMode.Following,
+                "the kinematic crate is 9,000 km out, so it anchors a following frame, which the rock shares (docs/plans/numeric-frames.md, \"Following frames\")"
+            );
+        withNumericFrames
+            .RockNews.Should()
+            .Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
         (withNumericFrames.RockPosition - withoutNumericFrames.RockPosition).Length.Should().BeLessThan(1e-2);
         (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);
     }
@@ -187,40 +250,76 @@ public partial class NumericFrameStickOutGhostTests
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space, Pose = At(150), LinearVelocity = new(-60, 0, 0), Body = ShipHull,
-            AsFrame = new(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(150),
+                LinearVelocity = new(-60, 0, 0),
+                Body = ShipHull,
+                AsFrame = new(FrameBounds.Sphere(200)),
+                Components = [new Thruster(ShipHull.Mass)],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
-        Entity crate = world.Spawn(new() { Frame = space, Pose = At(0, -199.5), Body = CrateBody });
-        Entity rock = world.Spawn(new() { Frame = space, Pose = At(0, -201), Body = RockBody, Components = [rockLog] });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, -199.5),
+                Body = CrateBody,
+            }
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, -201),
+                Body = RockBody,
+                Components = [rockLog],
+            }
+        );
         Tick(world, OnsetTicks);
         rockLog.NewsOf(crate).Should().Equal([ContactNews.Started], "the crate and the rock touch from the first step");
         world.PhysicsHomeOf(rock).Should().Be(space, "the rock is slow and near the origin of space");
         if (numericFrames)
-            world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should()
+            world
+                .Frames.Numeric(world.PhysicsHomeOf(owner))
+                .Should()
                 .Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
 
         int ticks = TickUntil(world, () => world.GetFrame(crate) == ship, 200);
 
         ticks.Should().BeInRange(80, 100, "the crate touches the ship's bubble about 1.5 s after the onset");
-        faults.Jolt.HasGhostIn(crate, world.Frames.TreeParent(ship)).Should()
+        faults
+            .Jolt.HasGhostIn(crate, world.Frames.TreeParent(ship))
+            .Should()
             .BeTrue("the crate sticks out of the ship into its tree parent");
-        world.PhysicsHomeOf(rock).Should().Be(world.Frames.TreeParent(ship),
-            "the update of the hand-off's sync point links the rock to the place of the crate's ghost, in the home of the ship's hull");
+        world
+            .PhysicsHomeOf(rock)
+            .Should()
+            .Be(
+                world.Frames.TreeParent(ship),
+                "the update of the hand-off's sync point links the rock to the place of the crate's ghost, in the home of the ship's hull"
+            );
         if (numericFrames)
-            world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should()
+            world
+                .Frames.IsNumeric(world.Frames.TreeParent(ship))
+                .Should()
                 .BeTrue("the ship's frame hangs in the hull's falling frame");
         Tick(world, 20);
         world.GetFrame(rock).Should().Be(space, "the rock never touches the bubble");
         world.GetFrame(crate).Should().Be(ship, "the crate stays in the ship");
         world.Errors.Should().BeEmpty();
-        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position,
+        return new(
+            RockNews: rockLog.NewsOf(crate),
+            RockPosition: world.PoseIn(rock, space).Position,
             RockVelocity: world.VelocityIn(rock, space),
             CrateFrame: world.GetFrame(crate),
-            RockHome: world.PhysicsHomeOf(rock), RockMode: world.Frames.Numeric(world.PhysicsHomeOf(rock)));
+            RockHome: world.PhysicsHomeOf(rock),
+            RockMode: world.Frames.Numeric(world.PhysicsHomeOf(rock))
+        );
     }
 
     [Fact]
@@ -229,12 +328,15 @@ public partial class NumericFrameStickOutGhostTests
         HandOffOutcome withNumericFrames = RunCrateThatEntersAFallingShip(numericFrames: true);
         HandOffOutcome withoutNumericFrames = RunCrateThatEntersAFallingShip(numericFrames: false);
 
-        withoutNumericFrames.RockNews.Should()
+        withoutNumericFrames
+            .RockNews.Should()
             .Equal([ContactNews.Started], "the ghost of the crate in space carries the contact");
-        withNumericFrames.RockMode.Should().Be(NumericMode.Falling,
-            "the rock joined the hull's falling frame, where the ghost of the crate lives");
-        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews,
-            "numeric frames do not change which events gameplay hears");
+        withNumericFrames
+            .RockMode.Should()
+            .Be(NumericMode.Falling, "the rock joined the hull's falling frame, where the ghost of the crate lives");
+        withNumericFrames
+            .RockNews.Should()
+            .Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
         withNumericFrames.RockPosition.Y.Should().BeApproximately(withoutNumericFrames.RockPosition.Y, 1e-3);
         withNumericFrames.RockPosition.Z.Should().BeApproximately(withoutNumericFrames.RockPosition.Z, 1e-3);
         (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);

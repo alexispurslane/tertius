@@ -7,9 +7,11 @@ namespace Tertius.Simulation;
 /// <param name="Direction">The direction of the ray, in the axes of the request's frame. It is a unit vector.</param>
 /// <param name="Length">How far the ray reaches, in meters. It is finite and more than 0.</param>
 /// <param name="Kind">Whether the answer is the nearest hit alone or every hit.</param>
-[SuppressMessage("Tertius.Unions", "TU0005",
-    Justification =
-        "The kind says how many hits the answer holds. The origin, the direction and the length mean something for every kind.")]
+[SuppressMessage(
+    "Tertius.Unions",
+    "TU0005",
+    Justification = "The kind says how many hits the answer holds. The origin, the direction and the length mean something for every kind."
+)]
 internal readonly record struct RayQuestion(Double3 Origin, Double3 Direction, double Length, RayCastKind Kind);
 
 /// <summary>The case that asks for a shape cast: <c>CastShape</c>.</summary>
@@ -53,48 +55,53 @@ internal readonly partial struct PhysicsQuestion
     // The sweep view switches over the cases with no discard arm, so a new case breaks the build here until it answers.
 
     /// <summary>Where the sweep starts, in the request's frame, in meters: a ray's origin, a shape's center at the start, or an overlap's center. Zero for the default question.</summary>
-    public Double3 Origin => this switch
-    {
-        RayQuestion ray => ray.Origin,
-        ShapeCastQuestion shapeCast => shapeCast.Start.Position,
-        OverlapQuestion overlap => overlap.Pose.Position,
-        null => Double3.Zero
-    };
+    public Double3 Origin =>
+        this switch
+        {
+            RayQuestion ray => ray.Origin,
+            ShapeCastQuestion shapeCast => shapeCast.Start.Position,
+            OverlapQuestion overlap => overlap.Pose.Position,
+            null => Double3.Zero,
+        };
 
     /// <summary>The unit direction of the sweep in the axes of the request's frame. Zero for an overlap, which moves nowhere, and for the default question.</summary>
-    public Double3 Direction => this switch
-    {
-        RayQuestion ray => ray.Direction,
-        ShapeCastQuestion shapeCast => shapeCast.Direction,
-        OverlapQuestion => Double3.Zero,
-        null => Double3.Zero
-    };
+    public Double3 Direction =>
+        this switch
+        {
+            RayQuestion ray => ray.Direction,
+            ShapeCastQuestion shapeCast => shapeCast.Direction,
+            OverlapQuestion => Double3.Zero,
+            null => Double3.Zero,
+        };
 
     /// <summary>How far the sweep moves, in meters. 0 for an overlap, which moves nowhere, and for the default question.</summary>
-    public double Length => this switch
-    {
-        RayQuestion ray => ray.Length,
-        ShapeCastQuestion shapeCast => shapeCast.Length,
-        OverlapQuestion => 0,
-        null => 0
-    };
+    public double Length =>
+        this switch
+        {
+            RayQuestion ray => ray.Length,
+            ShapeCastQuestion shapeCast => shapeCast.Length,
+            OverlapQuestion => 0,
+            null => 0,
+        };
 
     /// <summary>How far from its line the sweep reaches, in meters: the bounding radius of the shape of a shape cast or an overlap, and 0 for a ray and for the default question.</summary>
-    public double Reach => this switch
-    {
-        RayQuestion => 0,
-        ShapeCastQuestion shapeCast => shapeCast.Shape.BoundingRadius,
-        OverlapQuestion overlap => overlap.Shape.BoundingRadius,
-        null => 0
-    };
+    public double Reach =>
+        this switch
+        {
+            RayQuestion => 0,
+            ShapeCastQuestion shapeCast => shapeCast.Shape.BoundingRadius,
+            OverlapQuestion overlap => overlap.Shape.BoundingRadius,
+            null => 0,
+        };
 
     /// <summary>True when only the nearest hit is the answer: for a ray of kind <see cref="RayCastKind.Nearest"/> and for a shape cast. False for a ray of kind
     /// <see cref="RayCastKind.All"/>, for an overlap and for the default question.</summary>
-    public bool FirstHitOnly => this switch
-    {
-        RayQuestion ray => ray.Kind == RayCastKind.Nearest,
-        ShapeCastQuestion => true,
-        OverlapQuestion => false,
-        null => false
-    };
+    public bool FirstHitOnly =>
+        this switch
+        {
+            RayQuestion ray => ray.Kind == RayCastKind.Nearest,
+            ShapeCastQuestion => true,
+            OverlapQuestion => false,
+            null => false,
+        };
 }

@@ -22,9 +22,11 @@ namespace Tertius.Host.Windowing;
 /// render thread reads), the <see cref="CaptureMailbox"/>, the fly camera under its lock, and the closing token. The
 /// renderer belongs to the render thread, which disposes it before the window is destroyed, as MoltenVK needs.
 /// </remarks>
-[SuppressMessage("Design", "CA1001",
-    Justification =
-        "A CancellationTokenSource without a timer holds an OS handle only after a read of its WaitHandle, which this class never does.")]
+[SuppressMessage(
+    "Design",
+    "CA1001",
+    Justification = "A CancellationTokenSource without a timer holds an OS handle only after a read of its WaitHandle, which this class never does."
+)]
 internal sealed class WindowHost : IInputTarget
 {
     private readonly IWindow window;
@@ -58,9 +60,16 @@ internal sealed class WindowHost : IInputTarget
     private int closeWanted;
     private int signalled;
 
-
-    private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script,
-        string? outputFolder, double speed, RecordTo? record)
+    private WindowHost(
+        IWindow window,
+        VulkanRenderer renderer,
+        World world,
+        SceneInstance scene,
+        Script? script,
+        string? outputFolder,
+        double speed,
+        RecordTo? record
+    )
     {
         this.window = window;
         this.renderer = renderer;
@@ -82,20 +91,30 @@ internal sealed class WindowHost : IInputTarget
     /// the session there as a script when it ends. Returns the exit code of <see cref="ScriptCommand"/>.
     /// Call it on the main thread, which macOS needs for a window.
     /// </summary>
-    public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed,
-        string? recordPath, TextWriter output, TextWriter error)
+    public static int Run(
+        Scene sceneToBuild,
+        Script? script,
+        string? scriptPath,
+        string? outputFolder,
+        double speed,
+        string? recordPath,
+        TextWriter output,
+        TextWriter error
+    )
     {
         ScriptWindow size = script?.Window ?? ScriptWindow.Default;
         RecordTo? record = recordPath is null ? null : new RecordTo(recordPath, sceneToBuild.Name, size);
         IWindow? window = null;
         try
         {
-            window = Window.Create(WindowOptions.DefaultVulkan with
-            {
-                Size = new(size.Width, size.Height),
-                Title = $"Tertius: {sceneToBuild.Name}",
-                IsEventDriven = true
-            });
+            window = Window.Create(
+                WindowOptions.DefaultVulkan with
+                {
+                    Size = new(size.Width, size.Height),
+                    Title = $"Tertius: {sceneToBuild.Name}",
+                    IsEventDriven = true,
+                }
+            );
             window.Initialize();
         }
         // No display, or no Vulkan driver for the window: as for a renderer that cannot start.
@@ -127,8 +146,16 @@ internal sealed class WindowHost : IInputTarget
                 world.Log += error.WriteLine;
                 SceneInstance scene = sceneToBuild.Build(world, renderer);
                 world.PublishRenderSnapshot();
-                host = new(window: window, renderer: renderer, world: world, scene: scene, script: script,
-                    outputFolder: outputFolder, speed: speed, record: record);
+                host = new(
+                    window: window,
+                    renderer: renderer,
+                    world: world,
+                    scene: scene,
+                    script: script,
+                    outputFolder: outputFolder,
+                    speed: speed,
+                    record: record
+                );
                 host.Play();
                 return host.Report(scriptPath, output, error);
             }
@@ -159,9 +186,7 @@ internal sealed class WindowHost : IInputTarget
                     signals.Add(PosixSignalRegistration.Create(signal, CloseOnFirstSignal));
                 }
                 // A platform that has no such signal, such as SIGHUP on Windows, only loses that one way to stop.
-                catch (PlatformNotSupportedException)
-                {
-                }
+                catch (PlatformNotSupportedException) { }
 
         try
         {
@@ -228,14 +253,24 @@ internal sealed class WindowHost : IInputTarget
     private void SimulationLoop()
     {
         var clock = Stopwatch.StartNew();
-        var playback = new WindowPlayback(pacer: pacer, captures: captures, folder: images,
-            secondsSinceStart: () => clock.Elapsed.TotalSeconds, stop: closing.Token);
+        var playback = new WindowPlayback(
+            pacer: pacer,
+            captures: captures,
+            folder: images,
+            secondsSinceStart: () => clock.Elapsed.TotalSeconds,
+            stop: closing.Token
+        );
         try
         {
             // The constructor makes free play exactly when there is no script.
             if (script is { } run)
-                result = ScriptRunner.Run(script: run, world: world, scene: scene, outputFolder: outputFolder,
-                    playback: playback);
+                result = ScriptRunner.Run(
+                    script: run,
+                    world: world,
+                    scene: scene,
+                    outputFolder: outputFolder,
+                    playback: playback
+                );
             else
                 freePlay?.Run(playback);
         }
@@ -365,8 +400,9 @@ internal sealed class WindowHost : IInputTarget
             if (!router.CapturesCursor)
                 device.Cursor.CursorMode = CursorMode.Normal;
             else
-                device.Cursor.CursorMode =
-                    device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
+                device.Cursor.CursorMode = device.Cursor.IsSupported(CursorMode.Raw)
+                    ? CursorMode.Raw
+                    : CursorMode.Disabled;
     }
 
     public void Close() => window.Close();
@@ -433,7 +469,8 @@ internal sealed class WindowHost : IInputTarget
             ScriptCommand.WriteFiles(result: result, outputFolder: images.Folder, target: images, output: output);
         if (result is { Stopped: true })
             error.WriteLine(
-                $"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");
+                $"The window closed at tick {world.TickNumber}, so the script stopped before its last step."
+            );
         return ScriptCommand.Ok;
     }
 }

@@ -28,9 +28,21 @@ public sealed class ShuttleJetsTests
 
     private static ShuttleJets DemoJets() => Jets(DemoCenter);
 
-    private static Double3 Axis(int axis) => axis switch { 0 => Double3.UnitX, 1 => Double3.UnitY, _ => Double3.UnitZ };
+    private static Double3 Axis(int axis) =>
+        axis switch
+        {
+            0 => Double3.UnitX,
+            1 => Double3.UnitY,
+            _ => Double3.UnitZ,
+        };
 
-    private static double Along(Double3 v, int axis) => axis switch { 0 => v.X, 1 => v.Y, _ => v.Z };
+    private static double Along(Double3 v, int axis) =>
+        axis switch
+        {
+            0 => v.X,
+            1 => v.Y,
+            _ => v.Z,
+        };
 
     private static IEnumerable<Jet> Both(JetPair pair) => [pair.First, pair.Second];
 
@@ -44,7 +56,8 @@ public sealed class ShuttleJetsTests
     /// <summary>The net force of every jet at its pair's throttle, and their torque about <paramref name="about"/>.</summary>
     private static (Double3 Force, Double3 Torque) Push(ShuttleJets jets, ReadOnlySpan<float> throttles, Double3 about)
     {
-        Double3 force = Double3.Zero, torque = Double3.Zero;
+        Double3 force = Double3.Zero,
+            torque = Double3.Zero;
         for (int i = 0; i < jets.Pairs.Count; i++)
             foreach (Jet jet in Both(jets.Pairs[i]))
             {
@@ -66,13 +79,17 @@ public sealed class ShuttleJetsTests
     private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance, string what)
     {
         for (int axis = 0; axis < 3; axis++)
-            Along(actual, axis).Should()
+            Along(actual, axis)
+                .Should()
                 .BeApproximately(Along(expected, axis), tolerance, $"{what} is {actual}, not {expected}");
     }
 
     private static Double3 RandomIn(Random random, Double3 half) =>
-        new((2 * random.NextDouble() - 1) * half.X, (2 * random.NextDouble() - 1) * half.Y,
-            (2 * random.NextDouble() - 1) * half.Z);
+        new(
+            (2 * random.NextDouble() - 1) * half.X,
+            (2 * random.NextDouble() - 1) * half.Y,
+            (2 * random.NextDouble() - 1) * half.Z
+        );
 
     private static Double3 RandomDirection(Random random)
     {
@@ -92,9 +109,11 @@ public sealed class ShuttleJetsTests
             foreach (bool negative in new[] { false, true })
             {
                 JetPair couple = jets.Pairs[ShuttleJets.Couple(axis, negative)];
-                couple.Second.Push.Should().Be(-couple.First.Push,
-                    $"the jets of {couple.Name} push in opposite directions");
-                couple.Second.MaxThrust.Should()
+                couple
+                    .Second.Push.Should()
+                    .Be(-couple.First.Push, $"the jets of {couple.Name} push in opposite directions");
+                couple
+                    .Second.MaxThrust.Should()
                     .Be(couple.First.MaxThrust, $"the jets of {couple.Name} have one thrust");
                 couple.First.MaxThrust.Should().BePositive();
             }
@@ -111,15 +130,17 @@ public sealed class ShuttleJetsTests
         var random = new Random(7);
         for (int sample = 0; sample < 200; sample++)
         {
-            DQuaternion rotation =
-                DQuaternion.FromAxisAngle(RandomDirection(random), random.NextDouble() * 2 * Math.PI);
+            var rotation = DQuaternion.FromAxisAngle(RandomDirection(random), random.NextDouble() * 2 * Math.PI);
             float throttle = (float)random.NextDouble();
             for (int i = 0; i < 6; i++)
             {
                 JetPair couple = jets.Pairs[i];
-                (couple.First.Force(rotation, throttle) + couple.Second.Force(rotation, throttle)).Should().Be(
-                    Double3.Zero,
-                    $"the jets of {couple.Name} cancel exactly at the throttle {throttle} and the rotation {rotation}");
+                (couple.First.Force(rotation, throttle) + couple.Second.Force(rotation, throttle))
+                    .Should()
+                    .Be(
+                        Double3.Zero,
+                        $"the jets of {couple.Name} cancel exactly at the throttle {throttle} and the rotation {rotation}"
+                    );
             }
         }
     }
@@ -128,9 +149,13 @@ public sealed class ShuttleJetsTests
     public void AJetPushesAlongItsDirectionInTheRotationThatItReadsWithItsThrottleTimesItsThrust()
     {
         var jet = new Jet(Id: "jet", Place: new(1, 2, 3), Push: Double3.UnitY, MaxThrust: 1000);
-        DQuaternion quarter = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
-        ShouldBeNear(actual: jet.Force(quarter, 0.25f), expected: new(-250, 0, 0), tolerance: 1e-9,
-            what: "the force of a jet turned a quarter about Z");
+        var quarter = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
+        ShouldBeNear(
+            actual: jet.Force(quarter, 0.25f),
+            expected: new(-250, 0, 0),
+            tolerance: 1e-9,
+            what: "the force of a jet turned a quarter about Z"
+        );
     }
 
     [Fact]
@@ -146,9 +171,12 @@ public sealed class ShuttleJetsTests
                     throttles[ShuttleJets.Couple(axis, negative)] = 1;
                     (Double3 force, Double3 torque) = Push(jets, throttles, center);
                     force.Should().Be(Double3.Zero, $"couple {axis} {negative} gives no net force");
-                    ShouldBeNear(actual: torque, expected: Axis(axis) * ((negative ? -1 : 1) * Along(MostTorque, axis)),
+                    ShouldBeNear(
+                        actual: torque,
+                        expected: Axis(axis) * ((negative ? -1 : 1) * Along(MostTorque, axis)),
                         tolerance: 1e-9 * MostTorque.Length,
-                        what: $"the torque of couple {jets.Pairs[ShuttleJets.Couple(axis, negative)].Name}");
+                        what: $"the torque of couple {jets.Pairs[ShuttleJets.Couple(axis, negative)].Name}"
+                    );
                 }
         }
     }
@@ -166,12 +194,18 @@ public sealed class ShuttleJetsTests
                     throttles[ShuttleJets.Translation(axis, negative)] = 1;
                     (Double3 force, Double3 torque) = Push(jets, throttles, center);
                     string name = jets.Pairs[ShuttleJets.Translation(axis, negative)].Name;
-                    ShouldBeNear(actual: force,
+                    ShouldBeNear(
+                        actual: force,
                         expected: Axis(axis) * ((negative ? -1 : 1) * Shuttle.TranslationThrust),
-                        tolerance: 1e-9 * Shuttle.TranslationThrust, what: $"the force of {name}");
-                    ShouldBeNear(actual: torque, expected: Double3.Zero,
+                        tolerance: 1e-9 * Shuttle.TranslationThrust,
+                        what: $"the force of {name}"
+                    );
+                    ShouldBeNear(
+                        actual: torque,
+                        expected: Double3.Zero,
                         tolerance: 1e-9 * Shuttle.TranslationThrust * 10,
-                        what: $"the torque of {name} about {center}");
+                        what: $"the torque of {name} about {center}"
+                    );
                 }
         }
     }
@@ -190,10 +224,18 @@ public sealed class ShuttleJetsTests
                 float[] throttles = Allocated(jets, torque, force);
                 throttles.Should().OnlyContain(throttle => throttle >= 0 && throttle <= 1);
                 (Double3 net, Double3 turn) = Push(jets, throttles, center);
-                ShouldBeNear(actual: net, expected: force, tolerance: 1e-6 * Shuttle.TranslationThrust,
-                    what: "the net force");
-                ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length,
-                    what: "the torque about the center of mass");
+                ShouldBeNear(
+                    actual: net,
+                    expected: force,
+                    tolerance: 1e-6 * Shuttle.TranslationThrust,
+                    what: "the net force"
+                );
+                ShouldBeNear(
+                    actual: turn,
+                    expected: torque,
+                    tolerance: 1e-6 * MostTorque.Length,
+                    what: "the torque about the center of mass"
+                );
             }
         }
     }
@@ -201,14 +243,19 @@ public sealed class ShuttleJetsTests
     [Fact]
     public void OnlyOneSenseOfEachAxisFires()
     {
-        float[] throttles = Allocated(DemoJets(), new Double3(0.5, -0.5, 0.25) * MostTorque.Length,
-            new(-1000, 2000, -3000));
+        float[] throttles = Allocated(
+            DemoJets(),
+            new Double3(0.5, -0.5, 0.25) * MostTorque.Length,
+            new(-1000, 2000, -3000)
+        );
         for (int axis = 0; axis < 3; axis++)
         {
-            Math.Min(throttles[ShuttleJets.Couple(axis, false)], throttles[ShuttleJets.Couple(axis, true)]).Should()
+            Math.Min(throttles[ShuttleJets.Couple(axis, false)], throttles[ShuttleJets.Couple(axis, true)])
+                .Should()
                 .Be(0, $"one couple of axis {axis} is off");
             Math.Min(throttles[ShuttleJets.Translation(axis, false)], throttles[ShuttleJets.Translation(axis, true)])
-                .Should().Be(0, $"one translation pair of axis {axis} is off");
+                .Should()
+                .Be(0, $"one translation pair of axis {axis} is off");
         }
     }
 
@@ -226,11 +273,18 @@ public sealed class ShuttleJetsTests
         throttles[ShuttleJets.Couple(0, negative: true)].Should().Be(1);
         throttles[ShuttleJets.Translation(1, negative: false)].Should().Be(1);
         (Double3 net, Double3 turn) = Push(jets, throttles, DemoCenter);
-        ShouldBeNear(actual: net, expected: new(force.X, Shuttle.TranslationThrust, force.Z),
+        ShouldBeNear(
+            actual: net,
+            expected: new(force.X, Shuttle.TranslationThrust, force.Z),
             tolerance: 1e-6 * Shuttle.TranslationThrust,
-            what: "the net force");
-        ShouldBeNear(actual: turn, expected: new(-MostTorque.X, torque.Y, torque.Z),
-            tolerance: 1e-6 * MostTorque.Length, what: "the torque");
+            what: "the net force"
+        );
+        ShouldBeNear(
+            actual: turn,
+            expected: new(-MostTorque.X, torque.Y, torque.Z),
+            tolerance: 1e-6 * MostTorque.Length,
+            what: "the torque"
+        );
     }
 
     /// <summary>
@@ -247,8 +301,12 @@ public sealed class ShuttleJetsTests
             Double3 torque = InertiaTimes(RandomDirection(random) * LargestAcceleration);
             float[] throttles = Allocated(jets, torque, Double3.Zero);
             (_, Double3 turn) = Push(jets, throttles, DemoCenter);
-            ShouldBeNear(actual: turn, expected: torque, tolerance: 1e-6 * MostTorque.Length,
-                what: "the torque of the largest turn");
+            ShouldBeNear(
+                actual: turn,
+                expected: torque,
+                tolerance: 1e-6 * MostTorque.Length,
+                what: "the torque of the largest turn"
+            );
         }
     }
 
@@ -263,8 +321,9 @@ public sealed class ShuttleJetsTests
             // column for that axis, which is largest along that column.
             Double3 worst = InertiaTimes(Axis(axis)).Normalized() * LargestAcceleration;
             float[] throttles = Allocated(jets, InertiaTimes(worst), Double3.Zero);
-            throttles[ShuttleJets.Couple(axis, false)].Should().BeApproximately(1, 1e-6f,
-                $"the largest turn about axis {axis} takes its couple to full throttle");
+            throttles[ShuttleJets.Couple(axis, false)]
+                .Should()
+                .BeApproximately(1, 1e-6f, $"the largest turn about axis {axis} takes its couple to full throttle");
         }
     }
 
@@ -273,8 +332,9 @@ public sealed class ShuttleJetsTests
     {
         Double3 most = AttitudeAutopilot.MostTorque(Shuttle.Inertia);
         for (int axis = 0; axis < 3; axis++)
-            Along(most, axis).Should().BeApproximately(InertiaTimes(Axis(axis)).Length * LargestAcceleration,
-                1e-6 * Along(most, axis));
+            Along(most, axis)
+                .Should()
+                .BeApproximately(InertiaTimes(Axis(axis)).Length * LargestAcceleration, 1e-6 * Along(most, axis));
     }
 
     [Fact]
@@ -334,10 +394,11 @@ public sealed class ShuttleJetsTests
 
     /// <summary>The full cross-section of the outer skin, from the hull's convex shape: its corners at the tail face.</summary>
     private static Vector2[] Section() =>
-    [
-        .. ((ConvexHullShapeDesc)Shuttle.HullShape).Points.Where(point => point.Z == Shuttle.Hull.Z)
-        .Select(point => new Vector2(point.X, point.Y))
-    ];
+        [
+            .. ((ConvexHullShapeDesc)Shuttle.HullShape)
+                .Points.Where(point => point.Z == Shuttle.Hull.Z)
+                .Select(point => new Vector2(point.X, point.Y)),
+        ];
 
     /// <summary>
     /// Every jet sits on the outer skin of the full cross-section, which reaches from the nose's rib at z = -5 m to the
@@ -360,17 +421,21 @@ public sealed class ShuttleJetsTests
             }
             else
             {
-                int edge = Enumerable.Range(0, section.Length).MinBy(k =>
-                    DistanceToSegment(flat, section[k], section[(k + 1) % section.Length]));
-                Vector2 a = section[edge], b = section[(edge + 1) % section.Length];
+                int edge = Enumerable
+                    .Range(0, section.Length)
+                    .MinBy(k => DistanceToSegment(flat, section[k], section[(k + 1) % section.Length]));
+                Vector2 a = section[edge],
+                    b = section[(edge + 1) % section.Length];
                 DistanceToSegment(flat, a, b).Should().BeLessThan(1e-5f, $"{jet.Id} at {jet.Place} lies on the skin");
-                Vector2 normal = Vector2.Normalize(new(b.Y - a.Y, a.X - b.X));
+                var normal = Vector2.Normalize(new(b.Y - a.Y, a.X - b.X));
                 if (Vector2.Dot(normal, (a + b) / 2 - middle) < 0)
                     normal = -normal;
                 outward = new(normal.X, normal.Y, 0);
             }
 
-            Double3.Dot(jet.Push, outward).Should()
+            Double3
+                .Dot(jet.Push, outward)
+                .Should()
                 .BeLessThanOrEqualTo(1e-9, $"{jet.Id} pushes into the hull or along its skin");
         }
     }
@@ -380,7 +445,8 @@ public sealed class ShuttleJetsTests
     {
         foreach (Double3 center in new[] { DemoCenter, OffCenter })
         foreach (Jet jet in Jets(center).Pairs.SelectMany(Both).Where(jet => jet.Place.Z == Shuttle.Hull.Z))
-            Math.Max(Math.Abs(jet.Place.X - center.X), Math.Abs(jet.Place.Y - center.Y)).Should()
+            Math.Max(Math.Abs(jet.Place.X - center.X), Math.Abs(jet.Place.Y - center.Y))
+                .Should()
                 .BeGreaterThan(0.9 + 0.5, $"{jet.Id} lies 0.5 m clear of the pocket's housing");
     }
 
@@ -393,7 +459,8 @@ public sealed class ShuttleJetsTests
     {
         foreach (Jet jet in DemoJets().Pairs.SelectMany(Both))
         foreach (HullPane pane in Shuttle.Glass)
-            DistanceToPolygon(jet.Place, pane.Outer).Should()
+            DistanceToPolygon(jet.Place, pane.Outer)
+                .Should()
                 .BeGreaterThan(0.09, $"{jet.Id} at {jet.Place} lies clear of {pane.Id}");
     }
 
@@ -423,16 +490,20 @@ public sealed class ShuttleJetsTests
         normal = normal.Normalized();
         double height = Double3.Dot(point - c[0], normal);
         Double3 onPlane = point - normal * height;
-        bool inside = Enumerable.Range(0, c.Length).All(k =>
-            Double3.Dot(Double3.Cross(c[(k + 1) % c.Length] - c[k], onPlane - c[k]), normal) >= 0);
+        bool inside = Enumerable
+            .Range(0, c.Length)
+            .All(k => Double3.Dot(Double3.Cross(c[(k + 1) % c.Length] - c[k], onPlane - c[k]), normal) >= 0);
         double across = inside
             ? 0
-            : Enumerable.Range(0, c.Length).Min(k =>
-            {
-                Double3 a = c[k], along = c[(k + 1) % c.Length] - a;
-                double t = Math.Clamp(Double3.Dot(onPlane - a, along) / along.LengthSquared, 0, 1);
-                return (onPlane - (a + along * t)).Length;
-            });
+            : Enumerable
+                .Range(0, c.Length)
+                .Min(k =>
+                {
+                    Double3 a = c[k],
+                        along = c[(k + 1) % c.Length] - a;
+                    double t = Math.Clamp(Double3.Dot(onPlane - a, along) / along.LengthSquared, 0, 1);
+                    return (onPlane - (a + along * t)).Length;
+                });
         return Math.Sqrt(across * across + height * height);
     }
 }

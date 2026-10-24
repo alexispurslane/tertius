@@ -16,7 +16,9 @@ public sealed class ShipWindowTests
 {
     // In the ship's axes: the side walls' middles are 9.75 m from the center, the nose wall's middle is 29.75 m ahead of it,
     // and the eye of a person on the floor, 3.5 m below the center, is 1.65 m above the floor.
-    private const float SideWallMiddle = 9.75f, NoseWallMiddle = -29.75f, EyeHeight = -3.5f + 1.65f;
+    private const float SideWallMiddle = 9.75f,
+        NoseWallMiddle = -29.75f,
+        EyeHeight = -3.5f + 1.65f;
 
     /// <summary>Resources that give each mesh, texture and material its own id, and keep each mesh and each material's description.</summary>
     private sealed class RecordingResources : IRenderResources
@@ -67,11 +69,15 @@ public sealed class ShipWindowTests
 
         // Nine windows in the starboard wall, eight in the port wall and one in the nose wall.
         panes.Should().HaveCount(9 + 8 + 1);
-        panes.Should().AllSatisfy(pane =>
-            (pane.Flags & (RenderFlags.Visible | RenderFlags.CastsShadow)).Should().Be(RenderFlags.Visible));
+        panes
+            .Should()
+            .AllSatisfy(pane =>
+                (pane.Flags & (RenderFlags.Visible | RenderFlags.CastsShadow)).Should().Be(RenderFlags.Visible)
+            );
         RenderInstance hull = snapshot.Instances.Single(instance => instance.BoundingRadius == 32);
-        (hull.Flags & RenderFlags.CastsShadow).Should().Be(RenderFlags.CastsShadow,
-            "the hull keeps the sunlight out, except through the windows");
+        (hull.Flags & RenderFlags.CastsShadow)
+            .Should()
+            .Be(RenderFlags.CastsShadow, "the hull keeps the sunlight out, except through the windows");
     }
 
     [Fact]
@@ -96,7 +102,8 @@ public sealed class ShipWindowTests
     {
         // So the pane's edges hide in the wall, and no edge of the glass shares a plane with a side of the window. The
         // windows come from the scene's public list, and the pane's box from the mesh that the scene made for it.
-        const float Thickness = 0.02f, Overlap = 0.01f;
+        const float Thickness = 0.02f,
+            Overlap = 0.01f;
         using World world = NewJoltWorld();
         (RenderSnapshot snapshot, RecordingResources resources, SceneInstance scene) = Start(world);
 
@@ -106,10 +113,20 @@ public sealed class ShipWindowTests
             // The pane's box in the ship's axes: the box of its mesh, scaled, around the pane's place.
             Vertex[] vertices = resources.Meshes[pane.Mesh].Vertices;
             Vector3 place = pane.Position + snapshot.OriginInFrame.ToVector3();
-            Vector3 min = place + pane.Scale * vertices.Aggregate(new Vector3(float.MaxValue),
-                (low, vertex) => Vector3.Min(low, vertex.Position));
-            Vector3 max = place + pane.Scale * vertices.Aggregate(new Vector3(float.MinValue),
-                (high, vertex) => Vector3.Max(high, vertex.Position));
+            Vector3 min =
+                place
+                + pane.Scale
+                    * vertices.Aggregate(
+                        new Vector3(float.MaxValue),
+                        (low, vertex) => Vector3.Min(low, vertex.Position)
+                    );
+            Vector3 max =
+                place
+                + pane.Scale
+                    * vertices.Aggregate(
+                        new Vector3(float.MinValue),
+                        (high, vertex) => Vector3.Max(high, vertex.Position)
+                    );
 
             int wallAxis = window.Through == Vector3.UnitX ? 0 : 2;
             for (int axis = 0; axis < 3; axis++)
@@ -136,10 +153,15 @@ public sealed class ShipWindowTests
         static float[] Along(IEnumerable<Vector3> side) => [.. side.Select(center => MathF.Round(center.Z, 3)).Order()];
         float[] row = [-24, -18, -12, -6, 0, 6, 12, 18, 24];
         Along(centers.Where(center => MathF.Abs(center.X - SideWallMiddle) < 1e-3f)).Should().Equal(row);
-        Along(centers.Where(center => MathF.Abs(center.X + SideWallMiddle) < 1e-3f)).Should()
+        Along(centers.Where(center => MathF.Abs(center.X + SideWallMiddle) < 1e-3f))
+            .Should()
             .Equal(row.Where(z => z != 12), "the port wall has no window where the airlock's chamber stands");
-        centers.Where(center => MathF.Abs(center.Z - NoseWallMiddle) < 1e-3f).Should().ContainSingle()
-            .Which.X.Should().BeApproximately(0, 1e-3f);
+        centers
+            .Where(center => MathF.Abs(center.Z - NoseWallMiddle) < 1e-3f)
+            .Should()
+            .ContainSingle()
+            .Which.X.Should()
+            .BeApproximately(0, 1e-3f);
         centers.Should().AllSatisfy(center => center.Y.Should().BeApproximately(EyeHeight, 1e-3f));
     }
 
@@ -154,19 +176,23 @@ public sealed class ShipWindowTests
         using World world = NewJoltWorld();
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None);
         FrameHandle ship = world.GetOwnedFrame(scene["ship"]);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = new(new(8, EyeHeight, 12), DQuaternion.Identity),
-            LinearVelocity = new Vector3(10, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = new(new(8, EyeHeight, 12), DQuaternion.Identity),
+                LinearVelocity = new Vector3(10, 0, 0),
+                Body = new(Shape: new BoxShapeDesc(new(0.2f)), Mass: 5, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
 
         for (int tick = 0; tick < 30; tick++)
             world.Tick();
 
         world.GetFrame(crate).Should().Be(ship);
-        world.PoseInOwnFrame(crate).Position.X.Should()
+        world
+            .PoseInOwnFrame(crate)
+            .Position.X.Should()
             .BeLessThan(9.5 - 0.2, "the glass, like the wall, keeps the crate in the cabin");
     }
 }

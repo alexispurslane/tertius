@@ -87,8 +87,10 @@ public sealed class HistoryCommandTests : IDisposable
 
         exit.Should().Be(0);
         (git.NoteOf(first), git.NoteOf(docs)).Should().Be((null, null));
-        SlopNote.Parse(git.NoteOf(source)!)!.Should().Match<SlopNote>(note =>
-            note.Sloc == 8 && note.Branch == "work" && note.Source == NoteSource.PrePush);
+        SlopNote
+            .Parse(git.NoteOf(source)!)!
+            .Should()
+            .Match<SlopNote>(note => note.Sloc == 8 && note.Branch == "work" && note.Source == NoteSource.PrePush);
         SlopNote.Parse(git.NoteOf(tip)!)!.Sloc.Should().Be(8);
     }
 
@@ -159,8 +161,11 @@ public sealed class HistoryCommandTests : IDisposable
         exit.Should().Be(0);
         string[] lines = output.ToString().TrimEnd().Split('\n');
         lines[0].Should().Be("commit,date,branch,tickets,erosion,verbosity,sloc");
-        lines[1..].Select(line => line.Split(',')).Select(cells => (cells[3], cells[6]))
-            .Should().Equal(("ter-bbbb", "8"), ("ter-aaaa", "4"));
+        lines[1..]
+            .Select(line => line.Split(','))
+            .Select(cells => (cells[3], cells[6]))
+            .Should()
+            .Equal(("ter-bbbb", "8"), ("ter-aaaa", "4"));
     }
 
     [Fact]
@@ -198,8 +203,11 @@ public sealed class HistoryCommandTests : IDisposable
         int exit = Run("summary", pushed, "HEAD");
 
         exit.Should().Be(0);
-        output.ToString().Should().Contain("erosion    0.0000 -> 1.0000  +1.0000").And
-            .Contain($"+1.0000  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
+        output
+            .ToString()
+            .Should()
+            .Contain("erosion    0.0000 -> 1.0000  +1.0000")
+            .And.Contain($"+1.0000  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
     }
 
     [Fact]

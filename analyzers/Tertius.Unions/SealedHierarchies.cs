@@ -29,8 +29,10 @@ internal sealed class SealedHierarchies
     private void Record(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        if (type.BaseType?.OriginalDefinition is not { IsAbstract: true } parent ||
-            !SymbolEqualityComparer.Default.Equals(parent.ContainingAssembly, context.Compilation.Assembly))
+        if (
+            type.BaseType?.OriginalDefinition is not { IsAbstract: true } parent
+            || !SymbolEqualityComparer.Default.Equals(parent.ContainingAssembly, context.Compilation.Assembly)
+        )
             return;
         allSealed.AddOrUpdate(parent, type.IsSealed, (_, sealedSoFar) => sealedSoFar && type.IsSealed);
     }
@@ -39,8 +41,9 @@ internal sealed class SealedHierarchies
     {
         foreach (KeyValuePair<INamedTypeSymbol, bool> hierarchy in allSealed)
             if (hierarchy.Value && !IsClosed(hierarchy.Key, context) && !DeclaresBehavior(hierarchy.Key))
-                context.ReportDiagnostic(Diagnostic.Create(ClosedSetRules.OpenHierarchy, hierarchy.Key.Locations[0],
-                    hierarchy.Key.Name));
+                context.ReportDiagnostic(
+                    Diagnostic.Create(ClosedSetRules.OpenHierarchy, hierarchy.Key.Locations[0], hierarchy.Key.Name)
+                );
     }
 
     /// <summary>
@@ -56,6 +59,7 @@ internal sealed class SealedHierarchies
     /// </summary>
     private static bool IsClosed(INamedTypeSymbol type, CompilationAnalysisContext context) =>
         type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration &&
-            declaration.Modifiers.Any(modifier => modifier.ValueText == "closed"));
+            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration
+            && declaration.Modifiers.Any(modifier => modifier.ValueText == "closed")
+        );
 }

@@ -43,21 +43,33 @@ public sealed class SpatialIndexSubsystemTests
         {
             Spatial = new(Entities, Frames, new() { MaxDegreeOfParallelism = 4, TaskScheduler = workers })
             {
-                ParallelThreshold = threshold
+                ParallelThreshold = threshold,
             };
             Root = NewFrame(FrameHandle.Null);
         }
 
         public FrameHandle NewFrame(FrameHandle parent) =>
-            Frames.Create(frameOwner: new(nextOwnerSlot++, 1), parent: parent, localPose: DPose.Identity,
-                frameBounds: FrameBounds.Sphere(1e12f));
+            Frames.Create(
+                frameOwner: new(nextOwnerSlot++, 1),
+                parent: parent,
+                localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e12f)
+            );
 
         /// <summary>Makes an entity live at a position. The index does not know about it until <see cref="Settle"/>.</summary>
         public Entity Add(FrameHandle frame, Double3 position)
         {
             Entity entity = Entities.Reserve();
-            Entities.Activate(entity: entity, row: RowAt(frame, position), render: new(), components: [], wants: [],
-                body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            Entities.Activate(
+                entity: entity,
+                row: RowAt(frame, position),
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
             return entity;
         }
 
@@ -111,8 +123,11 @@ public sealed class SpatialIndexSubsystemTests
         for (int i = 0; i < 2000; i++)
         {
             // A cube 1000 m on a side around the origin, so that cells with negative coordinates are used too.
-            var position = new Double3(random.NextDouble() * 1000 - 500, random.NextDouble() * 1000 - 500,
-                random.NextDouble() * 1000 - 500);
+            var position = new Double3(
+                random.NextDouble() * 1000 - 500,
+                random.NextDouble() * 1000 - 500,
+                random.NextDouble() * 1000 - 500
+            );
             points.Add((scene.Add(scene.Root, position), position));
         }
 
@@ -123,16 +138,23 @@ public sealed class SpatialIndexSubsystemTests
         int nonEmpty = 0;
         for (int query = 0; query < 50; query++)
         {
-            var center = new Double3(random.NextDouble() * 1200 - 600, random.NextDouble() * 1200 - 600,
-                random.NextDouble() * 1200 - 600);
+            var center = new Double3(
+                random.NextDouble() * 1200 - 600,
+                random.NextDouble() * 1200 - 600,
+                random.NextDouble() * 1200 - 600
+            );
             double radius = 1 + query * 14;
 
             Entity[] expected =
             [
                 .. points
-                    .Where(p => Square(p.Position.X - center.X) + Square(p.Position.Y - center.Y) +
-                        Square(p.Position.Z - center.Z) <= radius * radius)
-                    .Select(p => p.Entity)
+                    .Where(p =>
+                        Square(p.Position.X - center.X)
+                            + Square(p.Position.Y - center.Y)
+                            + Square(p.Position.Z - center.Z)
+                        <= radius * radius
+                    )
+                    .Select(p => p.Entity),
             ];
             List<Entity> found = scene.Find(scene.Root, center, radius);
 
@@ -156,15 +178,23 @@ public sealed class SpatialIndexSubsystemTests
         scene.Settle();
         Double3[] centers =
         [
-            .. Enumerable.Range(0, 64).Select(_ =>
-                new Double3(random.NextDouble() * 400, random.NextDouble() * 400, random.NextDouble() * 400))
+            .. Enumerable
+                .Range(0, 64)
+                .Select(_ => new Double3(
+                    random.NextDouble() * 400,
+                    random.NextDouble() * 400,
+                    random.NextDouble() * 400
+                )),
         ];
         Entity[][] oneAtATime = [.. centers.Select(center => scene.Find(scene.Root, center, 60).ToArray())];
 
         var together = new Entity[centers.Length][];
-        Parallel.For(fromInclusive: 0, toExclusive: centers.Length,
+        Parallel.For(
+            fromInclusive: 0,
+            toExclusive: centers.Length,
             parallelOptions: new() { MaxDegreeOfParallelism = 8 },
-            body: i => together[i] = [.. scene.Find(scene.Root, centers[i], 60)]);
+            body: i => together[i] = [.. scene.Find(scene.Root, centers[i], 60)]
+        );
 
         for (int i = 0; i < centers.Length; i++)
             together[i].Should().Equal(oneAtATime[i], $"query {i}");
@@ -235,7 +265,7 @@ public sealed class SpatialIndexSubsystemTests
         [
             scene.Add(scene.Root, new(-9000, 4, 12)),
             scene.Add(scene.Root, new(250, -80000, 3)),
-            scene.Add(scene.Root, new(0, 0, 7e6))
+            scene.Add(scene.Root, new(0, 0, 7e6)),
         ];
         scene.Settle();
 
@@ -296,7 +326,9 @@ public sealed class SpatialIndexSubsystemTests
         scene.Move(mover, scene.Root, new(9, 0, 0));
         scene.Settle();
 
-        scene.Find(scene.Root, new(2, 0, 0), 3).Should()
+        scene
+            .Find(scene.Root, new(2, 0, 0), 3)
+            .Should()
             .BeEmpty("the exact distance test uses the new position even though the cell is the same");
         scene.Find(scene.Root, new(9, 0, 0), 3).Should().Equal(mover);
     }
@@ -391,9 +423,10 @@ public sealed class SpatialIndexSubsystemTests
         Entity newcomer = scene.Add(scene.Root, new(20 * cell + 1, 0, 0));
         scene.Settle();
 
-        scene.InCellOrder(scene.Root, new(10 * cell, 0, 0), 10 * cell + 10).Should().BeEquivalentTo(
-            [leaver, host, newcomer],
-            "every cell of the frame lists each of its entities once");
+        scene
+            .InCellOrder(scene.Root, new(10 * cell, 0, 0), 10 * cell + 10)
+            .Should()
+            .BeEquivalentTo([leaver, host, newcomer], "every cell of the frame lists each of its entities once");
         scene.Find(scene.Root, new(1, 0, 0), 3).Should().BeEmpty();
         scene.Find(scene.Root, new(10 * cell + 1.5, 0, 0), 3).Should().Equal(leaver, host);
         scene.Find(scene.Root, new(20 * cell + 1, 0, 0), 3).Should().Equal(newcomer);
@@ -403,7 +436,8 @@ public sealed class SpatialIndexSubsystemTests
     public void TwoEntitiesAloneInTheirCellsThatTradeCellsInOneUpdateAreEachFoundInTheOthersCell()
     {
         var scene = new Scene();
-        Double3 west = new(1, 0, 0), east = new(10 * SpatialGrid.CellSize + 1, 0, 0);
+        Double3 west = new(1, 0, 0),
+            east = new(10 * SpatialGrid.CellSize + 1, 0, 0);
         Entity first = scene.Add(scene.Root, west);
         Entity second = scene.Add(scene.Root, east);
         scene.Settle();
@@ -494,10 +528,11 @@ public sealed class SpatialIndexSubsystemTests
             {
                 Entity mover = live[random.Next(live.Count)];
                 FrameHandle frame = random.Next(5) == 0 ? frames[random.Next(frames.Length)] : frameOf[mover];
-                Double3 position = random.Next(3) == 0
-                    ? InCube()
-                    : alone.Entities.BackRow(mover).Pose.Position +
-                      new Double3(random.NextDouble() - 0.5, random.NextDouble() - 0.5, 0);
+                Double3 position =
+                    random.Next(3) == 0
+                        ? InCube()
+                        : alone.Entities.BackRow(mover).Pose.Position
+                            + new Double3(random.NextDouble() - 0.5, random.NextDouble() - 0.5, 0);
                 foreach (Scene scene in scenes)
                     scene.Move(mover, frame, position);
                 frameOf[mover] = frame;
@@ -520,10 +555,16 @@ public sealed class SpatialIndexSubsystemTests
             foreach (FrameHandle frame in frames)
             {
                 Entity[] expected = alone.InCellOrder(frame, cube, 150);
-                onWorkers.InCellOrder(frame, cube, 150).Should()
+                onWorkers
+                    .InCellOrder(frame, cube, 150)
+                    .Should()
                     .Equal(expected, $"seed {seed}, round {round}, frame {frame}");
-                expected.Should().HaveCount(live.Count(entity => frameOf[entity] == frame),
-                    "the sphere holds every entity of the frame");
+                expected
+                    .Should()
+                    .HaveCount(
+                        live.Count(entity => frameOf[entity] == frame),
+                        "the sphere holds every entity of the frame"
+                    );
             }
         }
     }
@@ -572,8 +613,11 @@ public sealed class SpatialIndexSubsystemTests
         var model = new Dictionary<Entity, (FrameHandle Frame, Double3 Position)>();
 
         Double3 RandomPosition(double extent) =>
-            new((random.NextDouble() - 0.5) * extent, (random.NextDouble() - 0.5) * extent,
-                (random.NextDouble() - 0.5) * extent);
+            new(
+                (random.NextDouble() - 0.5) * extent,
+                (random.NextDouble() - 0.5) * extent,
+                (random.NextDouble() - 0.5) * extent
+            );
 
         void Spawn()
         {
@@ -618,16 +662,24 @@ public sealed class SpatialIndexSubsystemTests
                 Entity[] expected =
                 [
                     .. model
-                        .Where(pair => pair.Value.Frame == frame
-                                       && Square(pair.Value.Position.X - center.X) +
-                                       Square(pair.Value.Position.Y - center.Y) +
-                                       Square(pair.Value.Position.Z - center.Z) <= radius * radius)
+                        .Where(pair =>
+                            pair.Value.Frame == frame
+                            && Square(pair.Value.Position.X - center.X)
+                                + Square(pair.Value.Position.Y - center.Y)
+                                + Square(pair.Value.Position.Z - center.Z)
+                                <= radius * radius
+                        )
                         .Select(pair => pair.Key)
-                        .Order()
+                        .Order(),
                 ];
 
-                scene.Find(frame, center, radius).Should().Equal(expected,
-                    $"seed {seed}, on workers {onWorkers}, round {round}, query {query}: frame {frame}, center {center}, radius {radius}");
+                scene
+                    .Find(frame, center, radius)
+                    .Should()
+                    .Equal(
+                        expected,
+                        $"seed {seed}, on workers {onWorkers}, round {round}, query {query}: frame {frame}, center {center}, radius {radius}"
+                    );
             }
         }
     }
@@ -833,7 +885,8 @@ public sealed class SpatialIndexSubsystemTests
         Action set = () => scene.Spatial.ParallelThreshold = threshold;
 
         set.Should().Throw<ArgumentOutOfRangeException>();
-        scene.Spatial.ParallelThreshold.Should()
+        scene
+            .Spatial.ParallelThreshold.Should()
             .Be(SpatialIndex.DefaultParallelThreshold, "a refused threshold changes nothing");
     }
 }

@@ -28,8 +28,13 @@ public sealed class ReferenceImagesTests : IDisposable
 
     /// <summary>A gray 64×64 image with a white 8×8 square at (40, 40): a change that anyone sees.</summary>
     private static Capture GrayWithSquare() =>
-        TestImages.GrayWith(width: 64, height: 64, value: 128,
-            changed: (x, y) => x is >= 40 and < 48 && y is >= 40 and < 48, changedValue: 255);
+        TestImages.GrayWith(
+            width: 64,
+            height: 64,
+            value: 128,
+            changed: (x, y) => x is >= 40 and < 48 && y is >= 40 and < 48,
+            changedValue: 255
+        );
 
     [Fact]
     public void AnImageWithoutAReferenceFailsAndIsWrittenBesideTheMissingReferenceEvenWithoutItsFolder()
@@ -90,7 +95,7 @@ public sealed class ReferenceImagesTests : IDisposable
         Checking(changed).Should().Throw<FailException>().WithMessage($"*{Reference}*");
 
         Capture.Load(Actual).Rgba.Should().Equal(changed.Rgba);
-        Capture heatMap = Capture.Load(HeatMap);
+        var heatMap = Capture.Load(HeatMap);
         heatMap.Luma(44, 44).Should().BeGreaterThan(0.5f, "the square changed from gray to white");
         heatMap.Luma(10, 10).Should().BeLessThan(0.02f, "the far corner did not change");
     }
@@ -124,7 +129,9 @@ public sealed class ReferenceImagesTests : IDisposable
         // tolerance of 0.1.
         Checking(TestImages.Gray(64, 64, 128), approve: true).Should().NotThrow();
 
-        Checking(TestImages.Gray(64, 64, 118)).Should().Throw<FailException>()
+        Checking(TestImages.Gray(64, 64, 118))
+            .Should()
+            .Throw<FailException>()
             .WithMessage("4096 pixels differ visibly*");
     }
 
@@ -134,8 +141,17 @@ public sealed class ReferenceImagesTests : IDisposable
         // One white pixel on black scores far above 0.1 at that pixel, though the mean over the 4,096 pixels stays far below 0.1.
         Checking(TestImages.Gray(64, 64, 0), approve: true).Should().NotThrow();
 
-        Checking(TestImages.GrayWith(width: 64, height: 64, value: 0, changed: (x, y) => x == 32 && y == 32,
-            changedValue: 255)).Should().Throw<FailException>();
+        Checking(
+                TestImages.GrayWith(
+                    width: 64,
+                    height: 64,
+                    value: 0,
+                    changed: (x, y) => x == 32 && y == 32,
+                    changedValue: 255
+                )
+            )
+            .Should()
+            .Throw<FailException>();
     }
 
     [Fact]
@@ -149,7 +165,8 @@ public sealed class ReferenceImagesTests : IDisposable
         Checking(wider).Should().Throw<FailException>().WithMessage("*64×64*96×64*");
 
         Capture.Load(Actual).Rgba.Should().Equal(wider.Rgba);
-        File.Exists(HeatMap).Should()
+        File.Exists(HeatMap)
+            .Should()
             .BeFalse("FLIP compares only images of one size, so the old heat map would show a stale comparison");
     }
 }

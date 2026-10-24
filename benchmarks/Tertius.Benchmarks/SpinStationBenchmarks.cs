@@ -22,7 +22,8 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class SpinStationCrateBenchmarks
 {
-    [Params(0, 0.31321)] public double Rate;
+    [Params(0, 0.31321)]
+    public double Rate;
 
     private World world = null!;
 
@@ -33,21 +34,27 @@ public class SpinStationCrateBenchmarks
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: Rate);
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            AsFrame = new(FrameBounds.Sphere(300)),
-            Components = [new SpinMotion { Spin = spin }]
-        }));
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    AsFrame = new(FrameBounds.Sphere(300)),
+                    Components = [new SpinMotion { Spin = spin }],
+                }
+            )
+        );
         var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < 1000; i++)
-            world.Spawn(new()
-            {
-                Frame = station,
-                Pose = new(new(30 + i % 10 * 3, i / 10 % 10 * 3 - 13.5, i / 100 * 3 - 13.5), DQuaternion.Identity),
-                LinearVelocity = new(0, 0.05, 0),
-                Body = crate
-            });
+            world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = new(new(30 + i % 10 * 3, i / 10 % 10 * 3 - 13.5, i / 100 * 3 - 13.5), DQuaternion.Identity),
+                    LinearVelocity = new(0, 0.05, 0),
+                    Body = crate,
+                }
+            );
         // Two seconds: past the station's first step, which holds still, and past the half second after which Jolt would
         // put a body to sleep.
         for (int i = 0; i < 120; i++)
@@ -56,8 +63,10 @@ public class SpinStationCrateBenchmarks
         int awake = backend.BodiesIn(station).Count(body => body.Active && body.Motion == MotionType.Dynamic);
         if (awake != 1000)
             throw new InvalidOperationException($"Expected 1000 awake crates, found {awake}.");
-        Console.WriteLine($"// {awake} awake crates; VelocityShadow {Unsafe.SizeOf<VelocityShadow>()} bytes, " +
-                          $"AppliedFrameAcceleration {Unsafe.SizeOf<AppliedFrameAcceleration>()} bytes per body.");
+        Console.WriteLine(
+            $"// {awake} awake crates; VelocityShadow {Unsafe.SizeOf<VelocityShadow>()} bytes, "
+                + $"AppliedFrameAcceleration {Unsafe.SizeOf<AppliedFrameAcceleration>()} bytes per body."
+        );
     }
 
     [Benchmark]
@@ -80,7 +89,8 @@ public class SpinStationCrateBenchmarks
 [MemoryDiagnoser]
 public class DampedSpinningShipBenchmarks
 {
-    [Params(0f, 0.05f)] public float AngularDamping;
+    [Params(0f, 0.05f)]
+    public float AngularDamping;
 
     private World world = null!;
 
@@ -90,26 +100,37 @@ public class DampedSpinningShipBenchmarks
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            AngularVelocity = new(0, 0.3f, 0),
-            Body = new(Shape: new SphereShapeDesc(5), Mass: 100_000, LinearDamping: 0, AngularDamping: AngularDamping,
-                InteriorShape: new SphereShapeDesc(2)),
-            AsFrame = new(FrameBounds.Sphere(300))
-        }));
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    AngularVelocity = new(0, 0.3f, 0),
+                    Body = new(
+                        Shape: new SphereShapeDesc(5),
+                        Mass: 100_000,
+                        LinearDamping: 0,
+                        AngularDamping: AngularDamping,
+                        InteriorShape: new SphereShapeDesc(2)
+                    ),
+                    AsFrame = new(FrameBounds.Sphere(300)),
+                }
+            )
+        );
         var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         for (int i = 0; i < 1000; i++)
         {
             var place = new Double3(30 + i % 10 * 3, i / 10 % 10 * 3 - 13.5, i / 100 * 3 - 13.5);
-            world.Spawn(new()
-            {
-                Frame = ship,
-                Pose = new(place, DQuaternion.Identity),
-                // At rest in inertial space: −ω × r relative to the ship's axes.
-                LinearVelocity = -Double3.Cross(new(0, 0.3, 0), place),
-                Body = crate
-            });
+            world.Spawn(
+                new()
+                {
+                    Frame = ship,
+                    Pose = new(place, DQuaternion.Identity),
+                    // At rest in inertial space: −ω × r relative to the ship's axes.
+                    LinearVelocity = -Double3.Cross(new(0, 0.3, 0), place),
+                    Body = crate,
+                }
+            );
         }
 
         for (int i = 0; i < 120; i++)
@@ -117,7 +138,8 @@ public class DampedSpinningShipBenchmarks
 
         int awake = backend.BodiesIn(ship).Count(body => body.Active && body.Motion == MotionType.Dynamic);
         Console.WriteLine(
-            $"// {awake} awake crates; the ship turns at {world.Frames.AngularVelocity(ship).Length():G4} rad/s.");
+            $"// {awake} awake crates; the ship turns at {world.Frames.AngularVelocity(ship).Length():G4} rad/s."
+        );
     }
 
     [Benchmark]
@@ -146,7 +168,8 @@ public class SpinStationCharacterBenchmarks
 {
     private const double StationRate = 0.31321;
 
-    [Params(false, true)] public bool Turning;
+    [Params(false, true)]
+    public bool Turning;
 
     private World world = null!;
     private readonly Entity[] people = new Entity[100];
@@ -161,36 +184,45 @@ public class SpinStationCharacterBenchmarks
         GravityField field = Turning
             ? GravityField.None
             : GravityField.Uniform(new((float)(StationRate * StationRate * 100), 0, 0));
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(Turning
-            ? new()
-            {
-                Frame = space,
-                AsFrame = new(FrameBounds.Sphere(150)),
-                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
-                Components = [new SpinMotion { Spin = spin }]
-            }
-            : new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150), field) }));
-        world.Spawn(new()
-        {
-            Frame = station,
-            Pose = new(new(100.5, 0, 0), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 20, 20)), Motion: BodyMotion.Static)
-        });
-        var person = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
-        for (int i = 0; i < 100; i++)
-            people[i] = world.Spawn(new()
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                Turning
+                    ? new()
+                    {
+                        Frame = space,
+                        AsFrame = new(FrameBounds.Sphere(150)),
+                        FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
+                        Components = [new SpinMotion { Spin = spin }],
+                    }
+                    : new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150), field) }
+            )
+        );
+        world.Spawn(
+            new()
             {
                 Frame = station,
-                Pose = new(new(100 - 0.95, i % 10 * 3 - 13.5, i / 10 * 3 - 13.5), DQuaternion.Identity),
-                Body = person
-            });
+                Pose = new(new(100.5, 0, 0), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 20, 20)), Motion: BodyMotion.Static),
+            }
+        );
+        var person = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
+        for (int i = 0; i < 100; i++)
+            people[i] = world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = new(new(100 - 0.95, i % 10 * 3 - 13.5, i / 10 * 3 - 13.5), DQuaternion.Identity),
+                    Body = person,
+                }
+            );
         for (int i = 0; i < 120; i++)
             world.Tick();
         int standing = people.Count(world.IsStanding);
         double lowest = people.Min(p => FeetAboveFloor(world.PoseIn(p, station)));
         double highest = people.Max(p => FeetAboveFloor(world.PoseIn(p, station)));
         Console.WriteLine(
-            $"// {standing} of 100 people stand; their feet are {lowest:G3} m to {highest:G3} m above the floor.");
+            $"// {standing} of 100 people stand; their feet are {lowest:G3} m to {highest:G3} m above the floor."
+        );
     }
 
     /// <summary>
@@ -223,7 +255,8 @@ public class BeginStepBenchmarks
     private const double Step = 1.0 / 60;
     private const int Chains = 333;
 
-    [Params(false, true)] public bool Turning;
+    [Params(false, true)]
+    public bool Turning;
 
     private readonly FrameTree frames = new();
     private PhysicsIntent[] intents = [];
@@ -232,8 +265,12 @@ public class BeginStepBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle root = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null,
-            localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+        FrameHandle root = frames.Create(
+            frameOwner: new(next++, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
         var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 0.1);
         var moves = new List<(uint Slot, FrameHandle Parent)>();
         for (int c = 0; c < Chains; c++)
@@ -242,9 +279,12 @@ public class BeginStepBenchmarks
             for (int level = 0; level < 3; level++)
             {
                 uint slot = next++;
-                parent = frames.Create(frameOwner: new(slot, 1), parent: parent,
+                parent = frames.Create(
+                    frameOwner: new(slot, 1),
+                    parent: parent,
                     localPose: new(new(10, 0, 0), DQuaternion.Identity),
-                    frameBounds: FrameBounds.Sphere(1));
+                    frameBounds: FrameBounds.Sphere(1)
+                );
                 moves.Add((slot, frames.Parent(parent)));
             }
         }

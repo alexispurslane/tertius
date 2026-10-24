@@ -26,8 +26,12 @@ internal static class FrameReads
     public static Double3 VelocityIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)
     {
         if (row.Frame.IsNull)
-            return frames.ConvertVelocity(from: OwnFrame(frames, entity), to: to, position: Double3.Zero,
-                v: Double3.Zero);
+            return frames.ConvertVelocity(
+                from: OwnFrame(frames, entity),
+                to: to,
+                position: Double3.Zero,
+                v: Double3.Zero
+            );
         Double3 velocity = frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
         return row.Frame == to
             ? velocity
@@ -41,8 +45,9 @@ internal static class FrameReads
         if (row.Frame.IsNull)
             return frames.AngularVelocityRelative(OwnFrame(frames, entity), to).ToVector3();
         DPose relative = frames.Relative(row.Frame, to);
-        return (relative.TransformDirection(row.AngularVelocity) + frames.AngularVelocityRelative(row.Frame, to))
-            .ToVector3();
+        return (
+            relative.TransformDirection(row.AngularVelocity) + frames.AngularVelocityRelative(row.Frame, to)
+        ).ToVector3();
     }
 
     private static FrameHandle OwnFrame(FrameTree frames, Entity entity)

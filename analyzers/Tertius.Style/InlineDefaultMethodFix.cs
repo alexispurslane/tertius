@@ -32,34 +32,47 @@ public sealed class InlineDefaultMethodFix : CodeFixProvider
 
     /// <summary>Marks every method of a document in one rewrite, so that the file gets the using once.</summary>
     public override FixAllProvider GetFixAllProvider() =>
-        FixAllProvider.Create(async (context, document, diagnostics) => await Marked(document,
-                diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
-            .ConfigureAwait(false));
+        FixAllProvider.Create(
+            async (context, document, diagnostics) =>
+                await Marked(
+                        document,
+                        diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan),
+                        context.CancellationToken
+                    )
+                    .ConfigureAwait(false)
+        );
 
     /// <inheritdoc/>
     public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         foreach (Diagnostic diagnostic in context.Diagnostics)
-            context.RegisterCodeFix(CodeAction.Create(title: "Mark the method for inlining",
-                createChangedDocument: cancel => Marked(context.Document, [diagnostic.Location.SourceSpan], cancel),
-                equivalenceKey: EquivalenceKey), diagnostic);
+            context.RegisterCodeFix(
+                CodeAction.Create(
+                    title: "Mark the method for inlining",
+                    createChangedDocument: cancel => Marked(context.Document, [diagnostic.Location.SourceSpan], cancel),
+                    equivalenceKey: EquivalenceKey
+                ),
+                diagnostic
+            );
         return Task.CompletedTask;
     }
 
     /// <summary>The document with each method whose name is at one of <paramref name="spans"/> marked.</summary>
-    private static async Task<Document> Marked(Document document, IEnumerable<TextSpan> spans,
-        CancellationToken cancel)
+    private static async Task<Document> Marked(Document document, IEnumerable<TextSpan> spans, CancellationToken cancel)
     {
         if (await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not CompilationUnitSyntax root)
             return document;
-        SyntaxTrivia endOfLine = root.DescendantTrivia().FirstOrDefault(trivia =>
-            trivia.IsKind(SyntaxKind.EndOfLineTrivia)) is { RawKind: not 0 } found
+        SyntaxTrivia endOfLine = root.DescendantTrivia()
+            .FirstOrDefault(trivia => trivia.IsKind(SyntaxKind.EndOfLineTrivia))
+            is { RawKind: not 0 } found
             ? found
             : SyntaxFactory.LineFeed;
         MethodDeclarationSyntax[] methods =
         [
-            .. spans.Select(span => root.FindToken(span.Start).Parent?.FirstAncestorOrSelf<MethodDeclarationSyntax>())
-                .OfType<MethodDeclarationSyntax>().Distinct()
+            .. spans
+                .Select(span => root.FindToken(span.Start).Parent?.FirstAncestorOrSelf<MethodDeclarationSyntax>())
+                .OfType<MethodDeclarationSyntax>()
+                .Distinct(),
         ];
         CompilationUnitSyntax marked = root.ReplaceNodes(methods, (_, current) => WithInlining(current, endOfLine));
         return document.WithSyntaxRoot(WithUsing(marked, endOfLine));
@@ -69,17 +82,25 @@ public sealed class InlineDefaultMethodFix : CodeFixProvider
     private static MethodDeclarationSyntax WithInlining(MethodDeclarationSyntax method, SyntaxTrivia endOfLine)
     {
         SyntaxTriviaList leading = method.GetLeadingTrivia();
-        SyntaxTriviaList indent = leading.Count > 0 && leading.Last().IsKind(SyntaxKind.WhitespaceTrivia)
-            ? SyntaxFactory.TriviaList(leading.Last())
-            : SyntaxFactory.TriviaList();
-        AttributeListSyntax inlining = SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(
-                SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MethodImpl"),
-                    SyntaxFactory.ParseAttributeArgumentList("(MethodImplOptions.AggressiveInlining)"))))
+        SyntaxTriviaList indent =
+            leading.Count > 0 && leading.Last().IsKind(SyntaxKind.WhitespaceTrivia)
+                ? SyntaxFactory.TriviaList(leading.Last())
+                : SyntaxFactory.TriviaList();
+        AttributeListSyntax inlining = SyntaxFactory
+            .AttributeList(
+                SyntaxFactory.SingletonSeparatedList(
+                    SyntaxFactory.Attribute(
+                        SyntaxFactory.IdentifierName("MethodImpl"),
+                        SyntaxFactory.ParseAttributeArgumentList("(MethodImplOptions.AggressiveInlining)")
+                    )
+                )
+            )
             .WithTrailingTrivia(endOfLine);
         if (method.AttributeLists.Count > 0)
             return method.AddAttributeLists(inlining.WithLeadingTrivia(indent));
         // The attribute takes the doc comment and the indent in front of the method, and the method keeps the indent.
-        return method.WithLeadingTrivia(indent)
+        return method
+            .WithLeadingTrivia(indent)
             .WithAttributeLists(SyntaxFactory.SingletonList(inlining.WithLeadingTrivia(leading)));
     }
 
@@ -89,22 +110,32 @@ public sealed class InlineDefaultMethodFix : CodeFixProvider
     /// </summary>
     private static CompilationUnitSyntax WithUsing(CompilationUnitSyntax root, SyntaxTrivia endOfLine)
     {
-        if (root.DescendantNodes().OfType<UsingDirectiveSyntax>().Any(directive =>
-                directive.Alias == null && directive.StaticKeyword.IsKind(SyntaxKind.None) &&
-                directive.Name?.ToString() == Namespace))
+        if (
+            root.DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Any(directive =>
+                    directive.Alias == null
+                    && directive.StaticKeyword.IsKind(SyntaxKind.None)
+                    && directive.Name?.ToString() == Namespace
+                )
+        )
             return root;
-        UsingDirectiveSyntax directive = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(Namespace))
+        UsingDirectiveSyntax directive = SyntaxFactory
+            .UsingDirective(SyntaxFactory.ParseName(Namespace))
             .WithUsingKeyword(SyntaxFactory.Token(SyntaxKind.UsingKeyword).WithTrailingTrivia(SyntaxFactory.Space))
             .WithTrailingTrivia(endOfLine);
         if (root.Usings.Count == 0)
             return root.WithUsings(SyntaxFactory.SingletonList(directive.WithTrailingTrivia(endOfLine, endOfLine)));
-        int index = root.Usings.TakeWhile(other =>
-            string.CompareOrdinal(other.Name?.ToString(), Namespace) < 0).Count();
+        int index = root
+            .Usings.TakeWhile(other => string.CompareOrdinal(other.Name?.ToString(), Namespace) < 0)
+            .Count();
         if (index > 0)
             return root.WithUsings(root.Usings.Insert(index, directive));
         // The new first using takes the trivia in front of the old first one, such as a file header.
         UsingDirectiveSyntax first = root.Usings[0];
-        return root.WithUsings(root.Usings.Replace(first, first.WithoutLeadingTrivia())
-            .Insert(0, directive.WithLeadingTrivia(first.GetLeadingTrivia())));
+        return root.WithUsings(
+            root.Usings.Replace(first, first.WithoutLeadingTrivia())
+                .Insert(0, directive.WithLeadingTrivia(first.GetLeadingTrivia()))
+        );
     }
 }

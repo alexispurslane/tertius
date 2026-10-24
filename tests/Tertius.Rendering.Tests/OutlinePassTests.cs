@@ -16,8 +16,15 @@ public sealed class OutlinePassTests
     private static PreparedScene Collect(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(snapshot: snapshot, alpha: alpha, width: 1600, height: 900, meshes: NoMeshes,
-            materialCount: 1, scene: scene);
+        new SceneBatcher().Prepare(
+            snapshot: snapshot,
+            alpha: alpha,
+            width: 1600,
+            height: 900,
+            meshes: NoMeshes,
+            materialCount: 1,
+            scene: scene
+        );
         OutlinePass.Collect(snapshot, scene);
         return scene;
     }
@@ -31,8 +38,7 @@ public sealed class OutlinePassTests
         snapshot.Outlines.Add(new RestingOutline(new(0, 0, -20), 2)); // ahead
         snapshot.Outlines.Add(new RestingOutline(new(0, 0, 50), 2)); // behind
         snapshot.Outlines.Add(new FallingOutline(new(500, 0, -20), 10)); // far right
-        snapshot.Outlines.Add(new SemanticOutline(new(0, -400, -20), Quaternion.Identity,
-            new(30, 20, 15))); // far below
+        snapshot.Outlines.Add(new SemanticOutline(new(0, -400, -20), Quaternion.Identity, new(30, 20, 15))); // far below
         // The camera is inside this bubble, though its center is behind the camera.
         snapshot.Outlines.Add(new SemanticOutline(new(0, 0, 10), Quaternion.Identity, new(30, 20, 15)));
         // The center is outside the right plane, but the sphere reaches into the view.
@@ -40,7 +46,9 @@ public sealed class OutlinePassTests
 
         GpuOutline[] records = Records(Collect(snapshot));
 
-        records.Select(r => r.Center).Should()
+        records
+            .Select(r => r.Center)
+            .Should()
             .Equal(new Vector3(0, 0, -20), new Vector3(0, 0, 10), new Vector3(9.5f, 0, -5));
     }
 
@@ -68,10 +76,18 @@ public sealed class OutlinePassTests
 
         uint[] colors = [.. Records(Collect(snapshot)).Select(r => r.Color)];
 
-        colors.Should().Equal(OutlineColors.Semantic, OutlineColors.Falling, OutlineColors.Resting,
-            OutlineColors.Nesting, OutlineColors.Following);
+        colors
+            .Should()
+            .Equal(
+                OutlineColors.Semantic,
+                OutlineColors.Falling,
+                OutlineColors.Resting,
+                OutlineColors.Nesting,
+                OutlineColors.Following
+            );
         colors.Should().OnlyHaveUniqueItems("a legend tells the kinds of frame apart by color alone");
-        colors.Should()
+        colors
+            .Should()
             .AllSatisfy(c => (c >> 24).Should().Be(0xFFu, "the pass sets the alpha of each fragment itself"));
     }
 
@@ -90,8 +106,12 @@ public sealed class OutlinePassTests
 
         GpuOutline ellipsoid = records[0];
         (ellipsoid.Flags & GpuOutline.SphereFlag).Should().Be(0u);
-        ellipsoid.Rotation.Should().Be(new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
-            "an ellipsoid's rings lie in the principal planes of its frame");
+        ellipsoid
+            .Rotation.Should()
+            .Be(
+                new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
+                "an ellipsoid's rings lie in the principal planes of its frame"
+            );
         ellipsoid.Radii.Should().Be(new Vector3(4, 5, 6));
         foreach (GpuOutline sphere in records[1..])
         {
@@ -115,10 +135,15 @@ public sealed class OutlinePassTests
         GpuOutline[] records = Records(Collect(snapshot));
 
         GpuOutline sphere = records[0];
-        (sphere.Flags & GpuOutline.SphereFlag).Should()
+        (sphere.Flags & GpuOutline.SphereFlag)
+            .Should()
             .Be(GpuOutline.SphereFlag, "a sphere seen from outside also draws its rim");
-        sphere.Rotation.Should().Be(new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
-            "a bubble's rings lie in the principal planes of its frame");
+        sphere
+            .Rotation.Should()
+            .Be(
+                new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
+                "a bubble's rings lie in the principal planes of its frame"
+            );
         sphere.Radii.Should().Be(new Vector3(5));
         (records[1].Flags & GpuOutline.SphereFlag).Should().Be(0u);
     }
@@ -141,8 +166,11 @@ public sealed class OutlinePassTests
 
         GpuOutline[] records = Records(Collect(snapshot));
 
-        records.Should().ContainSingle().Which.Radii.Should().Be(new Vector3(0, 0, 2),
-            "an ellipsoid flat on two axes still has a ring to draw");
+        records
+            .Should()
+            .ContainSingle()
+            .Which.Radii.Should()
+            .Be(new Vector3(0, 0, 2), "an ellipsoid flat on two axes still has a ring to draw");
     }
 
     [Fact]
@@ -167,14 +195,16 @@ public sealed class OutlinePassTests
         for (int i = 0; i < 40; i++)
         {
             Vector3 center = new(0, 0, -100);
-            snapshot.Outlines.Add((i % 5) switch
-            {
-                0 => new SemanticOutline(center, Quaternion.Identity, new(i + 1)),
-                1 => new FallingOutline(center, i + 1),
-                2 => new RestingOutline(center, i + 1),
-                3 => new NestingOutline(center, i + 1),
-                _ => new FollowingOutline(center, i + 1)
-            });
+            snapshot.Outlines.Add(
+                (i % 5) switch
+                {
+                    0 => new SemanticOutline(center, Quaternion.Identity, new(i + 1)),
+                    1 => new FallingOutline(center, i + 1),
+                    2 => new RestingOutline(center, i + 1),
+                    3 => new NestingOutline(center, i + 1),
+                    _ => new FollowingOutline(center, i + 1),
+                }
+            );
         }
 
         PreparedScene scene = Collect(snapshot);
@@ -190,13 +220,27 @@ public sealed class OutlinePassTests
         shown.Outlines.Add(new RestingOutline(new(0, 0, -20), 2));
         var scene = new PreparedScene();
         var batcher = new SceneBatcher();
-        batcher.Prepare(snapshot: shown, alpha: 1, width: 1600, height: 900, meshes: NoMeshes, materialCount: 1,
-            scene: scene);
+        batcher.Prepare(
+            snapshot: shown,
+            alpha: 1,
+            width: 1600,
+            height: 900,
+            meshes: NoMeshes,
+            materialCount: 1,
+            scene: scene
+        );
         OutlinePass.Collect(shown, scene);
 
         RenderSnapshot hidden = Empty();
-        batcher.Prepare(snapshot: hidden, alpha: 1, width: 1600, height: 900, meshes: NoMeshes, materialCount: 1,
-            scene: scene);
+        batcher.Prepare(
+            snapshot: hidden,
+            alpha: 1,
+            width: 1600,
+            height: 900,
+            meshes: NoMeshes,
+            materialCount: 1,
+            scene: scene
+        );
         OutlinePass.Collect(hidden, scene);
 
         scene.OutlineCount.Should().Be(0);

@@ -53,8 +53,18 @@ public readonly record struct Stopped;
 /// <see cref="PenAway"/>. The default value is
 /// <see cref="Boarding"/>. It is a generated union, like <see cref="AscentState"/>.
 /// </summary>
-[GeneratedUnion(typeof(Boarding), typeof(Seated), typeof(Fetching), typeof(Holding), typeof(Stopped), typeof(Returning),
-    typeof(Strapped), typeof(Unstrapped), typeof(PenAway), ZeroCase = typeof(Boarding))]
+[GeneratedUnion(
+    typeof(Boarding),
+    typeof(Seated),
+    typeof(Fetching),
+    typeof(Holding),
+    typeof(Stopped),
+    typeof(Returning),
+    typeof(Strapped),
+    typeof(Unstrapped),
+    typeof(PenAway),
+    ZeroCase = typeof(Boarding)
+)]
 public readonly partial struct PassengerState;
 
 /// <summary>
@@ -174,7 +184,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// A passenger that starts in <paramref name="start"/>, as a scene that starts in the middle of the flight builds it,
     /// such as the exit's scene, which starts <see cref="Strapped"/> at the docked seat.
     /// </summary>
-    public Passenger(Waypoint seat, Entity pen, PassengerState start) : this(seat, pen)
+    public Passenger(Waypoint seat, Entity pen, PassengerState start)
+        : this(seat, pen)
     {
         State = start;
     }
@@ -198,8 +209,10 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         switch (State)
         {
             case Boarding:
-                if (self.Frame == seat.Frame &&
-                    Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius)
+                if (
+                    self.Frame == seat.Frame
+                    && Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius
+                )
                     State = new Seated(0);
                 return;
             case Seated { WeightlessTicks: int ticks }:
@@ -210,8 +223,11 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 return;
             case Fetching:
                 for (int i = 0; i < events.Count; i++)
-                    if (events[i].Is<CrateOffer>() && events[i].Sender == pen &&
-                        Take(self, outbox, events[i].As<CrateOffer>().Crate))
+                    if (
+                        events[i].Is<CrateOffer>()
+                        && events[i].Sender == pen
+                        && Take(self, outbox, events[i].As<CrateOffer>().Crate)
+                    )
                     {
                         Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
                         return;
@@ -257,7 +273,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 return;
             default:
                 throw new UnreachableException(
-                    $"The passenger state {State} has a case that the passenger does not run.");
+                    $"The passenger state {State} has a case that the passenger does not run."
+                );
         }
     }
 
@@ -298,8 +315,12 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             return;
         }
 
-        Steer(self: self, outbox: outbox, velocity: way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance),
-            mass: mass);
+        Steer(
+            self: self,
+            outbox: outbox,
+            velocity: way * (Math.Min(FloatSpeed, distance * ApproachRate) / distance),
+            mass: mass
+        );
     }
 
     /// <summary>
@@ -309,8 +330,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void Belt(Self self, Double3 gravity, float mass)
     {
         Double3 offset = seat.Position - self.PoseIn(seat.Frame).Position;
-        Double3 push = -gravity + offset * (BeltFrequency * BeltFrequency) -
-                       self.VelocityIn(seat.Frame) * (2 * BeltFrequency);
+        Double3 push =
+            -gravity + offset * (BeltFrequency * BeltFrequency) - self.VelocityIn(seat.Frame) * (2 * BeltFrequency);
         self.Body.AddForce((push * mass).ToVector3());
     }
 
@@ -320,8 +341,10 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// </summary>
     private void Fetch(Self self, Outbox outbox, float mass)
     {
-        if (!self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose) ||
-            !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity))
+        if (
+            !self.Snapshot.TryGetPoseIn(pen, self.Frame, out DPose penPose)
+            || !self.Snapshot.TryGetVelocityIn(pen, self.Frame, out Double3 penVelocity)
+        )
         {
             State = new Stopped();
             Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
@@ -342,8 +365,12 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         Double3 lineUp = way - ahead * gap;
         double distance = lineUp.Length;
         double speed = Math.Min(FloatSpeed, distance * ApproachRate);
-        Steer(self: self, outbox: outbox,
-            velocity: penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero), mass: mass);
+        Steer(
+            self: self,
+            outbox: outbox,
+            velocity: penVelocity + (distance > 0 ? lineUp * (speed / distance) : Double3.Zero),
+            mass: mass
+        );
     }
 
     /// <summary>
@@ -359,7 +386,8 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         var grip = Pose.Compose(view.Inverse(), DPose.Compose(self.PoseIn(self.Frame).Inverse(), penPose).ToPose());
         outbox.Send(pen, new CrateTaken());
         State = new Holding(
-            self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip)));
+            self.Spawn(offered.HeldCopy(frame: self.Frame, holder: self.Entity, view: view, grip: grip))
+        );
         return true;
     }
 
@@ -374,7 +402,9 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         if (force.Length > PersonControl.ThrustForce)
             force *= PersonControl.ThrustForce / force.Length;
         // The back jet takes the force in the passenger's own axes, which it keeps.
-        outbox.Send(BackJetPart,
-            new JetForce { Force = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(force).ToVector3() });
+        outbox.Send(
+            BackJetPart,
+            new JetForce { Force = self.PoseIn(self.Frame).Rotation.Conjugate().Rotate(force).ToVector3() }
+        );
     }
 }

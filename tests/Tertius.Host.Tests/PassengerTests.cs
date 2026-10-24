@@ -20,8 +20,12 @@ namespace Tertius.Host.Tests;
 public sealed class PassengerTests : IDisposable
 {
     /// <summary>The pen of the demo. The world has no renderer, so the mesh and the material are only numbers.</summary>
-    private static readonly CrateSpec Pen = new(HalfExtents: DemoSurface.PenHalf, Mass: DemoSurface.PenMass,
-        Mesh: new(11), Material: new(5));
+    private static readonly CrateSpec Pen = new(
+        HalfExtents: DemoSurface.PenHalf,
+        Mass: DemoSurface.PenMass,
+        Mesh: new(11),
+        Material: new(5)
+    );
 
     private static readonly Double3 PenPlace = new(-1, 0, 0);
 
@@ -42,35 +46,54 @@ public sealed class PassengerTests : IDisposable
     /// main engine pushes at full throttle from then on. With <paramref name="burn"/>, the shuttle unparks on its first tick
     /// and its main engine pushes with the throttle of the burn.
     /// </summary>
-    private void Board(FrameHandle frame, double belly = 0, bool thrust = false, Double3 penVelocity = default,
+    private void Board(
+        FrameHandle frame,
+        double belly = 0,
+        bool thrust = false,
+        Double3 penVelocity = default,
         Double3 personVelocity = default,
-        Burn? burn = null)
+        Burn? burn = null
+    )
     {
         IComponent[] engine = [];
         if (thrust)
             engine = [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)];
         else if (burn != null)
             engine = [new Unpark(), burn, new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)];
-        Entity shuttle = Shuttle.Park(world: world, frame: frame, pose: WorldTesting.At(0, belly + Shuttle.Hull.Y),
-            components: engine);
+        Entity shuttle = Shuttle.Park(
+            world: world,
+            frame: frame,
+            pose: WorldTesting.At(0, belly + Shuttle.Hull.Y),
+            components: engine
+        );
         cabin = world.GetOwnedFrame(shuttle);
         pen = world.Spawn(Pen.Spawn(cabin, new(PenPlace, DQuaternion.Identity), penVelocity));
-        person = world.Spawn(new()
-        {
-            Frame = cabin,
-            Pose = new(Shuttle.SeatStand, FacingAft),
-            LinearVelocity = personVelocity,
-            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
-            Render = new RenderData { ViewOffset = new(DemoSurface.Eye, Quaternion.Identity) },
-            Components = [new Passenger(new(cabin, Shuttle.SeatStand), pen)]
-        });
+        person = world.Spawn(
+            new()
+            {
+                Frame = cabin,
+                Pose = new(Shuttle.SeatStand, FacingAft),
+                LinearVelocity = personVelocity,
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData { ViewOffset = new(DemoSurface.Eye, Quaternion.Identity) },
+                Components = [new Passenger(new(cabin, Shuttle.SeatStand), pen)],
+            }
+        );
     }
 
-    private void BoardInSpace(bool thrust = false, Double3 penVelocity = default, Double3 personVelocity = default,
-        Burn? burn = null) =>
-        Board(frame: world.CreateRootFrame(new(FrameBounds.Sphere(1e6f))), thrust: thrust, penVelocity: penVelocity,
+    private void BoardInSpace(
+        bool thrust = false,
+        Double3 penVelocity = default,
+        Double3 personVelocity = default,
+        Burn? burn = null
+    ) =>
+        Board(
+            frame: world.CreateRootFrame(new(FrameBounds.Sphere(1e6f))),
+            thrust: thrust,
+            penVelocity: penVelocity,
             personVelocity: personVelocity,
-            burn: burn);
+            burn: burn
+        );
 
     /// <summary>Tells the passenger to fasten its belt, as the script does.</summary>
     private void FastenBelt() =>
@@ -87,7 +110,8 @@ public sealed class PassengerTests : IDisposable
     private Passenger PassengerOf() => world.GetComponent<Passenger>(person)!;
 
     /// <summary>Every live entity that has a component of type <typeparamref name="T"/>, in slot order.</summary>
-    private List<Entity> With<T>() where T : class, IComponent
+    private List<Entity> With<T>()
+        where T : class, IComponent
     {
         var live = new List<Entity>();
         world.CopyLiveEntities(live);
@@ -125,8 +149,10 @@ public sealed class PassengerTests : IDisposable
         Entity jet = PassengerOf().BackJetPart;
         world.IsAlive(jet).Should().BeTrue();
         world.GetComponent<BackJet>(jet).Should().NotBeNull();
-        DPose body = world.PoseIn(person, cabin), pose = world.PoseIn(jet, cabin);
-        (pose.Position - body.TransformPoint(BackJet.Place)).Length.Should()
+        DPose body = world.PoseIn(person, cabin),
+            pose = world.PoseIn(jet, cabin);
+        (pose.Position - body.TransformPoint(BackJet.Place))
+            .Length.Should()
             .BeLessThan(1e-5, "the jet sits on the person's back");
         TickUntil<Fetching>(limit: 600);
         Tick(world, 60);
@@ -149,8 +175,10 @@ public sealed class PassengerTests : IDisposable
             farthest = Math.Max(farthest, FromSeat());
         }
 
-        world.Frames.ProperAcceleration(cabin).Z.Should().BeApproximately(-Shuttle.ThrustAcceleration, 0.5f,
-            "the shuttle thrusts along its nose");
+        world
+            .Frames.ProperAcceleration(cabin)
+            .Z.Should()
+            .BeApproximately(-Shuttle.ThrustAcceleration, 0.5f, "the shuttle thrusts along its nose");
         world.GetFrame(person).Should().Be(cabin);
         farthest.Should().BeLessThan(0.15);
         FromSeat().Should().BeLessThan(0.02);
@@ -344,8 +372,13 @@ public sealed class PassengerTests : IDisposable
         }
 
         PassengerOf().State.Value.Should().BeOfType<Strapped>();
-        fastest.Should().BeInRange(0.9 * Passenger.FloatSpeed, 1.01 * Passenger.FloatSpeed,
-            "the passenger floats at its float speed, and no faster");
+        fastest
+            .Should()
+            .BeInRange(
+                0.9 * Passenger.FloatSpeed,
+                1.01 * Passenger.FloatSpeed,
+                "the passenger floats at its float speed, and no faster"
+            );
 
         PassengerOf().State.Should().Be(new PassengerState(new Strapped(copy)), "the passenger still holds the copy");
         world.IsAlive(copy).Should().BeTrue();

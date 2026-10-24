@@ -28,7 +28,9 @@ public readonly ref struct CapturedImage
         // In 64 bits: a large size must not wrap around to the length of a short span.
         if (rgba.Length != (long)width * height * 4)
             throw new ArgumentException(
-                $"A {width}x{height} image needs {(long)width * height * 4} bytes, not {rgba.Length}.", nameof(rgba));
+                $"A {width}x{height} image needs {(long)width * height * 4} bytes, not {rgba.Length}.",
+                nameof(rgba)
+            );
         Rgba = rgba;
         Width = width;
         Height = height;

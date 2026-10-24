@@ -135,7 +135,9 @@ public sealed class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity parent = entities.SpawnLive();
-        Entity first = entities.SpawnLive(), second = entities.SpawnLive(), third = entities.SpawnLive();
+        Entity first = entities.SpawnLive(),
+            second = entities.SpawnLive(),
+            third = entities.SpawnLive();
 
         attachments.Attach(third, parent, Offset(3, 0));
         attachments.Attach(first, parent, Offset(1, 0));
@@ -174,7 +176,8 @@ public sealed class AttachmentsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
-        FrameHandle before = FakeFrame(2), after = FakeFrame(3);
+        FrameHandle before = FakeFrame(2),
+            after = FakeFrame(3);
         Entity root = entities.SpawnLive(before);
         Entity middle = entities.SpawnLive(before);
         attachments.Attach(middle, root, Offset(1, 0));
@@ -346,7 +349,10 @@ public sealed class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity root = entities.SpawnLive();
-        Entity a = entities.SpawnLive(), b = entities.SpawnLive(), c = entities.SpawnLive(), d = entities.SpawnLive();
+        Entity a = entities.SpawnLive(),
+            b = entities.SpawnLive(),
+            c = entities.SpawnLive(),
+            d = entities.SpawnLive();
         attachments.Attach(a, root, Offset(1, 0));
         attachments.Attach(b, a, Offset(1, 0));
         attachments.Attach(c, b, Offset(1, 0));
@@ -363,7 +369,8 @@ public sealed class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         Entity parent = entities.SpawnLive(x: 10);
-        Entity left = entities.SpawnLive(), right = entities.SpawnLive();
+        Entity left = entities.SpawnLive(),
+            right = entities.SpawnLive();
         attachments.Attach(left, parent, Offset(-1, 0));
         attachments.Attach(right, parent, Offset(1, 0));
 
@@ -399,7 +406,8 @@ public sealed class AttachmentsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
-        FrameHandle home = FakeFrame(2), station = FakeFrame(3);
+        FrameHandle home = FakeFrame(2),
+            station = FakeFrame(3);
         Entity root = entities.SpawnLive(home);
         Entity child = entities.SpawnLive(home);
         Entity grandchild = entities.SpawnLive(home);
@@ -537,9 +545,16 @@ public sealed class AttachmentsSubsystemTests
     private static Entity BodyRoot(EntityTable entities, FrameHandle frame)
     {
         Entity entity = entities.Reserve();
-        entities.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame }, render: new(),
-            components: [], wants: [], body: TestWorld.Ball,
-            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        entities.Activate(
+            entity: entity,
+            row: new() { Frame = frame, PhysicsHome = frame },
+            render: new(),
+            components: [],
+            wants: [],
+            body: TestWorld.Ball,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         return entity;
     }
 
@@ -566,7 +581,9 @@ public sealed class AttachmentsSubsystemTests
 
         entities.FrontIntents.Span[(int)root.Index].Force.Should().Be(new Vector3(1, 0, 0));
         entities.HasEmptyFrontIntent(living).Should().BeTrue("the living part's push moved to its root");
-        entities.HasEmptyFrontIntent(dying).Should()
+        entities
+            .HasEmptyFrontIntent(dying)
+            .Should()
             .BeTrue("the dying part's push does not act and leaves its intent too");
         entities.EndTick();
         entities.AssertInvariants();
@@ -583,7 +600,8 @@ public sealed class AttachmentsSubsystemTests
 
         Action carry = () => attachments.CarryPushes(new bool[entities.Capacity], []);
 
-        carry.Should()
+        carry
+            .Should()
             .Throw<ContractException>("the flow reads the front intents, which only the sync point may change");
     }
 #endif

@@ -33,7 +33,8 @@ public readonly record struct PoseNode(int Id, uint Generation)
 /// it is, and gameplay can write a pose with any rotation.
 /// </para>
 /// </summary>
-public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
+public sealed class PoseTree<TPose>
+    where TPose : struct, IPose<TPose>
 {
     // Dense arrays, indexed by dense position.
     private int[] parent; // dense index of the parent, or -1 for a root
@@ -131,8 +132,10 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     public bool WorldIsStale => worldDirty || orderDirty;
 
     public bool IsAlive(PoseNode node) =>
-        (uint)node.Id < (uint)idCount && node.Generation != 0 && generation[node.Id] == node.Generation &&
-        denseOf[node.Id] >= 0;
+        (uint)node.Id < (uint)idCount
+        && node.Generation != 0
+        && generation[node.Id] == node.Generation
+        && denseOf[node.Id] >= 0;
 
     public PoseNode Add(PoseNode parentNode, in TPose localPose)
     {
@@ -185,14 +188,34 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         int tail = Count - dense - 1;
         if (tail > 0)
         {
-            Array.Copy(sourceArray: parent, sourceIndex: dense + 1, destinationArray: parent, destinationIndex: dense,
-                length: tail);
-            Array.Copy(sourceArray: local, sourceIndex: dense + 1, destinationArray: local, destinationIndex: dense,
-                length: tail);
-            Array.Copy(sourceArray: world, sourceIndex: dense + 1, destinationArray: world, destinationIndex: dense,
-                length: tail);
-            Array.Copy(sourceArray: idAt, sourceIndex: dense + 1, destinationArray: idAt, destinationIndex: dense,
-                length: tail);
+            Array.Copy(
+                sourceArray: parent,
+                sourceIndex: dense + 1,
+                destinationArray: parent,
+                destinationIndex: dense,
+                length: tail
+            );
+            Array.Copy(
+                sourceArray: local,
+                sourceIndex: dense + 1,
+                destinationArray: local,
+                destinationIndex: dense,
+                length: tail
+            );
+            Array.Copy(
+                sourceArray: world,
+                sourceIndex: dense + 1,
+                destinationArray: world,
+                destinationIndex: dense,
+                length: tail
+            );
+            Array.Copy(
+                sourceArray: idAt,
+                sourceIndex: dense + 1,
+                destinationArray: idAt,
+                destinationIndex: dense,
+                length: tail
+            );
         }
 
         Count--;
@@ -289,7 +312,8 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     /// </summary>
     public TPose Relative(PoseNode of, PoseNode to)
     {
-        int a = Dense(of), b = Dense(to);
+        int a = Dense(of),
+            b = Dense(to);
         int lca = LowestCommonAncestor(a, b);
         TPose ofInLca = ChainTo(a, lca);
         TPose toInLca = ChainTo(b, lca);

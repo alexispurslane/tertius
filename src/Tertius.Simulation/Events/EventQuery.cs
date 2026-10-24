@@ -27,7 +27,8 @@ internal interface IEventFilter
 /// A query holds one sender and one predicate. A second <see cref="From"/> or a second <c>Where</c> throws: an event
 /// has one sender, and two conditions go in one lambda.
 /// </remarks>
-public readonly struct EventQuery<T> : IEventFilter where T : unmanaged, IEventPayload
+public readonly struct EventQuery<T> : IEventFilter
+    where T : unmanaged, IEventPayload
 {
     private readonly Entity? sender;
     private readonly RefPredicate<T>? predicate;
@@ -84,7 +85,8 @@ public readonly struct EventQuery<T> : IEventFilter where T : unmanaged, IEventP
 /// A stored query over the events of type <typeparamref name="T"/> whose predicate takes one value of state. It comes
 /// from <see cref="EventQuery{T}.Where{TState}"/>, and <see cref="EventList.Find{T, TState}"/> runs it.
 /// </summary>
-public readonly struct EventQuery<T, TState> : IEventFilter where T : unmanaged, IEventPayload
+public readonly struct EventQuery<T, TState> : IEventFilter
+    where T : unmanaged, IEventPayload
 {
     // The type and the sender. It has no predicate of its own: the query holds one, and it is 'predicate'.
     private readonly EventQuery<T> query;
@@ -147,7 +149,8 @@ internal static class QueryErrors
     [DoesNotReturn]
     public static void ThrowSecondSender() =>
         throw new InvalidOperationException(
-            "The query already has a sender. An event has one sender, so a query takes one From.");
+            "The query already has a sender. An event has one sender, so a query takes one From."
+        );
 
     [DoesNotReturn]
     public static void ThrowSecondPredicate() =>

@@ -16,13 +16,24 @@ internal static class EntityTableSupport
         table.SpawnLiveAt(0, body, components);
 
     /// <summary>Reserves a slot and makes it live at position (<paramref name="x"/>, 0, 0), with this body and these components.</summary>
-    public static Entity SpawnLiveAt(this EntityTable table, double x, BodyDesc? body = null,
-        params IComponent[] components)
+    public static Entity SpawnLiveAt(
+        this EntityTable table,
+        double x,
+        BodyDesc? body = null,
+        params IComponent[] components
+    )
     {
         Entity entity = table.Reserve();
-        table.Activate(entity: entity, row: RowAt(x), render: new(), components: components,
-            wants: [.. components.Select(c => c.Wants)], body: body, bodyCenterOfMass: Vector3.Zero,
-            ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: entity,
+            row: RowAt(x),
+            render: new(),
+            components: components,
+            wants: [.. components.Select(c => c.Wants)],
+            body: body,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         return entity;
     }
 

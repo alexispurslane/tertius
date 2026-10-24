@@ -61,7 +61,8 @@ public sealed class StaleHandleTopicSetsTests
     {
         EntityTable table = TableSupport.NewTable();
         var topics = new TopicSets(table);
-        Entity doomed = table.SpawnLive(), listener = table.SpawnLive();
+        Entity doomed = table.SpawnLive(),
+            listener = table.SpawnLive();
         topics.Subscribe(doomed, Squad);
         topics.Subscribe(listener, Squad);
 
@@ -210,7 +211,8 @@ public sealed class StaleHandleAttachmentsTests
         EntityTable table = TableSupport.NewTable();
         var attachments = new Attachments(table);
         Entity parent = table.SpawnLive();
-        Entity first = table.SpawnLive(), second = table.SpawnLive();
+        Entity first = table.SpawnLive(),
+            second = table.SpawnLive();
         attachments.Attach(second, parent, Offset);
         attachments.Attach(first, parent, Offset);
         table.Release(first);

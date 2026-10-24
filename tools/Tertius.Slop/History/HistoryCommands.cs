@@ -13,8 +13,16 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
 
     /// <summary>Prints the note of the tree <paramref name="tree"/>, measured now, as the pre-commit hook does.</summary>
     public void Measure(string tree, string branch, NoteSource source) =>
-        output.WriteLine(SlopNote.Of(report: repository.Measure(tree, jscpd), branch: branch, source: source,
-            measured: DateTimeOffset.UtcNow).ToLine());
+        output.WriteLine(
+            SlopNote
+                .Of(
+                    report: repository.Measure(tree, jscpd),
+                    branch: branch,
+                    source: source,
+                    measured: DateTimeOffset.UtcNow
+                )
+                .ToLine()
+        );
 
     /// <summary>
     /// Notes each commit on the first-parent line after <paramref name="from"/> up to <paramref name="tip"/> that has
@@ -29,8 +37,12 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
         {
             if (commit.Sha != commits[0].Sha && !repository.ChangesSource(commit))
                 continue;
-            SlopNote note = SlopNote.Of(report: repository.Measure(commit.Sha, jscpd), branch: branch, source: source,
-                measured: DateTimeOffset.UtcNow);
+            var note = SlopNote.Of(
+                report: repository.Measure(commit.Sha, jscpd),
+                branch: branch,
+                source: source,
+                measured: DateTimeOffset.UtcNow
+            );
             repository.AddNote(commit.Sha, note);
             output.WriteLine($"{commit.ShortSha} {note.ToLine()}");
         }
@@ -57,6 +69,8 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
     }
 
     private SlopNote? NearestNote(string commit) =>
-        repository.Log(["--first-parent", $"--max-count={NoteSearchDepth}", commit])
-            .Select(each => each.Note).FirstOrDefault(note => note is not null);
+        repository
+            .Log(["--first-parent", $"--max-count={NoteSearchDepth}", commit])
+            .Select(each => each.Note)
+            .FirstOrDefault(note => note is not null);
 }

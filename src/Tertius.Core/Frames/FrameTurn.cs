@@ -90,6 +90,8 @@ internal readonly record struct FrameTurn(DQuaternion Turn, Double3 AngularVeloc
     /// the frame's axes then, of a body that Jolt turned by <paramref name="chord"/> over the step.
     /// </summary>
     internal Double3 InertialAngularAtEnd(Double3 chord, double dt) =>
-        DQuaternion.Identity.AngularVelocityTo(DQuaternion.FromAxisAngle(chord, chord.Length * dt) * Turn.Conjugate(),
-            dt);
+        DQuaternion.Identity.AngularVelocityTo(
+            DQuaternion.FromAxisAngle(chord, chord.Length * dt) * Turn.Conjugate(),
+            dt
+        );
 }

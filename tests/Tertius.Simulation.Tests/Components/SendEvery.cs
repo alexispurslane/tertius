@@ -42,10 +42,20 @@ public sealed class SendEvery : IComponent
     /// <param name="every">The number of ticks between two sends. It is at least 1.</param>
     /// <param name="from">The first tick on which it sends.</param>
     /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
-    public static SendEvery Of<T>(Target target, Func<long, T> payloadAt, int every = 1, long from = 0,
-        int priority = 0) where T : unmanaged, IEventPayload =>
-        new(send: (scoped ref outbox, tick) => outbox.Send(target, payloadAt(tick)), every: every, from: from,
-            priority: priority);
+    public static SendEvery Of<T>(
+        Target target,
+        Func<long, T> payloadAt,
+        int every = 1,
+        long from = 0,
+        int priority = 0
+    )
+        where T : unmanaged, IEventPayload =>
+        new(
+            send: (scoped ref outbox, tick) => outbox.Send(target, payloadAt(tick)),
+            every: every,
+            from: from,
+            priority: priority
+        );
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {

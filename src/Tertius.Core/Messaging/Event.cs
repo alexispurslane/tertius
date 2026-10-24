@@ -25,23 +25,32 @@ public struct Event
     public static Event Create<T>(Target target, Entity sender, in T payload, object? extra = null)
         where T : unmanaged, IEventPayload
     {
-        var e = new Event { Target = target, Sender = sender, Type = EventType<T>.Id, Extra = extra };
+        var e = new Event
+        {
+            Target = target,
+            Sender = sender,
+            Type = EventType<T>.Id,
+            Extra = extra,
+        };
         Unsafe.As<PayloadBytes, T>(ref e.Payload) = payload;
         return e;
     }
 
-    public readonly bool Is<T>() where T : unmanaged, IEventPayload => Type == EventType<T>.Id;
+    public readonly bool Is<T>()
+        where T : unmanaged, IEventPayload => Type == EventType<T>.Id;
 
     /// <summary>A reference to the payload, for reading or editing in place. The event must hold a <typeparamref name="T"/>.</summary>
     [UnscopedRef]
-    public ref T As<T>() where T : unmanaged, IEventPayload
+    public ref T As<T>()
+        where T : unmanaged, IEventPayload
     {
         if (Type != EventType<T>.Id)
             ThrowWrongType(typeof(T));
         return ref Unsafe.As<PayloadBytes, T>(ref Payload);
     }
 
-    public readonly bool TryGet<T>(out T payload) where T : unmanaged, IEventPayload
+    public readonly bool TryGet<T>(out T payload)
+        where T : unmanaged, IEventPayload
     {
         if (Type == EventType<T>.Id)
         {
@@ -53,7 +62,7 @@ public struct Event
         return false;
     }
 
-    public readonly override string ToString() => $"Event({EventTypeRegistry.NameOf(Type)}, {Target}, from {Sender})";
+    public override readonly string ToString() => $"Event({EventTypeRegistry.NameOf(Type)}, {Target}, from {Sender})";
 
     [DoesNotReturn]
     [StackTraceHidden]

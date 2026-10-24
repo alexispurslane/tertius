@@ -19,12 +19,15 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         foreach (ref readonly Event e in world.RoutedEvents)
         {
             Type type = EventTypeRegistry.TypeOf(e.Type);
-            eventsSinceDump.Add(new(
-                Tick: world.TickNumber,
-                Event: type.Name,
-                To: TargetOf(e.Target),
-                From: e.Sender.IsNull ? null : scene.IdOf(e.Sender),
-                Payload: payloads.Of(type).Box(e)));
+            eventsSinceDump.Add(
+                new(
+                    Tick: world.TickNumber,
+                    Event: type.Name,
+                    To: TargetOf(e.Target),
+                    From: e.Sender.IsNull ? null : scene.IdOf(e.Sender),
+                    Payload: payloads.Of(type).Box(e)
+                )
+            );
         }
     }
 
@@ -44,7 +47,8 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             Entities: [.. live.Select(EntityRecordOf)],
             Frames: [.. frames.Select(FrameRecordOf)],
             Events: eventsSinceDump,
-            Errors: [.. world.Errors]);
+            Errors: [.. world.Errors]
+        );
         eventsSinceDump = [];
         return dump;
     }
@@ -84,7 +88,8 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             AngularVelocity: angularVelocity,
             Standing: world.GetBody(entity) is { Motion: BodyMotion.Character }
                 ? world.Snapshot.IsStanding(entity)
-                : null);
+                : null
+        );
     }
 
     private FrameRecord FrameRecordOf(FrameHandle frame)
@@ -95,13 +100,14 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
 
     /// <summary>How <paramref name="frame"/> followed its owner at the dump's sync point (see
     /// <see cref="FrameRecord.Follows"/>).</summary>
-    private string FollowsOf(FrameHandle frame) => world.Frames.Followed(frame) switch
-    {
-        FollowKind.Rails => "rails",
-        FollowKind.Kinematic => "kinematic",
-        FollowKind.Physics => "physics",
-        FollowKind.Static => "static"
-    };
+    private string FollowsOf(FrameHandle frame) =>
+        world.Frames.Followed(frame) switch
+        {
+            FollowKind.Rails => "rails",
+            FollowKind.Kinematic => "kinematic",
+            FollowKind.Physics => "physics",
+            FollowKind.Static => "static",
+        };
 
     private FrameHandle RootOf(FrameHandle frame)
     {
@@ -110,14 +116,15 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
         return frame;
     }
 
-    private MessageTarget TargetOf(Target target) => target switch
-    {
-        Entity entity => new ToEntity(scene.IdOf(entity)),
-        Topic { IsFrameTopic: true } topic => new ToFrame(FrameOwnerId(topic)),
-        Topic topic => new ToTopic(Topics.NameOf(topic)),
-        Broadcast => new ToEveryone(),
-        null => throw new InvalidOperationException("A routed event has a target with no value.")
-    };
+    private MessageTarget TargetOf(Target target) =>
+        target switch
+        {
+            Entity entity => new ToEntity(scene.IdOf(entity)),
+            Topic { IsFrameTopic: true } topic => new ToFrame(FrameOwnerId(topic)),
+            Topic topic => new ToTopic(Topics.NameOf(topic)),
+            Broadcast => new ToEveryone(),
+            null => throw new InvalidOperationException("A routed event has a target with no value."),
+        };
 
     /// <summary>The scene id of the owner of a frame topic's frame, or the topic's name if that frame is gone.</summary>
     private string FrameOwnerId(Topic topic)

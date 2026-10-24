@@ -101,7 +101,8 @@ public sealed partial class World
             // A step that threw may have written only part of its output. Use none of it.
             Report(
                 $"tick {TickNumber}: the physics step failed and its results were dropped: {physicsError.GetType().Name}: {physicsError.Message}",
-                isError: true);
+                isError: true
+            );
             stepOutput.Clear();
         }
 
@@ -253,9 +254,10 @@ public sealed partial class World
         {
             fallbackSpawnTotal += fallbackSpawns;
             Report(
-                $"tick {TickNumber}: {fallbackSpawns} spawns ran out of their chunk's reserved slot pool and took slots from the global fallback. " +
-                "Slot assignment for this tick depends on thread timing, so the run is no longer deterministic. Raise WorldOptions.SpawnPoolSize.",
-                isError: false);
+                $"tick {TickNumber}: {fallbackSpawns} spawns ran out of their chunk's reserved slot pool and took slots from the global fallback. "
+                    + "Slot assignment for this tick depends on thread timing, so the run is no longer deterministic. Raise WorldOptions.SpawnPoolSize.",
+                isError: false
+            );
         }
     }
 
@@ -291,9 +293,15 @@ public sealed partial class World
             Entity entity = state.Entity;
             if (physicsOutputCheck.IsSkipped(entity) || !Entities.OwnedFrame(entity).IsNull)
                 continue;
-            Entities.SetBackTransform(entity,
-                PhysicsRow(home: state.Frame, pose: state.Pose, linearVelocity: state.LinearVelocity,
-                    angularVelocity: state.AngularVelocity));
+            Entities.SetBackTransform(
+                entity,
+                PhysicsRow(
+                    home: state.Frame,
+                    pose: state.Pose,
+                    linearVelocity: state.LinearVelocity,
+                    angularVelocity: state.AngularVelocity
+                )
+            );
             physicsTouched.Add(entity);
         }
 
@@ -302,9 +310,15 @@ public sealed partial class World
             Entity entity = handOff.Entity;
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
-            Entities.SetBackTransform(entity,
-                PhysicsRow(home: handOff.To, pose: handOff.Pose, linearVelocity: handOff.LinearVelocity,
-                    angularVelocity: handOff.AngularVelocity));
+            Entities.SetBackTransform(
+                entity,
+                PhysicsRow(
+                    home: handOff.To,
+                    pose: handOff.Pose,
+                    linearVelocity: handOff.LinearVelocity,
+                    angularVelocity: handOff.AngularVelocity
+                )
+            );
             physicsTouched.Add(entity);
         }
 
@@ -338,8 +352,11 @@ public sealed partial class World
         {
             Entity entity = state.Entity;
             // The frame of a hull's owner hangs in the following frame, and its record says where the hull ended.
-            if (!Frames.Anchors(state.Frame, entity) || physicsOutputCheck.IsSkipped(entity) ||
-                !Entities.OwnedFrame(entity).IsNull)
+            if (
+                !Frames.Anchors(state.Frame, entity)
+                || physicsOutputCheck.IsSkipped(entity)
+                || !Entities.OwnedFrame(entity).IsNull
+            )
                 continue;
             if ((applied[(int)entity.Index].Flags & IntentFlags.Teleport) != 0)
                 plainAnchorJumps.Add(state.Frame);
@@ -366,8 +383,12 @@ public sealed partial class World
     private void FollowOwners(bool stepFailed)
     {
         var owners = new OwnerFacts(this);
-        Frames.TakeStepRecords(owners: ref owners, stepIntents: Entities.FrontIntents.Span, stepFailed: stepFailed,
-            step: DeltaTime);
+        Frames.TakeStepRecords(
+            owners: ref owners,
+            stepIntents: Entities.FrontIntents.Span,
+            stepFailed: stepFailed,
+            step: DeltaTime
+        );
 
         Profile.Lap(3);
         // An anchor that teleported in the step left the origin of its following frame, for its step plan's place: a hull,
@@ -393,8 +414,11 @@ public sealed partial class World
             // and the hull in one batch.
             foreach (FrameShift shift in physicsChanges.FramesShifted)
             foreach (Entity entity in Entities.LiveEntities)
-                if (Entities.Body(entity) != null && Attachments.ParentOf(entity).IsNull &&
-                    Entities.BackRow(entity).PhysicsHome == shift.Frame)
+                if (
+                    Entities.Body(entity) != null
+                    && Attachments.ParentOf(entity).IsNull
+                    && Entities.BackRow(entity).PhysicsHome == shift.Frame
+                )
                     ShiftRow(entity, shift);
             FlushPhysicsChanges();
         }
@@ -470,26 +494,40 @@ public sealed partial class World
             // The guard lets no attached entity write a motion intent, and step 7b of the last sync point converted the intent
             // into the entity's frame, which is its home.
             Contract.Assert(intent.Frame == row.Frame && row.PhysicsHome == row.Frame);
-            if (Entities.GameplayWroteTransform(entity) ||
-                !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record))
+            if (
+                Entities.GameplayWroteTransform(entity)
+                || !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record)
+            )
                 continue;
-            Entities.SetBackTransform(entity, row with
-            {
-                Pose = record.Pose,
-                LinearVelocity = record.Velocity.ToVector3(),
-                AngularVelocity = record.AngularVelocity.ToVector3()
-            });
+            Entities.SetBackTransform(
+                entity,
+                row with
+                {
+                    Pose = record.Pose,
+                    LinearVelocity = record.Velocity.ToVector3(),
+                    AngularVelocity = record.AngularVelocity.ToVector3(),
+                }
+            );
             framelessMovers.Add(entity);
         }
 
         foreach (Entity entity in framelessMoversLast)
         {
-            if (!Entities.IsAlive(entity) || stepIntents[(int)entity.Index].Move is EndPose or MotionSample ||
-                Entities.GameplayWroteTransform(entity))
+            if (
+                !Entities.IsAlive(entity)
+                || stepIntents[(int)entity.Index].Move is EndPose or MotionSample
+                || Entities.GameplayWroteTransform(entity)
+            )
                 continue;
             ref readonly TransformRow row = ref Entities.BackRow(entity);
-            Entities.SetBackTransform(entity,
-                row with { LinearVelocity = Vector3.Zero, AngularVelocity = Vector3.Zero });
+            Entities.SetBackTransform(
+                entity,
+                row with
+                {
+                    LinearVelocity = Vector3.Zero,
+                    AngularVelocity = Vector3.Zero,
+                }
+            );
         }
     }
 
@@ -526,7 +564,7 @@ public sealed partial class World
             Pose = home == semantic ? pose : new(Frames.InSemantic(home, semantic, pose.Position), pose.Rotation),
             HomePosition = pose.Position,
             LinearVelocity = linearVelocity,
-            AngularVelocity = angularVelocity
+            AngularVelocity = angularVelocity,
         };
     }
 
@@ -544,8 +582,12 @@ public sealed partial class World
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
-        physicsOutputCheck.Run(output: stepOutput, frames: Frames, stepIntents: Entities.FrontIntents.Span,
-            facts: new PhysicsOutputFacts(Entities));
+        physicsOutputCheck.Run(
+            output: stepOutput,
+            frames: Frames,
+            stepIntents: Entities.FrontIntents.Span,
+            facts: new PhysicsOutputFacts(Entities)
+        );
         foreach (PhysicsOutputFault fault in physicsOutputCheck.Faults)
         {
             // Only a bug in the backend produces a broken output.
@@ -582,14 +624,32 @@ public sealed partial class World
     {
         if (physicsOutputCheck.IsSkipped(contact.A) || physicsOutputCheck.IsSkipped(contact.B))
             return;
-        AddCollision(recipient: contact.A, other: contact.B, contactFrame: contact.Frame, point: contact.Point,
-            normal: contact.Normal, impulse: contact.Impulse);
-        AddCollision(recipient: contact.B, other: contact.A, contactFrame: contact.Frame, point: contact.Point,
-            normal: -contact.Normal, impulse: contact.Impulse);
+        AddCollision(
+            recipient: contact.A,
+            other: contact.B,
+            contactFrame: contact.Frame,
+            point: contact.Point,
+            normal: contact.Normal,
+            impulse: contact.Impulse
+        );
+        AddCollision(
+            recipient: contact.B,
+            other: contact.A,
+            contactFrame: contact.Frame,
+            point: contact.Point,
+            normal: -contact.Normal,
+            impulse: contact.Impulse
+        );
     }
 
-    private void AddCollision(Entity recipient, Entity other, FrameHandle contactFrame, Double3 point, Vector3 normal,
-        float impulse)
+    private void AddCollision(
+        Entity recipient,
+        Entity other,
+        FrameHandle contactFrame,
+        Double3 point,
+        Vector3 normal,
+        float impulse
+    )
     {
         // The owner of a root frame is in no frame. Its only body is its interior, in its own frame.
         FrameHandle frame = Entities.BackRow(recipient).Frame;
@@ -602,8 +662,19 @@ public sealed partial class World
             normal = toRecipient.Rotation.Rotate(normal);
         }
 
-        router.AddEngineEvent(Event.Create(target: new(recipient), sender: Entity.Null,
-            payload: new Collision { Other = other, Point = point, Normal = normal, Impulse = impulse }));
+        router.AddEngineEvent(
+            Event.Create(
+                target: new(recipient),
+                sender: Entity.Null,
+                payload: new Collision
+                {
+                    Other = other,
+                    Point = point,
+                    Normal = normal,
+                    Impulse = impulse,
+                }
+            )
+        );
     }
 
     /// <summary>
@@ -615,10 +686,12 @@ public sealed partial class World
     {
         if (physicsOutputCheck.IsSkipped(ended.A) || physicsOutputCheck.IsSkipped(ended.B))
             return;
-        router.AddEngineEvent(Event.Create(target: new(ended.A), sender: Entity.Null,
-            payload: new CollisionEnded { Other = ended.B }));
-        router.AddEngineEvent(Event.Create(target: new(ended.B), sender: Entity.Null,
-            payload: new CollisionEnded { Other = ended.A }));
+        router.AddEngineEvent(
+            Event.Create(target: new(ended.A), sender: Entity.Null, payload: new CollisionEnded { Other = ended.B })
+        );
+        router.AddEngineEvent(
+            Event.Create(target: new(ended.B), sender: Entity.Null, payload: new CollisionEnded { Other = ended.A })
+        );
     }
 
     /// <summary>Applies the subscribe and unsubscribe requests of the chunks, in chunk order, for entities that are still live.</summary>
@@ -655,7 +728,8 @@ public sealed partial class World
         foreach (Entity part in skippedPushers)
             Report(
                 $"tick {TickNumber}: the push of {part} named another frame than the front row of its chain root {Attachments.RootOf(part)}, which only a bug in the engine makes. The push was dropped.",
-                isError: true);
+                isError: true
+            );
         skippedPushers.Clear();
     }
 
@@ -701,8 +775,12 @@ public sealed partial class World
             ref readonly TransformRow row = ref Entities.BackRow(entity);
             if (intent.Frame != row.Frame)
             {
-                (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(of: intent.Frame, to: row.Frame,
-                    stepIntents: Entities.FrontIntents.Span, step: DeltaTime);
+                (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(
+                    of: intent.Frame,
+                    to: row.Frame,
+                    stepIntents: Entities.FrontIntents.Span,
+                    step: DeltaTime
+                );
                 ConvertIntent(intent: ref intent, to: row.Frame, position: row.Pose.Position, start: start, end: end);
             }
         }
@@ -768,23 +846,30 @@ public sealed partial class World
     /// where the step starts too, so they convert by its pose. Without a teleport on the path, that pose is the tree's
     /// relative pose of the two frames, to the bit.
     /// </summary>
-    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position, in FrameMotion start,
-        in FrameMotion end)
+    private void ConvertIntent(
+        ref PhysicsIntent intent,
+        FrameHandle to,
+        Double3 position,
+        in FrameMotion start,
+        in FrameMotion end
+    )
     {
         DPose relative = start.Pose;
         IntentFlags flags = intent.Flags;
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
             // A teleport in the same intent puts the body at its pose before the velocity applies.
-            Double3 at = (flags & IntentFlags.Teleport) != 0
-                ? intent.TeleportPose.Position
-                : relative.InverseTransformPoint(position);
+            Double3 at =
+                (flags & IntentFlags.Teleport) != 0
+                    ? intent.TeleportPose.Position
+                    : relative.InverseTransformPoint(position);
             // Without a teleport on the path, the start's relation is the tree's: its pose is the tree's relative pose to the
             // bit, and its velocities are the rows'. Then the tree converts the velocity level by level, as it did before the
             // rotation terms, which rounds as before. A composed relation rounds otherwise on a path of two levels or more.
-            intent.Velocity = relative == Frames.Relative(intent.Frame, to)
-                ? Frames.ConvertVelocity(from: intent.Frame, to: to, position: at, v: intent.Velocity)
-                : start.VelocityToParent(at, intent.Velocity);
+            intent.Velocity =
+                relative == Frames.Relative(intent.Frame, to)
+                    ? Frames.ConvertVelocity(from: intent.Frame, to: to, position: at, v: intent.Velocity)
+                    : start.VelocityToParent(at, intent.Velocity);
         }
 
         if ((flags & IntentFlags.SetAngularVelocity) != 0)

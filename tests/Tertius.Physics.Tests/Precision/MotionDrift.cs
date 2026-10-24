@@ -81,7 +81,24 @@ internal static class MotionDrift
 
     /// <summary>The common speeds, in m/s.</summary>
     public static readonly double[] Speeds =
-        [0, 1, 10, 50, 100, 200, 500, 1000, 2000, 5000, 7672, 10000, 20000, 50000, 100000, 300000];
+    [
+        0,
+        1,
+        10,
+        50,
+        100,
+        200,
+        500,
+        1000,
+        2000,
+        5000,
+        7672,
+        10000,
+        20000,
+        50000,
+        100000,
+        300000,
+    ];
 
     /// <summary>The ticks after which a run records its errors: 5, 20 and 60 s at 60 Hz.</summary>
     public static readonly int[] SampleTicks = [300, 1200, 3600];
@@ -91,14 +108,31 @@ internal static class MotionDrift
 
     private static readonly string[] Header =
     [
-        "run", "direction", "direction_x (unitless)", "direction_y (unitless)", "direction_z (unitless)",
-        "common_speed (m/s)", "matching_speed (m/s)", "start_along_direction (m)", "largest_distance (m)", "time (s)",
+        "run",
+        "direction",
+        "direction_x (unitless)",
+        "direction_y (unitless)",
+        "direction_z (unitless)",
+        "common_speed (m/s)",
+        "matching_speed (m/s)",
+        "start_along_direction (m)",
+        "largest_distance (m)",
+        "time (s)",
         "ticks (count)",
-        "position_error_x (m)", "position_error_y (m)", "position_error_z (m)",
-        "position_error_along (m)", "position_error_across (m)", "position_error_length (m)",
-        "velocity_error_x (m/s)", "velocity_error_y (m/s)", "velocity_error_z (m/s)",
-        "velocity_error_along (m/s)", "velocity_error_across (m/s)", "velocity_error_length (m/s)",
-        "start_velocity_rounding (m/s)", "world_errors (count)"
+        "position_error_x (m)",
+        "position_error_y (m)",
+        "position_error_z (m)",
+        "position_error_along (m)",
+        "position_error_across (m)",
+        "position_error_length (m)",
+        "velocity_error_x (m/s)",
+        "velocity_error_y (m/s)",
+        "velocity_error_z (m/s)",
+        "velocity_error_along (m/s)",
+        "velocity_error_across (m/s)",
+        "velocity_error_length (m/s)",
+        "start_velocity_rounding (m/s)",
+        "world_errors (count)",
     ];
 
     /// <summary>The errors of one run at one sample tick.</summary>
@@ -107,7 +141,8 @@ internal static class MotionDrift
         double Time,
         Double3 PositionError,
         Double3 VelocityError,
-        int WorldErrors);
+        int WorldErrors
+    );
 
     /// <summary>The samples of one run and the largest distance from the origin that any of its bodies reached.</summary>
     private sealed record RunResult(List<Sample> Samples, double LargestDistance);
@@ -116,12 +151,17 @@ internal static class MotionDrift
     /// A world with one gameplay thread and no numeric frames, on a new real backend with one Jolt worker thread and the
     /// raised speed limit. It checks all of its invariants at the end of every tick, which changes no physics.
     /// </summary>
-    public static World NewWorld() => new(
-        new()
-        {
-            MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true, NumericFrames = WithoutNumericFrames
-        },
-        new JoltPhysicsBackend(new() { WorkerThreads = 1, MaxLinearVelocity = SpeedLimit }));
+    public static World NewWorld() =>
+        new(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+                NumericFrames = WithoutNumericFrames,
+            },
+            new JoltPhysicsBackend(new() { WorkerThreads = 1, MaxLinearVelocity = SpeedLimit })
+        );
 
     /// <summary>Runs every speed and direction of <paramref name="scene"/> and writes its CSV. Returns the path of the file.</summary>
     public static string Record(DriftScene scene)
@@ -133,13 +173,31 @@ internal static class MotionDrift
         {
             Double3 speedStart = direction * (-speed * RunSeconds / 2);
             RunResult moving = Run(scene, speedStart, direction * speed);
-            Append(csv: csv, scene: scene, run: "speed", direction: name, d: direction, speed: speed,
-                matchingSpeed: speed, startAlong: -speed * RunSeconds / 2, result: moving);
+            Append(
+                csv: csv,
+                scene: scene,
+                run: "speed",
+                direction: name,
+                d: direction,
+                speed: speed,
+                matchingSpeed: speed,
+                startAlong: -speed * RunSeconds / 2,
+                result: moving
+            );
 
             Double3 distanceStart = direction * moving.LargestDistance;
             RunResult still = Run(scene, distanceStart, Double3.Zero);
-            Append(csv: csv, scene: scene, run: "distance", direction: name, d: direction, speed: 0,
-                matchingSpeed: speed, startAlong: moving.LargestDistance, result: still);
+            Append(
+                csv: csv,
+                scene: scene,
+                run: "distance",
+                direction: name,
+                d: direction,
+                speed: 0,
+                matchingSpeed: speed,
+                startAlong: moving.LargestDistance,
+                result: still
+            );
         }
 
         string folder = Environment.GetEnvironmentVariable(OutputVariable) is { Length: > 0 } named
@@ -166,11 +224,21 @@ internal static class MotionDrift
             if (Array.IndexOf(SampleTicks, tick) < 0)
                 continue;
             (Double3 position, Double3 velocity) = scene.Measure(world, space, bodies);
-            (Double3 expectedPosition, Double3 expectedVelocity) =
-                scene.Expected(ticks: tick, dt: dt, start: start, common: common);
-            samples.Add(new(Ticks: tick, Time: tick * dt, PositionError: position - expectedPosition,
-                VelocityError: velocity - expectedVelocity,
-                WorldErrors: world.Errors.Count));
+            (Double3 expectedPosition, Double3 expectedVelocity) = scene.Expected(
+                ticks: tick,
+                dt: dt,
+                start: start,
+                common: common
+            );
+            samples.Add(
+                new(
+                    Ticks: tick,
+                    Time: tick * dt,
+                    PositionError: position - expectedPosition,
+                    VelocityError: velocity - expectedVelocity,
+                    WorldErrors: world.Errors.Count
+                )
+            );
         }
 
         return new(samples, largest);
@@ -179,18 +247,34 @@ internal static class MotionDrift
     private static double LargestDistance(World world, FrameHandle space, Entity[] bodies) =>
         bodies.Max(body => world.PoseIn(body, space).Position.Length);
 
-    private static void Append(StringBuilder csv, DriftScene scene, string run, string direction, Double3 d,
+    private static void Append(
+        StringBuilder csv,
+        DriftScene scene,
+        string run,
+        string direction,
+        Double3 d,
         double speed,
-        double matchingSpeed, double startAlong, RunResult result)
+        double matchingSpeed,
+        double startAlong,
+        RunResult result
+    )
     {
         double rounding = scene.StartVelocityRounding(d * speed);
         foreach (Sample sample in result.Samples)
         {
             var cells = new List<string>
             {
-                run, direction, Number(d.X), Number(d.Y), Number(d.Z), Number(speed), Number(matchingSpeed),
-                Number(startAlong), Number(result.LargestDistance), Number(sample.Time),
-                sample.Ticks.ToString(CultureInfo.InvariantCulture)
+                run,
+                direction,
+                Number(d.X),
+                Number(d.Y),
+                Number(d.Z),
+                Number(speed),
+                Number(matchingSpeed),
+                Number(startAlong),
+                Number(result.LargestDistance),
+                Number(sample.Time),
+                sample.Ticks.ToString(CultureInfo.InvariantCulture),
             };
             AddSplit(cells, sample.PositionError, scene.Motion);
             AddSplit(cells, sample.VelocityError, scene.Motion);
@@ -209,7 +293,12 @@ internal static class MotionDrift
         double along = Double3.Dot(error, motion);
         double across = (error - motion * along).Length;
         cells.AddRange([
-            Number(error.X), Number(error.Y), Number(error.Z), Number(along), Number(across), Number(error.Length)
+            Number(error.X),
+            Number(error.Y),
+            Number(error.Z),
+            Number(along),
+            Number(across),
+            Number(error.Length),
         ]);
     }
 

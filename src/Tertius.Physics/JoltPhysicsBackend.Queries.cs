@@ -27,9 +27,16 @@ public sealed partial class JoltPhysicsBackend
     /// cast, which tests the shape of every body along the ray. The normal of each hit comes from the body under a read
     /// lock, through <see cref="JoltNative"/>, so that no managed body object is made.
     /// </remarks>
-    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
+    public void CastRay(
+        FrameHandle frame,
+        Double3 origin,
+        Double3 direction,
+        double start,
+        double end,
         IPhysicsQueryFilter filter,
-        RayCastKind kind, List<RayCastHit> hits)
+        RayCastKind kind,
+        List<RayCastHit> hits
+    )
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(filter);
@@ -46,10 +53,16 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastRay(origin: from, direction: ray, settings: new(),
+                world.System.NarrowPhaseQuery.CastRay(
+                    origin: from,
+                    direction: ray,
+                    settings: new(),
                     collectorType: kind == RayCastKind.Nearest
                         ? CollisionCollectorType.ClosestHit
-                        : CollisionCollectorType.AllHitSorted, results: rayResults, bodyFilter: bodyFilter);
+                        : CollisionCollectorType.AllHitSorted,
+                    results: rayResults,
+                    bodyFilter: bodyFilter
+                );
             }
             finally
             {
@@ -75,9 +88,16 @@ public sealed partial class JoltPhysicsBackend
     /// opposite of Jolt's penetration axis, which points from the moving shape into the body. The cast collects no faces:
     /// joltc allocates face arrays that the binding never frees.
     /// </remarks>
-    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction,
-        double startDistance, double endDistance,
-        IPhysicsQueryFilter filter, List<ShapeCastHit> hits)
+    public void CastShape(
+        FrameHandle frame,
+        in QueryShape shape,
+        in DPose start,
+        Double3 direction,
+        double startDistance,
+        double endDistance,
+        IPhysicsQueryFilter filter,
+        List<ShapeCastHit> hits
+    )
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(filter);
@@ -96,11 +116,16 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CastShape(shape: queryShapes.Get(shape),
+                world.System.NarrowPhaseQuery.CastShape(
+                    shape: queryShapes.Get(shape),
                     centerOfMassTransform: Transform(from, start.Rotation),
-                    direction: (direction * length).ToVector3(), castSettings: settings,
-                    baseOffset: from.ToJolt(), collectorType: CollisionCollectorType.ClosestHit,
-                    results: shapeCastResults, bodyFilter: bodyFilter);
+                    direction: (direction * length).ToVector3(),
+                    castSettings: settings,
+                    baseOffset: from.ToJolt(),
+                    collectorType: CollisionCollectorType.ClosestHit,
+                    results: shapeCastResults,
+                    bodyFilter: bodyFilter
+                );
             }
             finally
             {
@@ -112,9 +137,14 @@ public sealed partial class JoltPhysicsBackend
             {
                 Vector3 axis = result.PenetrationAxis;
                 Vector3 normal = axis.LengthSquared() > 0 ? -Vector3.Normalize(axis) : Vector3.Zero;
-                hits.Add(new(Entity: EntityOf(bodies.GetUserData(result.BodyID2)),
-                    Distance: startDistance + result.Fraction * length,
-                    Point: from + result.ContactPointOn2, Normal: normal));
+                hits.Add(
+                    new(
+                        Entity: EntityOf(bodies.GetUserData(result.BodyID2)),
+                        Distance: startDistance + result.Fraction * length,
+                        Point: from + result.ContactPointOn2,
+                        Normal: normal
+                    )
+                );
             }
         }
     }
@@ -125,8 +155,13 @@ public sealed partial class JoltPhysicsBackend
     /// which reports each pair of touching parts, so one body can come more than once. Jolt's default settings for it
     /// collect no faces and ignore the back faces of a mesh.
     /// </remarks>
-    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
-        List<Entity> entities)
+    public void Overlap(
+        FrameHandle frame,
+        in QueryShape shape,
+        in DPose pose,
+        IPhysicsQueryFilter filter,
+        List<Entity> entities
+    )
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(filter);
@@ -142,9 +177,15 @@ public sealed partial class JoltPhysicsBackend
             bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
             try
             {
-                world.System.NarrowPhaseQuery.CollideShape(shape: queryShapes.Get(shape), scale: Vector3.One,
-                    centerOfMassTransform: Transform(pose.Position, pose.Rotation), baseOffset: pose.Position.ToJolt(),
-                    collectorType: CollisionCollectorType.AllHit, results: collideResults, bodyFilter: bodyFilter);
+                world.System.NarrowPhaseQuery.CollideShape(
+                    shape: queryShapes.Get(shape),
+                    scale: Vector3.One,
+                    centerOfMassTransform: Transform(pose.Position, pose.Rotation),
+                    baseOffset: pose.Position.ToJolt(),
+                    collectorType: CollisionCollectorType.AllHit,
+                    results: collideResults,
+                    bodyFilter: bodyFilter
+                );
             }
             finally
             {
@@ -164,8 +205,10 @@ public sealed partial class JoltPhysicsBackend
     private static ShapeCastSettings ShapeCastSettingsOfQueries()
     {
         var settings = new ShapeCastSettings { BackFaceModeConvex = BackFaceMode.CollideWithBackFaces };
-        Contract.Assert(settings.CollectFacesMode == CollectFacesMode.NoFaces &&
-                        settings.BackFaceModeTriangles == BackFaceMode.IgnoreBackFaces);
+        Contract.Assert(
+            settings.CollectFacesMode == CollectFacesMode.NoFaces
+                && settings.BackFaceModeTriangles == BackFaceMode.IgnoreBackFaces
+        );
         return settings;
     }
 
@@ -179,8 +222,10 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>The entity that a body's user data names, or null when no live record of the backend matches it.</summary>
     private Entity EntityOf(ulong userData) =>
-        BodyUserData.Kind(userData) != BodyKind.None && BodyUserData.Index(userData) < (uint)records.Length &&
-        records[BodyUserData.Index(userData)] is { } record && BodyUserData.Names(userData, record.Entity)
+        BodyUserData.Kind(userData) != BodyKind.None
+        && BodyUserData.Index(userData) < (uint)records.Length
+        && records[BodyUserData.Index(userData)] is { } record
+        && BodyUserData.Names(userData, record.Entity)
             ? record.Entity
             : Entity.Null;
 
@@ -192,8 +237,12 @@ public sealed partial class JoltPhysicsBackend
         if (read.Succeeded)
         {
             RVector3 position = point.ToJolt();
-            JoltNative.SurfaceNormal(body: read.BodyHandle, subShapeId: result.subShapeID2, position: &position,
-                normal: &normal);
+            JoltNative.SurfaceNormal(
+                body: read.BodyHandle,
+                subShapeId: result.subShapeID2,
+                position: &position,
+                normal: &normal
+            );
         }
 
         locks.UnlockRead(read);

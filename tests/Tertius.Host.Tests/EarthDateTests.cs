@@ -22,13 +22,17 @@ public sealed class EarthDateTests
         var date = new EarthDate(EarthDate.JuneSolstice.Longitude, GroundTurn: 1.0);
         double day = 2 * Math.PI / DemoScenes.SiderealRate;
 
-        Math.Abs(Dot(date.Ground.RotationAt(0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.0))).Should()
+        Math.Abs(Dot(date.Ground.RotationAt(0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.0)))
+            .Should()
             .BeApproximately(1, 1e-12, "the ground starts at its turn");
         Math.Abs(Dot(date.Ground.RotationAt(day / 4), DQuaternion.FromAxisAngle(Double3.UnitY, 1.0 + Math.PI / 2)))
-            .Should().BeApproximately(1, 1e-12, "the ground turns a quarter turn in a quarter of a day");
-        Math.Abs(Dot(date.Ground.RotationAt(day), DQuaternion.FromAxisAngle(Double3.UnitY, 1.0))).Should()
+            .Should()
+            .BeApproximately(1, 1e-12, "the ground turns a quarter turn in a quarter of a day");
+        Math.Abs(Dot(date.Ground.RotationAt(day), DQuaternion.FromAxisAngle(Double3.UnitY, 1.0)))
+            .Should()
             .BeApproximately(1, 1e-12, "the ground turns once per sidereal day");
-        (date.Ground.AngularVelocity - Double3.UnitY * DemoScenes.SiderealRate).Length.Should()
+        (date.Ground.AngularVelocity - Double3.UnitY * DemoScenes.SiderealRate)
+            .Length.Should()
             .BeLessThan(1e-15, "the ground turns about the pole");
     }
 

@@ -9,8 +9,8 @@ namespace Tertius.Simulation.Tests;
 /// <summary>The components in the Components folder: what each one does to the entity it is on.</summary>
 public sealed class SharedComponentTests
 {
-    private static Event Message<T>(Entity target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target: target, sender: Entity.Null, payload: payload);
+    private static Event Message<T>(Entity target, T payload)
+        where T : unmanaged, IEventPayload => Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     [Fact]
     public void ARecorderKeepsTheTickTheEntityAndTheEventTypesOfEachRun()
@@ -50,7 +50,7 @@ public sealed class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        SendOnce sender = SendOnce.Of(target: target, payload: new Ping { Value = 7 }, onTick: 2);
+        var sender = SendOnce.Of(target: target, payload: new Ping { Value = 7 }, onTick: 2);
         t.SpawnWith(sender);
 
         t.Run(6);
@@ -78,8 +78,7 @@ public sealed class SharedComponentTests
         using var t = new TestWorld();
         var inbox = new Recorder();
         Entity target = t.SpawnWith(inbox);
-        SendEvery sender = SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }, every: 2,
-            from: 1);
+        var sender = SendEvery.Of(target: target, payloadAt: tick => new Ping { Value = (int)tick }, every: 2, from: 1);
         t.SpawnWith(sender);
 
         t.Run(7);
@@ -237,7 +236,7 @@ public sealed class SharedComponentTests
     public void ALambdaRunsOnlyWhenItsEventsAreInTheListAndCountsItsRuns()
     {
         using var t = new TestWorld();
-        Lambda onTick = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { });
+        var onTick = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { });
         var onPing = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => { });
         t.SpawnWith(onTick, onPing);
 
@@ -264,7 +263,7 @@ public sealed class TestWorldTests
     [Fact]
     public void ATestWorldKeepsTheBackendItIsGiven()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
 
         t.World.Physics.Should().BeSameAs(faults);
     }
@@ -272,24 +271,40 @@ public sealed class TestWorldTests
     [Fact]
     public void ATestWorldOnJoltStepsRealPhysicsOnABackendThatTheWorldDisposes()
     {
-        using TestWorld t =
-            TestWorld.OnJolt(faults: out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
-        Entity ball = t.World.Spawn(new()
-            { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
+        using var t = TestWorld.OnJolt(
+            faults: out FaultInjectingBackend faults,
+            configure: options => options.TickRate = 32
+        );
+        Entity ball = t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                LinearVelocity = new(3, 0, 0),
+                Body = WorldTesting.Ball(),
+            }
+        );
 
         t.Run(2);
 
         faults.Steps.Select(step => step.Time).Should().Equal(0, 1.0 / 32);
         t.World.Options.DisposePhysics.Should().BeTrue();
-        t.World.PoseInOwnFrame(ball).Position.X.Should()
+        t.World.PoseInOwnFrame(ball)
+            .Position.X.Should()
             .BeApproximately(0.1875, 1e-6, "Jolt moved the ball by 3 m/s over two steps of 1/32 s");
     }
 
     [Fact]
     public void AnEditOfOneTickTouchesTheOutputOfThatTickOnly()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-        t.World.Spawn(new() { Frame = t.Root, LinearVelocity = new(3, 0, 0), Body = WorldTesting.Ball() });
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        t.World.Spawn(
+            new()
+            {
+                Frame = t.Root,
+                LinearVelocity = new(3, 0, 0),
+                Body = WorldTesting.Ball(),
+            }
+        );
         var ticksEdited = new List<long>();
         faults.EditOutputOfTick(1, output => ticksEdited.Add(faults.Steps[^1].Tick));
 

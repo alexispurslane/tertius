@@ -43,7 +43,8 @@ public sealed class QueryFilterUnionTests
 
     /// <summary>The value that each <c>TryGetValue</c> hands out, whatever it answers.</summary>
     private static (InFilter In, NearAsker Asker, NearEntity Entity, NearPoint Point, WhereFilter Where) Views(
-        QueryFilter filter)
+        QueryFilter filter
+    )
     {
         filter.TryGetValue(out InFilter inFilter);
         filter.TryGetValue(out NearAsker asker);
@@ -53,26 +54,27 @@ public sealed class QueryFilterUnionTests
         return (inFilter, asker, entity, point, where);
     }
 
-    private static string ArmOf(QueryFilter filter) => filter switch
-    {
-        InFilter(var frame) => $"in {frame.Index}",
-        NearAsker(var radius) => $"asker {radius}",
-        NearEntity { Other: var other, Radius: var radius } => $"entity {other.Index} {radius}",
-        NearPoint { Frame: var frame, Point: var point, Radius: var radius } =>
-            $"point {frame.Index} {point.Z} {radius}",
-        WhereFilter(var predicate) => $"where {predicate(default, default)}",
-        null => "none"
-    };
+    private static string ArmOf(QueryFilter filter) =>
+        filter switch
+        {
+            InFilter(var frame) => $"in {frame.Index}",
+            NearAsker(var radius) => $"asker {radius}",
+            NearEntity { Other: var other, Radius: var radius } => $"entity {other.Index} {radius}",
+            NearPoint { Frame: var frame, Point: var point, Radius: var radius } =>
+                $"point {frame.Index} {point.Z} {radius}",
+            WhereFilter(var predicate) => $"where {predicate(default, default)}",
+            null => "none",
+        };
 
     /// <summary>One filter of each case, each with fields that no other filter shares.</summary>
     private static QueryFilter[] OneOfEachCase() =>
-    [
-        new(new InFilter(Ship)),
-        new(new NearAsker(5)),
-        new(new NearEntity(Rock, 6)),
-        new(new NearPoint(Station, Here, 7)),
-        new(new WhereFilter(Always))
-    ];
+        [
+            new(new InFilter(Ship)),
+            new(new NearAsker(5)),
+            new(new NearEntity(Rock, 6)),
+            new(new NearPoint(Station, Here, 7)),
+            new(new WhereFilter(Always)),
+        ];
 
     // ---- The default value ---------------------------------------------------------------------------------------
 
@@ -160,14 +162,12 @@ public sealed class QueryFilterUnionTests
     public void ATryGetValueThatAnswersFalseHandsOutTheDefaultValueNotTheFieldsOfAnotherCase()
     {
         // Every field of the point filter is set, so a case that read a shared field without checking would show it.
-        Views(new(new NearPoint(Station, Here, 7))).Should().Be(
-            (default, default, default, new(Station, Here, 7), default));
-        Views(new(new NearEntity(Rock, 6))).Should().Be(
-            (default, default, new(Rock, 6), default, default));
-        Views(new(new InFilter(Ship))).Should().Be(
-            (new(Ship), default, default, default, default));
-        Views(default).Should().Be(
-            (default, default, default, default, default));
+        Views(new(new NearPoint(Station, Here, 7)))
+            .Should()
+            .Be((default, default, default, new(Station, Here, 7), default));
+        Views(new(new NearEntity(Rock, 6))).Should().Be((default, default, new(Rock, 6), default, default));
+        Views(new(new InFilter(Ship))).Should().Be((new(Ship), default, default, default, default));
+        Views(default).Should().Be((default, default, default, default, default));
     }
 
     [Fact]
@@ -222,28 +222,58 @@ public sealed class QueryFilterUnionTests
         {
             ("In with the null frame", () => _ = QueryFilter.In(FrameHandle.Null), typeof(ArgumentException)),
             ("NearAsker with a negative radius", () => _ = QueryFilter.Near(-1), typeof(ArgumentOutOfRangeException)),
-            ("NearAsker with a NaN radius", () => _ = QueryFilter.Near(double.NaN),
-                typeof(ArgumentOutOfRangeException)),
-            ("NearAsker with an infinite radius", () => _ = QueryFilter.Near(double.PositiveInfinity),
-                typeof(ArgumentOutOfRangeException)),
+            (
+                "NearAsker with a NaN radius",
+                () => _ = QueryFilter.Near(double.NaN),
+                typeof(ArgumentOutOfRangeException)
+            ),
+            (
+                "NearAsker with an infinite radius",
+                () => _ = QueryFilter.Near(double.PositiveInfinity),
+                typeof(ArgumentOutOfRangeException)
+            ),
             ("NearEntity with the null center", () => _ = QueryFilter.Near(Entity.Null, 1), typeof(ArgumentException)),
-            ("NearEntity with a negative radius", () => _ = QueryFilter.Near(Rock, -1),
-                typeof(ArgumentOutOfRangeException)),
-            ("NearEntity with a NaN radius", () => _ = QueryFilter.Near(Rock, double.NaN),
-                typeof(ArgumentOutOfRangeException)),
-            ("NearPoint with the null frame", () => _ = QueryFilter.Near(FrameHandle.Null, Here, 1),
-                typeof(ArgumentException)),
-            ("NearPoint with a NaN x", () => _ = QueryFilter.Near(Station, new(double.NaN, 0, 0), 1),
-                typeof(ArgumentException)),
-            ("NearPoint with an infinite y", () => _ = QueryFilter.Near(Station, new(0, double.PositiveInfinity, 0), 1),
-                typeof(ArgumentException)),
-            ("NearPoint with an infinite z", () => _ = QueryFilter.Near(Station, new(0, 0, double.NegativeInfinity), 1),
-                typeof(ArgumentException)),
-            ("NearPoint with a negative radius", () => _ = QueryFilter.Near(Station, Here, -1),
-                typeof(ArgumentOutOfRangeException)),
-            ("NearPoint with an infinite radius", () => _ = QueryFilter.Near(Station, Here, double.PositiveInfinity),
-                typeof(ArgumentOutOfRangeException)),
-            ("Where with a null predicate", () => _ = QueryFilter.Where(null!), typeof(ArgumentNullException))
+            (
+                "NearEntity with a negative radius",
+                () => _ = QueryFilter.Near(Rock, -1),
+                typeof(ArgumentOutOfRangeException)
+            ),
+            (
+                "NearEntity with a NaN radius",
+                () => _ = QueryFilter.Near(Rock, double.NaN),
+                typeof(ArgumentOutOfRangeException)
+            ),
+            (
+                "NearPoint with the null frame",
+                () => _ = QueryFilter.Near(FrameHandle.Null, Here, 1),
+                typeof(ArgumentException)
+            ),
+            (
+                "NearPoint with a NaN x",
+                () => _ = QueryFilter.Near(Station, new(double.NaN, 0, 0), 1),
+                typeof(ArgumentException)
+            ),
+            (
+                "NearPoint with an infinite y",
+                () => _ = QueryFilter.Near(Station, new(0, double.PositiveInfinity, 0), 1),
+                typeof(ArgumentException)
+            ),
+            (
+                "NearPoint with an infinite z",
+                () => _ = QueryFilter.Near(Station, new(0, 0, double.NegativeInfinity), 1),
+                typeof(ArgumentException)
+            ),
+            (
+                "NearPoint with a negative radius",
+                () => _ = QueryFilter.Near(Station, Here, -1),
+                typeof(ArgumentOutOfRangeException)
+            ),
+            (
+                "NearPoint with an infinite radius",
+                () => _ = QueryFilter.Near(Station, Here, double.PositiveInfinity),
+                typeof(ArgumentOutOfRangeException)
+            ),
+            ("Where with a null predicate", () => _ = QueryFilter.Where(null!), typeof(ArgumentNullException)),
         };
 
         foreach ((string why, Action build, Type exception) in refused)
@@ -256,7 +286,9 @@ public sealed class QueryFilterUnionTests
         // A radius of exactly 0 and a point at the origin are valid.
         QueryFilter.Near(0).Should().Be(new QueryFilter(new NearAsker(0)));
         QueryFilter.Near(Rock, 0).Should().Be(new QueryFilter(new NearEntity(Rock, 0)));
-        QueryFilter.Near(Station, Double3.Zero, 0).Should()
+        QueryFilter
+            .Near(Station, Double3.Zero, 0)
+            .Should()
             .Be(new QueryFilter(new NearPoint(Station, Double3.Zero, 0)));
     }
 
@@ -264,21 +296,37 @@ public sealed class QueryFilterUnionTests
     public void TheFactoriesNameTheArgumentThatTheCallerGotWrong()
     {
         // EntityQuery and FoundEntities pass their arguments straight to these factories, so their callers see these names.
-        ((Action)(() => QueryFilter.In(FrameHandle.Null))).Should().Throw<ArgumentException>()
+        ((Action)(() => QueryFilter.In(FrameHandle.Null)))
+            .Should()
+            .Throw<ArgumentException>()
             .WithParameterName("frame");
-        ((Action)(() => QueryFilter.Near(-1))).Should().Throw<ArgumentOutOfRangeException>()
+        ((Action)(() => QueryFilter.Near(-1)))
+            .Should()
+            .Throw<ArgumentOutOfRangeException>()
             .WithParameterName("radius");
-        ((Action)(() => QueryFilter.Near(Entity.Null, 1))).Should().Throw<ArgumentException>()
+        ((Action)(() => QueryFilter.Near(Entity.Null, 1)))
+            .Should()
+            .Throw<ArgumentException>()
             .WithParameterName("other");
-        ((Action)(() => QueryFilter.Near(Rock, -1))).Should().Throw<ArgumentOutOfRangeException>()
+        ((Action)(() => QueryFilter.Near(Rock, -1)))
+            .Should()
+            .Throw<ArgumentOutOfRangeException>()
             .WithParameterName("radius");
-        ((Action)(() => QueryFilter.Near(FrameHandle.Null, Here, 1))).Should().Throw<ArgumentException>()
+        ((Action)(() => QueryFilter.Near(FrameHandle.Null, Here, 1)))
+            .Should()
+            .Throw<ArgumentException>()
             .WithParameterName("frame");
-        ((Action)(() => QueryFilter.Near(Station, new(double.NaN, 0, 0), 1))).Should().Throw<ArgumentException>()
+        ((Action)(() => QueryFilter.Near(Station, new(double.NaN, 0, 0), 1)))
+            .Should()
+            .Throw<ArgumentException>()
             .WithParameterName("point");
-        ((Action)(() => QueryFilter.Near(Station, Here, -1))).Should().Throw<ArgumentOutOfRangeException>()
+        ((Action)(() => QueryFilter.Near(Station, Here, -1)))
+            .Should()
+            .Throw<ArgumentOutOfRangeException>()
             .WithParameterName("radius");
-        ((Action)(() => QueryFilter.Where(null!))).Should().Throw<ArgumentNullException>()
+        ((Action)(() => QueryFilter.Where(null!)))
+            .Should()
+            .Throw<ArgumentNullException>()
             .WithParameterName("predicate");
     }
 
@@ -340,7 +388,9 @@ public sealed class QueryFilterUnionTests
     public void FiltersOfDifferentCasesAreNotEqualEvenWhenTheirFieldsMatch()
     {
         // Each pair shares every field that both cases have, so only the case can tell them apart.
-        new QueryFilter(new InFilter(Ship)).Should().NotBe(new QueryFilter(new NearPoint(Ship, default, 0)));
+        new QueryFilter(new InFilter(Ship))
+            .Should()
+            .NotBe(new QueryFilter(new NearPoint(Ship, default, 0)));
         new QueryFilter(new NearAsker(5)).Should().NotBe(new QueryFilter(new NearEntity(Rock, 5)));
         new QueryFilter(new NearEntity(Rock, 5)).Should().NotBe(new QueryFilter(new NearPoint(Station, Here, 5)));
         new QueryFilter(new NearAsker(5)).Should().NotBe(new QueryFilter(new NearPoint(Station, Here, 5)));
@@ -373,8 +423,11 @@ public sealed class QueryFilterUnionTests
         new QueryFilter(new InFilter(Ship)).ToString().Should().StartWith("QueryFilter(").And.Contain(nameof(InFilter));
         new QueryFilter(new NearAsker(5)).ToString().Should().Contain(nameof(NearAsker)).And.Contain("5");
         new QueryFilter(new NearEntity(Rock, 6)).ToString().Should().Contain(nameof(NearEntity)).And.Contain("6");
-        new QueryFilter(new NearPoint(Station, Here, 7)).ToString().Should().Contain(nameof(NearPoint)).And
-            .Contain("7");
+        new QueryFilter(new NearPoint(Station, Here, 7))
+            .ToString()
+            .Should()
+            .Contain(nameof(NearPoint))
+            .And.Contain("7");
         new QueryFilter(new WhereFilter(Always)).ToString().Should().Contain(nameof(WhereFilter));
     }
 
@@ -387,7 +440,7 @@ public sealed class QueryFilterUnionTests
         FrameHandle ship = t.SpawnStaticFrame(TestWorld.At(100));
         Entity aboard = t.World.SpawnAt(ship, new(1, 0, 0));
         Entity outside = t.SpawnAt(new(1, 0, 0));
-        QueryFilter filter = QueryFilter.In(ship);
+        var filter = QueryFilter.In(ship);
 
         PassesOf(t: t, filter: filter, entity: aboard).Should().BeTrue();
         PassesOf(t: t, filter: filter, entity: outside).Should().BeFalse();
@@ -403,14 +456,16 @@ public sealed class QueryFilterUnionTests
         Entity onTheEdge = t.SpawnAt(new(15, 0, 0));
         Entity far = t.SpawnAt(new(16, 0, 0));
         Entity otherFrame = t.World.SpawnAt(ship, new(11, 0, 0));
-        QueryFilter filter = QueryFilter.Near(5);
+        var filter = QueryFilter.Near(5);
 
         PassesOf(t: t, filter: filter, entity: close, asker: asker).Should().BeTrue();
-        PassesOf(t: t, filter: filter, entity: asker, asker: asker).Should()
+        PassesOf(t: t, filter: filter, entity: asker, asker: asker)
+            .Should()
             .BeTrue("the asker is at distance 0 from itself");
         PassesOf(t: t, filter: filter, entity: onTheEdge, asker: asker).Should().BeTrue();
         PassesOf(t: t, filter: filter, entity: far, asker: asker).Should().BeFalse();
-        PassesOf(t: t, filter: filter, entity: otherFrame, asker: asker).Should()
+        PassesOf(t: t, filter: filter, entity: otherFrame, asker: asker)
+            .Should()
             .BeFalse("it is close in numbers but in another frame");
     }
 
@@ -430,7 +485,7 @@ public sealed class QueryFilterUnionTests
         Entity center = t.SpawnAt(new(10, 0, 0));
         Entity close = t.SpawnAt(new(12, 0, 0));
         Entity far = t.SpawnAt(new(20, 0, 0));
-        QueryFilter filter = QueryFilter.Near(center, 3);
+        var filter = QueryFilter.Near(center, 3);
 
         PassesOf(t: t, filter: filter, entity: close).Should().BeTrue();
         PassesOf(t: t, filter: filter, entity: far).Should().BeFalse();
@@ -448,7 +503,7 @@ public sealed class QueryFilterUnionTests
         Entity close = t.World.SpawnAt(ship, new(11, 0, 0));
         Entity far = t.World.SpawnAt(ship, new(15, 0, 0));
         Entity inRoot = t.SpawnAt(new(11, 0, 0));
-        QueryFilter filter = QueryFilter.Near(ship, new(10, 0, 0), 2);
+        var filter = QueryFilter.Near(ship, new(10, 0, 0), 2);
 
         PassesOf(t: t, filter: filter, entity: close).Should().BeTrue();
         PassesOf(t: t, filter: filter, entity: far).Should().BeFalse();
@@ -477,10 +532,16 @@ public sealed class QueryFilterUnionTests
         var snapshot = new Snapshot(t.World, asker);
 
         QueryFilter.Near(5).TryCenter(snapshot, out FrameHandle askerFrame, out Double3 askerPoint).Should().BeTrue();
-        QueryFilter.Near(center, 5).TryCenter(snapshot, out FrameHandle entityFrame, out Double3 entityPoint).Should()
+        QueryFilter
+            .Near(center, 5)
+            .TryCenter(snapshot, out FrameHandle entityFrame, out Double3 entityPoint)
+            .Should()
             .BeTrue();
-        QueryFilter.Near(ship, new(7, 8, 9), 5).TryCenter(snapshot, out FrameHandle pointFrame, out Double3 pointPoint)
-            .Should().BeTrue();
+        QueryFilter
+            .Near(ship, new(7, 8, 9), 5)
+            .TryCenter(snapshot, out FrameHandle pointFrame, out Double3 pointPoint)
+            .Should()
+            .BeTrue();
 
         (askerFrame, askerPoint).Should().Be((ship, new(1, 2, 3)), "the asker's own frame and position");
         (entityFrame, entityPoint).Should().Be((t.Root, new(4, 5, 6)), "the other entity's frame and position");
@@ -497,11 +558,20 @@ public sealed class QueryFilterUnionTests
         FrameHandle gone = t.SpawnStaticFrame(TestWorld.At(100));
         t.World.Destroy(gone.Entity);
 
-        QueryFilter.Near(t.Root.Entity, 5).TryCenter(snapshot, out _, out _).Should()
+        QueryFilter
+            .Near(t.Root.Entity, 5)
+            .TryCenter(snapshot, out _, out _)
+            .Should()
             .BeFalse("the owner of a root frame is in no frame");
-        QueryFilter.Near(gone, default, 5).TryCenter(snapshot, out _, out _).Should()
+        QueryFilter
+            .Near(gone, default, 5)
+            .TryCenter(snapshot, out _, out _)
+            .Should()
             .BeFalse("the frame of the point is gone");
-        QueryFilter.Near(5).TryCenter(t.World.Snapshot, out _, out _).Should()
+        QueryFilter
+            .Near(5)
+            .TryCenter(t.World.Snapshot, out _, out _)
+            .Should()
             .BeFalse("a snapshot without an asker has no center for Near(radius)");
         QueryFilter.In(t.Root).TryCenter(snapshot, out _, out _).Should().BeFalse();
         QueryFilter.Where(Always).TryCenter(snapshot, out _, out _).Should().BeFalse();

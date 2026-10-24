@@ -17,9 +17,12 @@ internal static class HelperClasses
     public static void Analyze(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        if (!type.IsStatic || type.TypeKind != TypeKind.Class ||
-            !Suffixes.Any(suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal)) ||
-            HasExtensionMember(type, context))
+        if (
+            !type.IsStatic
+            || type.TypeKind != TypeKind.Class
+            || !Suffixes.Any(suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal))
+            || HasExtensionMember(type, context)
+        )
             return;
         context.ReportDiagnostic(Diagnostic.Create(StyleRules.HelperClass, type.Locations[0], type.Name));
     }
@@ -29,8 +32,11 @@ internal static class HelperClasses
     /// symbol for an extension block, so the rule reads its keyword.
     /// </summary>
     private static bool HasExtensionMember(INamedTypeSymbol type, SymbolAnalysisContext context) =>
-        type.GetMembers().OfType<IMethodSymbol>().Any(method => method.IsExtensionMethod) ||
-        type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration &&
-            declaration.Members.OfType<TypeDeclarationSyntax>().Any(member => member.Keyword.ValueText == "extension"));
+        type.GetMembers().OfType<IMethodSymbol>().Any(method => method.IsExtensionMethod)
+        || type.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax declaration
+            && declaration
+                .Members.OfType<TypeDeclarationSyntax>()
+                .Any(member => member.Keyword.ValueText == "extension")
+        );
 }

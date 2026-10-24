@@ -91,10 +91,13 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
     /// <summary>Below this speed, in m/s, the ramp gives no attitude target, because the velocity has no direction yet.</summary>
     public const double SteerSpeed = 1;
 
-    private readonly Double3 planeNormal = Math.Abs(plane.Normal.Length - 1) < 1e-9
-        ? plane.Normal
-        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {plane.Normal}.",
-            nameof(plane));
+    private readonly Double3 planeNormal =
+        Math.Abs(plane.Normal.Length - 1) < 1e-9
+            ? plane.Normal
+            : throw new ArgumentException(
+                $"The normal of the orbit's plane must be a unit vector, not {plane.Normal}.",
+                nameof(plane)
+            );
 
     /// <summary>What the autopilot does now. It starts <see cref="Parked"/>.</summary>
     public AscentState State { get; private set; } = new Parked();
@@ -108,7 +111,8 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         DPose pose = self.PoseIn(plane.Frame);
-        Double3 position = pose.Position, velocity = self.VelocityIn(plane.Frame);
+        Double3 position = pose.Position,
+            velocity = self.VelocityIn(plane.Frame);
         // The turn from the plane frame's axes to those of the hull's frame, by the hull's own two rotations, which come
         // from one record. The targets are found in the plane frame's axes and written in those of the hull's frame.
         DQuaternion intoFrame = self.PoseIn(self.Frame).Rotation * pose.Rotation.Conjugate();
@@ -120,14 +124,16 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             if (mu <= 0 || !self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) || body.Mass <= 0)
             {
                 self.Log(
-                    "AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass.");
+                    "AscentAutopilot stays parked: the frame of its plane has no point gravity to climb in, or its hull has no mass."
+                );
                 return;
             }
 
             self.Body.SetMotion(BodyMotion.Dynamic);
             State = new Ramp(
                 new(Mu: mu, OrbitRadius: orbitRadius, MaxAcceleration: maxThrust / body.Mass, PlaneNormal: planeNormal),
-                position.Length);
+                position.Length
+            );
         }
 
         if (State is Ramp ramp && position.Length - ramp.LaunchRadius > climbHeight)
@@ -139,30 +145,36 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
             case Ramp:
                 events.Add(new Throttle { Value = 1 });
                 if (velocity.Length > SteerSpeed)
-                    events.Add(new AttitudeTarget
-                    {
-                        Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
-                        MaxTurnRate = AttitudeAutopilot.MaxTurnRate
-                    });
+                    events.Add(
+                        new AttitudeTarget
+                        {
+                            Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
+                            MaxTurnRate = AttitudeAutopilot.MaxTurnRate,
+                        }
+                    );
                 break;
             case Climb { Guidance: var guidance }:
                 Double3 acceleration = guidance.Acceleration(position, velocity);
                 events.Add(new Throttle { Value = (float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration) });
-                events.Add(new AttitudeTarget
-                {
-                    Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose),
-                    MaxTurnRate = AttitudeAutopilot.MaxTurnRate
-                });
+                events.Add(
+                    new AttitudeTarget
+                    {
+                        Rotation = intoFrame * AttitudeAutopilot.Facing(acceleration, pose),
+                        MaxTurnRate = AttitudeAutopilot.MaxTurnRate,
+                    }
+                );
                 break;
             // The law of the nose along the velocity and the roof away from the planet means something only while the hull is
             // in a frame with point gravity, such as earth, where it flew its orbit. In the docking station's frame, which
             // has no field, the docking autopilot steers, and this layer adds nothing.
             case Orbit when KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame)) > 0:
-                events.Add(new AttitudeTarget
-                {
-                    Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
-                    MaxTurnRate = AttitudeAutopilot.MaxTurnRate
-                });
+                events.Add(
+                    new AttitudeTarget
+                    {
+                        Rotation = intoFrame * AttitudeAutopilot.Facing(velocity, pose),
+                        MaxTurnRate = AttitudeAutopilot.MaxTurnRate,
+                    }
+                );
                 break;
             case Parked or Orbit:
                 break;

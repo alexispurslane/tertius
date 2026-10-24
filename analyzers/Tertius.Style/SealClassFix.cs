@@ -30,30 +30,42 @@ public sealed class SealClassFix : CodeFixProvider
 
     /// <summary>Seals every class of a document in one rewrite.</summary>
     public override FixAllProvider GetFixAllProvider() =>
-        FixAllProvider.Create(async (context, document, diagnostics) => await Sealed(document,
-                diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan), context.CancellationToken)
-            .ConfigureAwait(false));
+        FixAllProvider.Create(
+            async (context, document, diagnostics) =>
+                await Sealed(
+                        document,
+                        diagnostics.Select(diagnostic => diagnostic.Location.SourceSpan),
+                        context.CancellationToken
+                    )
+                    .ConfigureAwait(false)
+        );
 
     /// <inheritdoc/>
     public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         foreach (Diagnostic diagnostic in context.Diagnostics)
-            context.RegisterCodeFix(CodeAction.Create(title: "Seal the class",
-                createChangedDocument: cancel => Sealed(context.Document, [diagnostic.Location.SourceSpan], cancel),
-                equivalenceKey: EquivalenceKey), diagnostic);
+            context.RegisterCodeFix(
+                CodeAction.Create(
+                    title: "Seal the class",
+                    createChangedDocument: cancel => Sealed(context.Document, [diagnostic.Location.SourceSpan], cancel),
+                    equivalenceKey: EquivalenceKey
+                ),
+                diagnostic
+            );
         return Task.CompletedTask;
     }
 
     /// <summary>The document with each class whose name is at one of <paramref name="spans"/> sealed.</summary>
-    private static async Task<Document> Sealed(Document document, IEnumerable<TextSpan> spans,
-        CancellationToken cancel)
+    private static async Task<Document> Sealed(Document document, IEnumerable<TextSpan> spans, CancellationToken cancel)
     {
         if (await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root)
             return document;
         TypeDeclarationSyntax[] classes =
         [
-            .. spans.Select(span => root.FindToken(span.Start).Parent?.FirstAncestorOrSelf<TypeDeclarationSyntax>())
-                .OfType<TypeDeclarationSyntax>().Distinct()
+            .. spans
+                .Select(span => root.FindToken(span.Start).Parent?.FirstAncestorOrSelf<TypeDeclarationSyntax>())
+                .OfType<TypeDeclarationSyntax>()
+                .Distinct(),
         ];
         return document.WithSyntaxRoot(root.ReplaceNodes(classes, (_, current) => WithSealed(current)));
     }
@@ -67,13 +79,21 @@ public sealed class SealClassFix : CodeFixProvider
         if (index > 0)
             return type.WithModifiers(modifiers.Insert(index, @sealed));
         if (modifiers.Count > 0)
-            return type.WithModifiers(modifiers.Replace(modifiers[0], modifiers[0].WithLeadingTrivia())
-                .Insert(0, @sealed.WithLeadingTrivia(modifiers[0].LeadingTrivia)));
+            return type.WithModifiers(
+                modifiers
+                    .Replace(modifiers[0], modifiers[0].WithLeadingTrivia())
+                    .Insert(0, @sealed.WithLeadingTrivia(modifiers[0].LeadingTrivia))
+            );
         return type.WithKeyword(type.Keyword.WithLeadingTrivia())
             .WithModifiers(SyntaxFactory.TokenList(@sealed.WithLeadingTrivia(type.Keyword.LeadingTrivia)));
     }
 
     private static bool IsAccessOrNew(SyntaxKind kind) =>
-        kind is SyntaxKind.PublicKeyword or SyntaxKind.InternalKeyword or SyntaxKind.ProtectedKeyword
-            or SyntaxKind.PrivateKeyword or SyntaxKind.FileKeyword or SyntaxKind.NewKeyword;
+        kind
+            is SyntaxKind.PublicKeyword
+                or SyntaxKind.InternalKeyword
+                or SyntaxKind.ProtectedKeyword
+                or SyntaxKind.PrivateKeyword
+                or SyntaxKind.FileKeyword
+                or SyntaxKind.NewKeyword;
 }

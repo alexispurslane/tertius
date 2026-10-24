@@ -60,21 +60,27 @@ internal sealed unsafe class MaterialStore : IDisposable
         return slot < count ? (uint)slot : DefaultSlot;
     }
 
-    public static GpuMaterial ToGpu(MaterialDesc desc) => new()
-    {
-        BaseColor = desc.BaseColor,
-        Emissive = Vector3.Max(desc.Emissive, Vector3.Zero),
-        SpecularIntensity = Math.Clamp(desc.SpecularIntensity, 0f, 1f),
-        Gloss = Math.Clamp(desc.Gloss, 0f, 1f),
-        AlbedoTexture = TextureStore.Resolve(desc.Albedo, TextureStore.White),
-        NormalTexture = TextureStore.Resolve(desc.Normal, TextureStore.FlatNormal),
-        SpecularGlossTexture = TextureStore.Resolve(desc.SpecularGloss, TextureStore.DefaultSpecularGloss)
-    };
+    public static GpuMaterial ToGpu(MaterialDesc desc) =>
+        new()
+        {
+            BaseColor = desc.BaseColor,
+            Emissive = Vector3.Max(desc.Emissive, Vector3.Zero),
+            SpecularIntensity = Math.Clamp(desc.SpecularIntensity, 0f, 1f),
+            Gloss = Math.Clamp(desc.Gloss, 0f, 1f),
+            AlbedoTexture = TextureStore.Resolve(desc.Albedo, TextureStore.White),
+            NormalTexture = TextureStore.Resolve(desc.Normal, TextureStore.FlatNormal),
+            SpecularGlossTexture = TextureStore.Resolve(desc.SpecularGloss, TextureStore.DefaultSpecularGloss),
+        };
 
     /// <summary>Records the upload of queued materials, creating the default on the first call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(MaterialId Id, MaterialDesc Desc)> pending,
+    public void Upload(
+        CommandBuffer commandBuffer,
+        List<(MaterialId Id, MaterialDesc Desc)> pending,
         StagingArena staging,
-        BarrierBatch barriers, DeferredReleases releases, long frame)
+        BarrierBatch barriers,
+        DeferredReleases releases,
+        long frame
+    )
     {
         int first = Count;
         int added = pending.Count + (Count == 0 ? 1 : 0);
@@ -93,8 +99,13 @@ internal sealed unsafe class MaterialStore : IDisposable
                 barriers.Buffer(replacement, BufferUse.TransferDestination);
                 barriers.Flush(device.Vk, commandBuffer);
                 var copy = new BufferCopy(0, 0, (ulong)Count * (ulong)sizeof(GpuMaterial));
-                device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: Buffer.Handle,
-                    dstBuffer: replacement.Handle, regionCount: 1, pRegions: &copy);
+                device.Vk.CmdCopyBuffer(
+                    commandBuffer: commandBuffer,
+                    srcBuffer: Buffer.Handle,
+                    dstBuffer: replacement.Handle,
+                    regionCount: 1,
+                    pRegions: &copy
+                );
             }
 
             releases.Retire(Buffer, frame);
@@ -119,15 +130,27 @@ internal sealed unsafe class MaterialStore : IDisposable
         barriers.Buffer(Buffer, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
         var region = new BufferCopy(stage.Offset, (ulong)first * (ulong)sizeof(GpuMaterial), stage.Size);
-        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstBuffer: Buffer.Handle,
-            regionCount: 1, pRegions: &region);
+        device.Vk.CmdCopyBuffer(
+            commandBuffer: commandBuffer,
+            srcBuffer: stage.Buffer.Handle,
+            dstBuffer: Buffer.Handle,
+            regionCount: 1,
+            pRegions: &region
+        );
         Count += added;
     }
 
-    private GpuBuffer Create(int materials) => GpuBuffer.Create(device: device, allocator: allocator,
-        size: (ulong)materials * (ulong)sizeof(GpuMaterial),
-        usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
-        memoryUsage: MemoryUsage.GpuOnly, name: "materials");
+    private GpuBuffer Create(int materials) =>
+        GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: (ulong)materials * (ulong)sizeof(GpuMaterial),
+            usage: BufferUsageFlags.StorageBufferBit
+                | BufferUsageFlags.TransferDstBit
+                | BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "materials"
+        );
 
     public void Dispose() => Buffer.Dispose();
 }

@@ -20,8 +20,12 @@ public sealed class FrameTreeThrustTests
 
     public FrameTreeThrustTests()
     {
-        ground = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        ground = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -30,35 +34,41 @@ public sealed class FrameTreeThrustTests
     /// A dynamic body of the frame ground at <paramref name="x"/>, flying at <paramref name="vx"/> m/s, whose force and
     /// impulse ask for <paramref name="thrust"/> m/s² in the next step.
     /// </summary>
-    private NumericBody Body(uint id, double x, double vx, double thrust = 0) => new()
-    {
-        Entity = new(id, 1),
-        Semantic = ground,
-        Home = ground,
-        Position = X(x),
-        HomePosition = X(x),
-        Velocity = X(vx),
-        Radius = 1,
-        Mass = 1,
-        ThrustAcceleration = thrust
-    };
+    private NumericBody Body(uint id, double x, double vx, double thrust = 0) =>
+        new()
+        {
+            Entity = new(id, 1),
+            Semantic = ground,
+            Home = ground,
+            Position = X(x),
+            HomePosition = X(x),
+            Velocity = X(vx),
+            Radius = 1,
+            Mass = 1,
+            ThrustAcceleration = thrust,
+        };
 
     /// <summary>Runs one update and returns the bodies with their new homes and their places in them.</summary>
     private NumericBody[] Update(double dt, params NumericBody[] bodies)
     {
         changes.Clear();
         var moves = new List<NumericMove>();
-        frames.UpdateNumericFrames(bodies: bodies, dt: dt, step: 1.0 / 60, changes: changes,
-            applyMoves: moves.AddRange);
+        frames.UpdateNumericFrames(
+            bodies: bodies,
+            dt: dt,
+            step: 1.0 / 60,
+            changes: changes,
+            applyMoves: moves.AddRange
+        );
         frames.AssertInvariants();
-        Dictionary<Entity, FrameHandle> homes = moves.ToDictionary(move => move.Entity, move => move.To);
+        var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
         [
             .. bodies.Select(body =>
             {
                 FrameHandle home = homes.TryGetValue(body.Entity, out FrameHandle to) ? to : body.Home;
                 return body with { Home = home, HomePosition = body.Position - frames.HomeOffset(home, body.Semantic) };
-            })
+            }),
         ];
     }
 
@@ -72,7 +82,8 @@ public sealed class FrameTreeThrustTests
 
     [Fact]
     public void A_free_body_at_60_m_s_stays_in_its_semantic_frame() =>
-        Update(Tick, Body(id: 10, x: 100, vx: 60))[0].Home.Should()
+        Update(Tick, Body(id: 10, x: 100, vx: 60))[0]
+            .Home.Should()
             .Be(ground, "a group of free bodies falls only from 1,000 m/s");
 
     [Fact]
@@ -106,13 +117,18 @@ public sealed class FrameTreeThrustTests
     }
 
     [Fact]
-    public void
-        A_free_body_and_a_body_that_thrusts_whose_common_speed_reaches_the_thrust_create_speed_get_a_falling_frame()
+    public void A_free_body_and_a_body_that_thrusts_whose_common_speed_reaches_the_thrust_create_speed_get_a_falling_frame()
     {
         // Neither body needs a frame by itself: the free one is below 1,000 m/s and the character below 50 m/s. Together
         // they thrust at 50 m/s, so the update must look at the frame although no body passes its own threshold.
-        NumericBody[] after = Update(Tick, Body(id: 10, x: 0, vx: 60),
-            Body(id: 11, x: 3, vx: 40) with { Character = true });
+        NumericBody[] after = Update(
+            Tick,
+            Body(id: 10, x: 0, vx: 60),
+            Body(id: 11, x: 3, vx: 40) with
+            {
+                Character = true,
+            }
+        );
         after[0].Home.Should().Be(after[1].Home);
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
     }

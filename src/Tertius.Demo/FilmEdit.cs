@@ -21,7 +21,8 @@ public sealed record ScriptFilm(
     int Frames,
     int FirstFrame,
     long FirstTick,
-    bool Outlines)
+    bool Outlines
+)
 {
     /// <summary>
     /// The films of <paramref name="script"/>, in their order. Throws <see cref="ScriptException"/> for a script with a
@@ -48,14 +49,24 @@ public sealed record ScriptFilm(
                     outlines = outlinesStep.Show;
                     break;
                 case FilmStep film:
-                    films.Add(new(Name: film.Name, Camera: camera, Every: film.Every, Frames: film.Frames,
-                        FirstFrame: frame, FirstTick: tick, Outlines: outlines));
+                    films.Add(
+                        new(
+                            Name: film.Name,
+                            Camera: camera,
+                            Every: film.Every,
+                            Frames: film.Frames,
+                            FirstFrame: frame,
+                            FirstTick: tick,
+                            Outlines: outlines
+                        )
+                    );
                     frame += film.Frames;
                     tick += (long)film.Frames * film.Every;
                     break;
                 case CaptureStep capture:
                     throw new ScriptException(
-                        $"The script has the capture '{capture.Name}', and the edit takes only film steps for captures.");
+                        $"The script has the capture '{capture.Name}', and the edit takes only film steps for captures."
+                    );
                 case PostStep or DumpStep or null:
                     break;
                 default:
@@ -85,7 +96,8 @@ public sealed record ScriptFilm(
                 string name = step.FrameName(k);
                 if (rows[film.FirstFrame + k].Frame != name)
                     throw new ScriptException(
-                        $"Row {film.FirstFrame + k} of the log is named '{rows[film.FirstFrame + k].Frame}', and the frame of the script is '{name}'.");
+                        $"Row {film.FirstFrame + k} of the log is named '{rows[film.FirstFrame + k].Frame}', and the frame of the script is '{name}'."
+                    );
             }
         }
     }
@@ -116,11 +128,15 @@ public sealed record Stretch(ScriptFilm Film, int From, int Count)
         foreach (EditTrim trim in trims)
         {
             if (films.All(film => film.Name != trim.Film))
-                throw new ArgumentException($"The trim names the film '{trim.Film}', which the script does not have.",
-                    nameof(trims));
+                throw new ArgumentException(
+                    $"The trim names the film '{trim.Film}', which the script does not have.",
+                    nameof(trims)
+                );
             if (trim.Head < 0 || trim.Tail < 0)
-                throw new ArgumentException($"The trim of the film '{trim.Film}' drops fewer than 0 frames.",
-                    nameof(trims));
+                throw new ArgumentException(
+                    $"The trim of the film '{trim.Film}' drops fewer than 0 frames.",
+                    nameof(trims)
+                );
         }
 
         var stretches = new List<Stretch>(films.Count);
@@ -136,7 +152,9 @@ public sealed record Stretch(ScriptFilm Film, int From, int Count)
             int count = film.Frames - trim.Head - trim.Tail;
             if (count < FramesPerSecond)
                 throw new ArgumentException(
-                    $"The trim of the film '{film.Name}' leaves {count} frames, less than one second.", nameof(trims));
+                    $"The trim of the film '{film.Name}' leaves {count} frames, less than one second.",
+                    nameof(trims)
+                );
             stretches.Add(new(film, film.FirstFrame + trim.Head, count));
         }
 
@@ -182,4 +200,5 @@ public sealed record CutList(
     IReadOnlyList<EditTrim> Trims,
     IReadOnlyList<PanelSpan> Panels,
     TitleCard Opening,
-    TitleCard Closing);
+    TitleCard Closing
+);

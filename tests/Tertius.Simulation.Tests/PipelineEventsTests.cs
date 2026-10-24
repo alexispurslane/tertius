@@ -10,9 +10,11 @@ namespace Tertius.Simulation.Tests;
 public sealed class PipelineEventsTests
 {
     private static Lambda AddsNote(int value, int priority = 0) =>
-        new(EventMask.Of<Tick>(),
+        new(
+            EventMask.Of<Tick>(),
             (self, scoped ref events, scoped ref outbox) => events.Add(new Note { Value = value }, self.Entity),
-            priority);
+            priority
+        );
 
     // ---- An event that a component adds -----------------------------------------------------------------------------
 
@@ -63,11 +65,17 @@ public sealed class PipelineEventsTests
     {
         using var t = new TestWorld();
         var after = new Recorder(EventMask.Of<Note>(), priority: 1);
-        t.SpawnWith(new Lambda(EventMask.Of<Tick>(), (self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                events.Add(new Note { Value = 1 }, self.Entity);
-        }), after);
+        t.SpawnWith(
+            new Lambda(
+                EventMask.Of<Tick>(),
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        events.Add(new Note { Value = 1 }, self.Entity);
+                }
+            ),
+            after
+        );
 
         t.Run(3);
 
@@ -94,8 +102,10 @@ public sealed class PipelineEventsTests
     {
         using var t = new TestWorld();
         var before = new Recorder(EventMask.Of<Ping>(), priority: -1);
-        var remover = new Lambda(EventMask.Of<Ping>(),
-            (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove());
+        var remover = new Lambda(
+            EventMask.Of<Ping>(),
+            (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove()
+        );
         var after = new Recorder(EventMask.Of<Ping>(), priority: 1);
         Entity e = t.SpawnWith(before, remover, after);
         t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Ping { Value = 1 }));
@@ -112,11 +122,14 @@ public sealed class PipelineEventsTests
     {
         using var t = new TestWorld();
         var before = new Recorder(EventMask.Of<Ping>(), priority: -1);
-        var doubler = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) =>
-        {
-            foreach (ref Ping ping in events.Of<Ping>())
-                ping.Value *= 2;
-        });
+        var doubler = new Lambda(
+            EventMask.Of<Ping>(),
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                foreach (ref Ping ping in events.Of<Ping>())
+                    ping.Value *= 2;
+            }
+        );
         var after = new Recorder(EventMask.Of<Ping>(), priority: 1);
         Entity e = t.SpawnWith(before, doubler, after);
         t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Ping { Value = 21 }));
@@ -133,11 +146,14 @@ public sealed class PipelineEventsTests
     public void APayloadEditedByOneRecipientOfABroadcastIsUnchangedForTheOthers()
     {
         using var t = new TestWorld();
-        var doubler = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) =>
-        {
-            foreach (ref Ping ping in events.Of<Ping>())
-                ping.Value *= 2;
-        });
+        var doubler = new Lambda(
+            EventMask.Of<Ping>(),
+            (self, scoped ref events, scoped ref outbox) =>
+            {
+                foreach (ref Ping ping in events.Of<Ping>())
+                    ping.Value *= 2;
+            }
+        );
         var editedCopy = new Recorder(EventMask.Of<Ping>(), priority: 1);
         var untouchedCopy = new Recorder(EventMask.Of<Ping>());
         t.SpawnWith(doubler, editedCopy);
@@ -155,8 +171,10 @@ public sealed class PipelineEventsTests
     public void ARemovalFromTheListOfOneEntityDoesNotTakeTheEventAwayFromAnother()
     {
         using var t = new TestWorld();
-        var remover = new Lambda(EventMask.Of<Ping>(),
-            (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove());
+        var remover = new Lambda(
+            EventMask.Of<Ping>(),
+            (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove()
+        );
         var keeper = new Recorder(EventMask.Of<Ping>());
         t.SpawnWith(remover);
         t.SpawnWith(keeper);

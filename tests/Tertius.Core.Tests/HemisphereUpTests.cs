@@ -18,24 +18,26 @@ public sealed class HemisphereUpTests
     [Fact]
     public void AnUpAlongADirectionReadsBackAsItsDirection()
     {
-        HemisphereUp up = HemisphereUp.Along(Sideways);
+        var up = HemisphereUp.Along(Sideways);
 
         up.HasValue.Should().BeTrue();
         up.TryGetValue(out UpAlong along).Should().BeTrue();
         along.Direction.Should().Be(Sideways);
-        (up is UpAlong { Direction: var direction } ? direction : default).Should()
+        (up is UpAlong { Direction: var direction } ? direction : default)
+            .Should()
             .Be(Sideways, "a pattern match reads the same case");
     }
 
     [Fact]
     public void AnUpAwayFromACenterReadsBackAsItsCenter()
     {
-        HemisphereUp up = HemisphereUp.AwayFrom(Below);
+        var up = HemisphereUp.AwayFrom(Below);
 
         up.HasValue.Should().BeTrue();
         up.TryGetValue(out UpAwayFrom away).Should().BeTrue();
         away.Center.Should().Be(Below);
-        (up is UpAwayFrom { Center: var center } ? center : default).Should()
+        (up is UpAwayFrom { Center: var center } ? center : default)
+            .Should()
             .Be(Below, "a pattern match reads the same case");
     }
 
@@ -52,22 +54,29 @@ public sealed class HemisphereUpTests
     [Fact]
     public void AnUpAlongADirectionHasNoCenter()
     {
-        HemisphereUp up = HemisphereUp.Along(Sideways);
+        var up = HemisphereUp.Along(Sideways);
 
         up.TryGetValue(out UpAwayFrom away).Should().BeFalse();
-        away.Should().Be(default(UpAwayFrom),
-            "the view of the other case is empty, so the direction does not leak out as a center");
+        away.Should()
+            .Be(
+                default(UpAwayFrom),
+                "the view of the other case is empty, so the direction does not leak out as a center"
+            );
         (up is UpAwayFrom).Should().BeFalse();
     }
 
     [Fact]
     public void AnUpAwayFromACenterHasNoDirection()
     {
-        HemisphereUp up = HemisphereUp.AwayFrom(Below);
+        var up = HemisphereUp.AwayFrom(Below);
 
         up.TryGetValue(out UpAlong along).Should().BeFalse();
-        along.Should().Be(default(UpAlong),
-            "the view of the other case is empty, so the center does not leak out as a direction");
+        along
+            .Should()
+            .Be(
+                default(UpAlong),
+                "the view of the other case is empty, so the center does not leak out as a direction"
+            );
         (up is UpAlong).Should().BeFalse();
     }
 
@@ -82,7 +91,8 @@ public sealed class HemisphereUpTests
         along.Should().Be(default(UpAlong));
         away.Should().Be(default(UpAwayFrom));
         even.Value.Should().BeNull();
-        (even == default).Should()
+        (even == default)
+            .Should()
             .BeTrue("the even up is the all-zero default, so an instance made without an up has none");
     }
 
@@ -90,7 +100,9 @@ public sealed class HemisphereUpTests
     public void AnUpOfTheZeroVectorIsStillAnUpAndNotTheEvenUp()
     {
         HemisphereUp.Along(Vector3.Zero).HasValue.Should().BeTrue();
-        HemisphereUp.AwayFrom(Vector3.Zero).HasValue.Should()
+        HemisphereUp
+            .AwayFrom(Vector3.Zero)
+            .HasValue.Should()
             .BeTrue("a planet's own center is exactly zero from the planet");
         (HemisphereUp.Along(Vector3.Zero) == HemisphereUp.Even).Should().BeFalse();
         (HemisphereUp.AwayFrom(Vector3.Zero) == HemisphereUp.Even).Should().BeFalse();
@@ -99,8 +111,8 @@ public sealed class HemisphereUpTests
     [Fact]
     public void TheSameVectorAsADirectionAndAsACenterIsTwoDifferentUps()
     {
-        HemisphereUp along = HemisphereUp.Along(Sideways);
-        HemisphereUp away = HemisphereUp.AwayFrom(Sideways);
+        var along = HemisphereUp.Along(Sideways);
+        var away = HemisphereUp.AwayFrom(Sideways);
 
         (along == away).Should().BeFalse();
         (along != away).Should().BeTrue();
@@ -156,12 +168,13 @@ public sealed class HemisphereUpTests
     [Fact]
     public void ASwitchOverTheCasesTellsThemApart()
     {
-        static string Describe(HemisphereUp up) => up switch
-        {
-            UpAlong { Direction: var direction } => $"along {direction.X}",
-            UpAwayFrom { Center: var center } => $"away from {center.Y}",
-            null => "even"
-        };
+        static string Describe(HemisphereUp up) =>
+            up switch
+            {
+                UpAlong { Direction: var direction } => $"along {direction.X}",
+                UpAwayFrom { Center: var center } => $"away from {center.Y}",
+                null => "even",
+            };
 
         Describe(HemisphereUp.Along(Sideways)).Should().Be("along 1");
         Describe(HemisphereUp.AwayFrom(Below)).Should().Be("away from -50");
@@ -169,11 +182,9 @@ public sealed class HemisphereUpTests
     }
 
     [Fact]
-    public void AnUpTakesSixteenBytesBecauseEveryRenderInstanceCarriesOne()
-    {
+    public void AnUpTakesSixteenBytesBecauseEveryRenderInstanceCarriesOne() =>
         // One vector and a tag. Two vectors, one for each case, would make it 28 bytes for each of 20,000 instances.
         Unsafe.SizeOf<HemisphereUp>().Should().Be(16);
-    }
 
     [Fact]
     public void NoPublicMemberOfTheUnionExposesTheVectorOfOneCase()
@@ -184,10 +195,15 @@ public sealed class HemisphereUpTests
         Type union = typeof(HemisphereUp);
 
         union.GetFields(publicInstance).Should().BeEmpty();
-        union.GetProperties(publicInstance).Select(property => property.PropertyType).Should()
+        union
+            .GetProperties(publicInstance)
+            .Select(property => property.PropertyType)
+            .Should()
             .OnlyContain(type => type == typeof(bool) || type == typeof(object));
-        union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
-            .Should().BeEquivalentTo([typeof(UpAlong), typeof(UpAwayFrom)],
-                "an up is made from one case and nothing else");
+        union
+            .GetConstructors()
+            .Select(constructor => constructor.GetParameters().Single().ParameterType)
+            .Should()
+            .BeEquivalentTo([typeof(UpAlong), typeof(UpAwayFrom)], "an up is made from one case and nothing else");
     }
 }

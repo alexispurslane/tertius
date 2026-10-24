@@ -36,7 +36,8 @@ public readonly record struct SpotRenderLight(
     float Intensity,
     float Range,
     float InnerConeAngle,
-    float OuterConeAngle);
+    float OuterConeAngle
+);
 
 /// <summary>
 /// One dynamic light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/> or a

@@ -133,7 +133,8 @@ public sealed partial class FrameTree
         Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull && stepPlan[id].HasValue);
         MotionSample landing = stepPlan[id].GetValueOrDefault();
         ref DPose local = ref LocalForWrite(Node(following));
-        Double3 offset = landing.Pose.Position - local.Position, change = landing.ChordVelocity - linearVelocity[id];
+        Double3 offset = landing.Pose.Position - local.Position,
+            change = landing.ChordVelocity - linearVelocity[id];
         local = new(landing.Pose.Position, DQuaternion.Identity);
         LinearVelocityForWrite(id) = landing.ChordVelocity;
         shiftChildren.Clear();
@@ -210,7 +211,9 @@ public sealed partial class FrameTree
         Contract.Requires(frame.IsNull || (!IsNumeric(frame) && !InFollowingFrame(frame)));
         FrameHandle semantic = body.Semantic;
         DPose local = default;
-        Double3 position = body.Position, velocity = body.Velocity, properAccelerationOut = Double3.Zero;
+        Double3 position = body.Position,
+            velocity = body.Velocity,
+            properAccelerationOut = Double3.Zero;
         if (!frame.IsNull)
         {
             FrameHandle treeParent = TreeParent(frame);
@@ -229,13 +232,17 @@ public sealed partial class FrameTree
             // The rule reads the parent's rotation terms at the place where the step started, with the Coriolis term on the
             // chord. The row keeps the instant velocity, which is the chord to half a step of the acceleration.
             Double3 start = position - velocity * step;
-            acceleration += semanticTurns.Centrifugal(start) + semanticTurns.Euler(start, step) +
-                            semanticTurns.Coriolis(velocity);
+            acceleration +=
+                semanticTurns.Centrifugal(start) + semanticTurns.Euler(start, step) + semanticTurns.Coriolis(velocity);
         }
 
         Double3 chord = velocity - acceleration * (step / 2);
-        FrameHandle following = CreateNumeric(parent: semantic, position: position, velocity: chord,
-            mode: NumericMode.Following);
+        FrameHandle following = CreateNumeric(
+            parent: semantic,
+            position: position,
+            velocity: chord,
+            mode: NumericMode.Following
+        );
         anchor[following.Index] = body.Entity;
         if (!frame.IsNull)
         {
@@ -272,7 +279,8 @@ public sealed partial class FrameTree
     /// <summary>The bodies of one semantic frame that the merge test links, as a range of the sorted bodies.</summary>
     private struct BodyGroup
     {
-        public int Start, End;
+        public int Start,
+            End;
         public NumericGroup Motion;
 
         /// <summary>The mode that the group's frame gets, or None for the semantic frame's own system.</summary>
@@ -355,8 +363,13 @@ public sealed partial class FrameTree
     /// frame with each place of a ghost there, and finds the bodies behind the places among the bodies of the semantic
     /// parent, children and siblings in the input.
     /// </remarks>
-    internal void UpdateNumericFrames(ReadOnlySpan<NumericBody> bodies, double dt, double step, PhysicsChanges changes,
-        Action<List<NumericMove>> applyMoves)
+    internal void UpdateNumericFrames(
+        ReadOnlySpan<NumericBody> bodies,
+        double dt,
+        double step,
+        PhysicsChanges changes,
+        Action<List<NumericMove>> applyMoves
+    )
     {
         Contract.Requires(dt >= 0 && step > 0);
         DropLostAnchors(bodies);
@@ -365,12 +378,19 @@ public sealed partial class FrameTree
         anchorGhosts.Clear();
         nextLeaveClocks.Clear();
         semanticRanges.Clear();
-        for (int start = 0; start < sortedBodies.Count;)
+        for (int start = 0; start < sortedBodies.Count; )
         {
             int end = start + 1;
             while (end < sortedBodies.Count && sortedBodies[end].Semantic == sortedBodies[start].Semantic)
                 end++;
-            semanticRanges.Add(new() { Frame = sortedBodies[start].Semantic, Start = start, End = end });
+            semanticRanges.Add(
+                new()
+                {
+                    Frame = sortedBodies[start].Semantic,
+                    Start = start,
+                    End = end,
+                }
+            );
             start = end;
         }
 
@@ -446,13 +466,20 @@ public sealed partial class FrameTree
             NumericMode homeMode = body.Home == body.Semantic ? NumericMode.None : numeric[body.Home.Index];
             bool anchorsHome = homeMode == NumericMode.Following && anchor[body.Home.Index] == body.Entity;
             bool thrusts = Thrusts(body, dt);
-            sortedBodies.Add(homeMode == body.HomeMode && anchorsHome == body.AnchorsHome && thrusts == body.Thrusts &&
-                             !body.MayTouchFixedGhost
-                ? body
-                : body with
-                {
-                    HomeMode = homeMode, AnchorsHome = anchorsHome, Thrusts = thrusts, MayTouchFixedGhost = false
-                });
+            sortedBodies.Add(
+                homeMode == body.HomeMode
+                && anchorsHome == body.AnchorsHome
+                && thrusts == body.Thrusts
+                && !body.MayTouchFixedGhost
+                    ? body
+                    : body with
+                    {
+                        HomeMode = homeMode,
+                        AnchorsHome = anchorsHome,
+                        Thrusts = thrusts,
+                        MayTouchFixedGhost = false,
+                    }
+            );
         }
 
         (thrustClocks, nextThrustClocks) = (nextThrustClocks, thrustClocks);
@@ -471,10 +498,13 @@ public sealed partial class FrameTree
         if (body.Static)
             return false;
         thrustClocks.TryGetValue(body.Entity, out (double ThrustTime, double QuietTime) clock);
-        (bool thrusts, double thrustTime, double quietTime) =
-            NumericFrameRules.ThrustClock(acceleration: body.ThrustAcceleration, thrustTime: clock.ThrustTime,
-                quietTime: clock.QuietTime, dt: dt,
-                options: NumericOptions);
+        (bool thrusts, double thrustTime, double quietTime) = NumericFrameRules.ThrustClock(
+            acceleration: body.ThrustAcceleration,
+            thrustTime: clock.ThrustTime,
+            quietTime: clock.QuietTime,
+            dt: dt,
+            options: NumericOptions
+        );
         if (thrustTime > 0)
             nextThrustClocks[body.Entity] = (thrustTime, quietTime);
         return body.Character || thrusts;
@@ -546,8 +576,12 @@ public sealed partial class FrameTree
     private bool MayTouch(in NumericBody a, in NumericBody b)
     {
         Double3 between = a.Home == b.Home ? Double3.Zero : Relative(b.Home, a.Home).Position;
-        return NumericFrameRules.MayTouch(a: a, b: b, separation: between + b.HomePosition - a.HomePosition,
-            options: NumericOptions);
+        return NumericFrameRules.MayTouch(
+            a: a,
+            b: b,
+            separation: between + b.HomePosition - a.HomePosition,
+            options: NumericOptions
+        );
     }
 
     /// <summary>
@@ -559,8 +593,11 @@ public sealed partial class FrameTree
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         numericHomes.Clear();
         for (int i = start; i < end; i++)
-            if (!NumericFrameRules.IsAnchor(bodies[i], NumericOptions) && bodies[i].Home != bodies[i].Semantic &&
-                !numericHomes.Contains(bodies[i].Home))
+            if (
+                !NumericFrameRules.IsAnchor(bodies[i], NumericOptions)
+                && bodies[i].Home != bodies[i].Semantic
+                && !numericHomes.Contains(bodies[i].Home)
+            )
                 numericHomes.Add(bodies[i].Home);
         foreach (FrameHandle frame in numericHomes)
         {
@@ -577,8 +614,12 @@ public sealed partial class FrameTree
             }
 
             int id = Node(frame).Id;
-            (bool hold, apartTime[id]) = NumericFrameRules.SplitClock(together: together, apart: apartTime[id], dt: dt,
-                options: NumericOptions);
+            (bool hold, apartTime[id]) = NumericFrameRules.SplitClock(
+                together: together,
+                apart: apartTime[id],
+                dt: dt,
+                options: NumericOptions
+            );
             if (!hold)
                 continue;
             for (int i = first + 1; i < end; i++)
@@ -701,7 +742,8 @@ public sealed partial class FrameTree
         // The hull and the child's motion, which the first body that can stick out looks up for all of them.
         bool prepared = false;
         int hull = -1;
-        Double3 velocity = default, spin = default;
+        Double3 velocity = default,
+            spin = default;
         foreach (ref readonly NumericBody body in members)
         {
             if (!NumericFrameRules.MayStickOut(bubble, body, NumericOptions))
@@ -716,11 +758,24 @@ public sealed partial class FrameTree
                 prepared = true;
             }
 
-            ghostPlaces.Add(new(Home: home, HomePosition: pose.TransformPoint(body.Position),
-                Velocity: VelocityToParent(pose: pose, velocity: velocity, angular: spin,
-                    positionInFrame: body.Position, velocityInFrame: body.Velocity), Radius: body.Radius, Target: hull,
-                OfStaticBody: body.Static,
-                Sensor: body.Sensor, MeetsHulls: false));
+            ghostPlaces.Add(
+                new(
+                    Home: home,
+                    HomePosition: pose.TransformPoint(body.Position),
+                    Velocity: VelocityToParent(
+                        pose: pose,
+                        velocity: velocity,
+                        angular: spin,
+                        positionInFrame: body.Position,
+                        velocityInFrame: body.Velocity
+                    ),
+                    Radius: body.Radius,
+                    Target: hull,
+                    OfStaticBody: body.Static,
+                    Sensor: body.Sensor,
+                    MeetsHulls: false
+                )
+            );
         }
     }
 
@@ -741,32 +796,60 @@ public sealed partial class FrameTree
     {
         FrameBounds bubble = Bounds(semantic);
         DPose pose = LocalPose(semantic);
-        Double3 velocity = LinearVelocity(semantic), spin = AngularVelocity(semantic);
-        double spinRate = spin.Length, center = pose.Position.Length;
+        Double3 velocity = LinearVelocity(semantic),
+            spin = AngularVelocity(semantic);
+        double spinRate = spin.Length,
+            center = pose.Position.Length;
         foreach (ref readonly NumericBody body in members)
         {
             // An interior is static and fixed, and it owns no frame.
             if (body.OwnedFrame == semantic || (body.Static && body.Fixed && body.OwnedFrame.IsNull))
                 continue;
-            double reach = (body.OwnedFrame.IsNull
-                               ? body.Radius
-                               : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius)) +
-                           (body.GhostsReachContent ? excess : 0);
+            double reach =
+                (body.OwnedFrame.IsNull ? body.Radius : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius))
+                + (body.GhostsReachContent ? excess : 0);
             // The rounding scales with the distances of the body and the center from the semantic parent's origin. The body's is
             // at most the center's plus the distance between them.
             double distance = (body.Position - pose.Position).Length;
-            if (!NumericFrameRules.MayReachBubble(distance: distance, reach: bubble.MaxRadius + reach,
+            if (
+                !NumericFrameRules.MayReachBubble(
+                    distance: distance,
+                    reach: bubble.MaxRadius + reach,
                     speedBound: (body.Velocity - velocity).Length + spinRate * distance,
-                    scale: 2 * center + distance, options: NumericOptions))
+                    scale: 2 * center + distance,
+                    options: NumericOptions
+                )
+            )
                 continue;
             Double3 position = pose.InverseTransformPoint(body.Position);
-            Double3 relative = VelocityFromParent(pose: pose, velocity: velocity, angular: spin,
-                positionInParent: body.Position, velocityInParent: body.Velocity);
-            if (NumericFrameRules.MayTouchBubble(bubble: bubble, position: position, velocity: relative, reach: reach,
-                    options: NumericOptions))
-                ghostPlaces.Add(new(Home: semantic, HomePosition: position, Velocity: relative, Radius: body.Radius,
-                    Target: -1, OfStaticBody: body.Static, Sensor: body.Sensor,
-                    MeetsHulls: body.GhostsMeetHulls));
+            Double3 relative = VelocityFromParent(
+                pose: pose,
+                velocity: velocity,
+                angular: spin,
+                positionInParent: body.Position,
+                velocityInParent: body.Velocity
+            );
+            if (
+                NumericFrameRules.MayTouchBubble(
+                    bubble: bubble,
+                    position: position,
+                    velocity: relative,
+                    reach: reach,
+                    options: NumericOptions
+                )
+            )
+                ghostPlaces.Add(
+                    new(
+                        Home: semantic,
+                        HomePosition: position,
+                        Velocity: relative,
+                        Radius: body.Radius,
+                        Target: -1,
+                        OfStaticBody: body.Static,
+                        Sensor: body.Sensor,
+                        MeetsHulls: body.GhostsMeetHulls
+                    )
+                );
         }
     }
 
@@ -788,38 +871,76 @@ public sealed partial class FrameTree
             Bound(ref sibling);
         if (sibling.Farthest < 0)
             return;
-        FrameBounds own = Bounds(sibling.Frame), bubble = Bounds(semantic);
-        DPose siblingPose = LocalPose(sibling.Frame), pose = LocalPose(semantic);
-        Double3 siblingVelocity = LinearVelocity(sibling.Frame), siblingSpin = AngularVelocity(sibling.Frame);
-        Double3 velocity = LinearVelocity(semantic), spin = AngularVelocity(semantic);
+        FrameBounds own = Bounds(sibling.Frame),
+            bubble = Bounds(semantic);
+        DPose siblingPose = LocalPose(sibling.Frame),
+            pose = LocalPose(semantic);
+        Double3 siblingVelocity = LinearVelocity(sibling.Frame),
+            siblingSpin = AngularVelocity(sibling.Frame);
+        Double3 velocity = LinearVelocity(semantic),
+            spin = AngularVelocity(semantic);
         // A body of the sibling moves relative to the bubble's frame at most at its own speed, plus the speed that the
         // sibling's spin gives it, plus the sibling's speed relative to the frame, plus the speed that the frame's spin gives
         // it. The frame's spin gives a body more speed the farther it is from the frame's center. A body beyond the sibling's
         // center gets more of that speed, but it is also that much farther from the bubble, so the spin at the distance of
         // the two centers is enough for the test.
         double distance = (siblingPose.Position - pose.Position).Length;
-        double speedBound = sibling.Fastest + siblingSpin.Length * sibling.Farthest +
-                            (siblingVelocity - velocity).Length + spin.Length * distance;
-        if (!NumericFrameRules.MayReachBubble(distance: distance, reach: bubble.MaxRadius + excess + sibling.Extent,
+        double speedBound =
+            sibling.Fastest
+            + siblingSpin.Length * sibling.Farthest
+            + (siblingVelocity - velocity).Length
+            + spin.Length * distance;
+        if (
+            !NumericFrameRules.MayReachBubble(
+                distance: distance,
+                reach: bubble.MaxRadius + excess + sibling.Extent,
                 speedBound: speedBound,
-                scale: siblingPose.Position.Length + pose.Position.Length + sibling.Farthest, options: NumericOptions))
+                scale: siblingPose.Position.Length + pose.Position.Length + sibling.Farthest,
+                options: NumericOptions
+            )
+        )
             return;
         foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[sibling.Start..sibling.End])
         {
             if (!NumericFrameRules.MayStickOut(own, body, NumericOptions))
                 continue;
             Double3 inParent = siblingPose.TransformPoint(body.Position);
-            Double3 velocityInParent =
-                VelocityToParent(pose: siblingPose, velocity: siblingVelocity, angular: siblingSpin,
-                    positionInFrame: body.Position, velocityInFrame: body.Velocity);
+            Double3 velocityInParent = VelocityToParent(
+                pose: siblingPose,
+                velocity: siblingVelocity,
+                angular: siblingSpin,
+                positionInFrame: body.Position,
+                velocityInFrame: body.Velocity
+            );
             Double3 position = pose.InverseTransformPoint(inParent);
-            Double3 relative = VelocityFromParent(pose: pose, velocity: velocity, angular: spin,
-                positionInParent: inParent, velocityInParent: velocityInParent);
-            if (NumericFrameRules.MayTouchBubble(bubble: bubble, position: position, velocity: relative,
-                    reach: body.Radius + (body.GhostsReachContent ? excess : 0), options: NumericOptions))
-                ghostPlaces.Add(new(Home: semantic, HomePosition: position, Velocity: relative, Radius: body.Radius,
-                    Target: -1, OfStaticBody: body.Static, Sensor: body.Sensor,
-                    MeetsHulls: body.GhostsMeetHulls));
+            Double3 relative = VelocityFromParent(
+                pose: pose,
+                velocity: velocity,
+                angular: spin,
+                positionInParent: inParent,
+                velocityInParent: velocityInParent
+            );
+            if (
+                NumericFrameRules.MayTouchBubble(
+                    bubble: bubble,
+                    position: position,
+                    velocity: relative,
+                    reach: body.Radius + (body.GhostsReachContent ? excess : 0),
+                    options: NumericOptions
+                )
+            )
+                ghostPlaces.Add(
+                    new(
+                        Home: semantic,
+                        HomePosition: position,
+                        Velocity: relative,
+                        Radius: body.Radius,
+                        Target: -1,
+                        OfStaticBody: body.Static,
+                        Sensor: body.Sensor,
+                        MeetsHulls: body.GhostsMeetHulls
+                    )
+                );
         }
     }
 
@@ -829,7 +950,9 @@ public sealed partial class FrameTree
     /// </summary>
     private void Bound(ref SemanticRange range)
     {
-        double farthest = -1, extent = -1, fastest = 0;
+        double farthest = -1,
+            extent = -1,
+            fastest = 0;
         foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[range.Start..range.End])
         {
             if (body.Static)
@@ -877,9 +1000,12 @@ public sealed partial class FrameTree
     private bool MayTouch(in NumericBody body, in GhostPlace place)
     {
         Double3 between = body.Home == place.Home ? Double3.Zero : Relative(place.Home, body.Home).Position;
-        return NumericFrameRules.MayTouch(body: body, place: place,
+        return NumericFrameRules.MayTouch(
+            body: body,
+            place: place,
             separation: between + place.HomePosition - body.HomePosition,
-            options: NumericOptions);
+            options: NumericOptions
+        );
     }
 
     /// <summary>
@@ -929,8 +1055,9 @@ public sealed partial class FrameTree
             // A body that lives in a following frame of its own and that its group does not follow there stays apart: its
             // motion intents move it, so no group can take it into another home.
             for (int i = group.Start; i < group.End; i++)
-                apart[i] = NumericFrameRules.FollowsInFrame(bodies[i], NumericOptions) &&
-                           !(group.Motion.Follows && i - group.Start == group.Motion.Anchor);
+                apart[i] =
+                    NumericFrameRules.FollowsInFrame(bodies[i], NumericOptions)
+                    && !(group.Motion.Follows && i - group.Start == group.Motion.Anchor);
         }
     }
 
@@ -949,18 +1076,29 @@ public sealed partial class FrameTree
             NumericMode wanted = group.Mode;
             bool hold = false;
             foreach (ref readonly NumericBody body in members)
-                if (!NumericFrameRules.IsAnchor(body, NumericOptions) &&
-                    leaveClocks.TryGetValue(body.Entity, out double apart))
-                    hold |= NumericFrameRules.LeaveClock(mode: wanted, frame: group.Motion.Frame, apart: apart, dt: dt,
-                        options: NumericOptions).Hold;
+                if (
+                    !NumericFrameRules.IsAnchor(body, NumericOptions)
+                    && leaveClocks.TryGetValue(body.Entity, out double apart)
+                )
+                    hold |= NumericFrameRules
+                        .LeaveClock(
+                            mode: wanted,
+                            frame: group.Motion.Frame,
+                            apart: apart,
+                            dt: dt,
+                            options: NumericOptions
+                        )
+                        .Hold;
             if (hold)
                 group.Mode = NumericMode.None;
             if (group.Mode != NumericMode.None)
                 continue;
             foreach (ref readonly NumericBody body in members)
             {
-                if (NumericFrameRules.IsAnchor(body, NumericOptions) ||
-                    NumericFrameRules.BodyMode(body, NumericOptions) == NumericMode.None)
+                if (
+                    NumericFrameRules.IsAnchor(body, NumericOptions)
+                    || NumericFrameRules.BodyMode(body, NumericOptions) == NumericMode.None
+                )
                     continue;
                 leaveClocks.TryGetValue(body.Entity, out double apart);
                 nextLeaveClocks[body.Entity] = NumericFrameRules
@@ -1006,9 +1144,13 @@ public sealed partial class FrameTree
         // The frame's origin in the semantic frame, where the group's center is. A nesting frame between them does not move.
         Double3 position = HomeOffset(frame, sortedBodies[group.Start].Semantic);
         Double3 velocity = linearVelocity[Node(frame).Id];
-        Double3 newVelocity =
-            NumericFrameRules.DrainVelocity(frameMode: mode, groupMode: group.Mode, frameVelocity: velocity,
-                groupVelocity: group.Motion.Velocity, options: NumericOptions);
+        Double3 newVelocity = NumericFrameRules.DrainVelocity(
+            frameMode: mode,
+            groupMode: group.Mode,
+            frameVelocity: velocity,
+            groupVelocity: group.Motion.Velocity,
+            options: NumericOptions
+        );
         Double3 newPosition = NumericFrameRules.Origin(position, group.Motion.Center, NumericOptions);
         if (group.Mode == NumericMode.Falling && mode == NumericMode.Resting)
             SetNumericMode(frame, NumericMode.Falling);
@@ -1054,9 +1196,15 @@ public sealed partial class FrameTree
         if (home.IsNull)
         {
             Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Velocity : Double3.Zero;
-            home = group.Mode == NumericMode.Following
-                ? CreateFollowingFrame(members[group.Motion.Anchor], step)
-                : CreateNumeric(parent: semantic, position: group.Motion.Center, velocity: velocity, mode: group.Mode);
+            home =
+                group.Mode == NumericMode.Following
+                    ? CreateFollowingFrame(members[group.Motion.Anchor], step)
+                    : CreateNumeric(
+                        parent: semantic,
+                        position: group.Motion.Center,
+                        velocity: velocity,
+                        mode: group.Mode
+                    );
             changes.FramesCreated.Add(home);
         }
 
@@ -1066,8 +1214,9 @@ public sealed partial class FrameTree
             if (apart[group.Start + i] || body.Home == home)
                 continue;
             // A static hull, or a kinematic hull without a following frame, lives in its semantic frame's own system.
-            Contract.Assert(!body.Fixed || home == semantic ||
-                            (group.Mode == NumericMode.Following && i == group.Motion.Anchor));
+            Contract.Assert(
+                !body.Fixed || home == semantic || (group.Mode == NumericMode.Following && i == group.Motion.Anchor)
+            );
             MoveBody(ref body, home);
         }
     }
@@ -1154,13 +1303,20 @@ public sealed partial class FrameTree
         foreach (FrameHandle child in frameChildren)
             if (child != parent && Numeric(child) == NumericMode.Nesting)
                 nestPlaces.Add((child, TreeLocalPose(child).Position));
-        FrameHandle nest = NumericFrameRules.NearestNest(nests: CollectionsMarshal.AsSpan(nestPlaces),
-            parentPlace: parentPlace, position: position,
-            options: NumericOptions);
+        FrameHandle nest = NumericFrameRules.NearestNest(
+            nests: CollectionsMarshal.AsSpan(nestPlaces),
+            parentPlace: parentPlace,
+            position: position,
+            options: NumericOptions
+        );
         if (nest.IsNull)
         {
-            nest = CreateNumeric(parent: semantic, position: parentPlace + step, velocity: Double3.Zero,
-                mode: NumericMode.Nesting);
+            nest = CreateNumeric(
+                parent: semantic,
+                position: parentPlace + step,
+                velocity: Double3.Zero,
+                mode: NumericMode.Nesting
+            );
             changes.FramesCreated.Add(nest);
         }
 
@@ -1231,7 +1387,8 @@ public sealed partial class FrameTree
     /// <summary>Joins the two sets under the root with the lower index, so that the result never depends on the order of the calls.</summary>
     private void Union(int a, int b)
     {
-        int ra = Find(a), rb = Find(b);
+        int ra = Find(a),
+            rb = Find(b);
         if (ra < rb)
             links[rb] = ra;
         else if (rb < ra)
@@ -1252,9 +1409,14 @@ public sealed partial class FrameTree
         Contract.Requires(!IsNumeric(parent));
         Contract.Requires(mode != NumericMode.Nesting || NumericFrameRules.OnGrid(position, NumericOptions.NestGrid));
         Node(parent);
-        FrameHandle handle = AddFrame(frameOwner: Entity.Null, parent: parent,
-            localPose: new(position, DQuaternion.Identity), frameBounds: default,
-            field: GravityField.None, mode: mode);
+        FrameHandle handle = AddFrame(
+            frameOwner: Entity.Null,
+            parent: parent,
+            localPose: new(position, DQuaternion.Identity),
+            frameBounds: default,
+            field: GravityField.None,
+            mode: mode
+        );
         LinearVelocityForWrite(handle.Index) = velocity;
         NumericCount++;
         Contract.Ensures(Numeric(handle) == mode && TreeParent(handle) == parent);
@@ -1273,8 +1435,9 @@ public sealed partial class FrameTree
         Contract.Requires(numeric[node.Id] != NumericMode.None);
         Contract.Requires(numeric[node.Id] == NumericMode.Falling || velocity == Double3.Zero);
         // A nesting frame jumps by whole grid steps only, so that it stays exact.
-        Contract.Requires(numeric[node.Id] != NumericMode.Nesting ||
-                          NumericFrameRules.OnGrid(offset, NumericOptions.NestGrid));
+        Contract.Requires(
+            numeric[node.Id] != NumericMode.Nesting || NumericFrameRules.OnGrid(offset, NumericOptions.NestGrid)
+        );
         ref DPose local = ref LocalForWrite(node);
         local = new(local.Position + offset, local.Rotation);
         LinearVelocityForWrite(node.Id) += velocity;
@@ -1298,9 +1461,12 @@ public sealed partial class FrameTree
     /// </summary>
     private void MoveUnderNest(FrameHandle frame, FrameHandle nest, Double3 position)
     {
-        PoseNode node = Node(frame), nestNode = Node(nest);
-        Contract.Requires(numeric[node.Id] is NumericMode.Falling or NumericMode.Resting &&
-                          numeric[nestNode.Id] == NumericMode.Nesting);
+        PoseNode node = Node(frame),
+            nestNode = Node(nest);
+        Contract.Requires(
+            numeric[node.Id] is NumericMode.Falling or NumericMode.Resting
+                && numeric[nestNode.Id] == NumericMode.Nesting
+        );
         Contract.Requires(SemanticOf(TreeParent(frame)) == TreeParent(nest));
         MoveNode(node, nestNode, keepWorldPose: false);
         LocalForWrite(node) = new(position, DQuaternion.Identity);
@@ -1365,8 +1531,8 @@ public sealed partial class FrameTree
             return;
         FrameHandle frame = AtDense(dense);
         FrameHandle semantic = SemanticOf(frame);
-        stepAcceleration[id] = FreeAccelerationAtOrigin(frame, semantic, step) -
-                               HomeAcceleration(TreeParent(frame), semantic);
+        stepAcceleration[id] =
+            FreeAccelerationAtOrigin(frame, semantic, step) - HomeAcceleration(TreeParent(frame), semantic);
     }
 
     /// <summary>
@@ -1389,8 +1555,8 @@ public sealed partial class FrameTree
             return field;
         // In a turning frame the field acts at the start of the step, in the axes then, and the turn of the step carries it
         // into the axes at the end, as in the update of the members (docs/plans/spin-gravity.md, "The two-turn update").
-        return semanticTurns.Step.Turn.Rotate(field) +
-               semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
+        return semanticTurns.Step.Turn.Rotate(field)
+            + semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
     }
 
     /// <summary>
@@ -1409,13 +1575,24 @@ public sealed partial class FrameTree
         FrameHandle semantic = TreeParent(following);
         uint slot = anchorEntity.Index;
         if (byOwner.TryGetValue(anchorEntity, out FrameHandle frame))
-            return StepPlanOfIntent(slot: slot, parent: semantic, standing: LocalPose(frame), stepIntents: stepIntents,
-                step: step);
-        DQuaternion rotation = slot < (uint)stepIntents.Length && stepIntents[(int)slot].Move.HasValue
-            ? stepIntents[(int)slot].Move.AimPose.Rotation
-            : DQuaternion.Identity;
-        return StepPlanOfIntent(slot: slot, parent: semantic,
-            standing: new(TreeLocalPose(following).Position, rotation), stepIntents: stepIntents, step: step);
+            return StepPlanOfIntent(
+                slot: slot,
+                parent: semantic,
+                standing: LocalPose(frame),
+                stepIntents: stepIntents,
+                step: step
+            );
+        DQuaternion rotation =
+            slot < (uint)stepIntents.Length && stepIntents[(int)slot].Move.HasValue
+                ? stepIntents[(int)slot].Move.AimPose.Rotation
+                : DQuaternion.Identity;
+        return StepPlanOfIntent(
+            slot: slot,
+            parent: semantic,
+            standing: new(TreeLocalPose(following).Position, rotation),
+            stepIntents: stepIntents,
+            step: step
+        );
     }
 
     /// <summary>
@@ -1427,16 +1604,22 @@ public sealed partial class FrameTree
     /// "Following frames", ticket ter-zsku). A steer target, which a kinematic body refuses and physics ignores, gives the
     /// same record.
     /// </summary>
-    private static MotionSample StepPlanOfIntent(uint slot, FrameHandle parent, in DPose standing,
-        ReadOnlySpan<PhysicsIntent> stepIntents, double step)
+    private static MotionSample StepPlanOfIntent(
+        uint slot,
+        FrameHandle parent,
+        in DPose standing,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step
+    )
     {
         if (slot >= (uint)stepIntents.Length)
             return default(PhysicsIntent).StepRecordOrStill(standing, step);
         ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
         // The World converts every intent into its entity's frame at step 7b, the anchor's semantic frame, for a motion intent
         // and a teleport alike. The assertion takes no message of its own, which a Debug build would build in every step.
-        Contract.Assert(intent.Frame == parent ||
-                        (!intent.Move.HasValue && (intent.Flags & IntentFlags.Teleport) == 0));
+        Contract.Assert(
+            intent.Frame == parent || (!intent.Move.HasValue && (intent.Flags & IntentFlags.Teleport) == 0)
+        );
         return intent.StepRecordOrStill(standing, step);
     }
 
@@ -1450,19 +1633,34 @@ public sealed partial class FrameTree
     /// Step 2 derives the record of a frame without a hull by the same rule (see <see cref="StepRecordOfIntent"/>), so the
     /// record that physics predicts for such a frame and the one that the frame takes agree to the last bit.
     /// </summary>
-    internal bool StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step,
-        out MotionSample record) =>
-        StepRecordOfIntent(slot: frame.Entity.Index, parent: Parent(frame), standing: LocalPose(frame),
-            stepIntents: stepIntents, step: step, record: out record);
+    internal bool StepRecordInStep(
+        FrameHandle frame,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step,
+        out MotionSample record
+    ) =>
+        StepRecordOfIntent(
+            slot: frame.Entity.Index,
+            parent: Parent(frame),
+            standing: LocalPose(frame),
+            stepIntents: stepIntents,
+            step: step,
+            record: out record
+        );
 
     /// <summary>
     /// The rule of <see cref="StepRecordInStep"/>, for a frame whose owner has the slot <paramref name="slot"/>, whose
     /// semantic parent is <paramref name="parent"/>, and which stands at <paramref name="standing"/> in that parent where the
     /// step starts. Step 2 calls it for a frame without a hull (see <see cref="TakeStepRecords"/>).
     /// </summary>
-    private static bool StepRecordOfIntent(uint slot, FrameHandle parent, in DPose standing,
+    private static bool StepRecordOfIntent(
+        uint slot,
+        FrameHandle parent,
+        in DPose standing,
         ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step, out MotionSample record)
+        double step,
+        out MotionSample record
+    )
     {
         if (slot >= (uint)stepIntents.Length || !stepIntents[(int)slot].Move.HasValue)
         {

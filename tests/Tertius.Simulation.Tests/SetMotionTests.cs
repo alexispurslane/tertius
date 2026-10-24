@@ -16,24 +16,34 @@ namespace Tertius.Simulation.Tests;
 public sealed class SetMotionTests
 {
     /// <summary>A triangle mesh. Jolt never moves a mesh, so a hull of this shape can only be static.</summary>
-    private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
-        [0, 2, 1, 0, 3, 2]);
+    private static readonly MeshShapeDesc Ramp = new(
+        [new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],
+        [0, 2, 1, 0, 3, 2]
+    );
 
     /// <summary>A box of 1000 kg with sides of 4 m, which can take every motion of a hull.</summary>
     private static readonly BodyDesc ShipBody = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000);
 
     /// <summary>A frame 100 m along +X in the root, whose owner has the hull <paramref name="body"/> with
     /// <paramref name="motion"/>.</summary>
-    private static FrameHandle SpawnHull(TestWorld test, BodyMotion motion, BodyDesc body,
-        params IComponent[] components) =>
-        test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Body = body with { Motion = motion },
-            Components = components
-        }));
+    private static FrameHandle SpawnHull(
+        TestWorld test,
+        BodyMotion motion,
+        BodyDesc body,
+        params IComponent[] components
+    ) =>
+        test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(100),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Body = body with { Motion = motion },
+                    Components = components,
+                }
+            )
+        );
 
     /// <summary>
     /// Runs one tick in which a component of <paramref name="entity"/> calls <c>SetMotion(motion)</c>. Returns what the call
@@ -43,20 +53,25 @@ public sealed class SetMotionTests
     {
         Exception? caught = null;
         bool done = false;
-        test.World.AddComponent(entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (done)
-                return;
-            done = true;
-            try
-            {
-                self.Body.SetMotion(motion);
-            }
-            catch (Exception ex)
-            {
-                caught = ex;
-            }
-        }));
+        test.World.AddComponent(
+            entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (done)
+                        return;
+                    done = true;
+                    try
+                    {
+                        self.Body.SetMotion(motion);
+                    }
+                    catch (Exception ex)
+                    {
+                        caught = ex;
+                    }
+                }
+            )
+        );
         test.Run(1);
         return caught;
     }
@@ -89,55 +104,68 @@ public sealed class SetMotionTests
     [Fact]
     public void AChangeOfMotionShowsInTheTreeAndTheBodyFactsAtTheSyncPointAfterTheStepThatAppliesIt()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
         var seen = new List<(BodyMotion? Tree, BodyMotion Facts)>();
-        test.World.AddComponent(ship.Entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (seen.Count == 0)
-                self.Body.SetMotion(BodyMotion.Static);
-            self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
-            seen.Add((self.Snapshot.Frames.HullMotion(ship), facts.Motion));
-        }));
+        test.World.AddComponent(
+            ship.Entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (seen.Count == 0)
+                        self.Body.SetMotion(BodyMotion.Static);
+                    self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
+                    seen.Add((self.Snapshot.Frames.HullMotion(ship), facts.Motion));
+                }
+            )
+        );
 
         test.Run(1);
 
-        seen.Should().Equal([(BodyMotion.Dynamic, BodyMotion.Dynamic)],
-            "tick 1 runs beside step 1, which has the old motion");
+        seen.Should()
+            .Equal([(BodyMotion.Dynamic, BodyMotion.Dynamic)], "tick 1 runs beside step 1, which has the old motion");
         test.World.Frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic, "step 1 finished with the old motion");
         FactsMotion(test, ship.Entity).Should().Be(BodyMotion.Dynamic);
 
         test.Run(1);
 
-        seen[^1].Should().Be((BodyMotion.Dynamic, BodyMotion.Dynamic),
-            "tick 2 runs beside step 2, which has not finished");
-        test.World.Frames.HullMotion(ship).Should().Be(BodyMotion.Static,
-            "step 4 of the sync point after step 2 took the change that step 2 applied");
+        seen[^1]
+            .Should()
+            .Be((BodyMotion.Dynamic, BodyMotion.Dynamic), "tick 2 runs beside step 2, which has not finished");
+        test.World.Frames.HullMotion(ship)
+            .Should()
+            .Be(BodyMotion.Static, "step 4 of the sync point after step 2 took the change that step 2 applied");
         FactsMotion(test, ship.Entity).Should().Be(BodyMotion.Static);
 
         test.Run(1);
 
-        seen[^1].Should().Be((BodyMotion.Static, BodyMotion.Static),
-            "tick 3 reads the state of step 2, the last finished step");
+        seen[^1]
+            .Should()
+            .Be((BodyMotion.Static, BodyMotion.Static), "tick 3 reads the state of step 2, the last finished step");
         test.World.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void TheLastChangeOfMotionInATickWins()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
         bool done = false;
-        test.World.AddComponent(ship.Entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (done)
-                return;
-            done = true;
-            self.Body.SetMotion(BodyMotion.Static);
-            self.Body.SetMotion(BodyMotion.Kinematic);
-        }));
+        test.World.AddComponent(
+            ship.Entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (done)
+                        return;
+                    done = true;
+                    self.Body.SetMotion(BodyMotion.Static);
+                    self.Body.SetMotion(BodyMotion.Kinematic);
+                }
+            )
+        );
 
         test.Run(2);
 
@@ -160,7 +188,8 @@ public sealed class SetMotionTests
         test.World.SetMotionNextTick(owner: ship.Entity, motion: BodyMotion.Static);
         test.Run(1);
 
-        test.World.Frames.HullMotion(ship).Should()
+        test.World.Frames.HullMotion(ship)
+            .Should()
             .Be(BodyMotion.Dynamic, "the step that applies the change has not finished");
         test.World.NextStepHullMotion(ship).Should().Be(BodyMotion.Static);
 
@@ -181,28 +210,35 @@ public sealed class SetMotionTests
     [Fact]
     public void TheNextStepMotionCountsTheChangesThatNoStepHasFinishedWith()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
         var seen = new List<(BodyMotion? Before, BodyMotion? After, BodyMotion Facts)>();
-        test.World.AddComponent(ship.Entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            BodyMotion? before = self.Body.NextStepMotion;
-            if (seen.Count == 0)
-                self.Body.SetMotion(BodyMotion.Static);
-            self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
-            seen.Add((before, self.Body.NextStepMotion, facts.Motion));
-        }));
+        test.World.AddComponent(
+            ship.Entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    BodyMotion? before = self.Body.NextStepMotion;
+                    if (seen.Count == 0)
+                        self.Body.SetMotion(BodyMotion.Static);
+                    self.Snapshot.TryGetBody(self.Entity, out BodyFacts facts);
+                    seen.Add((before, self.Body.NextStepMotion, facts.Motion));
+                }
+            )
+        );
 
         test.Run(3);
 
-        seen.Should().Equal(
-            [
-                (BodyMotion.Dynamic, BodyMotion.Static, BodyMotion.Dynamic),
-                (BodyMotion.Static, BodyMotion.Static, BodyMotion.Dynamic),
-                (BodyMotion.Static, BodyMotion.Static, BodyMotion.Static)
-            ],
-            "the tick's own change counts at once, the facts follow one sync point after the step that applies it");
+        seen.Should()
+            .Equal(
+                [
+                    (BodyMotion.Dynamic, BodyMotion.Static, BodyMotion.Dynamic),
+                    (BodyMotion.Static, BodyMotion.Static, BodyMotion.Dynamic),
+                    (BodyMotion.Static, BodyMotion.Static, BodyMotion.Static),
+                ],
+                "the tick's own change counts at once, the facts follow one sync point after the step that applies it"
+            );
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -210,21 +246,26 @@ public sealed class SetMotionTests
     public void TheNextStepMotionOfABodyThatIsNoHullIsTheMotionOfItsBody()
     {
         using var test = new TestWorld();
-        Entity crate = test.World.Spawn(new()
-            { Frame = test.Root, Body = ShipBody with { Motion = BodyMotion.Kinematic } });
+        Entity crate = test.World.Spawn(
+            new() { Frame = test.Root, Body = ShipBody with { Motion = BodyMotion.Kinematic } }
+        );
         Entity dockOwner = test.World.Spawn(new() { AsFrame = new(FrameBounds.Sphere(10)), Body = ShipBody });
         Entity marker = test.World.Spawn(new() { Frame = test.Root });
         test.Run(1);
         var seen = new Dictionary<Entity, BodyMotion?>();
         foreach (Entity entity in new[] { crate, dockOwner, marker })
-            test.World.AddComponent(entity,
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    seen[self.Entity] = self.Body.NextStepMotion));
+            test.World.AddComponent(
+                entity,
+                Lambda.OnTick(
+                    (self, scoped ref events, scoped ref outbox) => seen[self.Entity] = self.Body.NextStepMotion
+                )
+            );
 
         test.Run(1);
 
         seen[crate].Should().Be(BodyMotion.Kinematic, "a body that owns no frame has the motion of its description");
-        seen[dockOwner].Should()
+        seen[dockOwner]
+            .Should()
             .Be(BodyMotion.Static, "the owner of a root frame has only the frame's static interior");
         seen[marker].Should().BeNull("an entity without a body has no motion");
     }
@@ -242,14 +283,22 @@ public sealed class SetMotionTests
         FrameHandle ship = SpawnHull(test, from, ShipBody);
         test.Run(1);
 
-        Exception? refused = WriteInATick(test, ship.Entity, self =>
-        {
-            self.Body.SetMotion(to);
-            Write(self, write);
-        });
+        Exception? refused = WriteInATick(
+            test,
+            ship.Entity,
+            self =>
+            {
+                self.Body.SetMotion(to);
+                Write(self, write);
+            }
+        );
 
-        refused.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain(ship.ToString()).And
-            .Contain("kinematic");
+        refused
+            .Should()
+            .BeOfType<InvalidOperationException>()
+            .Which.Message.Should()
+            .Contain(ship.ToString())
+            .And.Contain("kinematic");
     }
 
     /// <summary>
@@ -259,8 +308,12 @@ public sealed class SetMotionTests
     [Theory]
     [InlineData(BodyMotion.Dynamic, BodyMotion.Kinematic, "SetVelocity", "MoveOnRails")]
     [InlineData(BodyMotion.Kinematic, BodyMotion.Dynamic, "MoveOnRails", "SetVelocity")]
-    public void TheGuardsOfTheTickAfterAChangeJudgeWritesByTheNewMotion(BodyMotion from, BodyMotion to,
-        string refusedWrite, string takenWrite)
+    public void TheGuardsOfTheTickAfterAChangeJudgeWritesByTheNewMotion(
+        BodyMotion from,
+        BodyMotion to,
+        string refusedWrite,
+        string takenWrite
+    )
     {
         using var test = new TestWorld();
         FrameHandle ship = SpawnHull(test, from, ShipBody);
@@ -270,19 +323,23 @@ public sealed class SetMotionTests
         test.World.Frames.HullMotion(ship).Should().Be(from, "the step that applies the change has not finished");
 
         Exception? taken = null;
-        Exception? refused = WriteInATick(test, ship.Entity, self =>
-        {
-            try
+        Exception? refused = WriteInATick(
+            test,
+            ship.Entity,
+            self =>
             {
-                Write(self, takenWrite);
-            }
-            catch (Exception ex)
-            {
-                taken = ex;
-            }
+                try
+                {
+                    Write(self, takenWrite);
+                }
+                catch (Exception ex)
+                {
+                    taken = ex;
+                }
 
-            Write(self, refusedWrite);
-        });
+                Write(self, refusedWrite);
+            }
+        );
 
         refused.Should().BeOfType<InvalidOperationException>(refusedWrite);
         taken.Should().BeNull(takenWrite);
@@ -297,20 +354,25 @@ public sealed class SetMotionTests
     {
         Exception? caught = null;
         bool done = false;
-        test.World.AddComponent(entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (done)
-                return;
-            done = true;
-            try
-            {
-                write(self);
-            }
-            catch (Exception ex)
-            {
-                caught = ex;
-            }
-        }));
+        test.World.AddComponent(
+            entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (done)
+                        return;
+                    done = true;
+                    try
+                    {
+                        write(self);
+                    }
+                    catch (Exception ex)
+                    {
+                        caught = ex;
+                    }
+                }
+            )
+        );
         test.Run(1);
         return caught;
     }
@@ -329,9 +391,14 @@ public sealed class SetMotionTests
     /// <summary>A component that writes the same sample in every tick: the frame stands still 100 m along +X.</summary>
     private sealed class HoldsOnRails : IComponent
     {
-        public static readonly MotionSample Sample =
-            new(Pose: TestWorld.At(100), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
+        public static readonly MotionSample Sample = new(
+            Pose: TestWorld.At(100),
+            ChordVelocity: Double3.Zero,
+            Velocity: Double3.Zero,
+            Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero
+        );
 
         public int Priority => 0;
 
@@ -362,22 +429,26 @@ public sealed class SetMotionTests
     [InlineData("end pose")]
     public void AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick(string write)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         IComponent writer = write == "full sample" ? new HoldsOnRails() : new HoldsByEndPoses();
         FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, writer);
         test.Run(2);
-        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should()
+        test.World.Entities.NextStepIntent(station.Entity)
+            .Move.HasValue.Should()
             .BeTrue("the component writes a motion intent in every tick");
 
         test.World.SetMotionNextTick(owner: station.Entity, motion: BodyMotion.Dynamic, remove: writer);
         test.Run(1);
 
         test.World.NextStepHullMotion(station).Should().Be(BodyMotion.Dynamic);
-        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should()
+        test.World.Entities.NextStepIntent(station.Entity)
+            .Move.HasValue.Should()
             .BeFalse("the next step applies no motion intent to a dynamic hull");
-        test.World.Frames.LocalPose(station).Should().Be(HoldsOnRails.Sample.Pose,
-            "the motion intent that the step of the tick applied moved the frame");
-        test.World.Frames.Followed(station).Should()
+        test.World.Frames.LocalPose(station)
+            .Should()
+            .Be(HoldsOnRails.Sample.Pose, "the motion intent that the step of the tick applied moved the frame");
+        test.World.Frames.Followed(station)
+            .Should()
             .Be(write == "full sample" ? FollowKind.Rails : FollowKind.Kinematic);
         test.World.Errors.Should().BeEmpty();
     }
@@ -391,19 +462,24 @@ public sealed class SetMotionTests
     [InlineData(BodyMotion.Static)]
     public void AHullThatTurnsKinematicOrStaticInTheTickDropsItsSteerTarget(BodyMotion to)
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
 
-        Exception? refused = WriteInATick(test, ship.Entity, self =>
-        {
-            self.Body.SteerTo(TestWorld.At(103));
-            self.Body.SetMotion(to);
-        });
+        Exception? refused = WriteInATick(
+            test,
+            ship.Entity,
+            self =>
+            {
+                self.Body.SteerTo(TestWorld.At(103));
+                self.Body.SetMotion(to);
+            }
+        );
 
         refused.Should().BeNull("the steer target came while the next step was to be dynamic");
         test.World.NextStepHullMotion(ship).Should().Be(to);
-        test.World.Entities.NextStepIntent(ship.Entity).Move.HasValue.Should()
+        test.World.Entities.NextStepIntent(ship.Entity)
+            .Move.HasValue.Should()
             .BeFalse("the next step applies no steer target to a hull that is not dynamic");
         test.World.Errors.Should().BeEmpty();
     }
@@ -424,12 +500,16 @@ public sealed class SetMotionTests
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
 
-        Exception? refused = WriteInATick(test, ship.Entity, self =>
-        {
-            self.Body.SetMotion(BodyMotion.Kinematic);
-            self.MoveOnRails(HoldsOnRails.Sample);
-            self.Body.SetMotion(BodyMotion.Dynamic);
-        });
+        Exception? refused = WriteInATick(
+            test,
+            ship.Entity,
+            self =>
+            {
+                self.Body.SetMotion(BodyMotion.Kinematic);
+                self.MoveOnRails(HoldsOnRails.Sample);
+                self.Body.SetMotion(BodyMotion.Dynamic);
+            }
+        );
 
         refused.Should().BeNull("the sample came while the next step was to be kinematic");
         HasNextSample(test, ship).Should().BeFalse("the next step applies no sample to a dynamic hull");
@@ -444,21 +524,26 @@ public sealed class SetMotionTests
     [Fact]
     public void AHullThatBecomesKinematicDropsTheVelocitySetInTheSameTick()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
         test.Run(1);
         bool done = false;
-        test.World.AddComponent(ship.Entity, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (done)
-                return;
-            done = true;
-            self.Body.SetVelocity(new(5, 0, 0));
-            self.Body.SetAngularVelocity(new(0, 1, 0));
-            self.Body.SteerTo(TestWorld.At(3));
-            self.Body.AddForce(new(10, 0, 0));
-            self.Body.SetMotion(BodyMotion.Kinematic);
-        }));
+        test.World.AddComponent(
+            ship.Entity,
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (done)
+                        return;
+                    done = true;
+                    self.Body.SetVelocity(new(5, 0, 0));
+                    self.Body.SetAngularVelocity(new(0, 1, 0));
+                    self.Body.SteerTo(TestWorld.At(3));
+                    self.Body.AddForce(new(10, 0, 0));
+                    self.Body.SetMotion(BodyMotion.Kinematic);
+                }
+            )
+        );
 
         test.Run(1);
 
@@ -466,8 +551,8 @@ public sealed class SetMotionTests
         next.Flags.Should().Be(IntentFlags.SetMotion, "the velocities went, and the change of motion stays");
         next.Move.HasValue.Should().BeFalse("the steer target went");
         next.Motion.Should().Be(BodyMotion.Kinematic);
-        next.Force.Should().Be(new Vector3(10, 0, 0),
-            "a force stays, because physics applies it only to a dynamic body");
+        next.Force.Should()
+            .Be(new Vector3(10, 0, 0), "a force stays, because physics applies it only to a dynamic body");
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -483,23 +568,26 @@ public sealed class SetMotionTests
         Entity entity = which switch
         {
             "a plain body" => test.World.Spawn(new() { Frame = test.Root, Body = ShipBody }),
-            "a root frame's owner" => test.World.Spawn(new()
-            {
-                AsFrame = new(FrameBounds.Sphere(10)),
-                Body = ShipBody
-            }),
-            _ => test.World.GetOwnedFrame(test.World.Spawn(new()
-            {
-                Frame = test.Root,
-                AsFrame = new(FrameBounds.Sphere(10))
-            })).Entity
+            "a root frame's owner" => test.World.Spawn(
+                new() { AsFrame = new(FrameBounds.Sphere(10)), Body = ShipBody }
+            ),
+            _ => test
+                .World.GetOwnedFrame(
+                    test.World.Spawn(new() { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(10)) })
+                )
+                .Entity,
         };
         test.Run(1);
 
         Exception? refused = SetMotionInATick(test, entity, BodyMotion.Static);
 
-        refused.Should().BeOfType<InvalidOperationException>(which).Which.Message.Should().Contain(entity.ToString())
-            .And.Contain("hull").And.Contain(reason);
+        refused
+            .Should()
+            .BeOfType<InvalidOperationException>(which)
+            .Which.Message.Should()
+            .Contain(entity.ToString())
+            .And.Contain("hull")
+            .And.Contain(reason);
     }
 
     [Fact]
@@ -511,8 +599,13 @@ public sealed class SetMotionTests
 
         Exception? refused = SetMotionInATick(test, dock.Entity, BodyMotion.Dynamic);
 
-        refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(dock.Entity.ToString()).And
-            .Contain(dock.ToString()).And.Contain("mass");
+        refused
+            .Should()
+            .BeOfType<ArgumentException>()
+            .Which.Message.Should()
+            .Contain(dock.Entity.ToString())
+            .And.Contain(dock.ToString())
+            .And.Contain("mass");
         ((ArgumentException)refused!).ParamName.Should().Be("motion");
         NoChangeOfMotionIsPending(test, dock, BodyMotion.Static);
     }
@@ -531,8 +624,13 @@ public sealed class SetMotionTests
 
         Exception? refused = SetMotionInATick(test, dock.Entity, motion);
 
-        refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(dock.Entity.ToString()).And
-            .Contain(dock.ToString()).And.Contain("mesh");
+        refused
+            .Should()
+            .BeOfType<ArgumentException>()
+            .Which.Message.Should()
+            .Contain(dock.Entity.ToString())
+            .And.Contain(dock.ToString())
+            .And.Contain("mesh");
         NoChangeOfMotionIsPending(test, dock, BodyMotion.Static);
     }
 
@@ -547,8 +645,12 @@ public sealed class SetMotionTests
 
         Exception? refused = SetMotionInATick(test, ship.Entity, motion);
 
-        refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(ship.Entity.ToString()).And
-            .Contain(ship.ToString());
+        refused
+            .Should()
+            .BeOfType<ArgumentException>()
+            .Which.Message.Should()
+            .Contain(ship.Entity.ToString())
+            .And.Contain(ship.ToString());
         ((ArgumentException)refused!).ParamName.Should().Be("motion");
         NoChangeOfMotionIsPending(test, ship, BodyMotion.Dynamic);
     }

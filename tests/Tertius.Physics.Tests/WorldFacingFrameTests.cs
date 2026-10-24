@@ -23,21 +23,24 @@ public sealed class WorldFacingFrameTests
 
     private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000) with
     {
-        Attitude = KeplerAttitude.FacesParent
+        Attitude = KeplerAttitude.FacesParent,
     };
 
     /// <summary>A planet with a G·M of <paramref name="mu"/> m³/s², and the station's owner on <see cref="Facing"/> round it.</summary>
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station(
-        double mu = PlanetMu)
+        double mu = PlanetMu
+    )
     {
         World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
-        Entity owner = world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(50))
-        }.OnKeplerOrbit(world, Facing));
+        Entity owner = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = planet,
+                Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
+                AsFrame = new(FrameBounds.Sphere(50)),
+            }.OnKeplerOrbit(world, Facing)
+        );
         return (world, backend, planet, owner);
     }
 
@@ -78,16 +81,27 @@ public sealed class WorldFacingFrameTests
         {
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             // Periapsis at t = 0, apoapsis at half the 31.4 s period.
-            var oval = new KeplerOrbit(SemiMajorAxis: 5000, Eccentricity: 0.3, Inclination: 0,
-                LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: 0, Epoch: 0,
-                AxialTilt: DQuaternion.Identity, SpinRate: 0, SpinPhaseAtEpoch: 0,
-                Attitude: KeplerAttitude.FacesParent);
-            Entity owner = world.Spawn(new SpawnDesc
-            {
-                Frame = planet,
-                Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
-                AsFrame = new(FrameBounds.Sphere(50))
-            }.OnKeplerOrbit(world, oval));
+            var oval = new KeplerOrbit(
+                SemiMajorAxis: 5000,
+                Eccentricity: 0.3,
+                Inclination: 0,
+                LongitudeOfAscendingNode: 0,
+                ArgumentOfPeriapsis: 0,
+                MeanAnomalyAtEpoch: 0,
+                Epoch: 0,
+                AxialTilt: DQuaternion.Identity,
+                SpinRate: 0,
+                SpinPhaseAtEpoch: 0,
+                Attitude: KeplerAttitude.FacesParent
+            );
+            Entity owner = world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = planet,
+                    Body = new(Shape: new BoxShapeDesc(new(5, 3, 15)), Motion: BodyMotion.Kinematic, Mass: 1000),
+                    AsFrame = new(FrameBounds.Sphere(50)),
+                }.OnKeplerOrbit(world, oval)
+            );
 
             Tick(world, 942);
 
@@ -111,13 +125,17 @@ public sealed class WorldFacingFrameTests
 
             FrameHandle home = world.PhysicsHomeOf(owner);
             world.Frames.Numeric(home).Should().Be(NumericMode.Following);
-            Quaternion hull = backend.BodiesIn(home)
+            Quaternion hull = backend
+                .BodiesIn(home)
                 .Single(facts =>
-                    BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner))
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)
+                )
                 .Rotation;
             var frame = world.PoseInOwnFrame(owner).Rotation.ToQuaternion();
-            MathF.Abs(Quaternion.Dot(hull, frame)).Should().BeGreaterThan(1 - 1e-5f,
-                "the hull's rotation is the frame's, up to the sign of the quaternion");
+            MathF
+                .Abs(Quaternion.Dot(hull, frame))
+                .Should()
+                .BeGreaterThan(1 - 1e-5f, "the hull's rotation is the frame's, up to the sign of the quaternion");
             world.Errors.Should().BeEmpty();
         }
     }

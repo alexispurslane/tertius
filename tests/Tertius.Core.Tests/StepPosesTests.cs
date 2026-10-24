@@ -72,8 +72,10 @@ public sealed class StepPosesTests
     {
         // The body turns about +X while the frame turns about +Z, so the rotations do not commute, and only the rule with
         // the rotations at both ends of the step gives back the chord that it started from.
-        var poses = new StepPoses(new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.3)),
-            new(Double3.Zero, Quarter * DQuaternion.FromAxisAngle(Double3.UnitY, 0.3)));
+        var poses = new StepPoses(
+            new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.3)),
+            new(Double3.Zero, Quarter * DQuaternion.FromAxisAngle(Double3.UnitY, 0.3))
+        );
         var chord = new Double3(0.7, 0, 0);
 
         ExpectNear(poses.AngularChordFromParent(poses.AngularChordToParent(chord, 1), 1), chord);

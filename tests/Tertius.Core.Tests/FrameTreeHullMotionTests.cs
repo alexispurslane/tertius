@@ -17,14 +17,22 @@ public sealed class FrameTreeHullMotionTests
 
     public FrameTreeHullMotionTests()
     {
-        root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f));
+        root = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f)
+        );
     }
 
     /// <summary>A frame of the owner <paramref name="id"/>, 100 m along +X in <paramref name="parent"/>.</summary>
     private FrameHandle Child(uint id, FrameHandle parent) =>
-        frames.Create(frameOwner: new(id, 1), parent: parent, localPose: new(new(100, 0, 0), DQuaternion.Identity),
-            frameBounds: FrameBounds.Sphere(10));
+        frames.Create(
+            frameOwner: new(id, 1),
+            parent: parent,
+            localPose: new(new(100, 0, 0), DQuaternion.Identity),
+            frameBounds: FrameBounds.Sphere(10)
+        );
 
     [Theory]
     [InlineData(BodyMotion.Static)]
@@ -45,7 +53,9 @@ public sealed class FrameTreeHullMotionTests
     {
         FrameHandle ship = Child(2, root);
 
-        frames.HullMotion(ship).Should()
+        frames
+            .HullMotion(ship)
+            .Should()
             .BeNull("only the World knows whether the owner has a body, and it sets the motion");
     }
 
@@ -67,7 +77,9 @@ public sealed class FrameTreeHullMotionTests
     {
         frames.SetHullMotion(root, BodyMotion.Static);
 
-        frames.HullMotion(root).Should()
+        frames
+            .HullMotion(root)
+            .Should()
             .BeNull("a root frame has no parent, so its owner's body is only the frame's static interior");
     }
 
@@ -105,9 +117,13 @@ public sealed class FrameTreeHullMotionTests
         PhysicsIntent[] intents = StepIntents.Changing(other, BodyMotion.Static);
         intents[ship.Entity.Index] = new() { Motion = BodyMotion.Static, Force = Vector3.UnitX };
 
-        frames.HullMotionInStep(ship, intents).Should()
+        frames
+            .HullMotionInStep(ship, intents)
+            .Should()
             .Be(BodyMotion.Dynamic, "the owner's intent has no SetMotion flag");
-        frames.HullMotionInStep(ship, []).Should()
+        frames
+            .HullMotionInStep(ship, [])
+            .Should()
             .Be(BodyMotion.Dynamic, "a slot past the end of the intents holds none");
     }
 

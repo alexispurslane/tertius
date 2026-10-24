@@ -44,14 +44,20 @@ public static class MeshChecks
             Vertex a = mesh.Vertices[mesh.Indices[i]],
                 b = mesh.Vertices[mesh.Indices[i + 1]],
                 c = mesh.Vertices[mesh.Indices[i + 2]];
-            Vector3 wound = Vector3.Cross(b.Position - a.Position, c.Position - a.Position);
+            var wound = Vector3.Cross(b.Position - a.Position, c.Position - a.Position);
             wound.Length().Should().BeGreaterThan(1e-6f, "no triangle is degenerate");
-            Vector3 face = Vector3.Normalize(wound);
+            var face = Vector3.Normalize(wound);
             foreach (Vertex corner in (ReadOnlySpan<Vertex>)[a, b, c])
-                Vector3.Dot(face, corner.Normal).Should().BeGreaterThanOrEqualTo(MathF.Cos(maxNormalAngle),
-                    $"the triangle at {a.Position} winds around its corner's normal {corner.Normal}");
+                Vector3
+                    .Dot(face, corner.Normal)
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        MathF.Cos(maxNormalAngle),
+                        $"the triangle at {a.Position} winds around its corner's normal {corner.Normal}"
+                    );
             Vector3 center = (a.Position + b.Position + c.Position) / 3;
-            inside(center + probe * face).Should()
+            inside(center + probe * face)
+                .Should()
                 .BeFalse($"the triangle at {center} faces out of the solid along {face}");
             inside(center - probe * face).Should().BeTrue($"the triangle at {center} has the solid behind it");
         }
@@ -84,14 +90,17 @@ public static class MeshChecks
                 b = mesh.Vertices[mesh.Indices[i + 1]].Position,
                 c = mesh.Vertices[mesh.Indices[i + 2]].Position;
             // Möller and Trumbore: the segment's parameter t and the triangle's barycentric u and v of the crossing.
-            Vector3 ab = b - a, ac = c - a, p = Vector3.Cross(along, ac);
+            Vector3 ab = b - a,
+                ac = c - a,
+                p = Vector3.Cross(along, ac);
             float det = Vector3.Dot(ab, p);
             if (MathF.Abs(det) < 1e-9f)
                 continue;
             Vector3 s = from - a;
             float u = Vector3.Dot(s, p) / det;
-            Vector3 q = Vector3.Cross(s, ab);
-            float v = Vector3.Dot(along, q) / det, t = Vector3.Dot(ac, q) / det;
+            var q = Vector3.Cross(s, ab);
+            float v = Vector3.Dot(along, q) / det,
+                t = Vector3.Dot(ac, q) / det;
             if (u >= 0 && v >= 0 && u + v <= 1 && t >= 0 && t <= 1)
                 yield return t;
         }

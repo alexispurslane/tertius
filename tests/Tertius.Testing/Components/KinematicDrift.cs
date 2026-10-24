@@ -33,17 +33,18 @@ public sealed class KinematicDrift(Double3 velocity) : IComponent
     /// components, the first motion intent is the end pose one step along the line from the spawn pose, and the spawn
     /// velocities of <paramref name="desc"/> go, because a kinematic body that owns no frame takes none.
     /// </summary>
-    public static SpawnDesc Drifting(SpawnDesc desc, World world, Double3 velocity) => new()
-    {
-        Frame = desc.Frame,
-        Pose = desc.Pose,
-        FirstMove = new(new EndPose(new(desc.Pose.Position + velocity * world.DeltaTime, desc.Pose.Rotation))),
-        Body = desc.Body,
-        Render = desc.Render,
-        Components = [new KinematicDrift(velocity), .. desc.Components ?? []],
-        AsFrame = desc.AsFrame,
-        AttachTo = desc.AttachTo,
-        AttachOffset = desc.AttachOffset,
-        Subscriptions = desc.Subscriptions
-    };
+    public static SpawnDesc Drifting(SpawnDesc desc, World world, Double3 velocity) =>
+        new()
+        {
+            Frame = desc.Frame,
+            Pose = desc.Pose,
+            FirstMove = new(new EndPose(new(desc.Pose.Position + velocity * world.DeltaTime, desc.Pose.Rotation))),
+            Body = desc.Body,
+            Render = desc.Render,
+            Components = [new KinematicDrift(velocity), .. desc.Components ?? []],
+            AsFrame = desc.AsFrame,
+            AttachTo = desc.AttachTo,
+            AttachOffset = desc.AttachOffset,
+            Subscriptions = desc.Subscriptions,
+        };
 }

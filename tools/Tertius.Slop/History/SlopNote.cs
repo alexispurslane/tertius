@@ -30,15 +30,16 @@ public sealed record SlopNote
     public required DateTimeOffset Measured { get; init; }
 
     /// <summary>The note of a tree whose <paramref name="report"/> was measured at <paramref name="measured"/>.</summary>
-    public static SlopNote Of(SlopReport report, string branch, NoteSource source, DateTimeOffset measured) => new()
-    {
-        Erosion = report.Erosion.Erosion,
-        Verbosity = report.Verbosity.Verbosity,
-        Sloc = report.Erosion.Sloc,
-        Branch = branch,
-        Source = source,
-        Measured = measured
-    };
+    public static SlopNote Of(SlopReport report, string branch, NoteSource source, DateTimeOffset measured) =>
+        new()
+        {
+            Erosion = report.Erosion.Erosion,
+            Verbosity = report.Verbosity.Verbosity,
+            Sloc = report.Erosion.Sloc,
+            Branch = branch,
+            Source = source,
+            Measured = measured,
+        };
 
     /// <summary>
     /// The note in the text of a git note: its first line that holds a note, or null. Two clones that both noted a
@@ -52,8 +53,10 @@ public sealed record SlopNote
     {
         try
         {
-            return JsonSerializer.Deserialize(JsonSerializer.Serialize(name, NoteJson.Default.String),
-                NoteJson.Default.NoteSource);
+            return JsonSerializer.Deserialize(
+                JsonSerializer.Serialize(name, NoteJson.Default.String),
+                NoteJson.Default.NoteSource
+            );
         }
         catch (JsonException)
         {
@@ -86,10 +89,12 @@ public enum NoteSource
     PreCommit,
 
     /// <summary>The pre-push hook, which notes the pushed commits that have no note.</summary>
-    [JsonStringEnumMemberName("pre-push")] PrePush,
+    [JsonStringEnumMemberName("pre-push")]
+    PrePush,
 
     /// <summary>A note made by hand for a commit from before the hooks.</summary>
-    [JsonStringEnumMemberName("seed")] Seed
+    [JsonStringEnumMemberName("seed")]
+    Seed,
 }
 
 /// <summary>The JSON form of a note: one line, camel-case names, the source by name.</summary>

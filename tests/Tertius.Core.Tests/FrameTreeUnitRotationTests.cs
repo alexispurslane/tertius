@@ -13,30 +13,33 @@ namespace Tertius.Core.Tests;
 /// </summary>
 public sealed class FrameTreeUnitRotationTests
 {
-    private static readonly DQuaternion Widened =
-        DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
+    private static readonly DQuaternion Widened = DQuaternion.FromQuaternion(
+        new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f)
+    );
 
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
 
-    public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength => new()
-    {
-        { "a rotation 1E-7 too long", Scaled(1 + 1e-7) },
-        { "a rotation 1E-7 too short", Scaled(1 - 1e-7) },
-        { "a rotation that came out of a float quaternion", Widened },
-        { "a rotation twice as long", Scaled(2) },
-        { "a rotation just outside the tolerance", Scaled(1 + 5e-12) },
-        { "the zero rotation", default },
-        { "a rotation that is not a number", new(X: double.NaN, Y: 0, Z: 0, W: 1) }
-    };
+    public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength =>
+        new()
+        {
+            { "a rotation 1E-7 too long", Scaled(1 + 1e-7) },
+            { "a rotation 1E-7 too short", Scaled(1 - 1e-7) },
+            { "a rotation that came out of a float quaternion", Widened },
+            { "a rotation twice as long", Scaled(2) },
+            { "a rotation just outside the tolerance", Scaled(1 + 5e-12) },
+            { "the zero rotation", default },
+            { "a rotation that is not a number", new(X: double.NaN, Y: 0, Z: 0, W: 1) },
+        };
 
-    public static TheoryData<string, DQuaternion> RotationsThatAreUnitLength => new()
-    {
-        { "the identity", DQuaternion.Identity },
-        { "a rotation from an axis and an angle", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7) },
-        { "a rotation that came out of a float quaternion and was normalized", Widened.Normalized() },
-        { "a rotation a little inside the tolerance on the long side", Scaled(1 + 1e-14) },
-        { "a rotation a little inside the tolerance on the short side", Scaled(1 - 1e-14) }
-    };
+    public static TheoryData<string, DQuaternion> RotationsThatAreUnitLength =>
+        new()
+        {
+            { "the identity", DQuaternion.Identity },
+            { "a rotation from an axis and an angle", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7) },
+            { "a rotation that came out of a float quaternion and was normalized", Widened.Normalized() },
+            { "a rotation a little inside the tolerance on the long side", Scaled(1 + 1e-14) },
+            { "a rotation a little inside the tolerance on the short side", Scaled(1 - 1e-14) },
+        };
 
     /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
     private static DQuaternion Scaled(double length) =>
@@ -51,11 +54,18 @@ public sealed class FrameTreeUnitRotationTests
 
         public OrbitingShip()
         {
-            Earth = Frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-                frameBounds: FrameBounds.Sphere(1e9f));
-            Ship = Frames.Create(frameOwner: new(2, 1), parent: Earth,
+            Earth = Frames.Create(
+                frameOwner: new(1, 1),
+                parent: FrameHandle.Null,
+                localPose: DPose.Identity,
+                frameBounds: FrameBounds.Sphere(1e9f)
+            );
+            Ship = Frames.Create(
+                frameOwner: new(2, 1),
+                parent: Earth,
                 localPose: new(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)),
-                frameBounds: FrameBounds.Sphere(100));
+                frameBounds: FrameBounds.Sphere(100)
+            );
             Frames.Update();
         }
 
@@ -119,9 +129,12 @@ public sealed class FrameTreeUnitRotationTests
     {
         // A move that keeps the world pose composes poses. Its result must be a unit rotation too.
         var test = new OrbitingShip();
-        FrameHandle station = test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth,
+        FrameHandle station = test.Frames.Create(
+            frameOwner: new(3, 1),
+            parent: test.Earth,
             localPose: new(InOrbit + new Double3(500, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.1)),
-            frameBounds: FrameBounds.Sphere(300));
+            frameBounds: FrameBounds.Sphere(300)
+        );
         test.Frames.Update();
 
         test.Frames.Reparent(test.Ship, station);
@@ -151,8 +164,13 @@ public sealed class FrameTreeUnitRotationTests
     {
         var test = new OrbitingShip();
 
-        Action create = () => test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth,
-            localPose: new(InOrbit, rotation), frameBounds: FrameBounds.Sphere(10));
+        Action create = () =>
+            test.Frames.Create(
+                frameOwner: new(3, 1),
+                parent: test.Earth,
+                localPose: new(InOrbit, rotation),
+                frameBounds: FrameBounds.Sphere(10)
+            );
 
         create.Should().Throw<ContractException>(why).WithMessage("Precondition*");
     }

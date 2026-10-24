@@ -21,14 +21,17 @@ internal static class PositionalPatterns
     public static void AnalyzePattern(SyntaxNodeAnalysisContext context)
     {
         var clause = (PositionalPatternClauseSyntax)context.Node;
-        if (clause.Subpatterns.Count < 2 || clause.Parent is not RecursivePatternSyntax pattern ||
-            context.SemanticModel.GetOperation(pattern, context.CancellationToken) is not IRecursivePatternOperation
-            {
-                MatchedType: { } matched
-            } || !SolutionTypes.Declares(matched, context.Compilation))
+        if (
+            clause.Subpatterns.Count < 2
+            || clause.Parent is not RecursivePatternSyntax pattern
+            || context.SemanticModel.GetOperation(pattern, context.CancellationToken)
+                is not IRecursivePatternOperation { MatchedType: { } matched }
+            || !SolutionTypes.Declares(matched, context.Compilation)
+        )
             return;
-        context.ReportDiagnostic(Diagnostic.Create(StyleRules.PositionalDeconstruction, clause.GetLocation(),
-            matched.ToDisplayString()));
+        context.ReportDiagnostic(
+            Diagnostic.Create(StyleRules.PositionalDeconstruction, clause.GetLocation(), matched.ToDisplayString())
+        );
     }
 
     /// <summary>Reports an assignment or a <c>foreach</c> that deconstructs a type of the solution.</summary>
@@ -39,12 +42,21 @@ internal static class PositionalPatterns
             AssignmentExpressionSyntax { Left: TupleExpressionSyntax or DeclarationExpressionSyntax } assignment =>
                 context.SemanticModel.GetDeconstructionInfo(assignment),
             ForEachVariableStatementSyntax each => context.SemanticModel.GetDeconstructionInfo(each),
-            _ => null
+            _ => null,
         };
-        if (info is { } deconstruction && DeconstructedTypes(deconstruction).FirstOrDefault(type =>
-                SolutionTypes.Declares(type, context.Compilation)) is { } read)
-            context.ReportDiagnostic(Diagnostic.Create(StyleRules.PositionalDeconstruction,
-                context.Node.GetLocation(), read.ToDisplayString()));
+        if (
+            info is { } deconstruction
+            && DeconstructedTypes(deconstruction)
+                .FirstOrDefault(type => SolutionTypes.Declares(type, context.Compilation))
+                is { } read
+        )
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.PositionalDeconstruction,
+                    context.Node.GetLocation(),
+                    read.ToDisplayString()
+                )
+            );
     }
 
     /// <summary>

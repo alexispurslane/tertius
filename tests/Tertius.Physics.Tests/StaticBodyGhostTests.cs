@@ -17,27 +17,50 @@ public sealed class StaticBodyGhostTests
 {
     private const float G = 9.81f;
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>A static box with half extents <paramref name="half"/> at <paramref name="pose"/>, with <paramref name="log"/>
     /// on it.</summary>
-    private static Entity
-        StaticBox(World world, FrameHandle frame, DPose pose, Vector3 half, CollisionLog? log = null) => world.Spawn(
-        new()
-        {
-            Frame = frame,
-            Pose = pose,
-            Body = new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Static),
-            Components = log is null ? [] : [log]
-        });
+    private static Entity StaticBox(
+        World world,
+        FrameHandle frame,
+        DPose pose,
+        Vector3 half,
+        CollisionLog? log = null
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = pose,
+                Body = new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Static),
+                Components = log is null ? [] : [log],
+            }
+        );
 
     /// <summary>A frame without a body in <paramref name="parent"/> at <paramref name="pose"/>, with a bubble of
     /// <paramref name="radius"/> m.</summary>
-    private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius,
-        GravityField gravity = default) =>
-        world.GetOwnedFrame(world.Spawn(new()
-            { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius), gravity) }));
+    private static FrameHandle Bubble(
+        World world,
+        FrameHandle parent,
+        DPose pose,
+        float radius,
+        GravityField gravity = default
+    ) =>
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius), gravity),
+                }
+            )
+        );
 
     // ---- A person boards a parked shuttle ----
 
@@ -54,24 +77,38 @@ public sealed class StaticBodyGhostTests
     public void APersonWhoWalksIntoAParkedShuttlesBubbleStaysOnTheSlabUnderItAndHearsNoEnd(bool acrossFrames)
     {
         using World world = NewWorld(backend: out _);
-        GravityField gravity = GravityField.Uniform(new(0, -G, 0));
+        var gravity = GravityField.Uniform(new(0, -G, 0));
         FrameHandle station = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         var slabLog = new CollisionLog();
         Entity slab = StaticBox(world: world, frame: station, pose: At(0, -0.5), half: new(20, 0.5f, 20), log: slabLog);
         FrameHandle shuttle = FrameHandle.Null;
         if (acrossFrames)
-            shuttle = world.GetOwnedFrame(world.Spawn(new()
-            {
-                Frame = station,
-                Pose = At(10, 5),
-                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static,
-                    InteriorShape: new SphereShapeDesc(0.5f)),
-                AsFrame = new(FrameBounds.Sphere(6), gravity)
-            }));
+            shuttle = world.GetOwnedFrame(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = station,
+                        Pose = At(10, 5),
+                        Body = new(
+                            Shape: new BoxShapeDesc(new(1)),
+                            Motion: BodyMotion.Static,
+                            InteriorShape: new SphereShapeDesc(0.5f)
+                        ),
+                        AsFrame = new(FrameBounds.Sphere(6), gravity),
+                    }
+                )
+            );
         var personLog = new CollisionLog();
         var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new(2, 0, 0)) };
-        Entity person = world.Spawn(new()
-            { Frame = station, Pose = At(0, 0.9), Body = Person, Components = [personLog, pilot] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = station,
+                Pose = At(0, 0.9),
+                Body = Person,
+                Components = [personLog, pilot],
+            }
+        );
 
         for (int i = 0; i < 6; i++)
         {
@@ -106,15 +143,22 @@ public sealed class StaticBodyGhostTests
         var rockLog = new CollisionLog();
         Entity rock = StaticBox(world: world, frame: space, pose: At(6.5), half: new(0.5f), log: rockLog);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = At(3),
-            LinearVelocity = new Vector3(1, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = At(3),
+                LinearVelocity = new Vector3(1, 0, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
 
         double farthest = double.MinValue;
         for (int i = 0; i < 240; i++)
@@ -147,24 +191,33 @@ public sealed class StaticBodyGhostTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle home = Bubble(world: world, parent: space, pose: At(0), radius: 5);
         var shipLog = new CollisionLog();
-        Entity ship = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(6.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: motion, Mass: 10_000, Restitution: 0),
-            AsFrame = new(FrameBounds.Sphere(0.9f)),
-            Components = [shipLog]
-        });
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(6.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: motion, Mass: 10_000, Restitution: 0),
+                AsFrame = new(FrameBounds.Sphere(0.9f)),
+                Components = [shipLog],
+            }
+        );
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = At(3),
-            LinearVelocity = new Vector3(1, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = At(3),
+                LinearVelocity = new Vector3(1, 0, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
 
         double farthest = double.MinValue;
         for (int i = 0; i < 240; i++)
@@ -195,24 +248,39 @@ public sealed class StaticBodyGhostTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle frame =
-            acrossFrames ? Bubble(world: world, parent: space, pose: At(0), radius: 5) : FrameHandle.Null;
+        FrameHandle frame = acrossFrames
+            ? Bubble(world: world, parent: space, pose: At(0), radius: 5)
+            : FrameHandle.Null;
         // A kinematic body moves only by its motion intents, so the ball drifts by end poses.
-        Entity pusher = world.Spawn(KinematicDrift.Drifting(new()
-        {
-            Frame = space,
-            Pose = At(-8),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic)
-        }, world, new(1, 0, 0)));
+        Entity pusher = world.Spawn(
+            KinematicDrift.Drifting(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(-8),
+                    Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic),
+                },
+                world,
+                new(1, 0, 0)
+            )
+        );
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(-7),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Friction: 0, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(-7),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Friction: 0,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
 
         Tick(world, 300);
 
@@ -243,21 +311,35 @@ public sealed class StaticBodyGhostTests
         FrameHandle first = acrossFrames ? Bubble(world: world, parent: space, pose: At(0), radius: 5) : space;
         FrameHandle second = acrossFrames ? Bubble(world: world, parent: space, pose: At(11), radius: 5) : space;
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = first,
-            Pose = At(5.3),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Friction: 0, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = first,
+                Pose = At(5.3),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Friction: 0,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
         // A kinematic body moves only by its motion intents, so the ball drifts by end poses.
-        Entity ball = world.Spawn(KinematicDrift.Drifting(new()
-        {
-            Frame = second,
-            Pose = acrossFrames ? At(6.6 - 11) : At(6.6),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic)
-        }, world, new(-1, 0, 0)));
+        Entity ball = world.Spawn(
+            KinematicDrift.Drifting(
+                new()
+                {
+                    Frame = second,
+                    Pose = acrossFrames ? At(6.6 - 11) : At(6.6),
+                    Body = new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Kinematic),
+                },
+                world,
+                new(-1, 0, 0)
+            )
+        );
 
         // The ball reaches the crate after 0.3 s, and pushes it from then on.
         for (int i = 0; i < 2; i++)
@@ -308,7 +390,14 @@ public sealed class StaticBodyGhostTests
         Entity box = StaticBox(world: world, frame: space, pose: At(115), half: new(0.5f));
         Double3 origin = acrossFrames ? Double3.Zero : new(100, 0, 0);
         var aim = new Aim(origin, Double3.UnitX, 50);
-        world.Spawn(new() { Frame = home, Pose = new(origin, DQuaternion.Identity), Components = [aim] });
+        world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = new(origin, DQuaternion.Identity),
+                Components = [aim],
+            }
+        );
 
         Tick(world, 3);
 
@@ -337,15 +426,22 @@ public sealed class StaticBodyGhostTests
         var slabLog = new CollisionLog();
         Entity slab = StaticBox(world: world, frame: space, pose: At(0, -201), half: new(300, 1, 300), log: slabLog);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = At(0, 300),
-            LinearVelocity = new Vector3(0, -1100, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = At(0, 300),
+                LinearVelocity = new Vector3(0, -1100, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
 
         Tick(world, 120);
 
@@ -370,7 +466,7 @@ public sealed class StaticBodyGhostTests
     public void TheCratesThatRestOnTheGhostOfAStaticFloorFallAsleepAndTheFramesSystemStopsStepping(bool acrossFrames)
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -G, 0));
+        var gravity = GravityField.Uniform(new(0, -G, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         Entity floor = Floor(world, ground);
         FrameHandle home = acrossFrames
@@ -378,7 +474,18 @@ public sealed class StaticBodyGhostTests
             : ground;
         double y = acrossFrames ? -1.5 : 0.5;
         Entity[] crates =
-            [.. new[] { -2.0, 0, 2 }.Select(x => world.Spawn(new() { Frame = home, Pose = At(x, y), Body = Cube() }))];
+        [
+            .. new[] { -2.0, 0, 2 }.Select(x =>
+                world.Spawn(
+                    new()
+                    {
+                        Frame = home,
+                        Pose = At(x, y),
+                        Body = Cube(),
+                    }
+                )
+            ),
+        ];
 
         Tick(world, 180);
 
@@ -412,21 +519,38 @@ public sealed class StaticBodyGhostTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         Entity floor = StaticBox(world: world, frame: space, pose: At(0, -0.5), half: new(20, 0.5f, 20));
         var pilot = new Pilot();
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(12, 20),
-            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0))),
-            Components = [pilot]
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(12, 20),
+                Body = new(
+                    Shape: new SphereShapeDesc(2),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(1)
+                ),
+                AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0))),
+                Components = [pilot],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, -19.5), Body = Cube() });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, -19.5),
+                Body = Cube(),
+            }
+        );
 
         JoltPhysicsBackend.BodyFacts Ghost() =>
-            faults.Jolt.BodiesIn(ship).Single(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, floor));
+            faults
+                .Jolt.BodiesIn(ship)
+                .Single(facts =>
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, floor)
+                );
 
         Tick(world, 120);
 
@@ -438,7 +562,8 @@ public sealed class StaticBodyGhostTests
         Tick(world, 3);
         JoltPhysicsBackend.BodyFacts moving = Ghost();
         moving.Motion.Should().Be(MotionType.Kinematic, "the ghost moves in the ship's system");
-        (moving.LinearVelocity - new Double3(0, -1, 0)).Length.Should()
+        (moving.LinearVelocity - new Double3(0, -1, 0))
+            .Length.Should()
             .BeLessThan(1e-3, "the floor moves down at 1 m/s in the rising ship");
         IsAwake(faults.Jolt, ship, crate).Should().BeTrue("the floor fell away under the crate");
 
@@ -465,7 +590,7 @@ public sealed class StaticBodyGhostTests
     public void ADynamicHullOfAFrameInsideAFrameLandsOnTheGhostOfTheParentsStaticSlab(bool acrossFrames)
     {
         using World world = NewWorld(backend: out _);
-        GravityField gravity = GravityField.Uniform(new(0, -G, 0));
+        var gravity = GravityField.Uniform(new(0, -G, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         var slabLog = new CollisionLog();
         Entity slab = StaticBox(world: world, frame: ground, pose: At(0, -0.5), half: new(20, 0.5f, 20), log: slabLog);
@@ -473,15 +598,21 @@ public sealed class StaticBodyGhostTests
             ? Bubble(world: world, parent: ground, pose: At(0, 5), radius: 20, gravity: gravity)
             : ground;
         var podLog = new CollisionLog();
-        Entity pod = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = acrossFrames ? At(0, -2) : At(0, 3),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100, Restitution: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
-            Components = [podLog]
-        });
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = acrossFrames ? At(0, -2) : At(0, 3),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 100,
+                    Restitution: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
+                Components = [podLog],
+            }
+        );
 
         Tick(world, 180);
 
@@ -506,27 +637,35 @@ public sealed class StaticBodyGhostTests
         var registry = new CollisionGroupRegistry();
         CollisionGroup glass = registry.Register("Glass");
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -G, 0));
+        var gravity = GravityField.Uniform(new(0, -G, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         var slabPilot = new Pilot();
-        world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static),
-            Components = [slabPilot]
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static),
+                Components = [slabPilot],
+            }
+        );
         FrameHandle home = acrossFrames
             ? Bubble(world: world, parent: ground, pose: At(0, 5), radius: 20, gravity: gravity)
             : ground;
-        Entity pod = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = acrossFrames ? At(0, -2) : At(0, 3),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100, Restitution: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(1.5f), gravity)
-        });
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = acrossFrames ? At(0, -2) : At(0, 3),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 100,
+                    Restitution: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
+            }
+        );
         Tick(world, 120);
         world.PoseIn(pod, ground).Position.Y.Should().BeApproximately(0.5, 0.03, "the pod's hull rests on the slab");
 
@@ -554,27 +693,40 @@ public sealed class StaticBodyGhostTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle first = Bubble(world: world, parent: space, pose: At(0), radius: 20);
         FrameHandle second = Bubble(world: world, parent: space, pose: At(43), radius: 20);
-        Entity pod = world.Spawn(new()
-        {
-            Frame = first,
-            Pose = At(19),
-            LinearVelocity = new Vector3(1, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(6))
-        });
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = first,
+                Pose = At(19),
+                LinearVelocity = new Vector3(1, 0, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(1)),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(6)),
+            }
+        );
         FrameHandle inside = world.GetOwnedFrame(pod);
 
         JoltPhysicsBackend.BodyFacts GhostIn(FrameHandle frame) =>
-            faults.Jolt.BodiesIn(frame).Single(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, pod));
+            faults
+                .Jolt.BodiesIn(frame)
+                .Single(facts =>
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, pod)
+                );
 
         TickUntil(world, () => faults.Jolt.HasGhostIn(pod, second), 240);
         world.GetFrame(pod).Should().Be(first);
-        ObjectLayer interior = faults.Jolt.BodiesIn(inside)
-            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior).Layer;
+        ObjectLayer interior = faults
+            .Jolt.BodiesIn(inside)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior)
+            .Layer;
         JoltPhysicsBackend.BodyFacts stickOut = GhostIn(second);
-        stickOut.Layer.Should()
+        stickOut
+            .Layer.Should()
             .Be(interior, "a stick-out ghost in a sibling has the layer of a child ghost of the hull");
 
         TickUntil(world, () => world.GetFrame(pod) == space, 240);
@@ -607,32 +759,47 @@ public sealed class StaticBodyGhostTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle bay = shuttleHome == "bay" ? Bubble(world: world, parent: space, pose: At(-10), radius: 30) : space;
-        FrameHandle dock = shuttleHome == "one frame"
-            ? space
-            : Bubble(world: world, parent: space, pose: At(41), radius: 20);
-        Entity shuttle = world.Spawn(new()
-        {
-            Frame = bay,
-            Pose = shuttleHome == "bay" ? At(29) : At(19),
-            Body = new(Shape: new BoxShapeDesc(new(2.5f)), Mass: 100_000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(11))
-        });
+        FrameHandle dock =
+            shuttleHome == "one frame" ? space : Bubble(world: world, parent: space, pose: At(41), radius: 20);
+        Entity shuttle = world.Spawn(
+            new()
+            {
+                Frame = bay,
+                Pose = shuttleHome == "bay" ? At(29) : At(19),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(2.5f)),
+                    Mass: 100_000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(11)),
+            }
+        );
         var podLog = new CollisionLog();
-        Entity pod = world.Spawn(new()
-        {
-            Frame = dock,
-            Pose = shuttleHome == "one frame" ? At(28) : At(-13),
-            LinearVelocity = new Vector3(-2, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(6)),
-            Components = [podLog]
-        });
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = dock,
+                Pose = shuttleHome == "one frame" ? At(28) : At(-13),
+                LinearVelocity = new Vector3(-2, 0, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 100,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(6)),
+                Components = [podLog],
+            }
+        );
 
         Tick(world, 300);
 
-        world.PoseIn(pod, space).Position.X.Should()
+        world
+            .PoseIn(pod, space)
+            .Position.X.Should()
             .BeInRange(21.8, 22.2, "the pod's face stops at the shuttle's face at x = 21.5");
         podLog.NewsOf(shuttle).Should().Equal(Started);
         world.GetFrame(shuttle).Should().Be(bay);

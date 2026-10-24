@@ -31,7 +31,8 @@ internal static class WorldStateHash
         live.Sort((a, b) => a.Index.CompareTo(b.Index));
         foreach (Entity entity in live)
         {
-            TransformRow front = world.Entities.FrontRow(entity), back = world.Entities.BackRow(entity);
+            TransformRow front = world.Entities.FrontRow(entity),
+                back = world.Entities.BackRow(entity);
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<TransformRow>(in front)));
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<TransformRow>(in back)));
         }

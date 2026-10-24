@@ -5,5 +5,5 @@ public enum Faction
 {
     Neutral,
     Rebel,
-    Empire
+    Empire,
 }

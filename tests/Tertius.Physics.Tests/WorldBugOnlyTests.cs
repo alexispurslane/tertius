@@ -22,17 +22,39 @@ public sealed class WorldBugOnlyTests
     public void ACreationThatFailsInTheBackendIsABugAndTheRestOfTheBatchStillApplies()
     {
         var faults = new FaultInjectingBackend(new(new() { WorkerThreads = 2 }));
-        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
-            faults);
+        using var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            faults
+        );
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         world.Tick();
         var stranger = new Entity(999, 1);
-        faults.EditNextChanges = changes => changes.BodiesCreated.Insert(0,
-            new(Entity: stranger, Frame: ground, Desc: new(Shape: new SphereShapeDesc(1), Mass: 0), Pose: At(5, 5),
-                LinearVelocity: default, AngularVelocity: default));
-        Entity ball = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 5), Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1) });
+        faults.EditNextChanges = changes =>
+            changes.BodiesCreated.Insert(
+                0,
+                new(
+                    Entity: stranger,
+                    Frame: ground,
+                    Desc: new(Shape: new SphereShapeDesc(1), Mass: 0),
+                    Pose: At(5, 5),
+                    LinearVelocity: default,
+                    AngularVelocity: default
+                )
+            );
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 5),
+                Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1),
+            }
+        );
 
 #if TERTIUS_CONTRACTS
         Action tick = world.Tick;
@@ -41,8 +63,17 @@ public sealed class WorldBugOnlyTests
 #else
         Tick(world, 120);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain(stranger.ToString()).And.Contain("mass").And.Contain("Only a bug")
-            .And.NotContain("failed to apply changes", "the backend applied the rest of the batch, and it named the change that it skipped");
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain(stranger.ToString())
+            .And.Contain("mass")
+            .And.Contain("Only a bug")
+            .And.NotContain(
+                "failed to apply changes",
+                "the backend applied the rest of the batch, and it named the change that it skipped"
+            );
         faults.Jolt.TryGetBodyFrame(stranger, out _).Should().BeFalse("the failed creation left nothing behind");
         faults.Jolt.TryGetBodyFrame(ball, out _).Should().BeTrue("the rest of the batch still applied");
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
@@ -79,15 +110,30 @@ public sealed class WorldBugOnlyTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 0);
         var asker = new RayOnTick(onTick: 1);
-        world.Spawn(new() { Frame = ground, Pose = At(0), Components = [asker] });
-        Entity dead = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
-        });
-        Entity beyond = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(20), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0),
+                Components = [asker],
+            }
+        );
+        Entity dead = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(10),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+            }
+        );
+        Entity beyond = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(20),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+            }
+        );
         world.Tick();
         faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(dead);
         world.Destroy(dead);
@@ -99,9 +145,21 @@ public sealed class WorldBugOnlyTests
 #else
         Tick(world, 2);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain("physics reported 1 bodies of entities that are not live").And.Contain("The ray cast skipped them");
-        asker.Answers.Should().ContainSingle().Which.Entity.Should().Be(beyond, "the ray skipped the body of the entity that is not live");
-        faults.Jolt.TryGetBodyFrame(dead, out _).Should().BeTrue("the edit kept the body in Jolt, which is the bug that this test stands in for");
+        world
+            .Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain("physics reported 1 bodies of entities that are not live")
+            .And.Contain("The ray cast skipped them");
+        asker
+            .Answers.Should()
+            .ContainSingle()
+            .Which.Entity.Should()
+            .Be(beyond, "the ray skipped the body of the entity that is not live");
+        faults
+            .Jolt.TryGetBodyFrame(dead, out _)
+            .Should()
+            .BeTrue("the edit kept the body in Jolt, which is the bug that this test stands in for");
 #endif
     }
 
@@ -116,21 +174,37 @@ public sealed class WorldBugOnlyTests
     [InlineData("full sample", BodyMotion.Dynamic)]
     [InlineData("steer target", BodyMotion.Kinematic)]
     [InlineData("end pose", BodyMotion.Static)]
-    public void AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt(string write,
-        BodyMotion motion)
+    public void AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt(
+        string write,
+        BodyMotion motion
+    )
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity body = world.Spawn(new() { Frame = space, Pose = At(0), Body = Ball() with { Motion = motion } });
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = Ball() with { Motion = motion },
+            }
+        );
         Tick(world, 2);
         DPose end = At(1);
         MotionIntent move = write switch
         {
             "end pose" => new(new EndPose(end)),
-            "full sample" => new(new MotionSample(Pose: end, ChordVelocity: new(60, 0, 0), Velocity: new(60, 0, 0),
-                Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
-                AngularAcceleration: Double3.Zero)),
-            _ => new(new SteerTarget(end))
+            "full sample" => new(
+                new MotionSample(
+                    Pose: end,
+                    ChordVelocity: new(60, 0, 0),
+                    Velocity: new(60, 0, 0),
+                    Acceleration: Double3.Zero,
+                    AngularVelocity: Double3.Zero,
+                    AngularAcceleration: Double3.Zero
+                )
+            ),
+            _ => new(new SteerTarget(end)),
         };
         faults.EditNextIntents = intents => intents.Add((body, new() { Frame = space, Move = move }));
 
@@ -150,9 +224,15 @@ public sealed class WorldBugOnlyTests
     private static extern BodyRecord? RecordOf(JoltPhysicsBackend backend, Entity entity);
 
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "WantGhost")]
-    private static extern void WantGhost(JoltPhysicsBackend backend, BodyRecord record, FrameHandle frame,
-        in DPose pose, Double3 linearVelocity,
-        Double3 angularVelocity, BodyLayer role);
+    private static extern void WantGhost(
+        JoltPhysicsBackend backend,
+        BodyRecord record,
+        FrameHandle frame,
+        in DPose pose,
+        Double3 linearVelocity,
+        Double3 angularVelocity,
+        BodyLayer role
+    );
 
     /// <summary>
     /// No frame gets two ghosts of one body, so a ghost pass wants each ghost once, and a ghost changes its role only before
@@ -167,28 +247,51 @@ public sealed class WorldBugOnlyTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new()
-            { Frame = space, Pose = At(43), AsFrame = new(FrameBounds.Sphere(20)) }));
-        Entity shuttle = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(19),
-            Body = new(Shape: new BoxShapeDesc(new(2.5f)), Motion: BodyMotion.Static,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(11))
-        });
+        FrameHandle dock = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(43),
+                    AsFrame = new(FrameBounds.Sphere(20)),
+                }
+            )
+        );
+        Entity shuttle = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(19),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(2.5f)),
+                    Motion: BodyMotion.Static,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(11)),
+            }
+        );
         world.Tick();
 
         JoltPhysicsBackend.BodyFacts GhostInDock() =>
-            faults.Jolt.BodiesIn(dock).Single(facts =>
-                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shuttle));
+            faults
+                .Jolt.BodiesIn(dock)
+                .Single(facts =>
+                    BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shuttle)
+                );
 
         JoltPhysicsBackend.BodyFacts kept = GhostInDock();
         BodyRecord record = RecordOf(faults.Jolt, shuttle)!;
 
-        Action want = () => WantGhost(backend: faults.Jolt, record: record, frame: dock,
-            pose: new(kept.Position, DQuaternion.Identity), linearVelocity: default,
-            angularVelocity: default, role: BodyLayer.FrameHull);
+        Action want = () =>
+            WantGhost(
+                backend: faults.Jolt,
+                record: record,
+                frame: dock,
+                pose: new(kept.Position, DQuaternion.Identity),
+                linearVelocity: default,
+                angularVelocity: default,
+                role: BodyLayer.FrameHull
+            );
 
 #if TERTIUS_CONTRACTS
         want.Should().Throw<ContractException>().WithMessage($"*{shuttle}*{dock}*Only a bug*");
@@ -218,29 +321,50 @@ public sealed class WorldBugOnlyTests
     public void AGhostWithoutAContactMotionThatThePairTestFindsComesOnlyFromABug()
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, debugChecks: false);
-        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        var gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
-        Entity slab = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static)
-        });
-        FrameHandle home = world.GetOwnedFrame(world.Spawn(new()
-            { Frame = ground, Pose = At(0, 5), AsFrame = new(FrameBounds.Sphere(20), gravity) }));
+        Entity slab = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(20, 0.5f, 20)), Motion: BodyMotion.Static),
+            }
+        );
+        FrameHandle home = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 5),
+                    AsFrame = new(FrameBounds.Sphere(20), gravity),
+                }
+            )
+        );
         var podLog = new CollisionLog();
-        Entity pod = world.Spawn(new()
-        {
-            Frame = home,
-            Pose = At(0, -2),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100, Restitution: 0,
-                InteriorShape: new SphereShapeDesc(0.1f)),
-            AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
-            Components = [podLog]
-        });
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = home,
+                Pose = At(0, -2),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 100,
+                    Restitution: 0,
+                    InteriorShape: new SphereShapeDesc(0.1f)
+                ),
+                AsFrame = new(FrameBounds.Sphere(1.5f), gravity),
+                Components = [podLog],
+            }
+        );
         Tick(world, 180);
         podLog.NewsOf(slab).Should().Equal(Started);
-        BodyID ghost = faults.Jolt.BodiesIn(home).Single(facts =>
-            BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, slab)).Id;
+        BodyID ghost = faults
+            .Jolt.BodiesIn(home)
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, slab)
+            )
+            .Id;
         ContactMotionsOf(SystemOf(faults.Jolt, home)!).Remove(ghost).Should().BeTrue();
         world.SetMotionNextTick(owner: pod, motion: BodyMotion.Static);
 

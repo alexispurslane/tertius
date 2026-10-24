@@ -24,16 +24,25 @@ public sealed class ContactTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static),
-            Components = [floorLog]
-        });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static),
+                Components = [floorLog],
+            }
+        );
         var boxLog = new CollisionLog();
-        Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.7), Body = BoxBody(0.5f, mass: 2), Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.7),
+                Body = BoxBody(0.5f, mass: 2),
+                Components = [boxLog],
+            }
+        );
 
         Tick(world, 120);
 
@@ -65,21 +74,30 @@ public sealed class ContactTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity)),
         ]);
         var shipLog = new CollisionLog();
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
-            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
-            Components = [shipLog]
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
+                AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
+                Components = [shipLog],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-            { Frame = ship, Pose = At(0, 0, 0), Body = BoxBody(0.5f), Components = [crateLog] });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, 0, 0),
+                Body = BoxBody(0.5f),
+                Components = [crateLog],
+            }
+        );
 
         Tick(world, 90);
 
@@ -99,15 +117,26 @@ public sealed class ContactTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static)
-        });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static),
+            }
+        );
         var boxes = new List<Entity>();
         for (int i = 0; i < 5; i++)
-            boxes.Add(world.Spawn(new() { Frame = ground, Pose = At(i * 2 - 4, 0.5), Body = BoxBody(0.25f) }));
+            boxes.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(i * 2 - 4, 0.5),
+                        Body = BoxBody(0.25f),
+                    }
+                )
+            );
 
         Tick(world, 60);
 
@@ -127,20 +156,27 @@ public sealed class ContactTests
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity)),
         ]);
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = DPose.Identity,
-            Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
-            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0)))
-        });
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
+                AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
+            }
+        );
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = world.GetOwnedFrame(shipOwner), Pose = At(0, -1.5), Body = BoxBody(0.5f), Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = world.GetOwnedFrame(shipOwner),
+                Pose = At(0, -1.5),
+                Body = BoxBody(0.5f),
+                Components = [crateLog],
+            }
+        );
         Tick(world, 30);
         ContactsSent(faults).Should().ContainSingle();
         faults.Outputs.SelectMany(output => output.ContactsEnded).Should().BeEmpty("nothing has changed yet");
@@ -170,17 +206,29 @@ public sealed class ContactTests
         world.Destroy(higherSlot);
         world.Destroy(lowerSlot);
         var boxLog = new CollisionLog();
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static)
-        });
-        Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.5), Body = BoxBody(0.5f), Components = [boxLog] });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static),
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = BoxBody(0.5f),
+                Components = [boxLog],
+            }
+        );
         box.Should().BeLessThan(floor, "the box has the lower entity");
         Tick(world, 10);
-        faults.AppliedChanges.SelectMany(changes => changes.BodiesCreated).Select(create => create.Entity).Should()
+        faults
+            .AppliedChanges.SelectMany(changes => changes.BodiesCreated)
+            .Select(create => create.Entity)
+            .Should()
             .Equal([floor, box], "the floor's body is the first one created");
         ContactsSent(faults).Should().ContainSingle();
 

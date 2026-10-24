@@ -71,14 +71,21 @@ public static partial class DemoScenes
         private static CompoundChild[] Shape()
         {
             float bedLength = 2 * Shuttle.Hull.Z + 1;
-            Vector3 up = Up.ToVector3(), normal = new(0, (float)Math.Cos(Angle), (float)Math.Sin(Angle));
+            Vector3 up = Up.ToVector3(),
+                normal = new(0, (float)Math.Cos(Angle), (float)Math.Sin(Angle));
             return
             [
-                new(new BoxShapeDesc(new(Width / 2, Thickness / 2, bedLength / 2), ConvexRadius: 0),
-                    new(new(0, -Thickness / 2, bedLength / 2), Quaternion.Identity)),
-                new(new BoxShapeDesc(new(Width / 2, Thickness / 2, Length / 2), ConvexRadius: 0),
-                    new(up * (Length / 2) - normal * (Thickness / 2),
-                        Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Angle)))
+                new(
+                    new BoxShapeDesc(new(Width / 2, Thickness / 2, bedLength / 2), ConvexRadius: 0),
+                    new(new(0, -Thickness / 2, bedLength / 2), Quaternion.Identity)
+                ),
+                new(
+                    new BoxShapeDesc(new(Width / 2, Thickness / 2, Length / 2), ConvexRadius: 0),
+                    new(
+                        up * (Length / 2) - normal * (Thickness / 2),
+                        Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)Angle)
+                    )
+                ),
             ];
         }
 
@@ -89,7 +96,9 @@ public static partial class DemoScenes
         /// </summary>
         public static MeshData Mesh()
         {
-            float h = (float)Height, d = (float)(Length * Math.Cos(Angle)), w = Width / 2;
+            float h = (float)Height,
+                d = (float)(Length * Math.Cos(Angle)),
+                w = Width / 2;
             // The wedge's outline in its side, as (y, z), from the foot round to the foot.
             Vector2[] outline = [new(0, 0), new(h, -d), new(-Sink, -d), new(-Sink, 0)];
             var vertices = new List<Vertex>();
@@ -97,11 +106,18 @@ public static partial class DemoScenes
 
             void Face(params Vector3[] corners)
             {
-                Vector3 n = Vector3.Normalize(Vector3.Cross(corners[1] - corners[0], corners[2] - corners[0]));
-                Vector3 tangent = Vector3.Normalize(corners[1] - corners[0]);
+                var n = Vector3.Normalize(Vector3.Cross(corners[1] - corners[0], corners[2] - corners[0]));
+                var tangent = Vector3.Normalize(corners[1] - corners[0]);
                 uint start = (uint)vertices.Count;
                 foreach (Vector3 corner in corners)
-                    vertices.Add(new() { Position = corner, Normal = n, Tangent = new(tangent, 1) });
+                    vertices.Add(
+                        new()
+                        {
+                            Position = corner,
+                            Normal = n,
+                            Tangent = new(tangent, 1),
+                        }
+                    );
                 for (uint i = 1; i + 1 < corners.Length; i++)
                     indices.AddRange([start, start + i, start + i + 1]);
             }
@@ -112,7 +128,8 @@ public static partial class DemoScenes
             Face([.. outline.Select(Left)]);
             for (int i = 0; i < outline.Length; i++)
             {
-                Vector2 a = outline[i], b = outline[(i + 1) % outline.Length];
+                Vector2 a = outline[i],
+                    b = outline[(i + 1) % outline.Length];
                 Face(Right(a), Right(b), Left(b), Left(a));
             }
 
@@ -120,12 +137,15 @@ public static partial class DemoScenes
         }
 
         /// <summary>Spawns the ramp in <paramref name="surface"/>, drawn with <paramref name="render"/>.</summary>
-        public static Entity Spawn(World world, FrameHandle surface, RenderData? render = null) => world.Spawn(new()
-        {
-            Frame = surface,
-            Pose = new(Foot, DQuaternion.Identity),
-            Body = new(Shape: new CompoundShapeDesc(Shape()), Motion: BodyMotion.Static, Friction: 0),
-            Render = render
-        });
+        public static Entity Spawn(World world, FrameHandle surface, RenderData? render = null) =>
+            world.Spawn(
+                new()
+                {
+                    Frame = surface,
+                    Pose = new(Foot, DQuaternion.Identity),
+                    Body = new(Shape: new CompoundShapeDesc(Shape()), Motion: BodyMotion.Static, Friction: 0),
+                    Render = render,
+                }
+            );
     }
 }

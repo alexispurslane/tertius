@@ -17,34 +17,44 @@ internal static class TryMethods
 
     public static void Analyze(SyntaxNodeAnalysisContext context)
     {
-        if (context.SemanticModel.GetDeclaredSymbol(context.Node, context.CancellationToken) is not IMethodSymbol method
-            || !IsTryName(method.Name) || HasTryShape(method) || Implements(method))
+        if (
+            context.SemanticModel.GetDeclaredSymbol(context.Node, context.CancellationToken) is not IMethodSymbol method
+            || !IsTryName(method.Name)
+            || HasTryShape(method)
+            || Implements(method)
+        )
             return;
         SyntaxToken name = context.Node switch
         {
             MethodDeclarationSyntax declaration => declaration.Identifier,
             LocalFunctionStatementSyntax local => local.Identifier,
-            _ => context.Node.GetFirstToken()
+            _ => context.Node.GetFirstToken(),
         };
         context.ReportDiagnostic(Diagnostic.Create(StyleRules.TryMethodShape, name.GetLocation(), method.Name));
     }
 
     /// <summary>True for <c>Try</c> and an upper-case letter at the start of a name, as in <c>TryGet</c>.</summary>
     private static bool IsTryName(string name) =>
-        name.Length > Prefix.Length && name.StartsWith(Prefix, StringComparison.Ordinal) &&
-        char.IsUpper(name[Prefix.Length]);
+        name.Length > Prefix.Length
+        && name.StartsWith(Prefix, StringComparison.Ordinal)
+        && char.IsUpper(name[Prefix.Length]);
 
     private static bool HasTryShape(IMethodSymbol method) =>
-        method.ReturnType.SpecialType == SpecialType.System_Boolean &&
-        method.Parameters.Any(parameter => parameter.RefKind == RefKind.Out);
+        method.ReturnType.SpecialType == SpecialType.System_Boolean
+        && method.Parameters.Any(parameter => parameter.RefKind == RefKind.Out);
 
     /// <summary>
     /// True for an override, and for an implicit implementation of an interface member. The name of an explicit
     /// implementation starts with its interface, such as <c>ICounter.TryCount</c>, so the rule never sees one.
     /// </summary>
     private static bool Implements(IMethodSymbol method) =>
-        method.IsOverride ||
-        method.ContainingType.AllInterfaces.SelectMany(type => type.GetMembers(method.Name)).Any(member =>
-            SymbolEqualityComparer.Default.Equals(method.ContainingType.FindImplementationForInterfaceMember(member),
-                method));
+        method.IsOverride
+        || method
+            .ContainingType.AllInterfaces.SelectMany(type => type.GetMembers(method.Name))
+            .Any(member =>
+                SymbolEqualityComparer.Default.Equals(
+                    method.ContainingType.FindImplementationForInterfaceMember(member),
+                    method
+                )
+            );
 }

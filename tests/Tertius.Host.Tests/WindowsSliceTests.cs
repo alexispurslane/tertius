@@ -39,14 +39,19 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         // top of the image and Earth its middle: its horizon is 19.8 degrees below level. The pane lets most of Earth's
         // light through and adds its own, the lamp light that it reflects. So through the pane Earth is a little lighter
         // in red and green and a little darker in blue than through the bare hole, at the same pixel, 3 ticks later.
-        Dump("pane-gone").Entities.Should().NotContain(entity => entity.Id == "pane-starboard-7",
-            "the script destroyed the pane before the second capture");
+        Dump("pane-gone")
+            .Entities.Should()
+            .NotContain(
+                entity => entity.Id == "pane-starboard-7",
+                "the script destroyed the pane before the second capture"
+            );
         (int r, int g, int b) earth = run.Capture("earth-through-pane").Average(640, 400);
         (int r, int g, int b) bare = run.Capture("earth-through-hole").Average(640, 400);
 
         (bare.b > bare.r + 60).Should().BeTrue($"Earth's blue shows through the bare hole, not {bare}");
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows through the pane, not {earth}");
-        (earth.r > bare.r + 2 && earth.g > bare.g + 2 && earth.b < bare.b).Should()
+        (earth.r > bare.r + 2 && earth.g > bare.g + 2 && earth.b < bare.b)
+            .Should()
             .BeTrue($"the pane tints Earth from {bare} to {earth}");
     }
 
@@ -59,7 +64,8 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         (int r, int g, int b) space = run.Capture("earth-through-hole").Average(640, 200);
 
         (space.r + space.g + space.b).Should().BeLessThan(10, $"black space shows through the bare hole, not {space}");
-        (glass.r + glass.g + glass.b).Should()
+        (glass.r + glass.g + glass.b)
+            .Should()
             .BeInRange(20, 90, $"the pane is dark, but not black, against space, not {glass}");
         (glass.b > glass.g && glass.g > glass.r).Should().BeTrue($"the pane's tint is blue, not {glass}");
     }
@@ -88,7 +94,9 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         // 2.3 m/s, its head scrapes the hatch's top, and it drifts out at 1.38 m/s, 0.19 m higher than before. The script
         // lets it drift 255 ticks instead of 120, to the same distance from the hull. From 0.19 m higher, the cabin shows
         // about 15 rows lower, so the probe of the floor moved from row 360, now at the edge of the floor, to row 368.
-        Dump("outside").Entity("person").Pose.Position.X.Should()
+        Dump("outside")
+            .Entity("person")
+            .Pose.Position.X.Should()
             .BeLessThan(-15, "the person is outside the hull, 5.4 m from its port face");
         Png image = run.Capture("cabin-through-pane");
         (int r, int g, int b) hull = image.Average(640, 200),
@@ -96,9 +104,11 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
             floor = image.Average(650, 368);
 
         (hull.r + hull.g + hull.b).Should().BeLessThan(60, $"the port face above the window is dark, not {hull}");
-        (wall.r > hull.r + 50 && wall.r > wall.b).Should()
+        (wall.r > hull.r + 50 && wall.r > wall.b)
+            .Should()
             .BeTrue($"the lamp-lit starboard wall shows through the pane, not {wall}");
-        (floor.r > hull.r + 100 && floor.r > floor.b).Should()
+        (floor.r > hull.r + 100 && floor.r > floor.b)
+            .Should()
             .BeTrue($"the lamp-lit floor shows through the pane, not {floor}");
     }
 

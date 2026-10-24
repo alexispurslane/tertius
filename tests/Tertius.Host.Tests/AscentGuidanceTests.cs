@@ -10,12 +10,18 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class AscentGuidanceTests
 {
-    private const double Mu = 3.986004418e14, OrbitRadius = 6.571e6, Full = 3 * 9.81;
+    private const double Mu = 3.986004418e14,
+        OrbitRadius = 6.571e6,
+        Full = 3 * 9.81;
 
     private static readonly Double3 PlaneNormal = -Double3.UnitX;
 
-    private static readonly AscentGuidance Guidance = new(Mu: Mu, OrbitRadius: OrbitRadius, MaxAcceleration: Full,
-        PlaneNormal: PlaneNormal);
+    private static readonly AscentGuidance Guidance = new(
+        Mu: Mu,
+        OrbitRadius: OrbitRadius,
+        MaxAcceleration: Full,
+        PlaneNormal: PlaneNormal
+    );
 
     [Fact]
     public void TheCirclesSpeedIsThatOfACircularOrbit() =>
@@ -123,17 +129,32 @@ public sealed class AscentGuidanceTests
     [InlineData(6.55e6, 0, 2000, 10)]
     [InlineData(OrbitRadius, 0, 7700, 1000)]
     [InlineData(6.56e6, 20, 7000, -50)]
-    public void ThePushAcrossThePlaneNeverTakesThrustFromTheClimb(double radius, double climb, double alongTrack,
-        double across)
+    public void ThePushAcrossThePlaneNeverTakesThrustFromTheClimb(
+        double radius,
+        double climb,
+        double alongTrack,
+        double across
+    )
     {
-        (Double3 position, Double3 velocity) =
-            OnTheTrack(radius: radius, across: across, climb: climb, alongTrack: alongTrack);
-        (Double3 twinPosition, Double3 twinVelocity) =
-            OnTheTrack(radius: radius, across: 0, climb: climb, alongTrack: alongTrack);
+        (Double3 position, Double3 velocity) = OnTheTrack(
+            radius: radius,
+            across: across,
+            climb: climb,
+            alongTrack: alongTrack
+        );
+        (Double3 twinPosition, Double3 twinVelocity) = OnTheTrack(
+            radius: radius,
+            across: 0,
+            climb: climb,
+            alongTrack: alongTrack
+        );
 
-        Double3 a = Guidance.Acceleration(position, velocity), twin = Guidance.Acceleration(twinPosition, twinVelocity);
+        Double3 a = Guidance.Acceleration(position, velocity),
+            twin = Guidance.Acceleration(twinPosition, twinVelocity);
 
-        Double3.Dot(a, position.Normalized()).Should()
+        Double3
+            .Dot(a, position.Normalized())
+            .Should()
             .BeApproximately(Double3.Dot(twin, twinPosition.Normalized()), 1e-9);
     }
 
@@ -142,11 +163,16 @@ public sealed class AscentGuidanceTests
     /// side of +X, the side away from its normal, that climbs at <paramref name="climb"/> and moves along its track at
     /// <paramref name="alongTrack"/>, with no speed across the plane.
     /// </summary>
-    private static (Double3 Position, Double3 Velocity) OnTheTrack(double radius, double across, double climb,
-        double alongTrack)
+    private static (Double3 Position, Double3 Velocity) OnTheTrack(
+        double radius,
+        double across,
+        double climb,
+        double alongTrack
+    )
     {
         var position = new Double3(across, Math.Sqrt(radius * radius - across * across), 0);
-        Double3 up = position.Normalized(), track = Double3.Cross(PlaneNormal, up).Normalized();
+        Double3 up = position.Normalized(),
+            track = Double3.Cross(PlaneNormal, up).Normalized();
         return (position, up * climb + track * alongTrack);
     }
 
@@ -159,7 +185,9 @@ public sealed class AscentGuidanceTests
     [InlineData(0.4, 7788.488, true)]
     [InlineData(-0.6, 7788.488, false)]
     [InlineData(0.6, 7788.488, false)]
-    public void TheClimbIsDoneOnceTheSpeedAlongTheTrackAndTheVerticalSpeedAreThoseOfTheCircle(double climb,
-        double alongTrack, bool done) =>
-        Guidance.Reached(new(0, OrbitRadius, 0), new(0, climb, -alongTrack)).Should().Be(done);
+    public void TheClimbIsDoneOnceTheSpeedAlongTheTrackAndTheVerticalSpeedAreThoseOfTheCircle(
+        double climb,
+        double alongTrack,
+        bool done
+    ) => Guidance.Reached(new(0, OrbitRadius, 0), new(0, climb, -alongTrack)).Should().Be(done);
 }

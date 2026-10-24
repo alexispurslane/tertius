@@ -51,7 +51,6 @@ internal sealed class PuffTable
     // The share of the next puff that each emitter's entity has gathered, from 0 up to but not including 1. The entity
     // table clears it when it releases the entity, so a new entity in a reused slot starts at 0. Only AddNewborns writes it.
     private readonly EntityTable.Column<double> phases;
-    private readonly PuffLooks looks = new();
 
     // The live rows, packed from 0, and the array that a rebuild writes them into in the new order before the two swap.
     private Puff[] rows = [];
@@ -103,14 +102,14 @@ internal sealed class PuffTable
     public int Count { get; private set; }
 
     /// <summary>The look table.</summary>
-    public PuffLooks Looks => looks;
+    public PuffLooks Looks { get; } = new();
 
     /// <summary>
     /// The live rows, their ranges and the look table, for the render snapshot. Valid until the table next changes, at the
     /// next sync point.
     /// </summary>
-    public PuffView View => new(rows: rows.AsSpan(0, Count), ranges: CollectionsMarshal.AsSpan(ranges),
-        looks: looks.All, step: step);
+    public PuffView View =>
+        new(rows: rows.AsSpan(0, Count), ranges: CollectionsMarshal.AsSpan(ranges), looks: Looks.All, step: step);
 
     /// <summary>The birth phase of an emitter's entity, in [0, 1). Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public double BirthPhase(Entity entity) => phases[entity];
@@ -135,7 +134,8 @@ internal sealed class PuffTable
             return;
         Span<Puff> all = rows.AsSpan(0, Count);
         Span<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
-        int write = 0, kept = 0;
+        int write = 0,
+            kept = 0;
         foreach (PuffRange range in list)
         {
             if (!frames.IsAlive(range.Frame))
@@ -148,12 +148,12 @@ internal sealed class PuffTable
             int start = write;
             for (int i = range.Start, end = range.Start + range.Count; i < end; i++)
             {
-                ref readonly PuffLook look = ref looks[all[i].Look];
+                ref readonly PuffLook look = ref Looks[all[i].Look];
                 Puff next = all[i].Stepped(in loose, in look, dt);
                 if (next.Age < look.Life)
                     all[write++] = next;
                 else
-                    looks.Release(next.Look);
+                    Looks.Release(next.Look);
             }
 
             if (write > start)
@@ -169,11 +169,11 @@ internal sealed class PuffTable
     private void DropRange(PuffRange range, long tick)
     {
         string message =
-            $"tick {tick}: {range.Count} puffs are in the frame {range.Frame}, which is not live. Only a bug in the engine " +
-            "makes this state: the destroy path moves the puffs of every dying frame into its heir. The puffs were dropped.";
+            $"tick {tick}: {range.Count} puffs are in the frame {range.Frame}, which is not live. Only a bug in the engine "
+            + "makes this state: the destroy path moves the puffs of every dying frame into its heir. The puffs were dropped.";
         Contract.Assert(false, message);
         foreach (Puff row in rows.AsSpan(range.Start, range.Count))
-            looks.Release(row.Look);
+            Looks.Release(row.Look);
         reportError(message);
     }
 
@@ -207,7 +207,7 @@ internal sealed class PuffTable
             if (heir.IsNull)
             {
                 foreach (Puff row in dying)
-                    looks.Release(row.Look);
+                    Looks.Release(row.Look);
                 list[r] = range with { Count = 0 };
                 continue;
             }
@@ -249,8 +249,13 @@ internal sealed class PuffTable
         // one that is already dead.
         long total = 0;
         foreach (Entity entity in entities.EmitterEntities)
-            total += Living(emitter: in entities.FrontRender(entity).Emitter, phase: phases[entity], dt: dt,
-                first: out _, next: out _);
+            total += Living(
+                emitter: in entities.FrontRender(entity).Emitter,
+                phase: phases[entity],
+                dt: dt,
+                first: out _,
+                next: out _
+            );
         long skip = Math.Max(0, total - Capacity);
         EnsureNewborns((int)Math.Min(total, Capacity));
 
@@ -260,16 +265,28 @@ internal sealed class PuffTable
             ref readonly PuffEmitter emitter = ref entities.FrontRender(entity).Emitter;
             ref double phase = ref phases[entity];
             double start = phase;
-            long living = Living(emitter: in emitter, phase: start, dt: dt, first: out long firstLiving,
-                next: out phase);
+            long living = Living(
+                emitter: in emitter,
+                phase: start,
+                dt: dt,
+                first: out long firstLiving,
+                next: out phase
+            );
             // The newborns from the first living one past the skipped ones on, numbered from 1 in the emitter's step.
             long first = firstLiving + Math.Max(0, skip - seen);
             long last = firstLiving + living - 1;
             seen += living;
             if (first > last)
                 continue;
-            AddNewbornsOf(entity: entity, emitter: in emitter, phase: start, first: first, last: last, tick: tick,
-                dt: dt);
+            AddNewbornsOf(
+                entity: entity,
+                emitter: in emitter,
+                phase: start,
+                first: first,
+                last: last,
+                tick: tick,
+                dt: dt
+            );
         }
 
         // A step without newborns changes no row: the count was within the capacity already.
@@ -280,7 +297,7 @@ internal sealed class PuffTable
         Rebuild(drop: Math.Max(0, excess));
         newbornCount = 0;
         newbornRuns.Clear();
-        Contract.Ensures(HoldsRows() && looks.IsCoherent(rows.AsSpan(0, Count)) && newbornRuns.Count == 0);
+        Contract.Ensures(HoldsRows() && Looks.IsCoherent(rows.AsSpan(0, Count)) && newbornRuns.Count == 0);
     }
 
     /// <summary>
@@ -296,8 +313,15 @@ internal sealed class PuffTable
     }
 
     /// <summary>The newborns <paramref name="first"/> to <paramref name="last"/> of one emitter's step, all of which live, as one run.</summary>
-    private void AddNewbornsOf(Entity entity, in PuffEmitter emitter, double phase, long first, long last, long tick,
-        float dt)
+    private void AddNewbornsOf(
+        Entity entity,
+        in PuffEmitter emitter,
+        double phase,
+        long first,
+        long last,
+        long tick,
+        float dt
+    )
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
         // The owner of a root frame has no row frame: its puffs are born in the frame that it owns, at its origin.
@@ -311,13 +335,20 @@ internal sealed class PuffTable
             double age = PuffBirths.AgeAt(index: j, phase: phase, rate: emitter.Rate, dt: dt);
             (double r1, double r2) = PuffBirths.Seed(entity, tick, j);
             Double3 direction = PuffBirths.Direction(emitter.Spread, r1, r2);
-            newborns[newbornCount++] =
-                PuffBirths.Newborn(step: in loose, emitterPose: in pose, emitterVelocity: velocity, emitter: in emitter,
-                    direction: direction, age: age, look: -1, dt: dt);
+            newborns[newbornCount++] = PuffBirths.Newborn(
+                step: in loose,
+                emitterPose: in pose,
+                emitterVelocity: velocity,
+                emitter: in emitter,
+                direction: direction,
+                age: age,
+                look: -1,
+                dt: dt
+            );
         }
 
         int born = newbornCount - runStart;
-        int look = looks.Use(emitter.Look, born);
+        int look = Looks.Use(emitter.Look, born);
         foreach (ref Puff newborn in newborns.AsSpan(runStart, born))
             newborn.Look = look;
         newbornRuns.Add(new(frame, runStart, born));
@@ -415,7 +446,7 @@ internal sealed class PuffTable
 
             if (!dropAll && row.Age == edgeAge)
                 dropsAtEdge--;
-            looks.Release(row.Look);
+            Looks.Release(row.Look);
         }
 
         return write;
@@ -473,7 +504,7 @@ internal sealed class PuffTable
     public void AssertInvariants()
     {
         Contract.Invariant(HoldsRows());
-        looks.AssertInvariants(rows.AsSpan(0, Count));
+        Looks.AssertInvariants(rows.AsSpan(0, Count));
         Contract.Invariant(newbornCount == 0 && newbornRuns.Count == 0);
         foreach (double phase in phases.AsSpan())
             Contract.Invariant(phase is >= 0 and < 1);
@@ -485,8 +516,13 @@ internal sealed class PuffTable
         if (Count > Capacity || !HoldsRanges())
             return false;
         foreach (Puff row in rows.AsSpan(0, Count))
-            if (!IsFinite(row.Place) || !IsFinite(row.Chord) || !(row.Age >= 0) || looks.UsersOf(row.Look) == 0 ||
-                !(row.Age < looks[row.Look].Life))
+            if (
+                !IsFinite(row.Place)
+                || !IsFinite(row.Chord)
+                || !(row.Age >= 0)
+                || Looks.UsersOf(row.Look) == 0
+                || !(row.Age < Looks[row.Look].Life)
+            )
                 return false;
         return true;
     }
@@ -499,8 +535,12 @@ internal sealed class PuffTable
         for (int r = 0; r < list.Length; r++)
         {
             PuffRange range = list[r];
-            if (range.Start != next || range.Count <= 0 || !frames.IsAlive(range.Frame) ||
-                frames.IsNumeric(range.Frame))
+            if (
+                range.Start != next
+                || range.Count <= 0
+                || !frames.IsAlive(range.Frame)
+                || frames.IsNumeric(range.Frame)
+            )
                 return false;
             for (int q = 0; q < r; q++)
                 if (list[q].Frame == range.Frame)

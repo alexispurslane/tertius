@@ -25,14 +25,16 @@ internal static class Source
     /// </summary>
     public static IReadOnlyList<Finding> Findings(string text, string outside)
     {
-        SourceFile file = SourceFile.Parse(FileName, text);
+        var file = SourceFile.Parse(FileName, text);
         return [.. file.Findings(RuleContext.Of(new Codebase(files: [file], namesOutside: Codebase.NamesIn(outside))))];
     }
 
     /// <summary>A codebase of <paramref name="files"/>, every name of which a test also reads.</summary>
     public static Codebase UsedByATest(params SourceFile[] files) =>
-        new(files: files,
-            namesOutside: Codebase.NamesIn(string.Join('\n', files.Select(file => file.Tree.GetText().ToString()))));
+        new(
+            files: files,
+            namesOutside: Codebase.NamesIn(string.Join('\n', files.Select(file => file.Tree.GetText().ToString())))
+        );
 
     /// <summary>The ids of the rules that flag <paramref name="text"/>, in the order of the findings.</summary>
     public static IReadOnlyList<string> RulesIn(string text) => [.. Findings(text).Select(finding => finding.Rule)];
@@ -49,25 +51,32 @@ internal static class Source
     /// <paramref name="body"/>.
     /// </summary>
     public static IReadOnlyList<string> RulesInMethod(string body) =>
-        RulesIn($$"""
-                  class C
-                  {
-                      int F()
-                      {
-                          {{body}}
-                      }
-                  }
-                  """);
+        RulesIn(
+            $$"""
+            class C
+            {
+                int F()
+                {
+                    {{body}}
+                }
+            }
+            """
+        );
 
     /// <summary>The one function of a class whose one method <c>F</c> has the body <paramref name="body"/>.</summary>
     public static FunctionMeasure Method(string body) =>
-        Functions($$"""
-                    class C
+        Functions(
+                $$"""
+                class C
+                {
+                    void F()
                     {
-                        void F()
-                        {
-                            {{body}}
-                        }
+                        {{body}}
                     }
-                    """).Should().ContainSingle().Subject;
+                }
+                """
+            )
+            .Should()
+            .ContainSingle()
+            .Subject;
 }

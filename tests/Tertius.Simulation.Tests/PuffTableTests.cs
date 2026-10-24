@@ -10,26 +10,43 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class PuffTableTests
 {
-    private static readonly PuffLook Hot = new(Life: 2, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
-        Shading: PuffShading.Glow(new(6, 5.4f, 4.5f)));
+    private static readonly PuffLook Hot = new(
+        Life: 2,
+        StartRadius: 0.2f,
+        EndRadius: 1,
+        TemperatureRatio: 3,
+        Shading: PuffShading.Glow(new(6, 5.4f, 4.5f))
+    );
 
-    private static readonly PuffLook Cold = new(Life: 2, StartRadius: 0.3f, EndRadius: 2, TemperatureRatio: 0.75f,
-        Shading: PuffShading.Lit(new(0.5f)));
+    private static readonly PuffLook Cold = new(
+        Life: 2,
+        StartRadius: 0.3f,
+        EndRadius: 2,
+        TemperatureRatio: 0.75f,
+        Shading: PuffShading.Lit(new(0.5f))
+    );
 
     private static readonly PuffLook Brief = Hot with { Life = 0.25f };
 
     internal static PuffEmitter Jet(PuffLook look, float rate = 60, float speed = 10) =>
         new(Rate: rate, Speed: speed, Spread: 0, Look: look);
 
-    internal static Entity SpawnEmitter(World world, FrameHandle frame, Double3 place, PuffEmitter emitter,
-        params IComponent[] components) =>
-        world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = new(place, DQuaternion.Identity),
-            Render = new RenderData { Emitter = emitter },
-            Components = components
-        });
+    internal static Entity SpawnEmitter(
+        World world,
+        FrameHandle frame,
+        Double3 place,
+        PuffEmitter emitter,
+        params IComponent[] components
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(place, DQuaternion.Identity),
+                Render = new RenderData { Emitter = emitter },
+                Components = components,
+            }
+        );
 
     private static PuffRange[] Ranges(World world) => world.Puffs.View.Ranges.ToArray();
 
@@ -45,7 +62,7 @@ public sealed class PuffTableTests
     [Fact]
     public void EachFrameHoldsItsPuffsInOneContiguousRange()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
         // In slot order the emitters take turns between the two frames.
@@ -66,7 +83,7 @@ public sealed class PuffTableTests
     [Fact]
     public void NewbornsJoinTheEndOfTheirFramesRange()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot, rate: 120));
 
@@ -77,7 +94,8 @@ public sealed class PuffTableTests
             ages.Should().HaveCount(2 * (tick + 1));
             ages.Should()
                 .BeInDescendingOrder(
-                    "the survivors keep their order and the newborns come last, in their order of birth");
+                    "the survivors keep their order and the newborns come last, in their order of birth"
+                );
             ages[^1].Should().BeLessThan(test.World.DeltaTime);
         }
     }
@@ -85,7 +103,7 @@ public sealed class PuffTableTests
     [Fact]
     public void AFrameThatGetsItsFirstPuffsTakesTheLastRange()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         // b is made before a, so it comes first in the frame tree and in slot order, but it gets its puffs later.
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
@@ -101,7 +119,7 @@ public sealed class PuffTableTests
     [Fact]
     public void ARangeThatEmptiesLeavesTheOrderOfTheOthers()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-200), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         FrameHandle c = test.SpawnStaticFrame(TestWorld.At(200), radius: 50);
@@ -125,7 +143,7 @@ public sealed class PuffTableTests
     {
         foreach (bool heirFirst in new[] { true, false })
         {
-            using TestWorld test = TestWorld.OnJolt(faults: out _);
+            using var test = TestWorld.OnJolt(faults: out _);
             FrameHandle dying = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
             if (heirFirst)
                 SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero, emitter: Jet(Hot));
@@ -141,25 +159,33 @@ public sealed class PuffTableTests
             Ranges(test.World).Select(range => range.Frame).Should().Equal([test.Root], "heir first: {0}", heirFirst);
             bool[] fromDying = [.. Rows(test.World, test.Root).Select(row => row.Look == cold)];
             fromDying.Should().HaveCount(heirFirst ? 8 : 6);
-            fromDying.Should().Equal(
-                heirFirst
-                    ? [false, false, false, false, true, true, true, true]
-                    : [true, true, true, true, false, false],
-                "the moved puffs follow the heir's own when the heir's range came first, and come before them otherwise");
+            fromDying
+                .Should()
+                .Equal(
+                    heirFirst
+                        ? [false, false, false, false, true, true, true, true]
+                        : [true, true, true, true, false, false],
+                    "the moved puffs follow the heir's own when the heir's range came first, and come before them otherwise"
+                );
         }
     }
 
     [Fact]
     public void AnEmitterThatGathersLessThanOnePuffPerStepMakesItsPuffsAtItsRate()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         // 45 puffs per second gather 0.75 of a puff in each step, so most steps make none.
-        Entity emitter = SpawnEmitter(world: test.World, frame: test.Root, place: Double3.Zero,
-            emitter: Jet(Hot, rate: 45));
+        Entity emitter = SpawnEmitter(
+            world: test.World,
+            frame: test.Root,
+            place: Double3.Zero,
+            emitter: Jet(Hot, rate: 45)
+        );
 
         test.Run(1);
         test.World.Puffs.Count.Should().Be(0);
-        test.World.Puffs.BirthPhase(emitter).Should()
+        test.World.Puffs.BirthPhase(emitter)
+            .Should()
             .BeApproximately(0.75, 1e-6, "a step that makes no puff still gathers the phase");
         test.Run(7);
 
@@ -169,7 +195,7 @@ public sealed class PuffTableTests
     [Fact]
     public void EmittersWithEqualLooksShareOneLook()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(-100), radius: 50);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
         SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot));
@@ -178,7 +204,9 @@ public sealed class PuffTableTests
         test.Run(10);
 
         Puff[] rows = [.. Rows(test.World, a), .. Rows(test.World, b)];
-        rows.Select(row => row.Look).Distinct().Should()
+        rows.Select(row => row.Look)
+            .Distinct()
+            .Should()
             .ContainSingle("equal looks share one entry, whatever the rate and the speed");
         test.World.Puffs.Looks.InUse.Should().Be(1);
         test.World.Puffs.Looks.UsersOf(rows[0].Look).Should().Be(rows.Length);
@@ -188,7 +216,7 @@ public sealed class PuffTableTests
     [Fact]
     public void APuffKeepsTheLookOfItsBirthWhenItsEmitterChangesItsLook()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var pilot = new SelfPilot();
         SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Hot), pilot);
@@ -210,7 +238,7 @@ public sealed class PuffTableTests
     [Fact]
     public void ALookIsFreedWithItsLastPuffAndItsIndexIsReused()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out _);
+        using var test = TestWorld.OnJolt(faults: out _);
         FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
         var pilot = new SelfPilot();
         SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Brief), pilot);
@@ -246,7 +274,9 @@ public sealed class PuffTableTests
         workload.World.Puffs.Count.Should().BeGreaterThan(0, "seed {0}: the workload made puffs", seed);
         workload.World.Puffs.View.Ranges.Length.Should().BeGreaterThan(1, "seed {0}: in more than one frame", seed);
         workload.Tally.OutsideFrameDestroys.Should().BeGreaterThan(0);
-        workload.World.Errors.Where(error => error.Contains("Exception") || error.Contains("puff")).Should()
+        workload
+            .World.Errors.Where(error => error.Contains("Exception") || error.Contains("puff"))
+            .Should()
             .BeEmpty($"seed {seed}");
     }
 
@@ -259,23 +289,40 @@ public sealed class PuffTableTests
     public void AStepAndABirthAllocateNothingAfterWarmUp()
     {
         using var test = new TestWorld(debugChecks: false, configure: options => options.PuffCapacity = 200);
-        FrameHandle air = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            AsFrame = new(FrameBounds.Sphere(50), GravityField.Uniform(new(0, -9.81f, 0)),
-                MediumField.Uniform(1.225f, 2))
-        }));
+        FrameHandle air = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(100),
+                    AsFrame = new(
+                        FrameBounds.Sphere(50),
+                        GravityField.Uniform(new(0, -9.81f, 0)),
+                        MediumField.Uniform(1.225f, 2)
+                    ),
+                }
+            )
+        );
         for (int i = 0; i < 4; i++)
         {
-            SpawnEmitter(world: test.World, frame: air, place: new(i, 0, 0),
-                emitter: new(Rate: 70, Speed: 6, Spread: 0.6f, Look: Hot));
-            SpawnEmitter(world: test.World, frame: test.Root, place: new(0, i, 0),
-                emitter: new(Rate: 50, Speed: 3, Spread: 0.2f, Look: Brief));
+            SpawnEmitter(
+                world: test.World,
+                frame: air,
+                place: new(i, 0, 0),
+                emitter: new(Rate: 70, Speed: 6, Spread: 0.6f, Look: Hot)
+            );
+            SpawnEmitter(
+                world: test.World,
+                frame: test.Root,
+                place: new(0, i, 0),
+                emitter: new(Rate: 50, Speed: 3, Spread: 0.2f, Look: Brief)
+            );
         }
 
         var changer = new SelfPilot
-            { EveryTick = self => self.Render.Emitter = Jet(self.Tick / 20 % 2 == 0 ? Cold : Brief) };
+        {
+            EveryTick = self => self.Render.Emitter = Jet(self.Tick / 20 % 2 == 0 ? Cold : Brief),
+        };
         SpawnEmitter(world: test.World, frame: air, place: new(0, 0, 5), emitter: default, changer);
         test.Run(200);
         test.World.Puffs.Count.Should().Be(200, "the cap binds");
@@ -292,7 +339,9 @@ public sealed class PuffTableTests
     {
         Action make = () => new World(new() { PuffCapacity = -1 });
 
-        make.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should()
+        make.Should()
+            .Throw<ArgumentOutOfRangeException>()
+            .Which.ParamName.Should()
             .Be(nameof(WorldOptions.PuffCapacity));
     }
 }

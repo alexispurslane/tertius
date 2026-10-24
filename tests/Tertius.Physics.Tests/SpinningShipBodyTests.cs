@@ -44,28 +44,38 @@ public sealed class SpinningShipBodyTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const long torqueFrom = 10;
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(2)),
-            AsFrame = new(FrameBounds.Sphere(30)),
-            Components = [new SteadyTorque(new(0, 10_000, 0), torqueFrom)]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(
+                    Shape: new SphereShapeDesc(5),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(2)
+                ),
+                AsFrame = new(FrameBounds.Sphere(30)),
+                Components = [new SteadyTorque(new(0, 10_000, 0), torqueFrom)],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         var place = new Double3(20, 0, 0);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = new(place, DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = new(place, DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
 
         double dt = world.DeltaTime;
         const double alpha = 1;
         Double3 predicted = DQuaternion.FromAxisAngle(Double3.UnitY, alpha * dt * dt).Rotate(place);
         int firstTurn = -1;
-        double worstBefore = 0, worstPredicted = 0;
+        double worstBefore = 0,
+            worstPredicted = 0;
         var missed = new List<double>();
         for (int tick = 0; tick < 120; tick++)
         {
@@ -85,15 +95,29 @@ public sealed class SpinningShipBodyTests
         }
 
         firstTurn.Should().BeGreaterThan(0, "the hull starts to turn when the torque starts");
-        world.Frames.AngularVelocity(ship).Y.Should().BeApproximately((float)(alpha * (120 - firstTurn) * dt), 1e-4f,
-            "the torque spun the hull up at α");
+        world
+            .Frames.AngularVelocity(ship)
+            .Y.Should()
+            .BeApproximately((float)(alpha * (120 - firstTurn) * dt), 1e-4f, "the torque spun the hull up at α");
         worstBefore.Should().BeLessThan(1e-9, "the crate rests in inertial space while the hull rests");
         // Within 2e-5 m: the prediction holds Jolt's float rate, whose rounding grows with the rate, up to 1.8 rad/s here
         // (measured: 1e-8 m after 0.15 s, 7e-6 m after 1.5 s).
-        worstPredicted.Should().BeLessThan(2e-5,
-            "each step turns the crate's coordinates by the rate predicted from the hull's last record");
-        missed.Should().AllSatisfy(m => m.Should().BeApproximately(alpha * place.Length * dt * dt, 2e-5,
-            "the crate misses its place at rest in inertial space by the Euler force of one step"));
+        worstPredicted
+            .Should()
+            .BeLessThan(
+                2e-5,
+                "each step turns the crate's coordinates by the rate predicted from the hull's last record"
+            );
+        missed
+            .Should()
+            .AllSatisfy(m =>
+                m.Should()
+                    .BeApproximately(
+                        alpha * place.Length * dt * dt,
+                        2e-5,
+                        "the crate misses its place at rest in inertial space by the Euler force of one step"
+                    )
+            );
         world.GetFrame(crate).Should().Be(ship);
         world.Errors.Should().BeEmpty();
     }
@@ -111,14 +135,21 @@ public sealed class SpinningShipBodyTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            AngularVelocity = new(0, 0.05f, 0),
-            Body = new(Shape: new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 5,
-                InteriorShape: new SphereShapeDesc(2)),
-            AsFrame = new(FrameBounds.Sphere(30))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                AngularVelocity = new(0, 0.05f, 0),
+                Body = new(
+                    Shape: new SphereShapeDesc(5),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 5,
+                    InteriorShape: new SphereShapeDesc(2)
+                ),
+                AsFrame = new(FrameBounds.Sphere(30)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 2);
         IsAwake(backend, space, owner).Should().BeTrue();
@@ -129,8 +160,9 @@ public sealed class SpinningShipBodyTests
         FrameTurns afterSleep = world.Frames.Turns(ship);
         world.Tick();
 
-        afterSleep.Step.AngularVelocity.Should().Be(Double3.Zero,
-            "the hull asleep does not turn, and its last rate does not reverse");
+        afterSleep
+            .Step.AngularVelocity.Should()
+            .Be(Double3.Zero, "the hull asleep does not turn, and its last rate does not reverse");
         world.Frames.Turns(ship).Turns.Should().BeFalse("two steps after the sleep the ship turns in neither step");
         world.Errors.Should().BeEmpty();
     }

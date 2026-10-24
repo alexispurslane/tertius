@@ -2,8 +2,8 @@ using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -54,7 +54,8 @@ public sealed class ReboundTests
         List<float> ApproachSpeeds,
         List<double> Flights,
         double FinalHeight,
-        float FinalSpeed);
+        float FinalSpeed
+    );
 
     /// <summary>
     /// Drops a ball of 1 kg with radius <see cref="Radius"/> and restitution <paramref name="restitution"/> from rest onto a
@@ -80,27 +81,37 @@ public sealed class ReboundTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, g);
         var floorLog = new CollisionLog();
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-            Components = [floorLog]
-        });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+                Components = [floorLog],
+            }
+        );
         var ballLog = new CollisionLog();
         var engine = new Pilot();
         if (thrust != 0)
             engine.EveryTick = body => body.AddForce(new(0, -thrust, 0));
-        double fall = 0.5 * g * Math.Pow(fallSteps * world.DeltaTime, 2) +
-                      0.5 * thrust * Math.Pow(world.DeltaTime, 2) * fallSteps * (fallSteps + 1);
-        Entity ball = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, Radius + fall + gap),
-            Body = new(Shape: new SphereShapeDesc(Radius), Mass: 1, Restitution: restitution, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [ballLog, engine]
-        });
+        double fall =
+            0.5 * g * Math.Pow(fallSteps * world.DeltaTime, 2)
+            + 0.5 * thrust * Math.Pow(world.DeltaTime, 2) * fallSteps * (fallSteps + 1);
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, Radius + fall + gap),
+                Body = new(
+                    Shape: new SphereShapeDesc(Radius),
+                    Mass: 1,
+                    Restitution: restitution,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [ballLog, engine],
+            }
+        );
 
         var flights = new List<double>();
         double flightHighest = double.NegativeInfinity;
@@ -122,11 +133,14 @@ public sealed class ReboundTests
         }
 
         world.Errors.Should().BeEmpty();
-        return new(BallNews: ballLog.NewsOf(floor), FloorNews: floorLog.NewsOf(ball),
+        return new(
+            BallNews: ballLog.NewsOf(floor),
+            FloorNews: floorLog.NewsOf(ball),
             ApproachSpeeds: [.. ballLog.Seen.Select(seen => seen.Impulse)],
             Flights: flights,
             FinalHeight: world.PoseInOwnFrame(ball).Position.Y - Radius,
-            FinalSpeed: world.VelocityInOwnFrame(ball).Length());
+            FinalSpeed: world.VelocityInOwnFrame(ball).Length()
+        );
     }
 
     /// <summary>
@@ -180,15 +194,23 @@ public sealed class ReboundTests
         [InlineData(3f, 0.8f, 3)]
         [InlineData(3f, 1f, 2)]
         [InlineData(3f, 1f, 4)]
-        public void ADropReportsTheSameLandingsWhereverItsLandingStepBeginsInAnyGravity(float gravity,
-            float restitution, int fallSteps)
+        public void ADropReportsTheSameLandingsWhereverItsLandingStepBeginsInAnyGravity(
+            float gravity,
+            float restitution,
+            int fallSteps
+        )
         {
             float g = gravity * G;
             List<ContactNews>? landings = null;
             foreach (double gap in LandingGaps())
             {
-                Drop drop = DropBall(fallSteps: fallSteps, gap: gap, restitution: restitution, ticks: fallSteps + 240,
-                    g: g);
+                Drop drop = DropBall(
+                    fallSteps: fallSteps,
+                    gap: gap,
+                    restitution: restitution,
+                    ticks: fallSteps + 240,
+                    g: g
+                );
 
                 string because = $"the landing step begins {gap * 100:F3} cm above the floor";
                 landings ??= drop.BallNews;
@@ -213,8 +235,13 @@ public sealed class ReboundTests
         List<ContactNews>? landings = null;
         foreach (double gap in LandingGaps())
         {
-            Drop drop = ThrustBall(fallSteps: fallSteps, gap: gap, restitution: restitution, ticks: fallSteps + 240,
-                thrust: 3 * G);
+            Drop drop = ThrustBall(
+                fallSteps: fallSteps,
+                gap: gap,
+                restitution: restitution,
+                ticks: fallSteps + 240,
+                thrust: 3 * G
+            );
 
             string because = $"the landing step begins {gap * 100:F3} cm above the floor";
             drop.ApproachSpeeds[0].Should().BeApproximately((fallSteps + 1) * 3 * G / 60, 0.01f, because);
@@ -236,22 +263,31 @@ public sealed class ReboundTests
         using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var wallLog = new CollisionLog();
-        Entity wall = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static),
-            Components = [wallLog]
-        });
+        Entity wall = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Static),
+                Components = [wallLog],
+            }
+        );
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(-3),
-            LinearVelocity = new Vector3(1.5f, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1, Restitution: 0.5f, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(-3),
+                LinearVelocity = new Vector3(1.5f, 0, 0),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 1,
+                    Restitution: 0.5f,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [crateLog],
+            }
+        );
 
         Tick(world, 120);
 
@@ -283,23 +319,30 @@ public sealed class ReboundTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, G);
         Floor(world, ground);
-        Entity box = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, 0.51),
-            LinearVelocity = new Vector3(0, -1.5f, 0),
-            AngularVelocity = new(signX * 1, 0, signZ * 1.5f),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0.5f, LinearDamping: 0,
-                AngularDamping: 0)
-        });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.51),
+                LinearVelocity = new Vector3(0, -1.5f, 0),
+                AngularVelocity = new(signX * 1, 0, signZ * 1.5f),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(0.5f)),
+                    Mass: 10,
+                    Restitution: 0.5f,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+            }
+        );
 
         world.Tick();
 
         // The spin carries the bottom corner at -X, +Z down fastest, or its mirror.
         DPose pose = world.PoseIn(box, ground);
         Vector3 corner = pose.Rotation.Rotate(new(-signZ * 0.5f, -0.5f, signX * 0.5f));
-        Vector3 cornerVelocity = world.VelocityIn(box, ground).ToVector3() +
-                                 Vector3.Cross(world.AngularVelocityIn(box, ground), corner);
+        Vector3 cornerVelocity =
+            world.VelocityIn(box, ground).ToVector3() + Vector3.Cross(world.AngularVelocityIn(box, ground), corner);
         cornerVelocity.Y.Should().BeGreaterThan(1f, "Jolt bounced the leading corner at about 1.37 m/s");
         world.Errors.Should().BeEmpty();
     }
@@ -320,37 +363,67 @@ public sealed class ReboundTests
     [InlineData(false, 10, 1)]
     [InlineData(true, 30, 3)]
     [InlineData(false, 30, 3)]
-    public void AFastBallThatSkimsAFloorJoinsItsSystemAndBouncesAsItDoesWithoutNumericFrames(bool numericFrames,
-        int fallSteps, int landings)
+    public void AFastBallThatSkimsAFloorJoinsItsSystemAndBouncesAsItDoesWithoutNumericFrames(
+        bool numericFrames,
+        int fallSteps,
+        int landings
+    )
     {
-        using World world = NewWorld(backend: out _,
-            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+        using World world = NewWorld(
+            backend: out _,
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames
+        );
         FrameHandle ground = Ground(world, G);
         var floorLog = new CollisionLog();
-        Entity floor = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(1_400, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(1_500, 0.5f, 10)), Motion: BodyMotion.Static),
-            Components = [floorLog]
-        });
+        Entity floor = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(1_400, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(1_500, 0.5f, 10)), Motion: BodyMotion.Static),
+                Components = [floorLog],
+            }
+        );
         var ballLog = new CollisionLog();
         double fall = 0.5 * G * Math.Pow(fallSteps * world.DeltaTime, 2);
         var skim = new Vector3(1_200, 0, 0);
-        var ballBody = new BodyDesc(Shape: new SphereShapeDesc(Radius), Mass: 1, Restitution: 0.5f, LinearDamping: 0,
-            AngularDamping: 0);
-        Entity ball = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, Radius + fall + 0.01), LinearVelocity = skim, Body = ballBody,
-            Components = [ballLog]
-        });
-        Entity twin = world.Spawn(new()
-            { Frame = ground, Pose = At(0, Radius + fall + 0.01, 5_000), LinearVelocity = skim, Body = ballBody });
+        var ballBody = new BodyDesc(
+            Shape: new SphereShapeDesc(Radius),
+            Mass: 1,
+            Restitution: 0.5f,
+            LinearDamping: 0,
+            AngularDamping: 0
+        );
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, Radius + fall + 0.01),
+                LinearVelocity = skim,
+                Body = ballBody,
+                Components = [ballLog],
+            }
+        );
+        Entity twin = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, Radius + fall + 0.01, 5_000),
+                LinearVelocity = skim,
+                Body = ballBody,
+            }
+        );
         Tick(world, 2);
-        world.Frames.Numeric(world.PhysicsHomeOf(twin)).Should().Be(
-            numericFrames ? NumericMode.Falling : NumericMode.None,
-            "the twin of the ball, which no anchor links, falls in a numeric frame of its own, when there are numeric frames");
-        world.PhysicsHomeOf(ball).Should()
+        world
+            .Frames.Numeric(world.PhysicsHomeOf(twin))
+            .Should()
+            .Be(
+                numericFrames ? NumericMode.Falling : NumericMode.None,
+                "the twin of the ball, which no anchor links, falls in a numeric frame of its own, when there are numeric frames"
+            );
+        world
+            .PhysicsHomeOf(ball)
+            .Should()
             .Be(ground, "the ball joins the home of the floor, with numeric frames or without");
 
         Tick(world, fallSteps + 90);
@@ -420,10 +493,15 @@ public sealed class ReboundTests
         FrameHandle ground = Ground(world, G);
         Entity floor = Floor(world, ground);
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, 10.5), Body = new(Shape: new BoxShapeDesc(new(0.5f))), Components = [crateLog]
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 10.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f))),
+                Components = [crateLog],
+            }
+        );
 
         double highest = double.NegativeInfinity;
         for (int i = 0; i < 150; i++)
@@ -433,7 +511,10 @@ public sealed class ReboundTests
                 highest = Math.Max(highest, world.PoseInOwnFrame(crate).Position.Y - 0.5);
         }
 
-        crateLog.Seen.Should().ContainSingle().Which.Impulse.Should()
+        crateLog
+            .Seen.Should()
+            .ContainSingle()
+            .Which.Impulse.Should()
             .BeGreaterThan(13f, "the crate of 1 kg landed at about 14 m/s");
         crateLog.NewsOf(floor).Should().Equal(Started);
         highest.Should().BeLessThan(0.002, "the crate did not rise after it landed");
@@ -454,31 +535,44 @@ public sealed class ReboundTests
     [InlineData(0.2f, 2)]
     public void AFastBallThatJoltCastsBouncesOnlyWhenItsBounceRisesFourCentimeters(float restitution, int landings)
     {
-        const float radius = 0.02f, speed = 8f;
+        const float radius = 0.02f,
+            speed = 8f;
         const int fallSteps = 3;
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, G);
         var plateLog = new CollisionLog();
-        Entity plate = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, -0.002),
-            Body = new(Shape: new BoxShapeDesc(new(5, 0.002f, 5)), Motion: BodyMotion.Static),
-            Components = [plateLog]
-        });
+        Entity plate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.002),
+                Body = new(Shape: new BoxShapeDesc(new(5, 0.002f, 5)), Motion: BodyMotion.Static),
+                Components = [plateLog],
+            }
+        );
         var ballLog = new CollisionLog();
         double t = fallSteps * world.DeltaTime;
-        Entity ball = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = At(0, radius + 0.025 + speed * t + 0.5 * G * t * t),
-            LinearVelocity = new Vector3(0, -speed, 0),
-            Body = new(Shape: new SphereShapeDesc(radius), Mass: 1, Restitution: restitution, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [ballLog]
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, radius + 0.025 + speed * t + 0.5 * G * t * t),
+                LinearVelocity = new Vector3(0, -speed, 0),
+                Body = new(
+                    Shape: new SphereShapeDesc(radius),
+                    Mass: 1,
+                    Restitution: restitution,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [ballLog],
+            }
+        );
         world.Tick();
-        backend.BodiesIn(ground).Single(facts => BodyUserData.Names(facts.UserData, ball)).Quality.Should()
+        backend
+            .BodiesIn(ground)
+            .Single(facts => BodyUserData.Names(facts.UserData, ball))
+            .Quality.Should()
             .Be(MotionQuality.LinearCast);
 
         double highest = double.NegativeInfinity;
@@ -514,31 +608,43 @@ public sealed class ReboundTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Ground(world, G);
-        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space, AsFrame = new(FrameBounds.Sphere(10))
-        }));
-        Entity block = world.Spawn(new()
-        {
-            Frame = bubble, Pose = At(0, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic)
-        });
+        FrameHandle bubble = world.GetOwnedFrame(
+            world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) })
+        );
+        Entity block = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(0, 10),
+                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
+            }
+        );
         var ballLog = new CollisionLog();
         double fall = 0.5 * G * Math.Pow(33 * world.DeltaTime, 2);
-        Entity ball = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0, 11 + Radius + fall + 0.01),
-            Body = new(Shape: new SphereShapeDesc(Radius), Mass: 1, Restitution: restitution, LinearDamping: 0,
-                AngularDamping: 0),
-            Components = [ballLog]
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 11 + Radius + fall + 0.01),
+                Body = new(
+                    Shape: new SphereShapeDesc(Radius),
+                    Mass: 1,
+                    Restitution: restitution,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+                Components = [ballLog],
+            }
+        );
         world.Tick();
         faults.Jolt.HasGhostIn(block, space).Should().BeTrue();
 
         Tick(world, 150);
 
         world.GetFrame(ball).Should().Be(space);
-        world.PoseInOwnFrame(ball).Position.Y.Should()
+        world
+            .PoseInOwnFrame(ball)
+            .Position.Y.Should()
             .BeGreaterThan(11 + Radius - 0.05, "the ball did not go through the ghost");
         ballLog.NewsOf(block).Should().Equal(Landings(landings));
         world.Errors.Should().BeEmpty();
@@ -566,38 +672,59 @@ public sealed class ReboundTests
     [Theory]
     [InlineData(-0.7f, 0.268, true)]
     [InlineData(0.7f, 0.106, false)]
-    public void ABallThatFallsOntoTheGhostOfAMovingMeshBouncesAsOnTheRealFloor(float shipVelocity, double drop,
-        bool bounces)
+    public void ABallThatFallsOntoTheGhostOfAMovingMeshBouncesAsOnTheRealFloor(
+        float shipVelocity,
+        double drop,
+        bool bounces
+    )
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         // The station's hull: 40 m by 40 m of triangles at y = 0, facing up. Its bubble is 3 m around the origin, far from
         // where the ball lands, so the ball never enters it.
-        var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
-            [0, 2, 1, 0, 3, 2]);
-        Entity station = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: hull, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(3))
-        });
-        Entity shipOwner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(12, 20),
-            LinearVelocity = new Vector3(0, shipVelocity, 0),
-            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0)))
-        });
+        var hull = new MeshShapeDesc(
+            [new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
+            [0, 2, 1, 0, 3, 2]
+        );
+        Entity station = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(Shape: hull, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new(FrameBounds.Sphere(3)),
+            }
+        );
+        Entity shipOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(12, 20),
+                LinearVelocity = new Vector3(0, shipVelocity, 0),
+                Body = new(
+                    Shape: new SphereShapeDesc(2),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: new SphereShapeDesc(1)
+                ),
+                AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -G, 0))),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
-        Entity ball = world.Spawn(new()
-        {
-            Frame = ship,
-            Pose = At(0, -20 + Radius + drop),
-            Body = new(Shape: new SphereShapeDesc(Radius), Mass: 1, Restitution: 0.5f, LinearDamping: 0,
-                AngularDamping: 0)
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, -20 + Radius + drop),
+                Body = new(
+                    Shape: new SphereShapeDesc(Radius),
+                    Mass: 1,
+                    Restitution: 0.5f,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+            }
+        );
 
         double? afterLanding = null;
         bool falling = false;

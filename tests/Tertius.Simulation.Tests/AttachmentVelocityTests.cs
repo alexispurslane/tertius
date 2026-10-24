@@ -14,21 +14,30 @@ public sealed class AttachmentVelocityTests
     private static Pose Offset(float x, float y, float z = 0) => new(new(x, y, z), Quaternion.Identity);
 
     private static Entity SpawnRoot(TestWorld test, Vector3 velocity, Vector3 spin, DPose? pose = null) =>
-        test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = pose ?? DPose.Identity,
-            LinearVelocity = velocity,
-            AngularVelocity = spin,
-            Body = TestWorld.Ball
-        });
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = pose ?? DPose.Identity,
+                LinearVelocity = velocity,
+                AngularVelocity = spin,
+                Body = TestWorld.Ball,
+            }
+        );
 
     [Fact]
     public void AChildMovesWithTheVelocityOfItsParentPlusTheSpinOfItsLeverArm()
     {
         using var test = new TestWorld();
         Entity parent = SpawnRoot(test: test, velocity: new(1, 0, 0), spin: new(0, 1, 0));
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         test.Run(1);
 
@@ -41,7 +50,14 @@ public sealed class AttachmentVelocityTests
     {
         using var test = new TestWorld();
         Entity parent = SpawnRoot(test: test, velocity: Vector3.Zero, spin: new(0, 1, 0));
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         test.Run(1);
 
@@ -54,7 +70,14 @@ public sealed class AttachmentVelocityTests
         using var test = new TestWorld();
         Entity parent = SpawnRoot(test: test, velocity: new(1, 0, 0), spin: new(0, 1, 0));
 
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child), new(3, 0, 0));
     }
@@ -64,9 +87,20 @@ public sealed class AttachmentVelocityTests
     {
         using var test = new TestWorld();
         // The quarter turn about +Y puts the child's 2 m along the parent's +Z on the frame's +X.
-        Entity parent = SpawnRoot(test: test, velocity: new(1, 0, 0), spin: new(0, 1, 0),
-            pose: new DPose(Double3.Zero, PoseChecks.QuarterTurnAboutY));
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        Entity parent = SpawnRoot(
+            test: test,
+            velocity: new(1, 0, 0),
+            spin: new(0, 1, 0),
+            pose: new DPose(Double3.Zero, PoseChecks.QuarterTurnAboutY)
+        );
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         test.Run(1);
 
@@ -79,9 +113,22 @@ public sealed class AttachmentVelocityTests
     {
         using var test = new TestWorld();
         Entity root = SpawnRoot(test: test, velocity: Vector3.Zero, spin: new(0, 0, 1));
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = root, AttachOffset = Offset(1, 0) });
-        Entity grandchild =
-            test.World.Spawn(new() { Frame = test.Root, AttachTo = child, AttachOffset = Offset(0, 1) });
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = root,
+                AttachOffset = Offset(1, 0),
+            }
+        );
+        Entity grandchild = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = child,
+                AttachOffset = Offset(0, 1),
+            }
+        );
 
         test.Run(1);
 
@@ -94,7 +141,14 @@ public sealed class AttachmentVelocityTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnWith(new Mover(new(1, 0, 0)));
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         test.Run(3);
 
@@ -105,15 +159,24 @@ public sealed class AttachmentVelocityTests
     [Fact]
     public void TheVelocityOfAChildFollowsTheVelocitiesThatPhysicsReportsForItsParent()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
-        Entity parent = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            LinearVelocity = new Vector3(0, 5, 0),
-            AngularVelocity = new(0, 1, 0),
-            Body = WorldTesting.Ball()
-        });
-        Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        Entity parent = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                LinearVelocity = new Vector3(0, 5, 0),
+                AngularVelocity = new(0, 1, 0),
+                Body = WorldTesting.Ball(),
+            }
+        );
+        Entity child = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AttachTo = parent,
+                AttachOffset = Offset(0, 0, 2),
+            }
+        );
 
         test.Run(1);
 
@@ -122,9 +185,12 @@ public sealed class AttachmentVelocityTests
         BodyState reported = faults.Outputs.Single().Bodies.Single(state => state.Entity == parent);
         reported.LinearVelocity.Should().Be(new Vector3(0, 5, 0), "nothing slows or pushes the ball");
         var leverArm = reported.Pose.Rotation.Rotate(new Double3(0, 0, 2)).ToVector3();
-        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child),
-            reported.LinearVelocity + Vector3.Cross(reported.AngularVelocity, leverArm));
-        test.World.VelocityInOwnFrame(child).X.Should().BeGreaterThan(1.9f,
-            "a spin of 1 rad/s about +Y moves a point 2 m along +Z at about 2 m/s along +X");
+        PoseChecks.AssertNear(
+            test.World.VelocityInOwnFrame(child),
+            reported.LinearVelocity + Vector3.Cross(reported.AngularVelocity, leverArm)
+        );
+        test.World.VelocityInOwnFrame(child)
+            .X.Should()
+            .BeGreaterThan(1.9f, "a spin of 1 rad/s about +Y moves a point 2 m along +Z at about 2 m/s along +X");
     }
 }

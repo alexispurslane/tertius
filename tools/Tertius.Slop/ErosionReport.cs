@@ -61,36 +61,43 @@ public sealed record ErosionReport
             FileCount = fileCount,
             TopFunctions =
             [
-                .. functions.OrderByDescending(function => function.Mass)
+                .. functions
+                    .OrderByDescending(function => function.Mass)
                     .ThenBy(function => function.File, StringComparer.Ordinal)
                     .ThenBy(function => function.Line)
-                    .Take(TopCount)
-            ]
+                    .Take(TopCount),
+            ],
         };
     }
 
     /// <summary>The report of every function in <paramref name="codebase"/>, measured in parallel.</summary>
     public static ErosionReport Of(Codebase codebase) =>
-        Of([
-                .. codebase.Files.AsParallel().AsOrdered()
-                    .SelectMany(file => file.Functions.Select(function => function.Measure(file.Path)))
+        Of(
+            [
+                .. codebase
+                    .Files.AsParallel()
+                    .AsOrdered()
+                    .SelectMany(file => file.Functions.Select(function => function.Measure(file.Path))),
             ],
             sloc: codebase.Files.AsParallel().Sum(file => file.Sloc),
-            fileCount: codebase.Files.Count);
+            fileCount: codebase.Files.Count
+        );
 
     /// <summary>The report as a few lines of text for a person.</summary>
     public string Describe()
     {
         var text = new StringBuilder();
         text.AppendLine(
-            $"Erosion {Erosion:F3}: mass {HighCcMass:F1} of {TotalMass:F1} is in the {HighCcFunctionCount} of " +
-            $"{FunctionCount} functions with CC above {ComplexityLimit}.");
+            $"Erosion {Erosion:F3}: mass {HighCcMass:F1} of {TotalMass:F1} is in the {HighCcFunctionCount} of "
+                + $"{FunctionCount} functions with CC above {ComplexityLimit}."
+        );
         text.AppendLine($"{FileCount} files, {Sloc} lines of code.");
         text.AppendLine("Heaviest functions:");
-        text.AppendLine($"{"mass",8} {"CC",4} {"SLOC",5}  name (file:line)");
+        text.AppendLine($"{"mass", 8} {"CC", 4} {"SLOC", 5}  name (file:line)");
         foreach (FunctionMeasure function in TopFunctions)
             text.AppendLine(
-                $"{function.Mass,8:F1} {function.Complexity,4} {function.Sloc,5}  {function.Name} ({function.File}:{function.Line})");
+                $"{function.Mass, 8:F1} {function.Complexity, 4} {function.Sloc, 5}  {function.Name} ({function.File}:{function.Line})"
+            );
         return text.ToString();
     }
 }

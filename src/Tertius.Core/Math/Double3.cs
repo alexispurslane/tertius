@@ -21,8 +21,11 @@ public record struct Double3(double X, double Y, double Z)
     public static Double3 operator -(Double3 a, Double3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
 
     public static Double3 operator -(Double3 a) => new(-a.X, -a.Y, -a.Z);
+
     public static Double3 operator *(Double3 a, double s) => new(a.X * s, a.Y * s, a.Z * s);
+
     public static Double3 operator *(double s, Double3 a) => new(a.X * s, a.Y * s, a.Z * s);
+
     public static Double3 operator /(Double3 a, double s) => new(a.X / s, a.Y / s, a.Z / s);
 
     /// <summary>Component-wise product.</summary>
@@ -37,6 +40,7 @@ public record struct Double3(double X, double Y, double Z)
         new(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X);
 
     public static double Distance(Double3 a, Double3 b) => (a - b).Length;
+
     public static Double3 Lerp(Double3 a, Double3 b, double t) => a + (b - a) * t;
 
     public readonly Double3 Normalized()
@@ -51,5 +55,5 @@ public record struct Double3(double X, double Y, double Z)
     /// <summary>Narrowing conversion. Use it only for values that are small, such as offsets relative to a nearby origin.</summary>
     public readonly Vector3 ToVector3() => new((float)X, (float)Y, (float)Z);
 
-    public readonly override string ToString() => $"<{X:G9}, {Y:G9}, {Z:G9}>";
+    public override readonly string ToString() => $"<{X:G9}, {Y:G9}, {Z:G9}>";
 }

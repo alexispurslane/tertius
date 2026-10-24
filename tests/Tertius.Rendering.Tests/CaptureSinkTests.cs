@@ -18,9 +18,16 @@ public sealed class CaptureSinkTests
     {
         TestOutput? made = null;
         var renderer = VulkanRenderer.CreateOffscreen(
-            new() { Validation = true, Width = Width, Height = Height, Impostors = false },
-            (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: bgra)
-                { CanCapture = canCapture });
+            new()
+            {
+                Validation = true,
+                Width = Width,
+                Height = Height,
+                Impostors = false,
+            },
+            (device, allocator, extent) =>
+                made = new(device: device, allocator: allocator, extent: extent, bgra: bgra) { CanCapture = canCapture }
+        );
         output = made!;
         return renderer;
     }
@@ -140,8 +147,11 @@ public sealed class CaptureSinkTests
             VulkanRenderer renderer = Offscreen(out _, bgra);
             try
             {
-                return Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(renderer),
-                    name: bgra ? "the BGRA output" : "the RGBA output");
+                return Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: Scene(renderer),
+                    name: bgra ? "the BGRA output" : "the RGBA output"
+                );
             }
             finally
             {
@@ -173,7 +183,7 @@ public sealed class CaptureSinkTests
 
             renderer.Render(snapshot, alpha: 1f);
 
-            ImageResult png = ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
+            var png = ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
             png.Width.Should().Be(Width);
             png.Height.Should().Be(Height);
             byte[] expected = [.. memory.Image!.Rgba];
@@ -230,7 +240,9 @@ public sealed class CaptureSinkTests
         VulkanRenderer renderer = Offscreen(out _, canCapture: false);
         try
         {
-            FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should()
+            FluentActions
+                .Invoking(() => renderer.CaptureNextFrame(new MemorySink()))
+                .Should()
                 .Throw<NotSupportedException>();
         }
         finally
@@ -245,7 +257,9 @@ public sealed class CaptureSinkTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         Gpu.DisposeAndAssertClean(renderer);
 
-        FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should()
+        FluentActions
+            .Invoking(() => renderer.CaptureNextFrame(new MemorySink()))
+            .Should()
             .Throw<ObjectDisposedException>();
     }
 }

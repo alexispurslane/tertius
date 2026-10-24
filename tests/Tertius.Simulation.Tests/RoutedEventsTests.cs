@@ -8,8 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class RoutedEventsTests
 {
-    private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target: target, sender: Entity.Null, payload: payload);
+    private static Event Message<T>(Target target, T payload)
+        where T : unmanaged, IEventPayload => Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     private static List<int> PingValues(World world)
     {

@@ -82,38 +82,58 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle space =
-                world.CreateRootFrame(new(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None));
+            FrameHandle space = world.CreateRootFrame(
+                new(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None)
+            );
             scene.Add("space", space.Entity);
             // The light comes from space's origin, behind the person as it faces the crates. A face that the light does
             // not reach gets the same dim light from every direction.
             world.SunFrame = space;
-            world.Ambient = new() { SkyColor = new(0.03f), GroundColor = new(0.03f), Intensity = 1 };
+            world.Ambient = new()
+            {
+                SkyColor = new(0.03f),
+                GroundColor = new(0.03f),
+                Intensity = 1,
+            };
 
             MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(CrateHalfSize)));
-            var orange = new CrateSpec(HalfExtents: new(CrateHalfSize), Mass: CrateMass, Mesh: crateMesh,
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1))));
+            var orange = new CrateSpec(
+                HalfExtents: new(CrateHalfSize),
+                Mass: CrateMass,
+                Mesh: crateMesh,
+                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1)))
+            );
             CrateSpec green = orange with
             {
-                Material = resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1)))
+                Material = resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1))),
             };
-            scene.Add("crate-a",
-                world.Spawn(orange.Spawn(space, InYard(-CrateSpacing / 2, 0), Drift + new Double3(CrateSpeed, 0, 0))));
+            scene.Add(
+                "crate-a",
+                world.Spawn(orange.Spawn(space, InYard(-CrateSpacing / 2, 0), Drift + new Double3(CrateSpeed, 0, 0)))
+            );
             scene.Add("crate-b", world.Spawn(green.Spawn(space, InYard(CrateSpacing / 2, 0), Drift)));
 
             // The capsule is 1.8 m tall, and the eye is 0.75 m above its center.
-            scene.Add("person", world.Spawn(new()
-            {
-                Frame = space,
-                Pose = InYard(0, PersonDistance),
-                LinearVelocity = Drift,
-                Body = new(Shape: PersonShape, Motion: BodyMotion.Character, Mass: PersonMass),
-                Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
-                    color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                    boundingRadius: 1),
-                Components = [new PersonControl(new(0, 0.75f, 0))],
-                Subscriptions = [Topics.Input]
-            }));
+            scene.Add(
+                "person",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = space,
+                        Pose = InYard(0, PersonDistance),
+                        LinearVelocity = Drift,
+                        Body = new(Shape: PersonShape, Motion: BodyMotion.Character, Mass: PersonMass),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                            color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                            boundingRadius: 1
+                        ),
+                        Components = [new PersonControl(new(0, 0.75f, 0))],
+                        Subscriptions = [Topics.Input],
+                    }
+                )
+            );
             scene.AddView("person");
             world.Camera = scene["person"];
             return scene;

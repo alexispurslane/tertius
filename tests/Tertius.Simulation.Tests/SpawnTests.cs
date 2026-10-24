@@ -21,13 +21,17 @@ public sealed class SpawnTests
         using var t = new TestWorld();
         Entity child = default;
         bool aliveDuringTheTick = true;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            child = self.Spawn(new() { Frame = self.Frame });
-            aliveDuringTheTick = self.Snapshot.IsAlive(child);
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    child = self.Spawn(new() { Frame = self.Frame });
+                    aliveDuringTheTick = self.Snapshot.IsAlive(child);
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -41,11 +45,22 @@ public sealed class SpawnTests
         using var t = new TestWorld();
         var childLog = new Recorder();
         Entity child = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                child = self.Spawn(new() { Frame = self.Frame, Pose = TestWorld.At(3), Components = [childLog] });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        child = self.Spawn(
+                            new()
+                            {
+                                Frame = self.Frame,
+                                Pose = TestWorld.At(3),
+                                Components = [childLog],
+                            }
+                        );
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -59,11 +74,15 @@ public sealed class SpawnTests
         using var t = new TestWorld();
         FrameHandle bay = t.SpawnStaticFrame(TestWorld.At(500));
         Entity child = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                child = self.Spawn(new() { Frame = bay });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        child = self.Spawn(new() { Frame = bay });
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -75,11 +94,15 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Tick>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                }
+            )
+        );
 
         t.Run(1);
         childLog.Runs.Should().Be(0);
@@ -93,13 +116,17 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Ping>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-            outbox.Send(child, new Ping { Value = 5 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                    outbox.Send(child, new Ping { Value = 5 });
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -111,18 +138,25 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Spawned>().And<Ping>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-            outbox.Send(child, new Ping { Value = 1 });
-            outbox.Send(child, new Ping { Value = 2 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                    outbox.Send(child, new Ping { Value = 1 });
+                    outbox.Send(child, new Ping { Value = 2 });
+                }
+            )
+        );
 
         t.Run(2);
 
-        childLog.History.Should().ContainSingle().Which.EventTypes.Should()
+        childLog
+            .History.Should()
+            .ContainSingle()
+            .Which.EventTypes.Should()
             .Equal(typeof(Spawned), typeof(Ping), typeof(Ping));
     }
 
@@ -132,13 +166,17 @@ public sealed class SpawnTests
         // The scheduler builds the list in this fixed order: the tick, the spawn notice, then the inbox.
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Tick>().And<Spawned>().And<Ping>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-            outbox.Send(child, new Ping { Value = 1 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    Entity child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                    outbox.Send(child, new Ping { Value = 1 });
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -150,11 +188,15 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Tick>().And<Spawned>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                }
+            )
+        );
 
         t.Run(4);
 
@@ -167,11 +209,15 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Tick>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                }
+            )
+        );
 
         t.Run(3);
 
@@ -189,7 +235,9 @@ public sealed class SpawnTests
 
         spawner.Children.Should().HaveCount(3).And.OnlyContain(child => t.World.IsAlive(child));
         // The chunk's pool was reserved from fresh slots in order, and the children took them in order.
-        spawner.Children.Select(child => child.Index).Should()
+        spawner
+            .Children.Select(child => child.Index)
+            .Should()
             .Equal(FirstPoolSlot, FirstPoolSlot + 1, FirstPoolSlot + 2);
         spawner.Children.Select(child => child.Generation).Should().OnlyContain(generation => generation == 1u);
         spawner.Children.Select(t.World.GetComponent<Recorder>).Distinct().Should().HaveCount(3);
@@ -214,13 +262,17 @@ public sealed class SpawnTests
         using var t = new TestWorld();
         var childLog = new Recorder(EventMask.Of<Spawned>().And<Destroy>());
         Entity child = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
-            outbox.Send(child, new Destroy());
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    child = self.Spawn(new() { Frame = self.Frame, Components = [childLog] });
+                    outbox.Send(child, new Destroy());
+                }
+            )
+        );
 
         t.Run(2);
 
@@ -233,11 +285,15 @@ public sealed class SpawnTests
     {
         using var t = new TestWorld();
         Entity child = default;
-        Entity parent = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            child = self.Spawn(new() { Frame = self.Frame });
-            self.Destroy();
-        }));
+        Entity parent = t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    child = self.Spawn(new() { Frame = self.Frame });
+                    self.Destroy();
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -249,19 +305,26 @@ public sealed class SpawnTests
     public void AFrameSpawnedDuringATickExistsAfterTheTickAndTakesEntitiesFromTheNextOne()
     {
         using var t = new TestWorld();
-        Entity bay = default, visitor = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                bay = self.Spawn(new()
+        Entity bay = default,
+            visitor = default;
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
                 {
-                    Frame = self.Frame,
-                    Pose = TestWorld.At(500),
-                    AsFrame = new(FrameBounds.Sphere(50))
-                });
-            else if (self.Tick == 1 && self.Snapshot.Frames.TryGetFrame(bay, out FrameHandle frame))
-                visitor = self.Spawn(new() { Frame = frame });
-        }));
+                    if (self.Tick == 0)
+                        bay = self.Spawn(
+                            new()
+                            {
+                                Frame = self.Frame,
+                                Pose = TestWorld.At(500),
+                                AsFrame = new(FrameBounds.Sphere(50)),
+                            }
+                        );
+                    else if (self.Tick == 1 && self.Snapshot.Frames.TryGetFrame(bay, out FrameHandle frame))
+                        visitor = self.Spawn(new() { Frame = frame });
+                }
+            )
+        );
 
         t.Run(3);
 
@@ -347,14 +410,18 @@ public sealed class SpawnTests
     [Fact]
     public void ABodySpawnedDuringATickReachesPhysicsAtTheSyncPointOfThatTick()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity child = default;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick == 0)
-                child = self.Spawn(new() { Frame = self.Frame, Body = TestWorld.Ball });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick == 0)
+                        child = self.Spawn(new() { Frame = self.Frame, Body = TestWorld.Ball });
+                }
+            )
+        );
 
         t.Run(1);
 
@@ -366,7 +433,7 @@ public sealed class SpawnTests
     [Fact]
     public void ABodySpawnedOutsideATickReachesPhysicsBeforeTheFirstStep()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = default;
         var ballCreatedAtEachStep = new List<bool>();
@@ -385,7 +452,7 @@ public sealed class SpawnTests
     [Fact]
     public void AnEntityWithoutABodyIsNeverCreatedInPhysics()
     {
-        using TestWorld t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var t = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
         t.SpawnWith(new Recorder());
 
@@ -477,18 +544,28 @@ public sealed class SpawnTests
     private static List<Entity> RunWithShortLivedChildren(TestWorld t, int ticks)
     {
         var made = new List<Entity>();
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            made.Add(self.Spawn(new()
-            {
-                Frame = self.Frame,
-                Components =
-                [
-                    new Lambda(EventMask.Of<Spawned>(),
-                        (child, scoped ref childEvents, scoped ref childOutbox) => child.Destroy())
-                ]
-            }));
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    made.Add(
+                        self.Spawn(
+                            new()
+                            {
+                                Frame = self.Frame,
+                                Components =
+                                [
+                                    new Lambda(
+                                        EventMask.Of<Spawned>(),
+                                        (child, scoped ref childEvents, scoped ref childOutbox) => child.Destroy()
+                                    ),
+                                ],
+                            }
+                        )
+                    );
+                }
+            )
+        );
         t.Run(ticks);
         return made;
     }

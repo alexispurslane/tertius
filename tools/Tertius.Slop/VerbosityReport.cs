@@ -44,10 +44,10 @@ public sealed record VerbosityReport
     /// <summary>The report of <paramref name="codebase"/>, with the clone lines of <paramref name="clones"/>.</summary>
     public static VerbosityReport Of(Codebase codebase, Clones clones)
     {
-        RuleContext context = RuleContext.Of(codebase);
+        var context = RuleContext.Of(codebase);
         FileVerbosity[] files =
         [
-            .. codebase.Files.AsParallel().AsOrdered().Select(file => FileVerbosity.Of(file, context, clones))
+            .. codebase.Files.AsParallel().AsOrdered().Select(file => FileVerbosity.Of(file, context, clones)),
         ];
         Finding[] findings = [.. files.SelectMany(file => file.Findings)];
         int sloc = files.Sum(file => file.Sloc);
@@ -62,23 +62,26 @@ public sealed record VerbosityReport
             FileCount = files.Length,
             Rules =
             [
-                .. IRule.All.OrderBy(rule => rule.Id, StringComparer.Ordinal).Select(rule => new RuleCount
-                {
-                    Id = rule.Id,
-                    Message = rule.Message,
-                    Source = rule.Source,
-                    Findings = findings.Count(finding => finding.Rule == rule.Id),
-                    Lines = files.Sum(file => file.LinesOf(rule.Id).Count)
-                })
+                .. IRule
+                    .All.OrderBy(rule => rule.Id, StringComparer.Ordinal)
+                    .Select(rule => new RuleCount
+                    {
+                        Id = rule.Id,
+                        Message = rule.Message,
+                        Source = rule.Source,
+                        Findings = findings.Count(finding => finding.Rule == rule.Id),
+                        Lines = files.Sum(file => file.LinesOf(rule.Id).Count),
+                    }),
             ],
             TopFindings =
             [
-                .. findings.OrderByDescending(finding => finding.EndLine - finding.Line)
+                .. findings
+                    .OrderByDescending(finding => finding.EndLine - finding.Line)
                     .ThenBy(finding => finding.File, StringComparer.Ordinal)
                     .ThenBy(finding => finding.Line)
                     .ThenBy(finding => finding.Rule, StringComparer.Ordinal)
-                    .Take(TopCount)
-            ]
+                    .Take(TopCount),
+            ],
         };
     }
 
@@ -87,15 +90,17 @@ public sealed record VerbosityReport
     {
         var text = new StringBuilder();
         text.AppendLine(
-            $"Verbosity {Verbosity:F3}: {VerboseLines} of {Sloc} lines of code are flagged ({FlaggedLines}) or " +
-            $"cloned ({CloneLines}), in {FileCount} files.");
+            $"Verbosity {Verbosity:F3}: {VerboseLines} of {Sloc} lines of code are flagged ({FlaggedLines}) or "
+                + $"cloned ({CloneLines}), in {FileCount} files."
+        );
         text.AppendLine("Rules that found something:");
         foreach (RuleCount rule in Rules.Where(rule => rule.Findings > 0).OrderByDescending(rule => rule.Lines))
-            text.AppendLine($"{rule.Findings,6} {rule.Lines,6} lines  {rule.Id}: {rule.Message}");
+            text.AppendLine($"{rule.Findings, 6} {rule.Lines, 6} lines  {rule.Id}: {rule.Message}");
         text.AppendLine("Longest findings:");
         foreach (Finding finding in TopFindings)
             text.AppendLine(
-                $"{finding.EndLine - finding.Line + 1,6} lines  {finding.Rule} ({finding.File}:{finding.Line})");
+                $"{finding.EndLine - finding.Line + 1, 6} lines  {finding.Rule} ({finding.File}:{finding.Line})"
+            );
         return text.ToString();
     }
 
@@ -119,7 +124,7 @@ public sealed record VerbosityReport
                 Text = text,
                 Flagged = [.. findings.SelectMany(Covered).Where(text.Contains)],
                 Cloned = [.. clones.LinesIn(file.Path).Where(text.Contains)],
-                Sloc = file.CodeLines.Count
+                Sloc = file.CodeLines.Count,
             };
         }
 

@@ -32,15 +32,22 @@ public sealed class SpinStationFloorTests
     private static Station SpawnStation(World world, bool firstMove = true)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove));
+        Entity owner = world.Spawn(
+            new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                world,
+                new(Tilt: DQuaternion.Identity, Rate: StationRate),
+                firstMove
+            )
+        );
         FrameHandle frame = world.GetOwnedFrame(owner);
-        world.Spawn(new()
-        {
-            Frame = frame,
-            Pose = At(FloorRadius + 0.5),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = At(FloorRadius + 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static),
+            }
+        );
         return new(space, frame);
     }
 
@@ -54,38 +61,54 @@ public sealed class SpinStationFloorTests
         Station station = SpawnStation(world);
         Entity[] crates =
         [
-            .. Enumerable.Range(0, 3).Select(i => world.Spawn(new()
-            {
-                Frame = station.Frame,
-                Pose = At(FloorRadius - 0.5 - i),
-                Body = Crate
-            }))
+            .. Enumerable
+                .Range(0, 3)
+                .Select(i =>
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = station.Frame,
+                            Pose = At(FloorRadius - 0.5 - i),
+                            Body = Crate,
+                        }
+                    )
+                ),
         ];
         Double3[] spawned = [.. crates.Select(crate => world.PoseIn(crate, station.Frame).Position)];
         // The bodies join their systems at the first sync point.
         world.Tick();
 
-        double worstRadial = 0, worstAcross = 0;
-        int asleepAfter = TickUntil(world, () =>
-        {
-            for (int i = 0; i < crates.Length; i++)
+        double worstRadial = 0,
+            worstAcross = 0;
+        int asleepAfter = TickUntil(
+            world,
+            () =>
             {
-                Double3 offset = world.PoseIn(crates[i], station.Frame).Position - spawned[i];
-                worstRadial = Math.Max(worstRadial, Math.Abs(offset.X));
-                worstAcross = Math.Max(worstAcross, Math.Sqrt(offset.Y * offset.Y + offset.Z * offset.Z));
-            }
+                for (int i = 0; i < crates.Length; i++)
+                {
+                    Double3 offset = world.PoseIn(crates[i], station.Frame).Position - spawned[i];
+                    worstRadial = Math.Max(worstRadial, Math.Abs(offset.X));
+                    worstAcross = Math.Max(worstAcross, Math.Sqrt(offset.Y * offset.Y + offset.Z * offset.Z));
+                }
 
-            return crates.All(crate => !IsAwake(backend, station.Frame, crate));
-        }, 10 * world.Options.TickRate);
+                return crates.All(crate => !IsAwake(backend, station.Frame, crate));
+            },
+            10 * world.Options.TickRate
+        );
 
         asleepAfter.Should().BeLessThan(10 * world.Options.TickRate, "the stack rests, so it falls asleep");
         worstAcross.Should().BeLessThan(1e-3, "nothing pushes the crates along the floor");
-        worstRadial.Should()
+        worstRadial
+            .Should()
             .BeLessThan(0.05, "the crates settle on each other and on the floor by Jolt's slop at most");
         Double3[] resting = [.. crates.Select(crate => world.PoseIn(crate, station.Frame).Position)];
         Tick(world, 5 * world.Options.TickRate);
-        crates.Should().OnlyContain(crate => !IsAwake(backend, station.Frame, crate),
-            "a station that turns steadily does not wake its sleepers");
+        crates
+            .Should()
+            .OnlyContain(
+                crate => !IsAwake(backend, station.Frame, crate),
+                "a station that turns steadily does not wake its sleepers"
+            );
         for (int i = 0; i < crates.Length; i++)
             world.PoseIn(crates[i], station.Frame).Position.Should().Be(resting[i]);
         world.Errors.Should().BeEmpty();
@@ -103,19 +126,22 @@ public sealed class SpinStationFloorTests
     {
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(FloorRadius - 0.5),
-            LinearVelocity = new(0, 0, 0.01),
-            Body = Crate with { Friction = 0 }
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(FloorRadius - 0.5),
+                LinearVelocity = new(0, 0, 0.01),
+                Body = Crate with { Friction = 0 },
+            }
+        );
         world.Tick();
 
         int ticks = TickUntil(world, () => !IsAwake(backend, station.Frame, crate), 3 * world.Options.TickRate);
 
-        ticks.Should().BeLessThan(3 * world.Options.TickRate,
-            "a crate under 9.8 m/s² that moves at 1 cm/s falls asleep");
+        ticks
+            .Should()
+            .BeLessThan(3 * world.Options.TickRate, "a crate under 9.8 m/s² that moves at 1 cm/s falls asleep");
         world.Errors.Should().BeEmpty();
     }
 
@@ -128,20 +154,24 @@ public sealed class SpinStationFloorTests
         // push of the floor: the floor takes it back in the same step.
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(FloorRadius - 1),
-            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
-            // A bubble inside the hull, so that nothing hands into it.
-            AsFrame = new(FrameBounds.Sphere(0.5f))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(FloorRadius - 1),
+                Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+                // A bubble inside the hull, so that nothing hands into it.
+                AsFrame = new(FrameBounds.Sphere(0.5f)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         // A new frame reads no proper acceleration in its first step, and the floor's contact settles in the next one.
         Tick(world, 3);
 
-        double worstAlong = 0, worstAcross = 0;
-        int awake = 0, asleep = 0;
+        double worstAlong = 0,
+            worstAcross = 0;
+        int awake = 0,
+            asleep = 0;
         for (int tick = 0; tick < 5 * world.Options.TickRate; tick++)
         {
             world.Tick();
@@ -157,9 +187,14 @@ public sealed class SpinStationFloorTests
 
         worstAlong.Should().BeLessThan(2e-3, "the floor holds the ship against ω² R");
         worstAcross.Should().BeLessThan(1e-3, "the floor does not push the ship along it");
-        awake.Should().BeGreaterThan(10,
-            "the ship was awake for a while, and physics measured its push from its change of velocity");
-        asleep.Should()
+        awake
+            .Should()
+            .BeGreaterThan(
+                10,
+                "the ship was awake for a while, and physics measured its push from its change of velocity"
+            );
+        asleep
+            .Should()
             .BeGreaterThan(10, "then it fell asleep, and a sleeping hull rests against the effective gravity");
         world.Errors.Should().BeEmpty();
     }
@@ -169,17 +204,17 @@ public sealed class SpinStationFloorTests
     /// and 10 kg, with a bubble inside the hull, so that nothing hands into it. Its proper acceleration times its mass is
     /// its press on the floor.
     /// </summary>
-    private static SpawnDesc CrateWithAccelerometer(FrameHandle frame, Double3 place) => new()
-    {
-        Frame = frame,
-        Pose = new(place, DQuaternion.Identity),
-        Body = Crate,
-        AsFrame = new(FrameBounds.Sphere(0.1f))
-    };
+    private static SpawnDesc CrateWithAccelerometer(FrameHandle frame, Double3 place) =>
+        new()
+        {
+            Frame = frame,
+            Pose = new(place, DQuaternion.Identity),
+            Body = Crate,
+            AsFrame = new(FrameBounds.Sphere(0.1f)),
+        };
 
     [Fact]
-    public void
-        CratesSpawnedOnTheFloorOfAStationThatCarriesItsFirstMotionIntentStayOnTheFloorFromTheFirstStepAndPressOnItWithOmegaSquaredR()
+    public void CratesSpawnedOnTheFloorOfAStationThatCarriesItsFirstMotionIntentStayOnTheFloorFromTheFirstStepAndPressOnItWithOmegaSquaredR()
     {
         // The station's spawn carries its first motion intent, so in its first step it turns at its full rate, and its
         // first V2 is its first V1 (docs/plans/spin-gravity.md, "Frames without a last turn"). A crate spawned at rest on
@@ -189,34 +224,44 @@ public sealed class SpinStationFloorTests
         Station station = SpawnStation(world);
         Entity[] crates =
         [
-            .. Enumerable.Range(0, 3).Select(i => world.Spawn(new()
-            {
-                Frame = station.Frame,
-                Pose = At(FloorRadius - 0.5, 0, 3 * i - 3),
-                Body = Crate
-            }))
+            .. Enumerable
+                .Range(0, 3)
+                .Select(i =>
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = station.Frame,
+                            Pose = At(FloorRadius - 0.5, 0, 3 * i - 3),
+                            Body = Crate,
+                        }
+                    )
+                ),
         ];
         var gauged = new Double3(FloorRadius - 0.5, 0, 6);
         Entity gauge = world.Spawn(CrateWithAccelerometer(station.Frame, gauged));
         FrameHandle gaugeFrame = world.GetOwnedFrame(gauge);
         Double3[] spawned = [.. crates.Select(crate => world.PoseIn(crate, station.Frame).Position)];
 
-        double worstPlace = 0, worstVelocity = 0;
+        double worstPlace = 0,
+            worstVelocity = 0;
         var presses = new List<Vector3>();
         for (int tick = 0; tick < 2 * world.Options.TickRate; tick++)
         {
             world.Tick();
             for (int i = 0; i < crates.Length; i++)
             {
-                worstPlace = Math.Max(worstPlace,
-                    Double3.Distance(world.PoseIn(crates[i], station.Frame).Position, spawned[i]));
+                worstPlace = Math.Max(
+                    worstPlace,
+                    Double3.Distance(world.PoseIn(crates[i], station.Frame).Position, spawned[i])
+                );
                 worstVelocity = Math.Max(worstVelocity, world.VelocityIn(crates[i], station.Frame).Length);
             }
 
             presses.Add(world.Frames.ProperAcceleration(gaugeFrame));
         }
 
-        worstPlace.Should()
+        worstPlace
+            .Should()
             .BeLessThan(1e-3, "the crates stay on the floor where they were spawned, from the first step");
         worstVelocity.Should().BeLessThan(0.02, "the crates move with the floor from the first step");
         // Physics measures the press from the crate's change of velocity, which settles in the crate's first three steps,
@@ -225,14 +270,18 @@ public sealed class SpinStationFloorTests
         // middle the floor and its friction push the crate toward the axis along the line through its center: by −ω² r,
         // with r the crate's place from the axis.
         foreach ((Vector3 press, int k) in presses.Skip(3).Select((p, k) => (p, k + 4)))
-            Double3.Distance(press, -StationRate * StationRate * gauged).Should().BeLessThan(2e-3,
-                $"the floor pushes the crate toward the axis by ω² r after tick {k}, and read {press}");
+            Double3
+                .Distance(press, -StationRate * StationRate * gauged)
+                .Should()
+                .BeLessThan(
+                    2e-3,
+                    $"the floor pushes the crate toward the axis by ω² r after tick {k}, and read {press}"
+                );
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void
-        CratesSpawnedOnTheFloorOfAStationWithoutItsFirstMotionIntentKeepTheirPlaceInInertialSpaceWhileTheFloorSlidesUnderThem()
+    public void CratesSpawnedOnTheFloorOfAStationWithoutItsFirstMotionIntentKeepTheirPlaceInInertialSpaceWhileTheFloorSlidesUnderThem()
     {
         // Without a first motion intent the station holds still in its first step, and in its second it turns at its full
         // rate against a V2 that did not turn: it spins up in one step (docs/plans/spin-gravity.md, "Frames without a last
@@ -247,16 +296,24 @@ public sealed class SpinStationFloorTests
         Station station = SpawnStation(world, firstMove: false);
         Entity[] crates =
         [
-            .. Enumerable.Range(0, 3).Select(i => world.Spawn(new()
-            {
-                Frame = station.Frame,
-                Pose = At(FloorRadius - 0.5, 0, 3 * i),
-                Body = UndampedCrate
-            }))
+            .. Enumerable
+                .Range(0, 3)
+                .Select(i =>
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = station.Frame,
+                            Pose = At(FloorRadius - 0.5, 0, 3 * i),
+                            Body = UndampedCrate,
+                        }
+                    )
+                ),
         ];
         DPose stationAtSpawn = world.Frames.LocalPose(station.Frame);
         Double3[] inSpace =
-            [.. crates.Select(crate => stationAtSpawn.TransformPoint(world.PoseIn(crate, station.Frame).Position))];
+        [
+            .. crates.Select(crate => stationAtSpawn.TransformPoint(world.PoseIn(crate, station.Frame).Position)),
+        ];
         Double3[] inStation = [.. crates.Select(crate => world.PoseIn(crate, station.Frame).Position)];
 
         world.Tick();
@@ -270,12 +327,15 @@ public sealed class SpinStationFloorTests
         }
 
         afterFirst.Should().Be(stationAtSpawn.Rotation, "the station held still in its first step");
-        worst.Should().BeLessThan(1e-4,
-            "the crates keep their place in inertial space from the station's second step on");
+        worst
+            .Should()
+            .BeLessThan(1e-4, "the crates keep their place in inertial space from the station's second step on");
         // Nine steps of turning at ω r = 31.2 m/s, the first of them a turn of two steps' worth, which takes the station from
         // the rotation of its spawn onto its rails, slide the floor 5.2 m under each crate.
         for (int i = 0; i < crates.Length; i++)
-            Double3.Distance(world.PoseIn(crates[i], station.Frame).Position, inStation[i]).Should()
+            Double3
+                .Distance(world.PoseIn(crates[i], station.Frame).Position, inStation[i])
+                .Should()
                 .BeInRange(5, 5.4, "the floor slid under the crate");
         world.Errors.Should().BeEmpty();
     }
@@ -290,19 +350,22 @@ public sealed class SpinStationFloorTests
         const double r = 0.5;
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(FloorRadius - 1),
-            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
-            // A bubble inside the hull, so that nothing hands into it.
-            AsFrame = new(FrameBounds.Sphere(0.9f))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(FloorRadius - 1),
+                Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+                // A bubble inside the hull, so that nothing hands into it.
+                AsFrame = new(FrameBounds.Sphere(0.9f)),
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         // A new frame reads no proper acceleration in its first step, and the floor's contact settles in the next one.
         Tick(world, 3);
 
-        double worstAlong = 0, worstAcross = 0;
+        double worstAlong = 0,
+            worstAcross = 0;
         for (int tick = 0; tick < 2 * world.Options.TickRate; tick++)
         {
             world.Tick();
@@ -336,14 +399,16 @@ public sealed class SpinStationFloorTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var hull = new BodyDesc(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = station.Frame,
-            Pose = At(HoverRadius),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(0.9f)),
-            Components = [new Thruster(hull.Mass) { Acceleration = (float)thrust, Direction = -Vector3.UnitX }]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(HoverRadius),
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(0.9f)),
+                Components = [new Thruster(hull.Mass) { Acceleration = (float)thrust, Direction = -Vector3.UnitX }],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
         // The ship's first step ends at the second sync point, and its second, the first with thrust, at the third.
         Tick(world, 2);
@@ -360,19 +425,24 @@ public sealed class SpinStationFloorTests
         Double3 chord = (place - previous) / dt;
         Double3 velocity = chord + Acceleration(place, chord) * (dt / 2);
 
-        double fromPath = 0, fromRadius = 0, readAlong = 0, readAcross = 0;
+        double fromPath = 0,
+            fromRadius = 0,
+            readAlong = 0,
+            readAcross = 0;
         for (int tick = 0; tick < 3 * world.Options.TickRate; tick++)
         {
             // Ten steps of RK4 per tick, in doubles.
             for (int k = 0; k < 10; k++)
             {
                 double h = dt / 10;
-                Double3 k1x = velocity, k1v = Acceleration(place, velocity);
+                Double3 k1x = velocity,
+                    k1v = Acceleration(place, velocity);
                 Double3 k2x = velocity + k1v * (h / 2),
                     k2v = Acceleration(place + k1x * (h / 2), velocity + k1v * (h / 2));
                 Double3 k3x = velocity + k2v * (h / 2),
                     k3v = Acceleration(place + k2x * (h / 2), velocity + k2v * (h / 2));
-                Double3 k4x = velocity + k3v * h, k4v = Acceleration(place + k3x * h, velocity + k3v * h);
+                Double3 k4x = velocity + k3v * h,
+                    k4v = Acceleration(place + k3x * h, velocity + k3v * h);
                 place += (k1x + 2 * k2x + 2 * k3x + k4x) * (h / 6);
                 velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * (h / 6);
             }
@@ -397,21 +467,24 @@ public sealed class SpinStationFloorTests
         // are no push on the ship (docs/plans/spin-gravity.md, "V4, the acceleration that the frame gave a body").
         HoverRun run = Hover();
 
-        run.FromRadius.Should().BeLessThan(0.25,
-            "the thrust holds the ship near its radius, where without it the ship would fly 47 m off in 3 s");
+        run.FromRadius.Should()
+            .BeLessThan(
+                0.25,
+                "the thrust holds the ship near its radius, where without it the ship would fly 47 m off in 3 s"
+            );
         run.ReadAlong.Should().BeLessThan(1e-3, "the ship's accelerometer reads its thrust toward the axis");
         run.ReadAcross.Should().BeLessThan(1e-3, "the ship's accelerometer reads no push across its thrust");
     }
 
     [Fact]
-    public void AShipThatThrustsInTheStationFollowsThePathOfItsThrust()
-    {
+    public void AShipThatThrustsInTheStationFollowsThePathOfItsThrust() =>
         // Jolt adds the intent's force in the frame's axes, unturned, while the update turns the field part of the linear
         // gravity by the step's turn, R_n g dt², to keep a body in a field fixed in the frame's axes on its exact path. The
         // thrust is fixed in the frame's axes too, so the same rule keeps the ship on the path of its thrust. Unturned,
         // the cross term ω |a| dt = 0.026 m/s² pushes the ship sideways, and it leaves its path by 0.11 m in 3 s
         // (measured). With the intent's force turned by R_n in the update's chord, the ship keeps to its path within 5e-5 m
         // (measured; docs/plans/spin-gravity.md, "The two-turn update").
-        Hover().FromPath.Should().BeLessThan(1e-3, "the ship follows the path of its thrust in the turning station");
-    }
+        Hover()
+            .FromPath.Should()
+            .BeLessThan(1e-3, "the ship follows the path of its thrust in the turning station");
 }

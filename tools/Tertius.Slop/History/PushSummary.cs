@@ -56,7 +56,10 @@ public sealed record PushSummary
 
         return new()
         {
-            LastPush = lastPush, Now = now, ErosionRaises = Largest(erosion), VerbosityRaises = Largest(verbosity)
+            LastPush = lastPush,
+            Now = now,
+            ErosionRaises = Largest(erosion),
+            VerbosityRaises = Largest(verbosity),
         };
     }
 
@@ -66,27 +69,38 @@ public sealed record PushSummary
         var text = new StringBuilder();
         if (LastPush is not { } last)
         {
-            text.AppendLine(CultureInfo.InvariantCulture,
-                $"slop now: erosion {Now.Erosion:F4}, verbosity {Now.Verbosity:F4}, sloc {Now.Sloc} (no note before the push to compare with).");
+            text.AppendLine(
+                CultureInfo.InvariantCulture,
+                $"slop now: erosion {Now.Erosion:F4}, verbosity {Now.Verbosity:F4}, sloc {Now.Sloc} (no note before the push to compare with)."
+            );
             return text.ToString();
         }
 
         text.AppendLine("slop since the last push:");
-        text.AppendLine(CultureInfo.InvariantCulture,
-            $"  erosion    {last.Erosion:F4} -> {Now.Erosion:F4}  {Now.Erosion - last.Erosion:+0.0000;-0.0000;+0.0000}");
-        text.AppendLine(CultureInfo.InvariantCulture,
-            $"  verbosity  {last.Verbosity:F4} -> {Now.Verbosity:F4}  {Now.Verbosity - last.Verbosity:+0.0000;-0.0000;+0.0000}");
-        text.AppendLine(CultureInfo.InvariantCulture,
-            $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}");
+        text.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"  erosion    {last.Erosion:F4} -> {Now.Erosion:F4}  {Now.Erosion - last.Erosion:+0.0000;-0.0000;+0.0000}"
+        );
+        text.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"  verbosity  {last.Verbosity:F4} -> {Now.Verbosity:F4}  {Now.Verbosity - last.Verbosity:+0.0000;-0.0000;+0.0000}"
+        );
+        text.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}"
+        );
         AppendRaises(text, "erosion", ErosionRaises);
         AppendRaises(text, "verbosity", VerbosityRaises);
         return text.ToString();
     }
 
     private static CommitRaise[] Largest(IEnumerable<CommitRaise> raises) =>
-    [
-        .. raises.Where(raise => raise.Change >= LeastRaise).OrderByDescending(raise => raise.Change).Take(RaiseCount)
-    ];
+        [
+            .. raises
+                .Where(raise => raise.Change >= LeastRaise)
+                .OrderByDescending(raise => raise.Change)
+                .Take(RaiseCount),
+        ];
 
     private static void AppendRaises(StringBuilder text, string metric, IReadOnlyList<CommitRaise> raises)
     {
@@ -97,8 +111,10 @@ public sealed record PushSummary
         {
             Commit commit = raise.Commit;
             string tickets = commit.Tickets.Count > 0 ? string.Join(' ', commit.Tickets) : "(no ticket)";
-            text.AppendLine(CultureInfo.InvariantCulture,
-                $"  {raise.Change:+0.0000;-0.0000}  {commit.ShortSha}  {tickets}  {commit.Subject}");
+            text.AppendLine(
+                CultureInfo.InvariantCulture,
+                $"  {raise.Change:+0.0000;-0.0000}  {commit.ShortSha}  {tickets}  {commit.Subject}"
+            );
         }
     }
 }

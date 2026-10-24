@@ -17,8 +17,9 @@ public sealed class WheelFloorTests
     {
         Floor.Radius.Should().Be(DemoStation.FloorRadius);
         Floor.Segments.Should().Be(DemoStation.Segments);
-        Floor.FacetDistance.Should().BeApproximately(100 * Math.Cos(Math.PI / 256), 1e-12,
-            "a facet's middle lies inside the ring's circle");
+        Floor
+            .FacetDistance.Should()
+            .BeApproximately(100 * Math.Cos(Math.PI / 256), 1e-12, "a facet's middle lies inside the ring's circle");
     }
 
     [Fact]
@@ -29,9 +30,14 @@ public sealed class WheelFloorTests
         Floor.FacetIndex(place).Should().Be(130);
         Floor.Height(place).Should().BeApproximately(0.25, 1e-9);
         place.Y.Should().Be(-2);
-        Floor.Spinward(Floor.OnFacet(facet: 130, height: 0.25, y: -2), place).Should().BeApproximately(
-            Floor.Radius * Math.Atan2(0.5, Floor.FacetDistance - 0.25), 1e-9,
-            "half a meter along the facet, 0.25 m above it, turns the place about the axis by the angle that it spans there");
+        Floor
+            .Spinward(Floor.OnFacet(facet: 130, height: 0.25, y: -2), place)
+            .Should()
+            .BeApproximately(
+                Floor.Radius * Math.Atan2(0.5, Floor.FacetDistance - 0.25),
+                1e-9,
+                "half a meter along the facet, 0.25 m above it, turns the place about the axis by the angle that it spans there"
+            );
     }
 
     [Fact]
@@ -59,7 +65,9 @@ public sealed class WheelFloorTests
     public void AFacetsTurnLaysABoxFlatOnIt()
     {
         // A box turned by the facet's turn has its +X along the facet's outward normal.
-        (Floor.FacetTurn(77).Rotate(Double3.UnitX) - Floor.Normal(77)).Length.Should().BeLessThan(1e-12);
+        (Floor.FacetTurn(77).Rotate(Double3.UnitX) - Floor.Normal(77))
+            .Length.Should()
+            .BeLessThan(1e-12);
         (Floor.Normal(77) - Floor.Normal(Floor.OnFacet(facet: 77, height: 1, y: 4))).Length.Should().BeLessThan(1e-12);
     }
 }

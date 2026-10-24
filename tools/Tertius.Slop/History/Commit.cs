@@ -53,8 +53,10 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
                 if (commit.Note is not { } note)
                     continue;
                 string date = commit.Date.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture);
-                csv.Append(CultureInfo.InvariantCulture,
-                    $"{commit.Sha},{date},{Cell(note.Branch)},{Cell(string.Join(' ', commit.Tickets))},");
+                csv.Append(
+                    CultureInfo.InvariantCulture,
+                    $"{commit.Sha},{date},{Cell(note.Branch)},{Cell(string.Join(' ', commit.Tickets))},"
+                );
                 csv.Append(CultureInfo.InvariantCulture, $"{note.Erosion},{note.Verbosity},{note.Sloc}\n");
             }
 

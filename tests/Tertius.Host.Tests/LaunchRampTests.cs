@@ -61,7 +61,7 @@ public sealed class LaunchRampTests : IDisposable
     [Fact]
     public void TheIgnitionStartsTheRampWithTheGuidanceOfTheClimbAndTheLaunchRadius()
     {
-        var autopilot = world.GetComponent<AscentAutopilot>(shuttle)!;
+        AscentAutopilot autopilot = world.GetComponent<AscentAutopilot>(shuttle)!;
         autopilot.State.Value.Should().BeOfType<Parked>();
 
         world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Ignition()));

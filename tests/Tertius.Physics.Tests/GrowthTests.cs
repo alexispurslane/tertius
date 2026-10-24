@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Numerics;
 using Tertius.Simulation;
+using static Tertius.Testing.NumericFrameTesting;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
-using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -24,30 +24,50 @@ public sealed class GrowthTests
 {
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
 
-    private static readonly BodyDesc PersonDesc = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
-        Motion: BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc PersonDesc = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>
     /// A world on the wrapper, whose systems start with room for <paramref name="maxBodiesPerFrame"/> bodies, with the
     /// default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
     /// </summary>
-    private static World NewWorldOfSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults,
+    private static World NewWorldOfSmallSystems(
+        int maxBodiesPerFrame,
+        out FaultInjectingBackend faults,
         List<string>? warnings = null,
-        bool numericFrames = true) =>
-        NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: maxBodiesPerFrame, faults: out faults, warnings: warnings,
-            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+        bool numericFrames = true
+    ) =>
+        NewWorldWithFaultsAndSmallSystems(
+            maxBodiesPerFrame: maxBodiesPerFrame,
+            faults: out faults,
+            warnings: warnings,
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames
+        );
 
     /// <summary>A dynamic ball with no damping and no bounce.</summary>
     private static BodyDesc BallDesc(float radius, float mass = 1f) =>
-        new(Shape: new SphereShapeDesc(radius), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0,
+        new(
+            Shape: new SphereShapeDesc(radius),
+            Motion: BodyMotion.Dynamic,
+            Mass: mass,
+            Restitution: 0,
             LinearDamping: 0,
-            AngularDamping: 0);
+            AngularDamping: 0
+        );
 
     /// <summary>A dynamic box with no damping and no bounce, with half sides of <paramref name="half"/> m.</summary>
     private static BodyDesc BoxDesc(float half, float mass = 1f) =>
-        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0,
+        new(
+            Shape: new BoxShapeDesc(new(half)),
+            Motion: BodyMotion.Dynamic,
+            Mass: mass,
+            Restitution: 0,
             LinearDamping: 0,
-            AngularDamping: 0);
+            AngularDamping: 0
+        );
 
     /// <summary>A static floor of 2 · <paramref name="halfSize"/> m by 2 · <paramref name="halfSize"/> m, 1 m thick.</summary>
     private static BodyDesc FloorDesc(float halfSize) =>
@@ -55,10 +75,23 @@ public sealed class GrowthTests
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of
     /// <paramref name="radius"/> m.</summary>
-    private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius,
-        GravityField gravity = default) =>
-        world.GetOwnedFrame(world.Spawn(new()
-            { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius), gravity) }));
+    private static FrameHandle EmptyFrame(
+        World world,
+        FrameHandle parent,
+        DPose pose,
+        float radius,
+        GravityField gravity = default
+    ) =>
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius), gravity),
+                }
+            )
+        );
 
     /// <summary>The hand-offs that Jolt reported so far, in the order of the steps.</summary>
     private static List<HandOff> HandOffs(FaultInjectingBackend faults) =>
@@ -84,7 +117,16 @@ public sealed class GrowthTests
     {
         var crates = new List<Entity>();
         for (int i = 0; i < count; i++)
-            crates.Add(world.Spawn(new() { Frame = frame, Pose = At(3 * i - 12, -100), Body = Crate }));
+            crates.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = At(3 * i - 12, -100),
+                        Body = Crate,
+                    }
+                )
+            );
         return crates;
     }
 
@@ -103,7 +145,7 @@ public sealed class GrowthTests
         Hull,
 
         /// <summary>The interior of a frame whose own system is full.</summary>
-        Interior
+        Interior,
     }
 
     /// <summary>
@@ -126,13 +168,15 @@ public sealed class GrowthTests
         BodyCreate? heldBack = null;
         if (kind == NewBody.Interior)
         {
-            Entity holdOwner = world.Spawn(new()
-            {
-                Frame = space,
-                Pose = At(500),
-                Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(50))
-            });
+            Entity holdOwner = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(500),
+                    Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
+                    AsFrame = new(FrameBounds.Sphere(50)),
+                }
+            );
             hold = world.GetOwnedFrame(holdOwner);
             faults.EditNextChanges = changes =>
             {
@@ -153,30 +197,53 @@ public sealed class GrowthTests
         switch (kind)
         {
             case NewBody.Dynamic:
-                Entity ball = world.Spawn(new() { Frame = space, Pose = At(0, 10), Body = BallDesc(0.5f) });
+                Entity ball = world.Spawn(
+                    new()
+                    {
+                        Frame = space,
+                        Pose = At(0, 10),
+                        Body = BallDesc(0.5f),
+                    }
+                );
                 world.Tick();
                 faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
                 ballFrame.Should().Be(space);
                 break;
             case NewBody.Character:
-                Entity person = world.Spawn(new() { Frame = space, Pose = At(0, 10), Body = PersonDesc });
+                Entity person = world.Spawn(
+                    new()
+                    {
+                        Frame = space,
+                        Pose = At(0, 10),
+                        Body = PersonDesc,
+                    }
+                );
                 world.Tick();
                 faults.Jolt.TryGetBodyFrame(person, out FrameHandle personFrame).Should().BeTrue();
                 personFrame.Should().Be(space);
                 // The sync point created the character's walking form, whose inner body grew the system. The space has no
                 // gravity, so the step turned the character into its rigid form, a dynamic body in the place of the inner body.
-                faults.Jolt.BodiesIn(space).Should().ContainSingle(facts => BodyUserData.Names(facts.UserData, person),
-                    "the character's body is in the grown system");
+                faults
+                    .Jolt.BodiesIn(space)
+                    .Should()
+                    .ContainSingle(
+                        facts => BodyUserData.Names(facts.UserData, person),
+                        "the character's body is in the grown system"
+                    );
                 faults.Jolt.HasRigidForm(person).Should().BeTrue();
                 break;
             case NewBody.Hull:
-                FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-                {
-                    Frame = space,
-                    Pose = At(0, 10),
-                    Body = BoxDesc(2, mass: 1000),
-                    AsFrame = new(FrameBounds.Sphere(10))
-                }));
+                FrameHandle ship = world.GetOwnedFrame(
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = space,
+                            Pose = At(0, 10),
+                            Body = BoxDesc(2, mass: 1000),
+                            AsFrame = new(FrameBounds.Sphere(10)),
+                        }
+                    )
+                );
                 world.Tick();
                 faults.Jolt.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
                 hullFrame.Should().Be(space);
@@ -184,7 +251,9 @@ public sealed class GrowthTests
                 break;
             case NewBody.Interior:
                 heldBack.Should().NotBeNull("the edit held the creation of the owner back");
-                faults.Jolt.TryGetBodyFrame(heldBack!.Value.Entity, out _).Should()
+                faults
+                    .Jolt.TryGetBodyFrame(heldBack.Value.Entity, out _)
+                    .Should()
                     .BeFalse("the owner has no body in the backend yet");
                 var batch = new PhysicsChanges();
                 batch.BodiesCreated.Add(heldBack.Value);
@@ -214,22 +283,34 @@ public sealed class GrowthTests
     public void AHandOffIntoAFullSystemGrowsTheSystemAndTheBodyFliesOnInIt(bool frameHull)
     {
         // Numeric frames off: the test checks that the hangar's own system holds the body after the hand-off.
-        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults,
-            numericFrames: false);
+        using World world = NewWorldOfSmallSystems(
+            maxBodiesPerFrame: 8,
+            faults: out FaultInjectingBackend faults,
+            numericFrames: false
+        );
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 30);
         AddCrates(world, hangar, 8);
         Entity flyer = frameHull
-            ? world.Spawn(new()
-            {
-                Frame = space,
-                Pose = At(1040),
-                LinearVelocity = new Vector3(-60, 0, 0),
-                Body = BoxDesc(2, mass: 1000),
-                AsFrame = new(FrameBounds.Sphere(10))
-            })
-            : world.Spawn(new()
-                { Frame = space, Pose = At(1040), LinearVelocity = new Vector3(-60, 0, 0), Body = BallDesc(0.5f) });
+            ? world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1040),
+                    LinearVelocity = new Vector3(-60, 0, 0),
+                    Body = BoxDesc(2, mass: 1000),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                }
+            )
+            : world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1040),
+                    LinearVelocity = new Vector3(-60, 0, 0),
+                    Body = BallDesc(0.5f),
+                }
+            );
 
         TickUntil(world, () => HandOffs(faults).Count > 0, 60);
         Tick(world, 5);
@@ -270,23 +351,50 @@ public sealed class GrowthTests
     {
         using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 30,
-            gravity: GravityField.Uniform(new(0, -9.81f, 0)));
-        world.Spawn(new() { Frame = hangar, Pose = At(0, -0.5), Body = FloorDesc(10) });
-        Entity person = world.Spawn(new() { Frame = hangar, Pose = At(0, 0.92), Body = PersonDesc });
+        FrameHandle hangar = EmptyFrame(
+            world: world,
+            parent: space,
+            pose: At(1000),
+            radius: 30,
+            gravity: GravityField.Uniform(new(0, -9.81f, 0))
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = hangar,
+                Pose = At(0, -0.5),
+                Body = FloorDesc(10),
+            }
+        );
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = hangar,
+                Pose = At(0, 0.92),
+                Body = PersonDesc,
+            }
+        );
         AddCrates(world, hangar, 6);
         Tick(world, 20);
         faults.Jolt.CapacityOf(hangar).Should().Be(8);
         world.Snapshot.IsStanding(person).Should().BeTrue();
 
-        world.Spawn(new()
-            { Frame = space, Pose = At(1040, 10), LinearVelocity = new Vector3(-60, 0, 0), Body = BallDesc(0.5f) });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(1040, 10),
+                LinearVelocity = new Vector3(-60, 0, 0),
+                Body = BallDesc(0.5f),
+            }
+        );
         var standing = new List<(uint Capacity, bool Standing)>();
         for (int tick = 0; tick < 60 && HandOffs(faults).Count == 0; tick++)
         {
             world.Tick();
-            standing.Add((faults.Jolt.CapacityOf(hangar),
-                faults.Outputs[^1].Characters.Single(c => c.Entity == person).Standing));
+            standing.Add(
+                (faults.Jolt.CapacityOf(hangar), faults.Outputs[^1].Characters.Single(c => c.Entity == person).Standing)
+            );
         }
 
         standing[^1].Capacity.Should().Be(16, "the hand-off grew the system");
@@ -306,19 +414,33 @@ public sealed class GrowthTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         AddCrates(world, space, 8);
         FrameHandle bubble = EmptyFrame(world: world, parent: space, pose: At(50), radius: 20);
-        Entity ball = world.Spawn(new()
-            { Frame = bubble, Pose = At(19.8), LinearVelocity = new Vector3(0, 1, 0), Body = BallDesc(0.5f) });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(19.8),
+                LinearVelocity = new Vector3(0, 1, 0),
+                Body = BallDesc(0.5f),
+            }
+        );
 
         for (int i = 0; i < 30; i++)
             world.Invoking(x => x.Tick()).Should().NotThrow("the ghost has a place in the grown system at step {0}", i);
 
         faults.Jolt.HasGhostIn(ball, space).Should().BeTrue();
         faults.Jolt.CapacityOf(space).Should().Be(16);
-        faults.Outputs.Sum(output => output.Bodies.Count(state => state.Entity == ball)).Should()
+        faults
+            .Outputs.Sum(output => output.Bodies.Count(state => state.Entity == ball))
+            .Should()
             .Be(30, "no step loses its output");
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(30 * (1.0 / 60), 1e-4);
-        world.PoseInOwnFrame(ball).Should().Be(faults.Outputs[^1].Bodies.Single(state => state.Entity == ball).Pose,
-            "the World holds what Jolt sent in the last step");
+        world
+            .PoseInOwnFrame(ball)
+            .Should()
+            .Be(
+                faults.Outputs[^1].Bodies.Single(state => state.Entity == ball).Pose,
+                "the World holds what Jolt sent in the last step"
+            );
         world.Errors.Should().BeEmpty();
     }
 
@@ -334,16 +456,26 @@ public sealed class GrowthTests
         using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         AddCrates(world, space, 8);
-        Entity stationOwner = world.Spawn(new()
-            { Frame = space, Pose = At(500), AsFrame = new(FrameBounds.Sphere(100)) });
+        Entity stationOwner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(500),
+                AsFrame = new(FrameBounds.Sphere(100)),
+            }
+        );
         FrameHandle station = world.GetOwnedFrame(stationOwner);
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = station,
-            Pose = At(10),
-            Body = BoxDesc(2, mass: 1000),
-            AsFrame = new(FrameBounds.Sphere(10))
-        }));
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = At(10),
+                    Body = BoxDesc(2, mass: 1000),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                }
+            )
+        );
         world.Tick();
 
         world.Destroy(stationOwner).Should().BeTrue();
@@ -373,50 +505,104 @@ public sealed class GrowthTests
         {
             World = NewWorldOfSmallSystems(maxBodiesPerFrame: 16, faults: out FaultInjectingBackend faults);
             Faults = faults;
-            GravityField gravity =
-                GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-60, -10, -60), new(60, 10, 60)));
-            Ground = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(1e6f), gravity)
-            }));
-            World.Spawn(new() { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
-            Sleeper = World.Spawn(new() { Frame = Ground, Pose = At(-20, 30), Body = BoxDesc(0.5f, mass: 5) });
-            Roller = World.Spawn(new()
-            {
-                Frame = Ground, Pose = At(20, 0.5), LinearVelocity = new Vector3(2, 0, 0),
-                Body = BallDesc(0.5f, mass: 2)
-            });
-            World.Spawn(KinematicDrift.Drifting(new()
-            {
-                Frame = Ground,
-                Pose = At(-10, 3),
-                Body = new(Shape: new BoxShapeDesc(new(1, 0.1f, 1)), Motion: BodyMotion.Kinematic)
-            }, World, new(0, 0, 1)));
+            var gravity = GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-60, -10, -60), new(60, 10, 60)));
+            Ground = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+                        AsFrame = new(FrameBounds.Sphere(1e6f), gravity),
+                    }
+                )
+            );
+            World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(0, -0.5),
+                    Body = FloorDesc(100),
+                }
+            );
+            Sleeper = World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(-20, 30),
+                    Body = BoxDesc(0.5f, mass: 5),
+                }
+            );
+            Roller = World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(20, 0.5),
+                    LinearVelocity = new Vector3(2, 0, 0),
+                    Body = BallDesc(0.5f, mass: 2),
+                }
+            );
+            World.Spawn(
+                KinematicDrift.Drifting(
+                    new()
+                    {
+                        Frame = Ground,
+                        Pose = At(-10, 3),
+                        Body = new(Shape: new BoxShapeDesc(new(1, 0.1f, 1)), Motion: BodyMotion.Kinematic),
+                    },
+                    World,
+                    new(0, 0, 1)
+                )
+            );
             var lopsided = new CompoundShapeDesc([
                 new(new BoxShapeDesc(new(0.5f)), new(new(0.6f, 0, 0), Quaternion.Identity)),
-                new(new BoxShapeDesc(new(0.2f)), new(new(-0.3f, 0, 0), Quaternion.Identity))
+                new(new BoxShapeDesc(new(0.2f)), new(new(-0.3f, 0, 0), Quaternion.Identity)),
             ]);
-            World.Spawn(new() { Frame = Ground, Pose = At(30, 0.6), Body = new(Shape: lopsided, Mass: 3) });
-            World.Spawn(new()
-            {
-                Frame = Ground,
-                Pose = At(-30, 2.5),
-                Body = BoxDesc(2, mass: 500),
-                AsFrame = new(FrameBounds.Sphere(5))
-            });
+            World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(30, 0.6),
+                    Body = new(Shape: lopsided, Mass: 3),
+                }
+            );
+            World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(-30, 2.5),
+                    Body = BoxDesc(2, mass: 500),
+                    AsFrame = new(FrameBounds.Sphere(5)),
+                }
+            );
             FrameHandle nook = EmptyFrame(world: World, parent: Ground, pose: At(0, 40), radius: 10);
-            World.Spawn(new()
-            {
-                Frame = nook, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic)
-            });
-            Person = World.Spawn(new()
-                { Frame = Ground, Pose = At(0, 0.95, 20), Body = PersonDesc, Components = [PersonPilot] });
+            World.Spawn(
+                new()
+                {
+                    Frame = nook,
+                    Pose = At(10),
+                    Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
+                }
+            );
+            Person = World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(0, 0.95, 20),
+                    Body = PersonDesc,
+                    Components = [PersonPilot],
+                }
+            );
             // Two seconds: the box falls asleep, the others settle.
             Tick(World, 120);
             int bodies = Faults.Jolt.BodiesIn(Ground).Count;
             for (int i = bodies; i < 16; i++)
-                World.Spawn(new() { Frame = Ground, Pose = At(3 * i, -100), Body = Crate });
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Ground,
+                        Pose = At(3 * i, -100),
+                        Body = Crate,
+                    }
+                );
             ApplyPendingChanges(World, Ground);
             Faults.Jolt.CapacityOf(Ground).Should().Be(16);
             Faults.Jolt.BodiesIn(Ground).Should().HaveCount(16);
@@ -435,7 +621,14 @@ public sealed class GrowthTests
         /// <summary>Adds one more crate, which makes the system of the ground grow. No step runs.</summary>
         public void Grow()
         {
-            World.Spawn(new() { Frame = Ground, Pose = At(-3, -100), Body = Crate });
+            World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(-3, -100),
+                    Body = Crate,
+                }
+            );
             ApplyPendingChanges(World, Ground);
             Faults.Jolt.CapacityOf(Ground).Should().Be(32);
         }
@@ -468,7 +661,9 @@ public sealed class GrowthTests
             JoltPhysicsBackend.BodyFacts moved = after.Single(facts => facts.Id == old.Id);
             // Jolt keeps the center of mass, not the origin, so a body whose center of mass is off its origin can move by
             // a rounding error of the double position.
-            (moved.Position - old.Position).Length.Should().BeLessThan(1e-12);
+            (moved.Position - old.Position)
+                .Length.Should()
+                .BeLessThan(1e-12);
             moved.Should().Be(old with { Position = moved.Position });
         }
 
@@ -506,7 +701,9 @@ public sealed class GrowthTests
         Tick(world, 30);
 
         // Half a second at 3 m/s, still standing on the floor.
-        (world.PoseInOwnFrame(scene.Person).Position.X - walking.Position.X).Should().BeInRange(1.45, 1.55);
+        (world.PoseInOwnFrame(scene.Person).Position.X - walking.Position.X)
+            .Should()
+            .BeInRange(1.45, 1.55);
         world.PoseInOwnFrame(scene.Person).Position.Y.Should().BeApproximately(walking.Position.Y, 0.01);
         world.VelocityInOwnFrame(scene.Person).X.Should().BeApproximately(3, 0.05f);
         world.Errors.Should().BeEmpty();
@@ -522,9 +719,13 @@ public sealed class GrowthTests
         scene.Grow();
         Tick(scene.World, 10);
 
-        Contacts(scene.Faults).Count(contact => contact.A == scene.Roller || contact.B == scene.Roller).Should().Be(
-            before,
-            "a pair that touched in the old system still touches in the new one, so its contact did not start again");
+        Contacts(scene.Faults)
+            .Count(contact => contact.A == scene.Roller || contact.B == scene.Roller)
+            .Should()
+            .Be(
+                before,
+                "a pair that touched in the old system still touches in the new one, so its contact did not start again"
+            );
         scene.World.Errors.Should().BeEmpty();
     }
 
@@ -533,12 +734,22 @@ public sealed class GrowthTests
     {
         using var scene = new FullGround();
         World world = scene.World;
-        Entity dropped = world.Spawn(new() { Frame = scene.Ground, Pose = At(40, 3), Body = BallDesc(0.5f) });
+        Entity dropped = world.Spawn(
+            new()
+            {
+                Frame = scene.Ground,
+                Pose = At(40, 3),
+                Body = BallDesc(0.5f),
+            }
+        );
 
         ApplyPendingChanges(world, scene.Ground);
         scene.Faults.Jolt.CapacityOf(scene.Ground).Should().Be(32);
-        TickUntil(world, () => Contacts(scene.Faults).Any(contact => contact.A == dropped || contact.B == dropped),
-            120);
+        TickUntil(
+            world,
+            () => Contacts(scene.Faults).Any(contact => contact.A == dropped || contact.B == dropped),
+            120
+        );
 
         Contacts(scene.Faults).Should().ContainSingle(contact => contact.A == dropped || contact.B == dropped);
         world.Errors.Should().BeEmpty();
@@ -554,15 +765,30 @@ public sealed class GrowthTests
     {
         public Roller()
         {
-            World = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults,
-                warnings: Warnings);
+            World = NewWorldOfSmallSystems(
+                maxBodiesPerFrame: 8,
+                faults: out FaultInjectingBackend faults,
+                warnings: Warnings
+            );
             Faults = faults;
             Ground = Ground(World, 9.81f);
-            World.Spawn(new() { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
-            Ball = World.Spawn(new()
-            {
-                Frame = Ground, Pose = At(0, 0.5), LinearVelocity = new Vector3(1, 0, 0), Body = BallDesc(0.5f, mass: 2)
-            });
+            World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(0, -0.5),
+                    Body = FloorDesc(100),
+                }
+            );
+            Ball = World.Spawn(
+                new()
+                {
+                    Frame = Ground,
+                    Pose = At(0, 0.5),
+                    LinearVelocity = new Vector3(1, 0, 0),
+                    Body = BallDesc(0.5f, mass: 2),
+                }
+            );
             Tick(World, 30);
             BallContacts.Should().Be(1, "the ball's contact with the floor started once");
         }
@@ -583,7 +809,14 @@ public sealed class GrowthTests
         public void AddCrates(int count)
         {
             for (int i = 0; i < count; i++)
-                World.Spawn(new() { Frame = Ground, Pose = At(3 * i, -100), Body = Crate });
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Ground,
+                        Pose = At(3 * i, -100),
+                        Body = Crate,
+                    }
+                );
         }
 
         public void Dispose() => World.Dispose();
@@ -600,8 +833,9 @@ public sealed class GrowthTests
 
         scene.Growths.Should().Be(2);
         scene.Faults.Jolt.CapacityOf(scene.Ground).Should().Be(32);
-        scene.BallContacts.Should().Be(1,
-            "the ball touched the floor through both growths, so its contact did not start again");
+        scene
+            .BallContacts.Should()
+            .Be(1, "the ball touched the floor through both growths, so its contact did not start again");
         scene.World.Errors.Should().BeEmpty();
     }
 
@@ -619,8 +853,9 @@ public sealed class GrowthTests
 
         scene.Growths.Should().Be(2);
         scene.Faults.Jolt.CapacityOf(scene.Ground).Should().Be(32);
-        scene.BallContacts.Should().Be(1,
-            "the ball touched the floor through both growths, so its contact did not start again");
+        scene
+            .BallContacts.Should()
+            .Be(1, "the ball touched the floor through both growths, so its contact did not start again");
         scene.World.Errors.Should().BeEmpty();
     }
 
@@ -634,16 +869,40 @@ public sealed class GrowthTests
     {
         using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle pit = EmptyFrame(world: world, parent: space, pose: At(0), radius: 20,
-            gravity: GravityField.Uniform(new(0, -9.81f, 0)));
-        world.Spawn(new() { Frame = pit, Pose = At(0, -0.5), Body = FloorDesc(15) });
-        Entity rolling = world.Spawn(new()
-        {
-            Frame = pit, Pose = At(0, 0.5), LinearVelocity = new Vector3(0.5f, 0, 0), Body = BallDesc(0.5f, mass: 2)
-        });
+        FrameHandle pit = EmptyFrame(
+            world: world,
+            parent: space,
+            pose: At(0),
+            radius: 20,
+            gravity: GravityField.Uniform(new(0, -9.81f, 0))
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = pit,
+                Pose = At(0, -0.5),
+                Body = FloorDesc(15),
+            }
+        );
+        Entity rolling = world.Spawn(
+            new()
+            {
+                Frame = pit,
+                Pose = At(0, 0.5),
+                LinearVelocity = new Vector3(0.5f, 0, 0),
+                Body = BallDesc(0.5f, mass: 2),
+            }
+        );
         AddCrates(world, pit, 6);
-        world.Spawn(new()
-            { Frame = space, Pose = At(40, 3), LinearVelocity = new Vector3(-30, 0, 0), Body = BallDesc(0.5f) });
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(40, 3),
+                LinearVelocity = new Vector3(-30, 0, 0),
+                Body = BallDesc(0.5f),
+            }
+        );
         Tick(world, 5);
 
         int ContactsOfTheRollingBall() =>
@@ -658,8 +917,9 @@ public sealed class GrowthTests
         Tick(world, 5);
 
         faults.Jolt.CapacityOf(pit).Should().Be(32, "the crates grew the pit's system again at the sync point");
-        ContactsOfTheRollingBall().Should().Be(1,
-            "the ball touched the floor through both growths, so its contact did not start again");
+        ContactsOfTheRollingBall()
+            .Should()
+            .Be(1, "the ball touched the floor through both growths, so its contact did not start again");
         world.Errors.Should().BeEmpty();
     }
 
@@ -672,21 +932,51 @@ public sealed class GrowthTests
     /// point. Returns a hash of the output of every step, the capacity of both systems after it, and a hash of the whole
     /// World after it.
     /// </summary>
-    private static (List<ulong> Hashes, List<(uint Ground, uint Pit)> Capacities, List<ulong> WorldHashes)
-        RunWithGrowth()
+    private static (
+        List<ulong> Hashes,
+        List<(uint Ground, uint Pit)> Capacities,
+        List<ulong> WorldHashes
+    ) RunWithGrowth()
     {
         using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 16, faults: out FaultInjectingBackend faults);
-        GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
+        var gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
-        world.Spawn(new() { Frame = ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = FloorDesc(100),
+            }
+        );
         FrameHandle pit = EmptyFrame(world: world, parent: ground, pose: At(40), radius: 10, gravity: gravity);
-        world.Spawn(new() { Frame = pit, Pose = At(0, -0.5), Body = FloorDesc(15) });
+        world.Spawn(
+            new()
+            {
+                Frame = pit,
+                Pose = At(0, -0.5),
+                Body = FloorDesc(15),
+            }
+        );
         AddCrates(world, pit, 14);
         for (int i = 0; i < 6; i++)
-            world.Spawn(new()
-                { Frame = ground, Pose = At(0.3 * i, 1 + 1.1 * i, 0.1 * i), Body = BoxDesc(0.4f, mass: 2) });
-        world.Spawn(new()
-            { Frame = ground, Pose = At(28, 0.5), LinearVelocity = new Vector3(6, 0, 0), Body = BallDesc(0.5f) });
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0.3 * i, 1 + 1.1 * i, 0.1 * i),
+                    Body = BoxDesc(0.4f, mass: 2),
+                }
+            );
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(28, 0.5),
+                LinearVelocity = new Vector3(6, 0, 0),
+                Body = BallDesc(0.5f),
+            }
+        );
 
         var hashes = new List<ulong>();
         var capacities = new List<(uint Ground, uint Pit)>();
@@ -695,8 +985,14 @@ public sealed class GrowthTests
         {
             if (tick == 20)
                 for (int i = 0; i < 10; i++)
-                    world.Spawn(new()
-                        { Frame = ground, Pose = At(-5 + 0.2 * i, 1 + 1.1 * i), Body = BoxDesc(0.4f, mass: 2) });
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = ground,
+                            Pose = At(-5 + 0.2 * i, 1 + 1.1 * i),
+                            Body = BoxDesc(0.4f, mass: 2),
+                        }
+                    );
             world.Tick();
             hashes.Add(Hash(faults.Outputs[^1]));
             capacities.Add((faults.Jolt.CapacityOf(ground), faults.Jolt.CapacityOf(pit)));
@@ -797,13 +1093,27 @@ public sealed class GrowthTests
             for (int i = 0; i < 4096; i++)
             {
                 DPose pose = At(2 * (i % 64), 2 * (i / 64 % 64));
-                world.Spawn(new() { Frame = hold, Pose = pose, Body = i % 2 == 0 ? Crate : ball });
+                world.Spawn(
+                    new()
+                    {
+                        Frame = hold,
+                        Pose = pose,
+                        Body = i % 2 == 0 ? Crate : ball,
+                    }
+                );
             }
 
             world.Tick();
             faults.Jolt.CapacityOf(hold).Should().Be(4096);
 
-            world.Spawn(new() { Frame = hold, Pose = At(0, 0, 50), Body = Crate });
+            world.Spawn(
+                new()
+                {
+                    Frame = hold,
+                    Pose = At(0, 0, 50),
+                    Body = Crate,
+                }
+            );
             Entity marker = world.Spawn(new() { Frame = hold });
             var watch = Stopwatch.StartNew();
             world.Destroy(marker);
@@ -815,6 +1125,7 @@ public sealed class GrowthTests
         }
 
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"Growing a system of 4096 bodies to 8192 took {string.Join(", ", times.Select(t => $"{t:F2} ms"))}.");
+            $"Growing a system of 4096 bodies to 8192 took {string.Join(", ", times.Select(t => $"{t:F2} ms"))}."
+        );
     }
 }

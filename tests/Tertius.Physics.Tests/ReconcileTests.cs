@@ -1,8 +1,8 @@
 using System.Numerics;
 using Tertius.Simulation;
+using static Tertius.Testing.NumericFrameTesting;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
-using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -37,7 +37,15 @@ public sealed class ReconcileTests
     /// <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
         world.GetOwnedFrame(
-            world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) }));
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>
     /// Probe P1 of the review, with physics systems of at most 8 bodies. A hangar bubble of radius 30 m, 1 km along +X,
@@ -55,36 +63,49 @@ public sealed class ReconcileTests
         public FullStorage(bool numericFrames)
         {
             this.numericFrames = numericFrames;
-            World = NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults,
-                configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+            World = NewWorldWithFaultsAndSmallSystems(
+                maxBodiesPerFrame: 8,
+                faults: out FaultInjectingBackend faults,
+                configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames
+            );
             Faults = faults;
             Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
             Hangar = EmptyFrame(world: World, parent: Space, pose: At(1000), radius: 30);
             BodyDesc hull = ShipHull();
-            Ship = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(1070),
-                LinearVelocity = new Vector3(-60, 0, 0),
-                Body = hull,
-                AsFrame = new(FrameBounds.Sphere(10)),
-                Components = [new Thruster(hull.Mass) { Direction = -Vector3.UnitX }]
-            }));
+            Ship = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Space,
+                        Pose = At(1070),
+                        LinearVelocity = new Vector3(-60, 0, 0),
+                        Body = hull,
+                        AsFrame = new(FrameBounds.Sphere(10)),
+                        Components = [new Thruster(hull.Mass) { Direction = -Vector3.UnitX }],
+                    }
+                )
+            );
             Storage = EmptyFrame(world: World, parent: Space, pose: At(-5000), radius: 50);
             for (int i = 0; i < 8; i++)
-                World.Spawn(new()
-                {
-                    Frame = Storage,
-                    Pose = At(3 * i - 12),
-                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static)
-                });
-            Skiff = World.GetOwnedFrame(World.Spawn(new()
-            {
-                Frame = Space,
-                Pose = At(-3000),
-                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
-                AsFrame = new(FrameBounds.Sphere(5))
-            }));
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Storage,
+                        Pose = At(3 * i - 12),
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
+                    }
+                );
+            Skiff = World.GetOwnedFrame(
+                World.Spawn(
+                    new()
+                    {
+                        Frame = Space,
+                        Pose = At(-3000),
+                        Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
+                        AsFrame = new(FrameBounds.Sphere(5)),
+                    }
+                )
+            );
         }
 
         public World World { get; }
@@ -104,22 +125,30 @@ public sealed class ReconcileTests
         {
             // The ship's tree parent, and how it moves, before the step of the hand-off.
             FrameHandle treeParent = FrameHandle.Null;
-            var treeParentMode = NumericMode.None;
-            TickUntil(World, () =>
-            {
-                if (HandOffs(Faults).Count > 0)
-                    return true;
-                treeParent = World.Frames.TreeParent(Ship);
-                treeParentMode = World.Frames.Numeric(treeParent);
-                return false;
-            }, 60);
+            NumericMode treeParentMode = NumericMode.None;
+            TickUntil(
+                World,
+                () =>
+                {
+                    if (HandOffs(Faults).Count > 0)
+                        return true;
+                    treeParent = World.Frames.TreeParent(Ship);
+                    treeParentMode = World.Frames.Numeric(treeParent);
+                    return false;
+                },
+                60
+            );
             HandOff entry = HandOffs(Faults).Should().ContainSingle().Which;
             entry.To.Should().Be(Hangar);
             entry.From.Should().Be(treeParent, "the hull enters the hangar from the system of the ship's tree parent");
-            treeParentMode.Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
-                numericFrames
-                    ? "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame of space"
-                    : "the World makes no numeric frames");
+            treeParentMode
+                .Should()
+                .Be(
+                    numericFrames ? NumericMode.Falling : NumericMode.None,
+                    numericFrames
+                        ? "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame of space"
+                        : "the World makes no numeric frames"
+                );
             World.Frames.Reparent(Skiff, Storage);
             World.Frames.Reparent(Ship, Space);
             World.Frames.Reparent(Hangar, Ship);
@@ -142,8 +171,9 @@ public sealed class ReconcileTests
         {
             scene.World.Tick();
             scene.Faults.Jolt.TryGetBodyFrame(scene.Ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
-            hullFrame.Should().Be(scene.World.Frames.Parent(scene.Ship),
-                "the ship's hull follows the tree after step {0}", i);
+            hullFrame
+                .Should()
+                .Be(scene.World.Frames.Parent(scene.Ship), "the ship's hull follows the tree after step {0}", i);
             scene.Faults.Jolt.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle skiffFrame).Should().BeTrue();
             skiffFrame.Should().Be(scene.Storage, "the storage system grew to take the skiff's hull at step {0}", i);
         }
@@ -190,18 +220,24 @@ public sealed class ReconcileTests
     public void AfterARefusedHandOffTheReconcileRestoresTheInvariants()
     {
         // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
-        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = WithoutNumericFrames);
+        using World world = NewWorldWithFaults(
+            faults: out FaultInjectingBackend faults,
+            configure: options => options.NumericFrames = WithoutNumericFrames
+        );
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle carrier = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 200);
-        FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(1260),
-            LinearVelocity = new Vector3(-60, 0, 0),
-            Body = ShipHull(),
-            AsFrame = new(FrameBounds.Sphere(10))
-        }));
+        FrameHandle fighter = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(1260),
+                    LinearVelocity = new Vector3(-60, 0, 0),
+                    Body = ShipHull(),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                }
+            )
+        );
         // The backend hands the fighter into the carrier. The test gives the report a wrong origin, as a bug would. In a
         // Release build, the first batch after that step reads which system holds the fighter's hull before Jolt applies it.
         FrameHandle hullFrameBeforeTheBatch = FrameHandle.Null;
@@ -225,9 +261,14 @@ public sealed class ReconcileTests
         faults.EditOutput = null;
         world.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {fighter.Entity}");
         HandOffs(faults).Should().ContainSingle().Which.To.Should().Be(carrier);
-        world.Frames.Parent(fighter).Should().Be(space, "the World refused the hand-off, so the tree keeps the fighter in space");
+        world
+            .Frames.Parent(fighter)
+            .Should()
+            .Be(space, "the World refused the hand-off, so the tree keeps the fighter in space");
 
-        hullFrameBeforeTheBatch.Should().Be(carrier, "the step left the fighter's hull in the carrier's system, and the tree refused to follow");
+        hullFrameBeforeTheBatch
+            .Should()
+            .Be(carrier, "the step left the fighter's hull in the carrier's system, and the tree refused to follow");
         // The batch of the same sync point reconciled: it put the hull back where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         faults.Jolt.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
@@ -236,7 +277,10 @@ public sealed class ReconcileTests
         // The fighter is still inside the carrier's bubble, so the next step hands it in, with a correct report this time.
         world.Tick();
 
-        HandOffs(faults).Should().HaveCount(2).And.Contain(handOff => handOff.Entity == fighter.Entity && handOff.From == space && handOff.To == carrier);
+        HandOffs(faults)
+            .Should()
+            .HaveCount(2)
+            .And.Contain(handOff => handOff.Entity == fighter.Entity && handOff.From == space && handOff.To == carrier);
         world.Frames.Parent(fighter).Should().Be(carrier);
         // The batch of that sync point reconciled too, and found the hull where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
@@ -251,17 +295,23 @@ public sealed class ReconcileTests
     /// The ship's bubble does not fit in the hangar's, so it never enters, but it reaches into the hangar's bubble, so
     /// the hangar's system holds a ghost of the ship's hull.
     /// </summary>
-    private static (FrameHandle Space, FrameHandle Hangar, FrameHandle Ship) ShipBesideHangar(World world,
-        FaultInjectingBackend faults)
+    private static (FrameHandle Space, FrameHandle Hangar, FrameHandle Ship) ShipBesideHangar(
+        World world,
+        FaultInjectingBackend faults
+    )
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(20), radius: 15);
-        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = space,
-            Body = ShipHull(),
-            AsFrame = new(FrameBounds.Sphere(10))
-        }));
+        FrameHandle ship = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Body = ShipHull(),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                }
+            )
+        );
         world.Tick();
         faults.Jolt.HasGhostIn(ship.Entity, hangar).Should().BeTrue();
         return (space, hangar, ship);
@@ -284,7 +334,9 @@ public sealed class ReconcileTests
         world.Frames.Update();
         Reconcile(faults, world);
 
-        faults.Jolt.HasGhostIn(ship.Entity, hangar).Should()
+        faults
+            .Jolt.HasGhostIn(ship.Entity, hangar)
+            .Should()
             .BeFalse("the hangar's contents are inside the ship and never meet its hull");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
@@ -305,12 +357,20 @@ public sealed class ReconcileTests
         FrameHandle bubble = EmptyFrame(world: world, parent: space, pose: At(50), radius: 20);
         FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(-500), radius: 200);
         // The ball sticks out of the bubble, so space holds a ghost of it.
-        Entity ball = world.Spawn(new()
-        {
-            Frame = bubble,
-            Pose = At(19.8),
-            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = bubble,
+                Pose = At(19.8),
+                Body = new(
+                    Shape: new SphereShapeDesc(0.5f),
+                    Mass: 1,
+                    Restitution: 0,
+                    LinearDamping: 0,
+                    AngularDamping: 0
+                ),
+            }
+        );
         world.Tick();
         faults.Jolt.HasGhostIn(ball, space).Should().BeTrue();
 
@@ -346,7 +406,9 @@ public sealed class ReconcileTests
         world.Frames.Update();
         Reconcile(faults, world);
 
-        faults.Jolt.HasGhostIn(ship.Entity, hangar).Should()
+        faults
+            .Jolt.HasGhostIn(ship.Entity, hangar)
+            .Should()
             .BeTrue("without the ghost, the hangar's contents would pass through the hull for a step");
         world.Tick();
         faults.Jolt.HasGhostIn(ship.Entity, hangar).Should().BeTrue();

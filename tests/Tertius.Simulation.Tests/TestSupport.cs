@@ -45,12 +45,22 @@ public sealed class TestWorld : IDisposable
     /// <param name="debugChecks">Runs the invariant checks of every subsystem at the end of every sync point. Turn it off for tests that measure allocations or time.</param>
     /// <param name="configure">Changes any other option before the world is created, such as
     /// <see cref="WorldOptions.SpawnPoolSize"/>.</param>
-    public TestWorld(IPhysicsBackend? physics = null, int maxDegreeOfParallelism = 1, int chunkSize = 64,
+    public TestWorld(
+        IPhysicsBackend? physics = null,
+        int maxDegreeOfParallelism = 1,
+        int chunkSize = 64,
         bool debugChecks = true,
-        Action<WorldOptions>? configure = null)
+        Action<WorldOptions>? configure = null
+    )
     {
-        World = Create(root: out FrameHandle root, maxDop: maxDegreeOfParallelism, physics: physics,
-            chunkSize: chunkSize, debugChecks: debugChecks, configure: configure);
+        World = Create(
+            root: out FrameHandle root,
+            maxDop: maxDegreeOfParallelism,
+            physics: physics,
+            chunkSize: chunkSize,
+            debugChecks: debugChecks,
+            configure: configure
+        );
         Root = root;
     }
 
@@ -65,17 +75,26 @@ public sealed class TestWorld : IDisposable
     /// that has no gravity. With no edit set on <paramref name="faults"/>, the world behaves as it does on bare Jolt. The
     /// world disposes the backend. The other parameters are those of the constructor.
     /// </summary>
-    public static TestWorld OnJolt(out FaultInjectingBackend faults, int maxDegreeOfParallelism = 1, int chunkSize = 64,
+    public static TestWorld OnJolt(
+        out FaultInjectingBackend faults,
+        int maxDegreeOfParallelism = 1,
+        int chunkSize = 64,
         bool debugChecks = true,
-        Action<WorldOptions>? configure = null)
+        Action<WorldOptions>? configure = null
+    )
     {
         faults = new(new(new() { WorkerThreads = 2 }));
-        return new(physics: faults, maxDegreeOfParallelism: maxDegreeOfParallelism, chunkSize: chunkSize,
-            debugChecks: debugChecks, configure: options =>
+        return new(
+            physics: faults,
+            maxDegreeOfParallelism: maxDegreeOfParallelism,
+            chunkSize: chunkSize,
+            debugChecks: debugChecks,
+            configure: options =>
             {
                 options.DisposePhysics = true;
                 configure?.Invoke(options);
-            });
+            }
+        );
     }
 
     /// <summary>Spawns an entity with these components at the origin of <see cref="Root"/>. Outside a tick it is live at once.</summary>
@@ -95,9 +114,9 @@ public sealed class TestWorld : IDisposable
 
     /// <summary>
     /// Gives <see cref="Root"/> a point gravity with this G·M, in m³/s². A <see cref="KeplerMotion"/> of a frame in the root
-    /// takes its G·M from it (see <see cref="Tertius.Frames.Rails.KeplerOrbit.MuFrom"/>), and so does everything that falls in
+    /// takes its G·M from it (see <see cref="Frames.Rails.KeplerOrbit.MuFrom"/>), and so does everything that falls in
     /// the root with real physics. Call it before the first Kepler frame spawns, so that the spawn helpers place the frame
-    /// with the same G·M (see <see cref="Tertius.Testing.RailsSpawn"/>), and only in a test that wants a Kepler frame in the
+    /// with the same G·M (see <see cref="RailsSpawn"/>), and only in a test that wants a Kepler frame in the
     /// root.
     /// </summary>
     public void GiveRootPointGravity(double mu) => World.SetFrameGravity(Root, GravityField.Point(mu));
@@ -108,14 +127,21 @@ public sealed class TestWorld : IDisposable
     /// Creates a world with the test settings and its root frame. This is the form for a test that wants the world
     /// and the root frame as separate variables. A <see cref="TestWorld"/> instance wraps the same call.
     /// </summary>
-    public static World Create(out FrameHandle root, int maxDop = 1, IPhysicsBackend? physics = null,
+    public static World Create(
+        out FrameHandle root,
+        int maxDop = 1,
+        IPhysicsBackend? physics = null,
         int chunkSize = 64,
-        bool debugChecks = true, Action<WorldOptions>? configure = null)
+        bool debugChecks = true,
+        Action<WorldOptions>? configure = null
+    )
     {
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = maxDop, ChunkSize = chunkSize, InitialCapacity = WorldTesting.TestCapacity,
-            DebugChecks = debugChecks
+            MaxDegreeOfParallelism = maxDop,
+            ChunkSize = chunkSize,
+            InitialCapacity = WorldTesting.TestCapacity,
+            DebugChecks = debugChecks,
         };
         configure?.Invoke(options);
         var world = new World(options, physics);
@@ -145,18 +171,33 @@ public static class WorldTestExtensions
         world.Spawn(new() { Frame = frame, Components = components });
 
     /// <summary>Spawns an entity with these components at <paramref name="position"/> in <paramref name="frame"/>.</summary>
-    public static Entity SpawnAt(this World world, FrameHandle frame, Double3 position,
-        params IComponent[] components) =>
-        world.Spawn(new() { Frame = frame, Pose = new(position, DQuaternion.Identity), Components = components });
+    public static Entity SpawnAt(
+        this World world,
+        FrameHandle frame,
+        Double3 position,
+        params IComponent[] components
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(position, DQuaternion.Identity),
+                Components = components,
+            }
+        );
 
     /// <summary>Spawns a frame that does not move, as a child of <paramref name="parent"/>, and returns its handle.</summary>
     public static FrameHandle SpawnStaticFrame(this World world, FrameHandle parent, DPose pose, float radius = 1000) =>
-        world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = parent,
-            Pose = pose,
-            AsFrame = new(FrameBounds.Sphere(radius))
-        }));
+        world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = pose,
+                    AsFrame = new(FrameBounds.Sphere(radius)),
+                }
+            )
+        );
 
     /// <summary>Runs this many ticks.</summary>
     public static void Run(this World world, int ticks)
@@ -191,9 +232,21 @@ internal static class TableSupport
     public static Entity SpawnLive(this EntityTable table, FrameHandle frame = default, double x = 0)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity: entity, row: new() { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) },
-            render: new(), components: [], wants: [],
-            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: entity,
+            row: new()
+            {
+                Frame = frame,
+                PhysicsHome = frame,
+                Pose = TestWorld.At(x),
+            },
+            render: new(),
+            components: [],
+            wants: [],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         return entity;
     }
 }

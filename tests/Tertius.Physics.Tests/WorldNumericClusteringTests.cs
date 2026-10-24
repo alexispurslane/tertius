@@ -22,38 +22,64 @@ public sealed class WorldNumericClusteringTests
     /// <summary>The velocity of a circular orbit through (<see cref="OrbitRadius"/>, 0, 0), along Z.</summary>
     private static readonly Double3 Orbit = new(0, 0, OrbitSpeed);
 
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
-        AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.5f)),
+        Mass: 10,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
-    private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
+    private static readonly BodyDesc Hull = new(
+        Shape: new BoxShapeDesc(new(5)),
+        Mass: 1e4f,
+        LinearDamping: 0,
         AngularDamping: 0,
-        InteriorShape: new SphereShapeDesc(0.05f));
+        InteriorShape: new SphereShapeDesc(0.05f)
+    );
 
     private static FrameHandle Earth(World world) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
 
-    private static Entity CrateInEarth(World world, FrameHandle earth, Double3 offset, Double3 relativeVelocity,
-        params IComponent[] components) =>
-        world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius + offset.X, offset.Y, offset.Z),
-            LinearVelocity = Orbit + relativeVelocity,
-            Body = Crate,
-            Components = components
-        });
+    private static Entity CrateInEarth(
+        World world,
+        FrameHandle earth,
+        Double3 offset,
+        Double3 relativeVelocity,
+        params IComponent[] components
+    ) =>
+        world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius + offset.X, offset.Y, offset.Z),
+                LinearVelocity = Orbit + relativeVelocity,
+                Body = Crate,
+                Components = components,
+            }
+        );
 
     [Fact]
     public void TwoRunsWithTheSameInputMakeTheSameClustersInTheSameOrder()
     {
-        List<string> first = RunScatteringCrates(), second = RunScatteringCrates();
+        List<string> first = RunScatteringCrates(),
+            second = RunScatteringCrates();
 
         second.Should().Equal(first);
-        first.SelectMany(line => line.Split(' ')).Distinct().Count().Should().BeGreaterThan(4,
-            "the crates went through several numeric frames, so the run says something about their order");
+        first
+            .SelectMany(line => line.Split(' '))
+            .Distinct()
+            .Count()
+            .Should()
+            .BeGreaterThan(
+                4,
+                "the crates went through several numeric frames, so the run says something about their order"
+            );
     }
 
     /// <summary>
@@ -70,7 +96,7 @@ public sealed class WorldNumericClusteringTests
             CrateInEarth(world: world, earth: earth, offset: new(0, 1.1, 0), relativeVelocity: new(0, 3, 0)),
             CrateInEarth(world: world, earth: earth, offset: new(0, 0, 1.1), relativeVelocity: new(0, 0, 4)),
             CrateInEarth(world: world, earth: earth, offset: new(0, 1.1, 1.1), relativeVelocity: new(0, 2, 2)),
-            CrateInEarth(world: world, earth: earth, offset: new(0, -40, 0), relativeVelocity: new(0, 4, 0))
+            CrateInEarth(world: world, earth: earth, offset: new(0, -40, 0), relativeVelocity: new(0, 4, 0)),
         ];
         var lines = new List<string>();
         for (int tick = 0; tick < 900; tick++)
@@ -88,19 +114,26 @@ public sealed class WorldNumericClusteringTests
     {
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle earth = Earth(world);
-        Entity hull = world.Spawn(new()
-        {
-            Frame = earth, Pose = At(OrbitRadius), LinearVelocity = Orbit, Body = Hull with { InteriorShape = null }
-        });
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius),
+                LinearVelocity = Orbit,
+                Body = Hull with { InteriorShape = null },
+            }
+        );
         var pilot = new Pilot();
-        Entity person = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius, 0, 30),
-            LinearVelocity = Orbit,
-            Body = Person,
-            Components = [pilot]
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius, 0, 30),
+                LinearVelocity = Orbit,
+                Body = Person,
+                Components = [pilot],
+            }
+        );
         // The thrusters of the demo's person: 105 N along the orbit, sideways to the person's up, which points away from
         // Earth. A force from the gameplay of one tick acts in the physics step of the next.
         var thrust = new Vector3(0, 0, 105);
@@ -112,10 +145,12 @@ public sealed class WorldNumericClusteringTests
 
         // The same motion in doubles, with the step scheme of Jolt and of the falling frames: the velocity gains the
         // field at the start of the step, and the force, then the position gains the new velocity.
-        GravityField field = GravityField.Point(EarthMu);
+        var field = GravityField.Point(EarthMu);
         double dt = world.DeltaTime;
-        Double3 hullPosition = new(OrbitRadius, 0, 0), hullVelocity = Orbit;
-        Double3 personPosition = new(OrbitRadius, 0, 30), personVelocity = Orbit;
+        Double3 hullPosition = new(OrbitRadius, 0, 0),
+            hullVelocity = Orbit;
+        Double3 personPosition = new(OrbitRadius, 0, 30),
+            personVelocity = Orbit;
         for (int step = 0; step <= thrustTicks; step++)
         {
             hullVelocity += field.AtPrecise(hullPosition) * dt;
@@ -131,8 +166,9 @@ public sealed class WorldNumericClusteringTests
         Double3 expected = personVelocity - hullVelocity;
         relative.Z.Should().BeGreaterThan(80, "the person thrust along the orbit for a minute");
         double sideways = Math.Sqrt(Math.Pow(relative.X - expected.X, 2) + Math.Pow(relative.Y - expected.Y, 2));
-        sideways.Should().BeLessThan(1e-3,
-            $"the person moved at {relative} relative to the ship, and the doubles say {expected}");
+        sideways
+            .Should()
+            .BeLessThan(1e-3, $"the person moved at {relative} relative to the ship, and the doubles say {expected}");
         Math.Abs(relative.Z - expected.Z).Should().BeLessThan(1e-3);
     }
 
@@ -144,26 +180,31 @@ public sealed class WorldNumericClusteringTests
         Entity crate = CrateInEarth(world: world, earth: earth, offset: Double3.Zero, relativeVelocity: Double3.Zero);
         // The person starts 20 m behind the crate along the orbit and closes at 1 m/s. Its capsule of radius 0.3 m meets
         // the crate's back face, 0.5 m from its center, after about 19.2 m.
-        Entity person = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius, 0, -20),
-            LinearVelocity = Orbit + new Double3(0, 0, 1),
-            Body = Person
-        });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius, 0, -20),
+                LinearVelocity = Orbit + new Double3(0, 0, 1),
+                Body = Person,
+            }
+        );
         Tick(world, 15 * 60);
 
         world.Errors.Should().BeEmpty();
         Double3 offset = world.PoseIn(person, earth).Position - world.PoseIn(crate, earth).Position;
-        offset.Z.Should().BeApproximately(-5, 0.05,
-            "the person closed on the crate at 1 m/s, as if the crate moved with it");
-        (world.VelocityIn(person, earth) - world.VelocityIn(crate, earth)).Z.Should()
+        offset
+            .Z.Should()
+            .BeApproximately(-5, 0.05, "the person closed on the crate at 1 m/s, as if the crate moved with it");
+        (world.VelocityIn(person, earth) - world.VelocityIn(crate, earth))
+            .Z.Should()
             .BeApproximately(1, 0.01, "they have not met yet");
 
         Tick(world, 10 * 60);
         offset = world.PoseIn(person, earth).Position - world.PoseIn(crate, earth).Position;
-        offset.Z.Should().BeInRange(-0.9, -0.75,
-            "they met, and the person pushes the crate along without passing into it");
+        offset
+            .Z.Should()
+            .BeInRange(-0.9, -0.75, "they met, and the person pushes the crate along without passing into it");
         (world.VelocityIn(person, earth) - world.VelocityIn(crate, earth)).Z.Should().BeApproximately(0, 0.05);
     }
 
@@ -179,7 +220,14 @@ public sealed class WorldNumericClusteringTests
         FrameHandle ground = Ground(world, 9.81f);
         const double top = 1e7;
         Entity floor = Floor(world, ground, top);
-        Entity crate = world.Spawn(new() { Frame = ground, Pose = At(0, top + 0.5), Body = Crate });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, top + 0.5),
+                Body = Crate,
+            }
+        );
         Tick(world, 120);
 
         world.Errors.Should().BeEmpty();
@@ -197,18 +245,27 @@ public sealed class WorldNumericClusteringTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
-        Entity owner = world.Spawn(new()
-        {
-            Frame = earth,
-            Pose = At(OrbitRadius),
-            LinearVelocity = Orbit,
-            Body = Hull,
-            AsFrame = new(FrameBounds.Sphere(20))
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(OrbitRadius),
+                LinearVelocity = Orbit,
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
         // Thrown out of the ship along its Z axis at 3 m/s, from beside the hull.
-        Entity crate = world.Spawn(new()
-            { Frame = ship, Pose = At(0, 0, 10), LinearVelocity = new(0, 0, 3), Body = Crate });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, 0, 10),
+                LinearVelocity = new(0, 0, 3),
+                Body = Crate,
+            }
+        );
 
         var crateHomes = new List<FrameHandle> { world.PhysicsHomeOf(crate) };
         var hullHomes = new List<FrameHandle> { world.PhysicsHomeOf(owner) };

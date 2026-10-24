@@ -18,37 +18,31 @@ public sealed class KeplerParentGravityTests
     private static readonly KeplerOrbit MoonOrbit = KeplerOrbit.Circular(1000);
 
     /// <summary>The fields that a Kepler frame cannot orbit in, by the names that the theories use.</summary>
-    public static TheoryData<string, GravityField> FieldsWithoutPointGravity => new()
-    {
-        { "no gravity", GravityField.None },
-        { "a uniform field", GravityField.Uniform(new(0, -9.81f, 0)) },
-        { "a point field with G·M 0", GravityField.Point(0) }
-    };
+    public static TheoryData<string, GravityField> FieldsWithoutPointGravity =>
+        new()
+        {
+            { "no gravity", GravityField.None },
+            { "a uniform field", GravityField.Uniform(new(0, -9.81f, 0)) },
+            { "a point field with G·M 0", GravityField.Point(0) },
+        };
 
     /// <summary>A frame that does not move in the root, with the given field. A Kepler frame orbits in it.</summary>
     private static FrameHandle SpawnPlanet(TestWorld t, GravityField field) =>
-        t.World.GetOwnedFrame(t.World.Spawn(new()
-        {
-            Frame = t.Root,
-            AsFrame = new(FrameBounds.Sphere(1e6f), field)
-        }));
+        t.World.GetOwnedFrame(t.World.Spawn(new() { Frame = t.Root, AsFrame = new(FrameBounds.Sphere(1e6f), field) }));
 
     /// <summary>A frame without a body at the parent's origin, whose <see cref="KeplerMotion"/> follows
     /// <see cref="MoonOrbit"/>.</summary>
-    private static SpawnDesc KeplerMoon(FrameHandle parent) => new()
-    {
-        Frame = parent,
-        AsFrame = new(FrameBounds.Sphere(10)),
-        Components = [new KeplerMotion { Orbit = MoonOrbit }]
-    };
+    private static SpawnDesc KeplerMoon(FrameHandle parent) =>
+        new()
+        {
+            Frame = parent,
+            AsFrame = new(FrameBounds.Sphere(10)),
+            Components = [new KeplerMotion { Orbit = MoonOrbit }],
+        };
 
     /// <summary>A frame that does not move, without a rails component.</summary>
     private static FrameHandle SpawnParkedMoon(TestWorld t, FrameHandle parent) =>
-        t.World.GetOwnedFrame(t.World.Spawn(new()
-        {
-            Frame = parent,
-            AsFrame = new(FrameBounds.Sphere(10))
-        }));
+        t.World.GetOwnedFrame(t.World.Spawn(new() { Frame = parent, AsFrame = new(FrameBounds.Sphere(10)) }));
 
     // ---- Spawn -----------------------------------------------------------------------------------------------------
 
@@ -64,8 +58,12 @@ public sealed class KeplerParentGravityTests
         FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(planet)));
         t.Run(2);
 
-        t.World.Frames.LocalPose(moon).Position.Should().Be(MoonOrbit.StateAt(t.World.Time, Mu).Position,
-            "the frame stands on its orbit from the second sync point after its spawn");
+        t.World.Frames.LocalPose(moon)
+            .Position.Should()
+            .Be(
+                MoonOrbit.StateAt(t.World.Time, Mu).Position,
+                "the frame stands on its orbit from the second sync point after its spawn"
+            );
         log.Should().BeEmpty();
         t.World.Errors.Should().BeEmpty();
     }
@@ -96,12 +94,16 @@ public sealed class KeplerParentGravityTests
         var log = new List<string>();
         t.World.Log += log.Add;
 
-        FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(new()
-        {
-            Pose = TestWorld.At(5),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = [new KeplerMotion { Orbit = MoonOrbit }]
-        }));
+        FrameHandle moon = t.World.GetOwnedFrame(
+            t.World.Spawn(
+                new()
+                {
+                    Pose = TestWorld.At(5),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = [new KeplerMotion { Orbit = MoonOrbit }],
+                }
+            )
+        );
         t.Run(3);
 
         t.World.Frames.LocalPose(moon).Should().Be(TestWorld.At(5));
@@ -139,8 +141,10 @@ public sealed class KeplerParentGravityTests
 
     [Theory]
     [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void AFrameInAParentWithoutPointGravityThatGetsAKeplerMotionHoldsStillAndLogsOnce(string why,
-        GravityField field)
+    public void AFrameInAParentWithoutPointGravityThatGetsAKeplerMotionHoldsStillAndLogsOnce(
+        string why,
+        GravityField field
+    )
     {
         using var t = new TestWorld();
         var log = new List<string>();
@@ -258,13 +262,15 @@ public sealed class KeplerParentGravityTests
             T.World.Log += Lines.Add;
             if (rootField.HasValue)
                 T.World.SetFrameGravity(T.Root, rootField);
-            PlanetOwner = T.World.Spawn(new()
-            {
-                Frame = T.Root,
-                Pose = TestWorld.At(5e6),
-                Components = planetComponents,
-                AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(Mu))
-            });
+            PlanetOwner = T.World.Spawn(
+                new()
+                {
+                    Frame = T.Root,
+                    Pose = TestWorld.At(5e6),
+                    Components = planetComponents,
+                    AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(Mu)),
+                }
+            );
             Planet = T.World.GetOwnedFrame(PlanetOwner);
             Moon = T.World.GetOwnedFrame(T.World.Spawn(KeplerMoon(Planet)));
             T.Run(2);
@@ -311,7 +317,8 @@ public sealed class KeplerParentGravityTests
 
         s.T.World.Frames.LocalPose(s.Moon).Should().Be(stopped);
         s.T.World.Frames.LinearVelocity(s.Moon).Should().Be(Double3.Zero);
-        s.T.World.PoseInOwnFrame(s.Moon.Entity).Should()
+        s.T.World.PoseInOwnFrame(s.Moon.Entity)
+            .Should()
             .Be(s.T.World.Frames.LocalPose(s.Moon), "the owner mirrors its frame");
         s.Lines.Should().ContainSingle(line => line.Contains($"{s.Moon}"));
         s.T.World.Errors.Should().BeEmpty("the game destroyed the planet, so this is not a bug");
@@ -321,8 +328,10 @@ public sealed class KeplerParentGravityTests
     [Fact]
     public void AKeplerFrameMovesUpWhenItsParentIsDestroyedDuringATick()
     {
-        using var s = new PlanetScene(default,
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
+        using var s = new PlanetScene(
+            default,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())
+        );
 
         s.T.Run(1);
 
@@ -334,15 +343,20 @@ public sealed class KeplerParentGravityTests
     [InlineData(false)]
     [InlineData(true)]
     public void AFrameWithoutAKeplerMotionMovesUpWithoutALogWhenItsParentIsDestroyedAndTheGrandparentHasNoPointGravity(
-        bool spins)
+        bool spins
+    )
     {
         using var s = new PlanetScene();
-        FrameHandle pad = s.T.World.GetOwnedFrame(s.T.World.Spawn(new()
-        {
-            Frame = s.Planet,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = spins ? [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.1) }] : []
-        }));
+        FrameHandle pad = s.T.World.GetOwnedFrame(
+            s.T.World.Spawn(
+                new()
+                {
+                    Frame = s.Planet,
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = spins ? [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.1) }] : [],
+                }
+            )
+        );
 
         s.T.World.Destroy(s.PlanetOwner);
         s.T.Run(2);
@@ -356,22 +370,24 @@ public sealed class KeplerParentGravityTests
     public void AKeplerFrameMovesUpToItsGreatGrandparentWhenBothItsParentAndItsGrandparentAreDestroyed()
     {
         using var t = new TestWorld();
-        Entity outerOwner = t.World.Spawn(new()
-        {
-            Frame = t.Root,
-            AsFrame = new(FrameBounds.Sphere(1e7f), GravityField.Point(Mu))
-        });
+        Entity outerOwner = t.World.Spawn(
+            new() { Frame = t.Root, AsFrame = new(FrameBounds.Sphere(1e7f), GravityField.Point(Mu)) }
+        );
         FrameHandle outer = t.World.GetOwnedFrame(outerOwner);
-        Entity innerOwner = t.World.Spawn(new()
-        {
-            Frame = outer,
-            Pose = TestWorld.At(1e6),
-            AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(Mu))
-        });
+        Entity innerOwner = t.World.Spawn(
+            new()
+            {
+                Frame = outer,
+                Pose = TestWorld.At(1e6),
+                AsFrame = new(FrameBounds.Sphere(1e6f), GravityField.Point(Mu)),
+            }
+        );
         FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(t.World.GetOwnedFrame(innerOwner))));
         t.Run(1);
-        t.SpawnWith(SendOnce.Of(target: outerOwner, payload: new Destroy()),
-            SendOnce.Of(target: innerOwner, payload: new Destroy()));
+        t.SpawnWith(
+            SendOnce.Of(target: outerOwner, payload: new Destroy()),
+            SendOnce.Of(target: innerOwner, payload: new Destroy())
+        );
 
         t.Run(2);
 

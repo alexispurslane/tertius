@@ -33,7 +33,6 @@ namespace Tertius.Simulation;
 /// </remarks>
 public sealed class KeplerMotion : IComponent
 {
-    private readonly KeplerOrbit orbit;
     private bool started;
     private bool loggedNoOrbit;
     private bool loggedNoGM;
@@ -45,14 +44,15 @@ public sealed class KeplerMotion : IComponent
     /// </summary>
     public KeplerOrbit Orbit
     {
-        get => orbit;
+        get;
         init
         {
             if (!value.IsValid)
                 throw new ArgumentException(
                     $"A KeplerMotion needs an orbit that it can follow, and {value} is not valid (see KeplerOrbit.IsValid).",
-                    nameof(value));
-            orbit = value;
+                    nameof(value)
+                );
+            field = value;
         }
     }
 
@@ -63,11 +63,12 @@ public sealed class KeplerMotion : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         // A blueprint that names no orbit makes the component without the setter, so it keeps the default orbit.
-        if (!orbit.IsValid)
+        if (!Orbit.IsValid)
         {
             if (!loggedNoOrbit)
                 self.Log(
-                    $"KeplerMotion holds {RailsLog.Mover(self)} still: it has no orbit that it can follow (see KeplerOrbit.IsValid).");
+                    $"KeplerMotion holds {RailsLog.Mover(self)} still: it has no orbit that it can follow (see KeplerOrbit.IsValid)."
+                );
             loggedNoOrbit = true;
             return;
         }
@@ -77,19 +78,21 @@ public sealed class KeplerMotion : IComponent
         {
             if (!loggedNoGM)
                 self.Log(
-                    $"KeplerMotion holds {RailsLog.Mover(self)} still: its parent {self.Frame} has no point gravity with a G·M above 0 to orbit.");
+                    $"KeplerMotion holds {RailsLog.Mover(self)} still: its parent {self.Frame} has no point gravity with a G·M above 0 to orbit."
+                );
             loggedNoGM = true;
             return;
         }
 
-        MotionSample sample = orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime);
+        MotionSample sample = Orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime);
         var move = new MotionIntent(sample);
         if (!self.TakesMotionIntent(move))
         {
             // The reason allocates, so the component words it only for its one log line.
             if (!loggedRefusal)
                 self.Log(
-                    $"KeplerMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
+                    $"KeplerMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}."
+                );
             loggedRefusal = true;
             return;
         }
@@ -97,7 +100,7 @@ public sealed class KeplerMotion : IComponent
         if (!started && self.Body.NextStepMotion == BodyMotion.Kinematic)
         {
             double stepStart = self.TimeAt(self.Tick + 1);
-            self.Body.Teleport(new(orbit.StateAt(stepStart, mu).Position, orbit.RotationAt(stepStart, mu)));
+            self.Body.Teleport(new(Orbit.StateAt(stepStart, mu).Position, Orbit.RotationAt(stepStart, mu)));
         }
 
         started = true;

@@ -14,7 +14,7 @@ internal enum VertexInput
     Mesh,
 
     /// <summary>Only <see cref="Vertex.Position"/> at location 0, with the <see cref="Vertex"/> stride. Depth-only passes.</summary>
-    PositionOnly
+    PositionOnly,
 }
 
 /// <summary>How a pipeline blends its output into every color attachment. No case carries a field, so it is an enum.</summary>
@@ -27,7 +27,7 @@ internal enum BlendMode
     Alpha,
 
     /// <summary>The source color is added to the target, with the factors One and One. The target's alpha stays as it is.</summary>
-    Additive
+    Additive,
 }
 
 /// <summary>
@@ -82,7 +82,7 @@ internal sealed class GraphicsPipelineDesc
                 SrcAlphaBlendFactor = BlendFactor.One,
                 DstAlphaBlendFactor = BlendFactor.OneMinusSrcAlpha,
                 AlphaBlendOp = BlendOp.Add,
-                ColorWriteMask = allChannels
+                ColorWriteMask = allChannels,
             },
             // The target's alpha times One, plus the source's times Zero: it stays as it was.
             BlendMode.Additive => new()
@@ -94,9 +94,9 @@ internal sealed class GraphicsPipelineDesc
                 SrcAlphaBlendFactor = BlendFactor.Zero,
                 DstAlphaBlendFactor = BlendFactor.One,
                 AlphaBlendOp = BlendOp.Add,
-                ColorWriteMask = allChannels
+                ColorWriteMask = allChannels,
             },
-            BlendMode.None => new() { BlendEnable = false, ColorWriteMask = allChannels }
+            BlendMode.None => new() { BlendEnable = false, ColorWriteMask = allChannels },
         };
     }
 
@@ -110,7 +110,7 @@ internal sealed class GraphicsPipelineDesc
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.VertexBit,
             Module = shaders.Get(VertexShader),
-            PName = entry
+            PName = entry,
         };
         uint stageCount = 1;
         if (FragmentShader != null)
@@ -119,19 +119,35 @@ internal sealed class GraphicsPipelineDesc
                 SType = StructureType.PipelineShaderStageCreateInfo,
                 Stage = ShaderStageFlags.FragmentBit,
                 Module = shaders.Get(FragmentShader),
-                PName = entry
+                PName = entry,
             };
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        attributes[0] = new(location: 0, binding: 0, format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position)));
-        attributes[1] = new(location: 1, binding: 0, format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal)));
-        attributes[2] = new(location: 2, binding: 0, format: Format.R32G32B32A32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent)));
-        attributes[3] = new(location: 3, binding: 0, format: Format.R32G32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord)));
+        attributes[0] = new(
+            location: 0,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
+        );
+        attributes[1] = new(
+            location: 1,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
+        );
+        attributes[2] = new(
+            location: 2,
+            binding: 0,
+            format: Format.R32G32B32A32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
+        );
+        attributes[3] = new(
+            location: 3,
+            binding: 0,
+            format: Format.R32G32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
+        );
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
         var vertexInput = new PipelineVertexInputStateCreateInfo
@@ -139,20 +155,24 @@ internal sealed class GraphicsPipelineDesc
             SType = StructureType.PipelineVertexInputStateCreateInfo,
             VertexBindingDescriptionCount = hasVertices ? 1u : 0u,
             PVertexBindingDescriptions = hasVertices ? &binding : null,
-            VertexAttributeDescriptionCount =
-                VertexInput switch { VertexInput.Mesh => 4u, VertexInput.PositionOnly => 1u, VertexInput.None => 0u },
-            PVertexAttributeDescriptions = hasVertices ? attributes : null
+            VertexAttributeDescriptionCount = VertexInput switch
+            {
+                VertexInput.Mesh => 4u,
+                VertexInput.PositionOnly => 1u,
+                VertexInput.None => 0u,
+            },
+            PVertexAttributeDescriptions = hasVertices ? attributes : null,
         };
         var inputAssembly = new PipelineInputAssemblyStateCreateInfo
         {
             SType = StructureType.PipelineInputAssemblyStateCreateInfo,
-            Topology = PrimitiveTopology.TriangleList
+            Topology = PrimitiveTopology.TriangleList,
         };
         var viewport = new PipelineViewportStateCreateInfo
         {
             SType = StructureType.PipelineViewportStateCreateInfo,
             ViewportCount = 1,
-            ScissorCount = 1
+            ScissorCount = 1,
         };
         // The projections flip y for Vulkan's y-down clip space, which keeps counterclockwise front faces.
         var rasterization = new PipelineRasterizationStateCreateInfo
@@ -164,37 +184,38 @@ internal sealed class GraphicsPipelineDesc
             FrontFace = FrontFace.CounterClockwise,
             DepthBiasEnable = DepthBiasSlope != 0f,
             DepthBiasSlopeFactor = DepthBiasSlope,
-            LineWidth = 1f
+            LineWidth = 1f,
         };
         var multisample = new PipelineMultisampleStateCreateInfo
         {
             SType = StructureType.PipelineMultisampleStateCreateInfo,
-            RasterizationSamples = SampleCountFlags.Count1Bit
+            RasterizationSamples = SampleCountFlags.Count1Bit,
         };
         var depthStencil = new PipelineDepthStencilStateCreateInfo
         {
             SType = StructureType.PipelineDepthStencilStateCreateInfo,
             DepthTestEnable = DepthTest,
             DepthWriteEnable = DepthWrite,
-            DepthCompareOp = DepthTest ? DepthCompare : CompareOp.Always
+            DepthCompareOp = DepthTest ? DepthCompare : CompareOp.Always,
         };
 
         int colorCount = ColorFormats.Length;
         PipelineColorBlendAttachmentState* blends =
             stackalloc PipelineColorBlendAttachmentState[Math.Max(colorCount, 1)];
-        for (int i = 0; i < colorCount; i++) blends[i] = BlendState(Blend);
+        for (int i = 0; i < colorCount; i++)
+            blends[i] = BlendState(Blend);
         var colorBlend = new PipelineColorBlendStateCreateInfo
         {
             SType = StructureType.PipelineColorBlendStateCreateInfo,
             AttachmentCount = (uint)colorCount,
-            PAttachments = blends
+            PAttachments = blends,
         };
         DynamicState* dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
         var dynamic = new PipelineDynamicStateCreateInfo
         {
             SType = StructureType.PipelineDynamicStateCreateInfo,
             DynamicStateCount = 2,
-            PDynamicStates = dynamicStates
+            PDynamicStates = dynamicStates,
         };
 
         fixed (Format* colorFormats = ColorFormats)
@@ -205,7 +226,7 @@ internal sealed class GraphicsPipelineDesc
                 ColorAttachmentCount = (uint)colorCount,
                 PColorAttachmentFormats = colorFormats,
                 DepthAttachmentFormat = DepthFormat,
-                StencilAttachmentFormat = Format.Undefined
+                StencilAttachmentFormat = Format.Undefined,
             };
             var info = new GraphicsPipelineCreateInfo
             {
@@ -221,10 +242,17 @@ internal sealed class GraphicsPipelineDesc
                 PDepthStencilState = &depthStencil,
                 PColorBlendState = &colorBlend,
                 PDynamicState = &dynamic,
-                Layout = Layout
+                Layout = Layout,
             };
-            device.Vk.CreateGraphicsPipelines(device: device.Device, pipelineCache: default, createInfoCount: 1,
-                    pCreateInfos: &info, pAllocator: null, pPipelines: out Pipeline pipeline)
+            device
+                .Vk.CreateGraphicsPipelines(
+                    device: device.Device,
+                    pipelineCache: default,
+                    createInfoCount: 1,
+                    pCreateInfos: &info,
+                    pAllocator: null,
+                    pPipelines: out Pipeline pipeline
+                )
                 .Check($"vkCreateGraphicsPipelines({Name})");
             device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
             return pipeline;

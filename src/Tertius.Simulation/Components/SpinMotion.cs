@@ -26,7 +26,6 @@ namespace Tertius.Simulation;
 /// </remarks>
 public sealed class SpinMotion : IComponent
 {
-    private readonly FrameSpin spin;
     private bool started;
     private bool loggedRefusal;
 
@@ -36,14 +35,15 @@ public sealed class SpinMotion : IComponent
     /// </summary>
     public FrameSpin Spin
     {
-        get => spin;
+        get;
         init
         {
             if (!value.IsValid)
                 throw new ArgumentException(
                     $"A SpinMotion needs a spin that it can follow, and {value} is not valid (see FrameSpin.IsValid).",
-                    nameof(value));
-            spin = value;
+                    nameof(value)
+                );
+            field = value;
         }
     }
 
@@ -54,20 +54,21 @@ public sealed class SpinMotion : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         Double3 place = PlaceAtStepStart(self);
-        MotionSample sample = spin.Sample(place, self.TimeAt(self.Tick + 2));
+        MotionSample sample = Spin.Sample(place, self.TimeAt(self.Tick + 2));
         var move = new MotionIntent(sample);
         if (!self.TakesMotionIntent(move))
         {
             // The reason allocates, so the component words it only for its one log line.
             if (!loggedRefusal)
                 self.Log(
-                    $"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
+                    $"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}."
+                );
             loggedRefusal = true;
             return;
         }
 
         if (!started && self.Body.NextStepMotion == BodyMotion.Kinematic)
-            self.Body.Teleport(new(place, spin.RotationAt(self.TimeAt(self.Tick + 1))));
+            self.Body.Teleport(new(place, Spin.RotationAt(self.TimeAt(self.Tick + 1))));
         started = true;
         self.MoveOnRails(sample);
     }

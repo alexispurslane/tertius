@@ -48,7 +48,8 @@ public sealed class EventBuffer(int capacity = 32)
     // ---- The scans that every event query runs ---------------------------------------------------------------------
 
     /// <summary>The index of the first event that <paramref name="filter"/> matches, or -1.</summary>
-    internal int FirstMatch<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    internal int FirstMatch<TFilter>(TFilter filter)
+        where TFilter : struct, IEventFilter
     {
         if (!filter.MayMatch(Mask))
             return -1;
@@ -61,7 +62,8 @@ public sealed class EventBuffer(int capacity = 32)
 
     /// <summary>Copies the payload of the first event that <paramref name="filter"/> matches. False, with a default payload, if none matches.</summary>
     internal bool TryFirst<TFilter, T>(TFilter filter, out T payload)
-        where TFilter : struct, IEventFilter where T : unmanaged, IEventPayload
+        where TFilter : struct, IEventFilter
+        where T : unmanaged, IEventPayload
     {
         int index = FirstMatch(filter);
         payload = index >= 0 ? Unsafe.As<PayloadBytes, T>(ref Items[index].Payload) : default;
@@ -69,7 +71,8 @@ public sealed class EventBuffer(int capacity = 32)
     }
 
     /// <summary>Copies the first event that <paramref name="filter"/> matches. False, with a default event, if none matches.</summary>
-    internal bool TryFirst<TFilter>(TFilter filter, out Event e) where TFilter : struct, IEventFilter
+    internal bool TryFirst<TFilter>(TFilter filter, out Event e)
+        where TFilter : struct, IEventFilter
     {
         int index = FirstMatch(filter);
         e = index >= 0 ? Items[index] : default;
@@ -77,7 +80,8 @@ public sealed class EventBuffer(int capacity = 32)
     }
 
     /// <summary>The number of events that <paramref name="filter"/> matches.</summary>
-    internal int CountMatches<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    internal int CountMatches<TFilter>(TFilter filter)
+        where TFilter : struct, IEventFilter
     {
         if (!filter.MayMatch(Mask))
             return 0;
@@ -93,12 +97,15 @@ public sealed class EventBuffer(int capacity = 32)
     /// Removes the events that <paramref name="filter"/> matches and returns their number. The other events keep their
     /// order. If the filter throws, the events from the one it threw on are kept unchanged.
     /// </summary>
-    internal int RemoveMatches<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    internal int RemoveMatches<TFilter>(TFilter filter)
+        where TFilter : struct, IEventFilter
     {
         if (!filter.MayMatch(Mask))
             return 0;
         Event[] items = Items;
-        int count = Count, write = 0, read = 0;
+        int count = Count,
+            write = 0,
+            read = 0;
         try
         {
             for (; read < count; read++)
@@ -123,8 +130,13 @@ public sealed class EventBuffer(int capacity = 32)
     private void Compact(int count, int read, int write)
     {
         if (read < count && write != read)
-            Array.Copy(sourceArray: Items, sourceIndex: read, destinationArray: Items, destinationIndex: write,
-                length: count - read);
+            Array.Copy(
+                sourceArray: Items,
+                sourceIndex: read,
+                destinationArray: Items,
+                destinationIndex: write,
+                length: count - read
+            );
         int newCount = write + (count - read);
         if (newCount < count)
         {
@@ -196,7 +208,8 @@ public readonly ref struct EventList
     public readonly Span<Event> AsSpan() => buffer.Items.AsSpan(0, buffer.Count);
 
     /// <summary>Appends an event with this payload. Its target is the running entity.</summary>
-    public readonly void Add<T>(in T payload, Entity sender = default) where T : unmanaged, IEventPayload
+    public readonly void Add<T>(in T payload, Entity sender = default)
+        where T : unmanaged, IEventPayload
     {
         int type = EventType<T>.Id;
         ref Event e = ref buffer.Append();
@@ -224,8 +237,13 @@ public readonly ref struct EventList
             ThrowIndex(index);
         Event[] items = buffer.Items;
         if (index < count - 1)
-            Array.Copy(sourceArray: items, sourceIndex: index + 1, destinationArray: items, destinationIndex: index,
-                length: count - index - 1);
+            Array.Copy(
+                sourceArray: items,
+                sourceIndex: index + 1,
+                destinationArray: items,
+                destinationIndex: index,
+                length: count - index - 1
+            );
         items[count - 1] = default;
         buffer.Count = count - 1;
         buffer.Version++;
@@ -237,15 +255,16 @@ public readonly ref struct EventList
     /// it. A query for a type that <see cref="Mask"/> lacks scans nothing. Do not add or remove events while enumerating.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly EventsOf<T> Of<T>() where T : unmanaged, IEventPayload => Find(new EventQuery<T>());
+    public readonly EventsOf<T> Of<T>()
+        where T : unmanaged, IEventPayload => Find(new EventQuery<T>());
 
     /// <summary>The events that a stored query matches. It gives the same chain as <see cref="Of{T}"/> with the same words.</summary>
-    public readonly EventsOf<T> Find<T>(EventQuery<T> query) where T : unmanaged, IEventPayload => new(buffer, query);
+    public readonly EventsOf<T> Find<T>(EventQuery<T> query)
+        where T : unmanaged, IEventPayload => new(buffer, query);
 
     /// <summary>The events that a stored query with a state predicate matches.</summary>
     public readonly EventsOf<T, TState> Find<T, TState>(EventQuery<T, TState> query)
-        where T : unmanaged, IEventPayload =>
-        new(buffer, query);
+        where T : unmanaged, IEventPayload => new(buffer, query);
 
     /// <summary>The events of every type that pass <paramref name="predicate"/>. Use a static lambda, so that it allocates nothing.</summary>
     public readonly EventsOfAnyType Where(RefPredicate<Event> predicate) =>

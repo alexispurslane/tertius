@@ -50,24 +50,34 @@ public readonly record struct EntityQuery
 
     /// <summary>Keeps the entities that have a <typeparamref name="T"/> component. Throws if the query refuses
     /// <typeparamref name="T"/>.</summary>
-    public EntityQuery With<T>() where T : IComponent
+    public EntityQuery With<T>()
+        where T : IComponent
     {
         int id = ComponentType<T>.Id;
         return Components.Without.Contains(id)
             ? throw new InvalidOperationException(
-                $"The query already refuses {typeof(T).Name}, so With<{typeof(T).Name}> would make it match nothing.")
-            : this with { Components = Components.AndWith(id) };
+                $"The query already refuses {typeof(T).Name}, so With<{typeof(T).Name}> would make it match nothing."
+            )
+            : this with
+            {
+                Components = Components.AndWith(id),
+            };
     }
 
     /// <summary>Keeps the entities that have no <typeparamref name="T"/> component. Throws if the query needs
     /// <typeparamref name="T"/>.</summary>
-    public EntityQuery Without<T>() where T : IComponent
+    public EntityQuery Without<T>()
+        where T : IComponent
     {
         int id = ComponentType<T>.Id;
         return Components.With.Contains(id)
             ? throw new InvalidOperationException(
-                $"The query already needs {typeof(T).Name}, so Without<{typeof(T).Name}> would make it match nothing.")
-            : this with { Components = Components.AndWithout(id) };
+                $"The query already needs {typeof(T).Name}, so Without<{typeof(T).Name}> would make it match nothing."
+            )
+            : this with
+            {
+                Components = Components.AndWithout(id),
+            };
     }
 
     /// <summary>Keeps the entities whose body is in <paramref name="group"/>.</summary>
@@ -85,7 +95,7 @@ public readonly record struct EntityQuery
     /// <summary>Keeps the entities in <paramref name="frame"/>. Throws <see cref="ArgumentException"/> for the null frame.</summary>
     public EntityQuery In(FrameHandle frame)
     {
-        QueryFilter filter = QueryFilter.In(frame);
+        var filter = QueryFilter.In(frame);
         return InFrame.IsNull ? this with { InFrame = frame } : WithExtra(filter);
     }
 
@@ -112,7 +122,7 @@ public readonly record struct EntityQuery
     /// <summary>Keeps the entities that pass <paramref name="predicate"/>. Use a static lambda, so that it allocates nothing.</summary>
     public EntityQuery Where(EntityPredicate predicate)
     {
-        QueryFilter filter = QueryFilter.Where(predicate);
+        var filter = QueryFilter.Where(predicate);
         return WherePredicate is null ? this with { WherePredicate = predicate } : WithExtra(filter);
     }
 
@@ -163,10 +173,12 @@ public static class EntityQueryStarts
     extension(EntityQuery)
     {
         /// <inheritdoc cref="EntityQuery.With{T}"/>
-        public static EntityQuery With<T>() where T : IComponent => default(EntityQuery).With<T>();
+        public static EntityQuery With<T>()
+            where T : IComponent => default(EntityQuery).With<T>();
 
         /// <inheritdoc cref="EntityQuery.Without{T}"/>
-        public static EntityQuery Without<T>() where T : IComponent => default(EntityQuery).Without<T>();
+        public static EntityQuery Without<T>()
+            where T : IComponent => default(EntityQuery).Without<T>();
 
         /// <inheritdoc cref="EntityQuery.InAll"/>
         public static EntityQuery InAll(CollisionGroup group) => default(EntityQuery).InAll(group);
@@ -217,8 +229,9 @@ internal sealed class QueryExtras : IEquatable<QueryExtras>
     public static QueryExtras Append(QueryExtras? extras, in QueryFilter filter) =>
         GameplayThread.InEntityRun
             ? throw new InvalidOperationException(
-                "This entity query needs a heap part for its second In, Near or Where, and an entity's run cannot build one: it would allocate on every run. " +
-                "Build the query once, as a static readonly field of the component, or use the chain from Self.Snapshot.Entities, which keeps such filters on the stack.")
+                "This entity query needs a heap part for its second In, Near or Where, and an entity's run cannot build one: it would allocate on every run. "
+                    + "Build the query once, as a static readonly field of the component, or use the chain from Self.Snapshot.Entities, which keeps such filters on the stack."
+            )
             : new([.. extras?.filters ?? [], filter]);
 
     public bool Equals(QueryExtras? other) => other is not null && filters.AsSpan().SequenceEqual(other.filters);

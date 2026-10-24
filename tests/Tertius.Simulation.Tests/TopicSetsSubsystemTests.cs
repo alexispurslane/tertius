@@ -25,7 +25,9 @@ public sealed class TopicSetsSubsystemTests
     private static Entity[] SpawnLiveInSlotOrder(EntityTable entities, int count)
     {
         Entity[] spawned = [.. Enumerable.Range(0, count).Select(_ => entities.SpawnLive())];
-        spawned.Select(entity => (int)entity.Index).Should()
+        spawned
+            .Select(entity => (int)entity.Index)
+            .Should()
             .Equal(Enumerable.Range(0, count), "the fresh slots are handed out in order");
         return spawned;
     }
@@ -39,7 +41,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
-        Entity a = entities.SpawnLive(), b = entities.SpawnLive();
+        Entity a = entities.SpawnLive(),
+            b = entities.SpawnLive();
 
         topics.MoveMember(b, bay, out FrameHandle from).Should().BeTrue();
         from.IsNull.Should().BeTrue("the entity was in no frame before");
@@ -56,7 +59,8 @@ public sealed class TopicSetsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var topics = new TopicSets(entities);
-        Entity a = entities.SpawnLive(), b = entities.SpawnLive();
+        Entity a = entities.SpawnLive(),
+            b = entities.SpawnLive();
 
         topics.Subscribe(b, Squad).Should().BeTrue();
         topics.Subscribe(a, Squad).Should().BeTrue();
@@ -76,7 +80,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
-        Entity a = entities.SpawnLive(), b = entities.SpawnLive();
+        Entity a = entities.SpawnLive(),
+            b = entities.SpawnLive();
         topics.MoveMember(a, bay, out _);
         topics.MoveMember(b, bay, out _);
 
@@ -156,8 +161,10 @@ public sealed class TopicSetsSubsystemTests
     [InlineData("SU", false)]
     [InlineData("SUS", true)]
     [InlineData("SUSU", false)]
-    public void TheLastOfSeveralSubscriptionChangesMadeBeforeAReadDecidesWhetherTheEntityHearsTheTopic(string changes,
-        bool hearsAtTheEnd)
+    public void TheLastOfSeveralSubscriptionChangesMadeBeforeAReadDecidesWhetherTheEntityHearsTheTopic(
+        string changes,
+        bool hearsAtTheEnd
+    )
     {
         EntityTable entities = TableSupport.NewTable();
         var topics = new TopicSets(entities);
@@ -178,7 +185,9 @@ public sealed class TopicSetsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var topics = new TopicSets(entities);
-        FrameHandle bay = Frame(0, 1), hold = Frame(1, 1), deck = Frame(2, 1);
+        FrameHandle bay = Frame(0, 1),
+            hold = Frame(1, 1),
+            deck = Frame(2, 1);
         foreach (FrameHandle frame in new[] { bay, hold, deck })
             topics.AddFrame(frame);
         Entity entity = entities.SpawnLive();
@@ -206,8 +215,11 @@ public sealed class TopicSetsSubsystemTests
     [InlineData(new int[0], new[] { 5, 2 }, new[] { 2, 5 })]
     [InlineData(new int[0], new int[0], new int[0])]
     [InlineData(new[] { 6, 2, 4 }, new[] { 4, 1, 6, 7 }, new[] { 1, 2, 4, 6, 7 })]
-    public void AFrameTopicReachesTheUnionOfItsMembersAndSubscribersOnceEachInSlotOrder(int[] memberSlots,
-        int[] subscriberSlots, int[] expectedSlots)
+    public void AFrameTopicReachesTheUnionOfItsMembersAndSubscribersOnceEachInSlotOrder(
+        int[] memberSlots,
+        int[] subscriberSlots,
+        int[] expectedSlots
+    )
     {
         EntityTable entities = TableSupport.NewTable();
         var topics = new TopicSets(entities);
@@ -230,7 +242,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
-        Entity inside = entities.SpawnLive(), watcher = entities.SpawnLive();
+        Entity inside = entities.SpawnLive(),
+            watcher = entities.SpawnLive();
         topics.MoveMember(inside, bay, out _);
         topics.Subscribe(watcher, bay.Topic);
 
@@ -279,7 +292,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
-        Entity a = entities.SpawnLive(), b = entities.SpawnLive();
+        Entity a = entities.SpawnLive(),
+            b = entities.SpawnLive();
         topics.Subscribe(a, Squad);
         topics.Subscribe(b, Convoy);
         topics.Subscribe(b, bay.Topic);
@@ -338,7 +352,9 @@ public sealed class TopicSetsSubsystemTests
 
         successor.Index.Should().Be(doomed.Index, "the slot is reused");
         Recipients(topics, Squad).Should().Equal(watcher);
-        topics.Subscribe(successor, Squad).Should()
+        topics
+            .Subscribe(successor, Squad)
+            .Should()
             .BeTrue("the predecessor's subscription is gone, so this is a new one");
         Recipients(topics, Squad).Should().Equal(watcher, successor);
         topics.AssertInvariants();
@@ -351,7 +367,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle bay = Frame(2, 1);
         topics.AddFrame(bay);
-        Entity inside = entities.SpawnLive(), watcher = entities.SpawnLive();
+        Entity inside = entities.SpawnLive(),
+            watcher = entities.SpawnLive();
         topics.MoveMember(inside, bay, out _);
         topics.Subscribe(watcher, bay.Topic);
         topics.Subscribe(watcher, Squad);
@@ -361,7 +378,9 @@ public sealed class TopicSetsSubsystemTests
 
         topics.IsLive(bay).Should().BeFalse();
         Recipients(topics, bay.Topic).Should().BeEmpty();
-        topics.Subscribe(watcher, bay.Topic).Should()
+        topics
+            .Subscribe(watcher, bay.Topic)
+            .Should()
             .BeFalse("the topic of a frame that is not alive takes no subscribers");
         Recipients(topics, Squad).Should().Equal([watcher], "its other subscriptions stay");
         topics.AssertInvariants();
@@ -374,7 +393,8 @@ public sealed class TopicSetsSubsystemTests
         var topics = new TopicSets(entities);
         FrameHandle old = Frame(2, 1);
         topics.AddFrame(old);
-        Entity watcher = entities.SpawnLive(), inside = entities.SpawnLive();
+        Entity watcher = entities.SpawnLive(),
+            inside = entities.SpawnLive();
         topics.Subscribe(watcher, old.Topic);
         topics.RemoveFrame(old);
 
@@ -383,7 +403,8 @@ public sealed class TopicSetsSubsystemTests
         Recipients(topics, next.Topic).Should().BeEmpty("a new frame starts with no members or subscribers");
         topics.MoveMember(inside, next, out _);
 
-        Recipients(topics, old.Topic).Should()
+        Recipients(topics, old.Topic)
+            .Should()
             .BeEmpty("a message to the old frame never reaches the frame that reuses its index");
         topics.Subscribe(watcher, old.Topic).Should().BeFalse();
         Recipients(topics, next.Topic).Should().Equal(inside);
@@ -411,7 +432,8 @@ public sealed class TopicSetsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var topics = new TopicSets(entities);
-        Entity subscriber = entities.SpawnLive(), bystander = entities.SpawnLive();
+        Entity subscriber = entities.SpawnLive(),
+            bystander = entities.SpawnLive();
         topics.Subscribe(subscriber, Squad);
 
         topics.Unsubscribe(bystander, Squad).Should().BeFalse();
@@ -475,9 +497,8 @@ public sealed class TopicSetsSubsystemTests
         var memberOf = new Dictionary<Entity, FrameHandle>();
         var subscribers = new Dictionary<Topic, HashSet<Entity>>();
 
-        HashSet<Entity> SubscribersOf(Topic topic) => subscribers.TryGetValue(topic, out HashSet<Entity>? set)
-            ? set
-            : subscribers[topic] = [];
+        HashSet<Entity> SubscribersOf(Topic topic) =>
+            subscribers.TryGetValue(topic, out HashSet<Entity>? set) ? set : subscribers[topic] = [];
 
         List<Entity> ModelMembers(FrameHandle frame) =>
             [.. memberOf.Where(pair => pair.Value == frame).Select(pair => pair.Key).Order()];
@@ -486,15 +507,19 @@ public sealed class TopicSetsSubsystemTests
         {
             string at = $"seed {seed}, step {step}";
             foreach (Topic topic in named)
-                Recipients(topics, topic).Should().Equal([.. SubscribersOf(topic).Order()],
-                    $"{at}: subscribers of {Topics.NameOf(topic)}");
+                Recipients(topics, topic)
+                    .Should()
+                    .Equal([.. SubscribersOf(topic).Order()], $"{at}: subscribers of {Topics.NameOf(topic)}");
             foreach (FrameHandle frame in frames)
             {
                 List<Entity> members = ModelMembers(frame);
                 topics.MembersOf(frame).ToArray().Should().Equal(members, $"{at}: members of {frame}");
-                Recipients(topics, frame.Topic).Should()
-                    .Equal([.. members.Union(SubscribersOf(frame.Topic)).Order()],
-                        $"{at}: recipients of the topic of {frame}");
+                Recipients(topics, frame.Topic)
+                    .Should()
+                    .Equal(
+                        [.. members.Union(SubscribersOf(frame.Topic)).Order()],
+                        $"{at}: recipients of the topic of {frame}"
+                    );
             }
 
             topics.AssertInvariants();
@@ -536,9 +561,8 @@ public sealed class TopicSetsSubsystemTests
             else if (roll < 65)
             {
                 Entity entity = live[random.Next(live.Count)];
-                Topic topic = random.Next(3) == 0
-                    ? frames[random.Next(frames.Length)].Topic
-                    : named[random.Next(named.Length)];
+                Topic topic =
+                    random.Next(3) == 0 ? frames[random.Next(frames.Length)].Topic : named[random.Next(named.Length)];
 
                 topics.Subscribe(entity, topic).Should().BeTrue($"seed {seed}, step {step}: the topic is alive");
                 SubscribersOf(topic).Add(entity);
@@ -546,9 +570,8 @@ public sealed class TopicSetsSubsystemTests
             else if (roll < 77)
             {
                 Entity entity = live[random.Next(live.Count)];
-                Topic topic = random.Next(3) == 0
-                    ? frames[random.Next(frames.Length)].Topic
-                    : named[random.Next(named.Length)];
+                Topic topic =
+                    random.Next(3) == 0 ? frames[random.Next(frames.Length)].Topic : named[random.Next(named.Length)];
                 bool wasSubscribed = SubscribersOf(topic).Contains(entity);
 
                 topics.Unsubscribe(entity, topic).Should().Be(wasSubscribed, $"seed {seed}, step {step}");
@@ -569,7 +592,9 @@ public sealed class TopicSetsSubsystemTests
                 subscribers.Remove(dying.Topic);
                 topics.IsLive(dying).Should().BeFalse();
                 Recipients(topics, dying.Topic).Should().BeEmpty($"seed {seed}, step {step}: a dead frame has nobody");
-                topics.Subscribe(live[random.Next(live.Count)], dying.Topic).Should()
+                topics
+                    .Subscribe(live[random.Next(live.Count)], dying.Topic)
+                    .Should()
                     .BeFalse($"seed {seed}, step {step}: a dead frame's topic takes nobody");
 
                 frames[index] = Frame(index, dying.Generation + 1);

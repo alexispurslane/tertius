@@ -1,0 +1,3 @@
+# CSharpier, the formatter that tools/cleanup.sh runs last (tools/README.md, "Code cleanup").
+# Lines of at most 120 characters, as before CSharpier. Every other option keeps CSharpier's default.
+printWidth: 120

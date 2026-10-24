@@ -17,16 +17,19 @@ public sealed class ProgramTests : IDisposable
     public ProgramTests()
     {
         Directory.CreateDirectory(Path.Combine(root, "src"));
-        File.WriteAllText(Path.Combine(root, "src", "C.cs"), """
-                                                             class C
-                                                             {
-                                                                 int F(int x)
-                                                                 {
-                                                                     if (x > 0) return 1;
-                                                                     return 0;
-                                                                 }
-                                                             }
-                                                             """);
+        File.WriteAllText(
+            Path.Combine(root, "src", "C.cs"),
+            """
+            class C
+            {
+                int F(int x)
+                {
+                    if (x > 0) return 1;
+                    return 0;
+                }
+            }
+            """
+        );
         // A test uses the classes of the tests, so that the rule for code that nothing uses finds none of them.
         Directory.CreateDirectory(Path.Combine(root, "tests"));
         File.WriteAllText(Path.Combine(root, "tests", "Uses.cs"), "class Uses { void F() { new C(); new D(); } }");
@@ -42,8 +45,12 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void AVerbosityWithoutJscpdPrintsWhyAndFails()
     {
-        int exit = Program.Run(args: ["verbosity", root], output: output, error: error,
-            jscpd: "jscpd-that-is-not-installed");
+        int exit = Program.Run(
+            args: ["verbosity", root],
+            output: output,
+            error: error,
+            jscpd: "jscpd-that-is-not-installed"
+        );
 
         (exit, output.ToString()).Should().Be((2, ""));
         error.ToString().Should().Contain("nix develop");
@@ -55,13 +62,19 @@ public sealed class ProgramTests : IDisposable
         int exit = Run("erosion", root);
 
         exit.Should().Be(0);
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
+        using var json = JsonDocument.Parse(output.ToString());
         JsonElement report = json.RootElement;
-        (report.GetProperty("erosion").GetDouble(), report.GetProperty("totalMass").GetDouble(),
-                report.GetProperty("highCcMass").GetDouble(), report.GetProperty("functionCount").GetInt32(),
-                report.GetProperty("highCcFunctionCount").GetInt32(), report.GetProperty("sloc").GetInt32(),
-                report.GetProperty("fileCount").GetInt32())
-            .Should().Be((0.0, 2 * Math.Sqrt(5), 0.0, 1, 0, 8, 1));
+        (
+            report.GetProperty("erosion").GetDouble(),
+            report.GetProperty("totalMass").GetDouble(),
+            report.GetProperty("highCcMass").GetDouble(),
+            report.GetProperty("functionCount").GetInt32(),
+            report.GetProperty("highCcFunctionCount").GetInt32(),
+            report.GetProperty("sloc").GetInt32(),
+            report.GetProperty("fileCount").GetInt32()
+        )
+            .Should()
+            .Be((0.0, 2 * Math.Sqrt(5), 0.0, 1, 0, 8, 1));
     }
 
     [Fact]
@@ -69,13 +82,23 @@ public sealed class ProgramTests : IDisposable
     {
         Run("erosion", root);
 
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
-        JsonElement top = json.RootElement.GetProperty("topFunctions").EnumerateArray().Should().ContainSingle()
+        using var json = JsonDocument.Parse(output.ToString());
+        JsonElement top = json
+            .RootElement.GetProperty("topFunctions")
+            .EnumerateArray()
+            .Should()
+            .ContainSingle()
             .Subject;
-        (top.GetProperty("file").GetString(), top.GetProperty("line").GetInt32(), top.GetProperty("name").GetString(),
-                top.GetProperty("cc").GetInt32(), top.GetProperty("sloc").GetInt32(),
-                top.GetProperty("mass").GetDouble())
-            .Should().Be(("src/C.cs", 3, "C.F", 2, 5, 2 * Math.Sqrt(5)));
+        (
+            top.GetProperty("file").GetString(),
+            top.GetProperty("line").GetInt32(),
+            top.GetProperty("name").GetString(),
+            top.GetProperty("cc").GetInt32(),
+            top.GetProperty("sloc").GetInt32(),
+            top.GetProperty("mass").GetDouble()
+        )
+            .Should()
+            .Be(("src/C.cs", 3, "C.F", 2, 5, 2 * Math.Sqrt(5)));
     }
 
     [Fact]
@@ -95,13 +118,19 @@ public sealed class ProgramTests : IDisposable
         int exit = Run("verbosity", root);
 
         exit.Should().Be(0);
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
+        using var json = JsonDocument.Parse(output.ToString());
         JsonElement report = json.RootElement;
-        (report.GetProperty("verbosity").GetDouble(), report.GetProperty("verboseLines").GetInt32(),
-                report.GetProperty("flaggedLines").GetInt32(), report.GetProperty("cloneLines").GetInt32(),
-                report.GetProperty("sloc").GetInt32(), report.GetProperty("fileCount").GetInt32(),
-                report.GetProperty("rules").GetArrayLength())
-            .Should().Be((1.0 / 9.0, 1, 1, 0, 9, 2, IRule.All.Count));
+        (
+            report.GetProperty("verbosity").GetDouble(),
+            report.GetProperty("verboseLines").GetInt32(),
+            report.GetProperty("flaggedLines").GetInt32(),
+            report.GetProperty("cloneLines").GetInt32(),
+            report.GetProperty("sloc").GetInt32(),
+            report.GetProperty("fileCount").GetInt32(),
+            report.GetProperty("rules").GetArrayLength()
+        )
+            .Should()
+            .Be((1.0 / 9.0, 1, 1, 0, 9, 2, IRule.All.Count));
     }
 
     [Fact]
@@ -111,11 +140,16 @@ public sealed class ProgramTests : IDisposable
 
         Run("verbosity", root);
 
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
+        using var json = JsonDocument.Parse(output.ToString());
         JsonElement top = json.RootElement.GetProperty("topFindings").EnumerateArray().Should().ContainSingle().Subject;
-        (top.GetProperty("file").GetString(), top.GetProperty("line").GetInt32(), top.GetProperty("endLine").GetInt32(),
-                top.GetProperty("rule").GetString())
-            .Should().Be(("src/D.cs", 1, 1, "ternary-same-value"));
+        (
+            top.GetProperty("file").GetString(),
+            top.GetProperty("line").GetInt32(),
+            top.GetProperty("endLine").GetInt32(),
+            top.GetProperty("rule").GetString()
+        )
+            .Should()
+            .Be(("src/D.cs", 1, 1, "ternary-same-value"));
     }
 
     [Fact]
@@ -123,8 +157,10 @@ public sealed class ProgramTests : IDisposable
     {
         Run("verbosity", root);
 
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
-        JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray()
+        using var json = JsonDocument.Parse(output.ToString());
+        JsonElement rule = json
+            .RootElement.GetProperty("rules")
+            .EnumerateArray()
             .Single(each => each.GetProperty("id").GetString() == "manual-min-max");
         rule.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
         rule.GetProperty("source").GetString().Should().NotBeNullOrEmpty();
@@ -139,7 +175,11 @@ public sealed class ProgramTests : IDisposable
         int exit = Run("verbosity", root, "--text");
 
         exit.Should().Be(0);
-        output.ToString().Should().Contain("Verbosity 0.111").And.Contain("ternary-same-value")
+        output
+            .ToString()
+            .Should()
+            .Contain("Verbosity 0.111")
+            .And.Contain("ternary-same-value")
             .And.Contain("src/D.cs:1");
     }
 
@@ -149,10 +189,13 @@ public sealed class ProgramTests : IDisposable
         int exit = Run("all", root);
 
         exit.Should().Be(0);
-        using JsonDocument json = JsonDocument.Parse(output.ToString());
-        (json.RootElement.GetProperty("erosion").GetProperty("functionCount").GetInt32(),
-                json.RootElement.GetProperty("verbosity").GetProperty("sloc").GetInt32())
-            .Should().Be((1, 8));
+        using var json = JsonDocument.Parse(output.ToString());
+        (
+            json.RootElement.GetProperty("erosion").GetProperty("functionCount").GetInt32(),
+            json.RootElement.GetProperty("verbosity").GetProperty("sloc").GetInt32()
+        )
+            .Should()
+            .Be((1, 8));
     }
 
     [Fact]

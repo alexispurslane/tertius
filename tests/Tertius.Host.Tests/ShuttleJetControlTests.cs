@@ -45,8 +45,12 @@ public sealed class ShuttleJetControlTests : IDisposable
     /// <see cref="Shuttle.FitJets"/>).</summary>
     private void Launch(DQuaternion turn, params IComponent[] components)
     {
-        shuttle = Shuttle.Park(world: world, frame: space, pose: new(Double3.Zero, turn),
-            components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: new(Double3.Zero, turn),
+            components: [new Unpark(), .. components]
+        );
         Shuttle.FitJets(world, shuttle);
     }
 
@@ -74,7 +78,7 @@ public sealed class ShuttleJetControlTests : IDisposable
     [Fact]
     public void TheJetsArePartsOfTheHullAtTheirPlaces()
     {
-        DQuaternion turn = DQuaternion.FromAxisAngle(new Double3(1, 2, -0.5).Normalized(), 0.7);
+        var turn = DQuaternion.FromAxisAngle(new Double3(1, 2, -0.5).Normalized(), 0.7);
         Launch(turn);
 
         Tick(world, 2);
@@ -87,7 +91,8 @@ public sealed class ShuttleJetControlTests : IDisposable
         {
             world.IsAlive(part).Should().BeTrue();
             DPose pose = world.PoseIn(part, space);
-            (pose.Position - hull.TransformPoint(place)).Length.Should()
+            (pose.Position - hull.TransformPoint(place))
+                .Length.Should()
                 .BeLessThan(1e-5, $"the part sits at {place} on the hull");
         }
 
@@ -95,8 +100,9 @@ public sealed class ShuttleJetControlTests : IDisposable
         world.GetComponent<MainEngine>(Control.MainEnginePart)!.MaxThrust.Should().Be(Shuttle.MainEngineThrust);
         Control.JetParts.Should().HaveCount(2 * ShuttleJets.PairCount);
         for (int pair = 0; pair < ShuttleJets.PairCount; pair++)
-            foreach ((Jet jet, bool second) in new[]
-                         { (layout.Pairs[pair].First, false), (layout.Pairs[pair].Second, true) })
+            foreach (
+                (Jet jet, bool second) in new[] { (layout.Pairs[pair].First, false), (layout.Pairs[pair].Second, true) }
+            )
             {
                 Entity part = Control.JetParts[ShuttleJetControl.PartIndex(pair, second)];
                 ShouldSitAt(part, jet.Place);
@@ -117,7 +123,10 @@ public sealed class ShuttleJetControlTests : IDisposable
         Tick(world, 4);
 
         ShouldBeNear(AccelerationOver(30), force / Shuttle.Mass, 1e-4);
-        world.AngularVelocityIn(shuttle, space).Length().Should()
+        world
+            .AngularVelocityIn(shuttle, space)
+            .Length()
+            .Should()
             .BeLessThan(1e-6f, "the translation pairs give no torque");
     }
 
@@ -130,8 +139,10 @@ public sealed class ShuttleJetControlTests : IDisposable
     [Fact]
     public void EachAxisOfTheHullIsLimitedToTheThrustOfItsTranslationPair()
     {
-        Launch(DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 4),
-            new TranslationFor(int.MaxValue, new(75000, 0, 0)));
+        Launch(
+            DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 4),
+            new TranslationFor(int.MaxValue, new(75000, 0, 0))
+        );
         Tick(world, 4);
 
         double limited = Shuttle.TranslationThrust * Math.Sqrt(2);
@@ -145,7 +156,9 @@ public sealed class ShuttleJetControlTests : IDisposable
         Launch(DQuaternion.Identity, new TranslationFor(30, new(0, 0, 3000)));
         Tick(world, 40);
 
-        world.VelocityIn(shuttle, space).Length.Should()
+        world
+            .VelocityIn(shuttle, space)
+            .Length.Should()
             .BeGreaterThan(0.05, "the jets pushed while the translation came");
         AccelerationOver(30).Length.Should().BeLessThan(1e-6);
     }
@@ -154,8 +167,11 @@ public sealed class ShuttleJetControlTests : IDisposable
     [Fact]
     public void TheLastTranslationOfATickCounts()
     {
-        Launch(DQuaternion.Identity, new TranslationFor(int.MaxValue, new(3000, 0, 0)),
-            new TranslationFor(int.MaxValue, new(0, 0, -2000)));
+        Launch(
+            DQuaternion.Identity,
+            new TranslationFor(int.MaxValue, new(3000, 0, 0)),
+            new TranslationFor(int.MaxValue, new(0, 0, -2000))
+        );
         Tick(world, 4);
 
         ShouldBeNear(AccelerationOver(30), new(0, 0, -2000 / Shuttle.Mass), 1e-4);
@@ -169,21 +185,25 @@ public sealed class ShuttleJetControlTests : IDisposable
         Tick(world, 30);
 
         world.VelocityIn(shuttle, space).Length.Should().BeLessThan(1e-6);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(ShuttleJetControl)) && error.Contains("A force is finite"));
+        world
+            .Errors.Should()
+            .Contain(error => error.Contains(nameof(ShuttleJetControl)) && error.Contains("A force is finite"));
     }
 
     [Fact]
     public void ANonFiniteTorqueIsAnErrorAndFiresNoJet()
     {
-        Launch(DQuaternion.Identity,
-            new TorqueAt(from: 0, count: int.MaxValue, torque: new(0, double.PositiveInfinity, 0), own: false));
+        Launch(
+            DQuaternion.Identity,
+            new TorqueAt(from: 0, count: int.MaxValue, torque: new(0, double.PositiveInfinity, 0), own: false)
+        );
 
         Tick(world, 30);
 
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(ShuttleJetControl)) && error.Contains("A torque is finite"));
+        world
+            .Errors.Should()
+            .Contain(error => error.Contains(nameof(ShuttleJetControl)) && error.Contains("A torque is finite"));
     }
 
     /// <summary>
@@ -206,12 +226,17 @@ public sealed class ShuttleJetControlTests : IDisposable
     [Fact]
     public void TheShuttlesFlightControlsPushWith30000NPerAxis()
     {
-        shuttle = Shuttle.Park(world: world, frame: space, pose: DPose.Identity,
+        shuttle = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: DPose.Identity,
             components:
             [
-                new Unpark(), new TranslationFor(int.MaxValue, new(0, 0, -60000), priority: 1),
-                .. Shuttle.FlightControls(climbHeight: 30, plane: new(space, -Double3.UnitX), station: Entity.Null)
-            ]);
+                new Unpark(),
+                new TranslationFor(int.MaxValue, new(0, 0, -60000), priority: 1),
+                .. Shuttle.FlightControls(climbHeight: 30, plane: new(space, -Double3.UnitX), station: Entity.Null),
+            ]
+        );
         Shuttle.FitActuators(world, shuttle);
         Tick(world, 4);
 
@@ -229,19 +254,28 @@ public sealed class ShuttleJetControlTests : IDisposable
     public void TheTurningJetsGiveTheTorqueOfTheTickAndMoveNotTheCenterOfMass()
     {
         var torque = new Double3(20000, -30000, 10000);
-        DQuaternion turn = DQuaternion.FromAxisAngle(new Double3(0.3, 1, 0.2).Normalized(), 0.9);
-        Entity own = Shuttle.Park(world: world, frame: space, pose: new(new(-1000, 0, 0), turn),
-            components: [new Unpark(), new TorqueAt(from: 3, count: 20, torque: torque, own: true)]);
+        var turn = DQuaternion.FromAxisAngle(new Double3(0.3, 1, 0.2).Normalized(), 0.9);
+        Entity own = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: new(new(-1000, 0, 0), turn),
+            components: [new Unpark(), new TorqueAt(from: 3, count: 20, torque: torque, own: true)]
+        );
         Launch(turn, new TorqueAt(from: 2, count: 20, torque: torque, own: false));
         Tick(world, 1);
         Double3 start = CenterOfMassInSpace;
 
         Tick(world, 40);
 
-        Double3 spin = world.AngularVelocityIn(shuttle, space), ownSpin = world.AngularVelocityIn(own, space);
+        Double3 spin = world.AngularVelocityIn(shuttle, space),
+            ownSpin = world.AngularVelocityIn(own, space);
         ownSpin.Length.Should().BeGreaterThan(0.01, "the torque turned the hull");
-        (spin - ownSpin).Length.Should().BeLessThan(1e-3 * ownSpin.Length,
-            $"the jets turn the hull at {spin}, as its own torque does at {ownSpin}");
+        (spin - ownSpin)
+            .Length.Should()
+            .BeLessThan(
+                1e-3 * ownSpin.Length,
+                $"the jets turn the hull at {spin}, as its own torque does at {ownSpin}"
+            );
         (CenterOfMassInSpace - start).Length.Should().BeLessThan(1e-6, "the couples give no net force");
     }
 
@@ -258,7 +292,10 @@ public sealed class ShuttleJetControlTests : IDisposable
         Double3 acceleration = AccelerationOver(30);
 
         acceleration.Z.Should().BeApproximately(-0.5 * Shuttle.ThrustAcceleration, 0.01);
-        world.AngularVelocityIn(shuttle, space).Length().Should()
+        world
+            .AngularVelocityIn(shuttle, space)
+            .Length()
+            .Should()
             .BeLessThan(1e-7f, "the main engine pushes through the center of mass");
     }
 
@@ -270,12 +307,21 @@ public sealed class ShuttleJetControlTests : IDisposable
     public void AJetPushesOneTickAfterTheTickThatCommandsIt()
     {
         var force = new Double3(0, 0, -3000);
-        Entity own = Shuttle.Park(world: world, frame: space, pose: new(new(-1000, 0, 0), DQuaternion.Identity),
-            components: [new Unpark(), new PushAt(5, force, own: true)]);
-        Entity jets = Shuttle.Park(world: world, frame: space, pose: new(new(1000, 0, 0), DQuaternion.Identity),
-            components: [new Unpark(), new PushAt(5, force, own: false)]);
+        Entity own = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: new(new(-1000, 0, 0), DQuaternion.Identity),
+            components: [new Unpark(), new PushAt(5, force, own: true)]
+        );
+        Entity jets = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: new(new(1000, 0, 0), DQuaternion.Identity),
+            components: [new Unpark(), new PushAt(5, force, own: false)]
+        );
         Shuttle.FitJets(world, jets);
-        long ownMoves = -1, jetsMove = -1;
+        long ownMoves = -1,
+            jetsMove = -1;
 
         for (int tick = 0; tick < 20; tick++)
         {
@@ -301,14 +347,17 @@ public sealed class ShuttleJetControlTests : IDisposable
     public void AJetGivenAThrottleOutsideZeroToOneIsAnErrorAndPushesNothing(float value)
     {
         Launch(DQuaternion.Identity);
-        world.AddComponent(shuttle,
-            new SendThrottle(Control.JetParts[ShuttleJetControl.PartIndex(6, false)], new() { Value = value }));
+        world.AddComponent(
+            shuttle,
+            new SendThrottle(Control.JetParts[ShuttleJetControl.PartIndex(6, false)], new() { Value = value })
+        );
 
         Tick(world, 30);
 
         world.VelocityIn(shuttle, space).Length.Should().BeLessThan(1e-6);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(JetThruster)) && error.Contains("A throttle lies from 0 to 1"));
+        world
+            .Errors.Should()
+            .Contain(error => error.Contains(nameof(JetThruster)) && error.Contains("A throttle lies from 0 to 1"));
     }
 
     /// <summary>A test component that adds a <see cref="Translation"/> of <paramref name="force"/> to its entity's events on each of its first

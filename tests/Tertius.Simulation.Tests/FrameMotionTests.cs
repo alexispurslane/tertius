@@ -13,12 +13,14 @@ public sealed class FrameMotionTests
     public void AStaticFrameMovesWhenItsOwnerWritesItsTransform()
     {
         using var test = new TestWorld();
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = [new Mover(new(0, 2, 0))]
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                AsFrame = new(FrameBounds.Sphere(10)),
+                Components = [new Mover(new(0, 2, 0))],
+            }
+        );
         FrameHandle frame = test.World.GetOwnedFrame(owner);
 
         test.Run(3);
@@ -31,12 +33,16 @@ public sealed class FrameMotionTests
     public void AnEntityInAMovingStaticFrameKeepsItsLocalPoseAndMovesWithTheFrame()
     {
         using var test = new TestWorld();
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components = [new Mover(new(0, 2, 0))]
-        }));
+        FrameHandle frame = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components = [new Mover(new(0, 2, 0))],
+                }
+            )
+        );
         Entity passenger = test.World.SpawnAt(frame, new(1, 0, 0));
 
         test.Run(3);
@@ -50,17 +56,28 @@ public sealed class FrameMotionTests
     public void AnEntityInAStaticFrameTurnsWithTheFrameWhenItsOwnerWritesARotation()
     {
         using var test = new TestWorld();
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(10),
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY }))
-            ]
-        }));
+        FrameHandle frame = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(10),
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components =
+                    [
+                        Lambda.OnTick(
+                            (self, scoped ref events, scoped ref outbox) =>
+                                self.SetTransform(
+                                    self.PoseInOwnFrame() with
+                                    {
+                                        Rotation = PoseChecks.QuarterTurnAboutY,
+                                    }
+                                )
+                        ),
+                    ],
+                }
+            )
+        );
         Entity passenger = test.World.SpawnAt(frame, new(1, 0, 0));
 
         test.Run(1);
@@ -75,13 +92,17 @@ public sealed class FrameMotionTests
     public void AFrameInsideAMovingFrameMovesWithItAndCarriesItsOwnEntities()
     {
         using var test = new TestWorld();
-        FrameHandle outer = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            AsFrame = new(FrameBounds.Sphere(1000)),
-            Components = [new Mover(new(1, 0, 0))]
-        }));
+        FrameHandle outer = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    Pose = TestWorld.At(100),
+                    AsFrame = new(FrameBounds.Sphere(1000)),
+                    Components = [new Mover(new(1, 0, 0))],
+                }
+            )
+        );
         FrameHandle inner = test.World.SpawnStaticFrame(outer, TestWorld.At(0, 10), radius: 10);
         Entity passenger = test.World.SpawnAt(inner, new(0, 0, 5));
 
@@ -122,19 +143,25 @@ public sealed class FrameMotionTests
     {
         using var test = new TestWorld();
         var written = new DPose(new(3, 4, 5), PoseChecks.QuarterTurnAboutY);
-        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(10)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        FrameHandle frame = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
                 {
-                    if (self.Tick == 1)
-                        self.SetTransform(written);
-                })
-            ]
-        }));
+                    Frame = test.Root,
+                    AsFrame = new(FrameBounds.Sphere(10)),
+                    Components =
+                    [
+                        Lambda.OnTick(
+                            (self, scoped ref events, scoped ref outbox) =>
+                            {
+                                if (self.Tick == 1)
+                                    self.SetTransform(written);
+                            }
+                        ),
+                    ],
+                }
+            )
+        );
 
         test.Run(2);
 
@@ -149,34 +176,46 @@ public sealed class FrameMotionTests
     {
         using var test = new TestWorld();
         var dockPose = new DPose(new(100, 0, 0), PoseChecks.QuarterTurnAboutY);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = dockPose,
-            AsFrame = new(FrameBounds.Sphere(50)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        FrameHandle dock = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
                 {
-                    if (self.Tick == 1)
-                        self.Destroy();
-                })
-            ]
-        }));
+                    Frame = test.Root,
+                    Pose = dockPose,
+                    AsFrame = new(FrameBounds.Sphere(50)),
+                    Components =
+                    [
+                        Lambda.OnTick(
+                            (self, scoped ref events, scoped ref outbox) =>
+                            {
+                                if (self.Tick == 1)
+                                    self.Destroy();
+                            }
+                        ),
+                    ],
+                }
+            )
+        );
         var written = new DPose(new(3, 4, 5), DQuaternion.Identity);
-        FrameHandle room = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = dock,
-            AsFrame = new(FrameBounds.Sphere(5)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        FrameHandle room = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
                 {
-                    if (self.Tick == 1)
-                        self.SetTransform(written);
-                })
-            ]
-        }));
+                    Frame = dock,
+                    AsFrame = new(FrameBounds.Sphere(5)),
+                    Components =
+                    [
+                        Lambda.OnTick(
+                            (self, scoped ref events, scoped ref outbox) =>
+                            {
+                                if (self.Tick == 1)
+                                    self.SetTransform(written);
+                            }
+                        ),
+                    ],
+                }
+            )
+        );
 
         test.Run(2);
 

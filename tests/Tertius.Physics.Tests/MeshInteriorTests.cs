@@ -38,10 +38,13 @@ public sealed class MeshInteriorTests
     /// </summary>
     private static readonly MeshShapeDesc MeshFloor = new(
         [
-            new(-FloorHalf, 0, -FloorHalf), new(-FloorHalf, 0, FloorHalf), new(FloorHalf, 0, FloorHalf),
-            new(FloorHalf, 0, -FloorHalf)
+            new(-FloorHalf, 0, -FloorHalf),
+            new(-FloorHalf, 0, FloorHalf),
+            new(FloorHalf, 0, FloorHalf),
+            new(FloorHalf, 0, -FloorHalf),
         ],
-        [0, 1, 2, 0, 2, 3]);
+        [0, 1, 2, 0, 2, 3]
+    );
 
     /// <summary>A slow circular orbit of 400 km in an <see cref="Scenes.AsteroidSpace"/>, at 224 m/s. The frame turns at 0.2 rad/s.</summary>
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(4e5, phase: 0.3, spinRate: 0.2);
@@ -56,7 +59,8 @@ public sealed class MeshInteriorTests
         FrameHandle Space,
         Entity Owner,
         FrameHandle Ship,
-        Entity Ball) : IDisposable
+        Entity Ball
+    ) : IDisposable
     {
         public void Dispose() => World.Dispose();
     }
@@ -66,26 +70,35 @@ public sealed class MeshInteriorTests
     /// <paramref name="motion"/>, the mesh floor <see cref="MeshFloor"/> as its interior, and a frame with a bubble of 30 m
     /// and a pull of <see cref="Pull"/> along -Y.
     /// </summary>
-    private static SpawnDesc Ship(FrameHandle space, BodyMotion motion) => new()
-    {
-        Frame = space,
-        Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: motion, Mass: 1000, LinearDamping: 0,
-            AngularDamping: 0,
-            InteriorShape: MeshFloor),
-        AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -Pull, 0)))
-    };
+    private static SpawnDesc Ship(FrameHandle space, BodyMotion motion) =>
+        new()
+        {
+            Frame = space,
+            Body = new(
+                Shape: new BoxShapeDesc(new(5, 3, 5)),
+                Motion: motion,
+                Mass: 1000,
+                LinearDamping: 0,
+                AngularDamping: 0,
+                InteriorShape: MeshFloor
+            ),
+            AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -Pull, 0))),
+        };
 
     /// <summary>
     /// A ball of <see cref="BallRadius"/> and 1 kg, 10 cm above the floor at the origin of the frame of
     /// <paramref name="owner"/>,
     /// which falls onto the floor.
     /// </summary>
-    private static Entity DropBall(World world, Entity owner) => world.Spawn(new()
-    {
-        Frame = world.GetOwnedFrame(owner),
-        Pose = At(0, BallRadius + 0.1),
-        Body = Ball(BallRadius)
-    });
+    private static Entity DropBall(World world, Entity owner) =>
+        world.Spawn(
+            new()
+            {
+                Frame = world.GetOwnedFrame(owner),
+                Pose = At(0, BallRadius + 0.1),
+                Body = Ball(BallRadius),
+            }
+        );
 
     /// <summary>
     /// A ship that <paramref name="ship"/> spawns in the root space that <paramref name="makeSpace"/> makes, and a ball that
@@ -100,8 +113,14 @@ public sealed class MeshInteriorTests
         Tick(world, 3);
         Entity ball = DropBall(world, owner);
         Tick(world, SettleTicks);
-        return new(World: world, Faults: faults, Space: space, Owner: owner, Ship: world.GetOwnedFrame(owner),
-            Ball: ball);
+        return new(
+            World: world,
+            Faults: faults,
+            Space: space,
+            Owner: owner,
+            Ship: world.GetOwnedFrame(owner),
+            Ball: ball
+        );
     }
 
     private static FrameHandle PlainSpace(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));
@@ -163,7 +182,7 @@ public sealed class MeshInteriorTests
     public enum Movement
     {
         Kepler,
-        Spin
+        Spin,
     }
 
     /// <summary>The spawn of a kinematic ship on <paramref name="movement"/> in <paramref name="space"/>.</summary>
@@ -182,8 +201,10 @@ public sealed class MeshInteriorTests
     [InlineData(Movement.Spin)]
     public void ABallStaysAtRestOnTheMeshInteriorOfAKinematicHullThatMoves(Movement movement)
     {
-        using Scene scene = ShipWithBall(movement == Movement.Kepler ? Scenes.AsteroidSpace : PlainSpace,
-            (world, space) => ShipOnRails(world, space, movement));
+        using Scene scene = ShipWithBall(
+            movement == Movement.Kepler ? Scenes.AsteroidSpace : PlainSpace,
+            (world, space) => ShipOnRails(world, space, movement)
+        );
         AssertBallLiesOnTheFloor(scene, "of a hull that moves");
         Double3 rest = BallPlace(scene);
         DPose hullBefore = scene.World.PoseIn(scene.Owner, scene.Space);
@@ -192,10 +213,11 @@ public sealed class MeshInteriorTests
 
         scene.World.PoseIn(scene.Owner, scene.Space).Should().NotBe(hullBefore, "the hull moved on its rails");
         (scene.World.PoseIn(scene.Ball, scene.Space).Position - scene.World.PoseIn(scene.Owner, scene.Space).Position)
-            .Length
-            .Should().BeLessThan(1, "the ball goes with the ship");
-        drift.Should().BeLessThan(Tolerance,
-            "the interior is at rest in the frame's own system, and so is the ball on it");
+            .Length.Should()
+            .BeLessThan(1, "the ball goes with the ship");
+        drift
+            .Should()
+            .BeLessThan(Tolerance, "the interior is at rest in the frame's own system, and so is the ball on it");
         AssertBallLiesOnTheFloor(scene, "of a hull that moved for 5 s");
         AllIsWell(scene);
     }
@@ -226,10 +248,12 @@ public sealed class MeshInteriorTests
 
         turning.Should().NotBe(parked, "the kinematic hull turned on its spin");
         stillStopped.Should().Be(stopped, "the static hull holds still again");
-        driftWhileTurning.Should()
+        driftWhileTurning
+            .Should()
             .BeLessThan(Tolerance, "the ball rests while the interior turns kinematic and the hull turns");
-        driftWhileStopping.Should().BeLessThan(Tolerance,
-            "the ball rests while the interior turns static again and the hull stops");
+        driftWhileStopping
+            .Should()
+            .BeLessThan(Tolerance, "the ball rests while the interior turns static again and the hull stops");
         AssertBallLiesOnTheFloor(scene, "after the hull was static, kinematic and static again");
         AllIsWell(scene);
     }

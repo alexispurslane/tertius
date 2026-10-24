@@ -13,29 +13,33 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class UnitRotationWorldTests
 {
-    public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength => new()
-    {
-        { "a rotation twice as long as a unit rotation", new(X: 0, Y: 0, Z: 0, W: 2) },
+    public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength =>
+        new()
         {
-            "a rotation that came out of a float quaternion",
-            DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f))
-        },
-        { "a short rotation", new(X: 0, Y: 0.1, Z: 0, W: 0.1) }
-    };
+            { "a rotation twice as long as a unit rotation", new(X: 0, Y: 0, Z: 0, W: 2) },
+            {
+                "a rotation that came out of a float quaternion",
+                DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f))
+            },
+            { "a short rotation", new(X: 0, Y: 0.1, Z: 0, W: 0.1) },
+        };
 
-    public static TheoryData<string, DQuaternion> RotationsThatAreUnitLength => new()
-    {
-        { "a rotation from an axis and an angle", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7) },
-        // The square of its length is 2E-14 above 1, inside the tolerance, and dividing by its length would change its bits.
+    public static TheoryData<string, DQuaternion> RotationsThatAreUnitLength =>
+        new()
         {
-            "a rotation a little long, inside the tolerance",
-            new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * (1 + 1e-14), W: Math.Sqrt(0.5) * (1 + 1e-14))
-        }
-    };
+            { "a rotation from an axis and an angle", DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7) },
+            // The square of its length is 2E-14 above 1, inside the tolerance, and dividing by its length would change its bits.
+            {
+                "a rotation a little long, inside the tolerance",
+                new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * (1 + 1e-14), W: Math.Sqrt(0.5) * (1 + 1e-14))
+            },
+        };
 
     private static TestWorld NewWorld() =>
-        new(physics: new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
-            configure: options => options.DisposePhysics = true);
+        new(
+            physics: new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+            configure: options => options.DisposePhysics = true
+        );
 
     /// <summary>How far the square of the length of <paramref name="rotation"/> is from 1.</summary>
     private static double Excess(DQuaternion rotation) => Math.Abs(rotation.LengthSquared - 1);
@@ -52,12 +56,14 @@ public sealed class UnitRotationWorldTests
     {
         using TestWorld test = NewWorld();
 
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(6.77e6, 0, 0), given),
-            AsFrame = new(FrameBounds.Sphere(100))
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(6.77e6, 0, 0), given),
+                AsFrame = new(FrameBounds.Sphere(100)),
+            }
+        );
 
         FrameHandle frame = test.World.GetOwnedFrame(owner);
         ExpectSameTurn(test.World.Frames.LocalPose(frame).Rotation, given);
@@ -67,8 +73,10 @@ public sealed class UnitRotationWorldTests
 
     [Theory]
     [MemberData(nameof(RotationsThatAreNotUnitLength))]
-    public void AnEntityFarInsideAFrameInASpawnedFrameIsWhereTheUnitRotationOfTheOuterFramePutsIt(string why,
-        DQuaternion given)
+    public void AnEntityFarInsideAFrameInASpawnedFrameIsWhereTheUnitRotationOfTheOuterFramePutsIt(
+        string why,
+        DQuaternion given
+    )
     {
         using TestWorld test = NewWorld();
         FrameHandle outer = test.SpawnStaticFrame(new(Double3.Zero, given), radius: 1e8f);
@@ -97,8 +105,10 @@ public sealed class UnitRotationWorldTests
 
     [Theory]
     [MemberData(nameof(RotationsThatAreNotUnitLength))]
-    public void ASpawnedEntityWhoseRotationIsNotUnitLengthGetsTheUnitRotationOfTheSameTurn(string why,
-        DQuaternion given)
+    public void ASpawnedEntityWhoseRotationIsNotUnitLengthGetsTheUnitRotationOfTheSameTurn(
+        string why,
+        DQuaternion given
+    )
     {
         using TestWorld test = NewWorld();
 
@@ -110,21 +120,27 @@ public sealed class UnitRotationWorldTests
 
     [Theory]
     [MemberData(nameof(RotationsThatAreNotUnitLength))]
-    public void AStaticFrameWhoseOwnerWritesARotationThatIsNotUnitLengthGetsTheUnitRotationOfTheSameTurn(string why,
-        DQuaternion given)
+    public void AStaticFrameWhoseOwnerWritesARotationThatIsNotUnitLengthGetsTheUnitRotationOfTheSameTurn(
+        string why,
+        DQuaternion given
+    )
     {
         using TestWorld test = NewWorld();
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(6.77e6, 0, 0), DQuaternion.Identity),
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Components =
-            [
-                Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                    self.SetTransform(self.PoseInOwnFrame() with { Rotation = given }))
-            ]
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(6.77e6, 0, 0), DQuaternion.Identity),
+                AsFrame = new(FrameBounds.Sphere(100)),
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                            self.SetTransform(self.PoseInOwnFrame() with { Rotation = given })
+                    ),
+                ],
+            }
+        );
         FrameHandle frame = test.World.GetOwnedFrame(owner);
 
         test.Run(2);
@@ -138,28 +154,35 @@ public sealed class UnitRotationWorldTests
     public void AShipFrameThatPhysicsMovesKeepsAUnitRotationOnEveryTick()
     {
         using TestWorld test = NewWorld();
-        Entity owner = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = new(new(6.77e6, 0, 0), DQuaternion.Identity),
-            LinearVelocity = new Vector3(0, 7700, 0),
-            AngularVelocity = new(0.0011f, 0.0007f, 0.0013f),
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Body = new(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity owner = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = new(new(6.77e6, 0, 0), DQuaternion.Identity),
+                LinearVelocity = new Vector3(0, 7700, 0),
+                AngularVelocity = new(0.0011f, 0.0007f, 0.0013f),
+                AsFrame = new(FrameBounds.Sphere(100)),
+                Body = new(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
         FrameHandle ship = test.World.GetOwnedFrame(owner);
 
         double worst = 0;
         for (int tick = 0; tick < 120; tick++)
         {
             test.Run(1);
-            worst = Math.Max(worst,
-                Math.Max(Excess(test.World.Frames.LocalPose(ship).Rotation),
-                    Excess(test.World.PoseInOwnFrame(owner).Rotation)));
+            worst = Math.Max(
+                worst,
+                Math.Max(
+                    Excess(test.World.Frames.LocalPose(ship).Rotation),
+                    Excess(test.World.PoseInOwnFrame(owner).Rotation)
+                )
+            );
         }
 
         worst.Should().BeLessThan(1e-12);
-        test.World.PoseIn(owner, test.Root).Position.Y.Should()
+        test.World.PoseIn(owner, test.Root)
+            .Position.Y.Should()
             .BeGreaterThan(10_000, "the ship moved 2 s at 7,700 m/s along +Y");
     }
 }

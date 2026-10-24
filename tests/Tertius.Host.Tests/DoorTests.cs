@@ -33,13 +33,16 @@ public sealed class DoorTests : IDisposable
 
     private Entity SpawnDoor(DQuaternion rotation) => SpawnDoor(room, rotation);
 
-    private Entity SpawnDoor(FrameHandle frame, DQuaternion rotation) => world.Spawn(new()
-    {
-        Frame = frame,
-        Pose = new(Closed, rotation),
-        Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
-        Components = [new Door(new(0, 2, 0), openSeconds: 1)]
-    });
+    private Entity SpawnDoor(FrameHandle frame, DQuaternion rotation) =>
+        world.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = new(Closed, rotation),
+                Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
+                Components = [new Door(new(0, 2, 0), openSeconds: 1)],
+            }
+        );
 
     private void Ticks(int count)
     {
@@ -47,7 +50,8 @@ public sealed class DoorTests : IDisposable
             world.Tick();
     }
 
-    private void Order<T>(Entity to) where T : unmanaged, IEventPayload =>
+    private void Order<T>(Entity to)
+        where T : unmanaged, IEventPayload =>
         world.Post(Event.Create(target: to, sender: Entity.Null, payload: new T()));
 
     /// <summary>How far the door is from its closed pose, in meters, in the room's axes.</summary>
@@ -70,7 +74,9 @@ public sealed class DoorTests : IDisposable
         Ticks(20);
 
         // 2 m in one second: a third of a meter in each 20 ticks.
-        (Height - early).Should().BeApproximately(2.0 / 3, 1e-4);
+        (Height - early)
+            .Should()
+            .BeApproximately(2.0 / 3, 1e-4);
         Ticks(40);
         Height.Should().BeApproximately(2, 1e-4);
         Ticks(30);
@@ -128,24 +134,28 @@ public sealed class DoorTests : IDisposable
     [Fact]
     public void ADoorThatStartsOpenStaysWhereItSpawnedUntilACloseOrderSlidesItShutByItsSlide()
     {
-        Entity open = world.Spawn(new()
-        {
-            Frame = room,
-            Pose = new(new(5, 4, 3), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
-            Components = [new Door(new(0, 2, 0), openSeconds: 1, openAtStart: true)]
-        });
+        Entity open = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(5, 4, 3), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(0.05f, 1, 0.5f)), Motion: BodyMotion.Kinematic),
+                Components = [new Door(new(0, 2, 0), openSeconds: 1, openAtStart: true)],
+            }
+        );
         Ticks(30);
         Order<OpenDoor>(open);
         Ticks(30);
-        (world.PoseIn(open, room).Position - new Double3(5, 4, 3)).Length.Should()
+        (world.PoseIn(open, room).Position - new Double3(5, 4, 3))
+            .Length.Should()
             .BeLessThan(1e-6, "an open door stays open, also when an open order comes");
 
         Order<CloseDoor>(open);
         Ticks(80);
 
-        (world.PoseIn(open, room).Position - new Double3(5, 2, 3)).Length.Should().BeLessThan(1e-4,
-            "the door's closed pose lies its slide back from where it spawned");
+        (world.PoseIn(open, room).Position - new Double3(5, 2, 3))
+            .Length.Should()
+            .BeLessThan(1e-4, "the door's closed pose lies its slide back from where it spawned");
     }
 
     // ---- A door that changes frames ----
@@ -155,12 +165,15 @@ public sealed class DoorTests : IDisposable
     /// bounding sphere of 1.12 m touches the bubble when the door has slid 1.38 m up, after 0.69 s, and the door's open pose
     /// lies inside the bubble, so the door ends in the booth's frame.
     /// </summary>
-    private Entity Booth() => world.Spawn(new()
-    {
-        Frame = room,
-        Pose = new(new(1, 5, 3), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
-        AsFrame = new(FrameBounds.Sphere(0.5f))
-    });
+    private Entity Booth() =>
+        world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(1, 5, 3), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
+                AsFrame = new(FrameBounds.Sphere(0.5f)),
+            }
+        );
 
     /// <summary>
     /// Ticks <paramref name="count"/> times and returns how far <paramref name="of"/> strayed at the worst tick from its way
@@ -193,7 +206,8 @@ public sealed class DoorTests : IDisposable
 
         stray.Should().BeLessThan(1e-4, "the door slides on along its way in the room in the booth's frame");
         world.GetFrame(door).Should().Be(booth, "the door's bounding sphere touched the booth's bubble on its way up");
-        (world.PoseIn(door, room).Position - Closed - new Double3(0, 2, 0)).Length.Should()
+        (world.PoseIn(door, room).Position - Closed - new Double3(0, 2, 0))
+            .Length.Should()
             .BeLessThan(1e-4, "the door reaches its open pose");
         world.Errors.Should().BeEmpty();
     }
@@ -203,7 +217,14 @@ public sealed class DoorTests : IDisposable
     {
         // A cabin in the room, far from the other door, turned a quarter about +Z, so that the door's +Y is the room's -X there.
         var cabinPose = new DPose(new(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
-        Entity cabin = world.Spawn(new() { Frame = room, Pose = cabinPose, AsFrame = new(FrameBounds.Sphere(20)) });
+        Entity cabin = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = cabinPose,
+                AsFrame = new(FrameBounds.Sphere(20)),
+            }
+        );
         Entity inCabin = SpawnDoor(world.GetOwnedFrame(cabin), DQuaternion.Identity);
         Ticks(5);
         Order<OpenDoor>(inCabin);
@@ -213,10 +234,12 @@ public sealed class DoorTests : IDisposable
         world.Tick();
         Double3 stopped = world.PoseIn(inCabin, room).Position;
 
-        Double3 closed = cabinPose.TransformPoint(Closed), slide = cabinPose.TransformDirection(new(0, 2, 0));
+        Double3 closed = cabinPose.TransformPoint(Closed),
+            slide = cabinPose.TransformDirection(new(0, 2, 0));
         double stray = WorstStray(of: inCabin, closed: closed, slide: slide, count: 60);
 
-        (world.PoseIn(inCabin, room).Position - stopped).Length.Should()
+        (world.PoseIn(inCabin, room).Position - stopped)
+            .Length.Should()
             .BeLessThan(1e-9, "the door's way died with the cabin, so it stays where it is");
         stray.Should().BeLessThan(1e-4, "the door stopped on its way");
         world.GetFrame(inCabin).Should().Be(room, "the room took the door in when the cabin died");
@@ -230,25 +253,32 @@ public sealed class DoorTests : IDisposable
     private void SensorThatTheDoorHears(float width)
     {
         world.Subscribe(door, Topics.Get(Doorway));
-        world.Spawn(new()
-        {
-            Frame = room,
-            Pose = new(new(-5, 2, 3), DQuaternion.Identity),
-            Body = new(Shape: new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), Motion: BodyMotion.Static)
-                { IsSensor = true },
-            Components = [new Sensor { Topic = Doorway }]
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(-5, 2, 3), DQuaternion.Identity),
+                Body = new(Shape: new BoxShapeDesc(new(width / 2, 0.5f, 0.5f)), Motion: BodyMotion.Static)
+                {
+                    IsSensor = true,
+                },
+                Components = [new Sensor { Topic = Doorway }],
+            }
+        );
     }
 
     /// <summary>A ball with a radius of 0.25 m at (<paramref name="x"/>, 2, 2) that drifts along +Z at
     /// <paramref name="speed"/> m/s.</summary>
-    private void DriftingBall(double x, float speed) => world.Spawn(new()
-    {
-        Frame = room,
-        Pose = new(new(x, 2, 2), DQuaternion.Identity),
-        LinearVelocity = new Vector3(0, 0, speed),
-        Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
-    });
+    private void DriftingBall(double x, float speed) =>
+        world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(x, 2, 2), DQuaternion.Identity),
+                LinearVelocity = new Vector3(0, 0, speed),
+                Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
 
     /// <summary>
     /// A ball drifts at 0.5 m/s through the sensor. It overlaps the sensor while its center is less than 0.75 m from the
@@ -293,7 +323,10 @@ public sealed class DoorTests : IDisposable
     {
         Action create = () => _ = new Door(new(0, 2, 0), openSeconds);
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("openSeconds")
+        create
+            .Should()
+            .Throw<ArgumentOutOfRangeException>()
+            .WithParameterName("openSeconds")
             .WithMessage("*time to open*positive and finite*");
     }
 }

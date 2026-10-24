@@ -26,9 +26,11 @@ public class ContactHeapBenchmarks
     private const int Columns = 20;
     private const int Rows = 15;
 
-    [Params(false, true)] public bool PendingPair;
+    [Params(false, true)]
+    public bool PendingPair;
 
-    [Params(0f, 0.5f)] public float Restitution;
+    [Params(0f, 0.5f)]
+    public float Restitution;
 
     private World world = null!;
 
@@ -37,31 +39,38 @@ public class ContactHeapBenchmarks
     {
         var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
-            GravityField.Uniform(new(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
         // A kinematic body moves only by its motion intents, so the floor's Conveyor writes its end pose in every tick, and
         // its first motion intent moves it in its first step.
         DPose floor = At(0, -0.5, 0);
-        world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = floor,
-            FirstMove = new(new EndPose(Conveyor.After(floor, world.DeltaTime))),
-            Body = new(Shape: new BoxShapeDesc(new(60, 0.5f, 60)), Motion: BodyMotion.Kinematic),
-            Components = [new Conveyor()]
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = floor,
+                FirstMove = new(new EndPose(Conveyor.After(floor, world.DeltaTime))),
+                Body = new(Shape: new BoxShapeDesc(new(60, 0.5f, 60)), Motion: BodyMotion.Kinematic),
+                Components = [new Conveyor()],
+            }
+        );
         var boxes = new List<Entity>();
         for (int i = 0; i < Columns * Rows; i++)
         {
             double x = i % Columns - Columns / 2;
             if (PendingPair && i == 0)
                 x -= 0.01;
-            boxes.Add(world.Spawn(new()
-            {
-                Frame = ground,
-                Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05),
-                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: Restitution)
-            }));
+            boxes.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05),
+                        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: Restitution),
+                    }
+                )
+            );
         }
 
         // Two seconds: every box has the speed of the floor.

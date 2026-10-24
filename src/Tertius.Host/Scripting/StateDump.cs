@@ -22,12 +22,13 @@ public sealed record StateDump(
     IReadOnlyList<EntityRecord> Entities,
     IReadOnlyList<FrameRecord> Frames,
     IReadOnlyList<EventRecord> Events,
-    IReadOnlyList<string> Errors)
+    IReadOnlyList<string> Errors
+)
 {
     /// <summary>The entity with the scene id. Throws <see cref="KeyNotFoundException"/> if the dump has none.</summary>
     public EntityRecord Entity(string id) =>
-        Entities.FirstOrDefault(entity => entity.Id == id) ??
-        throw new KeyNotFoundException($"The dump '{Name}' has no entity with the id '{id}'.");
+        Entities.FirstOrDefault(entity => entity.Id == id)
+        ?? throw new KeyNotFoundException($"The dump '{Name}' has no entity with the id '{id}'.");
 }
 
 /// <summary>One live entity.</summary>
@@ -46,8 +47,8 @@ public sealed record EntityRecord(
     FramePose RootPose,
     Double3 Velocity,
     Vector3 AngularVelocity,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    bool? Standing);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Standing
+);
 
 /// <summary>A pose and the frame that it is relative to.</summary>
 /// <param name="Frame">The scene id of the frame's owner, or null for no frame.</param>

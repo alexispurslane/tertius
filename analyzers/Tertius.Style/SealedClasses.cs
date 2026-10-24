@@ -44,7 +44,8 @@ internal sealed class SealedClasses
     /// </summary>
     private static bool IsTopLevelProgram(INamedTypeSymbol type, SymbolAnalysisContext context) =>
         type.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax(context.CancellationToken) is CompilationUnitSyntax);
+            reference.GetSyntax(context.CancellationToken) is CompilationUnitSyntax
+        );
 
     private void Report(CompilationAnalysisContext context)
     {

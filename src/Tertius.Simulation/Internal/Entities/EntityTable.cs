@@ -72,8 +72,8 @@ internal sealed partial class EntityTable
     private const int MaxSpawnPool = 1024;
 
     /// <summary>The bits that put a slot in a dirty list: one for each double-buffered row that <see cref="CopyRow"/> copies.</summary>
-    private const SlotFlags RowsDirty = SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.ComponentsDirty |
-                                        SlotFlags.CollisionDirty;
+    private const SlotFlags RowsDirty =
+        SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.ComponentsDirty | SlotFlags.CollisionDirty;
 
     /// <summary>
     /// The default of the fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on
@@ -113,8 +113,6 @@ internal sealed partial class EntityTable
     // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
     // for which they do (see ParallelCopyThreshold).
     private readonly ParallelOptions? copyParallelism;
-    private int parallelCopyThreshold = DefaultParallelCopyThreshold;
-
     private readonly SlotColumn<SlotFlags> flags;
     private readonly SlotColumn<Record> records;
     private readonly SlotColumn<EventMask> masks;
@@ -282,13 +280,13 @@ internal sealed partial class EntityTable
     /// </summary>
     internal int ParallelCopyThreshold
     {
-        get => parallelCopyThreshold;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            parallelCopyThreshold = value;
+            field = value;
         }
-    }
+    } = DefaultParallelCopyThreshold;
 
     private enum SlotState : byte
     {
@@ -296,7 +294,7 @@ internal sealed partial class EntityTable
 
         /// <summary>Held in a chunk's spawn pool, or handed out for a spawn that is not live yet.</summary>
         Reserved,
-        Live
+        Live,
     }
 
     /// <summary>The table's own per-slot bits. Releasing a slot clears them.</summary>
@@ -327,7 +325,7 @@ internal sealed partial class EntityTable
         ComponentsDirty = 1 << 6,
 
         /// <summary>The back collision row may differ from the front row, and the slot is in a dirty list.</summary>
-        CollisionDirty = 1 << 7
+        CollisionDirty = 1 << 7,
     }
 
     /// <summary>The per-entity data that is cold, or that changes only through a component change or a spawn.</summary>
@@ -620,7 +618,8 @@ internal sealed partial class EntityTable
             chunks[c].EndTick();
             ChunkBook book = books[c];
             Contract.Requires(
-                book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0 && book.Pushers.Count == 0);
+                book.IntentWriters.Count == 0 && book.MotionChangers.Count == 0 && book.Pushers.Count == 0
+            );
             book.DirtySlots.Clear();
             book.LastSpawnCount = book.SpawnsThisTick;
             book.SpawnsThisTick = 0;
@@ -639,8 +638,9 @@ internal sealed partial class EntityTable
         uint slot = entity.Index;
         uint[] generations = generation;
         // A live slot's generation is never 0, so the null handle fails one of the two tests.
-        return slot < (uint)generations.Length && generations[slot] == entity.Generation &&
-               state[slot] == SlotState.Live;
+        return slot < (uint)generations.Length
+            && generations[slot] == entity.Generation
+            && state[slot] == SlotState.Live;
     }
 
     /// <summary>Reserves a slot for a spawn outside a tick: from the free list, or a fresh one.</summary>
@@ -685,30 +685,42 @@ internal sealed partial class EntityTable
     /// and <see cref="StaleEntityException"/> for any other handle that does not name its slot's current reservation. A
     /// component type that has no id throws as <see cref="ComponentTypes.IdOf"/> does, before anything changes.
     /// </summary>
-    public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components,
-        EventMask[] wants, BodyDesc? body,
-        Vector3 bodyCenterOfMass, FrameHandle ownedFrame)
+    public void Activate(
+        Entity entity,
+        in TransformRow row,
+        in RenderData render,
+        IComponent[] components,
+        EventMask[] wants,
+        BodyDesc? body,
+        Vector3 bodyCenterOfMass,
+        FrameHandle ownedFrame
+    )
     {
         Contract.Requires(!GameplayRunning);
         if (!IsCurrentReservation(entity))
         {
             if (IsAlive(entity))
                 throw new InvalidOperationException(
-                    $"{entity} is live, so the handle does not name a reservation to activate.");
+                    $"{entity} is live, so the handle does not name a reservation to activate."
+                );
             StaleEntityException.Throw(entity);
         }
 
         uint slot = entity.Index;
         Contract.Requires(components.Length == wants.Length);
         Contract.Requires(body is null ? bodyCenterOfMass == Vector3.Zero : IsFinite(bodyCenterOfMass));
-        ComponentFlags types = ComponentFlags.Of(components);
+        var types = ComponentFlags.Of(components);
         BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
         float radius = body?.Shape.BoundingRadius() ?? 0;
         records[slot] = new()
         {
-            Components = components, Wants = wants, Body = body, BodyBoundingRadius = radius,
+            Components = components,
+            Wants = wants,
+            Body = body,
+            BodyBoundingRadius = radius,
             InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius,
-            BodyCenterOfMass = bodyCenterOfMass, OwnedFrame = ownedFrame
+            BodyCenterOfMass = bodyCenterOfMass,
+            OwnedFrame = ownedFrame,
         };
         if (body != null)
             bodySlots.Add(slot);
@@ -818,7 +830,11 @@ internal sealed partial class EntityTable
         ref readonly BodyCollision collision = ref backCollision[slot];
         return collision.Groups == body.CollisionGroups && collision.Mask == body.CollisionMask
             ? body
-            : body with { CollisionGroups = collision.Groups, CollisionMask = collision.Mask };
+            : body with
+            {
+                CollisionGroups = collision.Groups,
+                CollisionMask = collision.Mask,
+            };
     }
 
     /// <summary>
@@ -1108,8 +1124,9 @@ internal sealed partial class EntityTable
     public void SetFirstMove(Entity entity, FrameHandle frame, in MotionIntent move)
     {
         uint slot = LiveSlot(entity);
-        Contract.Requires(!GameplayRunning && IsDefault(in frontIntent[slot]) &&
-                          (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        Contract.Requires(
+            !GameplayRunning && IsDefault(in frontIntent[slot]) && (flags[slot] & SlotFlags.IntentRegistered) == 0
+        );
         Contract.Requires(move.HasValue && move.AimPose.Rotation.IsUnit);
         frontIntent[slot] = new() { Frame = frame, Move = move };
         frontIntentEntities.Add(entity);
@@ -1136,9 +1153,12 @@ internal sealed partial class EntityTable
             backIntent[slot].Frame = frontTransform[slot].Frame;
         }
 
-        Contract.Ensures(pushers.IndexOf(part) >= 0 && pushers.IndexOf(part) == pushers.LastIndexOf(part) &&
-                         !books[slot / chunkSize].IntentWriters.Contains(part) &&
-                         backIntent[slot].Frame == frontTransform[slot].Frame);
+        Contract.Ensures(
+            pushers.IndexOf(part) >= 0
+                && pushers.IndexOf(part) == pushers.LastIndexOf(part)
+                && !books[slot / chunkSize].IntentWriters.Contains(part)
+                && backIntent[slot].Frame == frontTransform[slot].Frame
+        );
         return ref backIntent[slot];
     }
 
@@ -1149,8 +1169,9 @@ internal sealed partial class EntityTable
     public void ClearPush(Entity part)
     {
         uint slot = LiveSlot(part);
-        Contract.Requires(!GameplayRunning && records[slot].Body == null &&
-                          frontIntentEntities.AsSpan().IndexOf(part) < 0);
+        Contract.Requires(
+            !GameplayRunning && records[slot].Body == null && frontIntentEntities.AsSpan().IndexOf(part) < 0
+        );
         frontIntent[slot] = default;
     }
 
@@ -1177,8 +1198,10 @@ internal sealed partial class EntityTable
         }
 
         sum.WriteInto(ref intent);
-        Contract.Ensures(intent.Frame == frame &&
-                         frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root));
+        Contract.Ensures(
+            intent.Frame == frame
+                && frontIntentEntities.AsSpan().IndexOf(root) == frontIntentEntities.AsSpan().LastIndexOf(root)
+        );
     }
 
     /// <summary>
@@ -1336,10 +1359,14 @@ internal sealed partial class EntityTable
     {
         Contract.Requires(!GameplayRunning);
         int count = ChunkCountFor(slotCount);
-        if (copyParallelism != null && GameplayDirtyCount(count) >= parallelCopyThreshold)
+        if (copyParallelism != null && GameplayDirtyCount(count) >= ParallelCopyThreshold)
         {
-            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: copyParallelism,
-                body: copyChunk ??= CopyChunk);
+            Parallel.For(
+                fromInclusive: 0,
+                toExclusive: count,
+                parallelOptions: copyParallelism,
+                body: copyChunk ??= CopyChunk
+            );
             for (int c = 0; c < count; c++)
             {
                 ChunkBook book = books[c];
@@ -1429,10 +1456,14 @@ internal sealed partial class EntityTable
     private void AssertTableShape()
     {
         Contract.Invariant(!GameplayRunning);
-        Contract.Invariant(slotCount <= Capacity && ChunkCountFor(Capacity) <= chunks.Length &&
-                           books.Length == chunks.Length);
-        Contract.Invariant(generation.Length == Capacity && state.Length == Capacity &&
-                           bodySlots.WordCount == BodySlots.WordsFor(Capacity));
+        Contract.Invariant(
+            slotCount <= Capacity && ChunkCountFor(Capacity) <= chunks.Length && books.Length == chunks.Length
+        );
+        Contract.Invariant(
+            generation.Length == Capacity
+                && state.Length == Capacity
+                && bodySlots.WordCount == BodySlots.WordsFor(Capacity)
+        );
     }
 
     /// <summary>Checks the free list, the front intent list and the front motion changers, and marks the slots in them.</summary>
@@ -1492,8 +1523,9 @@ internal sealed partial class EntityTable
             // A writer that died since it wrote is skipped by the swap.
             if (!IsAlive(writer))
                 continue;
-            Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 &&
-                               !scan.IntentWriterListed[writer.Index]);
+            Contract.Invariant(
+                (flags[writer.Index] & SlotFlags.IntentRegistered) != 0 && !scan.IntentWriterListed[writer.Index]
+            );
             scan.IntentWriterListed[writer.Index] = true;
         }
     }
@@ -1506,8 +1538,12 @@ internal sealed partial class EntityTable
             if (!IsAlive(pusher))
                 continue;
             uint p = pusher.Index;
-            Contract.Invariant((flags[p] & SlotFlags.IntentRegistered) != 0 && !scan.PusherListed[p] &&
-                               !scan.IntentWriterListed[p] && records[p].Body == null);
+            Contract.Invariant(
+                (flags[p] & SlotFlags.IntentRegistered) != 0
+                    && !scan.PusherListed[p]
+                    && !scan.IntentWriterListed[p]
+                    && records[p].Body == null
+            );
             scan.PusherListed[p] = true;
         }
     }
@@ -1554,8 +1590,12 @@ internal sealed partial class EntityTable
             if (!IsAlive(pusher))
                 continue;
             uint p = pusher.Index;
-            Contract.Invariant(!frontPusherListed[p] && records[p].Body == null && !scan.InIntentList[p] &&
-                               IsDefault(in frontIntent[p]));
+            Contract.Invariant(
+                !frontPusherListed[p]
+                    && records[p].Body == null
+                    && !scan.InIntentList[p]
+                    && IsDefault(in frontIntent[p])
+            );
             frontPusherListed[p] = true;
         }
 
@@ -1594,20 +1634,17 @@ internal sealed partial class EntityTable
 
     private void AssertLiveRecord(int slot, in Record rec)
     {
-        Contract.Invariant(rec.Components != null && rec.Wants != null &&
-                           rec.Components.Length == rec.Wants.Length);
+        Contract.Invariant(rec.Components != null && rec.Wants != null && rec.Components.Length == rec.Wants.Length);
         Contract.Invariant(masks[slot] == MaskOf(rec.Wants));
         Contract.Invariant(backComponents[slot] == ComponentFlags.Of(rec.Components));
         if (rec.Body == null)
             Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
         Contract.Invariant(rec.BodyBoundingRadius == (rec.Body is { } body ? CheckedRadius(body.Shape) : 0));
-        Contract.Invariant(rec.InteriorBoundingRadius ==
-                           (rec.Body?.InteriorShape is { } inside
-                               ? CheckedRadius(inside)
-                               : rec.BodyBoundingRadius));
-        Contract.Invariant(rec.Body == null
-            ? rec.BodyCenterOfMass == Vector3.Zero
-            : IsFinite(rec.BodyCenterOfMass));
+        Contract.Invariant(
+            rec.InteriorBoundingRadius
+                == (rec.Body?.InteriorShape is { } inside ? CheckedRadius(inside) : rec.BodyBoundingRadius)
+        );
+        Contract.Invariant(rec.Body == null ? rec.BodyCenterOfMass == Vector3.Zero : IsFinite(rec.BodyCenterOfMass));
     }
 
     /// <summary>Checks that a row without its dirty bit equals its back row, and that a dirty slot is listed.</summary>
@@ -1648,8 +1685,9 @@ internal sealed partial class EntityTable
         Contract.Invariant((backIntent[slot].Flags & IntentFlags.SetMotion) != 0 == scan.MotionChangerListed[slot]);
         if (!scan.InIntentList[slot])
             Contract.Invariant(IsDefault(in frontIntent[slot]));
-        Contract.Invariant((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0 ==
-                           scan.FrontMotionChangerListed[slot]);
+        Contract.Invariant(
+            (frontIntent[slot].Flags & IntentFlags.SetMotion) != 0 == scan.FrontMotionChangerListed[slot]
+        );
         if ((f & SlotFlags.FrontMoved) != 0)
             Contract.Invariant(scan.MovedListed[slot]);
     }
@@ -1792,7 +1830,7 @@ internal sealed partial class EntityTable
     private static EventMask MaskOf(EventMask[] wants)
     {
         // Destroy is in every mask, so that a Destroy always gets through.
-        EventMask mask = EventMask.Of<DestroyEvent>();
+        var mask = EventMask.Of<DestroyEvent>();
         foreach (ref readonly EventMask w in wants.AsSpan())
             mask.UnionWith(w);
         return mask;
@@ -1869,9 +1907,13 @@ internal sealed partial class EntityTable
     // One vectorized pass over the bytes of every entry. A reference in an entry reads as its pointer, which is zero
     // only for null.
     private static bool IsDefault<T>(ReadOnlySpan<T> values) =>
-        values.IsEmpty || !MemoryMarshal.CreateReadOnlySpan(
-            ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
-            values.Length * Unsafe.SizeOf<T>()).ContainsAnyExcept((byte)0);
+        values.IsEmpty
+        || !MemoryMarshal
+            .CreateReadOnlySpan(
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
+                values.Length * Unsafe.SizeOf<T>()
+            )
+            .ContainsAnyExcept((byte)0);
 
     private static ReadOnlySpan<byte> BytesOf<T>(in T value) =>
         MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), Unsafe.SizeOf<T>());

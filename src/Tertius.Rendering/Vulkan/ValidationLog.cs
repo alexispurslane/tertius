@@ -34,23 +34,27 @@ internal sealed unsafe class ValidationLog
     /// The messenger records warnings and errors of every type: general (loader), validation and performance.
     /// Info and verbose messages are not requested, because they describe normal operation.
     /// </summary>
-    public static DebugUtilsMessengerCreateInfoEXT CreateInfo(GCHandle self) => new()
-    {
-        SType = StructureType.DebugUtilsMessengerCreateInfoExt,
-        MessageSeverity = DebugUtilsMessageSeverityFlagsEXT.WarningBitExt |
-                          DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt,
-        MessageType = DebugUtilsMessageTypeFlagsEXT.GeneralBitExt | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt |
-                      DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt,
-        PfnUserCallback = new(&OnMessage),
-        PUserData = (void*)GCHandle.ToIntPtr(self)
-    };
+    public static DebugUtilsMessengerCreateInfoEXT CreateInfo(GCHandle self) =>
+        new()
+        {
+            SType = StructureType.DebugUtilsMessengerCreateInfoExt,
+            MessageSeverity =
+                DebugUtilsMessageSeverityFlagsEXT.WarningBitExt | DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt,
+            MessageType =
+                DebugUtilsMessageTypeFlagsEXT.GeneralBitExt
+                | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt
+                | DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt,
+            PfnUserCallback = new(&OnMessage),
+            PUserData = (void*)GCHandle.ToIntPtr(self),
+        };
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static Bool32 OnMessage(
         DebugUtilsMessageSeverityFlagsEXT severity,
         DebugUtilsMessageTypeFlagsEXT types,
         DebugUtilsMessengerCallbackDataEXT* data,
-        void* userData)
+        void* userData
+    )
     {
         if (GCHandle.FromIntPtr((nint)userData).Target is ValidationLog log)
         {

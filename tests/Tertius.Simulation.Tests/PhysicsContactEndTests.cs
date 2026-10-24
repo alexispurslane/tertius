@@ -30,22 +30,26 @@ public sealed class PhysicsContactEndTests
             Faults = faults;
             FirstLog = new(Wants);
             SecondLog = new(Wants);
-            First = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                Pose = TestWorld.At(0),
-                LinearVelocity = new Vector3(-speedApart, 0, 0),
-                Body = WorldTesting.Ball(),
-                Components = [FirstLog]
-            });
-            Second = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                Pose = TestWorld.At(1),
-                LinearVelocity = new Vector3(speedApart, 0, 0),
-                Body = WorldTesting.Ball(),
-                Components = [SecondLog]
-            });
+            First = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    Pose = TestWorld.At(0),
+                    LinearVelocity = new Vector3(-speedApart, 0, 0),
+                    Body = WorldTesting.Ball(),
+                    Components = [FirstLog],
+                }
+            );
+            Second = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    Pose = TestWorld.At(1),
+                    LinearVelocity = new Vector3(speedApart, 0, 0),
+                    Body = WorldTesting.Ball(),
+                    Components = [SecondLog],
+                }
+            );
         }
 
         public FaultInjectingBackend Faults { get; }
@@ -65,9 +69,9 @@ public sealed class PhysicsContactEndTests
             {
                 List<(long Tick, List<ContactEnded> ContactsEnded)> ends =
                 [
-                    .. Faults.Outputs
-                        .Zip(Faults.Steps, (output, step) => (step.Tick, output.ContactsEnded))
-                        .Where(step => step.ContactsEnded.Count > 0)
+                    .. Faults
+                        .Outputs.Zip(Faults.Steps, (output, step) => (step.Tick, output.ContactsEnded))
+                        .Where(step => step.ContactsEnded.Count > 0),
                 ];
                 ends.Should().ContainSingle();
                 ends[0].ContactsEnded.Should().Equal(new ContactEnded(First, Second));
@@ -80,10 +84,11 @@ public sealed class PhysicsContactEndTests
 
     /// <summary>The ticks at which a recorder heard a <see cref="CollisionEnded"/>, with what it heard.</summary>
     private static List<(long Tick, CollisionEnded Ended)> EndsHeard(Recorder log) =>
-    [
-        .. log.Seen.Where(seen => seen.Event.Is<CollisionEnded>())
-            .Select(seen => (seen.Tick, seen.Event.As<CollisionEnded>()))
-    ];
+        [
+            .. log
+                .Seen.Where(seen => seen.Event.Is<CollisionEnded>())
+                .Select(seen => (seen.Tick, seen.Event.As<CollisionEnded>())),
+        ];
 
     [Fact]
     public void AnEndedContactSendsOneCollisionEndedToEachBodyOnTheNextTick()
@@ -105,7 +110,8 @@ public sealed class PhysicsContactEndTests
 
         scene.Test.Run(8);
 
-        scene.TickOfEnd.Should()
+        scene
+            .TickOfEnd.Should()
             .BeGreaterThan(0, "the contact started in the first step, so it can end only in a later one");
         EndsHeard(scene.FirstLog).Single().Ended.Other.Should().Be(scene.Second);
         EndsHeard(scene.SecondLog).Single().Ended.Other.Should().Be(scene.First);
@@ -124,26 +130,30 @@ public sealed class PhysicsContactEndTests
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         // The bubble's edge toward the balls lies at x = 400 m. At 180 m/s the first ball flies 3 m in a step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
         var secondLog = new Recorder(Scene.Wants);
-        Entity first = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(398),
-            LinearVelocity = new Vector3(180, 0, 0),
-            Body = WorldTesting.Ball(),
-            Components = [firstLog]
-        });
-        Entity second = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(397.1),
-            Body = WorldTesting.Ball(),
-            Components = [secondLog]
-        });
+        Entity first = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(398),
+                LinearVelocity = new Vector3(180, 0, 0),
+                Body = WorldTesting.Ball(),
+                Components = [firstLog],
+            }
+        );
+        Entity second = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(397.1),
+                Body = WorldTesting.Ball(),
+                Components = [secondLog],
+            }
+        );
 
         test.Run(2);
 
@@ -173,10 +183,14 @@ public sealed class PhysicsContactEndTests
 
         scene.Test.Run(2);
 
-        scene.Faults.Outputs.SelectMany(output => output.ContactsEnded).Should()
+        scene
+            .Faults.Outputs.SelectMany(output => output.ContactsEnded)
+            .Should()
             .Equal(new ContactEnded(scene.First, scene.Second));
         EndsHeard(scene.SecondLog).Single().Ended.Other.Should().Be(scene.First);
-        scene.FirstLog.Seen.Select(s => s.Event.Type).Should()
+        scene
+            .FirstLog.Seen.Select(s => s.Event.Type)
+            .Should()
             .Equal([EventType<Collision>.Id], "the destroyed ball hears no end");
         scene.Test.World.Errors.Should().BeEmpty("a destroyed body ends its contacts, so the end names it");
     }
@@ -202,7 +216,12 @@ public sealed class PhysicsContactEndTests
 
         scene.Test.Run(3);
 
-        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"end of the contact of {scene.First} and {scene.First}").And.Contain("cannot touch itself");
+        scene
+            .Test.World.Errors.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain($"end of the contact of {scene.First} and {scene.First}")
+            .And.Contain("cannot touch itself");
         EndsHeard(scene.FirstLog).Should().BeEmpty();
         EndsHeard(scene.SecondLog).Should().BeEmpty();
     }
@@ -217,7 +236,15 @@ public sealed class PhysicsContactEndTests
         scene.Faults.EditOutput = output =>
         {
             if (output.ContactsEnded.Count > 0)
-                output.Bodies.Add(new BodyState(Entity: scene.First, Frame: gone, Pose: TestWorld.At(9), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+                output.Bodies.Add(
+                    new BodyState(
+                        Entity: scene.First,
+                        Frame: gone,
+                        Pose: TestWorld.At(9),
+                        LinearVelocity: Vector3.Zero,
+                        AngularVelocity: Vector3.Zero
+                    )
+                );
         };
 
         scene.Test.Run(8);

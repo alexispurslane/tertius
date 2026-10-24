@@ -40,23 +40,31 @@ public readonly record struct StationGone;
 /// ), and
 /// <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
 /// </summary>
-[GeneratedUnion(typeof(Aboard), typeof(Walking), typeof(Sliding), typeof(Strolling), typeof(Arrived), typeof(Halted),
-    ZeroCase = typeof(Aboard))]
+[GeneratedUnion(
+    typeof(Aboard),
+    typeof(Walking),
+    typeof(Sliding),
+    typeof(Strolling),
+    typeof(Arrived),
+    typeof(Halted),
+    ZeroCase = typeof(Aboard)
+)]
 public readonly partial struct DisembarkState
 {
     /// <summary>
     /// The state that <paramref name="change"/> leads to from <paramref name="state"/>, or null when the pair has no row.
     /// It reads nothing but its two arguments.
     /// </summary>
-    public static DisembarkState? Next(DisembarkState state, DisembarkEvent change) => (state, change) switch
-    {
-        (Aboard, LeaveShip) => new Walking(WalkProgress.Start),
-        (Walking, Dropped) => new Sliding(),
-        (Sliding, Landed) => new Strolling(WalkProgress.Start),
-        (Strolling, WalkDone) => new Arrived(),
-        (Walking or Sliding or Strolling, StationGone) => new Halted(),
-        _ => null
-    };
+    public static DisembarkState? Next(DisembarkState state, DisembarkEvent change) =>
+        (state, change) switch
+        {
+            (Aboard, LeaveShip) => new Walking(WalkProgress.Start),
+            (Walking, Dropped) => new Sliding(),
+            (Sliding, Landed) => new Strolling(WalkProgress.Start),
+            (Strolling, WalkDone) => new Arrived(),
+            (Walking or Sliding or Strolling, StationGone) => new Halted(),
+            _ => null,
+        };
 }
 
 /// <summary>
@@ -64,6 +72,12 @@ public readonly partial struct DisembarkState
 /// <see cref="Dropped"/>, <see cref="Landed"/>, <see cref="WalkDone"/> or <see cref="StationGone"/>. It is a generated union, and
 /// the all-zero value is <see cref="LeaveShip"/>.
 /// </summary>
-[GeneratedUnion(typeof(LeaveShip), typeof(Dropped), typeof(Landed), typeof(WalkDone), typeof(StationGone),
-    ZeroCase = typeof(LeaveShip))]
+[GeneratedUnion(
+    typeof(LeaveShip),
+    typeof(Dropped),
+    typeof(Landed),
+    typeof(WalkDone),
+    typeof(StationGone),
+    ZeroCase = typeof(LeaveShip)
+)]
 public readonly partial struct DisembarkEvent;

@@ -29,9 +29,9 @@ internal sealed class CrossCheckHistory
     internal HashSet<FrameHandle> KnownFrames { get; } = [];
 
     public override string ToString() =>
-        $"checks {Checks}, member entries {MemberEntries}, topic recipients {RecipientEntries}, attachment links {AttachedLinks}, " +
-        $"inbox events {InboxEvents} (via a topic {TopicDeliveries}), spatial matches {SpatialMatches}, " +
-        $"dead handles probed {DeadHandlesProbed}, stale frames probed {StaleFramesProbed}";
+        $"checks {Checks}, member entries {MemberEntries}, topic recipients {RecipientEntries}, attachment links {AttachedLinks}, "
+        + $"inbox events {InboxEvents} (via a topic {TopicDeliveries}), spatial matches {SpatialMatches}, "
+        + $"dead handles probed {DeadHandlesProbed}, stale frames probed {StaleFramesProbed}";
 
     internal void Remember(IReadOnlyList<Entity> live, IEnumerable<FrameHandle> frames)
     {
@@ -101,13 +101,33 @@ internal static class InvariantCrossChecks
         history.Checks++;
 
         CheckRows(world, live, Report);
-        CheckMembership(world: world, topics: topics, live: live, frames: frames, history: history,
-            reachable: reachable, report: Report);
-        CheckTopics(world: world, topics: topics, frames: frames, history: history, reachable: reachable,
-            report: Report);
+        CheckMembership(
+            world: world,
+            topics: topics,
+            live: live,
+            frames: frames,
+            history: history,
+            reachable: reachable,
+            report: Report
+        );
+        CheckTopics(
+            world: world,
+            topics: topics,
+            frames: frames,
+            history: history,
+            reachable: reachable,
+            report: Report
+        );
         CheckAttachments(world: world, live: live, history: history, reachable: reachable, report: Report);
-        CheckSpatialIndex(world: world, live: live, frames: frames, history: history, reachable: reachable,
-            sampler: sampler, report: Report);
+        CheckSpatialIndex(
+            world: world,
+            live: live,
+            frames: frames,
+            history: history,
+            reachable: reachable,
+            sampler: sampler,
+            report: Report
+        );
         CheckFrames(world: world, live: live, frames: frames, report: Report);
         if (inboxesCurrent)
             CheckInboxes(world: world, topics: topics, live: live, history: history, report: Report);
@@ -116,8 +136,10 @@ internal static class InvariantCrossChecks
         foreach (Entity intent in entities.IntentEntities.Span)
         {
             reachable.Add(intent);
-            if (!liveSet.Contains(intent) || (entities.Body(intent) == null &&
-                                              !entities.FrontIntents.Span[(int)intent.Index].Move.HasValue))
+            if (
+                !liveSet.Contains(intent)
+                || (entities.Body(intent) == null && !entities.FrontIntents.Span[(int)intent.Index].Move.HasValue)
+            )
                 Report($"{intent} is in the intent list but is not a live entity with a body or a motion intent.");
         }
 
@@ -148,21 +170,29 @@ internal static class InvariantCrossChecks
         {
             ref readonly TransformRow front = ref world.Entities.FrontRow(entity);
             ref readonly TransformRow back = ref world.Entities.BackRow(entity);
-            bool equal = front.Frame == back.Frame
-                         && Poses.BitEquals(front.Pose, back.Pose)
-                         && front.LinearVelocity.Equals(back.LinearVelocity)
-                         && front.AngularVelocity.Equals(back.AngularVelocity);
+            bool equal =
+                front.Frame == back.Frame
+                && Poses.BitEquals(front.Pose, back.Pose)
+                && front.LinearVelocity.Equals(back.LinearVelocity)
+                && front.AngularVelocity.Equals(back.AngularVelocity);
             if (!equal)
                 report(
-                    $"{entity}: the front row {front.Frame} {front.Pose} differs from the back row {back.Frame} {back.Pose} after the sync point.");
+                    $"{entity}: the front row {front.Frame} {front.Pose} differs from the back row {back.Frame} {back.Pose} after the sync point."
+                );
         }
     }
 
     // ---- Membership ---------------------------------------------------------------------------------------------------
 
-    private static void CheckMembership(World world, TopicSets topics, List<Entity> live, List<FrameHandle> frames,
+    private static void CheckMembership(
+        World world,
+        TopicSets topics,
+        List<Entity> live,
+        List<FrameHandle> frames,
         CrossCheckHistory history,
-        HashSet<Entity> reachable, Action<string> report)
+        HashSet<Entity> reachable,
+        Action<string> report
+    )
     {
         var memberOf = new Dictionary<Entity, List<FrameHandle>>();
         foreach (FrameHandle frame in frames)
@@ -193,7 +223,8 @@ internal static class InvariantCrossChecks
             else if (sets is not { Count: 1 } || sets[0] != frame)
             {
                 report(
-                    $"{entity} is in {frame}, and is a member of [{(sets == null ? "" : string.Join(", ", sets))}].");
+                    $"{entity} is in {frame}, and is a member of [{(sets == null ? "" : string.Join(", ", sets))}]."
+                );
             }
         }
     }
@@ -208,8 +239,14 @@ internal static class InvariantCrossChecks
         return recipients;
     }
 
-    private static void CheckTopics(World world, TopicSets topics, List<FrameHandle> frames, CrossCheckHistory history,
-        HashSet<Entity> reachable, Action<string> report)
+    private static void CheckTopics(
+        World world,
+        TopicSets topics,
+        List<FrameHandle> frames,
+        CrossCheckHistory history,
+        HashSet<Entity> reachable,
+        Action<string> report
+    )
     {
         void CheckList(string name, List<Entity> recipients)
         {
@@ -251,8 +288,13 @@ internal static class InvariantCrossChecks
 
     // ---- Attachments --------------------------------------------------------------------------------------------------
 
-    private static void CheckAttachments(World world, List<Entity> live, CrossCheckHistory history,
-        HashSet<Entity> reachable, Action<string> report)
+    private static void CheckAttachments(
+        World world,
+        List<Entity> live,
+        CrossCheckHistory history,
+        HashSet<Entity> reachable,
+        Action<string> report
+    )
     {
         Attachments attachments = world.Attachments;
         var attachedByScan = new List<Entity>();
@@ -285,7 +327,8 @@ internal static class InvariantCrossChecks
                 report($"{entity} is attached to {parent}, which does not list it as a child.");
             if (world.GetFrame(entity) != world.GetFrame(parent))
                 report(
-                    $"{entity} is in {world.GetFrame(entity)} and its parent {parent} is in {world.GetFrame(parent)}.");
+                    $"{entity} is in {world.GetFrame(entity)} and its parent {parent} is in {world.GetFrame(parent)}."
+                );
             if (world.Entities.Body(entity) != null)
                 report($"{entity} is attached and has a body.");
 
@@ -304,7 +347,8 @@ internal static class InvariantCrossChecks
             DPose actual = world.PoseInOwnFrame(entity);
             if (!TestWorld.RoughlyEqual(expected.Position, actual.Position, 1e-6))
                 report(
-                    $"{entity} should be at {expected.Position} by its chain from {root} and is at {actual.Position}.");
+                    $"{entity} should be at {expected.Position} by its chain from {root} and is at {actual.Position}."
+                );
         }
 
         ReadOnlySpan<Entity> attachedSet = attachments.Attached;
@@ -312,14 +356,21 @@ internal static class InvariantCrossChecks
             reachable.Add(entity);
         if (!attachedSet.SequenceEqual(attachedByScan.ToArray()))
             report(
-                $"The attached set has {attachedSet.Length} entities and a scan of the parent links finds {attachedByScan.Count}.");
+                $"The attached set has {attachedSet.Length} entities and a scan of the parent links finds {attachedByScan.Count}."
+            );
     }
 
     // ---- Spatial index ------------------------------------------------------------------------------------------------
 
-    private static void CheckSpatialIndex(World world, List<Entity> live, List<FrameHandle> frames,
+    private static void CheckSpatialIndex(
+        World world,
+        List<Entity> live,
+        List<FrameHandle> frames,
         CrossCheckHistory history,
-        HashSet<Entity> reachable, Random sampler, Action<string> report)
+        HashSet<Entity> reachable,
+        Random sampler,
+        Action<string> report
+    )
     {
         var found = new List<Entity>();
         foreach (FrameHandle frame in frames)
@@ -338,24 +389,28 @@ internal static class InvariantCrossChecks
         {
             FrameHandle frame = frames[sampler.Next(frames.Count)];
             Entity[] inFrame = [.. live.Where(entity => world.GetFrame(entity) == frame)];
-            Double3 center = inFrame.Length > 0 && sampler.Next(2) == 0
-                ? world.PoseInOwnFrame(inFrame[sampler.Next(inFrame.Length)]).Position
-                : new(sampler.Next(-60, 61), 0, sampler.Next(-60, 61));
+            Double3 center =
+                inFrame.Length > 0 && sampler.Next(2) == 0
+                    ? world.PoseInOwnFrame(inFrame[sampler.Next(inFrame.Length)]).Position
+                    : new(sampler.Next(-60, 61), 0, sampler.Next(-60, 61));
             double radius = sampler.Next(0, 80);
             Entity[] expected =
             [
                 .. inFrame.Where(entity =>
                 {
                     Double3 position = world.PoseInOwnFrame(entity).Position;
-                    double dx = position.X - center.X, dy = position.Y - center.Y, dz = position.Z - center.Z;
+                    double dx = position.X - center.X,
+                        dy = position.Y - center.Y,
+                        dz = position.Z - center.Z;
                     return dx * dx + dy * dy + dz * dz <= radius * radius;
-                })
+                }),
             ];
             world.Snapshot.QueryRadius(frame: frame, center: center, radius: radius, results: found);
             history.SpatialMatches += found.Count;
             if (!found.SequenceEqual(expected))
                 report(
-                    $"A query in {frame} at {center} with radius {radius} finds {found.Count} entities, and {expected.Length} are within it.");
+                    $"A query in {frame} at {center} with radius {radius} finds {found.Count} entities, and {expected.Length} are within it."
+                );
         }
     }
 
@@ -384,7 +439,8 @@ internal static class InvariantCrossChecks
                 report($"{frame} has the dead parent {parent}.");
             if (world.GetFrame(owner) != parent)
                 report(
-                    $"The owner {owner} of {frame} is in {world.GetFrame(owner)} and the frame's parent is {parent}.");
+                    $"The owner {owner} of {frame} is in {world.GetFrame(owner)} and the frame's parent is {parent}."
+                );
             if (!world.Frames.TryGetFrame(owner, out FrameHandle byOwner) || byOwner != frame)
                 report($"The frame tree finds {byOwner} for the owner {owner} of {frame}.");
 
@@ -400,8 +456,13 @@ internal static class InvariantCrossChecks
 
     // ---- Inboxes ------------------------------------------------------------------------------------------------------
 
-    private static void CheckInboxes(World world, TopicSets topics, List<Entity> live, CrossCheckHistory history,
-        Action<string> report)
+    private static void CheckInboxes(
+        World world,
+        TopicSets topics,
+        List<Entity> live,
+        CrossCheckHistory history,
+        Action<string> report
+    )
     {
         Router router = Inside.RouterOf(world);
         var buffer = new EventBuffer();
@@ -444,7 +505,8 @@ internal static class InvariantCrossChecks
 
         if (total != world.Stats.Deliveries)
             report(
-                $"The inboxes of the live entities hold {total} events, and the router wrote {world.Stats.Deliveries} deliveries: the inbox ranges do not cover the deliveries exactly.");
+                $"The inboxes of the live entities hold {total} events, and the router wrote {world.Stats.Deliveries} deliveries: the inbox ranges do not cover the deliveries exactly."
+            );
     }
 }
 
@@ -460,8 +522,9 @@ internal static class Inside
 
     private static T Read<T>(World world, string field)
     {
-        FieldInfo info = typeof(World).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)
-                         ?? throw new MissingFieldException(nameof(World), field);
+        FieldInfo info =
+            typeof(World).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(nameof(World), field);
         return (T)info.GetValue(world)!;
     }
 }

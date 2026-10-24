@@ -10,8 +10,11 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class WorldCharacterStandingTests
 {
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>The height of the center of a person who stands on a floor whose top is at y = 0, plus 2 cm.</summary>
     private const double StandingHeight = 0.92;
@@ -23,8 +26,15 @@ public sealed class WorldCharacterStandingTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var log = new StandingLog();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [log] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [log],
+            }
+        );
 
         Tick(world, 30);
 
@@ -41,8 +51,15 @@ public sealed class WorldCharacterStandingTests
         Floor(world, ground);
         var pilot = new Pilot();
         var log = new StandingLog();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot, log] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [pilot, log],
+            }
+        );
         Tick(world, 20);
 
         pilot.Once = body => body.Jump(5);
@@ -59,7 +76,14 @@ public sealed class WorldCharacterStandingTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
         Tick(world, 30);
         double height = world.PoseInOwnFrame(person).Position.Y;
 
@@ -67,7 +91,10 @@ public sealed class WorldCharacterStandingTests
 
         world.Snapshot.IsStanding(person).Should().BeTrue();
         world.PoseInOwnFrame(person).Position.Y.Should().Be(height, "the floor holds the character");
-        world.VelocityInOwnFrame(person).Length().Should()
+        world
+            .VelocityInOwnFrame(person)
+            .Length()
+            .Should()
             .BeLessThan(1e-6f, "the floor holds the character against gravity");
     }
 
@@ -78,16 +105,29 @@ public sealed class WorldCharacterStandingTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [pilot],
+            }
+        );
         Tick(world, 30);
 
         pilot.Once = body => body.Jump(5);
         TickUntil(world, () => world.VelocityInOwnFrame(person).Y > 1, 5).Should().BeLessThan(5, "the character jumps");
 
         // The jump speed is an instant velocity, and the velocity after the step is the chord of the step.
-        world.VelocityInOwnFrame(person).Y.Should().BeApproximately(5 - 9.81f / 120, 1e-4f,
-            "the character leaves the floor in the step of its jump, so gravity acts on it for that whole step");
+        world
+            .VelocityInOwnFrame(person)
+            .Y.Should()
+            .BeApproximately(
+                5 - 9.81f / 120,
+                1e-4f,
+                "the character leaves the floor in the step of its jump, so gravity acts on it for that whole step"
+            );
     }
 
     [Fact]
@@ -97,11 +137,32 @@ public sealed class WorldCharacterStandingTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.25f)), Mass: 40);
-        Entity bottom = world.Spawn(new() { Frame = ground, Pose = At(0, 0.25), Body = crate });
-        Entity middle = world.Spawn(new() { Frame = ground, Pose = At(0, 0.75), Body = crate });
+        Entity bottom = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.25),
+                Body = crate,
+            }
+        );
+        Entity middle = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.75),
+                Body = crate,
+            }
+        );
         var pilot = new Pilot();
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight, 3), Body = Person, Components = [pilot] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight, 3),
+                Body = Person,
+                Components = [pilot],
+            }
+        );
         Tick(world, 60);
         // The person walks into the stack at 3 m/s and stops against it.
         pilot.EveryTick = body => body.MoveCharacter(new(0, 0, -3));
@@ -136,12 +197,21 @@ public sealed class WorldCharacterStandingTests
         // update, as it does under gravity.
         var pilot = new Pilot { EveryTick = body => body.AddForce(new(0, -70, 0)) };
         var log = new StandingLog();
-        Entity person = world.Spawn(new()
-            { Frame = space, Pose = At(0, StandingHeight), Body = Person, Components = [pilot, log] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [pilot, log],
+            }
+        );
 
         Tick(world, 30);
 
-        world.PoseInOwnFrame(person).Position.Y.Should()
+        world
+            .PoseInOwnFrame(person)
+            .Position.Y.Should()
             .BeApproximately(StandingHeight, 0.03, "the character rests on the floor");
         world.Snapshot.IsStanding(person).Should().BeFalse();
         log.Seen.Should().AllSatisfy(seen => seen.Standing.Should().BeFalse());
@@ -154,9 +224,24 @@ public sealed class WorldCharacterStandingTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var boxLog = new StandingLog();
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = Cube(), Components = [boxLog] });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = Cube(),
+                Components = [boxLog],
+            }
+        );
         var markerLog = new StandingLog();
-        Entity marker = world.Spawn(new() { Frame = ground, Pose = At(3, 0.5), Components = [markerLog] });
+        Entity marker = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(3, 0.5),
+                Components = [markerLog],
+            }
+        );
 
         Tick(world, 30);
 
@@ -174,8 +259,15 @@ public sealed class WorldCharacterStandingTests
         Floor(world, ground);
         var log = new StandingLog();
         // 0.5 m above the floor, so the character falls for about 0.3 s, then stands.
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight + 0.5), Body = Person, Components = [log] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight + 0.5),
+                Body = Person,
+                Components = [log],
+            }
+        );
 
         // The snapshot after each tick, by the number of ticks done.
         var snapshot = new Dictionary<long, bool> { [world.TickNumber] = world.Snapshot.IsStanding(person) };
@@ -199,12 +291,26 @@ public sealed class WorldCharacterStandingTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue();
 
         world.Destroy(person);
-        Entity newcomer = world.Spawn(new() { Frame = ground, Pose = At(0, 20), Body = Person });
+        Entity newcomer = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 20),
+                Body = Person,
+            }
+        );
 
         newcomer.Index.Should().Be(person.Index, "the newcomer takes the free slot");
         world.Snapshot.IsStanding(newcomer).Should().BeFalse();
@@ -215,7 +321,14 @@ public sealed class WorldCharacterStandingTests
     {
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
         world.Destroy(person);
 
         Action read = () => world.Snapshot.IsStanding(person);
@@ -233,11 +346,25 @@ public sealed class WorldCharacterStandingTests
     public void ACharacterStateForAnythingButALiveCharacterIsABug(string about)
     {
         var faults = new FaultInjectingBackend(new(new() { WorkerThreads = 2 }));
-        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
-            faults);
+        using var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            faults
+        );
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.5), Body = Cube() });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.5),
+                Body = Cube(),
+            }
+        );
         world.Tick();
         Entity named = about == "a dynamic box" ? box : new(999, 1);
         faults.EditNextOutput = output => output.Characters.Add(new(named, Standing: true));
@@ -264,13 +391,27 @@ public sealed class WorldCharacterStandingTests
     public void ASecondCharacterStateOfOneCharacterInOneStepIsABug()
     {
         var faults = new FaultInjectingBackend(new(new() { WorkerThreads = 2 }));
-        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
-            faults);
+        using var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            faults
+        );
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(1, 0, 0)) };
-        Entity person = world.Spawn(new()
-            { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot] });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+                Components = [pilot],
+            }
+        );
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue();
         double x = world.PoseInOwnFrame(person).Position.X;
@@ -284,13 +425,17 @@ public sealed class WorldCharacterStandingTests
 #if TERTIUS_CONTRACTS
         Action tick = world.Tick;
 
-        tick.Should().Throw<ContractException>()
+        tick.Should()
+            .Throw<ContractException>()
             .WithMessage($"*character state of {person}*another character state in this step*");
 #else
         world.Tick();
 
         world.Errors.Should().ContainSingle().Which.Should().Contain($"ignored the character state of {person}");
-        world.Snapshot.IsStanding(person).Should().BeFalse("the first state of the step landed, and the second did not");
+        world
+            .Snapshot.IsStanding(person)
+            .Should()
+            .BeFalse("the first state of the step landed, and the second did not");
         world.PoseInOwnFrame(person).Position.X.Should().BeGreaterThan(x + 0.01, "the body state of the step landed");
 #endif
     }
@@ -305,17 +450,32 @@ public sealed class WorldCharacterStandingTests
     public void ACharacterWhoseUpdateABrokenOutputSkipsKeepsTheStandingStateOfItsLastStep()
     {
         var faults = new FaultInjectingBackend(new(new() { WorkerThreads = 2 }));
-        using var world = new World(new() { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true },
-            faults);
+        using var world = new World(
+            new()
+            {
+                MaxDegreeOfParallelism = 1,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            faults
+        );
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity person = world.Spawn(new() { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Entity person = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue();
         faults.EditNextOutput = output =>
         {
-            output.Contacts.Add(new(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY,
-                Impulse: 0));
+            output.Contacts.Add(
+                new(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY, Impulse: 0)
+            );
             for (int i = 0; i < output.Characters.Count; i++)
                 if (output.Characters[i].Entity == person)
                     output.Characters[i] = new(person, Standing: false);
@@ -343,16 +503,38 @@ public sealed class WorldCharacterStandingTests
     public void TheStepAfterABrokenStepSetsTheStandingStateThatItReports()
     {
         var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        using var world = new World(new WorldOptions
-        {
-            MaxDegreeOfParallelism = 1, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
-        }, faults);
+        using var world = new World(
+            new WorldOptions
+            {
+                MaxDegreeOfParallelism = 1,
+                InitialCapacity = TestCapacity,
+                DebugChecks = true,
+                DisposePhysics = true,
+            },
+            faults
+        );
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Entity person = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = ground,
+                Pose = At(0, StandingHeight),
+                Body = Person,
+            }
+        );
         Tick(world, 30);
-        faults.EditNextOutput =
- output => output.Contacts.Add(new ContactStarted(A: person, B: person, Frame: ground, Point: Double3.Zero, Normal: Vector3.UnitY, Impulse: 0));
+        faults.EditNextOutput = output =>
+            output.Contacts.Add(
+                new ContactStarted(
+                    A: person,
+                    B: person,
+                    Frame: ground,
+                    Point: Double3.Zero,
+                    Normal: Vector3.UnitY,
+                    Impulse: 0
+                )
+            );
         world.Tick();
         world.Errors.Should().ContainSingle().Which.Should().Contain(person.ToString());
         world.Snapshot.IsStanding(person).Should().BeTrue();

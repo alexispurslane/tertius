@@ -82,7 +82,7 @@ internal sealed class OutlinePass : RenderPass
             CullMode = CullModeFlags.None,
             // The vertex shader cuts each segment at the near plane, so no clipping is wanted there. No depth buffer is bound.
             DepthClamp = true,
-            Blend = BlendMode.Alpha
+            Blend = BlendMode.Alpha,
         }.Create(device, shaders);
     }
 
@@ -105,10 +105,14 @@ internal sealed class OutlinePass : RenderPass
             {
                 case SemanticOutline { Center: var center, Rotation: var rotation, Radii: var radii }:
                     // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
-                    Add(scene: scene, center: center,
-                        rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W), radii: radii,
+                    Add(
+                        scene: scene,
+                        center: center,
+                        rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W),
+                        radii: radii,
                         color: OutlineColors.Semantic,
-                        flags: new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
+                        flags: new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0
+                    );
                     break;
                 case FallingOutline { Center: var center, Radius: var radius }:
                     AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Falling);
@@ -132,20 +136,43 @@ internal sealed class OutlinePass : RenderPass
 
     /// <summary>A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame.</summary>
     private static void AddSphere(PreparedScene scene, Vector3 center, float radius, uint color) =>
-        Add(scene: scene, center: center, rotation: new(x: 0, y: 0, z: 0, w: 1), radii: new(radius), color: color,
-            flags: GpuOutline.SphereFlag);
+        Add(
+            scene: scene,
+            center: center,
+            rotation: new(x: 0, y: 0, z: 0, w: 1),
+            radii: new(radius),
+            color: color,
+            flags: GpuOutline.SphereFlag
+        );
 
-    private static void Add(PreparedScene scene, Vector3 center, Vector4 rotation, Vector3 radii, uint color,
-        uint flags)
+    private static void Add(
+        PreparedScene scene,
+        Vector3 center,
+        Vector4 rotation,
+        Vector3 radii,
+        uint color,
+        uint flags
+    )
     {
         float outlineRadius = MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z));
         Vector3 position = center - scene.Camera.Offset;
         // One sum is non-finite when any term is NaN or infinite. MathF.Max passes a NaN on, so a NaN radius fails here too.
-        if (!float.IsFinite(position.X + position.Y + position.Z + radii.X + radii.Y + radii.Z) || !(outlineRadius > 0f)
-            || scene.Camera.Culls(position, outlineRadius))
+        if (
+            !float.IsFinite(position.X + position.Y + position.Z + radii.X + radii.Y + radii.Z)
+            || !(outlineRadius > 0f)
+            || scene.Camera.Culls(position, outlineRadius)
+        )
             return;
-        scene.AppendOutline(new()
-            { Rotation = rotation, Center = position, Color = color, Radii = radii, Flags = flags });
+        scene.AppendOutline(
+            new()
+            {
+                Rotation = rotation,
+                Center = position,
+                Color = color,
+                Radii = radii,
+                Flags = flags,
+            }
+        );
     }
 
     public override unsafe void Record(FrameContext context)
@@ -167,7 +194,7 @@ internal sealed class OutlinePass : RenderPass
             ImageView = context.Output.View,
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
             LoadOp = AttachmentLoadOp.Load,
-            StoreOp = AttachmentStoreOp.Store
+            StoreOp = AttachmentStoreOp.Store,
         };
         var rendering = new RenderingInfo
         {
@@ -175,22 +202,42 @@ internal sealed class OutlinePass : RenderPass
             RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
             LayerCount = 1,
             ColorAttachmentCount = 1,
-            PColorAttachments = &color
+            PColorAttachments = &color,
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
-        DescriptorSet* sets = stackalloc[]
-            { context.Frame.FrameSet, context.Frame.TextureSet, context.Targets.GBufferSet };
-        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: layouts.OverlayLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets,
-            dynamicOffsetCount: 0, pDynamicOffsets: null);
+        DescriptorSet* sets = stackalloc[] {
+            context.Frame.FrameSet,
+            context.Frame.TextureSet,
+            context.Targets.GBufferSet,
+        };
+        vk.CmdBindDescriptorSets(
+            commandBuffer: commandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layouts.OverlayLayout,
+            firstSet: 0,
+            descriptorSetCount: 3,
+            pDescriptorSets: sets,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
         context.SetFullViewport();
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.OverlayLayout,
-            stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
-            size: (uint)sizeof(OutlinePushConstants), pValues: &push);
-        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: VerticesPerOutline, instanceCount: (uint)count,
-            firstVertex: 0, firstInstance: 0);
+        vk.CmdPushConstants(
+            commandBuffer: commandBuffer,
+            layout: layouts.OverlayLayout,
+            stageFlags: ShaderStageFlags.FragmentBit,
+            offset: 0,
+            size: (uint)sizeof(OutlinePushConstants),
+            pValues: &push
+        );
+        vk.CmdDraw(
+            commandBuffer: commandBuffer,
+            vertexCount: VerticesPerOutline,
+            instanceCount: (uint)count,
+            firstVertex: 0,
+            firstInstance: 0
+        );
         vk.CmdEndRendering(commandBuffer);
     }
 

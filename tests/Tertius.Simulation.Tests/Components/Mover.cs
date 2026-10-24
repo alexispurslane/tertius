@@ -7,8 +7,6 @@ public sealed class Mover(Double3 step) : IComponent
     public int Priority => 0;
     public EventMask Wants => EventMask.Of<Tick>();
 
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
         self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + step });
-    }
 }

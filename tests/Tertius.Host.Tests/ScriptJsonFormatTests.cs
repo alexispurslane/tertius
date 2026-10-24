@@ -14,10 +14,12 @@ public sealed class ScriptJsonFormatTests
     private const string NotValid = "The script is not valid JSON of a script: ";
 
     public static TheoryData<string> CheckedInScripts =>
-    [
-        .. Directory.GetFiles(Path.Combine(HostTesting.RepositoryRoot(), "scripts"), "*.json")
-            .Select(path => Path.GetFileName(path)).Order(StringComparer.Ordinal)
-    ];
+        [
+            .. Directory
+                .GetFiles(Path.Combine(HostTesting.RepositoryRoot(), "scripts"), "*.json")
+                .Select(path => Path.GetFileName(path))
+                .Order(StringComparer.Ordinal),
+        ];
 
     private static Script ScriptWith(string step) => Script.Parse($$"""{ "scene": "probes", "steps": [ {{step}} ] }""");
 
@@ -25,7 +27,8 @@ public sealed class ScriptJsonFormatTests
     public void ARecordingWritesEachKindOfStepOnOneLineWithItsDoKeyFirst()
     {
         JsonElement payload = JsonSerializer.SerializeToElement(new { amount = 2.5 });
-        var script = new Script("probes",
+        var script = new Script(
+            "probes",
             [
                 new RunStep(3),
                 new PostStep(new ToEntity("probe"), "Nudge", payload),
@@ -36,46 +39,61 @@ public sealed class ScriptJsonFormatTests
                 new CaptureStep("b"),
                 new CameraStep("c"),
                 new FilmStep("climb", 3, 2),
-                new OutlinesStep(true)
+                new OutlinesStep(true),
             ],
-            new(640, 360));
+            new(640, 360)
+        );
 
-        script.ToJson().Should().Be("""
-                                    {
-                                      "scene": "probes",
-                                      "window": {
-                                        "width": 640,
-                                        "height": 360
-                                      },
-                                      "steps": [
-                                        {"do":"run","ticks":3},
-                                        {"do":"post","to":{"kind":"entity","id":"probe"},"event":"Nudge","payload":{"amount":2.5}},
-                                        {"do":"post","to":{"kind":"topic","name":"input"},"event":"Nudge","payload":null},
-                                        {"do":"post","to":{"kind":"frame","id":"ship"},"event":"Nudge","payload":null},
-                                        {"do":"post","to":{"kind":"broadcast"},"event":"Nudge","payload":null},
-                                        {"do":"dump","name":"a"},
-                                        {"do":"capture","name":"b"},
-                                        {"do":"camera","entity":"c"},
-                                        {"do":"film","name":"climb","frames":3,"every":2},
-                                        {"do":"outlines","show":true}
-                                      ]
-                                    }
+        script
+            .ToJson()
+            .Should()
+            .Be(
+                """
+                {
+                  "scene": "probes",
+                  "window": {
+                    "width": 640,
+                    "height": 360
+                  },
+                  "steps": [
+                    {"do":"run","ticks":3},
+                    {"do":"post","to":{"kind":"entity","id":"probe"},"event":"Nudge","payload":{"amount":2.5}},
+                    {"do":"post","to":{"kind":"topic","name":"input"},"event":"Nudge","payload":null},
+                    {"do":"post","to":{"kind":"frame","id":"ship"},"event":"Nudge","payload":null},
+                    {"do":"post","to":{"kind":"broadcast"},"event":"Nudge","payload":null},
+                    {"do":"dump","name":"a"},
+                    {"do":"capture","name":"b"},
+                    {"do":"camera","entity":"c"},
+                    {"do":"film","name":"climb","frames":3,"every":2},
+                    {"do":"outlines","show":true}
+                  ]
+                }
 
-                                    """.ReplaceLineEndings("\n"));
+                """.ReplaceLineEndings("\n")
+            );
     }
 
     [Fact]
     public void AWrittenScriptReadsBackAsTheSameSteps()
     {
-        var script = new Script("probes",
-        [
-            new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new PostStep(new ToTopic("input"), "Nudge"),
-            new PostStep(new ToFrame("ship"), "Nudge"),
-            new PostStep(new ToEveryone(), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"),
-            new FilmStep("climb", 3, 2), new OutlinesStep(true), new OutlinesStep(false)
-        ]);
+        var script = new Script(
+            "probes",
+            [
+                new RunStep(3),
+                new PostStep(new ToEntity("probe"), "Nudge"),
+                new PostStep(new ToTopic("input"), "Nudge"),
+                new PostStep(new ToFrame("ship"), "Nudge"),
+                new PostStep(new ToEveryone(), "Nudge"),
+                new DumpStep("a"),
+                new CaptureStep("b"),
+                new CameraStep("c"),
+                new FilmStep("climb", 3, 2),
+                new OutlinesStep(true),
+                new OutlinesStep(false),
+            ]
+        );
 
-        Script parsed = Script.Parse(script.ToJson());
+        var parsed = Script.Parse(script.ToJson());
 
         parsed.Steps.Should().Equal(script.Steps);
     }
@@ -97,61 +115,77 @@ public sealed class ScriptJsonFormatTests
             JsonObject step = steps[i]!.AsObject();
             if (step["do"]!.GetValue<string>() == "post" && !step.ContainsKey("payload"))
                 step["payload"] = null;
-            JsonNode.DeepEquals(writtenSteps[i], step).Should().BeTrue(
-                $"step {i + 1} of {file} writes {writtenSteps[i]!.ToJsonString()}, and the file has {step.ToJsonString()}");
+            JsonNode
+                .DeepEquals(writtenSteps[i], step)
+                .Should()
+                .BeTrue(
+                    $"step {i + 1} of {file} writes {writtenSteps[i]!.ToJsonString()}, and the file has {step.ToJsonString()}"
+                );
         }
 
         Script.Parse(written).ToJson().Should().Be(written);
     }
 
     [Theory]
-    [InlineData("entity", """
-                          {
-                            "tick": 1,
-                            "event": "Nudge",
-                            "to": {
-                              "kind": "entity",
-                              "id": "crew"
-                            },
-                            "from": null,
-                            "payload": {}
-                          }
-                          """)]
-    [InlineData("topic", """
-                         {
-                           "tick": 1,
-                           "event": "Nudge",
-                           "to": {
-                             "kind": "topic",
-                             "name": "input"
-                           },
-                           "from": null,
-                           "payload": {}
-                         }
-                         """)]
-    [InlineData("frame", """
-                         {
-                           "tick": 1,
-                           "event": "Nudge",
-                           "to": {
-                             "kind": "frame",
-                             "id": "ship"
-                           },
-                           "from": null,
-                           "payload": {}
-                         }
-                         """)]
-    [InlineData("broadcast", """
-                             {
-                               "tick": 1,
-                               "event": "Nudge",
-                               "to": {
-                                 "kind": "broadcast"
-                               },
-                               "from": null,
-                               "payload": {}
-                             }
-                             """)]
+    [InlineData(
+        "entity",
+        """
+            {
+              "tick": 1,
+              "event": "Nudge",
+              "to": {
+                "kind": "entity",
+                "id": "crew"
+              },
+              "from": null,
+              "payload": {}
+            }
+            """
+    )]
+    [InlineData(
+        "topic",
+        """
+            {
+              "tick": 1,
+              "event": "Nudge",
+              "to": {
+                "kind": "topic",
+                "name": "input"
+              },
+              "from": null,
+              "payload": {}
+            }
+            """
+    )]
+    [InlineData(
+        "frame",
+        """
+            {
+              "tick": 1,
+              "event": "Nudge",
+              "to": {
+                "kind": "frame",
+                "id": "ship"
+              },
+              "from": null,
+              "payload": {}
+            }
+            """
+    )]
+    [InlineData(
+        "broadcast",
+        """
+            {
+              "tick": 1,
+              "event": "Nudge",
+              "to": {
+                "kind": "broadcast"
+              },
+              "from": null,
+              "payload": {}
+            }
+            """
+    )]
     public void ADumpWritesATargetAsItsKindFollowedByItsMembers(string kind, string expected)
     {
         MessageTarget target = kind switch
@@ -159,12 +193,13 @@ public sealed class ScriptJsonFormatTests
             "entity" => new ToEntity("crew"),
             "topic" => new ToTopic("input"),
             "frame" => new ToFrame("ship"),
-            _ => new ToEveryone()
+            _ => new ToEveryone(),
         };
 
-        string written =
-            JsonSerializer.Serialize(new EventRecord(Tick: 1, Event: "Nudge", To: target, From: null, Payload: new()),
-                ScriptJson.Dumps(new()));
+        string written = JsonSerializer.Serialize(
+            new EventRecord(Tick: 1, Event: "Nudge", To: target, From: null, Payload: new()),
+            ScriptJson.Dumps(new())
+        );
 
         written.Should().Be(expected.ReplaceLineEndings("\n"));
     }
@@ -191,37 +226,69 @@ public sealed class ScriptJsonFormatTests
     {
         Action parse = () => ScriptWith("""{ "do": "run", "Ticks": 1 }""");
 
-        parse.Should().Throw<ScriptException>().Which.Message.Should().Be(NotValid +
-                                                                          "The JSON property 'Ticks' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.RunStep'.");
+        parse
+            .Should()
+            .Throw<ScriptException>()
+            .Which.Message.Should()
+            .Be(
+                NotValid
+                    + "The JSON property 'Ticks' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.RunStep'."
+            );
     }
 
     [Theory]
-    [InlineData("""{ "do": "run", "ticks": 1, "speed": 2 }""",
-        "The JSON property 'speed' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.RunStep'.")]
-    [InlineData("""{ "do": "run", "ticks": 1, "ticks": 500 }""",
-        "Duplicate property 'ticks' encountered during deserialization of type 'Tertius.Host.Scripting.RunStep'.")]
-    [InlineData("""{ "do": "run" }""",
-        "JSON deserialization for type 'Tertius.Host.Scripting.RunStep' was missing required properties including: 'ticks'.")]
-    [InlineData("""{ "do": "camera", "entity": "a", "name": "b" }""",
-        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.CameraStep'.")]
-    [InlineData("""{ "do": "outlines", "show": true, "name": "b" }""",
-        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.OutlinesStep'.")]
-    [InlineData("""{ "do": "outlines" }""",
-        "JSON deserialization for type 'Tertius.Host.Scripting.OutlinesStep' was missing required properties including: 'show'.")]
-    [InlineData("""{ "do": "film", "name": "a", "frames": 1, "every": 1, "ticks": 2 }""",
-        "The JSON property 'ticks' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.FilmStep'.")]
-    [InlineData("""{ "do": "film", "name": "a", "frames": 1 }""",
-        "JSON deserialization for type 'Tertius.Host.Scripting.FilmStep' was missing required properties including: 'every'.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge", "extra": 1 }""",
-        "The JSON property 'extra' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.PostStep'.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity" }, "event": "Nudge" }""",
-        "JSON deserialization for type 'Tertius.Host.Scripting.ToEntity' was missing required properties including: 'id'.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "broadcast", "id": "x" }, "event": "Nudge" }""",
-        "The JSON property 'id' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToEveryone'.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "topic", "id": "x" }, "event": "Nudge" }""",
-        "The JSON property 'id' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToTopic'.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "frame", "name": "x" }, "event": "Nudge" }""",
-        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToFrame'.")]
+    [InlineData(
+        """{ "do": "run", "ticks": 1, "speed": 2 }""",
+        "The JSON property 'speed' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.RunStep'."
+    )]
+    [InlineData(
+        """{ "do": "run", "ticks": 1, "ticks": 500 }""",
+        "Duplicate property 'ticks' encountered during deserialization of type 'Tertius.Host.Scripting.RunStep'."
+    )]
+    [InlineData(
+        """{ "do": "run" }""",
+        "JSON deserialization for type 'Tertius.Host.Scripting.RunStep' was missing required properties including: 'ticks'."
+    )]
+    [InlineData(
+        """{ "do": "camera", "entity": "a", "name": "b" }""",
+        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.CameraStep'."
+    )]
+    [InlineData(
+        """{ "do": "outlines", "show": true, "name": "b" }""",
+        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.OutlinesStep'."
+    )]
+    [InlineData(
+        """{ "do": "outlines" }""",
+        "JSON deserialization for type 'Tertius.Host.Scripting.OutlinesStep' was missing required properties including: 'show'."
+    )]
+    [InlineData(
+        """{ "do": "film", "name": "a", "frames": 1, "every": 1, "ticks": 2 }""",
+        "The JSON property 'ticks' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.FilmStep'."
+    )]
+    [InlineData(
+        """{ "do": "film", "name": "a", "frames": 1 }""",
+        "JSON deserialization for type 'Tertius.Host.Scripting.FilmStep' was missing required properties including: 'every'."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge", "extra": 1 }""",
+        "The JSON property 'extra' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.PostStep'."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity" }, "event": "Nudge" }""",
+        "JSON deserialization for type 'Tertius.Host.Scripting.ToEntity' was missing required properties including: 'id'."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "broadcast", "id": "x" }, "event": "Nudge" }""",
+        "The JSON property 'id' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToEveryone'."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "topic", "id": "x" }, "event": "Nudge" }""",
+        "The JSON property 'id' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToTopic'."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "frame", "name": "x" }, "event": "Nudge" }""",
+        "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToFrame'."
+    )]
     public void TheMembersOfAStepOrATargetAreReadStrictlyWithTheWordsOfSystemTextJson(string step, string message)
     {
         Action parse = () => ScriptWith(step);
@@ -230,24 +297,42 @@ public sealed class ScriptJsonFormatTests
     }
 
     [Theory]
-    [InlineData("""{ "do": "run", "ticks": "1" }""",
-        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59.")]
-    [InlineData("""{ "do": "run", "ticks": 1.5 }""",
-        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59.")]
-    [InlineData("""{ "do": "run", "ticks": 99999999999 }""",
-        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 67.")]
-    [InlineData("""{ "do": "dump", "name": 5 }""",
-        "The JSON value could not be converted to System.String. Path: $.name | LineNumber: 0 | BytePositionInLine: 57.")]
-    [InlineData("""{ "do": "outlines", "show": "yes" }""",
-        "The JSON value could not be converted to System.Boolean. Path: $.show | LineNumber: 0 | BytePositionInLine: 65.")]
-    [InlineData("""{ "do": "film", "name": "a", "frames": 2.5, "every": 1 }""",
-        "The JSON value could not be converted to System.Int32. Path: $.frames | LineNumber: 0 | BytePositionInLine: 74.")]
-    [InlineData("""{ "do": "capture", "name": null }""",
-        "The constructor parameter 'Name' on type 'Tertius.Host.Scripting.CaptureStep' doesn't allow null values. Consider updating its nullability annotation. Path: $.name | LineNumber: 0 | BytePositionInLine: 63.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": 3 }, "event": "Nudge" }""",
-        "The JSON value could not be converted to System.String. Path: $.id | LineNumber: 0 | BytePositionInLine: 81.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": null }, "event": "Nudge" }""",
-        "The constructor parameter 'Id' on type 'Tertius.Host.Scripting.ToEntity' doesn't allow null values. Consider updating its nullability annotation. Path: $.id | LineNumber: 0 | BytePositionInLine: 84.")]
+    [InlineData(
+        """{ "do": "run", "ticks": "1" }""",
+        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59."
+    )]
+    [InlineData(
+        """{ "do": "run", "ticks": 1.5 }""",
+        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59."
+    )]
+    [InlineData(
+        """{ "do": "run", "ticks": 99999999999 }""",
+        "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 67."
+    )]
+    [InlineData(
+        """{ "do": "dump", "name": 5 }""",
+        "The JSON value could not be converted to System.String. Path: $.name | LineNumber: 0 | BytePositionInLine: 57."
+    )]
+    [InlineData(
+        """{ "do": "outlines", "show": "yes" }""",
+        "The JSON value could not be converted to System.Boolean. Path: $.show | LineNumber: 0 | BytePositionInLine: 65."
+    )]
+    [InlineData(
+        """{ "do": "film", "name": "a", "frames": 2.5, "every": 1 }""",
+        "The JSON value could not be converted to System.Int32. Path: $.frames | LineNumber: 0 | BytePositionInLine: 74."
+    )]
+    [InlineData(
+        """{ "do": "capture", "name": null }""",
+        "The constructor parameter 'Name' on type 'Tertius.Host.Scripting.CaptureStep' doesn't allow null values. Consider updating its nullability annotation. Path: $.name | LineNumber: 0 | BytePositionInLine: 63."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": 3 }, "event": "Nudge" }""",
+        "The JSON value could not be converted to System.String. Path: $.id | LineNumber: 0 | BytePositionInLine: 81."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": { "kind": "entity", "id": null }, "event": "Nudge" }""",
+        "The constructor parameter 'Id' on type 'Tertius.Host.Scripting.ToEntity' doesn't allow null values. Consider updating its nullability annotation. Path: $.id | LineNumber: 0 | BytePositionInLine: 84."
+    )]
     public void AMistypedMemberIsRefusedWithItsPathAndItsPositionInTheText(string step, string message)
     {
         Action parse = () => ScriptWith(step);
@@ -256,14 +341,22 @@ public sealed class ScriptJsonFormatTests
     }
 
     [Theory]
-    [InlineData("\"run\"",
-        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 37.")]
-    [InlineData("5",
-        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.")]
-    [InlineData("[1]",
-        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.")]
-    [InlineData("""{ "do": "post", "to": "x", "event": "Nudge" }""",
-        "The JSON value could not be converted to Tertius.Host.Scripting.MessageTarget. Path: $.to | LineNumber: 0 | BytePositionInLine: 57.")]
+    [InlineData(
+        "\"run\"",
+        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 37."
+    )]
+    [InlineData(
+        "5",
+        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33."
+    )]
+    [InlineData(
+        "[1]",
+        "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33."
+    )]
+    [InlineData(
+        """{ "do": "post", "to": "x", "event": "Nudge" }""",
+        "The JSON value could not be converted to Tertius.Host.Scripting.MessageTarget. Path: $.to | LineNumber: 0 | BytePositionInLine: 57."
+    )]
     public void AStepOrATargetThatIsNotAnObjectIsRefusedWithItsPathAndItsPositionInTheText(string step, string message)
     {
         Action parse = () => ScriptWith(step);
@@ -276,10 +369,17 @@ public sealed class ScriptJsonFormatTests
     {
         Action parse = () =>
             ScriptWith(
-                """{ "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge", "payload": { "a": [1, 2 }""");
+                """{ "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge", "payload": { "a": [1, 2 }"""
+            );
 
-        parse.Should().Throw<ScriptException>().Which.Message.Should().Be(NotValid +
-                                                                          "'}' is invalid without a matching open. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 121.");
+        parse
+            .Should()
+            .Throw<ScriptException>()
+            .Which.Message.Should()
+            .Be(
+                NotValid
+                    + "'}' is invalid without a matching open. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 121."
+            );
     }
 
     [Fact]

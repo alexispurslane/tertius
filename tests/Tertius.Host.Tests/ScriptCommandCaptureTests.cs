@@ -27,16 +27,24 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [Fact]
     public void TheCommandCapturesWithAHeadlessRendererAndWritesThePathOfEveryFile()
     {
-        string script = ScriptFile("""
-                                   { "scene": "lit-box", "window": { "width": 160, "height": 90 },
-                                     "steps": [ { "do": "capture", "name": "front" }, { "do": "dump", "name": "state" } ] }
-                                   """);
+        string script = ScriptFile(
+            """
+            { "scene": "lit-box", "window": { "width": 160, "height": 90 },
+              "steps": [ { "do": "capture", "name": "front" }, { "do": "dump", "name": "state" } ] }
+            """
+        );
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene],
-            output: output, error: error);
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        Png.Load(Path.Combine(Out, "front.png")).IsRed(80, 45).Should()
+        Png.Load(Path.Combine(Out, "front.png"))
+            .IsRed(80, 45)
+            .Should()
             .BeTrue("the scene gets the renderer's resources, so its box has a mesh");
         output.ToString().Should().Contain(Path.Combine(Out, "front.png")).And.Contain(Path.Combine(Out, "state.json"));
     }
@@ -44,18 +52,22 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [Fact]
     public void AScriptThatOnlyCapturesGetsOneHeadlessRendererWithoutImpostors()
     {
-        string script =
-            ScriptFile(
-                """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }""");
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
         var made = new List<VulkanRenderer>();
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene],
-            output: output, error: error,
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
             createRenderer: options =>
             {
                 made.Add(VulkanRenderer.CreateHeadless(options));
                 return made[^1];
-            });
+            }
+        );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         made.Should().ContainSingle();
@@ -69,19 +81,28 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [Fact]
     public void AScriptThatOnlyFilmsGetsAHeadlessRendererAndWritesThePathOfEveryFrame()
     {
-        string script =
-            ScriptFile(
-                """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }""");
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }"""
+        );
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene],
-            output: output, error: error);
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        Png.Load(Path.Combine(Out, "box-000000.png")).IsRed(80, 45).Should()
+        Png.Load(Path.Combine(Out, "box-000000.png"))
+            .IsRed(80, 45)
+            .Should()
             .BeTrue("the scene gets the renderer's resources, so its box has a mesh");
         Png.Load(Path.Combine(Out, "box-000001.png")).IsRed(80, 45).Should().BeTrue();
-        output.ToString().Should().Contain(Path.Combine(Out, "box-000000.png")).And
-            .Contain(Path.Combine(Out, "box-000001.png"));
+        output
+            .ToString()
+            .Should()
+            .Contain(Path.Combine(Out, "box-000000.png"))
+            .And.Contain(Path.Combine(Out, "box-000001.png"));
     }
 
     [Fact]
@@ -89,9 +110,13 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     {
         string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""");
 
-        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene],
-            output: output, error: error,
-            createRenderer: _ => throw new InvalidOperationException("no Vulkan driver"));
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: _ => throw new InvalidOperationException("no Vulkan driver")
+        );
 
         code.Should().Be(ScriptCommand.ToolError);
         error.ToString().Should().Contain(script).And.Contain("no Vulkan driver");
@@ -106,20 +131,27 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         int code = ScriptCommand.Run(
             args: ["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out],
             scenes: DemoScenes.All,
-            output: output, error: error);
+            output: output,
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        using JsonDocument landed = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
+        using var landed = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
         landed.RootElement.GetProperty("camera").GetString().Should().Be("camera");
-        JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray()
+        JsonElement box = landed
+            .RootElement.GetProperty("entities")
+            .EnumerateArray()
             .Single(e => e.GetProperty("id").GetString() == "box");
-        box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should()
+        box.GetProperty("pose")
+            .GetProperty("position")[1]
+            .GetDouble()
+            .Should()
             .BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
         // The camera at (0, 2.5, 9), tilted down 6.3 degrees, sees the box's center at y = 3 on row 256 and at y = 0.5 on
         // row 428 of the 720 rows.
-        Png start = Png.Load(Path.Combine(Out, "start.png"));
+        var start = Png.Load(Path.Combine(Out, "start.png"));
         start.IsOrange(640, 256).Should().BeTrue("the box starts at y = 3");
-        Png end = Png.Load(Path.Combine(Out, "landed.png"));
+        var end = Png.Load(Path.Combine(Out, "landed.png"));
         end.IsOrange(640, 428).Should().BeTrue("the box rests on the floor");
         end.IsOrange(640, 256).Should().BeFalse("the box has left its start");
     }

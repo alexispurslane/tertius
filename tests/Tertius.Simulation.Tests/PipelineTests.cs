@@ -19,11 +19,13 @@ public sealed class PipelineTests
     {
         using var t = new TestWorld();
         var log = new List<string>();
-        EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log: log, name: "3", priority: 3, wants: tick),
+        var tick = EventMask.Of<Tick>();
+        t.SpawnWith(
+            Named(log: log, name: "3", priority: 3, wants: tick),
             Named(log: log, name: "-2", priority: -2, wants: tick),
             Named(log: log, name: "1", priority: 1, wants: tick),
-            Named(log: log, name: "0", priority: 0, wants: tick));
+            Named(log: log, name: "0", priority: 0, wants: tick)
+        );
 
         t.World.Tick();
 
@@ -35,14 +37,15 @@ public sealed class PipelineTests
     {
         using var t = new TestWorld();
         var log = new List<string>();
-        EventMask tick = EventMask.Of<Tick>();
+        var tick = EventMask.Of<Tick>();
         t.SpawnWith(
             Named(log: log, name: "5a", priority: 5, wants: tick),
             Named(log: log, name: "1a", priority: 1, wants: tick),
             Named(log: log, name: "5b", priority: 5, wants: tick),
             Named(log: log, name: "1b", priority: 1, wants: tick),
             Named(log: log, name: "3", priority: 3, wants: tick),
-            Named(log: log, name: "-2", priority: -2, wants: tick));
+            Named(log: log, name: "-2", priority: -2, wants: tick)
+        );
 
         t.World.Tick();
 
@@ -54,9 +57,11 @@ public sealed class PipelineTests
     {
         using var t = new TestWorld();
         var log = new List<string>();
-        EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log: log, name: "late", priority: 1, wants: tick),
-            Named(log: log, name: "early", priority: 0, wants: tick));
+        var tick = EventMask.Of<Tick>();
+        t.SpawnWith(
+            Named(log: log, name: "late", priority: 1, wants: tick),
+            Named(log: log, name: "early", priority: 0, wants: tick)
+        );
 
         t.Run(3);
 
@@ -183,18 +188,25 @@ public sealed class PipelineTests
     {
         using var t = new TestWorld();
         var recorder = new Recorder(EventMask.Of<Tick>().And<Spawned>().And<Ping>());
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            // The child is spawned and sent a message on the same tick, so its first run has all three kinds of event.
-            Entity child = self.Spawn(new() { Frame = self.Frame, Components = [recorder] });
-            outbox.Send(child, new Ping { Value = 1 });
-        }));
+        t.SpawnWith(
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                {
+                    if (self.Tick != 0)
+                        return;
+                    // The child is spawned and sent a message on the same tick, so its first run has all three kinds of event.
+                    Entity child = self.Spawn(new() { Frame = self.Frame, Components = [recorder] });
+                    outbox.Send(child, new Ping { Value = 1 });
+                }
+            )
+        );
 
         t.Run(2);
 
-        recorder.History.Should().ContainSingle().Which.EventTypes.Should()
+        recorder
+            .History.Should()
+            .ContainSingle()
+            .Which.EventTypes.Should()
             .Equal(typeof(Tick), typeof(Spawned), typeof(Ping));
     }
 

@@ -35,9 +35,16 @@ internal sealed class FrameContext
     public unsafe void BindSceneSets()
     {
         DescriptorSet* sets = stackalloc[] { Frame.FrameSet, Frame.TextureSet, Targets.GBufferSet };
-        Vk.CmdBindDescriptorSets(commandBuffer: CommandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: Layouts.SceneLayout, firstSet: 0, descriptorSetCount: 3, pDescriptorSets: sets,
-            dynamicOffsetCount: 0, pDynamicOffsets: null);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: Layouts.SceneLayout,
+            firstSet: 0,
+            descriptorSetCount: 3,
+            pDescriptorSets: sets,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
@@ -81,16 +88,12 @@ internal abstract class RenderPass : IDisposable
     public abstract string Name { get; }
 
     /// <summary>CPU work before the frame's instance and indirect buffers are written. Optional.</summary>
-    public virtual void Prepare(FrameContext context)
-    {
-    }
+    public virtual void Prepare(FrameContext context) { }
 
     /// <summary>Records this pass into <see cref="FrameContext.CommandBuffer"/>.</summary>
     public abstract void Record(FrameContext context);
 
-    public virtual void Dispose()
-    {
-    }
+    public virtual void Dispose() { }
 }
 
 /// <summary>
@@ -118,7 +121,7 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,
-        Readback
+        Readback,
     }
 
     public void Add(Stage stage, RenderPass pass)

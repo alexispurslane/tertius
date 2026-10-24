@@ -9,7 +9,8 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class EntityTableRowFrameChangeTests
 {
-    private static readonly FrameHandle Here = new(new(100, 1), 1, 1), There = new(new(101, 1), 2, 1);
+    private static readonly FrameHandle Here = new(new(100, 1), 1, 1),
+        There = new(new(101, 1), 2, 1);
 
     private readonly EntityTable table = TableSupport.NewTable();
 

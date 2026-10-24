@@ -17,7 +17,8 @@ public sealed record Blueprint(
     BodyDesc? Body = null,
     RenderData? Render = null,
     FrameSpec? Frame = null,
-    string? Parent = null);
+    string? Parent = null
+);
 
 /// <summary>A component type and the values of some of its public fields or settable properties.</summary>
 public sealed record ComponentSpec(Type Type, IReadOnlyDictionary<string, object?>? Fields = null);
@@ -68,7 +69,8 @@ public sealed class Blueprints
             if (blueprint.Parent is { } parentName && !entries.TryGetValue(parentName, out parent))
                 throw new ArgumentException(
                     $"Blueprint '{name}' names the parent '{parentName}', which is not registered. Register parents first.",
-                    nameof(blueprint));
+                    nameof(blueprint)
+                );
 
             var specs = new List<(Type Type, Dictionary<string, object?> Fields)>();
             if (parent != null)
@@ -93,8 +95,12 @@ public sealed class Blueprints
 
                 if (spec.Fields != null)
                     foreach ((string field, object? value) in spec.Fields)
-                        specs[index].Fields[field] =
-                            Coerce(blueprint: name, type: spec.Type, field: field, value: value);
+                        specs[index].Fields[field] = Coerce(
+                            blueprint: name,
+                            type: spec.Type,
+                            field: field,
+                            value: value
+                        );
             }
 
             var recipes = new Recipe[specs.Count];
@@ -108,12 +114,18 @@ public sealed class Blueprints
                 for (int j = 0; j < names.Length; j++)
                     values[j] = fields[names[j]];
                 var key = new FactoryKey(type, string.Join('\n', names));
-                Func<object?[], IComponent> factory = Factories.GetOrAdd(key,
-                    static (_, arg) => Compile(arg.Type, arg.Names), (Type: type, Names: names));
+                Func<object?[], IComponent> factory = Factories.GetOrAdd(
+                    key,
+                    static (_, arg) => Compile(arg.Type, arg.Names),
+                    (Type: type, Names: names)
+                );
                 recipes[i] = new(factory, values);
-                resolvedSpecs[i] = new(type,
+                resolvedSpecs[i] = new(
+                    type,
                     new ReadOnlyDictionary<string, object?>(
-                        new Dictionary<string, object?>(fields, StringComparer.Ordinal)));
+                        new Dictionary<string, object?>(fields, StringComparer.Ordinal)
+                    )
+                );
             }
 
             Blueprint? parentBlueprint = parent?.Resolved;
@@ -123,7 +135,8 @@ public sealed class Blueprints
                 Body: blueprint.Body ?? parentBlueprint?.Body,
                 Render: blueprint.Render ?? parentBlueprint?.Render,
                 Frame: blueprint.Frame ?? parentBlueprint?.Frame,
-                Parent: null);
+                Parent: null
+            );
             entries[name] = new(resolved, specs, recipes);
         }
     }
@@ -152,7 +165,7 @@ public sealed class Blueprints
             Body = entry.Resolved.Body,
             Render = entry.Resolved.Render,
             AsFrame = entry.Resolved.Frame,
-            Components = Instantiate(name)
+            Components = Instantiate(name),
         };
     }
 
@@ -177,10 +190,12 @@ public sealed class Blueprints
             throw new ArgumentException($"Blueprint '{blueprint}': {type.FullName} must be a concrete class.");
         if (type.IsGenericType)
             throw new ArgumentException(
-                $"Blueprint '{blueprint}': {type.FullName} is generic, and generic component types are refused (see ComponentTypes).");
+                $"Blueprint '{blueprint}': {type.FullName} is generic, and generic component types are refused (see ComponentTypes)."
+            );
         if (type.GetConstructor(BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes) is null)
             throw new ArgumentException(
-                $"Blueprint '{blueprint}': {type.FullName} needs a public parameterless constructor.");
+                $"Blueprint '{blueprint}': {type.FullName} needs a public parameterless constructor."
+            );
     }
 
     /// <summary>A public instance field that is not read-only, or a public property with a public setter.</summary>
@@ -193,8 +208,10 @@ public sealed class Blueprints
             return field;
         }
 
-        if (type.GetProperty(name, Public) is { SetMethod.IsPublic: true } property &&
-            property.GetIndexParameters().Length == 0)
+        if (
+            type.GetProperty(name, Public) is { SetMethod.IsPublic: true } property
+            && property.GetIndexParameters().Length == 0
+        )
         {
             memberType = property.PropertyType;
             return property;
@@ -209,12 +226,14 @@ public sealed class Blueprints
     {
         if (FindMember(type, field, out Type memberType) is null)
             throw new ArgumentException(
-                $"Blueprint '{blueprint}': {type.Name} has no public writable field or property named '{field}'.");
+                $"Blueprint '{blueprint}': {type.Name} has no public writable field or property named '{field}'."
+            );
         Type target = Nullable.GetUnderlyingType(memberType) ?? memberType;
         if (value is null)
             return memberType.IsValueType && target == memberType
                 ? throw new ArgumentException(
-                    $"Blueprint '{blueprint}': {type.Name}.{field} is a {memberType.Name} and cannot be null.")
+                    $"Blueprint '{blueprint}': {type.Name}.{field} is a {memberType.Name} and cannot be null."
+                )
                 : null;
 
         if (target.IsInstanceOfType(value))
@@ -237,16 +256,28 @@ public sealed class Blueprints
         {
             throw new ArgumentException(
                 $"Blueprint '{blueprint}': {type.Name}.{field} is a {memberType.Name}; cannot convert {value} ({value.GetType().Name}): {ex.Message}",
-                ex);
+                ex
+            );
         }
 
         throw new ArgumentException(
-            $"Blueprint '{blueprint}': {type.Name}.{field} is a {memberType.Name}; a {value.GetType().Name} is not assignable to it.");
+            $"Blueprint '{blueprint}': {type.Name}.{field} is a {memberType.Name}; a {value.GetType().Name} is not assignable to it."
+        );
     }
 
-    private static bool IsNumber(Type type) => Type.GetTypeCode(type) is
-        TypeCode.Byte or TypeCode.SByte or TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Int32 or TypeCode.UInt32 or
-        TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Single or TypeCode.Double or TypeCode.Decimal;
+    private static bool IsNumber(Type type) =>
+        Type.GetTypeCode(type)
+            is TypeCode.Byte
+                or TypeCode.SByte
+                or TypeCode.Int16
+                or TypeCode.UInt16
+                or TypeCode.Int32
+                or TypeCode.UInt32
+                or TypeCode.Int64
+                or TypeCode.UInt64
+                or TypeCode.Single
+                or TypeCode.Double
+                or TypeCode.Decimal;
 
     /// <summary>Compiles <c>values =&gt; new T { F0 = (T0)values[0], F1 = (T1)values[1], ... }</c>.</summary>
     private static Func<object?[], IComponent> Compile(Type type, string[] names)
@@ -255,9 +286,9 @@ public sealed class Blueprints
         var bindings = new MemberBinding[names.Length];
         for (int i = 0; i < names.Length; i++)
         {
-            MemberInfo member = FindMember(type, names[i], out Type memberType) ??
-                                throw new UnreachableException(
-                                    $"The blueprint's check found the member {names[i]} of {type}.");
+            MemberInfo member =
+                FindMember(type, names[i], out Type memberType)
+                ?? throw new UnreachableException($"The blueprint's check found the member {names[i]} of {type}.");
             Expression value = Expression.Convert(Expression.ArrayIndex(values, Expression.Constant(i)), memberType);
             bindings[i] = Expression.Bind(member, value);
         }
@@ -273,5 +304,6 @@ public sealed class Blueprints
     private sealed record Entry(
         Blueprint Resolved,
         List<(Type Type, Dictionary<string, object?> Fields)> Specs,
-        Recipe[] Recipes);
+        Recipe[] Recipes
+    );
 }

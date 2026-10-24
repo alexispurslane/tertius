@@ -56,7 +56,7 @@ internal static class Layers
             BodyLayer.Static => Encode(StaticRole | groups.Bits, anyOf | HullRole),
             BodyLayer.Moving => Encode(MovingRole | groups.Bits, anyOf),
             BodyLayer.Ghost => Encode(GhostRole | groups.Bits, anyOf),
-            BodyLayer.FrameHull => FrameHull
+            BodyLayer.FrameHull => FrameHull,
         };
     }
 
@@ -69,7 +69,8 @@ internal static class Layers
     /// </summary>
     public static bool Meet(ObjectLayer a, ObjectLayer b)
     {
-        uint x = a, y = b;
+        uint x = a,
+            y = b;
         return (x & 0xFFFF & (y >> 16)) != 0 && (y & 0xFFFF & (x >> 16)) != 0;
     }
 
@@ -83,7 +84,7 @@ internal static class Layers
         Static,
         Moving,
         FrameHull,
-        Ghost
+        Ghost,
     }
 
     /// <summary>

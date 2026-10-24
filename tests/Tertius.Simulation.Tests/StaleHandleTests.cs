@@ -14,8 +14,12 @@ internal static class StaleTables
     /// Releases a live entity and spawns <paramref name="successor"/>, which takes the released slot. Returns the
     /// released entity's handle, which is now stale.
     /// </summary>
-    public static Entity ReuseSlot(this EntityTable table, out Entity successor, BodyDesc? body = null,
-        params IComponent[] components)
+    public static Entity ReuseSlot(
+        this EntityTable table,
+        out Entity successor,
+        BodyDesc? body = null,
+        params IComponent[] components
+    )
     {
         Entity stale = table.SpawnLiveWith(body);
         table.Release(stale);
@@ -34,7 +38,14 @@ public sealed class StaleHandleTests
     // the goal already holds, and never list a dead entity in a query.
 
     private static readonly string[] NamesNoLiveEntity =
-        ["null", "never issued", "from the future", "reserved, not live yet", "released", "released and reused"];
+    [
+        "null",
+        "never issued",
+        "from the future",
+        "reserved, not live yet",
+        "released",
+        "released and reused",
+    ];
 
     /// <summary>The members that throw for a handle that names no live entity, and can be called outside a tick.</summary>
     private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowOutsideATick = new()
@@ -52,7 +63,7 @@ public sealed class StaleHandleTests
         [nameof(EntityTable.TakeFirstTick)] = (table, entity) => _ = table.TakeFirstTick(entity),
         [nameof(EntityTable.SetBackTransform)] = (table, entity) => table.SetBackTransform(entity, RowAt(5)),
         [nameof(EntityTable.AddComponent)] = (table, entity) => table.AddComponent(entity, new Recorder()),
-        ["Column indexer"] = (table, entity) => _ = table.AddColumn<int>()[entity]
+        ["Column indexer"] = (table, entity) => _ = table.AddColumn<int>()[entity],
     };
 
     /// <summary>The members that throw for a handle that names no live entity, and can be called only during the gameplay part of a tick.</summary>
@@ -61,27 +72,28 @@ public sealed class StaleHandleTests
         [nameof(EntityTable.WritableTransform)] = (table, entity) => table.WritableTransform(entity) = TestWorld.At(9),
         [nameof(EntityTable.WritableRender)] = (table, entity) => table.WritableRender(entity).Scale = new(9),
         [nameof(EntityTable.WritableIntent)] = (table, entity) => table.WritableIntent(entity).Force = new(9, 0, 0),
-        [nameof(EntityTable.ReserveForSpawn)] = (table, entity) => _ = table.ReserveForSpawn(entity)
+        [nameof(EntityTable.ReserveForSpawn)] = (table, entity) => _ = table.ReserveForSpawn(entity),
     };
 
     private static TransformRow RowAt(double x) => new() { Pose = TestWorld.At(x) };
 
     /// <summary>One read of an entity's data through the table.</summary>
-    private static Action Read(EntityTable table, string member, Entity entity) => member switch
-    {
-        nameof(EntityTable.FrontRow) => () => _ = table.FrontRow(entity).Pose,
-        nameof(EntityTable.BackRow) => () => _ = table.BackRow(entity).Pose,
-        nameof(EntityTable.FrontRender) => () => _ = table.FrontRender(entity).Scale,
-        nameof(EntityTable.Components) => () => _ = table.Components(entity).Length,
-        nameof(EntityTable.ComponentWants) => () => _ = table.ComponentWants(entity).Length,
-        nameof(EntityTable.Body) => () => _ = table.Body(entity),
-        nameof(EntityTable.OwnedFrame) => () => _ = table.OwnedFrame(entity),
-        nameof(EntityTable.Accepts) => () => _ = table.Accepts(entity, EventType<Destroy>.Id),
-        nameof(EntityTable.PendingIntent) => () => _ = table.PendingIntent(entity),
-        nameof(EntityTable.GameplayWroteTransform) => () => _ = table.GameplayWroteTransform(entity),
-        nameof(EntityTable.TakeFirstTick) => () => _ = table.TakeFirstTick(entity),
-        _ => throw new ArgumentOutOfRangeException(nameof(member), member, null)
-    };
+    private static Action Read(EntityTable table, string member, Entity entity) =>
+        member switch
+        {
+            nameof(EntityTable.FrontRow) => () => _ = table.FrontRow(entity).Pose,
+            nameof(EntityTable.BackRow) => () => _ = table.BackRow(entity).Pose,
+            nameof(EntityTable.FrontRender) => () => _ = table.FrontRender(entity).Scale,
+            nameof(EntityTable.Components) => () => _ = table.Components(entity).Length,
+            nameof(EntityTable.ComponentWants) => () => _ = table.ComponentWants(entity).Length,
+            nameof(EntityTable.Body) => () => _ = table.Body(entity),
+            nameof(EntityTable.OwnedFrame) => () => _ = table.OwnedFrame(entity),
+            nameof(EntityTable.Accepts) => () => _ = table.Accepts(entity, EventType<Destroy>.Id),
+            nameof(EntityTable.PendingIntent) => () => _ = table.PendingIntent(entity),
+            nameof(EntityTable.GameplayWroteTransform) => () => _ = table.GameplayWroteTransform(entity),
+            nameof(EntityTable.TakeFirstTick) => () => _ = table.TakeFirstTick(entity),
+            _ => throw new ArgumentOutOfRangeException(nameof(member), member, null),
+        };
 
     [Theory]
     [InlineData(nameof(EntityTable.FrontRow))]
@@ -120,7 +132,7 @@ public sealed class StaleHandleTests
         {
             nameof(EntityTable.WritableTransform) => () => table.WritableTransform(stale) = TestWorld.At(9),
             nameof(EntityTable.WritableRender) => () => table.WritableRender(stale).Scale = new(9),
-            _ => () => table.WritableIntent(stale).Force = new(9, 0, 0)
+            _ => () => table.WritableIntent(stale).Force = new(9, 0, 0),
         };
         write.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
 
@@ -212,8 +224,16 @@ public sealed class StaleHandleTests
         Entity next = table.Reserve();
 
         Action activate = () =>
-            table.Activate(entity: reservation, row: default, render: new(), components: [], wants: [], body: null,
-                bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+            table.Activate(
+                entity: reservation,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(reservation);
         table.IsAlive(next).Should().BeFalse();
@@ -227,10 +247,21 @@ public sealed class StaleHandleTests
         EntityTable table = TableSupport.NewTable();
         Entity live = table.SpawnLive();
 
-        Action activate = () => table.Activate(entity: live, row: RowAt(9), render: new(), components: [], wants: [],
-            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        Action activate = () =>
+            table.Activate(
+                entity: live,
+                row: RowAt(9),
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
 
-        activate.Should().ThrowExactly<InvalidOperationException>()
+        activate
+            .Should()
+            .ThrowExactly<InvalidOperationException>()
             .WithMessage($"*{live}*does not name a reservation*");
         table.LiveCount.Should().Be(1);
         table.FrontRow(live).Pose.Position.X.Should().Be(0);
@@ -265,7 +296,9 @@ public sealed class StaleHandleTests
     public void TheLiveEntitiesOfAChunkAreTheCurrentHandlesOfItsLiveSlots()
     {
         EntityTable table = TableSupport.NewTable();
-        Entity a = table.SpawnLive(), b = table.SpawnLive(), c = table.SpawnLive();
+        Entity a = table.SpawnLive(),
+            b = table.SpawnLive(),
+            c = table.SpawnLive();
         table.Release(b);
         Entity reserved = table.Reserve();
         reserved.Index.Should().Be(b.Index);
@@ -273,8 +306,16 @@ public sealed class StaleHandleTests
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, c);
         Live(table.LiveEntities).Should().Equal(a, c);
 
-        table.Activate(entity: reserved, row: default, render: new(), components: [], wants: [], body: null,
-            bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        table.Activate(
+            entity: reserved,
+            row: default,
+            render: new(),
+            components: [],
+            wants: [],
+            body: null,
+            bodyCenterOfMass: Vector3.Zero,
+            ownedFrame: FrameHandle.Null
+        );
         Live(table.LiveEntitiesOfChunk(0)).Should().Equal(a, reserved, c);
         Live(table.LiveEntitiesIn(1, 3)).Should().Equal(reserved, c);
     }
@@ -283,7 +324,8 @@ public sealed class StaleHandleTests
     public void TheMovedEntitiesNeverIncludeADeadEntity()
     {
         EntityTable table = TableSupport.NewTable();
-        Entity a = table.SpawnLive(), b = table.SpawnLive();
+        Entity a = table.SpawnLive(),
+            b = table.SpawnLive();
         table.TakeMoved();
         table.SetBackTransform(a, RowAt(2));
         table.SetBackTransform(b, RowAt(3));
@@ -337,7 +379,7 @@ public sealed class StaleHandleTests
             "reserved, not live yet" => table.Reserve(),
             "released" => ReleasedHandle(table),
             "released and reused" => table.ReuseSlot(out _),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
         return (table, handle);
     }
@@ -399,8 +441,17 @@ public sealed class StaleHandleTests
     {
         (EntityTable table, Entity handle) = TableWithHandle(kind);
 
-        Action activate = () => table.Activate(entity: handle, row: default, render: new(), components: [], wants: [],
-            body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
+        Action activate = () =>
+            table.Activate(
+                entity: handle,
+                row: default,
+                render: new(),
+                components: [],
+                wants: [],
+                body: null,
+                bodyCenterOfMass: Vector3.Zero,
+                ownedFrame: FrameHandle.Null
+            );
 
         activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
         table.AssertInvariants();

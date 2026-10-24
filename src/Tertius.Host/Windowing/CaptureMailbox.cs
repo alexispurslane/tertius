@@ -6,9 +6,11 @@ namespace Tertius.Host.Windowing;
 /// One capture at a time from the simulation thread, which asks and waits, to the render thread, which draws it and
 /// hands its pixels to the capture's sink.
 /// </summary>
-[SuppressMessage("Design", "CA1001",
-    Justification =
-        "A SemaphoreSlim holds an OS handle only after a read of AvailableWaitHandle, which this class never does.")]
+[SuppressMessage(
+    "Design",
+    "CA1001",
+    Justification = "A SemaphoreSlim holds an OS handle only after a read of AvailableWaitHandle, which this class never does."
+)]
 public sealed class CaptureMailbox
 {
     private readonly SemaphoreSlim handedOver = new(0);

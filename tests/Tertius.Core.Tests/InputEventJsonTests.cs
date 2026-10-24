@@ -19,33 +19,38 @@ public sealed class InputEventJsonTests
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        IncludeFields = true
+        IncludeFields = true,
     };
 
     /// <summary>Every kind, with the JSON that a script writes for it and the event that the JSON stands for.</summary>
-    public static TheoryData<string, InputEvent> Forms => new()
-    {
-        { """{"kind":"keyDown","code":87}""", InputEvent.KeyDown(87) },
-        { """{"kind":"keyUp","code":87}""", InputEvent.KeyUp(87) },
-        { """{"kind":"mouseDown","code":0}""", InputEvent.MouseDown(0) },
-        { """{"kind":"mouseUp","code":1}""", InputEvent.MouseUp(1) },
-        { """{"kind":"mouseMove","delta":[-628.3185,174.5329]}""", InputEvent.MouseMove(new(-628.3185f, 174.5329f)) },
-        { """{"kind":"scroll","delta":[0,-2]}""", InputEvent.Scroll(new(0, -2)) }
-    };
+    public static TheoryData<string, InputEvent> Forms =>
+        new()
+        {
+            { """{"kind":"keyDown","code":87}""", InputEvent.KeyDown(87) },
+            { """{"kind":"keyUp","code":87}""", InputEvent.KeyUp(87) },
+            { """{"kind":"mouseDown","code":0}""", InputEvent.MouseDown(0) },
+            { """{"kind":"mouseUp","code":1}""", InputEvent.MouseUp(1) },
+            {
+                """{"kind":"mouseMove","delta":[-628.3185,174.5329]}""",
+                InputEvent.MouseMove(new(-628.3185f, 174.5329f))
+            },
+            { """{"kind":"scroll","delta":[0,-2]}""", InputEvent.Scroll(new(0, -2)) },
+        };
 
     /// <summary>
     /// Posts as the recorder wrote them before the input event was a union: every member of the old struct, with zero for
     /// the member that the kind does not use, and the delta in the form of every other vector of a recording.
     /// </summary>
-    public static TheoryData<string, InputEvent> OldRecordedForms => new()
-    {
-        { """{"kind":"keyDown","code":87,"delta":[0, 0]}""", InputEvent.KeyDown(87) },
-        { """{"kind":"keyUp","code":87,"delta":[0, 0]}""", InputEvent.KeyUp(87) },
-        { """{"kind":"mouseDown","code":0,"delta":[0, 0]}""", InputEvent.MouseDown(0) },
-        { """{"kind":"mouseUp","code":1,"delta":[0, 0]}""", InputEvent.MouseUp(1) },
-        { """{"kind":"mouseMove","code":0,"delta":[3, -4]}""", InputEvent.MouseMove(new(3, -4)) },
-        { """{"kind":"scroll","code":0,"delta":[0, 1]}""", InputEvent.Scroll(new(0, 1)) }
-    };
+    public static TheoryData<string, InputEvent> OldRecordedForms =>
+        new()
+        {
+            { """{"kind":"keyDown","code":87,"delta":[0, 0]}""", InputEvent.KeyDown(87) },
+            { """{"kind":"keyUp","code":87,"delta":[0, 0]}""", InputEvent.KeyUp(87) },
+            { """{"kind":"mouseDown","code":0,"delta":[0, 0]}""", InputEvent.MouseDown(0) },
+            { """{"kind":"mouseUp","code":1,"delta":[0, 0]}""", InputEvent.MouseUp(1) },
+            { """{"kind":"mouseMove","code":0,"delta":[3, -4]}""", InputEvent.MouseMove(new(3, -4)) },
+            { """{"kind":"scroll","code":0,"delta":[0, 1]}""", InputEvent.Scroll(new(0, 1)) },
+        };
 
     private static InputEvent Read(string json) => JsonSerializer.Deserialize<InputEvent>(json, Options);
 
@@ -53,18 +58,16 @@ public sealed class InputEventJsonTests
 
     [Theory]
     [MemberData(nameof(Forms))]
-    public void EachKindReadsFromTheJsonThatScriptsWrite(string json, InputEvent expected)
-    {
+    public void EachKindReadsFromTheJsonThatScriptsWrite(string json, InputEvent expected) =>
         (Read(json) == expected).Should().BeTrue();
-    }
 
     [Theory]
     [MemberData(nameof(Forms))]
-    public void EachKindWritesTheJsonThatScriptsWrite(string expected, InputEvent e)
-    {
-        JsonNode.DeepEquals(JsonNode.Parse(Write(e)), JsonNode.Parse(expected)).Should()
+    public void EachKindWritesTheJsonThatScriptsWrite(string expected, InputEvent e) =>
+        JsonNode
+            .DeepEquals(JsonNode.Parse(Write(e)), JsonNode.Parse(expected))
+            .Should()
             .BeTrue($"{Write(e)} is the same JSON as {expected}");
-    }
 
     [Theory]
     [MemberData(nameof(Forms))]
@@ -72,16 +75,18 @@ public sealed class InputEventJsonTests
     {
         JsonNode written = JsonNode.Parse(Write(e))!;
 
-        written.AsObject().Select(member => member.Key).Order(StringComparer.Ordinal).Should()
+        written
+            .AsObject()
+            .Select(member => member.Key)
+            .Order(StringComparer.Ordinal)
+            .Should()
             .Equal(JsonNode.Parse(expected)!.AsObject().Select(member => member.Key).Order(StringComparer.Ordinal));
     }
 
     [Theory]
     [MemberData(nameof(Forms))]
-    public void EachKindReadsBackAsTheEventThatWasWritten(string _, InputEvent e)
-    {
+    public void EachKindReadsBackAsTheEventThatWasWritten(string _, InputEvent e) =>
         (Read(Write(e)) == e).Should().BeTrue();
-    }
 
     [Fact]
     public void ADeltaReadsBackToTheLastBit()
@@ -115,15 +120,16 @@ public sealed class InputEventJsonTests
     }
 
     [Fact]
-    public void WhitespaceBetweenTheTokensOfAnEventDoesNotMatter()
-    {
-        (Read("""
-              {
-                "kind" : "mouseMove",
-                "delta" : [ 1.5 , -2 ]
-              }
-              """) == InputEvent.MouseMove(new(1.5f, -2))).Should().BeTrue();
-    }
+    public void WhitespaceBetweenTheTokensOfAnEventDoesNotMatter() => (
+            Read(
+                """
+                {
+                  "kind" : "mouseMove",
+                  "delta" : [ 1.5 , -2 ]
+                }
+                """
+            ) == InputEvent.MouseMove(new(1.5f, -2))
+        ).Should().BeTrue();
 
     [Fact]
     public void AKindNameReadsWhateverItsCase()
@@ -136,11 +142,15 @@ public sealed class InputEventJsonTests
     public void TheMemberNamesDoNotFollowTheNamingPolicyOfTheOptions()
     {
         var shouting = new JsonSerializerOptions
-            { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseUpper, IncludeFields = true };
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseUpper,
+            IncludeFields = true,
+        };
 
         JsonSerializer.Serialize(InputEvent.KeyDown(87), shouting).Should().Be("""{"kind":"keyDown","code":87}""");
         (JsonSerializer.Deserialize<InputEvent>("""{"kind":"keyDown","code":87}""", shouting) == InputEvent.KeyDown(87))
-            .Should().BeTrue();
+            .Should()
+            .BeTrue();
     }
 
     [Fact]
@@ -161,22 +171,19 @@ public sealed class InputEventJsonTests
     }
 
     [Fact]
-    public void ADeltaThatJsonCannotHoldIsWrittenAsAStringSoThatADumpOfABrokenStateStillWrites()
-    {
+    public void ADeltaThatJsonCannotHoldIsWrittenAsAStringSoThatADumpOfABrokenStateStillWrites() =>
         Write(InputEvent.MouseMove(new(float.NaN, float.PositiveInfinity))).Should().Contain("""["NaN", "Infinity"]""");
-    }
 
     [Fact]
-    public void TheEmptyEventIsWrittenAsNull()
-    {
-        Write(default).Should().Be("null");
-    }
+    public void TheEmptyEventIsWrittenAsNull() => Write(default).Should().Be("null");
 
     [Fact]
     public void AListOfEventsReadsEventByEvent()
     {
         InputEvent[] events = JsonSerializer.Deserialize<InputEvent[]>(
-            """[{"kind":"keyDown","code":87},{"kind":"scroll","delta":[1,2]},{"kind":"mouseUp","code":0}]""", Options)!;
+            """[{"kind":"keyDown","code":87},{"kind":"scroll","delta":[1,2]},{"kind":"mouseUp","code":0}]""",
+            Options
+        )!;
 
         events.Should().Equal(InputEvent.KeyDown(87), InputEvent.Scroll(new(1, 2)), InputEvent.MouseUp(0));
     }
@@ -184,7 +191,10 @@ public sealed class InputEventJsonTests
     [Fact]
     public void AnEventInsideAnObjectReadsAndLeavesTheReaderAtTheNextMember()
     {
-        var read = JsonSerializer.Deserialize<Wrapper>("""{"first":{"kind":"keyUp","code":3},"count":5}""", Options);
+        Wrapper read = JsonSerializer.Deserialize<Wrapper>(
+            """{"first":{"kind":"keyUp","code":3},"count":5}""",
+            Options
+        );
 
         (read.First == InputEvent.KeyUp(3)).Should().BeTrue();
         read.Count.Should().Be(5);
@@ -296,7 +306,9 @@ public sealed class InputEventJsonTests
     {
         Action read = () => Read(json);
 
-        read.Should().Throw<JsonException>().Which.Message.Should()
+        read.Should()
+            .Throw<JsonException>()
+            .Which.Message.Should()
             .Contain("Expected the delta, an array of 2 numbers");
     }
 
@@ -307,7 +319,9 @@ public sealed class InputEventJsonTests
     {
         Action read = () => Read(json);
 
-        read.Should().Throw<JsonException>().Which.Message.Should()
+        read.Should()
+            .Throw<JsonException>()
+            .Which.Message.Should()
             .Contain("The number is out of the range of a float");
     }
 

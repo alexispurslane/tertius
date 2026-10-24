@@ -92,7 +92,9 @@ internal sealed class EntitySet
 
         if (spare.Length < count + k)
             spare = new Entity[Math.Max(count + k, spare.Length * 2)];
-        int i = 0, p = 0, w = 0;
+        int i = 0,
+            p = 0,
+            w = 0;
         while (i < count || p < k)
         {
             if (p == k || (i < count && SortKey(items[i]) < pendingKeys[p]))

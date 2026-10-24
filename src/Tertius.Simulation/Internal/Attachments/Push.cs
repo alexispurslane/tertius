@@ -27,13 +27,21 @@ internal readonly record struct Push(Double3 Force, Double3 Torque, Double3 Impu
     /// angular impulse are free vectors, so the lever does not change them.
     /// </summary>
     public Push At(Double3 lever) =>
-        new(Force: Force, Torque: Torque + Double3.Cross(lever, Force), Impulse: Impulse,
-            AngularImpulse: AngularImpulse + Double3.Cross(lever, Impulse));
+        new(
+            Force: Force,
+            Torque: Torque + Double3.Cross(lever, Force),
+            Impulse: Impulse,
+            AngularImpulse: AngularImpulse + Double3.Cross(lever, Impulse)
+        );
 
     /// <summary>The sum of this push and <paramref name="other"/>, field by field, in doubles.</summary>
     public Push Plus(in Push other) =>
-        new(Force: Force + other.Force, Torque: Torque + other.Torque, Impulse: Impulse + other.Impulse,
-            AngularImpulse: AngularImpulse + other.AngularImpulse);
+        new(
+            Force: Force + other.Force,
+            Torque: Torque + other.Torque,
+            Impulse: Impulse + other.Impulse,
+            AngularImpulse: AngularImpulse + other.AngularImpulse
+        );
 
     /// <summary>
     /// Narrows the four fields once, into the force, the torque, the impulse and the angular impulse of

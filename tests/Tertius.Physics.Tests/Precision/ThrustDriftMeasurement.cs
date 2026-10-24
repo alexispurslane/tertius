@@ -21,9 +21,11 @@ public sealed class ThrustDriftMeasurement
         private const float ThrustForce = 105;
         private const float Mass = 70;
 
-        private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        private static readonly BodyDesc Person = new(
+            Shape: new CapsuleShapeDesc(0.6f, 0.3f),
             Motion: BodyMotion.Character,
-            Mass: Mass);
+            Mass: Mass
+        );
 
         public override string Measurement => "thrust-drift";
         public override Double3 AxisDirection => Double3.UnitY;
@@ -33,27 +35,33 @@ public sealed class ThrustDriftMeasurement
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common)
         {
             var pilot = new Pilot { EveryTick = body => body.AddForce(new(ThrustForce, 0, 0)) };
-            Entity person = world.Spawn(new()
-            {
-                Frame = space,
-                Pose = new(start, DQuaternion.Identity),
-                LinearVelocity = common,
-                Body = Person,
-                Components = [pilot]
-            });
+            Entity person = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = new(start, DQuaternion.Identity),
+                    LinearVelocity = common,
+                    Body = Person,
+                    Components = [pilot],
+                }
+            );
             return [person];
         }
 
         public override (Double3 Position, Double3 Velocity) Measure(World world, FrameHandle space, Entity[] bodies) =>
             (world.PoseIn(bodies[0], space).Position, world.VelocityIn(bodies[0], space));
 
-        public override (Double3 Position, Double3 Velocity) Expected(int ticks, double dt, Double3 start,
-            Double3 common)
+        public override (Double3 Position, Double3 Velocity) Expected(
+            int ticks,
+            double dt,
+            Double3 start,
+            Double3 common
+        )
         {
             const double acceleration = (double)ThrustForce / Mass;
             int pushed = ticks - 1;
-            Double3 position = start + common * (ticks * dt) +
-                               Double3.UnitX * (acceleration * dt * dt * pushed * (pushed + 1) / 2);
+            Double3 position =
+                start + common * (ticks * dt) + Double3.UnitX * (acceleration * dt * dt * pushed * (pushed + 1) / 2);
             Double3 velocity = common + Double3.UnitX * (acceleration * dt * pushed);
             return (position, velocity);
         }

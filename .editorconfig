@@ -1,40 +1,134 @@
 root = true
 
-# Formatting and code cleanup. tools/cleanup.sh (run by the pre-push hook) and Rider read these keys. The cleanup applies
-# Roslyn's modernization fixes, then ReSharper's cleanup with the Tertius profile in Tertius.slnx.DotSettings: it
-# modernizes syntax, wraps lines at 120 characters and groups members by kind.
+# Code cleanup. tools/cleanup.sh (run by the pre-push hook) first makes the fixes that keep the meaning of the code, with
+# Roslyn: dotnet format style applies the IDE rules below, and dotnet format analyzers applies the Roslynator rules
+# below. Then CSharpier formats the code (.csharpierrc.yaml), so its formatting wins. tools/cleanup.sh reads its list of
+# rules from the dotnet_diagnostic lines here that are suggestions or warnings. A suggestion is a fix that the cleanup
+# applies and that a build does not report. A warning fails the build (an error through TreatWarningsAsErrors), and the
+# cleanup applies its fix too. A rule is a warning only where STYLE.md says "always" or "never". Every rule line has
+# its reason in the comment above it.
 [*.cs]
+# Formatting. CSharpier owns it and reads its own .csharpierrc.yaml. Rider and Roslyn's code fixes read these keys for
+# the code that they write.
 indent_style = space
 indent_size = 4
 insert_final_newline = true
 max_line_length = 120
-# var where the type is evident from the right side, such as new Foo() or a cast. An explicit type everywhere else.
+# Roslyn's formatting rules fight CSharpier, so they stay off: IDE0055 formats whitespace, and IDE2000 to IDE2006 place
+# blank lines and line breaks.
+dotnet_diagnostic.IDE0055.severity = none
+dotnet_diagnostic.IDE2000.severity = none
+dotnet_diagnostic.IDE2001.severity = none
+dotnet_diagnostic.IDE2002.severity = none
+dotnet_diagnostic.IDE2003.severity = none
+dotnet_diagnostic.IDE2004.severity = none
+dotnet_diagnostic.IDE2005.severity = none
+dotnet_diagnostic.IDE2006.severity = none
+
+# Redundancies.
+# Casts that change nothing: off. Roslyn 5.11 takes a cast to a C# 15 union for redundant. Of the five that it removed
+# from this code, two broke the build and three changed which Equals a test assertion ran, and three tests failed.
+dotnet_diagnostic.IDE0004.severity = none
+# using directives that nothing uses
+dotnet_diagnostic.IDE0005.severity = suggestion
+# names that are longer than their scope needs, such as System.IO.File where System.IO is imported
+dotnet_diagnostic.IDE0001.severity = suggestion
+# member access that is longer than its scope needs, such as World.Tick() inside World
+dotnet_diagnostic.IDE0002.severity = suggestion
+# this. where nothing needs it. IDE0009 adds this. under the opposite options, so it finds nothing here.
+dotnet_style_qualification_for_field = false
+dotnet_style_qualification_for_property = false
+dotnet_style_qualification_for_method = false
+dotnet_style_qualification_for_event = false
+dotnet_diagnostic.IDE0003.severity = suggestion
+dotnet_diagnostic.IDE0009.severity = suggestion
+# parentheses that change nothing. Parentheses that show the precedence of mixed operators stay, such as
+# (word << 6) | bit.
+dotnet_style_parentheses_in_arithmetic_binary_operators = always_for_clarity
+dotnet_style_parentheses_in_relational_binary_operators = always_for_clarity
+dotnet_style_parentheses_in_other_binary_operators = always_for_clarity
+dotnet_style_parentheses_in_other_operators = never_if_unnecessary
+dotnet_diagnostic.IDE0047.severity = suggestion
+# Parentheses for clarity stay off: under always_for_clarity they would go into every a + b * c of the math code.
+dotnet_diagnostic.IDE0048.severity = none
+# a ! that silences no warning
+dotnet_diagnostic.IDE0370.severity = suggestion
+# a ! in x is !null, where it does nothing
+dotnet_diagnostic.IDE0080.severity = suggestion
+# a discard pattern that a type pattern makes redundant, such as case int _
+dotnet_diagnostic.IDE0110.severity = suggestion
+# an unsafe modifier on code that needs no unsafe context
+dotnet_diagnostic.IDE0380.severity = suggestion
+# redundant #nullable directives
+dotnet_diagnostic.IDE0240.severity = suggestion
+# unnecessary #nullable directives
+dotnet_diagnostic.IDE0241.severity = suggestion
+# no == true
+dotnet_diagnostic.IDE0100.severity = suggestion
+# Any(f) instead of Where(f).Any()
+dotnet_diagnostic.IDE0120.severity = suggestion
+# OfType<T>() instead of Where(x => x is T).Cast<T>()
+dotnet_diagnostic.IDE0121.severity = suggestion
+# get; instead of get => field;
+csharp_style_prefer_simple_property_accessors = true
+dotnet_diagnostic.IDE0360.severity = suggestion
+
+# Declarations.
+# auto properties instead of a property over a private field that nothing else uses
+dotnet_style_prefer_auto_properties = true
+dotnet_diagnostic.IDE0032.severity = suggestion
+# readonly on a field that only a constructor writes. A field of a generic struct type stays writable where a call on
+# it must not copy it (STYLE.md, "Polymorphism is an interface"), with #pragma warning disable IDE0044 and the reason.
+dotnet_style_readonly_field = true
+dotnet_diagnostic.IDE0044.severity = suggestion
+# no readonly on a field of a struct that assigns this
+dotnet_diagnostic.IDE0064.severity = suggestion
+# an explicit private and internal: every member says its access (STYLE.md, "Seal types, and keep them internal")
+dotnet_style_require_accessibility_modifiers = for_non_interface_members
+dotnet_diagnostic.IDE0040.severity = suggestion
+# modifiers in one order, Roslyn's default
+dotnet_diagnostic.IDE0036.severity = suggestion
+# int and string instead of Int32 and String
+dotnet_style_predefined_type_for_locals_parameters_members = true
+dotnet_style_predefined_type_for_member_access = true
+dotnet_diagnostic.IDE0049.severity = suggestion
+# file-scoped namespaces
+csharp_style_namespace_declarations = file_scoped
+dotnet_diagnostic.IDE0161.severity = suggestion
+# using directives outside the namespace
+csharp_using_directive_placement = outside_namespace
+dotnet_diagnostic.IDE0065.severity = suggestion
+# var where the type is evident from the right side, such as new Foo(), a cast, or a static member of Foo that returns
+# a Foo, such as DQuaternion.FromAxisAngle(...). An explicit type everywhere else.
 csharp_style_var_for_built_in_types = false
 csharp_style_var_when_type_is_apparent = true
 csharp_style_var_elsewhere = false
-resharper_csharp_for_built_in_types = use_explicit_type
-resharper_csharp_for_simple_types = use_var_when_evident
-resharper_csharp_for_other_types = use_var_when_evident
-# Modern syntax. ReSharper's own defaults prefer block bodies and new Foo(...), so the cleanup needs these.
-resharper_csharp_object_creation_when_type_evident = target_typed
-resharper_csharp_object_creation_when_type_not_evident = target_typed
-resharper_csharp_method_or_operator_body = expression_body
-resharper_csharp_local_function_body = expression_body
-resharper_csharp_constructor_or_destructor_body = block_body
-resharper_csharp_accessor_owner_body = expression_body
-resharper_csharp_use_heuristics_for_body_style = true
-resharper_csharp_default_value_when_type_evident = default_literal
-resharper_csharp_default_value_when_type_not_evident = default_literal
-resharper_csharp_null_checking_pattern_style = not_null_pattern
-resharper_csharp_namespace_body = file_scoped
-resharper_csharp_default_private_modifier = explicit
-resharper_csharp_parentheses_redundancy_style = remove_if_not_clarifies_precedence
-resharper_csharp_accessor_declaration_body = expression_body
-# Modern syntax that ReSharper's cleanup does not write. tools/cleanup.sh applies these Roslyn fixes with dotnet format
-# style before jb cleanupcode. Builds do not report them, because a build reports only warnings and errors. Rider shows them as
-# suggestions. IDE0063 is the exception: a warning, an error through TreatWarningsAsErrors, because every IDisposable local
-# is a using declaration (STYLE.md, "Disposal and ownership"). tools/cleanup.sh reads its list of rules from the
-# dotnet_diagnostic.IDE lines here that are suggestions or warnings.
+dotnet_diagnostic.IDE0007.severity = suggestion
+dotnet_diagnostic.IDE0008.severity = suggestion
+# Expression bodies for every member that can have one, but constructors keep a block body.
+csharp_style_expression_bodied_methods = true
+csharp_style_expression_bodied_constructors = false
+csharp_style_expression_bodied_operators = true
+csharp_style_expression_bodied_properties = true
+csharp_style_expression_bodied_indexers = true
+csharp_style_expression_bodied_accessors = true
+csharp_style_expression_bodied_lambdas = true
+csharp_style_expression_bodied_local_functions = true
+dotnet_diagnostic.IDE0021.severity = suggestion
+dotnet_diagnostic.IDE0022.severity = suggestion
+dotnet_diagnostic.IDE0023.severity = suggestion
+dotnet_diagnostic.IDE0024.severity = suggestion
+dotnet_diagnostic.IDE0025.severity = suggestion
+dotnet_diagnostic.IDE0026.severity = suggestion
+dotnet_diagnostic.IDE0027.severity = suggestion
+dotnet_diagnostic.IDE0053.severity = suggestion
+dotnet_diagnostic.IDE0061.severity = suggestion
+# Braces stay as the author wrote them. IDE0011 can only add braces, and the code leaves them out around a single
+# statement.
+csharp_prefer_braces = false
+dotnet_diagnostic.IDE0011.severity = none
+
+# Modern syntax.
 dotnet_style_prefer_collection_expression = when_types_loosely_match
 # collection initializers and expressions
 dotnet_diagnostic.IDE0028.severity = suggestion
@@ -52,6 +146,9 @@ dotnet_diagnostic.IDE0304.severity = suggestion
 dotnet_diagnostic.IDE0305.severity = suggestion
 # collection expression for new
 dotnet_diagnostic.IDE0306.severity = suggestion
+# object initializers instead of assignments after new (STYLE.md, "Calls and construction")
+dotnet_style_object_initializer = true
+dotnet_diagnostic.IDE0017.severity = suggestion
 csharp_style_prefer_primary_constructors = true
 # primary constructors
 dotnet_diagnostic.IDE0290.severity = suggestion
@@ -90,11 +187,15 @@ dotnet_style_prefer_is_null_check_over_reference_equality_method = true
 # is null instead of ReferenceEquals
 dotnet_diagnostic.IDE0041.severity = suggestion
 csharp_prefer_simple_using_statement = true
-# using declarations
+# using declarations: every IDisposable local is a using declaration (STYLE.md, "Disposal and ownership"), so the
+# build fails at a using block that can be one.
 dotnet_diagnostic.IDE0063.severity = warning
 dotnet_style_null_propagation = true
 # ?.
 dotnet_diagnostic.IDE0031.severity = suggestion
+# handler?.Invoke() instead of a null check before a delegate call
+csharp_style_conditional_delegate_call = true
+dotnet_diagnostic.IDE1005.severity = suggestion
 dotnet_style_coalesce_expression = true
 # ??
 dotnet_diagnostic.IDE0029.severity = suggestion
@@ -116,24 +217,30 @@ dotnet_diagnostic.IDE0018.severity = suggestion
 csharp_style_implicit_object_creation_when_type_is_apparent = true
 # new()
 dotnet_diagnostic.IDE0090.severity = suggestion
+# default instead of default(T)
+csharp_prefer_simple_default_expression = true
+dotnet_diagnostic.IDE0034.severity = suggestion
 dotnet_style_prefer_simplified_interpolation = true
 # no ToString() inside an interpolation
 dotnet_diagnostic.IDE0071.severity = suggestion
 dotnet_style_prefer_simplified_boolean_expressions = true
 # simpler conditional expressions
 dotnet_diagnostic.IDE0075.severity = suggestion
-# no == true
-dotnet_diagnostic.IDE0100.severity = suggestion
 dotnet_style_prefer_conditional_expression_over_assignment = false
-# an if that assigns, to a conditional expression
+# An if that assigns, to a conditional expression: off. It nests one more conditional expression on every run, and
+# TS0011 forbids nested ones.
 dotnet_diagnostic.IDE0045.severity = none
 dotnet_style_prefer_conditional_expression_over_return = false
-# an if that returns, to a conditional expression
+# An if that returns, to a conditional expression: off, for the same reason.
 dotnet_diagnostic.IDE0046.severity = none
 dotnet_style_prefer_inferred_tuple_names = true
 dotnet_style_prefer_inferred_anonymous_type_member_names = true
 # inferred member names
 dotnet_diagnostic.IDE0037.severity = suggestion
+# The names of a tuple's elements instead of Item1: never Item1 (STYLE.md, "Name a type only when it earns a name"),
+# so the build fails at one.
+dotnet_style_explicit_tuple_names = true
+dotnet_diagnostic.IDE0033.severity = warning
 csharp_style_prefer_tuple_swap = true
 # (a, b) = (b, a)
 dotnet_diagnostic.IDE0180.severity = suggestion
@@ -173,26 +280,61 @@ dotnet_diagnostic.IDE0070.severity = suggestion
 dotnet_diagnostic.IDE0082.severity = suggestion
 # nameof for parameter names in attributes
 dotnet_diagnostic.IDE0280.severity = suggestion
-# Any(f) instead of Where(f).Any()
-dotnet_diagnostic.IDE0120.severity = suggestion
-# redundant #nullable directives
-dotnet_diagnostic.IDE0240.severity = suggestion
-# unnecessary #nullable directives
-dotnet_diagnostic.IDE0241.severity = suggestion
-# Keep arguments that equal the parameter's default value: a call that names its size, such as Headless(width, height),
-# says what it depends on.
+# an explicit cast in a foreach over a collection that is not strongly typed, so the cast shows
+dotnet_style_prefer_foreach_explicit_cast_in_source = when_strongly_typed
+dotnet_diagnostic.IDE0220.severity = suggestion
+dotnet_diagnostic.IDE0221.severity = suggestion
+
+# IDE rules with a code fix that stay off:
+# - IDE0010 and IDE0072 (missing switch cases) are under "Analyzers" below.
+# - IDE0035 deletes unreachable code, which CS0162 already fails.
+# - IDE0042 deconstructs a tuple local into locals named after its elements, such as First, against the camelCase of
+#   locals.
+# - IDE0058 puts _ = before every call whose value the code drops, such as the fluent calls of a test.
+# - IDE0079 removes a suppression that only another configuration or the build's own analyzers need, because
+#   dotnet format sees only one configuration.
+# - IDE0130 renames a namespace to match its folder, which changes the API that other code calls.
+# - IDE0210 and IDE0211 change the form of Program.Main, about which STYLE.md says nothing.
+# - IDE0390 and IDE0391 change the signature of an async method without await, which CS1998 already fails.
+# - IDE0410 turns a goto into a labeled jump, and the code has no goto.
+# - IDE0073 (file headers), IDE0076 and IDE0077 (SuppressMessage targets), IDE1006 (naming) and IDE3000 (Copilot) do not
+#   apply to this code.
+
+# Roslynator (Roslynator.Analyzers in Directory.Build.props) fixes what no IDE rule fixes. Every Roslynator rule is off
+# but the ones below, and tools/cleanup.sh applies them with dotnet format analyzers.
+roslynator_analyzers.enabled_by_default = false
+dotnet_analyzer_diagnostic.category-roslynator.severity = none
+# a get-only auto property instead of one with a private set that only a constructor uses
+dotnet_diagnostic.RCS1170.severity = suggestion
+# a sealed modifier on a member of a sealed class
+dotnet_diagnostic.RCS1034.severity = suggestion
+# a : base() call that the compiler makes anyway
+dotnet_diagnostic.RCS1071.severity = suggestion
+# a constructor that the compiler makes anyway
+dotnet_diagnostic.RCS1074.severity = suggestion
+# a ToString() call on a string, or inside a concatenation that calls it anyway
+dotnet_diagnostic.RCS1097.severity = suggestion
+# an interpolation of a literal, such as $"a{"b"}"
+dotnet_diagnostic.RCS1105.severity = suggestion
+# an override that only calls the base member
+dotnet_diagnostic.RCS1132.severity = suggestion
+# an as cast to a type that the value has already
+dotnet_diagnostic.RCS1145.severity = suggestion
+# an @ on a string that holds no backslash and no line break
+dotnet_diagnostic.RCS1192.severity = suggestion
+# a $ on a string without interpolations
+dotnet_diagnostic.RCS1214.severity = suggestion
+# empty braces after a record declaration
+dotnet_diagnostic.RCS1251.severity = suggestion
+# !(a == b) to a != b
+dotnet_diagnostic.RCS1068.severity = suggestion
+# x == false to !x
+dotnet_diagnostic.RCS1049.severity = suggestion
+# RCS1123 (parentheses for clarity) stays off: it adds them to every a + b * c of the math code, as IDE0048 would.
+
+# Rider's inspections. Rider keeps arguments that equal the parameter's default value: a call that names its size, such
+# as Headless(width, height), says what it depends on. No rule of the cleanup removes them.
 resharper_redundant_argument_default_value_highlighting = none
-# Doc comments keep their text as written: no wrap, no indent inside tags, no new line breaks. The doc comment rewrite
-# (ter-9yg8) shapes their text.
-resharper_xmldoc_indent_text = zero_indent
-resharper_xmldoc_indent_child_elements = zero_indent
-resharper_xmldoc_keep_user_linebreaks = true
-resharper_xmldoc_wrap_text = false
-resharper_xmldoc_wrap_tags_and_pi = false
-resharper_xmldoc_linebreaks_inside_tags_for_multiline_elements = false
-resharper_xmldoc_linebreaks_inside_tags_for_elements_with_child_elements = false
-resharper_xmldoc_linebreak_before_multiline_elements = false
-resharper_xmldoc_space_before_self_closing = false
 
 # Analyzers.
 # Complexity and length reports: suggestions only, so they never fail a build. The pre-commit hook prints the ones in
@@ -215,17 +357,19 @@ dotnet_diagnostic.CA1716.severity = none
 # Type names that end in Flags: the [Flags] enums say what they hold, such as RenderFlags and IntentFlags.
 dotnet_diagnostic.CA1711.severity = none
 # Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). IDE0010 fails the build at an enum switch
-# statement that does not name every member, and at any switch statement without a default case. With IDE0063, one of the
-# two IDE rules that the build reports. IDE0072 stays off: it demands a discard arm on enum switch expressions, and that arm
-# hides a missing member from CS8509.
+# statement that does not name every member, and at any switch statement without a default case. IDE0072 stays off: it
+# demands a discard arm on enum switch expressions, and that arm hides a missing member from CS8509.
 dotnet_diagnostic.IDE0010.severity = error
 dotnet_diagnostic.IDE0072.severity = none
 # Unused code fails the build: a private member that nothing uses (IDE0051), a private member that is written but
-# never read (IDE0052), and a parameter that the method never reads (IDE0060). IDE0060 does not report a parameter
-# that an interface, an override, an event handler or a delegate shape requires. Unused locals already fail through
-# CS0168 and CS0219.
+# never read (IDE0052), a value that the code assigns and never reads (IDE0059), and a parameter that the method never
+# reads (IDE0060). IDE0060 does not report a parameter that an interface, an override, an event handler or a delegate
+# shape requires. Unused locals already fail through CS0168 and CS0219. The fix of IDE0059 writes _ = value instead of
+# deleting the store, so a person deletes it.
+csharp_style_unused_value_assignment_preference = discard_variable
 dotnet_diagnostic.IDE0051.severity = warning
 dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.IDE0059.severity = warning
 dotnet_diagnostic.IDE0060.severity = warning
 
 [src/Tertius.Rendering/Passes/**.cs]

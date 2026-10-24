@@ -14,14 +14,18 @@ public sealed class RenderSnapshotRootTests
     private static readonly DQuaternion TiltAboutX = DQuaternion.FromAxisAngle(Double3.UnitX, 0.4);
 
     private static void ExpectNear(Quaternion actual, DQuaternion expected) =>
-        Vector3.Distance(Vector3.Transform(Vector3.UnitX, actual), expected.Rotate(Double3.UnitX).ToVector3())
-            .Should().BeLessThan(1e-6f, $"{actual} does not turn +X as {expected} does");
+        Vector3
+            .Distance(Vector3.Transform(Vector3.UnitX, actual), expected.Rotate(Double3.UnitX).ToVector3())
+            .Should()
+            .BeLessThan(1e-6f, $"{actual} does not turn +X as {expected} does");
 
     private static void ExpectSame(Quaternion actual, DQuaternion expected)
     {
         // Two axes pin a rotation down.
         ExpectNear(actual, expected);
-        Vector3.Distance(Vector3.Transform(Vector3.UnitY, actual), expected.Rotate(Double3.UnitY).ToVector3()).Should()
+        Vector3
+            .Distance(Vector3.Transform(Vector3.UnitY, actual), expected.Rotate(Double3.UnitY).ToVector3())
+            .Should()
             .BeLessThan(1e-6f);
     }
 
@@ -56,11 +60,14 @@ public sealed class RenderSnapshotRootTests
     public void TheRootRotationOfThePreviousTickLetsTheSkyTurnSmoothlyWhileTheCamerasFrameTurns()
     {
         using var test = new TestWorld();
-        FrameHandle turning = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(100))
-        }.Spinning(test.World, new(Tilt: DQuaternion.Identity, Rate: 1))));
+        FrameHandle turning = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(100)) }.Spinning(
+                    test.World,
+                    new(Tilt: DQuaternion.Identity, Rate: 1)
+                )
+            )
+        );
         test.World.Camera = test.SpawnCamera(turning, DPose.Identity);
         test.Run(1);
         Quaternion before = test.World.Latest().RootRotation;
@@ -78,7 +85,8 @@ public sealed class RenderSnapshotRootTests
     {
         using var test = new TestWorld();
         FrameHandle ship = test.SpawnStaticFrame(new(new(10, 0, 0), QuarterTurnAboutY));
-        Entity outside = test.SpawnCamera(test.Root, DPose.Identity), inside = test.SpawnCamera(ship, DPose.Identity);
+        Entity outside = test.SpawnCamera(test.Root, DPose.Identity),
+            inside = test.SpawnCamera(ship, DPose.Identity);
         test.World.Camera = outside;
         test.Run(1);
         test.World.Latest();

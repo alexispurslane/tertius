@@ -20,11 +20,11 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class DemoLaunchRun : CheckedInRun
 {
-    public DemoLaunchRun() : this(new())
-    {
-    }
+    public DemoLaunchRun()
+        : this(new()) { }
 
-    private DemoLaunchRun(LaunchLog log) : base("demo-launch", log.Record)
+    private DemoLaunchRun(LaunchLog log)
+        : base("demo-launch", log.Record)
     {
         Log = log;
     }
@@ -78,7 +78,8 @@ internal sealed record LaunchTick(
     Double3? PenFromShuttle,
     ClipState? Clip,
     DPose? Held,
-    double PersonHeading);
+    double PersonHeading
+);
 
 /// <summary>
 /// A ball at rest in the cabin, 7 s after the engines stop, and where it is after 5 s. The attitude autopilot turns the
@@ -110,38 +111,61 @@ internal sealed class LaunchLog
 
     public void Record(World world, SceneInstance scene)
     {
-        Entity shuttle = scene["shuttle"], person = scene["person"], pen = scene["pen"];
+        Entity shuttle = scene["shuttle"],
+            person = scene["person"],
+            pen = scene["pen"];
         FrameHandle earth = world.GetOwnedFrame(scene["earth"]),
             surface = world.GetOwnedFrame(scene["earth-surface"]),
             cabin = world.GetOwnedFrame(shuttle);
         AscentState ascent = world.GetComponent<AscentAutopilot>(shuttle)!.State;
         PassengerState passenger = world.GetComponent<Passenger>(person)!.State;
         bool penLives = world.IsAlive(pen);
-        DPose? held = passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Copy)
-            ? world.PoseIn(holding.Copy, cabin)
-            : null;
+        DPose? held =
+            passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Copy)
+                ? world.PoseIn(holding.Copy, cabin)
+                : null;
         DPose inEarth = world.PoseIn(shuttle, earth);
-        Ticks.Add(new(Tick: world.TickNumber, Frame: world.GetFrame(shuttle), Position: inEarth.Position,
-            Velocity: world.VelocityIn(shuttle, earth),
-            Rotation: inEarth.Rotation,
-            AngularVelocity: world.AngularVelocityIn(shuttle, earth),
-            GroundPosition: world.PoseIn(shuttle, surface).Position,
-            GroundVelocity: world.VelocityIn(shuttle, surface),
-            GroundRotation: world.PoseIn(scene["earth-surface"], earth).Rotation, Ascent: ascent,
-            CabinAcceleration: world.Frames.ProperAcceleration(cabin), PersonFrame: world.GetFrame(person),
-            PersonInCabin: world.PoseIn(person, cabin).Position,
-            Passenger: passenger,
-            Pen: penLives
-                ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation)
-                : null,
-            PenFromShuttle: penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
-            Clip: penLives ? world.GetComponent<Clip>(pen)!.State : null, Held: held,
-            PersonHeading: WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)));
+        Ticks.Add(
+            new(
+                Tick: world.TickNumber,
+                Frame: world.GetFrame(shuttle),
+                Position: inEarth.Position,
+                Velocity: world.VelocityIn(shuttle, earth),
+                Rotation: inEarth.Rotation,
+                AngularVelocity: world.AngularVelocityIn(shuttle, earth),
+                GroundPosition: world.PoseIn(shuttle, surface).Position,
+                GroundVelocity: world.VelocityIn(shuttle, surface),
+                GroundRotation: world.PoseIn(scene["earth-surface"], earth).Rotation,
+                Ascent: ascent,
+                CabinAcceleration: world.Frames.ProperAcceleration(cabin),
+                PersonFrame: world.GetFrame(person),
+                PersonInCabin: world.PoseIn(person, cabin).Position,
+                Passenger: passenger,
+                Pen: penLives
+                    ? (
+                        world.PoseIn(pen, cabin).Position,
+                        world.VelocityIn(pen, cabin),
+                        world.PoseIn(pen, cabin).Rotation
+                    )
+                    : null,
+                PenFromShuttle: penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
+                Clip: penLives ? world.GetComponent<Clip>(pen)!.State : null,
+                Held: held,
+                PersonHeading: WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)
+            )
+        );
         if (ascent.Value is Orbit && OrbitTick < 0)
             OrbitTick = world.TickNumber;
         if (OrbitTick >= 0 && ball.IsNull && world.TickNumber == OrbitTick + 420)
         {
-            ball = world.Spawn(new() { Frame = cabin, Pose = new(BallStart, DQuaternion.Identity), Body = Ball(0.1f) });
+            ball = world.Spawn(
+                new()
+                {
+                    Frame = cabin,
+                    Pose = new(BallStart, DQuaternion.Identity),
+                    Body = Ball(0.1f),
+                }
+            );
             ballTick = world.TickNumber;
         }
 
@@ -199,7 +223,9 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         StateDump seated = Dump("seated");
 
         seated.Frames.Single(frame => frame.Id == "shuttle").Follows.Should().Be("static");
-        Double3.Distance(seated.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position).Should()
+        Double3
+            .Distance(seated.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position)
+            .Should()
             .BeLessThan(1e-9);
         Log.Where(tick => tick.Tick <= seated.Tick).Should().OnlyContain(tick => tick.Ascent.Value is Parked);
     }
@@ -216,7 +242,9 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         onTheRamp.Should().HaveCountGreaterThan(60);
         foreach (LaunchTick tick in onTheRamp)
         {
-            Double3.Dot(tick.GroundPosition - LaunchRamp.Foot, InclineNormal).Should()
+            Double3
+                .Dot(tick.GroundPosition - LaunchRamp.Foot, InclineNormal)
+                .Should()
                 .BeApproximately(Shuttle.Hull.Y, 0.2, $"at tick {tick.Tick}");
             Degrees(tick.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(1, $"at tick {tick.Tick}");
         }
@@ -233,7 +261,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
         off.Should().NotBeNull("the shuttle passes the ramp's top");
 
-        Degrees(off!.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(2);
+        Degrees(off.GroundVelocity, LaunchRamp.Up).Should().BeLessThan(2);
         off.GroundVelocity.Length.Should().BeGreaterThan(100);
     }
 
@@ -285,7 +313,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     [Fact]
     public void ABallInTheCabinFloatsRelativeToTheCabinOnceTheEnginesStop()
     {
-        var ball = run.Log.Ball.Should().NotBeNull().And.Subject.As<FloatingBall>();
+        FloatingBall ball = run.Log.Ball.Should().NotBeNull().And.Subject.As<FloatingBall>();
 
         Double3.Distance(ball.End, ball.Start).Should().BeLessThan(0.005);
         ball.EndVelocity.Length.Should().BeLessThan(0.001);
@@ -315,8 +343,11 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         flight.Should().OnlyContain(tick => tick.PersonFrame == cabin);
         flight.Should().OnlyContain(tick => tick.Passenger.Value is Seated);
         flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
-        flight.Where(tick => tick.Ascent.Value is Climb)
-            .Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.08);
+        flight
+            .Where(tick => tick.Ascent.Value is Climb)
+            .Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand))
+            .Should()
+            .BeLessThan(0.08);
     }
 
     /// <summary>
@@ -332,7 +363,9 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         double ignition = flight[0].PersonHeading;
 
         flight.Should().HaveCountGreaterThan(10_000);
-        flight.Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - ignition, 2 * Math.PI))).Should()
+        flight
+            .Max(tick => Math.Abs(Math.IEEERemainder(tick.PersonHeading - ignition, 2 * Math.PI)))
+            .Should()
             .BeLessThan(0.01);
     }
 
@@ -347,12 +380,16 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     {
         List<LaunchTick> held = [.. Log.Where(tick => tick.Ascent.Value is not Orbit)];
         List<double> fromClip =
-            [.. held.Select(tick => Double3.Distance(tick.Pen!.Value.Position, DemoSurface.PenClip.Position))];
+        [
+            .. held.Select(tick => Double3.Distance(tick.Pen!.Value.Position, DemoSurface.PenClip.Position)),
+        ];
 
         held.Should().HaveCountGreaterThan(20_000);
         held.Should().OnlyContain(tick => tick.Clip!.Value.Value is Clipped);
         fromClip.Max().Should().BeLessThan(0.15);
-        fromClip.Count(distance => distance > 0.015).Should()
+        fromClip
+            .Count(distance => distance > 0.015)
+            .Should()
             .BeLessThanOrEqualTo(1, "only the step of the jolt at the ramp's foot moves the pen more");
     }
 
@@ -378,9 +415,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         free.Should().HaveCountGreaterThan(120);
         // The line is that of the first two places, in earth's axes, which do not turn. Without the rotation terms of the
         // cabin's turn the pen leaves the line by more than 0.5 mm within 0.2 s.
-        Double3 start = free[0].PenFromShuttle!.Value, velocity = (free[1].PenFromShuttle!.Value - start) / dt;
+        Double3 start = free[0].PenFromShuttle!.Value,
+            velocity = (free[1].PenFromShuttle!.Value - start) / dt;
         for (int k = 0; k < free.Count; k++)
-            Double3.Distance(free[k].PenFromShuttle!.Value, start + velocity * (k * dt)).Should()
+            Double3
+                .Distance(free[k].PenFromShuttle!.Value, start + velocity * (k * dt))
+                .Should()
                 .BeLessThan(5e-4, $"{k} ticks after the push");
         velocity.Length.Should().BeGreaterThan(0.15, "the push sets the pen moving");
         PenClipTests.Clearance(free[^1].Pen!.Value.Position).Should().BeGreaterThan(0.5);
@@ -395,9 +435,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
         world.GetComponent<Passenger>(run.Scene["person"])!.State.Value.Should().BeOfType<Holding>();
         world.IsAlive(run.Scene["pen"]).Should().BeFalse("the person took the loose pen");
-        live.Where(entity => world.GetComponent<HeldInView>(entity) != null).Should()
+        live.Where(entity => world.GetComponent<HeldInView>(entity) != null)
+            .Should()
             .ContainSingle("the person holds the pen");
-        Double3.Distance(Dump("holding").Entity("person").Pose.Position, Shuttle.SeatStand).Should()
+        Double3
+            .Distance(Dump("holding").Entity("person").Pose.Position, Shuttle.SeatStand)
+            .Should()
             .BeGreaterThan(1, "the person left its seat");
         Log.Should().Contain(tick => tick.Passenger.Value is Fetching);
     }
@@ -414,7 +457,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
         take.Pen.Should().NotBeNull("the loose pen goes one tick after the copy shows");
         Double3.Distance(take.Held!.Value.Position, take.Pen!.Value.Position).Should().BeLessThan(0.01);
-        (take.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI).Should()
+        (take.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI)
+            .Should()
             .BeLessThan(1);
     }
 
@@ -429,7 +473,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         LaunchTick ignition = Log.First(tick => tick.Ascent.Value is not Parked);
         Double3 incline = ignition.GroundRotation.Rotate(LaunchRamp.Up);
 
-        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI).Should()
+        (Math.Asin(Math.Abs(Double3.Dot(incline, DemoSurface.LaunchPlaneNormal))) * 180 / Math.PI)
+            .Should()
             .BeLessThan(0.01);
     }
 
@@ -450,7 +495,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         Log.Skip(handOff).Should().OnlyContain(tick => tick.Frame == earth);
         Log[handOff].Ascent.Value.Should().BeOfType<Climb>("the shuttle hands off in the climb");
         Log[handOff - 1].Position.Length.Should().BeLessThanOrEqualTo(TurningGroundHandOffRun.ExitRadius);
-        Log[handOff].Position.Length.Should()
+        Log[handOff]
+            .Position.Length.Should()
             .BeInRange(TurningGroundHandOffRun.ExitRadius, TurningGroundHandOffRun.ExitRadius + 20);
     }
 
@@ -467,12 +513,17 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         double dt = run.World.DeltaTime;
         foreach (int k in AroundTheHandOff)
         {
-            LaunchTick tick = Log[k], next = Log[k + 1];
+            LaunchTick tick = Log[k],
+                next = Log[k + 1];
             Double3 measured = (next.Position - 2 * tick.Position + Log[k - 1].Position) / (dt * dt);
             Double3 gravity = -tick.Position * (DemoScenes.EarthMu / Math.Pow(tick.Position.Length, 3));
             Double3 expected = gravity + next.Rotation.Rotate((Double3)next.CabinAcceleration);
-            (measured - expected).Length.Should().BeLessThan(0.01,
-                $"at tick {tick.Tick}, {k - HandOff} from the hand-off: measured {measured}, expected {expected}");
+            (measured - expected)
+                .Length.Should()
+                .BeLessThan(
+                    0.01,
+                    $"at tick {tick.Tick}, {k - HandOff} from the hand-off: measured {measured}, expected {expected}"
+                );
         }
     }
 
@@ -481,9 +532,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     public void TheCabinsProperAccelerationStaysSmoothThroughTheHandOff()
     {
         foreach (int k in AroundTheHandOff)
-            (Log[k].CabinAcceleration - (Double3)Log[k - 1].CabinAcceleration).Length
-                .Should().BeLessThan(0.01,
-                    $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off: {Log[k - 1].CabinAcceleration} to {Log[k].CabinAcceleration}");
+            (Log[k].CabinAcceleration - (Double3)Log[k - 1].CabinAcceleration)
+                .Length.Should()
+                .BeLessThan(
+                    0.01,
+                    $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off: {Log[k - 1].CabinAcceleration} to {Log[k].CabinAcceleration}"
+                );
     }
 
     /// <summary>
@@ -496,8 +550,9 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     public void TheNoseTurnsSmoothlyInEarthThroughTheHandOff()
     {
         foreach (int k in AroundTheHandOff)
-            (Log[k].AngularVelocity - Log[k - 1].AngularVelocity).Length
-                .Should().BeLessThan(3e-5, $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+            (Log[k].AngularVelocity - Log[k - 1].AngularVelocity)
+                .Length.Should()
+                .BeLessThan(3e-5, $"at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
     }
 
     /// <summary>
@@ -514,12 +569,13 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
             Log[k].Clip!.Value.Value.Should().BeOfType<Clipped>();
             double person = Double3.Distance(Log[k + 1].PersonInCabin, Log[k].PersonInCabin),
                 personBefore = Double3.Distance(Log[k].PersonInCabin, Log[k - 1].PersonInCabin);
-            person.Should().BeLessThan(personBefore + 1e-3,
-                $"the person at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+            person
+                .Should()
+                .BeLessThan(personBefore + 1e-3, $"the person at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
             double pen = Double3.Distance(Log[k + 1].Pen!.Value.Position, Log[k].Pen!.Value.Position),
                 penBefore = Double3.Distance(Log[k].Pen!.Value.Position, Log[k - 1].Pen!.Value.Position);
-            pen.Should().BeLessThan(penBefore + 1e-3,
-                $"the pen at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
+            pen.Should()
+                .BeLessThan(penBefore + 1e-3, $"the pen at tick {Log[k].Tick}, {k - HandOff} from the hand-off");
         }
     }
 

@@ -5,7 +5,8 @@ namespace Tertius;
 /// <see cref="WriteBuffer"/> and calls <see cref="Publish"/>. The reader calls <see cref="TryAcquireLatest"/>.
 /// Neither side ever waits for the other.
 /// </summary>
-public sealed class TripleBuffer<T>(Func<T> factory) where T : class
+public sealed class TripleBuffer<T>(Func<T> factory)
+    where T : class
 {
     private const int FreshBit = 4;
     private readonly T[] buffers = [factory(), factory(), factory()];

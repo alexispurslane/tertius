@@ -142,9 +142,11 @@ public static partial class DemoScenes
         /// enters with its belly toward the deck, so its height of 4 m lies along X and its width of 6 m along Z, with
         /// <see cref="SlotClearance"/> on each side.
         /// </summary>
-        public static BoundingBox Slot { get; } = new(
-            new(-Shuttle.Hull.Y - SlotClearance, HubHalf.Y - HubWall, -Shuttle.Hull.X - SlotClearance),
-            new(Shuttle.Hull.Y + SlotClearance, HubHalf.Y, Shuttle.Hull.X + SlotClearance));
+        public static BoundingBox Slot { get; } =
+            new(
+                new(-Shuttle.Hull.Y - SlotClearance, HubHalf.Y - HubWall, -Shuttle.Hull.X - SlotClearance),
+                new(Shuttle.Hull.Y + SlotClearance, HubHalf.Y, Shuttle.Hull.X + SlotClearance)
+            );
 
         /// <summary>
         /// The turn from the hub's own axes to the station's: a quarter turn about X that takes the hub's +Z to the station's
@@ -167,10 +169,15 @@ public static partial class DemoScenes
         /// its center of mass points away from the axis, into the deck and into the -Z wall, so the corner holds the hull
         /// with no push and no friction. The hatch opens toward +Z, onto the deck beside the mouth.
         /// </summary>
-        public static DPose ParkedPose { get; } = new(
-            new(Deck + Shuttle.Hull.Y, HubHalf.Y - HubWall - ParkedTailGap - Shuttle.Hull.Z,
-                -(HubHalf.Z - HubWall) + Shuttle.Hull.X),
-            DockedRotation);
+        public static DPose ParkedPose { get; } =
+            new(
+                new(
+                    Deck + Shuttle.Hull.Y,
+                    HubHalf.Y - HubWall - ParkedTailGap - Shuttle.Hull.Z,
+                    -(HubHalf.Z - HubWall) + Shuttle.Hull.X
+                ),
+                DockedRotation
+            );
 
         /// <summary>
         /// The box of the parked shuttle in the station's axes: the hull's box, <see cref="Shuttle.Hull"/>, at
@@ -184,9 +191,11 @@ public static partial class DemoScenes
         /// 3.5 m on a side, from y = -1.75 to 1.75 m and z = -1.75 to 1.75 m, through the deck's wall, from the hub's outer
         /// face at x = -8.5 m to the deck at x = -8 m. The exit's chute starts inside it, so a parked shuttle leaves it free.
         /// </summary>
-        public static BoundingBox SpokeMouth { get; } = new(
-            new(-HubHalf.X, -(SpokeHalfWidth - SpokeWall), -(SpokeHalfWidth - SpokeWall)),
-            new(Deck, SpokeHalfWidth - SpokeWall, SpokeHalfWidth - SpokeWall));
+        public static BoundingBox SpokeMouth { get; } =
+            new(
+                new(-HubHalf.X, -(SpokeHalfWidth - SpokeWall), -(SpokeHalfWidth - SpokeWall)),
+                new(Deck, SpokeHalfWidth - SpokeWall, SpokeHalfWidth - SpokeWall)
+            );
 
         /// <summary>
         /// Where <c>bay-camera</c> stands, in the station's axes: (6.5, -11.5, 5.5) m, 1 m from the bay's far wall, in the
@@ -223,22 +232,29 @@ public static partial class DemoScenes
         /// slot's side. The station spins about that axis at <see cref="SpinStation.Rate"/>, so the axis stays fixed in
         /// earth.
         /// </summary>
-        public static KeplerOrbit Orbit { get; } = new(SemiMajorAxis: OrbitRadius, Eccentricity: 0,
-            Inclination: Math.PI / 2,
-            LongitudeOfAscendingNode: -Math.PI / 2 + DemoSurface.GroundTurnAtDeparture,
-            ArgumentOfPeriapsis: 0,
-            MeanAnomalyAtEpoch: Math.PI / 2 -
-                                Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt, Epoch: 0,
-            AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture) *
-                       DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
-            SpinRate: SpinStation.Rate, SpinPhaseAtEpoch: 0, Attitude: KeplerAttitude.Spin);
+        public static KeplerOrbit Orbit { get; } =
+            new(
+                SemiMajorAxis: OrbitRadius,
+                Eccentricity: 0,
+                Inclination: Math.PI / 2,
+                LongitudeOfAscendingNode: -Math.PI / 2 + DemoSurface.GroundTurnAtDeparture,
+                ArgumentOfPeriapsis: 0,
+                MeanAnomalyAtEpoch: Math.PI / 2
+                    - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt,
+                Epoch: 0,
+                AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture)
+                    * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
+                SpinRate: SpinStation.Rate,
+                SpinPhaseAtEpoch: 0,
+                Attitude: KeplerAttitude.Spin
+            );
 
         /// <summary>The hub's half extents in its own axes, whose +Z is the station's +Y.</summary>
         private static Vector3 HubOwnHalf => new(HubHalf.X, HubHalf.Z, HubHalf.Y);
 
         /// <summary>The slot in the hub's own axes: an opening through its +Z wall.</summary>
-        private static Opening HubSlot => Opening.ThroughZ(new(
-            new(Slot.Min.X, Slot.Min.Z, Slot.Min.Y), new(Slot.Max.X, Slot.Max.Z, Slot.Max.Y)));
+        private static Opening HubSlot =>
+            Opening.ThroughZ(new(new(Slot.Min.X, Slot.Min.Z, Slot.Min.Y), new(Slot.Max.X, Slot.Max.Z, Slot.Max.Y)));
 
         /// <summary>
         /// The chute's top, <see cref="StationExit.DeckHole"/>, in the hub's own axes: an opening through its -X wall, the
@@ -250,23 +266,28 @@ public static partial class DemoScenes
             get
             {
                 BoundingBox hole = StationExit.DeckHole;
-                return Opening.ThroughX(new(new(hole.Min.X, -hole.Max.Z, hole.Min.Y),
-                    new(hole.Max.X, -hole.Min.Z, hole.Max.Y)));
+                return Opening.ThroughX(
+                    new(new(hole.Min.X, -hole.Max.Z, hole.Min.Y), new(hole.Max.X, -hole.Min.Z, hole.Max.Y))
+                );
             }
         }
 
         /// <summary>The spoke at θ = 0 as a solid, along +X from the hub's outer face to the ceiling, in the station's axes.</summary>
-        private static BoundingBox SpokeSolid => new(new(HubHalf.X, -SpokeHalfWidth, -SpokeHalfWidth),
-            new(CeilingRadius, SpokeHalfWidth, SpokeHalfWidth));
+        private static BoundingBox SpokeSolid =>
+            new(new(HubHalf.X, -SpokeHalfWidth, -SpokeHalfWidth), new(CeilingRadius, SpokeHalfWidth, SpokeHalfWidth));
 
         /// <summary>The axis-aligned box that holds the box of half extents <paramref name="half"/> at <paramref name="pose"/>.</summary>
         private static BoundingBox BoxAt(DPose pose, Vector3 half)
         {
-            Vector3 min = new(float.MaxValue), max = new(float.MinValue);
+            Vector3 min = new(float.MaxValue),
+                max = new(float.MinValue);
             foreach (int corner in Enumerable.Range(0, 8))
             {
-                var local = new Double3((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y,
-                    (corner & 4) == 0 ? -half.Z : half.Z);
+                var local = new Double3(
+                    (corner & 1) == 0 ? -half.X : half.X,
+                    (corner & 2) == 0 ? -half.Y : half.Y,
+                    (corner & 4) == 0 ? -half.Z : half.Z
+                );
                 var at = pose.TransformPoint(local).ToVector3();
                 min = Vector3.Min(min, at);
                 max = Vector3.Max(max, at);
@@ -283,13 +304,19 @@ public static partial class DemoScenes
         /// </summary>
         public static ShapeDesc HullShape()
         {
-            var wheel = (CompoundShapeDesc)RevolvedSolid
-                .Ring(innerRadius: CeilingRadius, outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth,
-                    segments: Segments).Shape();
+            var wheel = (CompoundShapeDesc)
+                RevolvedSolid
+                    .Ring(
+                        innerRadius: CeilingRadius,
+                        outerRadius: FloorRadius + FloorThickness,
+                        halfWidth: HalfWidth,
+                        segments: Segments
+                    )
+                    .Shape();
             return new CompoundShapeDesc([
                 .. wheel.Children,
                 .. Enumerable.Range(0, 4).Select(quarter => Box(Turned(SpokeSolid, quarter), Pose.Identity)),
-                Box(new(-HubOwnHalf, HubOwnHalf), new(Vector3.Zero, HubTurn.ToQuaternion()))
+                Box(new(-HubOwnHalf, HubOwnHalf), new(Vector3.Zero, HubTurn.ToQuaternion())),
             ]);
         }
 
@@ -300,16 +327,27 @@ public static partial class DemoScenes
         /// </summary>
         public static IEnumerable<BoundingBox> HubWalls()
         {
-            Vector3 outer = HubOwnHalf, inner = outer - new Vector3(HubWall);
+            Vector3 outer = HubOwnHalf,
+                inner = outer - new Vector3(HubWall);
             BoundingBox slot = HubSlot.Bounds;
             yield return new(-outer, outer with { Z = -inner.Z });
             var end = new BoundingBox(-outer with { Z = inner.Z }, outer);
-            yield return end with { Max = end.Max with { X = slot.Min.X } };
-            yield return end with { Min = end.Min with { X = slot.Max.X } };
+            yield return end with
+            {
+                Max = end.Max with { X = slot.Min.X },
+            };
+            yield return end with
+            {
+                Min = end.Min with { X = slot.Max.X },
+            };
             yield return new(new(slot.Min.X, -outer.Y, inner.Z), new(slot.Max.X, slot.Min.Y, outer.Z));
             yield return new(new(slot.Min.X, slot.Max.Y, inner.Z), new(slot.Max.X, outer.Y, outer.Z));
-            foreach (BoundingBox part in AroundDoorway(
-                         new(new(-outer.X, -outer.Y, -inner.Z), new(-inner.X, outer.Y, inner.Z)), HubDeckHole.Bounds))
+            foreach (
+                BoundingBox part in AroundDoorway(
+                    new(new(-outer.X, -outer.Y, -inner.Z), new(-inner.X, outer.Y, inner.Z)),
+                    HubDeckHole.Bounds
+                )
+            )
                 yield return part;
             yield return new(new(inner.X, -outer.Y, -inner.Z), new(outer.X, outer.Y, inner.Z));
             yield return new(new(-inner.X, -outer.Y, -inner.Z), new(inner.X, -inner.Y, inner.Z));
@@ -324,8 +362,14 @@ public static partial class DemoScenes
         {
             BoundingBox solid = SpokeSolid;
             float inner = SpokeHalfWidth - SpokeWall;
-            yield return solid with { Min = solid.Min with { Y = inner } };
-            yield return solid with { Max = solid.Max with { Y = -inner } };
+            yield return solid with
+            {
+                Min = solid.Min with { Y = inner },
+            };
+            yield return solid with
+            {
+                Max = solid.Max with { Y = -inner },
+            };
             yield return new(new(solid.Min.X, -inner, inner), new(solid.Max.X, inner, SpokeHalfWidth));
             yield return new(new(solid.Min.X, -inner, -SpokeHalfWidth), new(solid.Max.X, inner, -inner));
         }
@@ -343,21 +387,25 @@ public static partial class DemoScenes
         /// </summary>
         private static BoundingBox Turned(BoundingBox box, int quarter)
         {
-            Vector3 Turn(Vector3 p) => (quarter % 4) switch
-            {
-                0 => p,
-                1 => new(p.Z, p.Y, -p.X),
-                2 => new(-p.X, p.Y, -p.Z),
-                _ => new(-p.Z, p.Y, p.X)
-            };
+            Vector3 Turn(Vector3 p) =>
+                (quarter % 4) switch
+                {
+                    0 => p,
+                    1 => new(p.Z, p.Y, -p.X),
+                    2 => new(-p.X, p.Y, -p.Z),
+                    _ => new(-p.Z, p.Y, p.X),
+                };
 
-            Vector3 a = Turn(box.Min), b = Turn(box.Max);
+            Vector3 a = Turn(box.Min),
+                b = Turn(box.Max);
             return new(Vector3.Min(a, b), Vector3.Max(a, b));
         }
 
         private static CompoundChild Box(BoundingBox box, Pose pose) =>
-            new(new BoxShapeDesc(box.Extents),
-                new(pose.Position + Vector3.Transform(box.Center, pose.Rotation), pose.Rotation));
+            new(
+                new BoxShapeDesc(box.Extents),
+                new(pose.Position + Vector3.Transform(box.Center, pose.Rotation), pose.Rotation)
+            );
 
         private static CompoundShapeDesc Boxes(IEnumerable<BoundingBox> boxes) =>
             new([.. boxes.Select(box => Box(box, Pose.Identity))]);
@@ -366,11 +414,15 @@ public static partial class DemoScenes
             new([.. mesh.Vertices.Select(v => v.Position)], [.. mesh.Indices.Select(i => (int)i)]);
 
         /// <summary>A gray-box render row of a station part: it casts shadows, and has no impostor.</summary>
-        private static RenderData Part(IRenderResources resources, MeshData mesh, Vector4 color,
-            float boundingRadius) =>
+        private static RenderData Part(
+            IRenderResources resources,
+            MeshData mesh,
+            Vector4 color,
+            float boundingRadius
+        ) =>
             Drawn(resources: resources, mesh: mesh, color: color, boundingRadius: boundingRadius) with
             {
-                Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor
+                Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
             };
 
         /// <summary>
@@ -391,89 +443,149 @@ public static partial class DemoScenes
         {
             KeplerOrbit orbit = Orbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
-            RevolvedSolid floor = RevolvedSolid.Ring(innerRadius: FloorRadius,
-                outerRadius: FloorRadius + FloorThickness, halfWidth: HalfWidth, segments: Segments);
+            var floor = RevolvedSolid.Ring(
+                innerRadius: FloorRadius,
+                outerRadius: FloorRadius + FloorThickness,
+                halfWidth: HalfWidth,
+                segments: Segments
+            );
             MeshData floorMesh = floor.Mesh();
             ShapeDesc hull = HullShape();
-            Entity station = world.Spawn(new()
-            {
-                Frame = parent,
-                Pose = new(place, orbit.RotationAt(world.Time, EarthMu)),
-                LinearVelocity = velocity,
-                AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
-                FirstMove = new(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
-                Components = [new KeplerMotion { Orbit = orbit }],
-                Body = new(Shape: hull, Motion: BodyMotion.Kinematic, Mass: Mass, InteriorShape: MeshShape(floorMesh)),
-                AsFrame = new(FrameBounds.Sphere(Bubble), Medium: Air.Filling(BayAir)),
-                Render = Part(resources: resources, mesh: floorMesh, color: new(x: 0.62f, y: 0.63f, z: 0.66f, w: 1),
-                    boundingRadius: floor.Shape().BoundingRadius())
-            });
+            Entity station = world.Spawn(
+                new()
+                {
+                    Frame = parent,
+                    Pose = new(place, orbit.RotationAt(world.Time, EarthMu)),
+                    LinearVelocity = velocity,
+                    AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
+                    FirstMove = new(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                    Components = [new KeplerMotion { Orbit = orbit }],
+                    Body = new(
+                        Shape: hull,
+                        Motion: BodyMotion.Kinematic,
+                        Mass: Mass,
+                        InteriorShape: MeshShape(floorMesh)
+                    ),
+                    AsFrame = new(FrameBounds.Sphere(Bubble), Medium: Air.Filling(BayAir)),
+                    Render = Part(
+                        resources: resources,
+                        mesh: floorMesh,
+                        color: new(x: 0.62f, y: 0.63f, z: 0.66f, w: 1),
+                        boundingRadius: floor.Shape().BoundingRadius()
+                    ),
+                }
+            );
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
 
             foreach ((string id, RevolvedSolid band, DPose pose) in StationExit.CeilingBands())
             {
                 ShapeDesc bandShape = band.Shape();
-                scene.Add(id, world.Spawn(new()
-                {
-                    Frame = frame,
-                    Pose = pose,
-                    Body = new(Shape: bandShape, Motion: BodyMotion.Static),
-                    Render = Part(resources: resources, mesh: band.Mesh(),
-                        color: new(x: 0.7f, y: 0.71f, z: 0.74f, w: 1), boundingRadius: bandShape.BoundingRadius())
-                }));
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = frame,
+                            Pose = pose,
+                            Body = new(Shape: bandShape, Motion: BodyMotion.Static),
+                            Render = Part(
+                                resources: resources,
+                                mesh: band.Mesh(),
+                                color: new(x: 0.7f, y: 0.71f, z: 0.74f, w: 1),
+                                boundingRadius: bandShape.BoundingRadius()
+                            ),
+                        }
+                    )
+                );
             }
 
-            RevolvedSolid wall = RevolvedSolid.Ring(innerRadius: CeilingRadius + CeilingThickness,
+            var wall = RevolvedSolid.Ring(
+                innerRadius: CeilingRadius + CeilingThickness,
                 outerRadius: FloorRadius,
-                halfWidth: SideWallThickness / 2, segments: Segments);
+                halfWidth: SideWallThickness / 2,
+                segments: Segments
+            );
             ShapeDesc wallShape = wall.Shape();
-            RenderData wallRender = Part(resources: resources, mesh: wall.Mesh(),
+            RenderData wallRender = Part(
+                resources: resources,
+                mesh: wall.Mesh(),
                 color: new(x: 0.55f, y: 0.57f, z: 0.62f, w: 1),
-                boundingRadius: wallShape.BoundingRadius());
-            foreach ((string id, double y) in new[]
-                     {
-                         ("station-wall-slot", HalfWidth - SideWallThickness / 2),
-                         ("station-wall-far", -(HalfWidth - SideWallThickness / 2))
-                     })
-                scene.Add(id, world.Spawn(new()
+                boundingRadius: wallShape.BoundingRadius()
+            );
+            foreach (
+                (string id, double y) in new[]
                 {
-                    Frame = frame,
-                    Pose = new(new(0, y, 0), DQuaternion.Identity),
-                    Body = new(Shape: wallShape, Motion: BodyMotion.Static),
-                    Render = wallRender
-                }));
+                    ("station-wall-slot", HalfWidth - SideWallThickness / 2),
+                    ("station-wall-far", -(HalfWidth - SideWallThickness / 2)),
+                }
+            )
+                scene.Add(
+                    id,
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = frame,
+                            Pose = new(new(0, y, 0), DQuaternion.Identity),
+                            Body = new(Shape: wallShape, Motion: BodyMotion.Static),
+                            Render = wallRender,
+                        }
+                    )
+                );
 
             BoundingBox[] spokes = [.. Spokes()];
             BoxMesh spokeMesh = new();
             foreach (BoundingBox box in spokes)
                 spokeMesh.Box(box);
             CompoundShapeDesc spokeShape = Boxes(spokes);
-            scene.Add("station-spokes", world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = DPose.Identity,
-                Body = new(Shape: spokeShape, Motion: BodyMotion.Static),
-                Render = Part(resources: resources, mesh: spokeMesh.Build(),
-                    color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1), boundingRadius: spokeShape.BoundingRadius())
-            }));
+            scene.Add(
+                "station-spokes",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = DPose.Identity,
+                        Body = new(Shape: spokeShape, Motion: BodyMotion.Static),
+                        Render = Part(
+                            resources: resources,
+                            mesh: spokeMesh.Build(),
+                            color: new(x: 0.5f, y: 0.52f, z: 0.58f, w: 1),
+                            boundingRadius: spokeShape.BoundingRadius()
+                        ),
+                    }
+                )
+            );
 
             Vector3 hubOwn = HubOwnHalf;
-            Opening slot = HubSlot, hole = HubDeckHole;
+            Opening slot = HubSlot,
+                hole = HubDeckHole;
             CompoundShapeDesc hubShape = Boxes(HubWalls());
-            scene.Add("station-hub", world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(Double3.Zero, HubTurn),
-                Body = new(Shape: hubShape, Motion: BodyMotion.Static),
-                Render = Part(resources: resources, mesh: new BoxMesh()
-                    .Box(new(-hubOwn, hubOwn), openings: [slot, hole])
-                    .Box(new(-(hubOwn - new Vector3(HubWall)), hubOwn - new Vector3(HubWall)), inward: true,
-                        openings: [slot, hole])
-                    .Sides(slot)
-                    .Sides(hole)
-                    .Build(), color: new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1), boundingRadius: hubShape.BoundingRadius())
-            }));
+            scene.Add(
+                "station-hub",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(Double3.Zero, HubTurn),
+                        Body = new(Shape: hubShape, Motion: BodyMotion.Static),
+                        Render = Part(
+                            resources: resources,
+                            mesh: new BoxMesh()
+                                .Box(new(-hubOwn, hubOwn), openings: [slot, hole])
+                                .Box(
+                                    new(-(hubOwn - new Vector3(HubWall)), hubOwn - new Vector3(HubWall)),
+                                    inward: true,
+                                    openings: [slot, hole]
+                                )
+                                .Sides(slot)
+                                .Sides(hole)
+                                .Build(),
+                            color: new(x: 0.82f, y: 0.82f, z: 0.84f, w: 1),
+                            boundingRadius: hubShape.BoundingRadius()
+                        ),
+                    }
+                )
+            );
 
             StationExit.Spawn(world: world, station: frame, scene: scene, resources: resources);
             WheelCoda.Spawn(world: world, station: frame, scene: scene, resources: resources);
@@ -481,34 +593,39 @@ public static partial class DemoScenes
             // The bay lamps: glowing panels flat on the bay's walls, each with its light 0.3 m out from the wall, in the
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.
             Vector3 bay = HubHalf - new Vector3(HubWall);
-            MaterialId lampMaterial =
-                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0,
-                    Emissive: new(6, 5.4f, 4.5f)));
+            MaterialId lampMaterial = resources.CreateMaterial(
+                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+            );
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
                 (new(bay.X, bay.Y - 8, 0), -Vector3.UnitX),
                 (new(0, bay.Y - 8, bay.Z), -Vector3.UnitZ),
                 (new(0, bay.Y - 8, -bay.Z), Vector3.UnitZ),
-                (new(0, -bay.Y, 0), Vector3.UnitY)
+                (new(0, -bay.Y, 0), Vector3.UnitY),
             ];
             foreach ((Vector3 at, Vector3 inward) in lamps)
             {
                 Vector3 half = new Vector3(0.6f) - 0.55f * Vector3.Abs(inward);
-                world.Spawn(new()
-                {
-                    Frame = frame,
-                    Pose = new(at + inward * half, DQuaternion.Identity),
-                    Render = new RenderData
+                world.Spawn(
+                    new()
                     {
-                        Mesh = resources.CreateMesh(Primitives.Box(half)),
-                        Material = lampMaterial,
-                        BoundingRadius = 0.85f,
-                        Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                        Light = new PointLightData(Offset: new(inward * 0.3f, Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f),
-                            Intensity: 100, Range: 20)
+                        Frame = frame,
+                        Pose = new(at + inward * half, DQuaternion.Identity),
+                        Render = new RenderData
+                        {
+                            Mesh = resources.CreateMesh(Primitives.Box(half)),
+                            Material = lampMaterial,
+                            BoundingRadius = 0.85f,
+                            Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
+                            Light = new PointLightData(
+                                Offset: new(inward * 0.3f, Quaternion.Identity),
+                                Color: new(1, 0.9f, 0.75f),
+                                Intensity: 100,
+                                Range: 20
+                            ),
+                        },
                     }
-                });
+                );
             }
 
             // The rim camera: at θ = 45 degrees, between two spokes, 98 m from the axis and 2 m off the slot's face of the
@@ -518,31 +635,46 @@ public static partial class DemoScenes
             var across = new Double3(Math.Cos(theta), 0, -Math.Sin(theta));
             Double3 rim = across * 98 + new Double3(0, HalfWidth + 2, 0);
             var aim = new Double3(0, 60, 0);
-            scene.Add("rim-camera", world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(rim, AttitudeAutopilot.Facing(aim - rim, Double3.Cross(across, Double3.UnitY))),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "rim-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(rim, AttitudeAutopilot.Facing(aim - rim, Double3.Cross(across, Double3.UnitY))),
+                        Render = new RenderData(),
+                    }
+                )
+            );
 
             // The bay camera: still in the bay, 1 m from its far wall, in the corner across from the parked place. It looks
             // at a point between the slot and the parked shuttle, with its roof away from the deck, so it sees the slot, the
             // nose as it comes through, the move out, the landing in the corner and the spoke's mouth in the deck.
-            scene.Add("bay-camera", world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(BayCamera, AttitudeAutopilot.Facing(BayCameraAim - BayCamera, Double3.UnitX)),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "bay-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(BayCamera, AttitudeAutopilot.Facing(BayCameraAim - BayCamera, Double3.UnitX)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
 
             // The hold camera: beyond the hold point and off the axis, looking back past the shuttle at the hold toward the
             // hub. Its roof lies along +Z, across the plane of the axis and the camera, so the axis runs across the picture.
-            scene.Add("hold-camera", world.Spawn(new()
-            {
-                Frame = frame,
-                Pose = new(HoldCamera, AttitudeAutopilot.Facing(HoldCameraAim - HoldCamera, Double3.UnitZ)),
-                Render = new RenderData()
-            }));
+            scene.Add(
+                "hold-camera",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(HoldCamera, AttitudeAutopilot.Facing(HoldCameraAim - HoldCamera, Double3.UnitZ)),
+                        Render = new RenderData(),
+                    }
+                )
+            );
             return station;
         }
     }

@@ -41,7 +41,8 @@ internal sealed class PhysicsQueryRunner(
     World world,
     IPhysicsBackend? physics,
     Router router,
-    Action<string> reportError)
+    Action<string> reportError
+)
 {
     private static readonly Comparison<Hit> ByDistanceThenEntity = static (a, b) =>
         a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : a.Entity.CompareTo(b.Entity);
@@ -77,7 +78,8 @@ internal sealed class PhysicsQueryRunner(
         double Start,
         double End,
         FrameHandle CameFrom,
-        bool GoesUp);
+        bool GoesUp
+    );
 
     /// <summary>
     /// A semantic frame and one frame under it: a child frame, or one of its numeric frames, nested ones included. Built
@@ -103,7 +105,8 @@ internal sealed class PhysicsQueryRunner(
             {
                 Contract.Assert(false, $"The physics request of {request.Asker} holds no question.");
                 reportError(
-                    $"tick {tick}: {request.Asker}: a physics request holds no question, which only a bug produces. It has no answer.");
+                    $"tick {tick}: {request.Asker}: a physics request holds no question, which only a bug produces. It has no answer."
+                );
                 continue;
             }
 
@@ -123,23 +126,26 @@ internal sealed class PhysicsQueryRunner(
             catch (Exception ex) when (ex is not ContractException)
             {
                 reportError(
-                    $"tick {tick}: {request.Asker}: the {NameOf(request.Question)} failed and has no answer: {ex.GetType().Name}: {ex.Message}");
+                    $"tick {tick}: {request.Asker}: the {NameOf(request.Question)} failed and has no answer: {ex.GetType().Name}: {ex.Message}"
+                );
             }
 
             if (filter.DeadHits > 0)
                 reportError(
-                    $"tick {tick}: {request.Asker}: physics reported {filter.DeadHits} bodies of entities that are not live, which only a bug in the backend produces. The {NameOf(request.Question)} skipped them.");
+                    $"tick {tick}: {request.Asker}: physics reported {filter.DeadHits} bodies of entities that are not live, which only a bug in the backend produces. The {NameOf(request.Question)} skipped them."
+                );
         }
     }
 
     // Run refuses the empty question before it asks for a name, so the null arm only keeps the switch exhaustive.
-    private static string NameOf(in PhysicsQuestion question) => question switch
-    {
-        RayQuestion => "ray cast",
-        ShapeCastQuestion => "shape cast",
-        OverlapQuestion => "overlap query",
-        null => "physics query"
-    };
+    private static string NameOf(in PhysicsQuestion question) =>
+        question switch
+        {
+            RayQuestion => "ray cast",
+            ShapeCastQuestion => "shape cast",
+            OverlapQuestion => "overlap query",
+            null => "physics query",
+        };
 
     private void LinkFrames()
     {
@@ -174,7 +180,8 @@ internal sealed class PhysicsQueryRunner(
     {
         PhysicsQuestion question = request.Question;
         bool firstOnly = question.FirstHitOnly;
-        double reach = question.Reach, length = question.Length;
+        double reach = question.Reach,
+            length = question.Length;
         // An overlap is a point, so any line through it tests whether it lies in a region. Run refuses the empty question
         // before it walks, so the null arm only keeps the switch exhaustive.
         Double3 line = question switch
@@ -182,7 +189,7 @@ internal sealed class PhysicsQueryRunner(
             RayQuestion ray => ray.Direction,
             ShapeCastQuestion shapeCast => shapeCast.Direction,
             OverlapQuestion => Double3.UnitX,
-            null => Double3.Zero
+            null => Double3.Zero,
         };
         Double3 from = question.Origin;
         visits.Clear();
@@ -199,8 +206,14 @@ internal sealed class PhysicsQueryRunner(
             // The parent's system holds the hull of the frame that the query came up from, around the query's start.
             filter.Skip(visit.GoesUp ? visit.CameFrom.Entity : Entity.Null);
             DPose toVisit = frames.Relative(request.Frame, visit.Frame);
-            Query(backend: backend, frame: visit.Frame, request: request, toFrame: toVisit, start: visit.Start,
-                end: end);
+            Query(
+                backend: backend,
+                frame: visit.Frame,
+                request: request,
+                toFrame: toVisit,
+                start: visit.Start,
+                end: end
+            );
 
             double limit = Limit(length, firstOnly);
             foreach (ref readonly FrameLink link in links.AsSpan())
@@ -211,19 +224,32 @@ internal sealed class PhysicsQueryRunner(
                 if (link.Numeric)
                 {
                     // A numeric frame has no bubble: its bodies are the frame's own, wherever they are.
-                    Query(backend: backend, frame: link.Child, request: request, toFrame: toChild, start: visit.Start,
-                        end: end);
+                    Query(
+                        backend: backend,
+                        frame: link.Child,
+                        request: request,
+                        toFrame: toChild,
+                        start: visit.Start,
+                        end: end
+                    );
                     continue;
                 }
 
                 FrameBounds bubble = frames.Bounds(link.Child);
-                var region =
-                    new FrameBounds(bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius));
-                if (!region.TryIntersectLine(origin: toChild.TransformPoint(from),
+                var region = new FrameBounds(
+                    bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius)
+                );
+                if (
+                    !region.TryIntersectLine(
+                        origin: toChild.TransformPoint(from),
                         direction: toChild.Rotation.Rotate(line),
-                        entry: out double entry, exit: out double exit))
+                        entry: out double entry,
+                        exit: out double exit
+                    )
+                )
                     continue;
-                double start = Math.Max(0, entry), stop = Math.Min(limit, exit);
+                double start = Math.Max(0, entry),
+                    stop = Math.Min(limit, exit);
                 if (start <= stop)
                     visits.Add(new(Frame: link.Child, Start: start, End: stop, CameFrom: visit.Frame, GoesUp: false));
             }
@@ -236,9 +262,17 @@ internal sealed class PhysicsQueryRunner(
                 double start = visit.Start;
                 FrameBounds bubble = frames.Bounds(visit.Frame);
                 double inner = 1 - reach / bubble.MinRadius;
-                if (inner > 0 && new FrameBounds(bubble.Radii * (float)inner).TryIntersectLine(
-                        origin: toVisit.TransformPoint(from), direction: toVisit.Rotation.Rotate(line),
-                        entry: out double entry, exit: out double exit) && entry <= start && start < exit)
+                if (
+                    inner > 0
+                    && new FrameBounds(bubble.Radii * (float)inner).TryIntersectLine(
+                        origin: toVisit.TransformPoint(from),
+                        direction: toVisit.Rotation.Rotate(line),
+                        entry: out double entry,
+                        exit: out double exit
+                    )
+                    && entry <= start
+                    && start < exit
+                )
                     start = exit;
                 if (start <= end)
                     visits.Add(new(Frame: parent, Start: start, End: end, CameFrom: visit.Frame, GoesUp: true));
@@ -251,7 +285,7 @@ internal sealed class PhysicsQueryRunner(
         {
             RayQuestion or ShapeCastQuestion => true,
             OverlapQuestion => false,
-            null => false
+            null => false,
         };
         if (alongLine)
             hits.AsSpan().Sort(ByDistanceThenEntity);
@@ -287,12 +321,15 @@ internal sealed class PhysicsQueryRunner(
         {
             FrameBounds bubble = frames.Bounds(frame);
             var radii = (Double3)bubble.Radii;
-            double smallest = bubble.MinRadius, scale = 1;
+            double smallest = bubble.MinRadius,
+                scale = 1;
             foreach (Entity member in world.FrameMembers(frame))
                 if (entities.Body(member) is not null)
-                    scale = Math.Max(scale,
-                        (entities.FrontRow(member).Pose.Position / radii).Length +
-                        entities.BodyBoundingRadius(member) / smallest);
+                    scale = Math.Max(
+                        scale,
+                        (entities.FrontRow(member).Pose.Position / radii).Length
+                            + entities.BodyBoundingRadius(member) / smallest
+                    );
             known = (syncStamp, scale);
         }
 
@@ -304,35 +341,71 @@ internal sealed class PhysicsQueryRunner(
     /// <paramref name="end"/>, and keeps the nearest hit of each entity. <paramref name="toFrame"/> maps the query's frame
     /// into <paramref name="frame"/>.
     /// </summary>
-    private void Query(IPhysicsBackend backend, FrameHandle frame, in PhysicsRequest request, in DPose toFrame,
-        double start, double end)
+    private void Query(
+        IPhysicsBackend backend,
+        FrameHandle frame,
+        in PhysicsRequest request,
+        in DPose toFrame,
+        double start,
+        double end
+    )
     {
         DQuaternion back = toFrame.Rotation.Conjugate();
         switch (request.Question)
         {
             case RayQuestion { Origin: var origin, Direction: var direction, Kind: var kind }:
                 rayHits.Clear();
-                backend.CastRay(frame: frame, origin: toFrame.TransformPoint(origin),
-                    direction: toFrame.Rotation.Rotate(direction), start: start, end: end,
-                    filter: filter, kind: kind, hits: rayHits);
+                backend.CastRay(
+                    frame: frame,
+                    origin: toFrame.TransformPoint(origin),
+                    direction: toFrame.Rotation.Rotate(direction),
+                    start: start,
+                    end: end,
+                    filter: filter,
+                    kind: kind,
+                    hits: rayHits
+                );
                 foreach (RayCastHit found in rayHits)
-                    Keep(new(Entity: found.Entity, Distance: found.Distance, Point: origin + direction * found.Distance,
-                        Normal: back.Rotate(found.Normal)));
+                    Keep(
+                        new(
+                            Entity: found.Entity,
+                            Distance: found.Distance,
+                            Point: origin + direction * found.Distance,
+                            Normal: back.Rotate(found.Normal)
+                        )
+                    );
                 break;
             case ShapeCastQuestion { Shape: var shape, Start: var startPose, Direction: var direction }:
                 shapeHits.Clear();
-                backend.CastShape(frame: frame, shape: shape, start: DPose.Compose(toFrame, startPose),
+                backend.CastShape(
+                    frame: frame,
+                    shape: shape,
+                    start: DPose.Compose(toFrame, startPose),
                     direction: toFrame.Rotation.Rotate(direction),
-                    startDistance: start, endDistance: end, filter: filter, hits: shapeHits);
+                    startDistance: start,
+                    endDistance: end,
+                    filter: filter,
+                    hits: shapeHits
+                );
                 foreach (ShapeCastHit found in shapeHits)
-                    Keep(new(Entity: found.Entity, Distance: found.Distance,
-                        Point: toFrame.InverseTransformPoint(found.Point),
-                        Normal: back.Rotate(found.Normal)));
+                    Keep(
+                        new(
+                            Entity: found.Entity,
+                            Distance: found.Distance,
+                            Point: toFrame.InverseTransformPoint(found.Point),
+                            Normal: back.Rotate(found.Normal)
+                        )
+                    );
                 break;
             case OverlapQuestion { Shape: var shape, Pose: var pose }:
                 overlapped.Clear();
-                backend.Overlap(frame: frame, shape: shape, pose: DPose.Compose(toFrame, pose), filter: filter,
-                    entities: overlapped);
+                backend.Overlap(
+                    frame: frame,
+                    shape: shape,
+                    pose: DPose.Compose(toFrame, pose),
+                    filter: filter,
+                    entities: overlapped
+                );
                 foreach (Entity found in overlapped)
                     hits.Add(new(Entity: found, Distance: 0, Point: default, Normal: default));
                 return;
@@ -390,23 +463,40 @@ internal sealed class PhysicsQueryRunner(
             ref Hit hit = ref hits[i];
             Double3 point = convert ? toAsker.TransformPoint(hit.Point) : hit.Point;
             Vector3 normal = convert ? toAsker.Rotation.Rotate(hit.Normal) : hit.Normal;
-            router.AddEngineEvent(question switch
-            {
-                RayQuestion => AnswerTo(request.Asker,
-                    new RayHit
-                    {
-                        Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
-                        Normal = normal
-                    }),
-                ShapeCastQuestion => AnswerTo(request.Asker,
-                    new ShapeHit
-                    {
-                        Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag,
-                        Normal = normal
-                    }),
-                OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Entity = hit.Entity, Tag = request.Tag }),
-                null => throw new UnreachableException("Run refuses a request without a question before it answers.")
-            });
+            router.AddEngineEvent(
+                question switch
+                {
+                    RayQuestion => AnswerTo(
+                        request.Asker,
+                        new RayHit
+                        {
+                            Entity = hit.Entity,
+                            Point = point,
+                            Distance = (float)hit.Distance,
+                            Tag = request.Tag,
+                            Normal = normal,
+                        }
+                    ),
+                    ShapeCastQuestion => AnswerTo(
+                        request.Asker,
+                        new ShapeHit
+                        {
+                            Entity = hit.Entity,
+                            Point = point,
+                            Distance = (float)hit.Distance,
+                            Tag = request.Tag,
+                            Normal = normal,
+                        }
+                    ),
+                    OverlapQuestion => AnswerTo(
+                        request.Asker,
+                        new OverlapHit { Entity = hit.Entity, Tag = request.Tag }
+                    ),
+                    null => throw new UnreachableException(
+                        "Run refuses a request without a question before it answers."
+                    ),
+                }
+            );
         }
 
         if (count > 0)
@@ -415,20 +505,36 @@ internal sealed class PhysicsQueryRunner(
         Double3 missPoint = default;
         if (frameAlive)
             missPoint = convert ? toAsker.TransformPoint(end) : end;
-        router.AddEngineEvent(question switch
-        {
-            RayQuestion => AnswerTo(request.Asker,
-                new RayHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag }),
-            ShapeCastQuestion => AnswerTo(request.Asker,
-                new ShapeHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag }),
-            OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Tag = request.Tag }),
-            null => throw new UnreachableException("Run refuses a request without a question before it answers.")
-        });
+        router.AddEngineEvent(
+            question switch
+            {
+                RayQuestion => AnswerTo(
+                    request.Asker,
+                    new RayHit
+                    {
+                        Point = missPoint,
+                        Distance = (float)question.Length,
+                        Tag = request.Tag,
+                    }
+                ),
+                ShapeCastQuestion => AnswerTo(
+                    request.Asker,
+                    new ShapeHit
+                    {
+                        Point = missPoint,
+                        Distance = (float)question.Length,
+                        Tag = request.Tag,
+                    }
+                ),
+                OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Tag = request.Tag }),
+                null => throw new UnreachableException("Run refuses a request without a question before it answers."),
+            }
+        );
     }
 
     /// <summary>The engine event that brings <paramref name="answer"/> to <paramref name="asker"/>.</summary>
-    private static Event AnswerTo<T>(Entity asker, in T answer) where T : unmanaged, IEventPayload =>
-        Event.Create(target: new(asker), sender: Entity.Null, payload: answer);
+    private static Event AnswerTo<T>(Entity asker, in T answer)
+        where T : unmanaged, IEventPayload => Event.Create(target: new(asker), sender: Entity.Null, payload: answer);
 
     /// <summary>
     /// The filter of the request that runs: the request's entity query on the snapshot, around the asker, which it never

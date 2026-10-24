@@ -32,10 +32,14 @@ public struct CloseDoor : IEventPayload;
 /// </param>
 public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = false) : IComponent
 {
-    private readonly float openSeconds = openSeconds > 0 && float.IsFinite(openSeconds)
-        ? openSeconds
-        : throw new ArgumentOutOfRangeException(nameof(openSeconds), openSeconds,
-            "The time to open must be positive and finite.");
+    private readonly float openSeconds =
+        openSeconds > 0 && float.IsFinite(openSeconds)
+            ? openSeconds
+            : throw new ArgumentOutOfRangeException(
+                nameof(openSeconds),
+                openSeconds,
+                "The time to open must be positive and finite."
+            );
 
     private DPose closed;
 
@@ -105,8 +109,8 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
         // An end pose moves the body there over the next step, and stops it there. It is relative to the frame that the
         // door is in.
         var place = new DPose(closed.Position + closed.Rotation.Rotate((Double3)(slide * openness)), closed.Rotation);
-        self.MoveKinematic(closedFrame == self.Frame
-            ? place
-            : DPose.Compose(frames.Relative(closedFrame, self.Frame), place));
+        self.MoveKinematic(
+            closedFrame == self.Frame ? place : DPose.Compose(frames.Relative(closedFrame, self.Frame), place)
+        );
     }
 }

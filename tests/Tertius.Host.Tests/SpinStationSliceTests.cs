@@ -15,9 +15,8 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class SpinStationRun : CheckedInRun
 {
-    public SpinStationRun() : this([], [])
-    {
-    }
+    public SpinStationRun()
+        : this([], []) { }
 
     private SpinStationRun(List<SpinStationSample> samples, List<Entity> live)
         : base("spin-station", (world, scene) => samples.Add(SpinStationSample.Take(world, scene, live)))
@@ -36,8 +35,11 @@ public sealed class SpinStationRun : CheckedInRun
 internal readonly record struct SpinStationBody(Double3 Inertial, Double3 InStation, Double3 VelocityInStation)
 {
     public static SpinStationBody Take(World world, Entity entity, FrameHandle space, FrameHandle station) =>
-        new(world.PoseIn(entity, space).Position, world.PoseIn(entity, station).Position,
-            world.VelocityIn(entity, station));
+        new(
+            world.PoseIn(entity, space).Position,
+            world.PoseIn(entity, station).Position,
+            world.VelocityIn(entity, station)
+        );
 }
 
 /// <summary>The scene after a number of ticks.</summary>
@@ -55,7 +57,8 @@ internal sealed record SpinStationSample(
     SpinStationBody Person,
     bool Standing,
     SpinStationBody Dropped,
-    SpinStationBody? Thrown)
+    SpinStationBody? Thrown
+)
 {
     /// <summary>The sample of <paramref name="world"/> now. It fills <paramref name="live"/> with the live entities, to find the thrown crate.</summary>
     public static SpinStationSample Take(World world, SceneInstance scene, List<Entity> live)
@@ -67,14 +70,19 @@ internal sealed record SpinStationSample(
         live.Clear();
         world.CopyLiveEntities(live);
         Entity thrown = live.FirstOrDefault(e =>
-            world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _));
-        return new(Tick: world.TickNumber, Time: world.Time, Station: world.Frames.Relative(station, space),
+            world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _)
+        );
+        return new(
+            Tick: world.TickNumber,
+            Time: world.Time,
+            Station: world.Frames.Relative(station, space),
             Person: SpinStationBody.Take(world: world, entity: person, space: space, station: station),
             Standing: world.IsStanding(person),
             Dropped: SpinStationBody.Take(world: world, entity: scene["dropped-crate"], space: space, station: station),
             Thrown: thrown.IsNull
                 ? null
-                : SpinStationBody.Take(world: world, entity: thrown, space: space, station: station));
+                : SpinStationBody.Take(world: world, entity: thrown, space: space, station: station)
+        );
     }
 }
 
@@ -206,9 +214,15 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     /// <paramref name="until"/> s, while the station turns steadily at <see cref="Omega"/> about +Y: the time after the
     /// start and the place in the station's coordinates.
     /// </summary>
-    private static (double Time, Double3 Place) Landing(DPose at, Double3 start, Double3 velocity, Double3 normal,
+    private static (double Time, Double3 Place) Landing(
+        DPose at,
+        Double3 start,
+        Double3 velocity,
+        Double3 normal,
         double distance,
-        double from, double until)
+        double from,
+        double until
+    )
     {
         Double3 InStation(double s)
         {
@@ -218,7 +232,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
         double Gap(double s) => Double3.Dot(InStation(s), normal) - distance;
         const double step = 1e-4;
-        double lo = from, hi = from + step;
+        double lo = from,
+            hi = from + step;
         while (hi < until && !(Gap(lo) < 0 && Gap(hi) >= 0))
         {
             lo = hi;
@@ -279,8 +294,11 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     [Theory]
     [InlineData("spinward", "antispinward", 1)]
     [InlineData("antispinward", "stop", -1)]
-    public void ThePersonStandsInEveryTickOfItsWalkAndMovesAlongTheFloorAtItsAskedSpeed(string start, string end,
-        int way)
+    public void ThePersonStandsInEveryTickOfItsWalkAndMovesAlongTheFloorAtItsAskedSpeed(
+        string start,
+        string end,
+        int way
+    )
     {
         // The ground holds a standing character against the whole acceleration of its frame, so the walk moves the person
         // at its asked speed along the floor in every step, also across the joints of the facets, where it passes from one
@@ -293,14 +311,18 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
             SpinStationSample sample = Samples[n];
             sample.Standing.Should().BeTrue($"the person stands in the step that ends at sample {n}");
             Double3 velocity = sample.Person.VelocityInStation;
-            var along = new Double3(-Math.Sin(Theta(sample.Person.InStation)), 0,
-                -Math.Cos(Theta(sample.Person.InStation)));
+            var along = new Double3(
+                -Math.Sin(Theta(sample.Person.InStation)),
+                0,
+                -Math.Cos(Theta(sample.Person.InStation))
+            );
             (way * Double3.Dot(velocity, along)).Should().BeGreaterThan(0, $"the person walks {start} at sample {n}");
             worstSpeed = Math.Max(worstSpeed, Math.Abs(velocity.Length - PersonControl.WalkSpeed));
         }
 
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{start}: {last - first + 1} steps, worst speed error {worstSpeed:E3} m/s");
+            $"{start}: {last - first + 1} steps, worst speed error {worstSpeed:E3} m/s"
+        );
         worstSpeed.Should().BeLessThan(SpeedBound, "the person walks at its asked speed along the floor");
     }
 
@@ -318,12 +340,16 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     private (double Mean, double Peak, double Radius, double Speed) Inward(string start, string end)
     {
         (int first, int last) = Walk(start, end);
-        double sum = 0, peak = 0, radius = 0, speed = 0;
+        double sum = 0,
+            peak = 0,
+            radius = 0,
+            speed = 0;
         int count = 0;
         for (int n = first + 1; n <= last; n++)
         {
-            Double3 acceleration = (Samples[n].Person.Inertial - 2 * Samples[n - 1].Person.Inertial +
-                                    Samples[n - 2].Person.Inertial) / (Dt * Dt);
+            Double3 acceleration =
+                (Samples[n].Person.Inertial - 2 * Samples[n - 1].Person.Inertial + Samples[n - 2].Person.Inertial)
+                / (Dt * Dt);
             Double3 middle = Samples[n - 1].Person.Inertial - Samples[n - 1].Station.Position;
             double inward = -Double3.Dot(acceleration, Outward(middle));
             sum += inward;
@@ -341,7 +367,10 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     [InlineData("spinward", "antispinward", 1)]
     [InlineData("antispinward", "stop", -1)]
     public void OverAWalkThePersonsInertialPathCurvesTowardTheAxisWithTheSquareOfItsInertialSpeedOverItsRadius(
-        string start, string end, int way)
+        string start,
+        string end,
+        int way
+    )
     {
         // The person moves round the axis in inertial space at ω r ± v, so its path curves toward the axis with
         // (ω r ± v)² / r: ω² r and the Coriolis term ± 2 ω v of a flat floor, and v² / r from the facets' turns. The walk's
@@ -351,12 +380,15 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // station's static mesh no body under the person takes a press, and the press on the dynamic plank has no v² / r.
         (double mean, double peak, double radius, double speed) = Inward(start, end);
         double v = way * speed;
-        double curved = Math.Pow(Omega * radius + v, 2) / radius, flat = Omega * Omega * radius + 2 * Omega * v;
+        double curved = Math.Pow(Omega * radius + v, 2) / radius,
+            flat = Omega * Omega * radius + 2 * Omega * v;
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"{start}: r {radius:F4} m, v {speed:F5} m/s, mean inward {mean:F5} m/s², (ωr±v)²/r {curved:F5}, ω²r±2ωv {flat:F5}, peak {peak:F4}");
+            $"{start}: r {radius:F4} m, v {speed:F5} m/s, mean inward {mean:F5} m/s², (ωr±v)²/r {curved:F5}, ω²r±2ωv {flat:F5}, peak {peak:F4}"
+        );
 
         mean.Should().BeApproximately(curved, WeightBound, "the path holds the whole inertial speed on the circle");
-        Math.Abs(mean - flat).Should()
+        Math.Abs(mean - flat)
+            .Should()
             .BeGreaterThan(WeightBound, "the path curves by v² / r more than the flat floor's terms give");
     }
 
@@ -376,29 +408,49 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         start.Standing.Should().BeTrue("the person stands where it jumps");
         Double3 x0 = start.Person.InStation;
         Double3 normal = FacetNormal(x0);
-        Double3 velocity = start.Station.Rotation.Rotate(-Outward(x0) * PersonControl.JumpSpeed)
-                           + Double3.Cross(new(0, Omega, 0), start.Person.Inertial - start.Station.Position);
+        Double3 velocity =
+            start.Station.Rotation.Rotate(-Outward(x0) * PersonControl.JumpSpeed)
+            + Double3.Cross(new(0, Omega, 0), start.Person.Inertial - start.Station.Position);
         double plane = FacetDistance - SpinStation.StandingHeight;
-        (double time, Double3 place) = Landing(at: start.Station, start: start.Person.Inertial, velocity: velocity,
-            normal: normal, distance: plane, from: 1e-3, until: 3);
+        (double time, Double3 place) = Landing(
+            at: start.Station,
+            start: start.Person.Inertial,
+            velocity: velocity,
+            normal: normal,
+            distance: plane,
+            from: 1e-3,
+            until: 3
+        );
 
         List<Double3> places = [.. Samples.Select(s => s.Person.Inertial)];
         int landed = FirstConstrainedStep(places, jump + 3);
         landed.Should().BeGreaterThan(jump + 3, "the person flew and landed");
         SpinStationSample last = Samples[landed - 1];
-        (double measuredTime, Double3 measured) = Landing(at: last.Station, start: last.Person.Inertial,
+        (double measuredTime, Double3 measured) = Landing(
+            at: last.Station,
+            start: last.Person.Inertial,
             velocity: (last.Person.Inertial - Samples[landed - 2].Person.Inertial) / Dt,
-            normal: normal, distance: plane, from: -Dt, until: 3 * Dt);
+            normal: normal,
+            distance: plane,
+            from: -Dt,
+            until: 3 * Dt
+        );
 
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"jump: lands after {time:F6} s at {place}, measured {last.Time - start.Time + measuredTime:F6} s at {measured}, off by {Double3.Distance(measured, place):E2} m; rests {Double3.Distance(Samples[landed + 30].Person.InStation, place):E2} m from it");
+            $"jump: lands after {time:F6} s at {place}, measured {last.Time - start.Time + measuredTime:F6} s at {measured}, off by {Double3.Distance(measured, place):E2} m; rests {Double3.Distance(Samples[landed + 30].Person.InStation, place):E2} m from it"
+        );
         FacetNormal(place).Should().Be(normal, "the person lands on the facet of its takeoff");
-        Double3.Distance(measured, place).Should()
+        Double3
+            .Distance(measured, place)
+            .Should()
             .BeLessThan(JumpPlaceBound, "the person flies on the inertial line of its takeoff");
-        (last.Time - start.Time + measuredTime).Should().BeApproximately(time, LandingTimeBound,
-            "the person lands when its line meets the floor");
+        (last.Time - start.Time + measuredTime)
+            .Should()
+            .BeApproximately(time, LandingTimeBound, "the person lands when its line meets the floor");
         Samples.Skip(landed + 2).Take(30).Should().OnlyContain(s => s.Standing, "it stands again after it lands");
-        Double3.Distance(Samples[landed + 30].Person.InStation, place).Should()
+        Double3
+            .Distance(Samples[landed + 30].Person.InStation, place)
+            .Should()
             .BeLessThan(JumpRestBound, "the person rests where its line met the floor");
     }
 
@@ -416,9 +468,13 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         BodyDesc body = run.World.GetBody(run.Scene["dropped-crate"])!;
         body.LinearDamping.Should().Be(0.05f, "the dropped crate has Jolt's default damping");
         SpinStationSample release = Samples[0];
-        Double3 velocity = Double3.Cross(new(0, Omega, 0), release.Dropped.Inertial - release.Station.Position);
-        var path = new ExpectedPath(place: release.Dropped.Inertial, damping: body.LinearDamping, dt: (float)Dt,
-            lastMove: velocity * Dt);
+        var velocity = Double3.Cross(new(0, Omega, 0), release.Dropped.Inertial - release.Station.Position);
+        var path = new ExpectedPath(
+            place: release.Dropped.Inertial,
+            damping: body.LinearDamping,
+            dt: (float)Dt,
+            lastMove: velocity * Dt
+        );
         Double3 normal = FacetNormal(release.Dropped.InStation);
         double plane = FacetDistance - SpinStation.CrateHalfSize;
 
@@ -434,7 +490,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
             path.Step(Samples[n - 1].Station, Samples[n].Station);
             expected.Add(path.Place);
             Double3 after = Samples[n].Station.InverseTransformPoint(path.Place);
-            double gapBefore = Double3.Dot(before, normal) - plane, gapAfter = Double3.Dot(after, normal) - plane;
+            double gapBefore = Double3.Dot(before, normal) - plane,
+                gapAfter = Double3.Dot(after, normal) - plane;
             if (gapAfter >= 0)
             {
                 double fraction = -gapBefore / (gapAfter - gapBefore);
@@ -445,20 +502,27 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         }
 
         // The first step that leaves the expected path by more than 0.1 mm: the step in which something touched the crate.
-        int measuredTouch = Enumerable.Range(1, expected.Count - 1)
+        int measuredTouch = Enumerable
+            .Range(1, expected.Count - 1)
             .FirstOrDefault(n => Double3.Distance(Samples[n].Dropped.Inertial, expected[n]) > TouchThreshold, -1);
         double worst = Enumerable.Range(0, touch).Max(n => Double3.Distance(Samples[n].Dropped.Inertial, expected[n]));
         Double3 rest = Samples[measuredTouch + 60].Dropped.InStation;
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"drop: worst {worst:E2} m off its path before it lands; expected to land at {landingTime:F6} s at {landingPlace}, in step {touch}; touched in step {measuredTouch}; rests at {rest}, {Double3.Distance(rest, landingPlace):F4} m from the landing place, {(Theta(rest) - Theta(release.Dropped.InStation)) * SpinStation.FloorRadius:F4} m spinward of its release");
+            $"drop: worst {worst:E2} m off its path before it lands; expected to land at {landingTime:F6} s at {landingPlace}, in step {touch}; touched in step {measuredTouch}; rests at {rest}, {Double3.Distance(rest, landingPlace):F4} m from the landing place, {(Theta(rest) - Theta(release.Dropped.InStation)) * SpinStation.FloorRadius:F4} m spinward of its release"
+        );
 
         touch.Should().BeGreaterThan(10, "the crate falls for a while");
         worst.Should().BeLessThan(PathBound, "the crate follows its expected path until it lands");
-        measuredTouch.Should().Be(touch,
-            "the floor stops the crate in the step in which its expected path meets the floor");
-        Double3.Dot(rest, normal).Should()
+        measuredTouch
+            .Should()
+            .Be(touch, "the floor stops the crate in the step in which its expected path meets the floor");
+        Double3
+            .Dot(rest, normal)
+            .Should()
             .BeApproximately(plane, FacetRestBound, "the crate rests on the floor's facet");
-        Double3.Distance(rest, landingPlace).Should()
+        Double3
+            .Distance(rest, landingPlace)
+            .Should()
             .BeLessThan(DropRestBound, "the crate rests where its expected path met the floor");
     }
 
@@ -471,8 +535,9 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // station's point there, ω × x. A crate of Carry has no damping, so its expected path is that line.
         int spawn = Enumerable.Range(0, Samples.Count).First(n => Samples[n].Thrown != null);
         SpinStationBody start = Samples[spawn].Thrown!.Value;
-        Double3 velocity = Samples[spawn].Station.Rotation.Rotate(start.VelocityInStation)
-                           + Double3.Cross(new(0, Omega, 0), start.Inertial - Samples[spawn].Station.Position);
+        Double3 velocity =
+            Samples[spawn].Station.Rotation.Rotate(start.VelocityInStation)
+            + Double3.Cross(new(0, Omega, 0), start.Inertial - Samples[spawn].Station.Position);
         start.VelocityInStation.Length.Should().BeGreaterThan(4, "the person charged the throw for half a second");
 
         List<Double3> places = [.. Samples.Skip(spawn).Select(s => s.Thrown!.Value.Inertial)];
@@ -480,13 +545,17 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         touch.Should().BeGreaterThan(20, "the crate flies for a while");
         double worst = 0;
         for (int n = 0; n < touch; n++)
-            worst = Math.Max(worst,
-                Double3.Distance(places[n],
-                    start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time)));
+            worst = Math.Max(
+                worst,
+                Double3.Distance(places[n], start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time))
+            );
 
         // The crate's line in the station's coordinates after the steps before the touch and after the step of the touch.
-        Double3 LineInStation(int n) => Samples[spawn + n].Station
-            .InverseTransformPoint(start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time));
+        Double3 LineInStation(int n) =>
+            Samples[spawn + n]
+                .Station.InverseTransformPoint(
+                    start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time)
+                );
 
         Double3 expected = LineInStation(touch);
         Double3 normal = FacetNormal(expected);
@@ -495,15 +564,16 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // relative to the station, not the inertial speed, which is mostly the floor's own ω r along the floor.
         double approach = Double3.Dot(expected - LineInStation(touch - 1), normal);
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"throw: {start.VelocityInStation} m/s in the station, flies {touch} steps, worst {worst:E2} m off its line; at the touch its line is {gap:F4} m from the floor, after an approach of {approach:F4} m in that step");
+            $"throw: {start.VelocityInStation} m/s in the station, flies {touch} steps, worst {worst:E2} m off its line; at the touch its line is {gap:F4} m from the floor, after an approach of {approach:F4} m in that step"
+        );
 
         worst.Should().BeLessThan(PathBound, "the thrown crate follows the inertial line of its instant velocity");
         // A crate of 0.4 m reaches at most its bounding radius toward the floor, and in the step of the touch its line
         // moves it at most that step's approach farther: 0.35 m plus 0.11 m. A crate that touched the person's legs or the
         // foot of a wall would touch with its line farther from the floor.
         approach.Should().BeGreaterThan(0, "the crate moves toward the floor when it touches");
-        gap.Should().BeLessThan(SpinStation.CrateHalfSize * Math.Sqrt(3) + approach,
-            "what the crate touches is the floor");
+        gap.Should()
+            .BeLessThan(SpinStation.CrateHalfSize * Math.Sqrt(3) + approach, "what the crate touches is the floor");
     }
 
     // ---- The captures ----
@@ -558,8 +628,10 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
         /// <summary>The gap between the two boxes across the frame or up it, whichever is wider; below 0 when they meet.</summary>
         public double Gap(ScreenBox other) =>
-            Math.Max(Math.Abs(X - other.X) - HalfWidth - other.HalfWidth,
-                Math.Abs(Y - other.Y) - HalfHeight - other.HalfHeight);
+            Math.Max(
+                Math.Abs(X - other.X) - HalfWidth - other.HalfWidth,
+                Math.Abs(Y - other.Y) - HalfHeight - other.HalfHeight
+            );
 
         /// <summary>A nearer body covers part of this one.</summary>
         public bool CoveredBy(ScreenBox nearer) => nearer.Depth < Depth && Overlaps(nearer);
@@ -578,20 +650,28 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         Double3 local = run.World.PoseIn(run.Scene[view], station).InverseTransformPoint(place);
         double depth = -local.Z,
             tanY = Math.Tan(run.World.VerticalFov / 2),
-            tanX = tanY * run.Script.Window!.Width / run.Script.Window.Height;
-        return new(X: local.X / depth / tanX, Y: local.Y / depth / tanY, HalfWidth: halfWidth / depth / tanX,
+            tanX = tanY * run.Script.Window.Width / run.Script.Window.Height;
+        return new(
+            X: local.X / depth / tanX,
+            Y: local.Y / depth / tanY,
+            HalfWidth: halfWidth / depth / tanX,
             HalfHeight: halfHeight / depth / tanY,
-            Depth: depth);
+            Depth: depth
+        );
     }
 
     /// <summary>The person's box on the screen: its drawn box, 0.3 m to each side and 0.9 m up and down from its center.</summary>
-    private ScreenBox PersonOnScreen(string view, int tick) => OnScreen(view: view,
-        place: Samples[tick].Person.InStation, halfWidth: 0.3, halfHeight: 0.9);
+    private ScreenBox PersonOnScreen(string view, int tick) =>
+        OnScreen(view: view, place: Samples[tick].Person.InStation, halfWidth: 0.3, halfHeight: 0.9);
 
     /// <summary>A crate's box on the screen: its bounding sphere, so that every turn of the crate lies inside the box.</summary>
     private ScreenBox CrateOnScreen(string view, Double3 place) =>
-        OnScreen(view: view, place: place, halfWidth: SpinStation.CrateHalfSize * Math.Sqrt(3),
-            halfHeight: SpinStation.CrateHalfSize * Math.Sqrt(3));
+        OnScreen(
+            view: view,
+            place: place,
+            halfWidth: SpinStation.CrateHalfSize * Math.Sqrt(3),
+            halfHeight: SpinStation.CrateHalfSize * Math.Sqrt(3)
+        );
 
     /// <summary>The distance along the floor from the angle of the station's +X to <paramref name="place"/>, in meters, growing spinward.</summary>
     private static double AlongFloor(Double3 place) => Math.Atan2(-place.Z, place.X) * SpinStation.FloorRadius;
@@ -603,8 +683,10 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // scripted runs" in ARCHITECTURE.md), and a capture after it renders the state after them.
         ScriptStep[] steps =
         [
-            new(new RunStep(10)), new(new FilmStep("film", 3, 4)), new(new CameraStep("side")),
-            new(new CaptureStep("after"))
+            new(new RunStep(10)),
+            new(new FilmStep("film", 3, 4)),
+            new(new CameraStep("side")),
+            new(new CaptureStep("after")),
         ];
 
         ShotIn(steps, "after").Should().Be((22, "side"));
@@ -616,14 +698,17 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // Each walk capture falls in its walk, while the person moves the walk's way, and the two show the person at places
         // so far apart along the floor that its boxes on the screen do not meet: a reader tells the two walks apart by
         // where the person stands in the frame.
-        (int Tick, string View)? spinward = Shot("walk-spinward"), antispinward = Shot("walk-antispinward");
+        (int Tick, string View)? spinward = Shot("walk-spinward"),
+            antispinward = Shot("walk-antispinward");
         spinward.Should().NotBeNull();
         antispinward.Should().NotBeNull();
-        foreach ((int tick, string start, string end, int way) in new[]
-                 {
-                     (spinward!.Value.Tick, "spinward", "antispinward", 1),
-                     (antispinward!.Value.Tick, "antispinward", "stop", -1)
-                 })
+        foreach (
+            (int tick, string start, string end, int way) in new[]
+            {
+                (spinward!.Value.Tick, "spinward", "antispinward", 1),
+                (antispinward!.Value.Tick, "antispinward", "stop", -1),
+            }
+        )
         {
             (int first, int last) = Walk(start, end);
             tick.Should().BeInRange(first, last, $"the capture of the walk {start} falls in that walk");
@@ -635,10 +720,12 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
             back = PersonOnScreen(antispinward.Value.View, antispinward.Value.Tick);
         there.InFrame.Should().BeTrue("the spinward walk's capture shows the whole person");
         back.InFrame.Should().BeTrue("the antispinward walk's capture shows the whole person");
-        double apart = AlongFloor(Samples[spinward.Value.Tick].Person.InStation) -
-                       AlongFloor(Samples[antispinward.Value.Tick].Person.InStation);
+        double apart =
+            AlongFloor(Samples[spinward.Value.Tick].Person.InStation)
+            - AlongFloor(Samples[antispinward.Value.Tick].Person.InStation);
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"walk captures: {apart:F2} m apart along the floor, at x {there.X:F3} and {back.X:F3} of the frame");
+            $"walk captures: {apart:F2} m apart along the floor, at x {there.X:F3} and {back.X:F3} of the frame"
+        );
         apart.Should().BeGreaterThan(5, "the spinward capture shows the person well spinward of the antispinward one");
         if (spinward.Value.View == antispinward.Value.View)
             there.Overlaps(back).Should().BeFalse("the person stands at two places of the frame");
@@ -650,26 +737,34 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // The jump lands about 0.28 m spinward of its takeoff (see the jump's test), because the person keeps the inertial
         // speed of the floor's radius on its way toward the axis, where the floor turns slower. The two captures share one
         // view, so the shift shows as a move of the person across the frame toward the side where spinward points.
-        (int Tick, string View)? takeoff = Shot("takeoff"), landed = Shot("landed");
+        (int Tick, string View)? takeoff = Shot("takeoff"),
+            landed = Shot("landed");
         takeoff.Should().NotBeNull("the script captures the person where it jumps");
         landed.Should().NotBeNull();
         landed!.Value.View.Should().Be(takeoff!.Value.View, "the shift shows only against the same view");
-        Samples[takeoff.Value.Tick].Standing.Should()
+        Samples[takeoff.Value.Tick]
+            .Standing.Should()
             .BeTrue("the takeoff capture shows the person standing where it jumps");
         Samples[landed.Value.Tick].Standing.Should().BeTrue("the landed capture shows the person standing again");
         Double3 from = Samples[takeoff.Value.Tick].Person.InStation;
         double shift = AlongFloor(Samples[landed.Value.Tick].Person.InStation) - AlongFloor(from);
         // The screen's spinward side: where a point a meter spinward of the takeoff shows.
-        double theta = Theta(from) + 1 / SpinStation.FloorRadius, radius = Math.Sqrt(from.X * from.X + from.Z * from.Z);
+        double theta = Theta(from) + 1 / SpinStation.FloorRadius,
+            radius = Math.Sqrt(from.X * from.X + from.Z * from.Z);
         double spinwardOnScreen = Math.Sign(
-            OnScreen(view: takeoff.Value.View, place: new(radius * Math.Cos(theta), from.Y, -radius * Math.Sin(theta)),
-                halfWidth: 0, halfHeight: 0).X
-            - OnScreen(view: takeoff.Value.View, place: from, halfWidth: 0, halfHeight: 0).X);
+            OnScreen(
+                view: takeoff.Value.View,
+                place: new(radius * Math.Cos(theta), from.Y, -radius * Math.Sin(theta)),
+                halfWidth: 0,
+                halfHeight: 0
+            ).X - OnScreen(view: takeoff.Value.View, place: from, halfWidth: 0, halfHeight: 0).X
+        );
         ScreenBox before = PersonOnScreen(takeoff.Value.View, takeoff.Value.Tick),
             after = PersonOnScreen(landed.Value.View, landed.Value.Tick);
         double move = (after.X - before.X) * spinwardOnScreen * run.Script.Window!.Width / 2;
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"landed: {shift:F3} m spinward of the takeoff, {move:F1} px toward the screen's spinward side");
+            $"landed: {shift:F3} m spinward of the takeoff, {move:F1} px toward the screen's spinward side"
+        );
         before.InFrame.Should().BeTrue();
         after.InFrame.Should().BeTrue();
         shift.Should().BeGreaterThan(0.1, "the jump lands spinward of its takeoff");
@@ -692,7 +787,8 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         ScreenBox crate = CrateOnScreen(shot.Value.View, Samples[shot.Value.Tick].Thrown!.Value.InStation),
             person = PersonOnScreen(shot.Value.View, shot.Value.Tick);
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"throw capture: {shot.Value.Tick - spawn} ticks after the throw, crate at x {crate.X:F3} y {crate.Y:F3}, person at x {person.X:F3} y {person.Y:F3}, gap {crate.Gap(person):F3} against the crate's width {2 * crate.HalfWidth:F3}");
+            $"throw capture: {shot.Value.Tick - spawn} ticks after the throw, crate at x {crate.X:F3} y {crate.Y:F3}, person at x {person.X:F3} y {person.Y:F3}, gap {crate.Gap(person):F3} against the crate's width {2 * crate.HalfWidth:F3}"
+        );
         crate.InFrame.Should().BeTrue("the throw capture shows the whole crate");
         crate.Gap(person).Should().BeGreaterThan(2 * crate.HalfWidth, "the crate shows apart from the person");
     }
@@ -708,14 +804,20 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         SpinStationBody thrown = sample.Thrown!.Value;
         // Measured: 2.4e-9 m/s. A crate that still slides or rocks moves millimeters a second.
         thrown.VelocityInStation.Length.Should().BeLessThan(1e-3, "the thrown crate has come to rest");
-        Double3.Dot(thrown.InStation, FacetNormal(thrown.InStation)).Should().BeApproximately(
-            FacetDistance - SpinStation.CrateHalfSize, FacetRestBound,
-            "the thrown crate rests on the floor");
+        Double3
+            .Dot(thrown.InStation, FacetNormal(thrown.InStation))
+            .Should()
+            .BeApproximately(
+                FacetDistance - SpinStation.CrateHalfSize,
+                FacetRestBound,
+                "the thrown crate rests on the floor"
+            );
         ScreenBox crate = CrateOnScreen(shot.Value.View, thrown.InStation);
         ScreenBox person = PersonOnScreen(shot.Value.View, shot.Value.Tick),
             dropped = CrateOnScreen(shot.Value.View, sample.Dropped.InStation);
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"thrown-landed: crate {AlongFloor(thrown.InStation):F2} m along the floor at x {crate.X:F3} y {crate.Y:F3}, {crate.Depth:F2} m away; person at x {person.X:F3}, {person.Depth:F2} m; dropped crate at x {dropped.X:F3}, {dropped.Depth:F2} m");
+            $"thrown-landed: crate {AlongFloor(thrown.InStation):F2} m along the floor at x {crate.X:F3} y {crate.Y:F3}, {crate.Depth:F2} m away; person at x {person.X:F3}, {person.Depth:F2} m; dropped crate at x {dropped.X:F3}, {dropped.Depth:F2} m"
+        );
         crate.InFrame.Should().BeTrue("the capture shows the whole thrown crate");
         crate.CoveredBy(person).Should().BeFalse("the person does not hide the thrown crate");
         crate.Overlaps(dropped).Should().BeFalse("the two crates show apart");
@@ -727,9 +829,18 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         run.World.Errors.Should().BeEmpty();
         run.ValidationMessages.Should()
             .BeEmpty("the renderer draws the scene's lamps, lights and meshes without a Vulkan validation error");
-        run.Result.Captures.Should().Contain([
-            "drop", "standing", "walk-spinward", "walk-antispinward", "takeoff", "jump", "landed", "throw",
-            "thrown-landed", "ring"
-        ]);
+        run.Result.Captures.Should()
+            .Contain([
+                "drop",
+                "standing",
+                "walk-spinward",
+                "walk-antispinward",
+                "takeoff",
+                "jump",
+                "landed",
+                "throw",
+                "thrown-landed",
+                "ring",
+            ]);
     }
 }

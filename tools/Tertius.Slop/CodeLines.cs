@@ -16,10 +16,15 @@ internal static class CodeLines
 
         /// <summary>The lines that hold part of a token, from 1, by the rule of <see cref="CodeLineCount"/>.</summary>
         public IReadOnlySet<int> LinesWithCode() =>
-            tokens.Where(token => !token.Span.IsEmpty)
+            tokens
+                .Where(token => !token.Span.IsEmpty)
                 .Select(token => token.GetLocation().GetLineSpan())
-                .SelectMany(span => Enumerable.Range(span.StartLinePosition.Line + 1,
-                    span.EndLinePosition.Line - span.StartLinePosition.Line + 1))
+                .SelectMany(span =>
+                    Enumerable.Range(
+                        span.StartLinePosition.Line + 1,
+                        span.EndLinePosition.Line - span.StartLinePosition.Line + 1
+                    )
+                )
                 .ToHashSet();
     }
 }

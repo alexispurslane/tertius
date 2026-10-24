@@ -24,11 +24,13 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     /// </summary>
     public readonly bool IsUnit => Math.Abs(LengthSquared - 1) <= UnitTolerance;
 
-    public static DQuaternion operator *(DQuaternion a, DQuaternion b) => new(
-        X: a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
-        Y: a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
-        Z: a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
-        W: a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z);
+    public static DQuaternion operator *(DQuaternion a, DQuaternion b) =>
+        new(
+            X: a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
+            Y: a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
+            Z: a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
+            W: a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z
+        );
 
     /// <summary>The inverse of a unit quaternion.</summary>
     public readonly DQuaternion Conjugate() => new(X: -X, Y: -Y, Z: -Z, W: W);
@@ -95,7 +97,8 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
             X: a.X + (sign * b.X - a.X) * t,
             Y: a.Y + (sign * b.Y - a.Y) * t,
             Z: a.Z + (sign * b.Z - a.Z) * t,
-            W: a.W + (sign * b.W - a.W) * t).Normalized();
+            W: a.W + (sign * b.W - a.W) * t
+        ).Normalized();
     }
 
     /// <summary>
@@ -116,5 +119,5 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
         return axis * (angle / (sinHalf * time));
     }
 
-    public readonly override string ToString() => $"({X:G9}, {Y:G9}, {Z:G9}, {W:G9})";
+    public override readonly string ToString() => $"({X:G9}, {Y:G9}, {Z:G9}, {W:G9})";
 }

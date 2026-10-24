@@ -29,8 +29,13 @@ public sealed class FrameTreeNumericMotionTests
 
     public FrameTreeNumericMotionTests()
     {
-        earth = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity,
-            frameBounds: FrameBounds.Sphere(1e9f), field: Earth);
+        earth = frames.Create(
+            frameOwner: new(1, 1),
+            parent: FrameHandle.Null,
+            localPose: DPose.Identity,
+            frameBounds: FrameBounds.Sphere(1e9f),
+            field: Earth
+        );
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -45,11 +50,22 @@ public sealed class FrameTreeNumericMotionTests
         FrameHandle home = FrameHandle.Null;
         var body = new NumericBody
         {
-            Entity = new(10, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
-            Velocity = velocity, Radius = 1, Mass = 1
+            Entity = new(10, 1),
+            Semantic = semantic,
+            Home = semantic,
+            Position = position,
+            HomePosition = position,
+            Velocity = velocity,
+            Radius = 1,
+            Mass = 1,
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(),
-            applyMoves: moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(
+            bodies: [body],
+            dt: 0.1,
+            step: 0.1,
+            changes: new(),
+            applyMoves: moves => home = moves.Single().To
+        );
         frames.Update();
         frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         return home;
@@ -88,26 +104,33 @@ public sealed class FrameTreeNumericMotionTests
     public void The_semantic_frame_accelerates_relative_to_a_falling_frame_against_the_frames_step_acceleration()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new(0, 0, OrbitSpeed));
-        frames.MotionRelativeInStep(of: earth, to: pod, stepIntents: [], step: Dt).End.Acceleration.Should()
+        frames
+            .MotionRelativeInStep(of: earth, to: pod, stepIntents: [], step: Dt)
+            .End.Acceleration.Should()
             .Be(-Earth.AtPrecise(X(OrbitRadius)));
     }
 
     [Fact]
-    public void
-        A_falling_frame_in_a_turned_frame_accelerates_relative_to_the_turned_frames_parent_by_its_step_acceleration_in_the_parents_axes()
+    public void A_falling_frame_in_a_turned_frame_accelerates_relative_to_the_turned_frames_parent_by_its_step_acceleration_in_the_parents_axes()
     {
         // A frame at Earth's origin, turned by 0.9 rad about Z, with Earth's field in its own axes. A fast body in it gets a
         // falling frame, which keeps the field at its origin, in the turned frame's axes, as its step acceleration. The turned
         // frame holds still, so it adds no acceleration of its own.
-        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.9);
-        FrameHandle turned = frames.Create(frameOwner: new(2, 1), parent: earth, localPose: new(Double3.Zero, turn),
-            frameBounds: FrameBounds.Sphere(1e9f), field: Earth);
+        var turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.9);
+        FrameHandle turned = frames.Create(
+            frameOwner: new(2, 1),
+            parent: earth,
+            localPose: new(Double3.Zero, turn),
+            frameBounds: FrameBounds.Sphere(1e9f),
+            field: Earth
+        );
         FrameHandle pod = FrameFor(turned, X(OrbitRadius), new(0, 0, OrbitSpeed));
         frames.TreeParent(pod).Should().Be(turned);
 
         Double3 expected = turn.Rotate(Earth.AtPrecise(X(OrbitRadius)));
-        (frames.MotionRelativeInStep(of: pod, to: earth, stepIntents: [], step: Dt).End.Acceleration - expected).Length
-            .Should().BeLessThan(1e-12);
+        (frames.MotionRelativeInStep(of: pod, to: earth, stepIntents: [], step: Dt).End.Acceleration - expected)
+            .Length.Should()
+            .BeLessThan(1e-12);
     }
 
     // Step 2 of every sync point converts the record of each frame in a numeric home into its semantic parent, on the serial
@@ -119,7 +142,9 @@ public sealed class FrameTreeNumericMotionTests
         FrameHandle pod = FrameFor(X(OrbitRadius), new(0, 0, OrbitSpeed));
         frames.MotionRelativeInStep(of: pod, to: earth, stepIntents: [], step: Dt);
 
-        Allocations.Fewest(() => frames.MotionRelativeInStep(of: pod, to: earth, stepIntents: [], step: Dt)).Should()
+        Allocations
+            .Fewest(() => frames.MotionRelativeInStep(of: pod, to: earth, stepIntents: [], step: Dt))
+            .Should()
             .Be(0);
     }
 

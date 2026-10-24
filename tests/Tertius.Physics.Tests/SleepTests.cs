@@ -44,7 +44,14 @@ public sealed class SleepTests
     {
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, g);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1.5),
+                Body = Box(mass: 10),
+            }
+        );
 
         Tick(world, 900);
 
@@ -61,14 +68,32 @@ public sealed class SleepTests
     {
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, 0.1f);
-        Entity bottom = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
-        Entity top = world.Spawn(new() { Frame = ground, Pose = At(0, 2.5), Body = Box(mass: 10) });
+        Entity bottom = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1.5),
+                Body = Box(mass: 10),
+            }
+        );
+        Entity top = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 2.5),
+                Body = Box(mass: 10),
+            }
+        );
 
         Tick(world, 900);
 
-        world.PoseInOwnFrame(bottom).Position.Y.Should()
+        world
+            .PoseInOwnFrame(bottom)
+            .Position.Y.Should()
             .BeApproximately(0.5, 0.02, "the stack fell 1 m onto the floor");
-        world.PoseInOwnFrame(top).Position.Y.Should()
+        world
+            .PoseInOwnFrame(top)
+            .Position.Y.Should()
             .BeApproximately(1.5, 0.03, "the top box rides the bottom one down");
         world.Errors.Should().BeEmpty();
     }
@@ -81,7 +106,14 @@ public sealed class SleepTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = GroundWithFloor(world, g);
-        Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.6), Body = Box(mass: 10) });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 0.6),
+                Body = Box(mass: 10),
+            }
+        );
 
         List<ContactStarted> Contacts() => [.. faults.Outputs.SelectMany(output => output.Contacts)];
         // The fall of 0.1 m takes 2 s at 0.05 m/s².
@@ -110,11 +142,15 @@ public sealed class SleepTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity)),
         ]);
-        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0,
+        var hull = new BodyDesc(
+            Shape: new BoxShapeDesc(new(10, 3, 30)),
+            Mass: 1000,
+            LinearDamping: 0,
             AngularDamping: 0,
-            InteriorShape: deck);
+            InteriorShape: deck
+        );
         // The ship's engine pushes with this force along +Z in every tick. A pilot writes it in one tick and Jolt applies
         // it in the step of the next one.
         float thrust = 0;
@@ -122,19 +158,29 @@ public sealed class SleepTests
         {
             EveryTick = body =>
             {
-                if (thrust > 0) body.AddForce(new(0, 0, thrust));
-            }
+                if (thrust > 0)
+                    body.AddForce(new(0, 0, thrust));
+            },
         };
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Pose = At(0),
-            Body = hull,
-            AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -9.81f, 0))),
-            Components = [pilot]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0),
+                Body = hull,
+                AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -9.81f, 0))),
+                Components = [pilot],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, -1.5), Body = Box(mass: 5) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, -1.5),
+                Body = Box(mass: 5),
+            }
+        );
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ship, crate), 300);
         IsAwake(backend, ship, crate).Should().BeFalse("the crate fell asleep on the deck");
@@ -148,7 +194,9 @@ public sealed class SleepTests
         thrust = 6000;
         Tick(world, 60);
 
-        world.PoseInOwnFrame(crate).Position.Z.Should()
+        world
+            .PoseInOwnFrame(crate)
+            .Position.Z.Should()
             .BeLessThan(-0.3, "6 m/s² toward the stern beats the friction that holds 4.9 m/s²");
         world.Errors.Should().BeEmpty();
     }

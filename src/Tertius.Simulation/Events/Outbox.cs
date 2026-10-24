@@ -23,7 +23,8 @@ public readonly ref struct Outbox
     public Entity Sender { get; }
 
     /// <summary>Sends a message that arrives on the next tick.</summary>
-    public readonly void Send<T>(Target target, in T payload, object? extra = null) where T : unmanaged, IEventPayload
+    public readonly void Send<T>(Target target, in T payload, object? extra = null)
+        where T : unmanaged, IEventPayload
     {
         if (!target.HasValue)
             ThrowNoTarget();
@@ -38,8 +39,11 @@ public readonly ref struct Outbox
         where T : unmanaged, IEventPayload
     {
         if (ticks < 1)
-            throw new ArgumentOutOfRangeException(nameof(ticks), ticks,
-                "A delay is at least one tick. Use Send for the next tick.");
+            throw new ArgumentOutOfRangeException(
+                nameof(ticks),
+                ticks,
+                "A delay is at least one tick. Use Send for the next tick."
+            );
         if (!target.HasValue)
             ThrowNoTarget();
         ref DelayedEvent delayed = ref chunk.Delayed.AddRef();

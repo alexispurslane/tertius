@@ -1,8 +1,8 @@
 using System.Numerics;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
-using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -44,19 +44,33 @@ public sealed class NumericFrameOrbitTests
     /// bubble, across the +Y axis, whose face toward the core is 19.75 m from it. It is kinematic, so the samples of its
     /// frame's <see cref="KeplerMotion"/> move it.
     /// </summary>
-    private static readonly BodyDesc StationHull = new(Shape: new CompoundShapeDesc([
-        new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
-        new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity))
-    ]), Motion: BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
+    private static readonly BodyDesc StationHull = new(
+        Shape: new CompoundShapeDesc([
+            new(new BoxShapeDesc(new(2)), new(Vector3.Zero, Quaternion.Identity)),
+            new(new BoxShapeDesc(new(8, 0.25f, 8)), new(new(0, 20, 0), Quaternion.Identity)),
+        ]),
+        Motion: BodyMotion.Kinematic,
+        Mass: 1e5f,
+        Restitution: 0
+    );
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0,
-        LinearDamping: 0, AngularDamping: 0);
+    private static readonly BodyDesc Crate = new(
+        Shape: new BoxShapeDesc(new(0.25f)),
+        Mass: 2,
+        Restitution: 0,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
 
     /// <summary>A rock, a ball of 1 kg with a radius of 0.5 m that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc Rock = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+    private static readonly BodyDesc Rock = new(
+        Shape: new SphereShapeDesc(0.5f),
+        Mass: 1,
+        Restitution: 0,
         LinearDamping: 0,
-        AngularDamping: 0);
+        AngularDamping: 0
+    );
 
     // ---- Crates that drift out of the station ----------------------------------------------------------------------
 
@@ -69,8 +83,11 @@ public sealed class NumericFrameOrbitTests
     private static readonly FrameSpec PodFrame = new(FrameBounds.Sphere(0.01f));
 
     /// <summary>A person, a character: a capsule of half height 0.6 m and radius 0.3 m, and 70 kg.</summary>
-    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
-        Mass: 70);
+    private static readonly BodyDesc Person = new(
+        Shape: new CapsuleShapeDesc(0.6f, 0.3f),
+        Motion: BodyMotion.Character,
+        Mass: 70
+    );
 
     /// <summary>
     /// A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
@@ -81,7 +98,10 @@ public sealed class NumericFrameOrbitTests
         faults = new(new(new() { WorkerThreads = threads }));
         var options = new WorldOptions
         {
-            MaxDegreeOfParallelism = threads, InitialCapacity = TestCapacity, DebugChecks = true, DisposePhysics = true
+            MaxDegreeOfParallelism = threads,
+            InitialCapacity = TestCapacity,
+            DebugChecks = true,
+            DisposePhysics = true,
         };
         if (!numericFrames)
             options.NumericFrames = WithoutNumericFrames;
@@ -100,10 +120,14 @@ public sealed class NumericFrameOrbitTests
     {
         KeplerOrbit path = orbit ?? LowOrbit;
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-        Entity owner = world.Spawn(new SpawnDesc
-        {
-            Frame = earth, Body = StationHull, AsFrame = new(FrameBounds.Sphere(BubbleRadius))
-        }.OnKeplerOrbit(world, path, firstMove));
+        Entity owner = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = earth,
+                Body = StationHull,
+                AsFrame = new(FrameBounds.Sphere(BubbleRadius)),
+            }.OnKeplerOrbit(world, path, firstMove)
+        );
         return new(Earth: earth, Owner: owner, Frame: world.GetOwnedFrame(owner), Orbit: path);
     }
 
@@ -154,14 +178,19 @@ public sealed class NumericFrameOrbitTests
                 DPose pose = world.PoseIn(station.Owner, station.Earth);
                 if (pose.Position != position)
                     pose.Position.Should().Be(position, "at tick {0} the hull is where its orbit is", world.TickNumber);
-                worstVelocity = Math.Max(worstVelocity,
-                    (world.VelocityIn(station.Owner, station.Earth) - velocity).Length);
+                worstVelocity = Math.Max(
+                    worstVelocity,
+                    (world.VelocityIn(station.Owner, station.Earth) - velocity).Length
+                );
             }
 
             world.PhysicsHomeOf(station.Owner).Should().Be(home, "the hull keeps its following frame");
-            worstVelocity.Should()
+            worstVelocity
+                .Should()
                 .BeLessThan(1e-8, "the row keeps the frame's velocity relative to K, about 7 cm/s, as a float");
-            world.PoseIn(station.Owner, station.Earth).Rotation.Should()
+            world
+                .PoseIn(station.Owner, station.Earth)
+                .Rotation.Should()
                 .Be(station.Orbit.RotationAt(world.Time, Scenes.EarthMu));
             world.Errors.Should().BeEmpty();
         }
@@ -177,7 +206,8 @@ public sealed class NumericFrameOrbitTests
         List<long> Bumps,
         Double3 Position,
         Double3 OffsetInEarth,
-        double FastestInOrbit);
+        double FastestInOrbit
+    );
 
     /// <summary>
     /// Two crates and a cargo pod float in the station 10 m along +Y from its core, 3 m apart, and drift along +Y at 1 m/s
@@ -190,15 +220,23 @@ public sealed class NumericFrameOrbitTests
         using World world = NewWorld(numericFrames, threads, out FaultInjectingBackend faults);
         // The station's first motion intent puts it on its rails from its first step, so its contents float from the start.
         Station station = KeplerStation(world, firstMove: true);
-        var logs = new[] { new CollisionLog(), new CollisionLog(), new CollisionLog() };
+        CollisionLog[] logs = [new CollisionLog(), new CollisionLog(), new CollisionLog()];
         Entity[] drifters =
         [
-            .. new[] { -3.0, 3.0, 0.0 }.Select((x, i) => world.Spawn(new()
-            {
-                Frame = station.Frame, Pose = At(x, 10), LinearVelocity = new(0, 1, 0), Body = Crate,
-                Components = [logs[i]],
-                AsFrame = i == 2 ? PodFrame : null
-            }))
+            .. new[] { -3.0, 3.0, 0.0 }.Select(
+                (x, i) =>
+                    world.Spawn(
+                        new()
+                        {
+                            Frame = station.Frame,
+                            Pose = At(x, 10),
+                            LinearVelocity = new(0, 1, 0),
+                            Body = Crate,
+                            Components = [logs[i]],
+                            AsFrame = i == 2 ? PodFrame : null,
+                        }
+                    )
+            ),
         ];
         List<string>[] homes = [.. drifters.Select(_ => new List<string>())];
         double[] fastest = new double[drifters.Length];
@@ -212,8 +250,10 @@ public sealed class NumericFrameOrbitTests
                     homes[i].Add(kind);
                 FrameHandle home = world.PhysicsHomeOf(drifters[i]);
                 if (world.Frames.Numeric(home) == NumericMode.Following)
-                    fastest[i] = Math.Max(fastest[i],
-                        (world.VelocityIn(drifters[i], station.Earth) - world.Frames.LinearVelocity(home)).Length);
+                    fastest[i] = Math.Max(
+                        fastest[i],
+                        (world.VelocityIn(drifters[i], station.Earth) - world.Frames.LinearVelocity(home)).Length
+                    );
             }
         }
 
@@ -221,12 +261,17 @@ public sealed class NumericFrameOrbitTests
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         return
         [
-            .. drifters.Select((drifter, i) => new Drift(Homes: homes[i],
-                Bumps: [.. logs[i].Seen.Where(s => s.Other == station.Owner).Select(s => s.Tick)],
-                Position: world.PoseIn(drifter, station.Frame).Position,
-                OffsetInEarth: world.PoseIn(drifter, station.Earth).Position -
-                               world.PoseIn(station.Owner, station.Earth).Position,
-                FastestInOrbit: fastest[i]))
+            .. drifters.Select(
+                (drifter, i) =>
+                    new Drift(
+                        Homes: homes[i],
+                        Bumps: [.. logs[i].Seen.Where(s => s.Other == station.Owner).Select(s => s.Tick)],
+                        Position: world.PoseIn(drifter, station.Frame).Position,
+                        OffsetInEarth: world.PoseIn(drifter, station.Earth).Position
+                            - world.PoseIn(station.Owner, station.Earth).Position,
+                        FastestInOrbit: fastest[i]
+                    )
+            ),
         ];
     }
 
@@ -241,31 +286,41 @@ public sealed class NumericFrameOrbitTests
     /// to its motion relative to the hull, across the line of its drift, with numeric frames as without.
     /// </summary>
     [Fact]
-    public void
-        CratesThatDriftOutOfTheStationsBubbleJoinItsFollowingFrameAndAPodBumpsTheHullAtTheTickThatItsDriftPredicts()
+    public void CratesThatDriftOutOfTheStationsBubbleJoinItsFollowingFrameAndAPodBumpsTheHullAtTheTickThatItsDriftPredicts()
     {
         Drift[] with = DriftOut(numericFrames: true, threads: 1, ticks: 700);
         Drift[] without = DriftOut(numericFrames: false, threads: 1, ticks: 700);
 
         for (int i = 0; i < with.Length; i++)
         {
-            with[i].Homes.Should().Equal(["station", "Following"],
-                "the body leaves into the station's tree parent and stays linked to the hull");
+            with[i]
+                .Homes.Should()
+                .Equal(
+                    ["station", "Following"],
+                    "the body leaves into the station's tree parent and stays linked to the hull"
+                );
             without[i].Homes.Should().Equal("station", "earth");
             with[i].FastestInOrbit.Should().BeInRange(0.9, 1.1, "the body is slow in the following frame");
-            with[i].Bumps.Should().Equal(without[i].Bumps,
-                "the body hears the same Collisions with numeric frames as without");
+            with[i]
+                .Bumps.Should()
+                .Equal(without[i].Bumps, "the body hears the same Collisions with numeric frames as without");
         }
 
         with[0].Bumps.Should().BeEmpty("a crate never meets a hull outside the bubble");
         with[1].Bumps.Should().BeEmpty();
         for (int i = 0; i < 2; i++)
         {
-            (with[i].Position - new Double3(i == 0 ? -3 : 3, 10 + 700.0 / 60, 0)).Length.Should().BeLessThan(0.01,
-                "in the following frame the crate drifts on in a straight line relative to the station, 1 m/s for 700 ticks");
+            (with[i].Position - new Double3(i == 0 ? -3 : 3, 10 + 700.0 / 60, 0))
+                .Length.Should()
+                .BeLessThan(
+                    0.01,
+                    "in the following frame the crate drifts on in a straight line relative to the station, 1 m/s for 700 ticks"
+                );
             // Without numeric frames each step's pull of 0.14 m/s rounds in a float velocity of 7.66 km/s, whose step is
             // 0.5 mm/s, for the 5 s after the crate leaves the bubble.
-            (with[i].Position - without[i].Position).Length.Should().BeLessThan(0.05, "the crate moves alike");
+            (with[i].Position - without[i].Position)
+                .Length.Should()
+                .BeLessThan(0.05, "the crate moves alike");
         }
 
         with[2].Bumps.Should().NotBeEmpty("the pod's hull hits the station's plate");
@@ -273,11 +328,13 @@ public sealed class NumericFrameOrbitTests
         // In the following frame the pod and the plate meet at 1 m/s, and the pod comes to rest on the plate. Without numeric
         // frames they meet at 7.66 km/s in earth's own system, where the floats of the contact step by 0.5 mm/s, and the
         // pod slides along the plate: after the bump precision is the point, and only the bump's tick is the same.
-        (with[2].Position - new Double3(0, 19.5, 0)).Length.Should()
+        (with[2].Position - new Double3(0, 19.5, 0))
+            .Length.Should()
             .BeLessThan(0.01, "the pod rests against the plate where it hit it");
         // The pod falls asleep on the plate within the 2 s after the bump. A sleeping body of a following frame moves with the
         // frame, so its place in earth moves with the hull's.
-        (with[2].OffsetInEarth - new Double3(0, 19.5, 0)).Length.Should()
+        (with[2].OffsetInEarth - new Double3(0, 19.5, 0))
+            .Length.Should()
             .BeLessThan(0.01, "a read in earth puts the pod beside the hull");
     }
 
@@ -306,23 +363,32 @@ public sealed class NumericFrameOrbitTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(false, false)]
-    public void ABodySpawnedBesideANewKeplerHullStaysOnItsOwnOrbitInTheHullsNewFollowingFrame(bool character,
-        bool firstMove)
+    public void ABodySpawnedBesideANewKeplerHullStaysOnItsOwnOrbitInTheHullsNewFollowingFrame(
+        bool character,
+        bool firstMove
+    )
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out _);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-        Entity hull = world.Spawn(new SpawnDesc
-        {
-            Frame = earth, Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f),
-            AsFrame = new(FrameBounds.Sphere(0.01f))
-        }.OnKeplerOrbit(world, LowOrbit, firstMove));
-        KeplerOrbit own = KeplerOrbit.Circular(6.8e6 - 3.5, phase: 0.4);
+        Entity hull = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = earth,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f),
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+            }.OnKeplerOrbit(world, LowOrbit, firstMove)
+        );
+        var own = KeplerOrbit.Circular(6.8e6 - 3.5, phase: 0.4);
         (Double3 place, Double3 velocity) = own.StateAt(world.Time, Scenes.EarthMu);
-        Entity body = world.Spawn(new()
-        {
-            Frame = earth, Pose = new(place, DQuaternion.Identity), LinearVelocity = velocity,
-            Body = character ? Person : Rock
-        });
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = new(place, DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = character ? Person : Rock,
+            }
+        );
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(body);
         world.Frames.Numeric(home).Should().Be(NumericMode.Following);
@@ -346,18 +412,25 @@ public sealed class NumericFrameOrbitTests
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
-        KeplerOrbit far = KeplerOrbit.Circular(3.84e8, phase: 0.4);
-        Entity hull = world.Spawn(new SpawnDesc
-        {
-            Frame = earth, Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f),
-            AsFrame = new(FrameBounds.Sphere(0.01f))
-        }.OnKeplerOrbit(world, far));
+        var far = KeplerOrbit.Circular(3.84e8, phase: 0.4);
+        Entity hull = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = earth,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f),
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+            }.OnKeplerOrbit(world, far)
+        );
         (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = earth, Pose = new(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity,
-            Body = Crate
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = new(place + new Double3(0, -3.5, 0), DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = Crate,
+            }
+        );
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(crate);
         world.Frames.Numeric(home).Should().Be(NumericMode.Following);
@@ -367,8 +440,9 @@ public sealed class NumericFrameOrbitTests
         IsAwake(faults.Jolt, home, crate).Should().BeFalse("the crate rests in the following frame");
         Tick(world, 60);
         IsAwake(faults.Jolt, home, crate).Should().BeFalse();
-        (world.PoseIn(crate, earth).Position - world.PoseIn(hull, earth).Position - new Double3(0, -3.5, 0)).Length
-            .Should().BeLessThan(1e-3, "the sleeping crate moves with its following frame, 17 m a tick");
+        (world.PoseIn(crate, earth).Position - world.PoseIn(hull, earth).Position - new Double3(0, -3.5, 0))
+            .Length.Should()
+            .BeLessThan(1e-3, "the sleeping crate moves with its following frame, 17 m a tick");
         world.Errors.Should().BeEmpty();
     }
 
@@ -379,7 +453,8 @@ public sealed class NumericFrameOrbitTests
         List<(long Tick, string Home, double Distance)> Homes,
         int Collisions,
         Double3 Position,
-        Double3 Velocity);
+        Double3 Velocity
+    );
 
     /// <summary>
     /// A rock flies past the station at 60 m/s relative to it, along +Y, 40 m to the side of its core, outside the bubble
@@ -392,11 +467,16 @@ public sealed class NumericFrameOrbitTests
         Station station = KeplerStation(world, firstMove: true);
         (Double3 place, Double3 velocity) = station.StateAt(world.Time);
         var log = new CollisionLog();
-        Entity rock = world.Spawn(new()
-        {
-            Frame = station.Earth, Pose = new(place + new Double3(40, -300, 0), DQuaternion.Identity),
-            LinearVelocity = velocity + new Double3(0, 60, 0), Body = Rock, Components = [log]
-        });
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = station.Earth,
+                Pose = new(place + new Double3(40, -300, 0), DQuaternion.Identity),
+                LinearVelocity = velocity + new Double3(0, 60, 0),
+                Body = Rock,
+                Components = [log],
+            }
+        );
         var homes = new List<(long Tick, string Home, double Distance)>();
         for (int tick = 0; tick < 600; tick++)
         {
@@ -408,8 +488,12 @@ public sealed class NumericFrameOrbitTests
 
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        return new(Homes: homes, Collisions: log.Seen.Count, Position: world.PoseIn(rock, station.Frame).Position,
-            Velocity: world.VelocityIn(rock, station.Frame));
+        return new(
+            Homes: homes,
+            Collisions: log.Seen.Count,
+            Position: world.PoseIn(rock, station.Frame).Position,
+            Velocity: world.VelocityIn(rock, station.Frame)
+        );
     }
 
     /// <summary>
@@ -446,28 +530,49 @@ public sealed class NumericFrameOrbitTests
     [InlineData(true)]
     [InlineData(false)]
     public void TheBodiesInTheStationsOwnFrameMoveAsBeforeAndTheOnesThatStickOutHaveAGhostInItsTreeParent(
-        bool numericFrames)
+        bool numericFrames
+    )
     {
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world, firstMove: true);
-        Entity drifter = world.Spawn(new()
-            { Frame = station.Frame, Pose = At(-5, 0, 5), LinearVelocity = new(0.5, 0, 0), Body = Crate });
-        Entity stickOut = world.Spawn(new() { Frame = station.Frame, Pose = At(0, -15.9), Body = Crate });
+        Entity drifter = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(-5, 0, 5),
+                LinearVelocity = new(0.5, 0, 0),
+                Body = Crate,
+            }
+        );
+        Entity stickOut = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(0, -15.9),
+                Body = Crate,
+            }
+        );
         Tick(world, 2);
 
         FrameHandle parent = world.Frames.TreeParent(station.Frame);
         world.Frames.Numeric(parent).Should().Be(numericFrames ? NumericMode.Following : NumericMode.None);
-        faults.Jolt.HasGhostIn(stickOut, parent).Should()
+        faults
+            .Jolt.HasGhostIn(stickOut, parent)
+            .Should()
             .BeTrue("a body that sticks out of a bubble is partly in the frame's tree parent");
-        faults.Jolt.GhostCount(stickOut).Should().Be(1,
-            "earth's own system keeps no ghost of the crate when it is not the station's tree parent");
+        faults
+            .Jolt.GhostCount(stickOut)
+            .Should()
+            .Be(1, "earth's own system keeps no ghost of the crate when it is not the station's tree parent");
 
         Tick(world, 598);
         world.PhysicsHomeOf(drifter).Should().Be(station.Frame);
         world.PhysicsHomeOf(stickOut).Should().Be(station.Frame);
-        (world.PoseIn(drifter, station.Frame).Position - new Double3(0, 0, 5)).Length.Should()
+        (world.PoseIn(drifter, station.Frame).Position - new Double3(0, 0, 5))
+            .Length.Should()
             .BeLessThan(1e-3, "the crate drifts 5 m in 10 s");
-        (world.PoseIn(stickOut, station.Frame).Position - new Double3(0, -15.9, 0)).Length.Should()
+        (world.PoseIn(stickOut, station.Frame).Position - new Double3(0, -15.9, 0))
+            .Length.Should()
             .BeLessThan(1e-3, "nothing pulls the crate in the station");
         world.Errors.Should().BeEmpty();
     }
@@ -488,21 +593,32 @@ public sealed class NumericFrameOrbitTests
     private static HullScene HullAndRock(World world, CollisionLog log)
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(2e7f), GravityField.Point(FarOrbitMu)));
-        Entity hull = world.Spawn(new SpawnDesc
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
-            AsFrame = new(FrameBounds.Sphere(0.01f))
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius), firstMove: true));
-        Entity rock = world.Spawn(new()
-        {
-            Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100),
-            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
-        });
-        Entity pod = world.Spawn(new()
-        {
-            Frame = space, Pose = At(FarOrbitRadius, 0, -100), Body = Crate, AsFrame = PodFrame, Components = [log]
-        });
+        Entity hull = world.Spawn(
+            new SpawnDesc
+            {
+                Frame = space,
+                Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
+                AsFrame = new(FrameBounds.Sphere(0.01f)),
+            }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius), firstMove: true)
+        );
+        Entity rock = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOrbitRadius + 8, 0, -100),
+                Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static),
+            }
+        );
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(FarOrbitRadius, 0, -100),
+                Body = Crate,
+                AsFrame = PodFrame,
+                Components = [log],
+            }
+        );
         return new(Space: space, Hull: hull, Rock: rock, Pod: pod);
     }
 
@@ -525,11 +641,15 @@ public sealed class NumericFrameOrbitTests
         world.Tick();
         plain.Tick();
         FrameHandle orbit = world.PhysicsHomeOf(scene.Hull);
-        world.Frames.Numeric(orbit).Should()
+        world
+            .Frames.Numeric(orbit)
+            .Should()
             .Be(NumericMode.Following, "the hull's orbit lies beyond the resting distance");
         FrameHandle rockHome = world.PhysicsHomeOf(scene.Rock);
         world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock rests 10,000 km from the origin");
-        world.PhysicsHomeOf(scene.Pod).Should()
+        world
+            .PhysicsHomeOf(scene.Pod)
+            .Should()
             .Be(rockHome, "the group of the hull, the rock and the pod lives in the rock's home");
         world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(scene.Hull, rockHome));
         Tick(world, 1);
@@ -539,7 +659,8 @@ public sealed class NumericFrameOrbitTests
         // The ghost pushes the pod while the pod lives in the rock's home, and the hull itself pushes it again once it
         // joins the following frame. So the two worlds tick together and are compared at every tick, not only at the end.
         // The differences are between the two pods' velocities in space, in m/s, and their places in space, in meters.
-        double largestVelocityDifference = 0, largestPlaceDifference = 0;
+        double largestVelocityDifference = 0,
+            largestPlaceDifference = 0;
         var homes = new List<string> { "rock" };
         for (int tick = 0; tick < 400; tick++)
         {
@@ -555,29 +676,39 @@ public sealed class NumericFrameOrbitTests
                 kind = world.Frames.Numeric(home).ToString();
             if (homes[^1] != kind)
                 homes.Add(kind);
-            largestVelocityDifference = Math.Max(largestVelocityDifference,
-                (world.VelocityIn(scene.Pod, scene.Space) - plain.VelocityIn(other.Pod, other.Space)).Length);
-            largestPlaceDifference = Math.Max(largestPlaceDifference,
-                (world.PoseIn(scene.Pod, scene.Space).Position - plain.PoseIn(other.Pod, other.Space).Position).Length);
+            largestVelocityDifference = Math.Max(
+                largestVelocityDifference,
+                (world.VelocityIn(scene.Pod, scene.Space) - plain.VelocityIn(other.Pod, other.Space)).Length
+            );
+            largestPlaceDifference = Math.Max(
+                largestPlaceDifference,
+                (world.PoseIn(scene.Pod, scene.Space).Position - plain.PoseIn(other.Pod, other.Space).Position).Length
+            );
         }
 
-        homes.Should().Equal(["rock", "orbit"],
-            "the pod flies with the hull after the hit, and joins its following frame");
+        homes
+            .Should()
+            .Equal(["rock", "orbit"], "the pod flies with the hull after the hit, and joins its following frame");
         world.PhysicsHomeOf(scene.Rock).Should().Be(rockHome, "the rock keeps its resting frame");
         world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue("no group links the hull and the rock any more");
         faults.Jolt.HasGhostIn(scene.Hull, rockHome).Should().BeFalse();
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
-        withLog.Seen.Select(s => (s.Tick, s.Other.Index)).Should().Equal(
-            withoutLog.Seen.Select(s => (s.Tick, s.Other.Index)),
-            "the ghost hits the pod as the hull does without numeric frames");
+        withLog
+            .Seen.Select(s => (s.Tick, s.Other.Index))
+            .Should()
+            .Equal(
+                withoutLog.Seen.Select(s => (s.Tick, s.Other.Index)),
+                "the ghost hits the pod as the hull does without numeric frames"
+            );
         withLog.Seen.Should().NotBeEmpty();
         // A ghost moves with the chord of its body's last step, so during the push it lags the hull by one step of the
         // orbit's pull of 0.4 mm/s², about 7 µm/s, and the pod leaves the hit about that much slower. A run measured at
         // most 10.4 µm/s of velocity and 19.8 µm of place between the two pods. The bounds are about three times those, so
         // a ghost that lags more, for example one that pushes 1.5 cm/s slower, fails them.
-        largestVelocityDifference.Should()
+        largestVelocityDifference
+            .Should()
             .BeLessThan(3e-5, "the ghost pushes the pod as the hull does, but for its lag");
         largestPlaceDifference.Should().BeLessThan(6e-5, "the ghost pushes the pod to the same place, but for its lag");
     }
@@ -605,59 +736,90 @@ public sealed class NumericFrameOrbitTests
         Station station = KeplerStation(world);
         (Double3 place, Double3 velocity) = station.StateAt(world.Time);
         // 20 m below the core, outside the bubble, and within the 23 m that the merge test reaches from the hull.
-        Entity crate = world.Spawn(new()
-        {
-            Frame = station.Earth, Pose = new(place + new Double3(0, -20, 0), DQuaternion.Identity),
-            LinearVelocity = velocity, Body = Crate
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station.Earth,
+                Pose = new(place + new Double3(0, -20, 0), DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = Crate,
+            }
+        );
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(station.Owner);
         world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         world.PhysicsHomeOf(crate).Should().Be(orbit);
 
-        world.SetMotionNextTick(owner: station.Owner, motion: BodyMotion.Static,
-            remove: world.GetComponent<KeplerMotion>(station.Owner));
+        world.SetMotionNextTick(
+            owner: station.Owner,
+            motion: BodyMotion.Static,
+            remove: world.GetComponent<KeplerMotion>(station.Owner)
+        );
         world.Tick();
         DPose stopped = world.PoseIn(station.Owner, station.Earth);
-        world.Frames.TreeParent(station.Frame).Should()
+        world
+            .Frames.TreeParent(station.Frame)
+            .Should()
             .Be(station.Earth, "a frame with a static hull hangs in its semantic parent");
         world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth);
         world.PhysicsHomeOf(crate).Should().Be(station.Earth, "the crate's group joins the fixed hull's home");
         world.Tick();
-        world.Frames.LinearVelocity(station.Frame).Should().Be(Double3.Zero,
-            "a frame with a static hull stops at the sync point after the change");
+        world
+            .Frames.LinearVelocity(station.Frame)
+            .Should()
+            .Be(Double3.Zero, "a frame with a static hull stops at the sync point after the change");
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position);
         Tick(world, 2);
         world.Frames.IsAlive(orbit).Should().BeFalse("the following frame lost its frame and its bodies");
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position);
         Double3 secondSpawn = stopped.Position + new Double3(0, -20, 0);
         double secondSpawnTime = world.Time;
-        Entity second = world.Spawn(new()
-            { Frame = station.Earth, Pose = new(secondSpawn, DQuaternion.Identity), Body = Crate });
+        Entity second = world.Spawn(
+            new()
+            {
+                Frame = station.Earth,
+                Pose = new(secondSpawn, DQuaternion.Identity),
+                Body = Crate,
+            }
+        );
         // The second crate falls from rest by earth's pull alone, 8.6 m/s² here, from the step after its spawn on: 1.2 mm in
         // the first step and 1.1 cm in the first three. A run measured 6 µm between its place and this free fall.
         Double3 pull = -Scenes.EarthMu / Math.Pow(secondSpawn.Length, 3) * secondSpawn;
         Double3 FreeFall() => secondSpawn + 0.5 * Math.Pow(world.Time - secondSpawnTime, 2) * pull;
         Tick(world, 1);
 
-        world.SetMotionNextTick(owner: station.Owner, motion: BodyMotion.Kinematic,
-            add: new KeplerMotion { Orbit = station.Orbit });
+        world.SetMotionNextTick(
+            owner: station.Owner,
+            motion: BodyMotion.Kinematic,
+            add: new KeplerMotion { Orbit = station.Orbit }
+        );
         Tick(world, 2);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position,
-            "the kinematic hull holds still for the step without a sample");
-        world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth,
-            "a hull that holds still 6,800 km from earth's origin needs no following frame");
+        world
+            .PoseIn(station.Owner, station.Earth)
+            .Position.Should()
+            .Be(stopped.Position, "the kinematic hull holds still for the step without a sample");
+        world
+            .PhysicsHomeOf(station.Owner)
+            .Should()
+            .Be(station.Earth, "a hull that holds still 6,800 km from earth's origin needs no following frame");
         world.Tick();
         FrameHandle again = world.PhysicsHomeOf(station.Owner);
         again.Should().NotBe(orbit);
         world.Frames.Numeric(again).Should().Be(NumericMode.Following);
         world.Frames.TreeParent(station.Frame).Should().Be(again);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position,
-            "from the second sync point after the change the hull stands on its orbit");
-        (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should()
+        world
+            .PoseIn(station.Owner, station.Earth)
+            .Position.Should()
+            .Be(
+                station.StateAt(world.Time).Position,
+                "from the second sync point after the change the hull stands on its orbit"
+            );
+        (world.PoseIn(second, station.Earth).Position - FreeFall())
+            .Length.Should()
             .BeLessThan(0.01, "the crate beside the stopped hull does not jump with the hull");
         world.Tick();
-        (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should()
+        (world.PoseIn(second, station.Earth).Position - FreeFall())
+            .Length.Should()
             .BeLessThan(0.01, "nor in the step after");
         Tick(world, 60);
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position);
@@ -682,7 +844,8 @@ public sealed class NumericFrameOrbitTests
         Double3 HullInHome,
         DPose FrameInHome,
         Double3 PodBefore,
-        Double3 PodAfter);
+        Double3 PodAfter
+    );
 
     /// <summary>
     /// A station in low orbit, with a crate 20 m below its core and a cargo pod (see <see cref="PodFrame"/>) 20 m to the
@@ -697,56 +860,87 @@ public sealed class NumericFrameOrbitTests
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
         (Double3 place, Double3 velocity) = station.StateAt(world.Time);
-        Entity crate = world.Spawn(new()
-        {
-            Frame = station.Earth, Pose = new(place + new Double3(0, -20, 0), DQuaternion.Identity),
-            LinearVelocity = velocity, Body = Crate
-        });
-        Entity pod = world.Spawn(new()
-        {
-            Frame = station.Earth, Pose = new(place + new Double3(20, 0, 0), DQuaternion.Identity),
-            LinearVelocity = velocity, Body = Crate, AsFrame = PodFrame
-        });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = station.Earth,
+                Pose = new(place + new Double3(0, -20, 0), DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = Crate,
+            }
+        );
+        Entity pod = world.Spawn(
+            new()
+            {
+                Frame = station.Earth,
+                Pose = new(place + new Double3(20, 0, 0), DQuaternion.Identity),
+                LinearVelocity = velocity,
+                Body = Crate,
+                AsFrame = PodFrame,
+            }
+        );
         Tick(world, 2);
         if (numericFrames)
         {
-            world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(station.Owner),
-                "the crate shares the hull's following frame");
-            world.Frames.TreeParent(world.GetOwnedFrame(pod)).Should().Be(world.PhysicsHomeOf(station.Owner),
-                "the pod's frame hangs in the following frame");
+            world
+                .PhysicsHomeOf(crate)
+                .Should()
+                .Be(world.PhysicsHomeOf(station.Owner), "the crate shares the hull's following frame");
+            world
+                .Frames.TreeParent(world.GetOwnedFrame(pod))
+                .Should()
+                .Be(world.PhysicsHomeOf(station.Owner), "the pod's frame hangs in the following frame");
         }
 
         KeplerOrbit ahead = LowOrbit with { MeanAnomalyAtEpoch = LowOrbit.MeanAnomalyAtEpoch + 0.01 };
         world.RemoveComponent(station.Owner, world.GetComponent<KeplerMotion>(station.Owner)!);
         world.AddComponent(station.Owner, new KeplerMotion { Orbit = ahead });
         world.Tick();
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position,
-            "the old component's last sample moves the frame");
+        world
+            .PoseIn(station.Owner, station.Earth)
+            .Position.Should()
+            .Be(station.StateAt(world.Time).Position, "the old component's last sample moves the frame");
         Double3 placeBefore = world.PoseIn(crate, station.Earth).Position,
             velocityBefore = world.VelocityIn(crate, station.Earth);
         Double3 podBefore = world.PoseIn(pod, station.Earth).Position;
         world.Tick();
-        world.PoseIn(station.Owner, station.Earth).Position.Should()
+        world
+            .PoseIn(station.Owner, station.Earth)
+            .Position.Should()
             .Be(ahead.StateAt(world.Time, Scenes.EarthMu).Position, "the frame jumps to its new orbit");
         Double3 placeAfter = world.PoseIn(crate, station.Earth).Position,
             velocityAfter = world.VelocityIn(crate, station.Earth);
         Double3 podAfter = world.PoseIn(pod, station.Earth).Position;
 
         Tick(world, 60);
-        world.PoseIn(station.Owner, station.Earth).Position.Should()
+        world
+            .PoseIn(station.Owner, station.Earth)
+            .Position.Should()
             .Be(ahead.StateAt(world.Time, Scenes.EarthMu).Position);
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         // Jolt does not report a kinematic hull that rests, so the test reads it from Jolt.
-        Double3 hull = faults.Jolt.BodiesIn(world.PhysicsHomeOf(station.Owner))
-            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary &&
-                             BodyUserData.Names(facts.UserData, station.Owner)).Position;
+        Double3 hull = faults
+            .Jolt.BodiesIn(world.PhysicsHomeOf(station.Owner))
+            .Single(facts =>
+                BodyUserData.Kind(facts.UserData) == BodyKind.Primary
+                && BodyUserData.Names(facts.UserData, station.Owner)
+            )
+            .Position;
         FrameHandle home = world.PhysicsHomeOf(crate);
-        return new(PlaceBefore: placeBefore, VelocityBefore: velocityBefore, PlaceAfter: placeAfter,
-            VelocityAfter: velocityAfter, PlaceAtEnd: world.PoseIn(crate, station.Earth).Position,
+        return new(
+            PlaceBefore: placeBefore,
+            VelocityBefore: velocityBefore,
+            PlaceAfter: placeAfter,
+            VelocityAfter: velocityAfter,
+            PlaceAtEnd: world.PoseIn(crate, station.Earth).Position,
             VelocityAtEnd: world.VelocityIn(crate, station.Earth),
-            CrateHome: home == station.Earth ? "earth" : world.Frames.Numeric(home).ToString(), HullInHome: hull,
-            FrameInHome: world.Frames.TreeLocalPose(station.Frame), PodBefore: podBefore, PodAfter: podAfter);
+            CrateHome: home == station.Earth ? "earth" : world.Frames.Numeric(home).ToString(),
+            HullInHome: hull,
+            FrameInHome: world.Frames.TreeLocalPose(station.Frame),
+            PodBefore: podBefore,
+            PodAfter: podAfter
+        );
     }
 
     /// <summary>
@@ -761,20 +955,24 @@ public sealed class NumericFrameOrbitTests
         OrbitChange with = NewOrbit(numericFrames: true);
         OrbitChange without = NewOrbit(numericFrames: false);
 
-        (with.PlaceAfter - with.PlaceBefore - (without.PlaceAfter - without.PlaceBefore)).Length.Should().BeLessThan(
-            0.01,
-            "the crate moves in the step of the jump as without numeric frames");
-        (with.PodAfter - with.PodBefore - (without.PodAfter - without.PodBefore)).Length.Should().BeLessThan(0.01,
-            "the pod's frame moves in the step of the jump as without numeric frames");
-        (with.VelocityAfter - with.VelocityBefore - (without.VelocityAfter - without.VelocityBefore)).Length.Should()
-            .BeLessThan(0.01,
-                "the crate keeps its velocity through the jump");
+        (with.PlaceAfter - with.PlaceBefore - (without.PlaceAfter - without.PlaceBefore))
+            .Length.Should()
+            .BeLessThan(0.01, "the crate moves in the step of the jump as without numeric frames");
+        (with.PodAfter - with.PodBefore - (without.PodAfter - without.PodBefore))
+            .Length.Should()
+            .BeLessThan(0.01, "the pod's frame moves in the step of the jump as without numeric frames");
+        (with.VelocityAfter - with.VelocityBefore - (without.VelocityAfter - without.VelocityBefore))
+            .Length.Should()
+            .BeLessThan(0.01, "the crate keeps its velocity through the jump");
         with.CrateHome.Should().Be("Falling", "the crate is 68 km from the hull");
         without.CrateHome.Should().Be("earth");
         // Without numeric frames each step's pull rounds in a float velocity of 7.66 km/s.
-        (with.PlaceAtEnd - without.PlaceAtEnd).Length.Should().BeLessThan(0.05, "the crate moves alike");
+        (with.PlaceAtEnd - without.PlaceAtEnd)
+            .Length.Should()
+            .BeLessThan(0.05, "the crate moves alike");
         (with.VelocityAtEnd - without.VelocityAtEnd).Length.Should().BeLessThan(0.05);
-        (with.HullInHome - with.FrameInHome.Position).Length.Should()
+        (with.HullInHome - with.FrameInHome.Position)
+            .Length.Should()
             .BeLessThan(1e-3, "the hull follows its frame to the new place");
         with.FrameInHome.Position.Should().Be(Double3.Zero, "the hull rests at its following frame's origin");
     }
@@ -796,14 +994,20 @@ public sealed class NumericFrameOrbitTests
     {
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
-        Entity room = world.Spawn(new()
-        {
-            Frame = station.Frame, Pose = At(0, 0, 5), AsFrame = new(FrameBounds.Sphere(2))
-        });
+        Entity room = world.Spawn(
+            new()
+            {
+                Frame = station.Frame,
+                Pose = At(0, 0, 5),
+                AsFrame = new(FrameBounds.Sphere(2)),
+            }
+        );
         Tick(world, 2);
         if (numericFrames)
-            world.Frames.Numeric(world.Frames.TreeParent(station.Frame)).Should().Be(NumericMode.Following,
-                "the station hangs in its following frame");
+            world
+                .Frames.Numeric(world.Frames.TreeParent(station.Frame))
+                .Should()
+                .Be(NumericMode.Following, "the station hangs in its following frame");
         FrameHandle roomFrame = world.GetOwnedFrame(room);
 
         world.Destroy(station.Owner).Should().BeTrue();
@@ -811,7 +1015,8 @@ public sealed class NumericFrameOrbitTests
         Tick(world, 60);
 
         world.Frames.TreeParent(roomFrame).Should().Be(station.Earth, "a Static frame hangs in its semantic parent");
-        (world.PoseIn(room, station.Earth).Position - place).Length.Should()
+        (world.PoseIn(room, station.Earth).Position - place)
+            .Length.Should()
             .BeLessThan(1e-6, "the room holds still where it was");
         world.Frames.NumericCount.Should().Be(0, "nothing is left that needs a numeric frame");
         world.Errors.Should().BeEmpty();
@@ -832,13 +1037,15 @@ public sealed class NumericFrameOrbitTests
         {
             lines.Add(string.Join(" ", drift.Homes) + " " + string.Join(" ", drift.Bumps));
             lines.Add(
-                $"end {BitConverter.DoubleToInt64Bits(drift.Position.X)} {BitConverter.DoubleToInt64Bits(drift.Position.Y)}");
+                $"end {BitConverter.DoubleToInt64Bits(drift.Position.X)} {BitConverter.DoubleToInt64Bits(drift.Position.Y)}"
+            );
         }
 
         Pass pass = PassTheStation(numericFrames: true, threads);
         lines.AddRange(pass.Homes.Select(h => $"{h.Tick} {h.Home} {BitConverter.DoubleToInt64Bits(h.Distance)}"));
         lines.Add(
-            $"end {BitConverter.DoubleToInt64Bits(pass.Position.X)} {BitConverter.DoubleToInt64Bits(pass.Velocity.Y)}");
+            $"end {BitConverter.DoubleToInt64Bits(pass.Position.X)} {BitConverter.DoubleToInt64Bits(pass.Velocity.Y)}"
+        );
         return lines;
     }
 
@@ -849,7 +1056,9 @@ public sealed class NumericFrameOrbitTests
         List<string> second = TraceOfTheOrbitScenes(1);
         List<string> parallel = TraceOfTheOrbitScenes(4);
 
-        first.Count(line => line.Contains("Following")).Should()
+        first
+            .Count(line => line.Contains("Following"))
+            .Should()
             .Be(4, "each crate, the pod and the rock join the following frame");
         second.Should().Equal(first);
         parallel.Should().Equal(first);

@@ -173,8 +173,8 @@ public readonly ref struct Self
     }
 
     /// <summary>The first of this entity's components that is a <typeparamref name="T"/>, or null. Components added during this run are not visible yet.</summary>
-    public T? GetComponent<T>() where T : class, IComponent =>
-        World.FindComponent<T>(world.Entities.Components(Entity));
+    public T? GetComponent<T>()
+        where T : class, IComponent => World.FindComponent<T>(world.Entities.Components(Entity));
 
     /// <summary>Subscribes to a topic at the sync point. Messages sent to the topic during this tick already reach the entity.</summary>
     public void Subscribe(Topic topic) => chunk.SubscriptionChanges.Add(new(Entity, topic, true));

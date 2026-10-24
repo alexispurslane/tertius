@@ -9,7 +9,8 @@ namespace Tertius;
 public interface IEventPayload;
 
 /// <summary>The dense integer id of the payload type <typeparamref name="T"/>, assigned on first use.</summary>
-public static class EventType<T> where T : unmanaged, IEventPayload
+public static class EventType<T>
+    where T : unmanaged, IEventPayload
 {
     public static readonly int Id = EventTypeRegistry.Register(typeof(T), Unsafe.SizeOf<T>());
 }
@@ -27,7 +28,8 @@ public static class EventTypeRegistry
     public static int Count => Volatile.Read(ref count);
 
     /// <summary>Forces id assignment for <typeparamref name="T"/> now.</summary>
-    public static int Register<T>() where T : unmanaged, IEventPayload => EventType<T>.Id;
+    public static int Register<T>()
+        where T : unmanaged, IEventPayload => EventType<T>.Id;
 
     public static Type TypeOf(int id) =>
         (uint)id < (uint)Count
@@ -40,7 +42,8 @@ public static class EventTypeRegistry
     {
         if (size > MaxPayloadSize)
             throw new InvalidOperationException(
-                $"Payload {type.Name} is {size} bytes. The limit is {MaxPayloadSize}. Put large or managed data in Event.Extra.");
+                $"Payload {type.Name} is {size} bytes. The limit is {MaxPayloadSize}. Put large or managed data in Event.Extra."
+            );
         lock (Gate)
         {
             for (int i = 0; i < count; i++)

@@ -42,8 +42,15 @@ internal sealed class SceneBatcher
     /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
     /// </param>
     /// <param name="scene">Receives the result.</param>
-    public void Prepare(RenderSnapshot snapshot, float alpha, int width, int height, ReadOnlySpan<MeshInfo> meshes,
-        int materialCount, PreparedScene scene)
+    public void Prepare(
+        RenderSnapshot snapshot,
+        float alpha,
+        int width,
+        int height,
+        ReadOnlySpan<MeshInfo> meshes,
+        int materialCount,
+        PreparedScene scene
+    )
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
@@ -85,7 +92,7 @@ internal sealed class SceneBatcher
             Width = width,
             Height = height,
             View = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(rotation)),
-            RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha)
+            RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha),
         };
     }
 
@@ -123,12 +130,18 @@ internal sealed class SceneBatcher
             return hasPrevious ? Quaternion.Normalize(previous) : Quaternion.Identity;
         if (!hasPrevious || alpha >= 1f)
             return Quaternion.Normalize(current);
-        return Quaternion.Normalize(Quaternion.Slerp(Quaternion.Normalize(previous), Quaternion.Normalize(current),
-            alpha));
+        return Quaternion.Normalize(
+            Quaternion.Slerp(Quaternion.Normalize(previous), Quaternion.Normalize(current), alpha)
+        );
     }
 
-    private static void CollectVisible(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes,
-        int materialCount, PreparedScene scene)
+    private static void CollectVisible(
+        RenderSnapshot snapshot,
+        float alpha,
+        ReadOnlySpan<MeshInfo> meshes,
+        int materialCount,
+        PreparedScene scene
+    )
     {
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         scene.SubmittedInstances = instances.Length;
@@ -192,15 +205,18 @@ internal sealed class SceneBatcher
             float radius = look.StartRadius + (look.EndRadius - look.StartRadius) * t;
             Vector3 position = Vector3.Lerp(puff.PreviousPosition, puff.Position, alpha) - camera.Offset;
             // One sum is non-finite when any term is NaN or infinite.
-            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || radius <= 0f ||
-                camera.Culls(position, radius))
+            if (
+                !float.IsFinite(position.X + position.Y + position.Z + radius)
+                || radius <= 0f
+                || camera.Culls(position, radius)
+            )
                 continue;
             float ownShare = 1f - t;
             Vector4? colorKind = look.Shading switch
             {
                 GlowPuffs glow => new Vector4(glow.Radiance * ownShare, GpuPuff.GlowKind),
                 LitPuffs lit => new Vector4(lit.Albedo * ownShare, GpuPuff.LitKind),
-                null => null
+                null => null,
             };
             if (colorKind is not { } color)
                 continue;
@@ -220,7 +236,8 @@ internal sealed class SceneBatcher
     private void Batch(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes)
     {
         Span<PreparedInstance> visible = scene.VisibleSpan;
-        int opaqueCount = 0, transparentCount = 0;
+        int opaqueCount = 0,
+            transparentCount = 0;
         for (int i = 0; i < visible.Length; i++)
         {
             ref PreparedInstance instance = ref visible[i];
@@ -228,8 +245,11 @@ internal sealed class SceneBatcher
                 continue;
             if ((instance.Flags & RenderFlags.Transparent) != 0)
             {
-                Append(ref transparent, ref transparentCount,
-                    new(TransparentKey(instance.Depth, instance.Distance), i));
+                Append(
+                    ref transparent,
+                    ref transparentCount,
+                    new(TransparentKey(instance.Depth, instance.Distance), i)
+                );
                 continue;
             }
 
@@ -244,18 +264,28 @@ internal sealed class SceneBatcher
         Vector3 forward = scene.Camera.Forward;
         for (int p = 0; p < collectedPuffCount; p++)
         {
-            var center = new Vector3(collectedPuffs[p].PositionRadius.X, collectedPuffs[p].PositionRadius.Y,
-                collectedPuffs[p].PositionRadius.Z);
-            Append(ref transparent, ref transparentCount,
-                new(TransparentKey(Vector3.Dot(center, forward), center.Length()), visible.Length + p));
+            var center = new Vector3(
+                collectedPuffs[p].PositionRadius.X,
+                collectedPuffs[p].PositionRadius.Y,
+                collectedPuffs[p].PositionRadius.Z
+            );
+            Append(
+                ref transparent,
+                ref transparentCount,
+                new(TransparentKey(Vector3.Dot(center, forward), center.Length()), visible.Length + p)
+            );
         }
 
         opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
         Emit(scene: scene, meshes: meshes, items: opaque.AsSpan(0, opaqueCount), ranges: scene.Opaque);
-        EmitTransparent(scene: scene, meshes: meshes, items: transparent.AsSpan(0, transparentCount),
-            firstPuff: visible.Length);
+        EmitTransparent(
+            scene: scene,
+            meshes: meshes,
+            items: transparent.AsSpan(0, transparentCount),
+            firstPuff: visible.Length
+        );
     }
 
     /// <summary>
@@ -264,11 +294,17 @@ internal sealed class SceneBatcher
     /// one <see cref="PuffSprites"/> run of <see cref="PreparedScene.Puffs"/>. An item whose index is
     /// <paramref name="firstPuff"/> or more is the puff of that index less <paramref name="firstPuff"/>.
     /// </summary>
-    private void EmitTransparent(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, ReadOnlySpan<DrawItem> items,
-        int firstPuff)
+    private void EmitTransparent(
+        PreparedScene scene,
+        ReadOnlySpan<MeshInfo> meshes,
+        ReadOnlySpan<DrawItem> items,
+        int firstPuff
+    )
     {
         EnsureCapacity(ref scene.Puffs, collectedPuffCount);
-        int currentRange = -1, currentMesh = -1, runStart = 0;
+        int currentRange = -1,
+            currentMesh = -1,
+            runStart = 0;
         bool puffRun = false;
         foreach (DrawItem item in items)
         {
@@ -287,8 +323,12 @@ internal sealed class SceneBatcher
             if (isPuff)
                 scene.Puffs[scene.PuffCount++] = collectedPuffs[item.Index - firstPuff];
             else
-                AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref scene.Visible[item.Index],
-                    currentMesh: ref currentMesh);
+                AppendInstanceCommand(
+                    scene: scene,
+                    meshes: meshes,
+                    instance: ref scene.Visible[item.Index],
+                    currentMesh: ref currentMesh
+                );
         }
 
         if (currentRange >= 0)
@@ -297,21 +337,33 @@ internal sealed class SceneBatcher
 
     /// <summary>Adds the run of one kind that started at <paramref name="runStart"/> to the runs of its range.</summary>
     private static void CloseRun(PreparedScene scene, int range, bool puffRun, int runStart) =>
-        scene.Transparent[range].Add(puffRun
-            ? new PuffSprites(runStart, scene.PuffCount - runStart)
-            : new MeshCommands(new(runStart, scene.CommandCount - runStart)));
+        scene
+            .Transparent[range]
+            .Add(
+                puffRun
+                    ? new PuffSprites(runStart, scene.PuffCount - runStart)
+                    : new MeshCommands(new(runStart, scene.CommandCount - runStart))
+            );
 
     /// <summary>
     /// Writes the GPU instance of <paramref name="instance"/> next in the instance array, and adds it to the last command
     /// when that command draws the same mesh (<paramref name="currentMesh"/>), or appends a command for it.
     /// </summary>
-    private static void AppendInstanceCommand(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes,
-        ref PreparedInstance instance, ref int currentMesh)
+    private static void AppendInstanceCommand(
+        PreparedScene scene,
+        ReadOnlySpan<MeshInfo> meshes,
+        ref PreparedInstance instance,
+        ref int currentMesh
+    )
     {
         int gpuIndex = scene.InstanceCount++;
-        scene.Instances[gpuIndex] = GpuInstance.From(position: instance.Position, rotation: instance.Rotation,
+        scene.Instances[gpuIndex] = GpuInstance.From(
+            position: instance.Position,
+            rotation: instance.Rotation,
             scale: instance.Scale,
-            material: instance.Material, hemisphere: instance.Hemisphere);
+            material: instance.Material,
+            hemisphere: instance.Hemisphere
+        );
         if (instance.Mesh == currentMesh)
         {
             scene.Commands[scene.CommandCount - 1].InstanceCount++;
@@ -328,7 +380,7 @@ internal sealed class SceneBatcher
             InstanceCount = 1,
             FirstIndex = mesh.FirstIndex,
             VertexOffset = mesh.VertexOffset,
-            FirstInstance = (uint)gpuIndex
+            FirstInstance = (uint)gpuIndex,
         };
     }
 
@@ -336,10 +388,16 @@ internal sealed class SceneBatcher
     /// Writes the GPU instances in sorted order and one indirect command per run of equal (range, mesh), with
     /// firstInstance pointing at the run's first GPU instance.
     /// </summary>
-    private static void Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, ReadOnlySpan<DrawItem> items,
-        CommandRange[] ranges)
+    private static void Emit(
+        PreparedScene scene,
+        ReadOnlySpan<MeshInfo> meshes,
+        ReadOnlySpan<DrawItem> items,
+        CommandRange[] ranges
+    )
     {
-        int currentRange = -1, currentMesh = -1, rangeStart = scene.CommandCount;
+        int currentRange = -1,
+            currentMesh = -1,
+            rangeStart = scene.CommandCount;
         foreach (DrawItem item in items)
         {
             ref PreparedInstance instance = ref scene.Visible[item.Index];
@@ -370,42 +428,66 @@ internal sealed class SceneBatcher
             {
                 case PointRenderLight
                 {
-                    Position: var worldPosition, Color: var color, Intensity: var intensity, Range: var range
+                    Position: var worldPosition,
+                    Color: var color,
+                    Intensity: var intensity,
+                    Range: var range
                 }:
                 {
-                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
-                            position: out Vector3 position))
+                    if (
+                        !Reaches(
+                            camera: camera,
+                            worldPosition: worldPosition,
+                            intensity: intensity,
+                            range: range,
+                            position: out Vector3 position
+                        )
+                    )
                         continue;
                     // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
                     // impostor lighting read them only for a spot light.
-                    Append(scene, new()
-                    {
-                        PositionRange = new(position, range),
-                        RadianceKind = new(color * intensity, 0f)
-                    });
+                    Append(
+                        scene,
+                        new() { PositionRange = new(position, range), RadianceKind = new(color * intensity, 0f) }
+                    );
                     break;
                 }
                 case SpotRenderLight
                 {
-                    Position: var worldPosition, Direction: var axis, Color: var color, Intensity: var intensity,
-                    Range: var range, InnerConeAngle: var innerConeAngle, OuterConeAngle: var outerConeAngle
+                    Position: var worldPosition,
+                    Direction: var axis,
+                    Color: var color,
+                    Intensity: var intensity,
+                    Range: var range,
+                    InnerConeAngle: var innerConeAngle,
+                    OuterConeAngle: var outerConeAngle
                 }:
                 {
-                    if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
-                            position: out Vector3 position))
+                    if (
+                        !Reaches(
+                            camera: camera,
+                            worldPosition: worldPosition,
+                            intensity: intensity,
+                            range: range,
+                            position: out Vector3 position
+                        )
+                    )
                         continue;
                     Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
                     float cosOuter = MathF.Cos(Math.Clamp(outerConeAngle, 0f, MathF.PI));
                     float cosInner = MathF.Cos(Math.Clamp(innerConeAngle, 0f, MathF.PI));
                     // smoothstep needs a non-empty edge interval.
                     cosInner = MathF.Max(cosInner, cosOuter + 1e-4f);
-                    Append(scene, new()
-                    {
-                        PositionRange = new(position, range),
-                        RadianceKind = new(color * intensity, 1f),
-                        DirectionCosOuter = new(direction, cosOuter),
-                        Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f)
-                    });
+                    Append(
+                        scene,
+                        new()
+                        {
+                            PositionRange = new(position, range),
+                            RadianceKind = new(color * intensity, 1f),
+                            DirectionCosOuter = new(direction, cosOuter),
+                            Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f),
+                        }
+                    );
                     break;
                 }
                 case null:
@@ -420,8 +502,13 @@ internal sealed class SceneBatcher
     /// above zero, and the light's sphere of influence is not outside the frustum. Also gives the position relative to the
     /// camera, which is what the GPU light holds.
     /// </summary>
-    private static bool Reaches(in CameraView camera, Vector3 worldPosition, float intensity, float range,
-        out Vector3 position)
+    private static bool Reaches(
+        in CameraView camera,
+        Vector3 worldPosition,
+        float intensity,
+        float range,
+        out Vector3 position
+    )
     {
         position = worldPosition - camera.Offset;
         return !(range <= 0f || intensity <= 0f) && !camera.Culls(position, range);
@@ -444,8 +531,12 @@ internal sealed class SceneBatcher
     /// than 2 km from the camera. A smaller sphere hides at most 4% of the sun near the camera, and its shadow farther away
     /// is under a pixel too.
     /// </summary>
-    private void CollectFarShadows(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes,
-        PreparedScene scene)
+    private void CollectFarShadows(
+        RenderSnapshot snapshot,
+        float alpha,
+        ReadOnlySpan<MeshInfo> meshes,
+        PreparedScene scene
+    )
     {
         if (!HasSun(snapshot.Sun))
             return;
@@ -517,22 +608,31 @@ internal sealed class SceneBatcher
             CameraRight = new(camera.Right * camera.TanHalfX, 0f),
             CameraUp = new(camera.Up * camera.TanHalfY, 0f),
             CameraForward = new(camera.Forward, 0f),
-            SunDirection = new(hasSun ? Vector3.Normalize(sun.Direction) : Vector3.UnitY,
-                MathF.Max(sun.AngularRadius, 0f)),
+            SunDirection = new(
+                hasSun ? Vector3.Normalize(sun.Direction) : Vector3.UnitY,
+                MathF.Max(sun.AngularRadius, 0f)
+            ),
             SunRadiance = new(hasSun ? sun.Color * sun.Intensity : Vector3.Zero, 0f),
             AmbientSky = new(ambient.SkyColor * ambient.Intensity, 0f),
             AmbientGround = new(ambient.GroundColor * ambient.Intensity, 0f),
-            Viewport =
-                new(x: camera.Width, y: camera.Height, z: 1f / Math.Max(camera.Width, 1),
-                    w: 1f / Math.Max(camera.Height, 1)),
+            Viewport = new(
+                x: camera.Width,
+                y: camera.Height,
+                z: 1f / Math.Max(camera.Width, 1),
+                w: 1f / Math.Max(camera.Height, 1)
+            ),
             Params = new(x: 1f, y: (float)snapshot.Time, z: camera.PixelAngle, w: 0f),
             LightCount = (uint)scene.LightCount,
             OccluderCount = (uint)scene.OccluderCount,
             // The shadow pass fills in the cascades when it draws them.
             ShadowCascadeCount = 0,
             MappedOccluderCount = (uint)scene.MappedOccluderCount,
-            RootRotation = new(x: camera.RootRotation.X, y: camera.RootRotation.Y, z: camera.RootRotation.Z,
-                w: camera.RootRotation.W)
+            RootRotation = new(
+                x: camera.RootRotation.X,
+                y: camera.RootRotation.Y,
+                z: camera.RootRotation.Z,
+                w: camera.RootRotation.W
+            ),
         };
     }
 

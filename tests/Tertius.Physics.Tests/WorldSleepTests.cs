@@ -36,25 +36,38 @@ public sealed class WorldSleepTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         double theta = degrees * Math.PI / 180;
-        DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, -theta);
+        var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, -theta);
         Double3 normal = tilt.Rotate(Double3.UnitY);
         Double3 downhill = tilt.Rotate(Double3.UnitX);
-        world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(Double3.Zero, tilt),
-            Body = new(Shape: new BoxShapeDesc(new(80, 0.5f, 5)), Motion: BodyMotion.Static, Friction: ball ? 0.5f : 0f)
-        });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(Double3.Zero, tilt),
+                Body = new(
+                    Shape: new BoxShapeDesc(new(80, 0.5f, 5)),
+                    Motion: BodyMotion.Static,
+                    Friction: ball ? 0.5f : 0f
+                ),
+            }
+        );
         Double3 start = normal * 1.0 - downhill * 60.0;
-        Entity body = world.Spawn(new()
-        {
-            Frame = ground,
-            Pose = new(start, ball ? DQuaternion.Identity : tilt),
-            Body = ball
-                ? new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
-                : new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1, Friction: 0, LinearDamping: 0,
-                    AngularDamping: 0)
-        });
+        Entity body = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = new(start, ball ? DQuaternion.Identity : tilt),
+                Body = ball
+                    ? new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
+                    : new BodyDesc(
+                        Shape: new BoxShapeDesc(new(0.5f)),
+                        Mass: 1,
+                        Friction: 0,
+                        LinearDamping: 0,
+                        AngularDamping: 0
+                    ),
+            }
+        );
         double a = (ball ? 5.0 / 7.0 : 1.0) * g * Math.Sin(theta);
         double seconds = Math.Min(20, Math.Sqrt(2 * 50 / a));
         int ticks = (int)Math.Round(seconds * 60);
@@ -80,17 +93,28 @@ public sealed class WorldSleepTests
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground, top: -10);
-        world.Spawn(new()
-        {
-            Frame = ground, Pose = At(0, -0.5),
-            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static)
-        });
-        Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(2.1, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1) });
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, -0.5),
+                Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static),
+            }
+        );
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(2.1, 0.5),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1),
+            }
+        );
 
         Tick(world, 1800);
 
-        world.PoseInOwnFrame(box).Position.Y.Should()
+        world
+            .PoseInOwnFrame(box)
+            .Position.Y.Should()
             .BeLessThan(-5, "the box tips off the ledge and falls to the ground");
     }
 
@@ -112,7 +136,14 @@ public sealed class WorldSleepTests
             using World world = NewWorld(backend: out _, debugChecks: false);
             FrameHandle ground = Ground(world, g);
             Floor(world, ground);
-            Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Cube() });
+            Entity box = world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(0, 1.5),
+                    Body = Cube(),
+                }
+            );
 
             Tick(world, 3600);
 
@@ -136,19 +167,33 @@ public sealed class WorldSleepTests
         using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([
-            new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
+            new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity)),
         ]);
         var pilot = new Pilot();
-        Entity owner = world.Spawn(new()
-        {
-            Frame = space,
-            Body = new(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: deck),
-            AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -g, 0))),
-            Components = [pilot]
-        });
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = new(
+                    Shape: new BoxShapeDesc(new(10, 3, 30)),
+                    Mass: 1000,
+                    LinearDamping: 0,
+                    AngularDamping: 0,
+                    InteriorShape: deck
+                ),
+                AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -g, 0))),
+                Components = [pilot],
+            }
+        );
         FrameHandle ship = world.GetOwnedFrame(owner);
-        Entity crate = world.Spawn(new() { Frame = ship, Pose = At(0, -1.5), Body = Cube(mass: 5) });
+        Entity crate = world.Spawn(
+            new()
+            {
+                Frame = ship,
+                Pose = At(0, -1.5),
+                Body = Cube(mass: 5),
+            }
+        );
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ship, crate), 300);
         IsAwake(backend, ship, crate).Should().BeFalse("the crate fell asleep on the deck");
@@ -159,7 +204,8 @@ public sealed class WorldSleepTests
 
         double a = thrust - 0.5 * g;
         double expected = 0.5 * a * 10 * 10;
-        (world.PoseInOwnFrame(crate).Position.Z - z0).Should()
+        (world.PoseInOwnFrame(crate).Position.Z - z0)
+            .Should()
             .BeLessThan(-0.8 * expected, "the crate slides toward the stern for 10 s");
     }
 
@@ -172,12 +218,14 @@ public sealed class WorldSleepTests
     {
         using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        Entity box = world.Spawn(new()
-        {
-            Frame = space,
-            LinearVelocity = new Vector3(0.02f, 0, 0),
-            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
-        });
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = space,
+                LinearVelocity = new Vector3(0.02f, 0, 0),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+            }
+        );
 
         Tick(world, 600);
 
@@ -200,13 +248,24 @@ public sealed class WorldSleepTests
         Floor(world, ground);
         var boxes = new List<Entity>();
         for (int i = 0; i < 5; i++)
-            boxes.Add(world.Spawn(new() { Frame = ground, Pose = At(0, 0.5 + i), Body = Cube() }));
+            boxes.Add(
+                world.Spawn(
+                    new()
+                    {
+                        Frame = ground,
+                        Pose = At(0, 0.5 + i),
+                        Body = Cube(),
+                    }
+                )
+            );
 
         world.Tick();
         int ticks = 1 + TickUntil(world, () => boxes.All(box => !IsAwake(backend, ground, box)), 119);
 
         ticks.Should().BeLessThan(120, "the stack rests on the floor");
-        world.PoseInOwnFrame(boxes[^1]).Position.Y.Should()
+        world
+            .PoseInOwnFrame(boxes[^1])
+            .Position.Y.Should()
             .BeApproximately(4.5, 0.02, "the stack stands where it was let go");
     }
 }

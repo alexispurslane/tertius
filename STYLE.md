@@ -1,6 +1,6 @@
 # C# style for Tertius
 
-This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0015` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0015` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `tools/cleanup.sh` owns the modern syntax fixes, through the Roslyn rules in `.editorconfig`, and the formatting and the `using` order, through CSharpier.
 
 When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
 
@@ -156,7 +156,7 @@ These rules come from ARCHITECTURE.md, "Switches over closed sets". The build en
 
 - A switch over a closed set has no discard arm, so a new case fails the build.
 - A switch that chooses a value is a switch expression. A union switch ends in a `null` arm. The compiler never asks for that arm, and without it the empty value throws.
-- A switch statement over a closed set names every case, the quiet cases too, in a label without a guard. A union without a zero case also names `null`. The default case only throws `UnreachableException` (tool: TS0015). The cleanup deletes an empty default case, and a missing default case then fails the build.
+- A switch statement over a closed set names every case, the quiet cases too, in a label without a guard. A union without a zero case also names `null`. The default case only throws `UnreachableException` (tool: TS0015 for a default case that does more, IDE0010 for a missing one).
 
 ```csharp
 case MouseButtonChanged or KeyChanged or MouseMoved or Scrolled or null:
@@ -173,9 +173,12 @@ Watch the type of a switch expression. In `Case c => c.Moved(...), null => defau
 Write a list of early returns, not a chain of nested conditional expressions. A conditional expression is for one simple choice, so neither of its branches is another conditional expression (tool: TS0011). Inside a method, the early returns can choose a value for a local with `if` and `else if`. A choice among the cases of a closed set is a switch expression.
 
 ```csharp
-if (!f.MultiDrawIndirect) return "multiDrawIndirect";
-if (!f.DrawIndirectFirstInstance) return "drawIndirectFirstInstance";
-if (!f.DepthClamp) return "depthClamp";
+if (!f.MultiDrawIndirect)
+    return "multiDrawIndirect";
+if (!f.DrawIndirectFirstInstance)
+    return "drawIndirectFirstInstance";
+if (!f.DepthClamp)
+    return "depthClamp";
 ```
 
 ### Name the parts of a complex condition
@@ -240,7 +243,7 @@ var spec = new CrateSpec
 Body body = world.Spawn(frame: station, pose: start, shape: crateShape, motion: BodyMotion.Dynamic);
 ```
 
-The cleanup keeps named arguments: the Tertius profile leaves out the ReSharper step that removes them.
+The cleanup keeps named arguments: no rule that it runs removes them.
 
 ## Polymorphism and composition
 
@@ -356,6 +359,10 @@ using var world = new World(new() { DisposePhysics = true },
     ...
 ```
 
+## Member order
+
+Group the members of a type by kind, in this order: constants, static fields and static properties, instance fields, constructors, instance properties, indexers and events, then everything else. Keep the author's order inside each group. Static fields and static properties share one group, because a static initializer can read a static property above it, and C# runs static initializers in the order of the text. No tool orders members: the cleanup leaves the order as it is.
+
 ## Names
 
 - Name a piece of state for what it holds, with its frame and units where they matter. Remove a variable that only exists as scratch for another one.
@@ -375,7 +382,7 @@ One fact has one home. The model says how the parts work together. The model and
 
 ## Unused code
 
-Delete code that nothing uses: a private member that nothing reads, and a parameter that its method never reads (tool: IDE0051, IDE0052, IDE0060). A parameter whose method must match a delegate type stays, with the name `_`. A member that only one branch of `#if TERTIUS_CONTRACTS` uses goes into that branch.
+Delete code that nothing uses: a private member that nothing reads, a value that the code assigns and never reads, and a parameter that its method never reads (tool: IDE0051, IDE0052, IDE0059, IDE0060). A parameter whose method must match a delegate type stays, with the name `_`. A member that only one branch of `#if TERTIUS_CONTRACTS` uses goes into that branch.
 
 ## Dependencies
 

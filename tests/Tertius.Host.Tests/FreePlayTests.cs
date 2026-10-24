@@ -48,16 +48,14 @@ internal sealed class TestWindow : IInputTarget, IPlayback
 
     public void Post(InputEvent e) => FreePlay!.Post(e);
 
-    public void Fly(FlyKey key, bool down)
-    {
-    }
+    public void Fly(FlyKey key, bool down) { }
 
-    public void Turn(Vector2 movement)
-    {
-    }
+    public void Turn(Vector2 movement) { }
 
     public void FlyChanged(bool flying) => FlyChanges.Add(flying);
+
     public void Close() => closed = true;
+
     public void NextView() => FreePlay!.NextView();
 
     public bool WaitForTick()
@@ -88,21 +86,24 @@ public sealed class FreePlayTests : IDisposable
     /// A scene with no physics bodies. The root frame <c>space</c> holds <c>probe</c>, which hears the <c>input</c> topic,
     /// and the two views <c>eye-a</c>, the camera at the start, and <c>eye-b</c>.
     /// </summary>
-    private static readonly Scene InputProbeScene = new("input-probe", (world, _) =>
-    {
-        var scene = new SceneInstance();
-        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        scene.Add("space", space);
-        Entity probe = world.Spawn(new() { Frame = space, Components = [new Probe()] });
-        world.Subscribe(probe, Topics.Input);
-        scene.Add("probe", probe);
-        scene.Add("eye-a", world.Spawn(new() { Frame = space }));
-        scene.Add("eye-b", world.Spawn(new() { Frame = space }));
-        scene.AddView("eye-a");
-        scene.AddView("eye-b");
-        world.Camera = scene["eye-a"];
-        return scene;
-    });
+    private static readonly Scene InputProbeScene = new(
+        "input-probe",
+        (world, _) =>
+        {
+            var scene = new SceneInstance();
+            FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+            scene.Add("space", space);
+            Entity probe = world.Spawn(new() { Frame = space, Components = [new Probe()] });
+            world.Subscribe(probe, Topics.Input);
+            scene.Add("probe", probe);
+            scene.Add("eye-a", world.Spawn(new() { Frame = space }));
+            scene.Add("eye-b", world.Spawn(new() { Frame = space }));
+            scene.AddView("eye-a");
+            scene.AddView("eye-b");
+            world.Camera = scene["eye-a"];
+            return scene;
+        }
+    );
 
     private readonly string folder = NewFolder();
 
@@ -130,12 +131,13 @@ public sealed class FreePlayTests : IDisposable
     private static Script Written(string path) => Script.Parse(File.ReadAllText(path));
 
     /// <summary>The code of a key event or of a mouse button event. Every input that these tests post is one of the two.</summary>
-    private static int CodeOf(InputEvent e) => e switch
-    {
-        KeyChanged { Code: var code } => code,
-        MouseButtonChanged { Code: var code } => code,
-        _ => throw new InvalidOperationException($"{e} is not a key or mouse button event.")
-    };
+    private static int CodeOf(InputEvent e) =>
+        e switch
+        {
+            KeyChanged { Code: var code } => code,
+            MouseButtonChanged { Code: var code } => code,
+            _ => throw new InvalidOperationException($"{e} is not a key or mouse button event."),
+        };
 
     /// <summary>The (tick, code) of each post step of a script: the number of ticks that run before the post, and the key code.</summary>
     private static (long Tick, int Code)[] PostsOf(Script script)
@@ -201,14 +203,18 @@ public sealed class FreePlayTests : IDisposable
             Script script = Written(RecordPath);
             script.Scene.Should().Be("input-probe");
             script.Window.Should().Be(Size);
-            ScriptRecorderTests.Describe(script).Should().Equal(
-                "camera eye-a",
-                "run 3",
-                "post input InputEvent keyDown 87",
-                "run 7",
-                "post input InputEvent keyUp 87",
-                "run 2",
-                "dump end");
+            ScriptRecorderTests
+                .Describe(script)
+                .Should()
+                .Equal(
+                    "camera eye-a",
+                    "run 3",
+                    "post input InputEvent keyDown 87",
+                    "run 7",
+                    "post input InputEvent keyUp 87",
+                    "run 2",
+                    "dump end"
+                );
         }
     }
 
@@ -231,8 +237,9 @@ public sealed class FreePlayTests : IDisposable
 
             SeenInput(replay, replayScene).Should().Equal(SeenInput(session, sessionScene));
             // Two events from one gap between ticks reach the world together, and the replay handles them on the same tick.
-            SeenInput(session, sessionScene).Should().Equal((1L, (int)Key.W), (8L, (int)Key.A),
-                (8L, (int)MouseButton.Left), (20L, (int)Key.W));
+            SeenInput(session, sessionScene)
+                .Should()
+                .Equal((1L, (int)Key.W), (8L, (int)Key.A), (8L, (int)MouseButton.Left), (20L, (int)Key.W));
         }
     }
 
@@ -242,16 +249,21 @@ public sealed class FreePlayTests : IDisposable
         (World world, SceneInstance scene) = InputProbe();
         using (world)
         {
-            TestWindow window = new TestWindow(5).At(2, router =>
-            {
-                router.Key(Key.V, down: true);
-                router.Key(Key.V, down: false);
-            });
+            TestWindow window = new TestWindow(5).At(
+                2,
+                router =>
+                {
+                    router.Key(Key.V, down: true);
+                    router.Key(Key.V, down: false);
+                }
+            );
 
             Play(world: world, scene: scene, window: window);
 
             world.Camera.Should().Be(scene["eye-b"]);
-            ScriptRecorderTests.Describe(Written(RecordPath)).Should()
+            ScriptRecorderTests
+                .Describe(Written(RecordPath))
+                .Should()
                 .Equal("camera eye-a", "run 2", "camera eye-b", "run 3", "dump end");
             SeenInput(world, scene).Should().BeEmpty("the game never sees the view key");
         }
@@ -263,16 +275,21 @@ public sealed class FreePlayTests : IDisposable
         (World world, SceneInstance scene) = InputProbe();
         using (world)
         {
-            TestWindow window = new TestWindow(4).At(2, router =>
-            {
-                router.Key(Key.V, down: true);
-                router.Key(Key.V, down: true);
-            });
+            TestWindow window = new TestWindow(4).At(
+                2,
+                router =>
+                {
+                    router.Key(Key.V, down: true);
+                    router.Key(Key.V, down: true);
+                }
+            );
 
             Play(world: world, scene: scene, window: window);
 
-            ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal("camera eye-a", "run 2", "camera eye-b",
-                "camera eye-a", "run 2", "dump end");
+            ScriptRecorderTests
+                .Describe(Written(RecordPath))
+                .Should()
+                .Equal("camera eye-a", "run 2", "camera eye-b", "camera eye-a", "run 2", "dump end");
         }
     }
 
@@ -312,13 +329,16 @@ public sealed class FreePlayTests : IDisposable
         {
             TestWindow window = new TestWindow(6)
                 .At(1, router => router.Key(Key.F1, down: true))
-                .At(2, router =>
-                {
-                    router.MouseMove(new(10, 10));
-                    router.MouseMove(new(30, 5));
-                    router.Key(Key.W, down: true);
-                    router.Key(Key.W, down: false);
-                })
+                .At(
+                    2,
+                    router =>
+                    {
+                        router.MouseMove(new(10, 10));
+                        router.MouseMove(new(30, 5));
+                        router.Key(Key.W, down: true);
+                        router.Key(Key.W, down: false);
+                    }
+                )
                 .At(3, router => router.Key(Key.F1, down: true));
 
             Play(world: world, scene: scene, window: window);
@@ -340,14 +360,18 @@ public sealed class FreePlayTests : IDisposable
 
             Play(world: world, scene: scene, window: window);
 
-            ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
-                "camera eye-a",
-                "run 1",
-                "post input InputEvent keyDown 87",
-                "run 1",
-                "post input InputEvent keyUp 87",
-                "run 3",
-                "dump end");
+            ScriptRecorderTests
+                .Describe(Written(RecordPath))
+                .Should()
+                .Equal(
+                    "camera eye-a",
+                    "run 1",
+                    "post input InputEvent keyDown 87",
+                    "run 1",
+                    "post input InputEvent keyUp 87",
+                    "run 3",
+                    "dump end"
+                );
         }
     }
 
@@ -364,8 +388,10 @@ public sealed class FreePlayTests : IDisposable
             Play(world: world, scene: scene, window: window);
 
             world.TickNumber.Should().Be(5);
-            ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
-                "camera eye-a", "run 2", "post input InputEvent keyDown 87", "run 3", "dump end");
+            ScriptRecorderTests
+                .Describe(Written(RecordPath))
+                .Should()
+                .Equal("camera eye-a", "run 2", "post input InputEvent keyDown 87", "run 3", "dump end");
         }
     }
 
@@ -382,8 +408,10 @@ public sealed class FreePlayTests : IDisposable
             Action play = () => Play(world: world, scene: scene, window: window);
 
             play.Should().Throw<InvalidOperationException>().WithMessage("*on purpose*");
-            ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
-                "camera eye-a", "run 2", "post input InputEvent keyDown 87", "run 5", "dump end");
+            ScriptRecorderTests
+                .Describe(Written(RecordPath))
+                .Should()
+                .Equal("camera eye-a", "run 2", "post input InputEvent keyDown 87", "run 5", "dump end");
         }
     }
 
@@ -448,8 +476,13 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output,
-            error: error);
+        int code = WindowHost.ReportRecord(
+            record: record,
+            freePlay: freePlay,
+            code: ScriptCommand.Ok,
+            output: output,
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.Ok);
         output.ToString().Should().Be(RecordPath + Environment.NewLine);
@@ -465,8 +498,13 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output,
-            error: error);
+        int code = WindowHost.ReportRecord(
+            record: record,
+            freePlay: freePlay,
+            code: ScriptCommand.Ok,
+            output: output,
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.FileError);
         error.ToString().Should().Contain("Cannot write the record").And.Contain("taken");
@@ -481,8 +519,13 @@ public sealed class FreePlayTests : IDisposable
         (RecordTo record, FreePlay freePlay) = PlayThreeTicks(Path.Combine(taken, "record.json"));
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.InternalError,
-            output: new StringWriter(), error: error);
+        int code = WindowHost.ReportRecord(
+            record: record,
+            freePlay: freePlay,
+            code: ScriptCommand.InternalError,
+            output: new StringWriter(),
+            error: error
+        );
 
         code.Should().Be(ScriptCommand.InternalError);
         error.ToString().Should().Contain("Cannot write the record");
@@ -498,29 +541,42 @@ public sealed class FreePlayTests : IDisposable
             // The main thread of the window posts while the simulation thread ticks. After each 100 events, the poster
             // waits until the world ticks again, as a window posts across frames. A sleep alone let a busy machine run
             // the whole poster within one tick.
-            Task poster = Task.Run(() =>
-            {
-                for (int code = 0; code < 1500; code++)
+            var poster = Task.Run(
+                () =>
                 {
-                    freePlay.Post(InputEvent.KeyDown(code));
-                    if (code % 100 != 99)
-                        continue;
-                    long tick = world.TickNumber;
-                    while (world.TickNumber == tick)
-                        Thread.Sleep(1);
-                }
-            }, TestContext.Current.CancellationToken);
+                    for (int code = 0; code < 1500; code++)
+                    {
+                        freePlay.Post(InputEvent.KeyDown(code));
+                        if (code % 100 != 99)
+                            continue;
+                        long tick = world.TickNumber;
+                        while (world.TickNumber == tick)
+                            Thread.Sleep(1);
+                    }
+                },
+                TestContext.Current.CancellationToken
+            );
 
             freePlay.Run(new UntilPosterIsDone(poster));
             await poster;
 
             (long Tick, int Code)[] recorded = PostsOf(Written(RecordPath));
-            recorded.Select(post => post.Code).Should().Equal(Enumerable.Range(0, 1500),
-                "every event arrives, in the order it was posted");
-            recorded.Select(post => post.Tick).Distinct().Count().Should()
+            recorded
+                .Select(post => post.Code)
+                .Should()
+                .Equal(Enumerable.Range(0, 1500), "every event arrives, in the order it was posted");
+            recorded
+                .Select(post => post.Tick)
+                .Distinct()
+                .Count()
+                .Should()
                 .BeGreaterThan(1, "the events arrived during many different ticks");
-            SeenInput(world, scene).Should().Equal(recorded.Select(post => (post.Tick + 1, post.Code)),
-                "the world handles each event one tick after the tick that the record names");
+            SeenInput(world, scene)
+                .Should()
+                .Equal(
+                    recorded.Select(post => (post.Tick + 1, post.Code)),
+                    "the world handles each event one tick after the tick that the record names"
+                );
         }
     }
 
@@ -568,11 +624,14 @@ public sealed class FreePlayReplayTests : IDisposable
                 // The view key goes from the chase view to the far view, and from there to the person's view.
                 .At(5, router => Tap(router, Key.V))
                 .At(10, router => Tap(router, Key.V))
-                .At(12, router =>
-                {
-                    router.MouseMove(new(100, 100));
-                    router.MouseMove(new(160, 90));
-                })
+                .At(
+                    12,
+                    router =>
+                    {
+                        router.MouseMove(new(100, 100));
+                        router.MouseMove(new(160, 90));
+                    }
+                )
                 .At(20, router => router.Key(Key.W, down: true))
                 .At(60, router => router.Key(Key.Space, down: true))
                 .At(62, router => router.Key(Key.Space, down: false))
@@ -587,11 +646,14 @@ public sealed class FreePlayReplayTests : IDisposable
                 .At(230, router => router.MouseMove(new(300, 300)))
                 .At(240, router => router.Key(Key.F1, down: true))
                 // Two presses between two ticks: from the person's view past the chase view to the far view.
-                .At(250, router =>
-                {
-                    Tap(router, Key.V);
-                    Tap(router, Key.V);
-                })
+                .At(
+                    250,
+                    router =>
+                    {
+                        Tap(router, Key.V);
+                        Tap(router, Key.V);
+                    }
+                )
                 .At(270, router => router.Scroll(new(0, 1)));
             var freePlay = new FreePlay(session, scene, new(path, "orbit", ScriptWindow.Default));
             window.FreePlay = freePlay;
@@ -602,18 +664,24 @@ public sealed class FreePlayReplayTests : IDisposable
             StateDump sessionEnd = dumps.Take("end");
             sessionEnd.Tick.Should().Be(300);
             sessionEnd.Camera.Should().Be("far");
-            Double3.Distance(sessionEnd.Entity("person").Pose.Position, start.Entity("person").Pose.Position)
-                .Should().BeGreaterThan(3,
-                    "the session moved the person, so that the replay has something to get wrong");
+            Double3
+                .Distance(sessionEnd.Entity("person").Pose.Position, start.Entity("person").Pose.Position)
+                .Should()
+                .BeGreaterThan(3, "the session moved the person, so that the replay has something to get wrong");
 
-            Script script = Script.Load(path);
-            script.Steps.Select(step => step.Value).OfType<CameraStep>().Select(step => step.Entity).Should()
+            var script = Script.Load(path);
+            script
+                .Steps.Select(step => step.Value)
+                .OfType<CameraStep>()
+                .Select(step => step.Entity)
+                .Should()
                 .Equal("chase", "far", "person", "chase", "far");
             script.Steps.Select(step => step.Value).OfType<PostStep>().Count().Should().BeGreaterThan(10);
 
             using World replay = NewJoltWorld();
-            SceneInstance replayScene =
-                DemoScenes.All.Single(s => s.Name == "orbit").Build(replay, RenderResources.None);
+            SceneInstance replayScene = DemoScenes
+                .All.Single(s => s.Name == "orbit")
+                .Build(replay, RenderResources.None);
             StateDump replayEnd = ScriptRunner.Run(script: script, world: replay, scene: replayScene).Dump("end");
 
             Json(replayEnd, replayScene).Should().Be(Json(sessionEnd, scene));

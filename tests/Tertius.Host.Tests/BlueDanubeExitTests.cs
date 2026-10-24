@@ -21,7 +21,7 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     /// <summary>The ticks after the film <c>docked</c>, from the order <see cref="LeaveShip"/> to the end of the film
     /// <c>floor</c>.</summary>
     private IReadOnlyList<RendezvousTick> Exit { get; } =
-        [.. run.AfterDocked.TakeWhile(tick => tick.Tick <= run.FloorTick)];
+    [.. run.AfterDocked.TakeWhile(tick => tick.Tick <= run.FloorTick)];
 
     /// <summary>
     /// The long script films the exit's sections right after the docking's <c>docked</c>, in their order, and ends with
@@ -32,8 +32,11 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     {
         string[] films =
         [
-            .. Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")).Steps
-                .Select(step => step.Value).OfType<FilmStep>().Select(film => film.Name)
+            .. Script
+                .Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"))
+                .Steps.Select(step => step.Value)
+                .OfType<FilmStep>()
+                .Select(film => film.Name),
         ];
         string[] exit = [.. BlueDanube.ExitSections.Select(section => section.Name)];
         string[] coda = [.. BlueDanube.CodaSections.Select(section => section.Name)];
@@ -70,8 +73,9 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         end.PersonFeltGravity.Should().BeApproximately(9.72, 0.0972);
         Double3 strollEnd = StationExit.Stroll(run.StationFrame)[0].Position;
         (end.PersonInStation - strollEnd).Length.Should().BeLessThan(0.1, "the person stops at the stroll's end");
-        Exit.TakeLast(30).Should().OnlyContain(tick => tick.PersonVelocityInStation.Length < 0.05,
-            "the person stands still at the end");
+        Exit.TakeLast(30)
+            .Should()
+            .OnlyContain(tick => tick.PersonVelocityInStation.Length < 0.05, "the person stands still at the end");
         run.World.Errors.Should().BeEmpty();
     }
 
@@ -93,7 +97,9 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         RendezvousTick arrived = Exit.First(tick => tick.Exit.Value is Arrived);
 
         (arrived.Time - order.Time).Should().BeInRange(50, 56);
-        Exit.Where(tick => tick.Exit.Value is Sliding).Max(tick => tick.PersonVelocityInStation.Length).Should()
+        Exit.Where(tick => tick.Exit.Value is Sliding)
+            .Max(tick => tick.PersonVelocityInStation.Length)
+            .Should()
             .BeInRange(8, 10);
     }
 
@@ -110,11 +116,14 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
         landed.Exit.Value.Should().BeOfType<Sliding>();
         landed.PersonStanding.Should().BeTrue();
         Double3 at = landed.PersonInStation;
-        Math.Sqrt(at.X * at.X + at.Z * at.Z).Should().BeInRange(DemoStation.FloorRadius - 1, DemoStation.FloorRadius,
-            "the person stands on the floor");
+        Math.Sqrt(at.X * at.X + at.Z * at.Z)
+            .Should()
+            .BeInRange(DemoStation.FloorRadius - 1, DemoStation.FloorRadius, "the person stands on the floor");
         Math.Abs(at.Y).Should().BeLessThan(StationExit.Chute.HalfWidth, "the person lands between the rails");
         Exit.Where(tick => tick.Exit.Value is Sliding && tick.PersonInStation.X < -(DemoStation.FloorRadius - 1.5))
-            .Max(tick => tick.PersonVelocityInStation.Length).Should().BeLessThan(3.5);
+            .Max(tick => tick.PersonVelocityInStation.Length)
+            .Should()
+            .BeLessThan(3.5);
     }
 
     /// <summary>
@@ -125,15 +134,24 @@ public sealed class BlueDanubeExitTests(BlueDanubeRendezvousRun run)
     public void ThePersonGoesFromTheCabinsFrameToTheStationsInTheSpoke()
     {
         FrameHandle cabin = run.World.GetOwnedFrame(run.Scene["shuttle"]);
-        Exit.Should().OnlyContain(tick => tick.PersonFrame == cabin || tick.PersonFrame == run.StationFrame,
-            "no numeric frame takes the person");
+        Exit.Should()
+            .OnlyContain(
+                tick => tick.PersonFrame == cabin || tick.PersonFrame == run.StationFrame,
+                "no numeric frame takes the person"
+            );
         int entry = Exit.ToList().FindIndex(tick => tick.PersonFrame == run.StationFrame);
         entry.Should().BePositive();
         Exit[entry].Exit.Value.Should().BeOfType<Sliding>();
-        Exit[entry].PersonInStation.X.Should().BeInRange(-DemoStation.CeilingRadius, DemoStation.Deck - 0.5,
-            "the person enters the station's frame in the spoke");
-        Exit.Skip(entry).Should().OnlyContain(tick => tick.PersonFrame == run.StationFrame,
-            "the person stays in the station's frame");
+        Exit[entry]
+            .PersonInStation.X.Should()
+            .BeInRange(
+                -DemoStation.CeilingRadius,
+                DemoStation.Deck - 0.5,
+                "the person enters the station's frame in the spoke"
+            );
+        Exit.Skip(entry)
+            .Should()
+            .OnlyContain(tick => tick.PersonFrame == run.StationFrame, "the person stays in the station's frame");
     }
 
     /// <summary>

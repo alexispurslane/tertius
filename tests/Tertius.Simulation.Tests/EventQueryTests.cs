@@ -188,11 +188,17 @@ public sealed class EventQueryTests
         EventList list = MixedInbox(buffer);
         var seen = new List<float>();
 
-        list.Of<Damage>().From(Alice).Where(seen, static (ref d, seen) =>
-        {
-            seen.Add(d.Amount);
-            return false;
-        }).Count();
+        list.Of<Damage>()
+            .From(Alice)
+            .Where(
+                seen,
+                static (ref d, seen) =>
+                {
+                    seen.Add(d.Amount);
+                    return false;
+                }
+            )
+            .Count();
 
         seen.Should().Equal(1, 3);
     }
@@ -203,11 +209,15 @@ public sealed class EventQueryTests
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
 
-        list.Of<Damage>().Where(static (ref d) =>
-        {
-            d.Kind = 5;
-            return true;
-        }).Count();
+        list.Of<Damage>()
+            .Where(
+                static (ref d) =>
+                {
+                    d.Kind = 5;
+                    return true;
+                }
+            )
+            .Count();
 
         list[0].As<Damage>().Kind.Should().Be(5);
     }
@@ -273,7 +283,9 @@ public sealed class EventQueryTests
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
 
-        list.Find(query).Count().Should()
+        list.Find(query)
+            .Count()
+            .Should()
             .Be(list.Of<Damage>().From(Alice).Where(static (ref d) => d.Amount > 1).Count());
         list.Find(query).TryFirst(out Damage first).Should().BeTrue();
         first.Amount.Should().Be(3);
@@ -314,7 +326,8 @@ public sealed class EventQueryTests
     [Fact]
     public void AStoredQueryWithStateRunsThroughFind()
     {
-        EventQuery<Damage, float> query = new EventQuery<Damage>().Where(2f, static (ref d, limit) => d.Amount > limit)
+        EventQuery<Damage, float> query = new EventQuery<Damage>()
+            .Where(2f, static (ref d, limit) => d.Amount > limit)
             .From(Alice);
         var buffer = new EventBuffer();
         EventList list = MixedInbox(buffer);
@@ -355,7 +368,10 @@ public sealed class EventQueryTests
 
         bool any = list.Of<Damage>().Where(4f, static (ref d, limit) => d.Amount >= limit).Any();
         bool none = list.Of<Damage>().Where(5f, static (ref d, limit) => d.Amount >= limit).Any();
-        list.Of<Damage>().Where(3f, static (ref d, limit) => d.Amount >= limit).TryFirst(out Damage first).Should()
+        list.Of<Damage>()
+            .Where(3f, static (ref d, limit) => d.Amount >= limit)
+            .TryFirst(out Damage first)
+            .Should()
             .BeTrue();
         int removed = list.Of<Damage>().Where(3f, static (ref d, limit) => d.Amount >= limit).Remove();
 
@@ -499,8 +515,10 @@ public sealed class EventQueryTests
     {
         var buffer = new EventBuffer(16);
         EventQuery<Damage> stored = new EventQuery<Damage>().From(Alice).Where(static (ref d) => d.Amount > 0);
-        EventQuery<Damage, float> storedWithState =
-            new EventQuery<Damage>().Where(1f, static (ref d, limit) => d.Amount > limit);
+        EventQuery<Damage, float> storedWithState = new EventQuery<Damage>().Where(
+            1f,
+            static (ref d, limit) => d.Amount > limit
+        );
         Exercise(buffer, stored, storedWithState);
         long allocated = Allocations.Fewest(() =>
         {
@@ -520,8 +538,11 @@ public sealed class EventQueryTests
                 d.Kind++;
             foreach (ref Event e in list.From(Alice))
                 e.Sender = Alice;
-            _ = list.Of<Damage>().Count() + list.Of<Heal>().From(Bob).Count() + list.Find(stored).Count() +
-                list.Find(storedWithState).Count();
+            _ =
+                list.Of<Damage>().Count()
+                + list.Of<Heal>().From(Bob).Count()
+                + list.Find(stored).Count()
+                + list.Find(storedWithState).Count();
             _ = list.Of<Note>().Any() || list.Find(stored).Any() || list.Where(static (ref e) => e.Is<Note>()).Any();
             _ = list.Of<Damage>().Where(limit, static (ref d, limit) => d.Amount > limit).TryFirst(out Damage _);
             _ = list.From(Bob).TryFirst(out Event _);

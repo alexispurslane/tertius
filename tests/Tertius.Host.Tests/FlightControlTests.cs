@@ -29,8 +29,12 @@ public sealed class FlightControlTests : IDisposable
     public void Dispose() => world.Dispose();
 
     private void Launch(params IComponent[] components) =>
-        shuttle = Shuttle.Park(world: world, frame: space, pose: DPose.Identity,
-            components: [new Unpark(), .. components]);
+        shuttle = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: DPose.Identity,
+            components: [new Unpark(), .. components]
+        );
 
     /// <summary>Launches the shuttle with <paramref name="components"/> and gives it the shuttle's actuators (see
     /// <see cref="Shuttle.FitActuators"/>).</summary>
@@ -104,8 +108,9 @@ public sealed class FlightControlTests : IDisposable
         Tick(world, 30);
 
         world.VelocityIn(shuttle, space).Length.Should().BeLessThan(1e-6);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(MainEngine)) && error.Contains("A throttle lies from 0 to 1"));
+        world
+            .Errors.Should()
+            .Contain(error => error.Contains(nameof(MainEngine)) && error.Contains("A throttle lies from 0 to 1"));
     }
 
     /// <summary>
@@ -115,7 +120,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void TheAttitudeAutopilotTurnsTheHullToTheTargetOfEachTick()
     {
-        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        var target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Fly(new TargetFor(ticks: int.MaxValue, target: target));
 
         Tick(world, 1200);
@@ -135,8 +140,11 @@ public sealed class FlightControlTests : IDisposable
     public void TheAttitudeAutopilotAsksTheJetsForATorqueAndDoesNotPushItsOwnBody()
     {
         var torques = new TorqueRecorder();
-        Launch(new TargetFor(ticks: int.MaxValue, target: DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
-            new AttitudeAutopilot(Shuttle.Inertia), torques);
+        Launch(
+            new TargetFor(ticks: int.MaxValue, target: DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
+            new AttitudeAutopilot(Shuttle.Inertia),
+            torques
+        );
 
         Tick(world, 30);
 
@@ -144,10 +152,16 @@ public sealed class FlightControlTests : IDisposable
         torques.Count.Should().Be(30, "the autopilot asks for a torque in every tick that brings a target");
         Double3 first = torques.First!.Value;
         double expected = AttitudeAutopilot.MaxTurnRate / AttitudeAutopilot.RateTime * Shuttle.Inertia.Moments.Y;
-        first.Y.Should().BeApproximately(expected, 0.02 * expected,
-            "the autopilot asks for the turn at its cap about the roof's axis");
-        Math.Abs(first.X).Should().BeLessThan(1e-3 * expected,
-            "the hull's principal axes tilt about its X, which couples Y with Z only");
+        first
+            .Y.Should()
+            .BeApproximately(
+                expected,
+                0.02 * expected,
+                "the autopilot asks for the turn at its cap about the roof's axis"
+            );
+        Math.Abs(first.X)
+            .Should()
+            .BeLessThan(1e-3 * expected, "the hull's principal axes tilt about its X, which couples Y with Z only");
     }
 
     /// <summary>
@@ -186,13 +200,14 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void TheAttitudeAutopilotTurnsNoFasterThanTheTurnRateOfTheTarget()
     {
-        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        var target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Fly(new TargetFor(ticks: int.MaxValue, target: target, maxTurnRate: 0.01f));
 
         Tick(world, 600);
 
         world.AngularVelocityIn(shuttle, space).Length().Should().BeApproximately(0.01f, 0.0005f);
-        (Math.PI / 2 - world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length).Should()
+        (Math.PI / 2 - world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length)
+            .Should()
             .BeApproximately(0.1, 0.01);
     }
 
@@ -205,14 +220,17 @@ public sealed class FlightControlTests : IDisposable
     [InlineData(-0.01f)]
     public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(float maxTurnRate)
     {
-        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        var target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Fly(new TargetFor(ticks: int.MaxValue, target: target, maxTurnRate: maxTurnRate));
 
         Tick(world, 30);
 
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A turn rate lies from 0 up"));
+        world
+            .Errors.Should()
+            .Contain(error =>
+                error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A turn rate lies from 0 up")
+            );
     }
 
     /// <summary>
@@ -258,7 +276,9 @@ public sealed class FlightControlTests : IDisposable
 
         Tick(world, 120);
 
-        world.AngularVelocityIn(shuttle, space).Y.Should()
+        world
+            .AngularVelocityIn(shuttle, space)
+            .Y.Should()
             .BeApproximately((float)(rate + AttitudeAutopilot.MaxTurnRate), 0.005f);
     }
 
@@ -271,14 +291,15 @@ public sealed class FlightControlTests : IDisposable
     [InlineData(float.PositiveInfinity)]
     public void ANonFiniteFeedForwardIsAnErrorAndGivesNoTorque(float feedForward)
     {
-        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        var target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Fly(new TargetFor(ticks: int.MaxValue, target: target, feedForward: new(0, feedForward, 0)));
 
         Tick(world, 30);
 
         world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
-        world.Errors.Should().Contain(error =>
-            error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A feed-forward is finite"));
+        world
+            .Errors.Should()
+            .Contain(error => error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A feed-forward is finite"));
     }
 
     /// <summary>The target stops after 60 ticks, while the hull turns, so the autopilot gives no more torque and the hull turns on at the rate it had.</summary>
@@ -302,9 +323,12 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void WithoutPointGravityTheAscentAutopilotStaysParked()
     {
-        shuttle = Shuttle.Park(world: world, frame: space, pose: DPose.Identity,
-            components: Shuttle.FlightControls(climbHeight: 30, plane: new(space, -Double3.UnitX),
-                station: Entity.Null));
+        shuttle = Shuttle.Park(
+            world: world,
+            frame: space,
+            pose: DPose.Identity,
+            components: Shuttle.FlightControls(climbHeight: 30, plane: new(space, -Double3.UnitX), station: Entity.Null)
+        );
         world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Ignition()));
 
         Tick(world, 30);
@@ -325,29 +349,40 @@ public sealed class FlightControlTests : IDisposable
     {
         using World orbit = RendezvousAutopilotTests.NewWorld();
         FrameHandle earth = RendezvousAutopilotTests.Earth(orbit);
-        Entity station =
-            DemoScenes.DemoStation.Spawn(world: orbit, parent: earth, scene: new(), resources: RenderResources.None);
+        Entity station = DemoScenes.DemoStation.Spawn(
+            world: orbit,
+            parent: earth,
+            scene: new(),
+            resources: RenderResources.None
+        );
         (Double3 center, Double3 velocity, Double3 axis) = RendezvousAutopilotTests.StationNow(orbit, station, earth);
         var recorder = new RendezvousAutopilotTests.Recorder();
         Double3 position = center + axis * 130;
-        Entity hull = orbit.Spawn(new()
-        {
-            Frame = earth,
-            Pose = new(position, AttitudeAutopilot.Facing(-axis, position)),
-            LinearVelocity = velocity - axis,
-            Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new(new(Shuttle.Bubble)),
-            Components =
-            [
-                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
-                    orbitRadius: DemoScenes.OrbitRadius, climbHeight: -1,
-                    plane: new(earth, -Double3.UnitX)),
-                recorder
-            ]
-        });
+        Entity hull = orbit.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = new(position, AttitudeAutopilot.Facing(-axis, position)),
+                LinearVelocity = velocity - axis,
+                Body = Shuttle.Body(BodyMotion.Dynamic),
+                AsFrame = new(new(Shuttle.Bubble)),
+                Components =
+                [
+                    new AscentAutopilot(
+                        maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
+                        orbitRadius: DemoScenes.OrbitRadius,
+                        climbHeight: -1,
+                        plane: new(earth, -Double3.UnitX)
+                    ),
+                    recorder,
+                ],
+            }
+        );
         orbit.Post(Event.Create(target: hull, sender: Entity.Null, payload: new Ignition()));
         Tick(orbit, 3);
-        orbit.GetComponent<AscentAutopilot>(hull)!.State.Value.Should()
+        orbit
+            .GetComponent<AscentAutopilot>(hull)!
+            .State.Value.Should()
             .BeOfType<Orbit>("the shuttle flies its circle from the ignition");
         recorder.TicksWithEvents.Should().BeGreaterThan(0, "in the earth frame the orbit case adds its target");
 
@@ -374,39 +409,58 @@ public sealed class FlightControlTests : IDisposable
     /// <see cref="AscentRecorder"/>. The world runs a tick, in which the spawn lands, posts the ignition, and runs the tick that
     /// handles it.
     /// </summary>
-    private AscentRecorder AscentInATurnedFrame(Double3 place, Double3 velocity, double climbHeight = -1,
-        bool withEarthsPull = false)
+    private AscentRecorder AscentInATurnedFrame(
+        Double3 place,
+        Double3 velocity,
+        double climbHeight = -1,
+        bool withEarthsPull = false
+    )
     {
-        FrameHandle planet =
-            world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(DemoScenes.EarthMu)));
+        FrameHandle planet = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e9f), GravityField.Point(DemoScenes.EarthMu))
+        );
         var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: DemoScenes.SiderealRate, PhaseAtEpoch: Math.PI / 2);
-        FrameHandle turned = world.GetOwnedFrame(world.Spawn(new()
-        {
-            Frame = planet,
-            Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
-            AsFrame = new(FrameBounds.Sphere(1e8f),
-                withEarthsPull ? GravityField.Point(DemoScenes.EarthMu) : GravityField.None),
-            Components = [new SpinMotion { Spin = spin }]
-        }));
+        FrameHandle turned = world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = planet,
+                    Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
+                    FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
+                    AsFrame = new(
+                        FrameBounds.Sphere(1e8f),
+                        withEarthsPull ? GravityField.Point(DemoScenes.EarthMu) : GravityField.None
+                    ),
+                    Components = [new SpinMotion { Spin = spin }],
+                }
+            )
+        );
         DQuaternion turn = spin.RotationAt(world.Time);
         Double3 velocityInTurned = turn.Conjugate().Rotate(velocity - Double3.Cross(spin.AngularVelocity, place));
         var recorder = new AscentRecorder(planet);
-        shuttle = world.Spawn(new()
-        {
-            Frame = turned,
-            Pose = new(turn.Conjugate().Rotate(place), turn.Conjugate() * AttitudeAutopilot.Facing(velocity, place)),
-            LinearVelocity = velocityInTurned.ToVector3(),
-            Body = Shuttle.Body(BodyMotion.Dynamic),
-            AsFrame = new(new(Shuttle.Bubble)),
-            Components =
-            [
-                new AscentAutopilot(maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
-                    orbitRadius: Shuttle.ParkingOrbitRadius, climbHeight: climbHeight,
-                    plane: new(planet, -Double3.UnitX)),
-                recorder
-            ]
-        });
+        shuttle = world.Spawn(
+            new()
+            {
+                Frame = turned,
+                Pose = new(
+                    turn.Conjugate().Rotate(place),
+                    turn.Conjugate() * AttitudeAutopilot.Facing(velocity, place)
+                ),
+                LinearVelocity = velocityInTurned.ToVector3(),
+                Body = Shuttle.Body(BodyMotion.Dynamic),
+                AsFrame = new(new(Shuttle.Bubble)),
+                Components =
+                [
+                    new AscentAutopilot(
+                        maxThrust: Shuttle.Mass * Shuttle.ThrustAcceleration,
+                        orbitRadius: Shuttle.ParkingOrbitRadius,
+                        climbHeight: climbHeight,
+                        plane: new(planet, -Double3.UnitX)
+                    ),
+                    recorder,
+                ],
+            }
+        );
         Tick(world, 1);
         world.Post(Event.Create(target: shuttle, sender: Entity.Null, payload: new Ignition()));
         Tick(world, 2);
@@ -431,8 +485,11 @@ public sealed class FlightControlTests : IDisposable
     public void TheAscentAutopilotAimsInTheFrameOfItsPlaneFromAHullInATurnedFrame()
     {
         double r = Shuttle.ParkingOrbitRadius;
-        AscentRecorder recorder = AscentInATurnedFrame(place: new(0, 0, r),
-            velocity: new Double3(-1, 1, 0).Normalized() * Math.Sqrt(DemoScenes.EarthMu / r), withEarthsPull: true);
+        AscentRecorder recorder = AscentInATurnedFrame(
+            place: new(0, 0, r),
+            velocity: new Double3(-1, 1, 0).Normalized() * Math.Sqrt(DemoScenes.EarthMu / r),
+            withEarthsPull: true
+        );
 
         world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Orbit>();
         Angle(NoseInPlaneAxes(recorder), recorder.Velocity).Should().BeLessThan(1e-6);
@@ -446,9 +503,11 @@ public sealed class FlightControlTests : IDisposable
     public void OnTheRampTheAscentAutopilotAimsAlongItsVelocityInTheFrameOfItsPlane()
     {
         double r = Shuttle.ParkingOrbitRadius;
-        AscentRecorder recorder =
-            AscentInATurnedFrame(place: new(0, 0, r), velocity: new Double3(-1, 1, 0).Normalized() * 2e3,
-                climbHeight: 1e6);
+        AscentRecorder recorder = AscentInATurnedFrame(
+            place: new(0, 0, r),
+            velocity: new Double3(-1, 1, 0).Normalized() * 2e3,
+            climbHeight: 1e6
+        );
 
         world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Ramp>();
         Angle(NoseInPlaneAxes(recorder), recorder.Velocity).Should().BeLessThan(1e-6);
@@ -463,16 +522,22 @@ public sealed class FlightControlTests : IDisposable
     public void TheAscentAutopilotReadsItsStateInTheFrameOfItsPlane()
     {
         double r = Shuttle.ParkingOrbitRadius;
-        AscentRecorder recorder = AscentInATurnedFrame(place: new(0, 0, r),
-            velocity: new(0, Math.Sqrt(DemoScenes.EarthMu / r) - 5, 1));
-        var guidance = new AscentGuidance(Mu: DemoScenes.EarthMu, OrbitRadius: Shuttle.ParkingOrbitRadius,
+        AscentRecorder recorder = AscentInATurnedFrame(
+            place: new(0, 0, r),
+            velocity: new(0, Math.Sqrt(DemoScenes.EarthMu / r) - 5, 1)
+        );
+        var guidance = new AscentGuidance(
+            Mu: DemoScenes.EarthMu,
+            OrbitRadius: Shuttle.ParkingOrbitRadius,
             MaxAcceleration: Shuttle.ThrustAcceleration,
-            PlaneNormal: -Double3.UnitX);
+            PlaneNormal: -Double3.UnitX
+        );
         Double3 acceleration = guidance.Acceleration(recorder.Position, recorder.Velocity);
 
         world.GetComponent<AscentAutopilot>(shuttle)!.State.Value.Should().BeOfType<Climb>();
         recorder.Throttle.Should().BeLessThan(1, "the guidance asks for less than full throttle near the circle");
-        recorder.Throttle.Should()
+        recorder
+            .Throttle.Should()
             .BeApproximately((float)Math.Min(1, acceleration.Length / guidance.MaxAcceleration), 1e-6f);
         Angle(NoseInPlaneAxes(recorder), acceleration).Should().BeLessThan(1e-6);
     }
@@ -553,7 +618,8 @@ public sealed class FlightControlTests : IDisposable
         int ticks,
         DQuaternion target,
         float maxTurnRate = AttitudeAutopilot.MaxTurnRate,
-        Vector3 feedForward = default) : IComponent
+        Vector3 feedForward = default
+    ) : IComponent
     {
         private int handled;
 
@@ -564,8 +630,14 @@ public sealed class FlightControlTests : IDisposable
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (handled++ < ticks)
-                events.Add(new AttitudeTarget
-                    { Rotation = target, FeedForward = feedForward, MaxTurnRate = maxTurnRate });
+                events.Add(
+                    new AttitudeTarget
+                    {
+                        Rotation = target,
+                        FeedForward = feedForward,
+                        MaxTurnRate = maxTurnRate,
+                    }
+                );
         }
     }
 
@@ -587,11 +659,14 @@ public sealed class FlightControlTests : IDisposable
             world.PoseIn(hull, frame).Rotation.AngularVelocityTo(At(world.Time), 1).Length;
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-            events.Add(new AttitudeTarget
-            {
-                Rotation = At(self.Time), FeedForward = new(0, (float)rate, 0),
-                MaxTurnRate = AttitudeAutopilot.MaxTurnRate
-            });
+            events.Add(
+                new AttitudeTarget
+                {
+                    Rotation = At(self.Time),
+                    FeedForward = new(0, (float)rate, 0),
+                    MaxTurnRate = AttitudeAutopilot.MaxTurnRate,
+                }
+            );
     }
 }
 
@@ -635,7 +710,13 @@ public sealed class AttitudeFacingTests
     [InlineData(0, -1, 0, 1, 0, 0)] // the diagonal is (0, 0, 0): all three tie, so the Z way
     [InlineData(0, 1, 0, 0, 0, -1)] // the diagonal is (-1, 0, 0): Y and Z tie at zero, so the Z way
     public void TheRotationTurnsItsNoseAxisAlongTheNoseAndItsRoofAxisAcrossTheNoseTowardTheRoof(
-        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+        double noseX,
+        double noseY,
+        double noseZ,
+        double roofX,
+        double roofY,
+        double roofZ
+    )
     {
         Double3 nose = new(noseX, noseY, noseZ);
         Double3 roof = new(roofX, roofY, roofZ);
@@ -655,7 +736,13 @@ public sealed class AttitudeFacingTests
     [InlineData(0, 0, -1, 0, 0, 0)] // a zero roof
     [InlineData(0, 0, 0, 0, 0, 0)] // both
     public void ANoseOrARoofOfZeroLengthIsRefused(
-        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+        double noseX,
+        double noseY,
+        double noseZ,
+        double roofX,
+        double roofY,
+        double roofZ
+    )
     {
         Action facing = () => AttitudeAutopilot.Facing(new(noseX, noseY, noseZ), new(roofX, roofY, roofZ));
 
@@ -672,7 +759,13 @@ public sealed class AttitudeFacingTests
     [InlineData(1, 2, 3, 2, 4, 6)] // along a slanted nose
     [InlineData(0, 0, -1, 0, 1e-10, -1)] // across the nose by 1e-10 of its length, which is too little
     public void ARoofAlongTheNoseIsRefused(
-        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+        double noseX,
+        double noseY,
+        double noseZ,
+        double roofX,
+        double roofY,
+        double roofZ
+    )
     {
         Action facing = () => AttitudeAutopilot.Facing(new(noseX, noseY, noseZ), new(roofX, roofY, roofZ));
 

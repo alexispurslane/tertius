@@ -85,7 +85,9 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     // The tag of the camera's rays, which matches each answer to its question.
     private const int RayTag = 0x43_48_41_53;
 
-    private readonly double behind = behind, above = above, ahead = ahead;
+    private readonly double behind = behind,
+        above = above,
+        ahead = ahead;
 
     // The half size of the subject's box, in meters, in double precision. The name differs from the parameter's, because
     // ReSharper's cleanup turns a field initializer that reads a parameter of the same name into a read of the field.
@@ -101,16 +103,19 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     private FrameHandle frame;
 
     // The subject's position at the last tick, in the frame, and its velocity over the step before it, from positions.
-    private Double3 lastPosition, subjectVelocity;
+    private Double3 lastPosition,
+        subjectVelocity;
 
     // The camera's up, which follows the subject's up, and the heading, a unit vector across it.
-    private Double3 up, heading;
+    private Double3 up,
+        heading;
 
     // How fast the heading swings about the up, in radians per second, positive counterclockwise seen from above.
     private double swingRate;
 
     // The length of the arm, in meters, and the free distance along it that the last answered ray measured.
-    private double arm, free = double.PositiveInfinity;
+    private double arm,
+        free = double.PositiveInfinity;
 
     public int Priority => 0;
 
@@ -167,12 +172,19 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         double pitch = Pitch(eye + heading * (ahead * arm / length) - camera, pose.Rotation, camera);
         Double3 forward = heading * Math.Cos(pitch) + up * Math.Sin(pitch);
         DQuaternion toSubject = pose.Rotation.Conjugate();
-        self.AttachOffset = new(toSubject.Rotate(camera).ToVector3(),
-            View(toSubject.Rotate(forward), toSubject.Rotate(up)));
+        self.AttachOffset = new(
+            toSubject.Rotate(camera).ToVector3(),
+            View(toSubject.Rotate(forward), toSubject.Rotate(up))
+        );
 
         // The free distance along the whole arm, from the eye where the step that runs now ends.
-        self.Physics.CastRayAll(from: pose.Position + subjectVelocity * dt + eye, direction: back,
-            length: length + WallGap, query: default, tag: RayTag);
+        self.Physics.CastRayAll(
+            from: pose.Position + subjectVelocity * dt + eye,
+            direction: back,
+            length: length + WallGap,
+            query: default,
+            tag: RayTag
+        );
     }
 
     /// <summary>
@@ -184,15 +196,19 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     /// </summary>
     private double Pitch(Double3 aim, DQuaternion rotation, Double3 camera)
     {
-        double lowest = double.PositiveInfinity, highest = double.NegativeInfinity;
+        double lowest = double.PositiveInfinity,
+            highest = double.NegativeInfinity;
         bool inFront = true;
         for (int corner = 0; corner < 8; corner++)
         {
-            var local = new Double3((corner & 1) == 0 ? -subjectBoxHalf.X : subjectBoxHalf.X,
+            var local = new Double3(
+                (corner & 1) == 0 ? -subjectBoxHalf.X : subjectBoxHalf.X,
                 (corner & 2) == 0 ? -subjectBoxHalf.Y : subjectBoxHalf.Y,
-                (corner & 4) == 0 ? -subjectBoxHalf.Z : subjectBoxHalf.Z);
+                (corner & 4) == 0 ? -subjectBoxHalf.Z : subjectBoxHalf.Z
+            );
             Double3 seen = rotation.Rotate(local) - camera;
-            double along = Double3.Dot(seen, heading), pitch = Math.Atan2(Double3.Dot(seen, up), along);
+            double along = Double3.Dot(seen, heading),
+                pitch = Math.Atan2(Double3.Dot(seen, up), along);
             inFront &= along > 0;
             lowest = Math.Min(lowest, pitch);
             highest = Math.Max(highest, pitch);
@@ -211,7 +227,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
         {
             if (!events[i].Is<RayHit>())
                 continue;
-            var hit = events[i].As<RayHit>();
+            RayHit hit = events[i].As<RayHit>();
             if (hit.Tag != RayTag)
                 continue;
             answered = true;
@@ -231,9 +247,8 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     {
         up = pose.Rotation.Rotate(Double3.UnitY);
         Double3 offset = Across(pose.Rotation.Rotate((Double3)self.AttachOffset.Position), up);
-        heading = offset.Length > 1e-9
-            ? -offset.Normalized()
-            : Across(pose.Rotation.Rotate(-Double3.UnitZ), up).Normalized();
+        heading =
+            offset.Length > 1e-9 ? -offset.Normalized() : Across(pose.Rotation.Rotate(-Double3.UnitZ), up).Normalized();
         subjectVelocity = snapshot.TryGetVelocityIn(subject, self.Frame, out Double3 velocity)
             ? velocity
             : Double3.Zero;
@@ -266,8 +281,9 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     /// </summary>
     private static Double3 TurnToward(Double3 from, Double3 to, double share, Double3 across)
     {
-        Double3 axis = Double3.Cross(from, to);
-        double sine = axis.Length, cosine = Double3.Dot(from, to);
+        var axis = Double3.Cross(from, to);
+        double sine = axis.Length,
+            cosine = Double3.Dot(from, to);
         if (sine < 1e-12 && cosine > 0)
             return from;
         axis = sine < 1e-12 ? across : axis / sine;
@@ -278,7 +294,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     /// <paramref name="to"/>.</summary>
     private static Double3 Turn(Double3 v, Double3 from, Double3 to)
     {
-        Double3 axis = Double3.Cross(from, to);
+        var axis = Double3.Cross(from, to);
         double sine = axis.Length;
         return sine < 1e-12
             ? v
@@ -291,11 +307,26 @@ public sealed class ChaseCamera(double behind, double above, double ahead, Vecto
     {
         Double3 z = -forward;
         Double3 x = Double3.Cross(up, z).Normalized();
-        Double3 y = Double3.Cross(z, x);
+        var y = Double3.Cross(z, x);
         // System.Numerics puts the turned axes in the rows.
-        var axes = new Matrix4x4(m11: (float)x.X, m12: (float)x.Y, m13: (float)x.Z, m14: 0, m21: (float)y.X,
-            m22: (float)y.Y, m23: (float)y.Z, m24: 0,
-            m31: (float)z.X, m32: (float)z.Y, m33: (float)z.Z, m34: 0, m41: 0, m42: 0, m43: 0, m44: 1);
+        var axes = new Matrix4x4(
+            m11: (float)x.X,
+            m12: (float)x.Y,
+            m13: (float)x.Z,
+            m14: 0,
+            m21: (float)y.X,
+            m22: (float)y.Y,
+            m23: (float)y.Z,
+            m24: 0,
+            m31: (float)z.X,
+            m32: (float)z.Y,
+            m33: (float)z.Z,
+            m34: 0,
+            m41: 0,
+            m42: 0,
+            m43: 0,
+            m44: 1
+        );
         return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(axes));
     }
 }

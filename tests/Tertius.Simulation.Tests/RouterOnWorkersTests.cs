@@ -39,14 +39,19 @@ public sealed class RouterOnWorkersTests
     public void ARoutingOnTheWorkersBuildsTheSameEventsAndInboxesAsARoutingOnTheSyncThread(int workItems)
     {
         var serial = new RouterHarness();
-        RouterHarness wide = RouterHarness.OnWorkers(workItems);
+        var wide = RouterHarness.OnWorkers(workItems);
         RouterHarness[] both = [serial, wide];
         var random = new Random(1000 + workItems);
         FrameHandle bay = RouterHarness.Frame(index: 0, generation: 1);
         foreach (RouterHarness h in both)
             h.Topics.AddFrame(bay);
         EventMask[] masks =
-            [EventMask.None, EventMask.Of<Ping>(), EventMask.Of<Heal>(), EventMask.Of<Ping>().And<Heal>()];
+        [
+            EventMask.None,
+            EventMask.Of<Ping>(),
+            EventMask.Of<Heal>(),
+            EventMask.Of<Ping>().And<Heal>(),
+        ];
         var everyone = new List<Entity>();
         int value = 0;
 
@@ -54,7 +59,9 @@ public sealed class RouterOnWorkersTests
         void Spawn()
         {
             EventMask wants = masks[random.Next(masks.Length)];
-            bool inBay = random.Next(3) == 0, squad = random.Next(4) == 0, watchesBay = random.Next(5) == 0;
+            bool inBay = random.Next(3) == 0,
+                squad = random.Next(4) == 0,
+                watchesBay = random.Next(5) == 0;
             Entity spawned = default;
             foreach (RouterHarness h in both)
             {
@@ -84,9 +91,11 @@ public sealed class RouterOnWorkersTests
                     7 => Entity.Null,
                     8 or 9 => Squad,
                     10 => bay.Topic,
-                    _ => new Broadcast()
+                    _ => new Broadcast(),
                 };
-                int source = random.Next(10), kind = random.Next(8), delay = random.Next(0, 3);
+                int source = random.Next(10),
+                    kind = random.Next(8),
+                    delay = random.Next(0, 3);
                 int v = ++value;
                 foreach (RouterHarness h in both)
                 {
@@ -94,7 +103,7 @@ public sealed class RouterOnWorkersTests
                     {
                         < 4 => Event.Create(target: target, sender: Entity.Null, payload: new Ping { Value = v }),
                         < 7 => Event.Create(target: target, sender: Entity.Null, payload: new Heal { Amount = v }),
-                        _ => Event.Create(target: target, sender: Entity.Null, payload: new Destroy())
+                        _ => Event.Create(target: target, sender: Entity.Null, payload: new Destroy()),
                     };
                     switch (source)
                     {
@@ -131,19 +140,25 @@ public sealed class RouterOnWorkersTests
             foreach (RouterHarness h in both)
                 h.Route(tick);
 
-            Describe(wide.Router.Routed).Should().Equal(Describe(serial.Router.Routed),
-                $"routing {tick} joins the same events in the same order");
+            Describe(wide.Router.Routed)
+                .Should()
+                .Equal(Describe(serial.Router.Routed), $"routing {tick} joins the same events in the same order");
             wide.Router.DeliveryCount.Should().Be(serial.Router.DeliveryCount);
             foreach (Entity entity in everyone)
             {
                 if (!serial.Entities.IsAlive(entity))
                     continue;
-                Describe(wide.Inbox(entity)).Should().Equal(Describe(serial.Inbox(entity)),
-                    $"routing {tick} fills the inbox of {entity} in the same order");
+                Describe(wide.Inbox(entity))
+                    .Should()
+                    .Equal(
+                        Describe(serial.Inbox(entity)),
+                        $"routing {tick} fills the inbox of {entity} in the same order"
+                    );
             }
         }
 
-        serial.Router.DeliveryCount.Should()
+        serial
+            .Router.DeliveryCount.Should()
             .BeGreaterThan(0, "the script must deliver something, or the equality proves nothing");
         wide.TasksQueued.Should().BeGreaterThan(0, "the routings must really run on the workers");
     }
@@ -154,7 +169,7 @@ public sealed class RouterOnWorkersTests
         // A topic set applies its queued changes when it is next read, so a routing on the workers must not let its work
         // items be the first readers: they would all apply the same changes at once. Many changes and many readers make
         // that race show.
-        RouterHarness h = RouterHarness.OnWorkers(workItems: 16);
+        var h = RouterHarness.OnWorkers(workItems: 16);
         var subscribers = new List<Entity>();
         for (int i = 0; i < 2000; i++)
             subscribers.Add(h.Spawn(EventMask.Of<Ping>()));
@@ -229,13 +244,18 @@ public sealed class RouterOnWorkersTests
             serial.World.Tick();
             wide.World.Tick();
 
-            Describe(wide.World.RoutedEvents).Should().Equal(Describe(serial.World.RoutedEvents),
-                $"tick {tick} routes the same events");
+            Describe(wide.World.RoutedEvents)
+                .Should()
+                .Equal(Describe(serial.World.RoutedEvents), $"tick {tick} routes the same events");
             wide.World.Stats.Should().Be(serial.World.Stats);
             foreach (Entity entity in everyone)
                 if (serial.World.Entities.IsAlive(entity))
-                    Describe(InboxOf(wide.World, entity)).Should().Equal(Describe(InboxOf(serial.World, entity)),
-                        $"tick {tick} fills the inbox of {entity} alike");
+                    Describe(InboxOf(wide.World, entity))
+                        .Should()
+                        .Equal(
+                            Describe(InboxOf(serial.World, entity)),
+                            $"tick {tick} fills the inbox of {entity} alike"
+                        );
         }
 
         serial.World.Stats.LiveEntities.Should().BeLessThan(300, "the talkers must destroy some of their neighbors");
@@ -257,7 +277,7 @@ public sealed class RouterOnWorkersTests
     [Fact]
     public void ARoutingWithFewerMessagesThanTheThresholdStaysOnTheSyncThread()
     {
-        RouterHarness h = RouterHarness.OnWorkers(threshold: 10);
+        var h = RouterHarness.OnWorkers(threshold: 10);
         Entity a = h.Spawn(EventMask.Of<Ping>());
         for (int i = 0; i < 9; i++)
             h.Send(0, a, new Ping { Value = i });
@@ -271,7 +291,7 @@ public sealed class RouterOnWorkersTests
     [Fact]
     public void ARoutingWithAsManyMessagesAsTheThresholdRunsOnTheWorkers()
     {
-        RouterHarness h = RouterHarness.OnWorkers(threshold: 10);
+        var h = RouterHarness.OnWorkers(threshold: 10);
         Entity a = h.Spawn(EventMask.Of<Ping>());
         for (int i = 0; i < 10; i++)
             h.Send(0, a, new Ping { Value = i });
@@ -285,7 +305,7 @@ public sealed class RouterOnWorkersTests
     [Fact]
     public void TheThresholdCountsEngineEventsOutboxMessagesAndDueDelayedSends()
     {
-        RouterHarness h = RouterHarness.OnWorkers(threshold: 3);
+        var h = RouterHarness.OnWorkers(threshold: 3);
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.Router.AddEngineEvent(Event.Create(target: a, sender: Entity.Null, payload: new Ping { Value = 1 }));
         h.Send(0, a, new Ping { Value = 2 });
@@ -301,7 +321,7 @@ public sealed class RouterOnWorkersTests
     public void ARouterWithWorkersRoutesTheMessagesOfASmallWorldOnTheSyncThread()
     {
         // The default threshold: a routing must be large before the workers pay for themselves.
-        RouterHarness h = RouterHarness.OnWorkers(threshold: null);
+        var h = RouterHarness.OnWorkers(threshold: null);
         var entities = new List<Entity>();
         for (int i = 0; i < 100; i++)
             entities.Add(h.Spawn(EventMask.Of<Ping>()));
@@ -319,7 +339,7 @@ public sealed class RouterOnWorkersTests
     [InlineData(-1)]
     public void AThresholdOfARoutingOnTheWorkersBelowOneMessageIsRefused(int threshold)
     {
-        RouterHarness h = RouterHarness.OnWorkers(threshold: null);
+        var h = RouterHarness.OnWorkers(threshold: null);
 
         Action set = () => h.Router.ParallelThreshold = threshold;
 

@@ -16,8 +16,10 @@ internal static class NestedConditionals
         var conditional = (ConditionalExpressionSyntax)context.Node;
         if (IsBranch(conditional))
             return;
-        if (Unparenthesized(conditional.WhenTrue) is ConditionalExpressionSyntax ||
-            Unparenthesized(conditional.WhenFalse) is ConditionalExpressionSyntax)
+        if (
+            Unparenthesized(conditional.WhenTrue) is ConditionalExpressionSyntax
+            || Unparenthesized(conditional.WhenFalse) is ConditionalExpressionSyntax
+        )
             context.ReportDiagnostic(Diagnostic.Create(StyleRules.NestedConditional, conditional.GetLocation()));
     }
 
@@ -27,8 +29,7 @@ internal static class NestedConditionals
         SyntaxNode node = expression;
         while (node.Parent is ParenthesizedExpressionSyntax parenthesized)
             node = parenthesized;
-        return node.Parent is ConditionalExpressionSyntax outer &&
-               (outer.WhenTrue == node || outer.WhenFalse == node);
+        return node.Parent is ConditionalExpressionSyntax outer && (outer.WhenTrue == node || outer.WhenFalse == node);
     }
 
     private static ExpressionSyntax Unparenthesized(ExpressionSyntax expression)

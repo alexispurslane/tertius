@@ -29,12 +29,14 @@ public sealed class RenderSnapshotOriginTests
     public void TheOriginIsTheEyeSoItIncludesTheViewOffsetOfTheCamera()
     {
         using var test = new TestWorld();
-        Entity camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(1234567.25, 2, 3),
-            Render = new RenderData { ViewOffset = new(new(0, 1.5f, 0), Quaternion.Identity) }
-        });
+        Entity camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(1234567.25, 2, 3),
+                Render = new RenderData { ViewOffset = new(new(0, 1.5f, 0), Quaternion.Identity) },
+            }
+        );
         test.World.Camera = camera;
 
         test.Run(1);
@@ -73,18 +75,20 @@ public sealed class RenderSnapshotOriginTests
     [Fact]
     public void TheOriginFrameIdFollowsTheCameraWhenPhysicsHandsItToAnotherFrame()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         // The camera is a ball that flies from the root into the station. Jolt hands it off in the step of tick 1.
         Scenes.Approach approach = Scenes.ApproachToBubble(world: test.World, into: station, tick: 1);
-        Entity camera = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = approach.Pose,
-            LinearVelocity = approach.Velocity,
-            Body = WorldTesting.Ball(),
-            Render = new RenderData { ViewOffset = new(new(0, 1.5f, 0), Quaternion.Identity) }
-        });
+        Entity camera = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = approach.Pose,
+                LinearVelocity = approach.Velocity,
+                Body = WorldTesting.Ball(),
+                Render = new RenderData { ViewOffset = new(new(0, 1.5f, 0), Quaternion.Identity) },
+            }
+        );
         test.World.Camera = camera;
 
         test.Run(1);

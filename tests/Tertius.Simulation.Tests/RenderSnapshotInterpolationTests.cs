@@ -80,12 +80,19 @@ public sealed class RenderSnapshotInterpolationTests
     {
         using var test = new TestWorld();
         // The object is turned by 0.5 rad about +Y at the end of tick 0 and by 1.0 rad at the end of tick 1.
-        Entity turning = test.Show(test.Root, TestWorld.At(0, 0, -10),
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                self.SetTransform(self.PoseInOwnFrame() with
-                {
-                    Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * (self.Tick + 1))
-                })));
+        Entity turning = test.Show(
+            test.Root,
+            TestWorld.At(0, 0, -10),
+            Lambda.OnTick(
+                (self, scoped ref events, scoped ref outbox) =>
+                    self.SetTransform(
+                        self.PoseInOwnFrame() with
+                        {
+                            Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * (self.Tick + 1)),
+                        }
+                    )
+            )
+        );
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.Run(1);
         test.World.Latest();
@@ -119,12 +126,16 @@ public sealed class RenderSnapshotInterpolationTests
     public void AnObjectInAStaticFrameThatMovesCarriesItsPreviousPoseAlongWithTheFrame()
     {
         using var test = new TestWorld();
-        FrameHandle hangar = test.World.GetOwnedFrame(test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(100)),
-            Components = [new Mover(new(1, 0, 0))]
-        }));
+        FrameHandle hangar = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Frame = test.Root,
+                    AsFrame = new(FrameBounds.Sphere(100)),
+                    Components = [new Mover(new(1, 0, 0))],
+                }
+            )
+        );
         Entity crate = test.Show(hangar, TestWorld.At(0, 0, -10));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.Run(1);
@@ -141,15 +152,19 @@ public sealed class RenderSnapshotInterpolationTests
     [Fact]
     public void AnObjectInAFrameThatOrbitsMovesByRoughlyTheOrbitalSpeedTimesTheTimeStep()
     {
-        const double mu = 3.986004418e14, radius = 7e6;
-        KeplerOrbit orbit = KeplerOrbit.Circular(radius);
+        const double mu = 3.986004418e14,
+            radius = 7e6;
+        var orbit = KeplerOrbit.Circular(radius);
         using var test = new TestWorld();
         test.GiveRootPointGravity(mu);
-        FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(1e5f))
-        }.OnKeplerOrbit(test.World, orbit)));
+        FrameHandle moon = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(1e5f)) }.OnKeplerOrbit(
+                    test.World,
+                    orbit
+                )
+            )
+        );
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         // A new frame on rails holds still for its first step and stands on its rails at the second sync point after its
@@ -161,7 +176,9 @@ public sealed class RenderSnapshotInterpolationTests
 
         // The speed of a circular orbit is sqrt(mu / r), about 7546 m/s. A tick is 1/60 s, so the satellite moved about 126 m.
         double expected = Math.Sqrt(mu / radius) / 60;
-        Vector3.Distance(instance.Position, instance.PreviousPosition).Should()
+        Vector3
+            .Distance(instance.Position, instance.PreviousPosition)
+            .Should()
             .BeApproximately((float)expected, (float)(0.02 * expected));
     }
 
@@ -169,17 +186,22 @@ public sealed class RenderSnapshotInterpolationTests
     public void ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove()
     {
         const double mu = 3.986004418e14;
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, spinRate: 0.01);
+        var orbit = KeplerOrbit.Circular(7e6, spinRate: 0.01);
         using var test = new TestWorld();
         test.GiveRootPointGravity(mu);
-        FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new(FrameBounds.Sphere(1e5f))
-        }.OnKeplerOrbit(test.World, orbit)));
+        FrameHandle moon = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(1e5f)) }.OnKeplerOrbit(
+                    test.World,
+                    orbit
+                )
+            )
+        );
         FrameHandle dock = test.SpawnStaticFrame(new(new(-3e6, 1e5, 42.5), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         FrameHandle yard = test.SpawnStaticFrame(
-            new(new(4e6, -2e5, 7.25), DQuaternion.FromAxisAngle(new(1, 1, 0), 0.3)), radius: 1e6f);
+            new(new(4e6, -2e5, 7.25), DQuaternion.FromAxisAngle(new(1, 1, 0), 0.3)),
+            radius: 1e6f
+        );
         test.World.Camera = test.SpawnCamera(dock, TestWorld.At(1.5, 2.5, 3.5));
         Entity crate = test.Show(yard, TestWorld.At(11.1, 22.2, 33.3));
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
@@ -210,14 +232,16 @@ public sealed class RenderSnapshotInterpolationTests
             Test = TestWorld.OnJolt(faults: out _);
             B = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
             Scenes.Approach flight = Scenes.ApproachToBubble(world: Test.World, into: B, tick: 2);
-            Camera = Test.World.Spawn(new()
-            {
-                Frame = Test.Root,
-                Pose = flight.Pose,
-                LinearVelocity = flight.Velocity,
-                Body = WorldTesting.Ball(),
-                Render = new RenderData()
-            });
+            Camera = Test.World.Spawn(
+                new()
+                {
+                    Frame = Test.Root,
+                    Pose = flight.Pose,
+                    LinearVelocity = flight.Velocity,
+                    Body = WorldTesting.Ball(),
+                    Render = new RenderData(),
+                }
+            );
             StartOfMoving = new(flight.Pose.Position.X, 0, -10);
             Moving = Test.Show(Test.Root, new(StartOfMoving, DQuaternion.Identity), new Mover(new(1, 0, 0)));
             Test.World.Camera = Camera;
@@ -283,8 +307,11 @@ public sealed class RenderSnapshotInterpolationTests
 
         // The camera flew into B, and the object moved three times. Seen from the camera, the object is where the camera
         // and the object are in the root frame.
-        PoseChecks.AssertNear(scene.Test.World.Latest().InstanceOf(scene.Moving).Position,
-            scene.MovingRelativeToCamera(3), 1e-3f);
+        PoseChecks.AssertNear(
+            scene.Test.World.Latest().InstanceOf(scene.Moving).Position,
+            scene.MovingRelativeToCamera(3),
+            1e-3f
+        );
         scene.Test.World.GetFrame(scene.Camera).Should().Be(scene.B);
     }
 
@@ -344,19 +371,21 @@ public sealed class RenderSnapshotInterpolationTests
     [Fact]
     public void AnObjectHandedOffBetweenFramesInterpolatesFromItsPoseInTheOldFrame()
     {
-        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity camera = test.SpawnCamera(test.Root, DPose.Identity);
         // The ball flies from the root into the frame b. Jolt hands it off in the step of tick 2.
         Scenes.Approach flight = Scenes.ApproachToBubble(world: test.World, into: b, tick: 2);
-        Entity ball = test.World.Spawn(new()
-        {
-            Frame = test.Root,
-            Pose = flight.Pose,
-            LinearVelocity = flight.Velocity,
-            Body = WorldTesting.Ball(),
-            Render = Visible()
-        });
+        Entity ball = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = flight.Pose,
+                LinearVelocity = flight.Velocity,
+                Body = WorldTesting.Ball(),
+                Render = Visible(),
+            }
+        );
         test.World.Camera = camera;
         test.Run(2);
         test.World.Latest();
@@ -372,7 +401,11 @@ public sealed class RenderSnapshotInterpolationTests
         RenderInstance instance = test.World.Latest().InstanceOf(ball);
         PoseChecks.AssertNear(instance.PreviousPosition, before.ToVector3(), 1e-3f);
         PoseChecks.AssertNear(instance.Position, after.ToVector3(), 1e-3f);
-        (after - before).Length.Should().BeGreaterThan(0.1,
-            "the ball moved between the two snapshots, or the test cannot tell the old pose from the new one");
+        (after - before)
+            .Length.Should()
+            .BeGreaterThan(
+                0.1,
+                "the ball moved between the two snapshots, or the test cannot tell the old pose from the new one"
+            );
     }
 }
