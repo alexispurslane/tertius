@@ -5,10 +5,11 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 ## Workflow
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
-- `bash tools/test-all.sh` runs every test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. The script does not run in an agent's worktree, so such an agent runs `dotnet build Tertius.slnx -c <config>` and `dotnet test --project tests/Tertius.<Module>.Tests -c <config>` by hand, for both configurations.
+- `bash tools/test-all.sh` runs every test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. An agent in an isolated worktree cannot run it, because Claude Code refuses a script there: it cannot prove that the script runs no git outside the worktree. Such an agent runs `nix develop --command dotnet test --solution Tertius.slnx -c Checked`, then the same with `-c Release`. Each command builds and runs every test project in about two minutes.
 - Do each ticket or epic on its own branch, named after the ticket, such as `ter-dtw2-vertical-slice`. Never commit work straight to main. The user reads the code in the diff pane of the Claude desktop app, against main.
 - When the ticket closes, merge its branch into main in this checkout, and leave the checkout on main. Other sessions commit ticket notes in this checkout, and the user wants those on main.
-- Use git, not jj. This overrides the jj rule in the user's other agent configuration. Never push without the user's permission.
+- Use git, not jj. This overrides the jj rule in the user's other agent configuration.
+- Push main to `origin` without asking, at least after each epic merges. The user decided on 2026-10-24 that a regular push is better than none.
 - The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
 - At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
 - Read the Jolt pitfalls in project memory before you touch Jolt interop. The double-precision Jolt library comes from `native/joltc.nix`.
