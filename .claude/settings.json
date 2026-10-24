@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "tertius-tools": {
+      "source": { "source": "directory", "path": "/Users/alexispurslane/Development/tertius/tools/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "tertius-csharp-ls@tertius-tools": true
+  }
+}

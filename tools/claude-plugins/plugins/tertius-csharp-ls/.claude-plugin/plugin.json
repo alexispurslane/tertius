@@ -1,0 +1,5 @@
+{
+  "name": "tertius-csharp-ls",
+  "version": "1.0.0",
+  "description": "Gives Claude diagnostics and code navigation for C# through csharp-ls, started by tools/csharp-ls.sh in the dev shell."
+}

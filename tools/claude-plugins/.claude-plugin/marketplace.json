@@ -1,0 +1,11 @@
+{
+  "name": "tertius-tools",
+  "owner": { "name": "Alexis Purslane" },
+  "plugins": [
+    {
+      "name": "tertius-csharp-ls",
+      "description": "C# language server (csharp-ls, from the dev shell) for Tertius, with C# 15 support",
+      "source": "./plugins/tertius-csharp-ls"
+    }
+  ]
+}
