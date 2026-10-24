@@ -200,10 +200,53 @@ The cleanup keeps named arguments: the Tertius profile leaves out the ReSharper 
 
 ## Polymorphism and composition
 
-- Prefer interfaces and generics over abstract classes and virtual methods. Where the code is hot, take the interface as a constrained type parameter with a struct argument, such as `void Step<TRule>(ref TRule rule) where TRule : struct, IRule`. The JIT then writes one copy per struct type, with direct calls and no boxing.
+### Polymorphism is an interface
+
+Always use an interface for polymorphism. The form depends on whether the code is hot:
+
+| Where | Form |
+|---|---|
+| A hot path | A type parameter constrained to a struct and the interface: `where TFilter : struct, IEventFilter`. The JIT writes one copy of the code per struct type, so every call is direct, can inline, and boxes nothing. |
+| Everywhere else | A plain interface type, such as a parameter of type `IComponent`. |
+
+Use an abstract class or a virtual method only where an interface cannot do the job, and say why in a comment.
+
+The scan of an inbox takes its filter this way. `EventQuery<T>` is a struct that implements `IEventFilter`, and the cursor holds it as a `TFilter`:
+
+```csharp
+internal interface IEventFilter
+{
+    bool MayMatch(in EventMask mask);
+    bool Matches(ref Event e);
+}
+
+internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
+{
+    // Not readonly: a call on a readonly field of a generic struct type would copy the filter first.
+    private TFilter filter;
+    ...
+    public bool MoveNext()
+    {
+        ...
+        while (++index < items.Length)
+            if (filter.Matches(ref items[index]))
+                return true;
+        ...
+    }
+}
+```
+
+Two rules keep this form free of cost:
+
+- Hold the struct in a field that is not `readonly`, and pass it on as `ref`. A call on a `readonly` field or an `in` parameter of a generic struct type copies the struct first, because the compiler cannot know that the struct is `readonly`.
+- Never convert the struct to its interface type, such as by passing it to a parameter of type `IEventFilter`. That conversion boxes it, and every call becomes a virtual call again.
+
+### Composition
+
 - Prefer composition over inheritance: a type holds its parts and passes calls through to them. A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
 - Never build an inheritance hierarchy more than 2 levels deep below `object`.
 - Use a default method in an interface for behavior that every implementation shares.
+- Use a static abstract member of an interface for a factory or a constant per type, such as `T.Zero`.
 - Use an extension member (a C# 14 `extension` block) for behavior that a type does not own.
 - An abstract base with abstract or virtual members is an open set. A switch never chooses among its subtypes.
 
