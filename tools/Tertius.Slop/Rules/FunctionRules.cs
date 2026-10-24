@@ -12,7 +12,10 @@ namespace Tertius.Slop.Rules;
 public sealed class PassThroughMethod : IRule
 {
     public string Id => "pass-through-method";
-    public string Message => "A method whose whole body passes its parameters to another method: call that method instead.";
+
+    public string Message =>
+        "A method whose whole body passes its parameters to another method: call that method instead.";
+
     public string Source =>
         "The user; STYLE.md, \"Composition\" (never hold a part only to pass calls through to it); scb-check rules/trivial_wrapper.py, misc.yaml: identity-wrapper-function";
 
@@ -45,8 +48,12 @@ public sealed class LowUseShortFunction : IRule
     private const int MostCallerSloc = 60;
 
     public string Id => "low-use-short-function";
-    public string Message => "A short private function with one call: write its code at the call, as a named local if it needs a name.";
-    public string Source => "scb-check rules/low_use_short_function.py; STYLE.md, \"Name the parts of a complex condition\"";
+
+    public string Message =>
+        "A short private function with one call: write its code at the call, as a named local if it needs a name.";
+
+    public string Source =>
+        "scb-check rules/low_use_short_function.py; STYLE.md, \"Name the parts of a complex condition\"";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
@@ -67,7 +74,10 @@ public sealed class LowUseShortFunction : IRule
     {
         LocalFunctionStatementSyntax local => local.Identifier.ValueText,
         // An attribute gives a method a job beside its code, such as [Conditional], which inlining would lose.
-        MethodDeclarationSyntax { Parent: TypeDeclarationSyntax and not InterfaceDeclarationSyntax, AttributeLists.Count: 0 } method
+        MethodDeclarationSyntax
+            {
+                Parent: TypeDeclarationSyntax and not InterfaceDeclarationSyntax, AttributeLists.Count: 0
+            } method
             when IsPrivate(method.Modifiers) => method.Identifier.ValueText,
         _ => null
     };
@@ -76,7 +86,8 @@ public sealed class LowUseShortFunction : IRule
     // partial declaration and an extern method keep their declaration.
     private static bool IsPrivate(SyntaxTokenList modifiers)
     {
-        bool keepsDeclaration = modifiers.Any(SyntaxKind.OverrideKeyword) || modifiers.Any(SyntaxKind.AbstractKeyword) ||
+        bool keepsDeclaration = modifiers.Any(SyntaxKind.OverrideKeyword) ||
+                                modifiers.Any(SyntaxKind.AbstractKeyword) ||
                                 modifiers.Any(SyntaxKind.PartialKeyword) || modifiers.Any(SyntaxKind.ExternKeyword);
         bool widened = modifiers.Any(SyntaxKind.PublicKeyword) || modifiers.Any(SyntaxKind.ProtectedKeyword) ||
                        modifiers.Any(SyntaxKind.InternalKeyword);
@@ -97,7 +108,8 @@ public sealed class LowUseShortFunction : IRule
     private static bool IsDispatch(InvocationExpressionSyntax call) => call.Parent switch
     {
         SwitchExpressionArmSyntax arm => arm.Expression == call,
-        ExpressionStatementSyntax { Parent: SwitchSectionSyntax } or ReturnStatementSyntax { Parent: SwitchSectionSyntax } => true,
+        ExpressionStatementSyntax { Parent: SwitchSectionSyntax }
+            or ReturnStatementSyntax { Parent: SwitchSectionSyntax } => true,
         _ => false
     };
 }
@@ -107,7 +119,9 @@ public sealed class SingleUseLocal : IRule
 {
     public string Id => "single-use-local";
     public string Message => "A local that only feeds the next statement: write its value there.";
-    public string Source => "The user; STYLE.md, \"Names\" (remove a variable that only exists as scratch for another one)";
+
+    public string Source =>
+        "The user; STYLE.md, \"Names\" (remove a variable that only exists as scratch for another one)";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
@@ -123,7 +137,8 @@ public sealed class SingleUseLocal : IRule
             .. local.FollowingStatements.SelectMany(statement => statement.DescendantNodes())
                 .OfType<IdentifierNameSyntax>().Where(use => use.Identifier.ValueText == name)
         ];
-        return local.NextStatement is { } next && !IsLoop(next) && uses is [var only] && next.Span.Contains(only.Span) &&
+        return local.NextStatement is { } next && !IsLoop(next) && uses is [var only] &&
+               next.Span.Contains(only.Span) &&
                CanTakeValue(only, next)
             ? [local.Span]
             : [];
@@ -141,7 +156,8 @@ public sealed class SingleUseLocal : IRule
                                or SyntaxKind.GreaterThanOrEqualExpression or SyntaxKind.LessThanExpression
                                or SyntaxKind.LessThanOrEqualExpression or SyntaxKind.IsExpression;
         bool isTargetTyped = value is ImplicitObjectCreationExpressionSyntax or CollectionExpressionSyntax
-                                 or AnonymousFunctionExpressionSyntax or ImplicitStackAllocArrayCreationExpressionSyntax ||
+                                 or AnonymousFunctionExpressionSyntax
+                                 or ImplicitStackAllocArrayCreationExpressionSyntax ||
                              value.Kind() is SyntaxKind.DefaultLiteralExpression or SyntaxKind.NullLiteralExpression;
         return isCondition || isTargetTyped;
     }
@@ -174,8 +190,10 @@ public sealed class SingleUseLocal : IRule
 public sealed class GuardRepeatsCallerCheck : IRule
 {
     public string Id => "guard-repeats-caller-check";
+
     public string Message =>
         "A null guard on a parameter that is not nullable, in a function that is not public API: the callers' nullable checks already made it.";
+
     public string Source => "The user; STYLE.md, \"Nulls\" (the shell tests for null once)";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
@@ -195,7 +213,10 @@ public sealed class GuardRepeatsCallerCheck : IRule
         HashSet<string> notNullable =
         [
             .. list.Parameters.Where(parameter => parameter.Type is { } type && type is not NullableTypeSyntax &&
-                                                  !(type is IdentifierNameSyntax { Identifier.ValueText: var typeName } &&
+                                                  !(type is IdentifierNameSyntax
+                                                    {
+                                                        Identifier.ValueText: var typeName
+                                                    } &&
                                                     typeParameters.Contains(typeName)))
                 .Select(parameter => parameter.Identifier.ValueText)
         ];
@@ -219,14 +240,18 @@ public sealed class GuardRepeatsCallerCheck : IRule
     private static IEnumerable<TextSpan> Guard(SyntaxNode node, HashSet<string> parameters) => node switch
     {
         IfStatementSyntax { Condition.NullTested: IdentifierNameSyntax { Identifier.ValueText: var name } } branch
-            when parameters.Contains(name) && branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax =>
+            when parameters.Contains(name) &&
+                 branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax =>
             [branch.Span],
         InvocationExpressionSyntax
+        {
+            Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ThrowIfNull" },
+            ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var name } }, ..]
+        } call when parameters.Contains(name) => [call.Span],
+        BinaryExpressionSyntax
             {
-                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ThrowIfNull" },
-                ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var name } }, ..]
-            } call when parameters.Contains(name) => [call.Span],
-        BinaryExpressionSyntax { Left: IdentifierNameSyntax { Identifier.ValueText: var name }, Right: ThrowExpressionSyntax } coalesce
+                Left: IdentifierNameSyntax { Identifier.ValueText: var name }, Right: ThrowExpressionSyntax
+            } coalesce
             when coalesce.IsKind(SyntaxKind.CoalesceExpression) && parameters.Contains(name) => [coalesce.Span],
         _ => []
     };

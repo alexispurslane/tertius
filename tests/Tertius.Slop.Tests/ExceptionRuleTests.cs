@@ -29,7 +29,8 @@ public class ExceptionRuleTests
         Source.RulesInMethod("""
                              try { x(); } catch (Exception e) { Log(e); }
                              try { y(); } catch { Log(); }
-                             """).Should().Equal("defensive-except-exception-heavy", "defensive-except-exception-heavy");
+                             """).Should()
+            .Equal("defensive-except-exception-heavy", "defensive-except-exception-heavy");
 
     [Fact]
     public void AFunctionWithOneCatchAllAndOneSpecificCatchIsNotFlagged() =>

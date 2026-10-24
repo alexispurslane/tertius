@@ -52,7 +52,7 @@ public sealed record VerbosityReport
         Finding[] findings = [.. files.SelectMany(file => file.Findings)];
         int sloc = files.Sum(file => file.Sloc);
         int verboseLines = files.Sum(file => file.Flagged.Union(file.Cloned).Count());
-        return new VerbosityReport
+        return new()
         {
             Verbosity = sloc > 0 ? (double)verboseLines / sloc : 0,
             VerboseLines = verboseLines,
@@ -94,7 +94,8 @@ public sealed record VerbosityReport
             text.AppendLine($"{rule.Findings,6} {rule.Lines,6} lines  {rule.Id}: {rule.Message}");
         text.AppendLine("Longest findings:");
         foreach (Finding finding in TopFindings)
-            text.AppendLine($"{finding.EndLine - finding.Line + 1,6} lines  {finding.Rule} ({finding.File}:{finding.Line})");
+            text.AppendLine(
+                $"{finding.EndLine - finding.Line + 1,6} lines  {finding.Rule} ({finding.File}:{finding.Line})");
         return text.ToString();
     }
 
@@ -112,18 +113,18 @@ public sealed record VerbosityReport
         {
             IReadOnlySet<int> text = file.TextLines;
             Finding[] findings = [.. file.Findings(context)];
-            return new FileVerbosity
+            return new()
             {
                 Findings = findings,
                 Text = text,
-                Flagged = findings.SelectMany(Covered).Where(text.Contains).ToHashSet(),
-                Cloned = clones.LinesIn(file.Path).Where(text.Contains).ToHashSet(),
+                Flagged = [.. findings.SelectMany(Covered).Where(text.Contains)],
+                Cloned = [.. clones.LinesIn(file.Path).Where(text.Contains)],
                 Sloc = file.CodeLines.Count
             };
         }
 
         public HashSet<int> LinesOf(string rule) =>
-            Findings.Where(finding => finding.Rule == rule).SelectMany(Covered).Where(Text.Contains).ToHashSet();
+            [.. Findings.Where(finding => finding.Rule == rule).SelectMany(Covered).Where(Text.Contains)];
 
         private static IEnumerable<int> Covered(Finding finding) =>
             Enumerable.Range(finding.Line, finding.EndLine - finding.Line + 1);

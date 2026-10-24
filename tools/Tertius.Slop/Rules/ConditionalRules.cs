@@ -12,7 +12,10 @@ namespace Tertius.Slop.Rules;
 public sealed class DuplicatedIfCondition : IRule
 {
     public string Id => "duplicated-if-condition";
-    public string Message => "An else-if repeats an earlier condition of its chain, so its branch never runs: remove it.";
+
+    public string Message =>
+        "An else-if repeats an earlier condition of its chain, so its branch never runs: remove it.";
+
     public string Source => "scb-check conditionals.yaml: duplicated-if-condition";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
@@ -22,7 +25,7 @@ public sealed class DuplicatedIfCondition : IRule
             return [];
         var earlier = new List<ExpressionSyntax> { head.Condition };
         var repeats = new List<TextSpan>();
-        for (IfStatementSyntax? branch = head.Else?.Statement as IfStatementSyntax;
+        for (var branch = head.Else?.Statement as IfStatementSyntax;
              branch is not null;
              branch = branch.Else?.Statement as IfStatementSyntax)
         {
@@ -75,7 +78,10 @@ public sealed class ManualMinMax : IRule
 public sealed class NestedIfNoElse : IRule
 {
     public string Id => "nested-if-no-else";
-    public string Message => "An if whose only statement is another if, neither with an else: join the conditions with &&.";
+
+    public string Message =>
+        "An if whose only statement is another if, neither with an else: join the conditions with &&.";
+
     public string Source => "scb-check conditionals.yaml: nested-if-no-else";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
@@ -153,10 +159,10 @@ public sealed class RedundantGuardSameReturn : IRule
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
         IfStatementSyntax
-            {
-                Else: null, Statement.Single: ReturnStatementSyntax { Expression: { } guarded },
-                NextStatement: ReturnStatementSyntax { Expression: { } next }
-            } branch when guarded.SameAs(next) => [branch.Span],
+        {
+            Else: null, Statement.Single: ReturnStatementSyntax { Expression: { } guarded },
+            NextStatement: ReturnStatementSyntax { Expression: { } next }
+        } branch when guarded.SameAs(next) => [branch.Span],
         _ => []
     };
 }
@@ -184,7 +190,10 @@ public sealed class EmptyIfBranch : IRule
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
-        IfStatementSyntax { Statement: BlockSyntax { Statements.Count: 0 } or EmptyStatementSyntax, Else: not null } branch =>
+        IfStatementSyntax
+            {
+                Statement: BlockSyntax { Statements.Count: 0 } or EmptyStatementSyntax, Else: not null
+            } branch =>
             [branch.Span],
         _ => []
     };
@@ -205,9 +214,9 @@ public sealed class TypeProbeLadder : IRule
     {
         BinaryExpressionSyntax test when test.IsKind(SyntaxKind.IsExpression) => test.Left,
         IsPatternExpressionSyntax
-            {
-                Pattern: DeclarationPatternSyntax or TypePatternSyntax or RecursivePatternSyntax { Type: not null }
-            } test => test.Expression,
+        {
+            Pattern: DeclarationPatternSyntax or TypePatternSyntax or RecursivePatternSyntax { Type: not null }
+        } test => test.Expression,
         _ => null
     };
 }
@@ -238,7 +247,10 @@ public sealed class ValueCompareReturnLadder : IRule
     private const int LeastBranches = 3;
 
     public string Id => "value-compare-return-ladder";
-    public string Message => "Three or more branches that return by comparing one value with constants: use a switch expression.";
+
+    public string Message =>
+        "Three or more branches that return by comparing one value with constants: use a switch expression.";
+
     public string Source => "scb-check conditionals.yaml: value-compare-return-ladder";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
@@ -276,7 +288,8 @@ public sealed class VerboseNoneDefault : IRule
     {
         IfStatementSyntax
             {
-                Else: null, Statement.Single: ExpressionStatementSyntax { Expression: AssignmentExpressionSyntax assignment }
+                Else: null,
+                Statement.Single: ExpressionStatementSyntax { Expression: AssignmentExpressionSyntax assignment }
             } branch when assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) &&
                           assignment.Left.SameAs(branch.Condition.NullTested) => [branch.Span],
         _ => []
@@ -288,6 +301,7 @@ public sealed class ManualNullCoalescing : IRule
 {
     public string Id => "manual-null-coalescing";
     public string Message => "A conditional expression that gives a value unless it is null: use ??.";
+
     public string Source =>
         "scb-check conditionals.yaml: ternary-none-comparison, return-ternary-or-none, defensive-or-empty";
 

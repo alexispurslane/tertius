@@ -17,7 +17,10 @@ public sealed class UnnecessaryLambda : IRule
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
-        if (node is not LambdaExpressionSyntax { ExpressionBody: InvocationExpressionSyntax call, AsyncKeyword.RawKind: 0 } lambda)
+        if (node is not LambdaExpressionSyntax
+            {
+                ExpressionBody: InvocationExpressionSyntax call, AsyncKeyword.RawKind: 0
+            } lambda)
             return [];
         string[] parameters = lambda switch
         {
@@ -55,8 +58,12 @@ public sealed class RedundantReturn : IRule
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
-        ReturnStatementSyntax { Expression: null, Parent: BlockSyntax { Statements: [.., var last], Parent: { } owner } } exit
-            when last == exit && (Function.IsFunction(owner) || owner is AnonymousFunctionExpressionSyntax) => [exit.Span],
+        ReturnStatementSyntax
+            {
+                Expression: null, Parent: BlockSyntax { Statements: [.., var last], Parent: { } owner }
+            } exit
+            when last == exit && (Function.IsFunction(owner) || owner is AnonymousFunctionExpressionSyntax) =>
+            [exit.Span],
         _ => []
     };
 }
@@ -103,7 +110,10 @@ public sealed class ManualStrJoin : IRule
     {
         LiteralExpressionSyntax literal => literal.IsKind(SyntaxKind.StringLiteralExpression),
         InterpolatedStringExpressionSyntax => true,
-        InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var name } } =>
+        InvocationExpressionSyntax
+            {
+                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var name }
+            } =>
             name is "ToString" or "Format",
         _ => false
     };
@@ -122,15 +132,20 @@ public sealed class LongTupleUnpacking : IRule
 
     public string Id => "long-tuple-unpacking";
     public string Message => "A deconstruction into five or more values: give the group a record struct.";
-    public string Source => "scb-check loops_and_comprehensions.yaml: long-tuple-unpacking; STYLE.md, \"Name a type only when it earns a name\"";
+
+    public string Source =>
+        "scb-check loops_and_comprehensions.yaml: long-tuple-unpacking; STYLE.md, \"Name a type only when it earns a name\"";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
         AssignmentExpressionSyntax
+        {
+            Left: DeclarationExpressionSyntax
             {
-                Left: DeclarationExpressionSyntax { Designation: ParenthesizedVariableDesignationSyntax { Variables.Count: >= LeastValues } }
-                or TupleExpressionSyntax { Arguments.Count: >= LeastValues }
-            } assignment => [assignment.Span],
+                Designation: ParenthesizedVariableDesignationSyntax { Variables.Count: >= LeastValues }
+            }
+            or TupleExpressionSyntax { Arguments.Count: >= LeastValues }
+        } assignment => [assignment.Span],
         _ => []
     };
 }

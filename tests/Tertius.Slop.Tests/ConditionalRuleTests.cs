@@ -147,7 +147,8 @@ public class ConditionalRuleTests
 
     [Theory]
     [InlineData("if (k == 1) return 10; if (k == 2) return 20; if (k == 3) return 30; return 0;")]
-    [InlineData("if (k == Kind.A) { return 10; } else if (k == Kind.B) { return 20; } else if (k == Kind.C) { return 30; }")]
+    [InlineData(
+        "if (k == Kind.A) { return 10; } else if (k == Kind.B) { return 20; } else if (k == Kind.C) { return 30; }")]
     public void ThreeBranchesThatReturnByComparingOneValueAreFlagged(string body) =>
         Source.RulesInMethod(body).Should().Contain("value-compare-return-ladder");
 

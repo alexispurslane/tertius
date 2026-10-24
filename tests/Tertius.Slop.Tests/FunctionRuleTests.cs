@@ -104,10 +104,12 @@ public class FunctionRuleTests
         Source.RulesInMethod(body).Should().BeEmpty();
 
     [Theory]
-    [InlineData("private void F(Body body) { if (body is null) throw new ArgumentNullException(nameof(body)); body.Push(); }")]
+    [InlineData(
+        "private void F(Body body) { if (body is null) throw new ArgumentNullException(nameof(body)); body.Push(); }")]
     [InlineData("internal int F(string s) { if (s == null) return 0; return s.Length; }")]
     [InlineData("void F(Body body) { ArgumentNullException.ThrowIfNull(body); body.Push(); }")]
-    [InlineData("private void F(Body body) { held = body ?? throw new ArgumentNullException(nameof(body)); held.Push(); }")]
+    [InlineData(
+        "private void F(Body body) { held = body ?? throw new ArgumentNullException(nameof(body)); held.Push(); }")]
     public void ANullGuardOnANonNullableParameterOfANonPublicFunctionIsFlagged(string method) =>
         Source.RulesIn($"class C {{ {method} }}").Should().Equal("guard-repeats-caller-check");
 

@@ -17,7 +17,7 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
     /// <summary>The clone lines in a jscpd JSON report of the src folder, whose file names are relative to src.</summary>
     public static Clones FromReport(string json)
     {
-        using var report = JsonDocument.Parse(json);
+        using JsonDocument report = JsonDocument.Parse(json);
         IEnumerable<(string File, int Line)> lines =
             from duplicate in report.RootElement.GetProperty("duplicates").EnumerateArray()
             from side in Sides
@@ -26,7 +26,7 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
             let end = fragment.GetProperty("end").GetInt32()
             from line in Enumerable.Range(start, end - start + 1)
             select ($"src/{fragment.GetProperty("name").GetString()}", line);
-        return new Clones(lines.GroupBy(each => each.File, each => each.Line, StringComparer.Ordinal)
+        return new(lines.GroupBy(each => each.File, each => each.Line, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, IReadOnlySet<int> (group) => group.ToHashSet(), StringComparer.Ordinal));
     }
 
@@ -84,7 +84,8 @@ public sealed class Clones(IReadOnlyDictionary<string, IReadOnlySet<int>> linesB
             process.StandardOutput.ReadToEnd();
             process.WaitForExit();
             if (process.ExitCode != 0)
-                throw new InvalidOperationException($"{start.FileName} failed with exit code {process.ExitCode}: {errors.Result}");
+                throw new InvalidOperationException(
+                    $"{start.FileName} failed with exit code {process.ExitCode}: {errors.Result}");
         }
     }
 }

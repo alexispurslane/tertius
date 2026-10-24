@@ -100,7 +100,8 @@ public sealed partial class CommentRepeatsCode : IRule
 
     // The parser reads doc comments as plain comments (SourceFile), so the three slashes tell them apart.
     private static bool IsLineComment(SyntaxTrivia trivia) =>
-        trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) && !trivia.ToString().StartsWith("///", StringComparison.Ordinal);
+        trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) &&
+        !trivia.ToString().StartsWith("///", StringComparison.Ordinal);
 
     private static IEnumerable<string> WordsOf(string text) =>
         Word().Matches(text)

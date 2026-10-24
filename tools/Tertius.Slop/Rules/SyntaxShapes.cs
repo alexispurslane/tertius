@@ -21,9 +21,6 @@ internal static class SyntaxShapes
 
     extension(SyntaxNode node)
     {
-        /// <summary>Whether <paramref name="other"/> is the same code, whatever its trivia.</summary>
-        public bool SameAs(SyntaxNode? other) => other is not null && SyntaxFactory.AreEquivalent(node, other);
-
         /// <summary>
         /// Whether a function belongs to the public API: a public or protected member, or a member of an interface. A
         /// public API keeps guards that are always on (STYLE.md, "Errors and contracts").
@@ -37,6 +34,9 @@ internal static class SyntaxShapes
                                               member.Modifiers.Any(SyntaxKind.ProtectedKeyword),
             _ => false
         };
+
+        /// <summary>Whether <paramref name="other"/> is the same code, whatever its trivia.</summary>
+        public bool SameAs(SyntaxNode? other) => other is not null && SyntaxFactory.AreEquivalent(node, other);
     }
 
     extension(StatementSyntax statement)
@@ -96,21 +96,22 @@ internal static class SyntaxShapes
             _ => null
         };
 
-        /// <summary>
-        /// The span from this branch to its next branch, when both test the same value by <paramref name="tested"/>, or
-        /// nothing. Two rules read ladders this way.
-        /// </summary>
-        public IEnumerable<TextSpan> PairedBy(Func<ExpressionSyntax, ExpressionSyntax?> tested) =>
-            tested(branch.Condition) is { } value && branch.NextBranch is { } next && value.SameAs(tested(next.Condition))
-                ? [TextSpan.FromBounds(branch.SpanStart, next.Span.End)]
-                : [];
-
         /// <summary>The branch whose next branch this one is, or null.</summary>
         public IfStatementSyntax? PreviousBranch => branch.Parent switch
         {
             ElseClauseSyntax { Parent: IfStatementSyntax owner } => owner,
             _ => branch.PreviousStatement is IfStatementSyntax { Else: null } previous ? previous : null
         };
+
+        /// <summary>
+        /// The span from this branch to its next branch, when both test the same value by <paramref name="tested"/>, or
+        /// nothing. Two rules read ladders this way.
+        /// </summary>
+        public IEnumerable<TextSpan> PairedBy(Func<ExpressionSyntax, ExpressionSyntax?> tested) =>
+            tested(branch.Condition) is { } value && branch.NextBranch is { } next &&
+            value.SameAs(tested(next.Condition))
+                ? [TextSpan.FromBounds(branch.SpanStart, next.Span.End)]
+                : [];
     }
 
     extension(ExpressionSyntax expression)
@@ -141,9 +142,9 @@ internal static class SyntaxShapes
         public ExpressionSyntax? NotNullTested => expression.Unwrapped switch
         {
             IsPatternExpressionSyntax
-                {
-                    Pattern: UnaryPatternSyntax { Pattern: ConstantPatternSyntax { Expression: var constant } }
-                } test when constant.IsKind(SyntaxKind.NullLiteralExpression) => test.Expression,
+            {
+                Pattern: UnaryPatternSyntax { Pattern: ConstantPatternSyntax { Expression: var constant } }
+            } test when constant.IsKind(SyntaxKind.NullLiteralExpression) => test.Expression,
             BinaryExpressionSyntax test when test.IsKind(SyntaxKind.NotEqualsExpression) => test.NullCompared,
             _ => null
         };
@@ -170,7 +171,9 @@ internal static class SyntaxShapes
         public bool PassesOn(IReadOnlyCollection<string> parameters)
         {
             IEnumerable<string?> arguments = call.ArgumentList.Arguments.Select(argument =>
-                argument is { NameColon: null, Expression: IdentifierNameSyntax name } ? name.Identifier.ValueText : null);
+                argument is { NameColon: null, Expression: IdentifierNameSyntax name }
+                    ? name.Identifier.ValueText
+                    : null);
             bool namedTarget = call.Expression switch
             {
                 SimpleNameSyntax => true,

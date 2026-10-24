@@ -82,7 +82,7 @@ public sealed class ProgramTests : IDisposable
         int exit = Program.Run(["verbosity", root], output, error);
 
         exit.Should().Be(0);
-        using var json = JsonDocument.Parse(output.ToString());
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement report = json.RootElement;
         (report.GetProperty("verbosity").GetDouble(), report.GetProperty("verboseLines").GetInt32(),
                 report.GetProperty("flaggedLines").GetInt32(), report.GetProperty("cloneLines").GetInt32(),
@@ -98,7 +98,7 @@ public sealed class ProgramTests : IDisposable
 
         Program.Run(["verbosity", root], output, error);
 
-        using var json = JsonDocument.Parse(output.ToString());
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement top = json.RootElement.GetProperty("topFindings").EnumerateArray().Should().ContainSingle().Subject;
         (top.GetProperty("file").GetString(), top.GetProperty("line").GetInt32(), top.GetProperty("endLine").GetInt32(),
                 top.GetProperty("rule").GetString())
@@ -110,7 +110,7 @@ public sealed class ProgramTests : IDisposable
     {
         Program.Run(["verbosity", root], output, error);
 
-        using var json = JsonDocument.Parse(output.ToString());
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
         JsonElement rule = json.RootElement.GetProperty("rules").EnumerateArray()
             .Single(each => each.GetProperty("id").GetString() == "manual-min-max");
         rule.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
@@ -136,7 +136,7 @@ public sealed class ProgramTests : IDisposable
         int exit = Program.Run(["all", root], output, error);
 
         exit.Should().Be(0);
-        using var json = JsonDocument.Parse(output.ToString());
+        using JsonDocument json = JsonDocument.Parse(output.ToString());
         (json.RootElement.GetProperty("erosion").GetProperty("functionCount").GetInt32(),
                 json.RootElement.GetProperty("verbosity").GetProperty("sloc").GetInt32())
             .Should().Be((1, 8));

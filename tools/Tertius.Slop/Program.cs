@@ -73,7 +73,8 @@ public static class Program
             "verbosity" => JsonSerializer.Serialize(VerbosityReport.Of(codebase, Clones.Find(root, Jscpd)),
                 SlopJson.Default.VerbosityReport),
             "all" when text => SlopReport.Of(codebase, Clones.Find(root, Jscpd)).Describe(),
-            "all" => JsonSerializer.Serialize(SlopReport.Of(codebase, Clones.Find(root, Jscpd)), SlopJson.Default.SlopReport),
+            "all" => JsonSerializer.Serialize(SlopReport.Of(codebase, Clones.Find(root, Jscpd)),
+                SlopJson.Default.SlopReport),
             _ => throw new UnreachableException($"{metric} is not one of the metrics that Run accepts.")
         };
     }

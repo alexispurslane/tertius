@@ -32,14 +32,18 @@ public sealed class DefensiveExceptExceptionHeavy : IRule
     private const int LeastCatchAlls = 2;
 
     public string Id => "defensive-except-exception-heavy";
-    public string Message => "A function with two or more clauses that catch every exception: catch what can happen, once.";
+
+    public string Message =>
+        "A function with two or more clauses that catch every exception: catch what can happen, once.";
+
     public string Source => "scb-check defensive.yaml: defensive-except-exception-heavy";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
     {
         if (!Function.IsFunction(node))
             return [];
-        CatchClauseSyntax[] catchAlls = [.. new Function(node).OwnNodes.OfType<CatchClauseSyntax>().Where(each => each.CatchesAll)];
+        CatchClauseSyntax[] catchAlls =
+            [.. new Function(node).OwnNodes.OfType<CatchClauseSyntax>().Where(each => each.CatchesAll)];
         return catchAlls.Length >= LeastCatchAlls ? catchAlls.Select(each => each.Span) : [];
     }
 }
@@ -48,13 +52,16 @@ public sealed class DefensiveExceptExceptionHeavy : IRule
 public sealed class ExceptReturnStaticSentinel : IRule
 {
     public string Id => "except-return-static-sentinel";
-    public string Message => "A clause that catches every exception and returns a constant: catch something specific or let it go.";
+
+    public string Message =>
+        "A clause that catches every exception and returns a constant: catch something specific or let it go.";
+
     public string Source =>
         "scb-check defensive.yaml: except-return-static-sentinel, sentinel-fallback-function, parse-and-fallback-exception";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
-        CatchClauseSyntax { Block.Statements: [ReturnStatementSyntax { Expression: { IsConstantValue: true } }] } clause
+        CatchClauseSyntax { Block.Statements: [ReturnStatementSyntax { Expression.IsConstantValue: true }] } clause
             when clause.CatchesAll => [clause.Span],
         _ => []
     };
@@ -70,7 +77,10 @@ public sealed class ExceptBareReraise : IRule
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context) => node switch
     {
         // A rethrow before a later catch keeps that exception out of the later, broader catch, so it stays.
-        CatchClauseSyntax { Block.Statements: [ThrowStatementSyntax { Expression: null }], Parent: TryStatementSyntax owner } clause
+        CatchClauseSyntax
+            {
+                Block.Statements: [ThrowStatementSyntax { Expression: null }], Parent: TryStatementSyntax owner
+            } clause
             when owner.Catches.Last() == clause => [clause.Span],
         _ => []
     };
@@ -96,7 +106,10 @@ public sealed class DefensiveFunctionNullableHeavy : IRule
     private const int LeastGuards = 2;
 
     public string Id => "defensive-function-nullable-heavy";
-    public string Message => "A function with two or more null guards that return or throw: test for null once, at the shell.";
+
+    public string Message =>
+        "A function with two or more null guards that return or throw: test for null once, at the shell.";
+
     public string Source => "scb-check defensive.yaml: defensive-function-nullable-heavy; STYLE.md, \"Nulls\"";
 
     public IEnumerable<TextSpan> Find(SyntaxNode node, RuleContext context)
@@ -107,7 +120,8 @@ public sealed class DefensiveFunctionNullableHeavy : IRule
         IfStatementSyntax[] guards =
         [
             .. new Function(node).OwnNodes.OfType<IfStatementSyntax>().Where(branch =>
-                branch.Condition.NullTested is not null && branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax)
+                branch.Condition.NullTested is not null &&
+                branch.Statement.Single is ReturnStatementSyntax or ThrowStatementSyntax)
         ];
         return guards.Length >= LeastGuards ? guards.Select(each => each.Span) : [];
     }

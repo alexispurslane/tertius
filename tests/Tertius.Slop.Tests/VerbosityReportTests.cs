@@ -28,7 +28,8 @@ public class VerbosityReportTests
         // The clone covers lines 4 to 6: line 5 is flagged too, and line 6 is blank.
         var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
 
-        VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report(("A.cs", 4, 6), ("B.cs", 1, 3))));
+        VerbosityReport report =
+            VerbosityReport.Of(codebase, Clones.FromReport(Report(("A.cs", 4, 6), ("B.cs", 1, 3))));
 
         (report.Verbosity, report.VerboseLines, report.FlaggedLines, report.CloneLines, report.Sloc, report.FileCount)
             .Should().Be((2.0 / 8.0, 2, 1, 2, 8, 1));
@@ -86,14 +87,15 @@ public class VerbosityReportTests
     {
         var codebase = new Codebase([SourceFile.Parse("src/A.cs", MinMax)]);
 
-        VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report(("Other.cs", 1, 9), ("Another.cs", 1, 9))));
+        VerbosityReport report =
+            VerbosityReport.Of(codebase, Clones.FromReport(Report(("Other.cs", 1, 9), ("Another.cs", 1, 9))));
 
         report.CloneLines.Should().Be(0);
     }
 
     [Fact]
     public void ACodebaseWithNoCodeHasNoVerbosity() =>
-        VerbosityReport.Of(new Codebase([]), Clones.FromReport(Report())).Verbosity.Should().Be(0);
+        VerbosityReport.Of(new([]), Clones.FromReport(Report())).Verbosity.Should().Be(0);
 
     [Fact]
     public void TheReportCountsTheFindingsAndLinesOfEveryRuleIncludingTheRulesThatFoundNothing()
@@ -102,7 +104,8 @@ public class VerbosityReportTests
 
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
-        report.Rules.Select(rule => rule.Id).Should().Equal(IRule.All.Select(rule => rule.Id).Order(StringComparer.Ordinal));
+        report.Rules.Select(rule => rule.Id).Should()
+            .Equal(IRule.All.Select(rule => rule.Id).Order(StringComparer.Ordinal));
         report.Rules.Should().ContainSingle(rule => rule.Findings > 0).Which.Should()
             .Match<RuleCount>(rule => rule.Id == "manual-min-max" && rule.Findings == 1 && rule.Lines == 1);
     }
@@ -131,7 +134,8 @@ public class VerbosityReportTests
         VerbosityReport report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
 
         report.TopFindings.Select(finding => (finding.File, finding.Line, finding.Rule)).Should().Equal(
-            ("src/A.cs", 6, "manual-min-max"), ("src/A.cs", 3, "ternary-same-value"), ("src/B.cs", 1, "ternary-same-value"));
+            ("src/A.cs", 6, "manual-min-max"), ("src/A.cs", 3, "ternary-same-value"),
+            ("src/B.cs", 1, "ternary-same-value"));
     }
 
     /// <summary>A jscpd JSON report with one clone per pair of fragments, each a file under src and a line range.</summary>

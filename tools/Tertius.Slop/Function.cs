@@ -37,6 +37,11 @@ public sealed record Function(SyntaxNode Node)
         Node.DescendantTokens(descendIntoChildren: node => node is not AttributeListSyntax).First().GetLocation()
             .GetLineSpan().StartLinePosition.Line + 1;
 
+    /// <summary>The nodes that the function owns: its descendants, but not those of its local functions.</summary>
+    public IEnumerable<SyntaxNode> OwnNodes =>
+        Node.DescendantNodes(descendIntoChildren: node => node == Node || node is not LocalFunctionStatementSyntax)
+            .Where(node => node is not LocalFunctionStatementSyntax);
+
     /// <summary>Every function in <paramref name="root"/>, in the order of the source.</summary>
     public static IEnumerable<Function> In(SyntaxNode root) =>
         root.DescendantNodes().Where(IsFunction).Select(node => new Function(node));
@@ -44,11 +49,6 @@ public sealed record Function(SyntaxNode Node)
     /// <summary>The measures of this function, in the file at <paramref name="file"/>.</summary>
     public FunctionMeasure Measure(string file) =>
         new() { File = file, Line = Line, Name = Name, Complexity = Complexity, Sloc = Sloc };
-
-    /// <summary>The nodes that the function owns: its descendants, but not those of its local functions.</summary>
-    public IEnumerable<SyntaxNode> OwnNodes =>
-        Node.DescendantNodes(descendIntoChildren: node => node == Node || node is not LocalFunctionStatementSyntax)
-            .Where(node => node is not LocalFunctionStatementSyntax);
 
     /// <summary>The function that holds <paramref name="node"/>, or null outside every function.</summary>
     public static Function? Holding(SyntaxNode node) =>
