@@ -7,13 +7,13 @@ namespace Tertius.Style.Tests;
 /// TS0001: a tuple type with an element that has no name, where the code writes the type, and where a declaration
 /// infers it. A deconstruction, and a tuple literal that a named type takes, are not reported.
 /// </summary>
-public class TupleElementNameTests
+public sealed class TupleElementNameTests
 {
     // Written tuple types
 
     [Fact]
     public async Task AFieldWhoseTupleHasNoNamesIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public class C
                             {
                                 public (int, double) Pair;
@@ -22,7 +22,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AReturnTypeWithOneUnnamedElementIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static (int Count, double) Stats() => (1, 2.0);
@@ -31,7 +31,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AParameterWhoseTupleHasNoNamesIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int First((int, int) pair) => 0;
@@ -40,7 +40,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AnUnnamedTupleAsATypeArgumentIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             using System.Collections.Generic;
                             public class C
                             {
@@ -50,7 +50,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ALocalWithAnExplicitUnnamedTupleTypeIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Sum()
@@ -63,7 +63,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ATupleNestedInANamedTupleIsReportedOnce() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public class C
                             {
                                 public (int Id, (double, double) Range) Row;
@@ -73,7 +73,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task TheMessageNamesTheTupleType() =>
-        (await Analysis.Diagnostics("""
+        (await Analysis.Diagnostics("TS0001", """
                                     public class C
                                     {
                                         public (int Count, double) Pair;
@@ -85,7 +85,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarLocalThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Sum()
@@ -98,7 +98,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarLocalOfATupleLiteralWithAnUnnamedElementIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Sum(int count)
@@ -111,7 +111,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AForEachVariableThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Sum(System.ValueTuple<int, int>[] pairs)
@@ -126,7 +126,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AnOutVarThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 private static void Get(out System.ValueTuple<int, int> pair) => pair = default;
@@ -140,7 +140,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarPatternThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int First() =>
@@ -150,7 +150,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ADeconstructionIntoAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int First()
@@ -163,7 +163,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ANestedDeconstructionIntoAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int First()
@@ -176,7 +176,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task APropertyPatternThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int First() =>
@@ -186,7 +186,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarLocalOfASequenceOfUnnamedTuplesIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             using System.Linq;
                             public static class C
                             {
@@ -200,7 +200,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarLocalOfAnArrayOfUnnamedTuplesIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Count()
@@ -213,7 +213,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AnUnnamedTupleInsideANamedOneIsReportedForAVarLocal() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static double Low()
@@ -238,7 +238,7 @@ public class TupleElementNameTests
                               }
                               """;
 
-        Diagnostic found = (await Analysis.Diagnostics(source)).Single();
+        Diagnostic found = (await Analysis.Diagnostics("TS0001", source)).Single();
 
         source.Substring(found.Location.SourceSpan.Start, found.Location.SourceSpan.Length).Should().Be("pair");
         found.GetMessage().Should().StartWith("The tuple type '(int, int)'");
@@ -246,7 +246,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ALambdaParameterThatInfersAnUnnamedTupleIsReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             using System.Linq;
                             public static class C
                             {
@@ -259,7 +259,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ATupleWithEveryElementNamedIsNotReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static (int Count, double Mean) Stats((int Low, int High) range)
@@ -272,7 +272,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task ADeconstructionIsNotReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static int Sum()
@@ -286,7 +286,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AVarLocalWhoseTupleNamesAreInferredIsNotReported() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             using System.Linq;
                             public static class C
                             {
@@ -301,7 +301,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task AnExplicitlyTypedLambdaParameterIsReportedAtItsTypeOnly() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             public static class C
                             {
                                 public static System.Func<(int, int), int> First = ((int, int) pair) => pair.Item1;
@@ -310,7 +310,7 @@ public class TupleElementNameTests
 
     [Fact]
     public async Task GeneratedCodeIsNotAnalyzed() =>
-        (await Analysis.Ids("""
+        (await Analysis.Ids("TS0001", """
                             // <auto-generated/>
                             public class C
                             {

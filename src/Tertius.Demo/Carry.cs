@@ -91,12 +91,13 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
                 // The left button charges a throw when it goes down with a crate in hand, and throws when it goes up.
                 switch (e.As<InputEvent>())
                 {
-                    case MouseButtonChanged(var button, true)
+                    case MouseButtonChanged { Code: var button, IsDown: true }
                         when (MouseButton)button == MouseButton.Left && !copy.IsNull:
                         charging = true;
                         chargeStart = self.Tick;
                         break;
-                    case MouseButtonChanged(var button, false) when (MouseButton)button == MouseButton.Left && charging:
+                    case MouseButtonChanged { Code: var button, IsDown: false }
+                        when (MouseButton)button == MouseButton.Left && charging:
                         charging = false;
                         Throw(self, outbox);
                         break;

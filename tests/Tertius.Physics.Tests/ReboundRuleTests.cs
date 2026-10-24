@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 /// distance) apart before the pull brings them back, or when nothing pulls them together. Otherwise the contact does not
 /// bounce. Until the review of ter-ejx9 the rule asked for a rebound of 1 m/s at any gravity, and ignored the pull.
 /// </summary>
-public class ReboundRuleTests
+public sealed class ReboundRuleTests
 {
     private const float G = 9.81f;
     private const float Step = 1f / 60;

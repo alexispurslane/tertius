@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// the query. A stored <see cref="EventQuery{T}"/> runs through <see cref="EventList.Find{T}(EventQuery{T})"/> with the
 /// same words. No query allocates.
 /// </summary>
-public class EventQueryTests
+public sealed class EventQueryTests
 {
     private static readonly Entity Owner = new(7, 3);
     private static readonly Entity Alice = new(9, 1);

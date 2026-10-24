@@ -251,8 +251,14 @@ public sealed partial class LoftedHull
     private float OuterLevel(int level) => level < Bays ? ribs[level] : sections[^1].Z;
 
     /// <summary>The z of the inner skin's grid level: that of the outer skin, but one wall inside each end.</summary>
-    private float InnerLevel(int level) =>
-        level == 0 ? sections[0].Z + wall : level == Bays ? sections[^1].Z - wall : ribs[level];
+    private float InnerLevel(int level)
+    {
+        if (level == 0)
+            return sections[0].Z + wall;
+        if (level == Bays)
+            return sections[^1].Z - wall;
+        return ribs[level];
+    }
 
     /// <summary>
     /// A doorway through the flat panel of the edges from <paramref name="fromCorner"/> to <paramref name="toCorner"/> in
@@ -284,11 +290,13 @@ public sealed partial class LoftedHull
                     nameof(toCorner));
         float z0 = OuterLevel(bay - 1), z1 = OuterLevel(bay);
         Vector3 a0 = OuterPlace(fromCorner, z0), b0 = OuterPlace(toCorner, z0), a1 = OuterPlace(fromCorner, z1);
-        int axis = a0.X == b0.X && a0.X == a1.X ? 0 : a0.Y == b0.Y && a0.Y == a1.Y ? 1 : -1;
-        if (axis < 0)
+        bool acrossX = a0.X == b0.X && a0.X == a1.X;
+        bool acrossY = a0.Y == b0.Y && a0.Y == a1.Y;
+        if (!acrossX && !acrossY)
             throw new ArgumentException(
                 $"The panel of the edges from corner {fromCorner} to corner {toCorner} in bay {bay} does not lie in one plane across X or Y.",
                 nameof(toCorner));
+        int axis = acrossX ? 0 : 1;
         int along = 1 - axis;
         float iz0 = InnerLevel(bay - 1), iz1 = InnerLevel(bay);
         float outerPlane = Component(a0, axis), innerPlane = Component(InnerPlace(fromCorner, iz0), axis);
@@ -383,15 +391,15 @@ public sealed partial class LoftedHull
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge, Corners);
         ArgumentOutOfRangeException.ThrowIfLessThan(bay, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(bay, Bays);
-        return door != null && door.Bay == bay &&
-               PanelCorners(door.FromCorner, door.ToCorner).SkipLast(1).Contains(edge)
-            ? throw new ArgumentException(
+        bool inDoorPanel = door != null && door.Bay == bay &&
+                           PanelCorners(door.FromCorner, door.ToCorner).SkipLast(1).Contains(edge);
+        if (inDoorPanel)
+            throw new ArgumentException(
                 $"The cell of edge {edge} in bay {bay} is part of the door's panel, which stays solid round the doorway.",
-                nameof(edge))
-            : Cells().Any(cell => cell.Edge == edge && cell.Bay == bay)
-                ? throw new ArgumentException($"The cell of edge {edge} in bay {bay} holds a pane already.",
-                    nameof(edge))
-                : WithPane(new CellPane(pane, edge, bay));
+                nameof(edge));
+        if (Cells().Any(cell => cell.Edge == edge && cell.Bay == bay))
+            throw new ArgumentException($"The cell of edge {edge} in bay {bay} holds a pane already.", nameof(edge));
+        return WithPane(new CellPane(pane, edge, bay));
     }
 
     /// <summary>
@@ -1122,7 +1130,7 @@ public sealed partial class LoftedHull
         return least;
     }
 
-    private static float Component(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
+    private static float Component(Vector3 v, int axis) => axis switch { 0 => v.X, 1 => v.Y, _ => v.Z };
 
     private static (double X, double Y) Edge(HullSection section, int edge)
     {
@@ -1215,7 +1223,14 @@ public sealed partial class LoftedHull
             Vector3[] outer = [.. panel.OrderBy(From)];
             Vector3[] inner = [.. hole.OrderBy(p => p == hole[0] ? -1 : From(p))];
             double OuterAngle(int i) => i == outer.Length ? From(outer[0]) + Math.Tau : From(outer[i]);
-            double InnerAngle(int j) => j == inner.Length ? Math.Tau : j == 0 ? 0 : From(inner[j]);
+            double InnerAngle(int j)
+            {
+                if (j == inner.Length)
+                    return Math.Tau;
+                if (j == 0)
+                    return 0;
+                return From(inner[j]);
+            }
             Vector3 tangent = u;
             int a = 0, b = 0;
             while (a < outer.Length || b < inner.Length)

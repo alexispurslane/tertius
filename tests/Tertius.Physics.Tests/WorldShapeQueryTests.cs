@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// tick, and the answers, a <see cref="ShapeHit"/> or one <see cref="OverlapHit"/> for each entity, arrive in the next
 /// tick. Every expected distance, point and normal comes from the geometry of the scene, worked out in the test.
 /// </summary>
-public class WorldShapeQueryTests
+public sealed class WorldShapeQueryTests
 {
     /// <summary>Jolt finds the touch of a moving shape to within its collision tolerance of 0.1 mm, in floats.</summary>
     private const double Tolerance = 1e-3;

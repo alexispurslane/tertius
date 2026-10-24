@@ -14,12 +14,14 @@ internal static class FrameReads
     /// ancestor of the home and <paramref name="to"/>, so a read between nearby entities far from their row frame's origin
     /// stays exact (see "Nesting for vast distances" in docs/plans/numeric-frames.md).
     /// </summary>
-    public static DPose PoseIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to) =>
-        row.Frame == to
-            ? row.Pose
-            : row.Frame.IsNull
-                ? frames.Relative(OwnFrame(frames, entity), to)
-                : DPose.Compose(frames.Relative(row.PhysicsHome, to), row.HomePose);
+    public static DPose PoseIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)
+    {
+        if (row.Frame == to)
+            return row.Pose;
+        if (row.Frame.IsNull)
+            return frames.Relative(OwnFrame(frames, entity), to);
+        return DPose.Compose(frames.Relative(row.PhysicsHome, to), row.HomePose);
+    }
 
     public static Double3 VelocityIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)
     {

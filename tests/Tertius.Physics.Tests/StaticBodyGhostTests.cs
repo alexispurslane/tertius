@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// hulls too (fork F1), and it is static in Jolt while it holds still in its system. Each scene runs across frames and with
 /// the same bodies in one frame, and both runs hear the same events.
 /// </summary>
-public class StaticBodyGhostTests
+public sealed class StaticBodyGhostTests
 {
     private const float G = 9.81f;
 

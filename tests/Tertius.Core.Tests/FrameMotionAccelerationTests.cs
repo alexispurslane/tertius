@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// The tests with literal results use a frame at (10, 0, 0) that stands a quarter turn about +Z from its parent, so that
 /// the frame's +X is the parent's +Y and its +Y is the parent's -X.
 /// </summary>
-public class FrameMotionAccelerationTests
+public sealed class FrameMotionAccelerationTests
 {
     // The frame moves at (0, 5, 0) and accelerates at (1, 0, 0). It turns at 2 rad/s about +Z and spins up at 3 rad/s².
     private static readonly FrameMotion QuarterTurned = new(

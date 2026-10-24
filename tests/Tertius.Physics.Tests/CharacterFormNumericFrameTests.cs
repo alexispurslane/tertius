@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// and sync step 7b converts it into the frame that a hand-off of that tick's step gave the character, before the next
 /// step gives the character the form that the new frame's gravity asks for.
 /// </summary>
-public class CharacterFormNumericFrameTests
+public sealed class CharacterFormNumericFrameTests
 {
     private const float PersonMass = 70;
 
@@ -68,7 +68,13 @@ public class CharacterFormNumericFrameTests
         FrameHandle earth)
     {
         FrameHandle home = world.PhysicsHomeOf(person);
-        string kind = home == station ? "station" : home == earth ? "earth" : world.Frames.Numeric(home).ToString();
+        string kind;
+        if (home == station)
+            kind = "station";
+        else if (home == earth)
+            kind = "earth";
+        else
+            kind = world.Frames.Numeric(home).ToString();
         return $"{kind} {(backend.HasRigidForm(person) ? "rigid" : "walking")}";
     }
 
@@ -283,9 +289,14 @@ public class CharacterFormNumericFrameTests
                     .BeFalse($"after tick {tick} no body of earth may touch the character's ghost in K");
         }
 
-        states.Should().Equal(!numericFrames ? ["station rigid", "earth rigid", "earth walking"]
-            : plate ? ["station rigid", "Following rigid"]
-            : ["station rigid", "Falling rigid"],
+        string[] expected;
+        if (!numericFrames)
+            expected = ["station rigid", "earth rigid", "earth walking"];
+        else if (plate)
+            expected = ["station rigid", "Following rigid"];
+        else
+            expected = ["station rigid", "Falling rigid"];
+        states.Should().Equal(expected,
             "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
         ghostWhileRigid.Should()
             .BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");

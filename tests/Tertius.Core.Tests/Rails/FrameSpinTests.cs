@@ -7,9 +7,8 @@ namespace Tertius.Core.Tests;
 /// The spin of a frame that turns in place: a lean by its tilt, then a steady turn about its own +Y. The tilt here
 /// leans the pole 23.44 degrees from the parent's +Y toward its +X, as Earth's axis leans from the pole of its orbit.
 /// </summary>
-public class FrameSpinTests
+public sealed class FrameSpinTests
 {
-    private const double Tick = 1.0 / 60;
     private static readonly DQuaternion Obliquity = DQuaternion.FromAxisAngle(new(0, 0, 1), -23.44 * Math.PI / 180);
     private static readonly Double3 Pole = new(Math.Sin(23.44 * Math.PI / 180), Math.Cos(23.44 * Math.PI / 180), 0);
 
@@ -108,13 +107,13 @@ public class FrameSpinTests
     [Fact]
     public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()
     {
-        Turning.Sample(Place, 12.5, Tick).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
+        Turning.Sample(Place, 12.5).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
     }
 
     [Fact]
     public void A_spin_sample_does_not_move()
     {
-        MotionSample sample = Turning.Sample(Place, 12.5, Tick);
+        MotionSample sample = Turning.Sample(Place, 12.5);
 
         sample.ChordVelocity.Should().Be(Double3.Zero);
         sample.Velocity.Should().Be(Double3.Zero);
@@ -124,7 +123,7 @@ public class FrameSpinTests
     [Fact]
     public void A_spin_sample_turns_steadily_at_the_angular_velocity_of_the_spin()
     {
-        MotionSample sample = Turning.Sample(Place, 12.5, Tick);
+        MotionSample sample = Turning.Sample(Place, 12.5);
 
         sample.AngularVelocity.Should().Be(Turning.AngularVelocity);
         sample.AngularAcceleration.Should().Be(Double3.Zero);

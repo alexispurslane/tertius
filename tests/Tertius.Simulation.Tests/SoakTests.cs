@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// one thread (the default is one, so that the default run is deterministic). The test prints the exposure and the mean
 /// time between failures.
 /// </summary>
-public class SoakTests(ITestOutputHelper output)
+public sealed class SoakTests(ITestOutputHelper output)
 {
     private const int FirstSeed = 5000;
 

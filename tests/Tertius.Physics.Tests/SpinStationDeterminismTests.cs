@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// "Acceptance tests"): a scene in a turning station gives the same events and the same state, to the bit, in every run,
 /// with one gameplay thread and one Jolt thread or with four of each.
 /// </summary>
-public class SpinStationDeterminismTests
+public sealed class SpinStationDeterminismTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

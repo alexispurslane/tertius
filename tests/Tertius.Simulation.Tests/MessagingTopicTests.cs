@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// entities in the frame and the entities that subscribed to it from elsewhere. A change of subscription or of frame
 /// applies at the sync point, before the routing.
 /// </summary>
-public class MessagingTopicTests
+public sealed class MessagingTopicTests
 {
     private static Topic Named(string name) => Topics.Get($"tests.messagingtopic.{name}");
 

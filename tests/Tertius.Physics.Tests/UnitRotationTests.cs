@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// Each test runs the World on the real backend and checks two things: the rotations in the step outputs that Jolt really
 /// sent (which <see cref="FaultInjectingBackend"/> records), and the poses that the World holds after every tick.
 /// </summary>
-public class UnitRotationTests
+public sealed class UnitRotationTests
 {
     private const double Tolerance = 1e-12;
 

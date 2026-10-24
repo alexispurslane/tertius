@@ -76,8 +76,14 @@ internal static class DepthRanges
         Projection(verticalFov: verticalFov, aspect: aspect, near: NearOf(range), far: float.PositiveInfinity);
 
     /// <summary>The range that holds a view depth by the nominal boundaries.</summary>
-    public static int Containing(float depth) =>
-        depth < NearMiddle ? Near : depth < MiddleFar ? Middle : Far;
+    public static int Containing(float depth)
+    {
+        if (depth < NearMiddle)
+            return Near;
+        if (depth < MiddleFar)
+            return Middle;
+        return Far;
+    }
 
     /// <summary>
     /// The ranges an opaque sphere at view depth <paramref name="depth"/> with radius <paramref name="radius"/> is

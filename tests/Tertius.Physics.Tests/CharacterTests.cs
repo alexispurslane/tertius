@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// command with <see cref="Send"/>, which ticks once, and ticks on to see what the command did. The step of the tick that
 /// sends a command does not know the command yet.
 /// </summary>
-public class CharacterTests
+public sealed class CharacterTests
 {
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;

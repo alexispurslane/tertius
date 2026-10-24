@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// changes to the front intents with the list of their writers, which the step 4 after the next step visits to store them
 /// (<see cref="EntityTable.CollectFrontMotionChanges"/>).
 /// </summary>
-public class EntityTableMotionChangeTests
+public sealed class EntityTableMotionChangeTests
 {
     private static List<Entity> MotionChanges(EntityTable table)
     {

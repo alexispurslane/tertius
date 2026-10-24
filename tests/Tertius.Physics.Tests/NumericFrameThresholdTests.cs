@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// update at the sync point at the end of the tick reads it: so the thrust of the first tick counts at the first sync
 /// point. At 60 Hz, 30 ticks of thrust give 30 × (1/60 s as a float) = 0.50000003 s, and 29 ticks give 0.483 s.
 /// </remarks>
-public class NumericFrameThresholdTests
+public sealed class NumericFrameThresholdTests
 {
     private const float CrateMass = 10;
 

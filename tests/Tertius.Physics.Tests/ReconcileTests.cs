@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// empty change batch, see <see cref="Reconcile"/>) and reads the backend between the reconcile and the step. The comment
 /// of each such test says which it does and why.
 /// </summary>
-public class ReconcileTests
+public sealed class ReconcileTests
 {
     /// <summary>A hull of 4 m by 4 m by 4 m with a mass of 1000 kg, and no damping or bounce.</summary>
     private static BodyDesc ShipHull() =>

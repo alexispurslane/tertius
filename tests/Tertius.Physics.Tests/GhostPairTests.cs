@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// real bodies, and the ledger counts it once, however many systems hold it. Each scene runs across frames and with the
 /// same bodies in one frame, and both runs hear the same events.
 /// </summary>
-public class GhostPairTests
+public sealed class GhostPairTests
 {
     /// <summary>A dynamic sensor ball of radius 0.5 m and 1 kg that nothing slows down.</summary>
     private static readonly BodyDesc SensorBall = Ball() with { IsSensor = true };

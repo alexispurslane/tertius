@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests.Precision;
 /// How far the relative motion of two free bodies drifts from the exact one at each common speed (ticket ter-kugq). It
 /// writes relative-drift.csv; see <see cref="MotionDrift"/> for the method and the columns.
 /// </summary>
-public class RelativeDriftMeasurement
+public sealed class RelativeDriftMeasurement
 {
     /// <summary>
     /// Two dynamic boxes of 1 m by 1 m by 1 m and 10 kg, with no damping, in zero gravity. Box A starts 5 m along −x from the

@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// (<see cref="EntityTable.AddPush"/>) and empties each part's (<see cref="EntityTable.ClearPush"/>). The table also keeps
 /// the center of mass of each body from its spawn.
 /// </summary>
-public class EntityTablePushTests
+public sealed class EntityTablePushTests
 {
     /// <summary>A frame handle that names no frame tree: the table only copies it.</summary>
     private static readonly FrameHandle Space = new(new(99, 1), 1, 1);

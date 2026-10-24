@@ -49,7 +49,7 @@ public static class ScriptRunner
                 case ReadyPost post:
                     world.Post(post.Event);
                     break;
-                case ReadyCamera(Entity entity, string where):
+                case ReadyCamera { Entity: Entity entity, Where: string where }:
                     world.Camera = world.IsAlive(entity)
                         ? entity
                         : throw new ScriptException(
@@ -65,7 +65,7 @@ public static class ScriptRunner
                         File.WriteAllText(Path.Combine(outputFolder, name + ".json"),
                             JsonSerializer.Serialize(dump, dumpJson) + "\n");
                     break;
-                case ReadyCapture(string name, string where):
+                case ReadyCapture { Name: string name, Where: string where }:
                     if (!Capture(name, where))
                         return new(dumps, captures, stopped: true);
                     break;
@@ -245,12 +245,14 @@ public static class ScriptRunner
             "A post step has a target with no value, which Script.CheckSteps refuses.")
     };
 
-    private static Entity LiveEntity(string id, World world, SceneInstance scene, string where) =>
-        !scene.TryGetEntity(id, out Entity entity)
-            ? throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.")
-            : world.IsAlive(entity)
-                ? entity
-                : throw new ScriptException($"{where}: the entity '{id}' is not alive.");
+    private static Entity LiveEntity(string id, World world, SceneInstance scene, string where)
+    {
+        if (!scene.TryGetEntity(id, out Entity entity))
+            throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.");
+        if (!world.IsAlive(entity))
+            throw new ScriptException($"{where}: the entity '{id}' is not alive.");
+        return entity;
+    }
 }
 
 /// <summary>What a scripted run made: its state dumps and the names of its captures, each in the order taken.</summary>

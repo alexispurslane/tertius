@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// the tick. A Release build skips the whole update of every entity that the output names, and records one error. The tests
 /// also pin down how the sync point orders the parts of one step's output, and what it keeps of a skipped update.
 /// </summary>
-public class PhysicsOutputCheckTests
+public sealed class PhysicsOutputCheckTests
 {
     private static readonly BodyDesc PersonBody = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f),
         Motion: BodyMotion.Character, Mass: 70);

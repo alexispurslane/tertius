@@ -14,7 +14,7 @@ namespace Tertius.Core.Tests;
 /// up as fields of a point light. Equality needs the same case and the same fields. A <c>switch</c> over the light takes the
 /// arm of the case that it holds. The batcher tests in the rendering module pin what the renderer does with each case.
 /// </summary>
-public class RenderLightUnionTests
+public sealed class RenderLightUnionTests
 {
     private static readonly Vector3 Here = new(1, 2, 3);
     private static readonly Vector3 Down = new(0, -1, 0);
@@ -47,8 +47,10 @@ public class RenderLightUnionTests
 
     private static string ArmOf(RenderLight light) => light switch
     {
-        PointRenderLight(var position, _, var intensity, var range) => $"point {position.X} {intensity} {range}",
-        SpotRenderLight(_, var direction, _, _, _, var inner, var outer) => $"spot {direction.Y} {inner} {outer}",
+        PointRenderLight { Position: var position, Intensity: var intensity, Range: var range } =>
+            $"point {position.X} {intensity} {range}",
+        SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
+            $"spot {direction.Y} {inner} {outer}",
         null => "none"
     };
 
@@ -175,8 +177,8 @@ public class RenderLightUnionTests
     {
         return light switch
         {
-            PointRenderLight(_, _, _, var range) => range,
-            SpotRenderLight(_, _, _, _, var range, _, _) => range,
+            PointRenderLight { Range: var range } => range,
+            SpotRenderLight { Range: var range } => range,
             null => 0
         };
     }

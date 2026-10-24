@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="MessagingTopicTests"/>, delayed sends in <see cref="MessagingDelayedTests"/> and messages from outside
 /// the simulation in <see cref="MessagingPostTests"/>.
 /// </summary>
-public class MessagingTests
+public sealed class MessagingTests
 {
     // ---- Latency ----------------------------------------------------------------------------------------------------
 

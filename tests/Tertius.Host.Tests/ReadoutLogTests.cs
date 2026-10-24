@@ -62,7 +62,7 @@ public sealed class ReadoutLogTests
         {
             Frame = earth,
             Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
             AsFrame = new(FrameBounds.Sphere(1e3f)),
             Components = [new SpinMotion { Spin = spin }]
         });

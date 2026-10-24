@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// The input that the host sends to the input topic: a key or a mouse button that went down or up, a mouse that moved, or
 /// a scroll. The value holds only the fields of its own case, so a key code and a mouse movement can never be confused.
 /// </summary>
-public class InputEventTests
+public sealed class InputEventTests
 {
     private const int KeyW = 87;
     private static readonly Vector2 Moved = new(3, -4);

@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// The tests that tick 900 times leave the world's checks of its invariants at the end of every tick off, as
 /// <see cref="WorldSleepTests"/> does for its long runs. With them on, these tests take 3 s longer in a Debug build.
 /// </remarks>
-public class SleepTests
+public sealed class SleepTests
 {
     /// <summary>A cube of 1 m with no damping and no bounce, so that only gravity and the floor move it.</summary>
     private static BodyDesc Box(float mass) =>

@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// everywhere), <see cref="PointGravity"/> (a G·M), or the empty field, which is no gravity. The field holds only the
 /// values of its own case, so no field can be a uniform field that also carries a G·M.
 /// </summary>
-public class GravityFieldTests
+public sealed class GravityFieldTests
 {
     private const double EarthMu = 3.986004418e14;
     private static readonly Vector3 Down = new(0, -9.81f, 0);

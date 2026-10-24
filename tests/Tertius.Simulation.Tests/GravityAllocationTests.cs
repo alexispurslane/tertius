@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// nothing. It checks that a snapshot of a world like the second test's carries every kind of up, so that the second test
 /// does measure them.
 /// </summary>
-public class GravityAllocationTests
+public sealed class GravityAllocationTests
 {
     private static readonly Vector3 Down = new(0, -9.81f, 0);
     private static readonly BoundingBox Cabin = new(new(-2), new(2));

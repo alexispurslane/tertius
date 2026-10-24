@@ -17,7 +17,7 @@ namespace Tertius.Physics.Tests;
 /// thousand is larger than the bound.
 /// </para>
 /// </summary>
-public class KeplerFrameWithLooseBodyTests
+public sealed class KeplerFrameWithLooseBodyTests
 {
     private const double PlanetMu = 3.986004418e14;
     private const double OrbitRadius = 7e6;

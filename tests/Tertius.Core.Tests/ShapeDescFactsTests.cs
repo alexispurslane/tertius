@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The facts that a shape description gives about itself, with no physics backend: its kind, and the radius of the
 /// smallest sphere about the body's origin that holds it.
 /// </summary>
-public class ShapeDescFactsTests
+public sealed class ShapeDescFactsTests
 {
     private static readonly CompoundShapeDesc SphereAndTurnedCube = new(
     [

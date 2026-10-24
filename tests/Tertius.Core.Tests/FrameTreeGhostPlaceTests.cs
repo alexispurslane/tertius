@@ -21,10 +21,8 @@ namespace Tertius.Core.Tests;
 /// so a body that must fall at a few tens of m/s is a character. After every update the tree keeps its invariants.
 /// </para>
 /// </summary>
-public class FrameTreeGhostPlaceTests
+public sealed class FrameTreeGhostPlaceTests
 {
-    private const double Step = 1.0 / 60;
-
     /// <summary>
     /// A place 2^24 m (about 16,777 km) from ground's origin: twice the distance at which a slow group gets a resting frame,
     /// and short of the distance at which a numeric frame nests.

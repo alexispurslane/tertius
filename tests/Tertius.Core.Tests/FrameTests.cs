@@ -3,7 +3,7 @@ using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
-public class FrameTests
+public sealed class FrameTests
 {
     [Fact]
     public void SphereBoundsDistances()

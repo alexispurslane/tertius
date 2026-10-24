@@ -420,11 +420,12 @@ public sealed record BodyDesc(
                 return null;
         }
 
-        return Motion != BodyMotion.Static && Shape.ContainsMesh()
-            ? $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have"
-            : Motion == BodyMotion.Dynamic && !(Mass > 0)
-                ? $"is dynamic, so its mass must be positive, not {Mass}"
-                : null;
+        if (Motion != BodyMotion.Static && Shape.ContainsMesh())
+            return
+                $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have";
+        if (Motion == BodyMotion.Dynamic && !(Mass > 0))
+            return $"is dynamic, so its mass must be positive, not {Mass}";
+        return null;
     }
 
     private static string? NotFinite(string name, float value) =>

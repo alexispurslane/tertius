@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The attitude of a Kepler frame that faces its parent: its belly (-Y) toward the parent and its nose (-Z) along its
 /// motion across the horizon, like a station in low orbit. The orbits here go round Earth.
 /// </summary>
-public class KeplerAttitudeTests
+public sealed class KeplerAttitudeTests
 {
     private const double Mu = 3.986004418e14;
     private const double LowOrbit = 6.771e6;

@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// groups. The high 4 bits are the engine's roles: static, moving, frame hull and ghost. These tests check the encoding
 /// against the halves that Jolt itself reads from a layer.
 /// </summary>
-public class CollisionLayerTests
+public sealed class CollisionLayerTests
 {
     private static readonly CollisionGroups Solid = CollisionGroups.Of(CollisionGroup.Solid);
     private static readonly CollisionMask InAnySolid = CollisionMask.Empty.InAny(CollisionGroup.Solid);

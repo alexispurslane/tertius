@@ -6,7 +6,7 @@ namespace Tertius.Core.Tests;
 /// The pixels of one captured frame, as the renderer hands them to a capture sink: four bytes for each pixel of a frame
 /// of at least one pixel, nothing more and nothing less.
 /// </summary>
-public class CapturedImageTests
+public sealed class CapturedImageTests
 {
     [Fact]
     public void AnImageCarriesItsPixelsAndItsSize()

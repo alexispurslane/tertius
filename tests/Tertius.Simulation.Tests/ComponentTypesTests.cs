@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// checks for an assembly that loads later. The startup scan is tested on registries of their own, built from emitted
 /// assemblies, and the later loads on the registry of the process, with assemblies that load after its scan.
 /// </summary>
-public class ComponentTypesTests
+public sealed class ComponentTypesTests
 {
     [Fact]
     public void TheStartupScanGivesTheComponentTypesIdsInTheOrderOfTheirFullNames()

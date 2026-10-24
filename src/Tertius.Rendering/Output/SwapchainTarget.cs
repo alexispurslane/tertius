@@ -259,11 +259,11 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
                 .Check("vkGetPhysicalDeviceSurfacePresentModesKHR");
         }
 
-        return modes.Contains(PresentModeKHR.MailboxKhr)
-            ? PresentModeKHR.MailboxKhr
-            : modes.Contains(PresentModeKHR.ImmediateKhr)
-                ? PresentModeKHR.ImmediateKhr
-                : PresentModeKHR.FifoKhr;
+        if (modes.Contains(PresentModeKHR.MailboxKhr))
+            return PresentModeKHR.MailboxKhr;
+        if (modes.Contains(PresentModeKHR.ImmediateKhr))
+            return PresentModeKHR.ImmediateKhr;
+        return PresentModeKHR.FifoKhr;
     }
 
     private void DestroyViews()

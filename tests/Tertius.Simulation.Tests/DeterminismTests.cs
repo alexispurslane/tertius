@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// hears contacts, so a change in the order of anything shows in the hash. The four runs are made once, by
 /// <see cref="Runs"/>, and each test reads what it needs.
 /// </summary>
-public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output)
+public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output)
     : IClassFixture<DeterminismTests.Runs>
 {
     private const int Seed = 20261010;

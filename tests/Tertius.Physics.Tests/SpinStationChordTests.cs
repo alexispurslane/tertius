@@ -18,7 +18,7 @@ namespace Tertius.Physics.Tests;
 /// turns from its first step. Every expected value comes from the straight line of a free body in inertial space and the
 /// station's poses, never from the turns that the engine derives.
 /// </summary>
-public class SpinStationChordTests
+public sealed class SpinStationChordTests
 {
     /// <summary>The plane that the center of a crate of 1 m reaches when it lands on the floor face x = 100 m, in m.</summary>
     private const double LandingPlane = 99.5;
@@ -885,7 +885,7 @@ public class SpinStationChordTests
                 self.Body.Teleport(new(Double3.Zero, ahead.RotationAt(self.TimeAt(self.Tick + 1))));
             }
 
-            self.MoveOnRails(Spin.Sample(Double3.Zero, self.TimeAt(self.Tick + 2), self.DeltaTime));
+            self.MoveOnRails(Spin.Sample(Double3.Zero, self.TimeAt(self.Tick + 2)));
         }
     }
 
@@ -913,7 +913,7 @@ public class SpinStationChordTests
             Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic,
                 InteriorShape: new SphereShapeDesc(0.5f)),
             AsFrame = new(FrameBounds.Sphere(150)),
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
             Components = [jumping]
         });
         FrameHandle station = world.GetOwnedFrame(owner);

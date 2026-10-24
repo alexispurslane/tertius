@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="FrameTree.AssertInvariants()"/>, which works in every build, and its setters refuse a rotation that
 /// is not unit length in a build with contracts. The tolerance is 1E-12 in the square of the length.
 /// </summary>
-public class FrameTreeUnitRotationTests
+public sealed class FrameTreeUnitRotationTests
 {
     private static readonly DQuaternion Widened =
         DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));

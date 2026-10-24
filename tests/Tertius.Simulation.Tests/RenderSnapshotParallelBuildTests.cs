@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="RenderSnapshotBuilder.ParallelThreshold"/> slots on, so one test forces that threshold down to one slot,
 /// and a small world then builds every snapshot on the workers.
 /// </summary>
-public class RenderSnapshotParallelBuildTests
+public sealed class RenderSnapshotParallelBuildTests
 {
     /// <summary>The number of entities, enough to pass the default size at which the builder goes parallel (8,192 slots).</summary>
     private const int EntityCount = 12_000;

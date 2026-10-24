@@ -8,14 +8,14 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Tertius.Style.Tests;
 
 /// <summary>The set of rules that the style analyzer has.</summary>
-public class StyleRulesTests
+public sealed class StyleRulesTests
 {
     [Fact]
-    public void TheAnalyzerHasThreeRulesThatAreWarningsOnByDefault()
+    public void TheAnalyzerHasFourteenRulesThatAreWarningsOnByDefault()
     {
         ImmutableArray<DiagnosticDescriptor> rules = new StyleAnalyzer().SupportedDiagnostics;
 
-        rules.Select(rule => rule.Id).Should().Equal("TS0001", "TS0002", "TS0003");
+        rules.Select(rule => rule.Id).Should().Equal(Enumerable.Range(1, 14).Select(number => $"TS{number:D4}"));
         rules.Should().OnlyContain(
             rule => rule.DefaultSeverity == DiagnosticSeverity.Warning && rule.IsEnabledByDefault,
             "a rule is a warning, as a compiler warning is, and TreatWarningsAsErrors makes it an error");
@@ -26,9 +26,9 @@ public class StyleRulesTests
     {
         CancellationToken cancel = TestContext.Current.CancellationToken;
         CSharpCompilation compilation = TestCompilation.Of("""
-                                                           public class C
+                                                           public static class C
                                                            {
-                                                               public (int, double) Pair;
+                                                               public static (int, double) Pair;
                                                            }
                                                            """);
         CSharpCompilation strict = compilation.WithOptions(
@@ -59,4 +59,22 @@ public class StyleRulesTests
     [Fact]
     public void TheCodeFixFixesTheRuleOfUnnamedArguments() =>
         new NameArgumentsFix().FixableDiagnosticIds.Should().Equal("TS0002");
+
+    [Fact]
+    public void ThePropertyPatternFixFixesTheRuleOfPositionalReads() =>
+        new PropertyPatternFix().FixableDiagnosticIds.Should().Equal("TS0004");
+
+    [Fact]
+    public void TheInliningFixFixesTheRuleOfDefaultMethods() =>
+        new InlineDefaultMethodFix().FixableDiagnosticIds.Should().Equal("TS0005");
+
+    [Fact]
+    public void TheSealingFixFixesTheRuleOfUnsealedClasses() =>
+        new SealClassFix().FixableDiagnosticIds.Should().Equal("TS0006");
+
+    [Fact]
+    public void EveryMessageNamesTheSectionOfTheGuideThatItEnforces() =>
+        new StyleAnalyzer().SupportedDiagnostics.Should().OnlyContain(
+            rule => rule.MessageFormat.ToString().Contains("(STYLE.md, \""),
+            "a reader of the build error finds the reason in the guide");
 }

@@ -4,7 +4,7 @@ namespace Tertius.Physics.Tests;
 /// A velocity shadow carried into another home (docs/plans/spin-gravity.md, "V6, the velocity shadow"): a body with no
 /// shadow keeps none, and a shadow moves its tracking as <see cref="ShadowTracking.Moved"/> says.
 /// </summary>
-public class VelocityShadowTests
+public sealed class VelocityShadowTests
 {
     private static readonly Double3 Offset = new(12.5, -3.25, 7);
     private static readonly Double3 HomeVelocity = new(0.5, 1.75, -2);

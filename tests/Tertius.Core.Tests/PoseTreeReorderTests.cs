@@ -6,7 +6,7 @@ namespace Tertius.Core.Tests;
 /// A move under a node that comes later in the dense order leaves the order to be fixed at the next access, which replaces
 /// the tree's arrays. A read or write right after the move still finds its own node.
 /// </summary>
-public class PoseTreeReorderTests
+public sealed class PoseTreeReorderTests
 {
     private static DPose At(double x) => new(new(x, 0, 0), DQuaternion.Identity);
 

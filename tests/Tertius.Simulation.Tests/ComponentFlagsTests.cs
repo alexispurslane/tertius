@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>The 512-bit sets of component types, and the component masks that test them. Pure logic, no world.</summary>
-public class ComponentFlagsTests
+public sealed class ComponentFlagsTests
 {
     private static ComponentFlags Of(params int[] ids)
     {

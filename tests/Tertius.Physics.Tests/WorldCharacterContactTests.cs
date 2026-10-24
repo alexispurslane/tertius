@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// 2 cm from what it touches, which is Jolt's speculative contact distance, so Jolt loses the contact and finds it again
 /// while the character pushes an awake box. The character's own contact list knows what the character touches.
 /// </summary>
-public class WorldCharacterContactTests
+public sealed class WorldCharacterContactTests
 {
     private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: 70);

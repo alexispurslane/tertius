@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// (<see cref="FrameTree.FollowKindInStep"/>): the record of a hull that was dynamic in the step is physics, the record of a
 /// full sample is rails, that of an end pose is kinematic, and any other record is static.
 /// </summary>
-public class FrameTreeFollowedTests
+public sealed class FrameTreeFollowedTests
 {
     private const double Step = 1.0 / 60;
 

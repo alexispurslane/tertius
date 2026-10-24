@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// target only to the float rounding of the velocity that it gives the body (docs/plans/rails-components.md, "MoveKinematic
 /// as an end pose"). The tests run the real World on the real Jolt backend.
 /// </summary>
-public class KinematicEndPoseTests
+public sealed class KinematicEndPoseTests
 {
     private static readonly Double3 Start = new(12_345.678, -910.11, 42.4242);
 

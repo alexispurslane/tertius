@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The source lines of code of a function and of a file (docs/plans/code-quality-tooling.md, decision 16): the lines
 /// that hold code, and not the lines that are blank or hold only comments.
 /// </summary>
-public class SlocTests
+public sealed class SlocTests
 {
     [Fact]
     public void BlankLinesAndLinesOfOnlyCommentsAreNotCode() =>

@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// move together as one body of 90 kg. A force that a component writes during a tick acts in the physics step of the next
 /// tick, so a test counts the thrust steps as the calls of the pilot before each tick.
 /// </remarks>
-public class WeightlessCharacterPushTests
+public sealed class WeightlessCharacterPushTests
 {
     private const float PersonMass = 70;
     private const float CrateMass = 20;

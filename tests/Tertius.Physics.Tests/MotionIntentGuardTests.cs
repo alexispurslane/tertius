@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="World.MotionIntentProblem"/> gives, and leaves the next step no motion intent. A kinematic body moves only by
 /// its motion intents and teleports, so it refuses a velocity. The world runs on the real backend.
 /// </summary>
-public class MotionIntentGuardTests
+public sealed class MotionIntentGuardTests
 {
     private static readonly FrameSpec SmallBubble = new(FrameBounds.Sphere(0.01f));
 
@@ -354,7 +354,7 @@ public sealed class RefusedRailsAllocationCollection;
 /// runs while no other test runs. The world runs on the real backend.
 /// </summary>
 [Collection(nameof(RefusedRailsAllocationTests))]
-public class RefusedRailsAllocationTests
+public sealed class RefusedRailsAllocationTests
 {
     private static readonly BodyDesc StaticBox = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)),
         Motion: BodyMotion.Static);

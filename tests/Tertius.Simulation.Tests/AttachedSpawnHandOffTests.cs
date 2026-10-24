@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// makes the new entity live in the frame of its parent at that moment, so the hand-off does not fail the spawn. The
 /// scene runs the real World on the real Jolt backend: a ball drifts from the root frame into the bubble of a station.
 /// </summary>
-public class AttachedSpawnHandOffTests
+public sealed class AttachedSpawnHandOffTests
 {
     private static readonly Pose ChildOffset = new(new(0, 0, 2), Quaternion.Identity);
     private static readonly Pose GrandchildOffset = new(new(0, 1, 0), Quaternion.Identity);

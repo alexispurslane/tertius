@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// which <see cref="FaultInjectingBackend"/> records. A test of an end that only a bug produces edits the output of one
 /// step, through the same wrapper.
 /// </summary>
-public class PhysicsContactEndTests
+public sealed class PhysicsContactEndTests
 {
     /// <summary>
     /// Two balls in the root frame that touch, each with a <see cref="Recorder"/> for <see cref="Collision"/> and

@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Tertius.Core.Tests;
 
-public class MathTests
+public sealed class MathTests
 {
     private const double Eps = 1e-9;
 

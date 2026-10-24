@@ -17,7 +17,7 @@ namespace Tertius.Physics.Tests;
 /// rebound of 1 m/s, the restitution times the approach speed, at any gravity: at 1 g that is about the same, but at 2 g
 /// and more a bounce that it kept could stay inside the 2 cm, and in zero gravity it stopped bounces that never come back.
 /// </summary>
-public class ReboundTests
+public sealed class ReboundTests
 {
     private const float G = 9.81f;
 

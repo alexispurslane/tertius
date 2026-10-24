@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity rules about comments (docs/plans/code-quality-tooling.md, decision 17): a decorative banner, from
 /// scb-check, and the user's rule for a comment that repeats the code under it.
 /// </summary>
-public class CommentRuleTests
+public sealed class CommentRuleTests
 {
     [Theory]
     [InlineData("// ==========")]

@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// and "Task 6: the assembly"): the snapshot shows the rows of the puff table, placed through the frame tree relative to
 /// the camera, on the real World and Jolt backend.
 /// </summary>
-public class PuffSnapshotTests
+public sealed class PuffSnapshotTests
 {
     /// <summary>The hash of the snapshot puffs of <see cref="BusySceneWithCamera"/> after 300 ticks.</summary>
     private const ulong PinnedHash = 17855250322041096263;

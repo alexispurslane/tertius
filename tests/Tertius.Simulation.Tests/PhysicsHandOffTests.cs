@@ -12,9 +12,8 @@ namespace Tertius.Simulation.Tests;
 /// hand-off that Jolt really sent. A test of a hand-off that only a bug produces edits the output of one step, through
 /// <see cref="FaultInjectingBackend"/>.
 /// </summary>
-public class PhysicsHandOffTests
+public sealed class PhysicsHandOffTests
 {
-    private static readonly Vector3 AnyVelocity = new(1, 2, 3);
     private static readonly Vector3 AnySpin = new(0, 4, 0);
 
     /// <summary>
@@ -359,6 +358,9 @@ public class PhysicsHandOffTests
             .WithMessage($"*hand-off of {owner}*hull of {frame}*only a dynamic hull hands off*");
     }
 #else
+    // The velocity that the edited output of a step reports. Only the tests of Release builds edit the output.
+    private static readonly Vector3 AnyVelocity = new(1, 2, 3);
+
     [Fact]
     public void AHandOffOfAnEntityThatNoLongerExistsIsReportedOnceAndChangesNothing()
     {

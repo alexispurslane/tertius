@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="PoseNode"/> for any index and skip the generation check. Only the frame tree, in the same module, reads
 /// them, for its walks over every frame.
 /// </summary>
-public class PoseTreeStorageAccessTests
+public sealed class PoseTreeStorageAccessTests
 {
     [Theory]
     [InlineData(nameof(PoseTree<>.IdsDense))]

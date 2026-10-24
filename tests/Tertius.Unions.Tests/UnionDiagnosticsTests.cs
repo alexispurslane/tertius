@@ -9,7 +9,7 @@ namespace Tertius.Unions.Tests;
 /// The declarations that the generator refuses, each with its own diagnostic, and a declaration that it accepts. The
 /// tests run the generator in process on a compilation of one source file.
 /// </summary>
-public class UnionDiagnosticsTests
+public sealed class UnionDiagnosticsTests
 {
     private static CSharpParseOptions Parse => TestCompilation.Parse;
 
@@ -25,6 +25,26 @@ public class UnionDiagnosticsTests
 
         ids.Should().BeEmpty();
         errors.Should().BeEmpty("the generated members compile");
+    }
+
+    [Fact]
+    public void ARefusalIsAWarningThatTheProjectsMakeAnError()
+    {
+        CSharpCompilation compilation = TestCompilation.Of("""
+                                                           public readonly record struct A(int X);
+                                                           [Tertius.GeneratedUnion(typeof(A))]
+                                                           public readonly struct U;
+                                                           """);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new UnionGenerator()).WithUpdatedParseOptions(Parse);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation: compilation, outputCompilation: out _,
+            diagnostics: out ImmutableArray<Diagnostic> diagnostics,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Diagnostic refusal = diagnostics.Should().ContainSingle().Which;
+        refusal.Descriptor.DefaultSeverity.Should().Be(DiagnosticSeverity.Warning,
+            "every rule of our analyzers and generators is a warning, as a compiler warning is");
+        refusal.Severity.Should().Be(DiagnosticSeverity.Error, "the projects treat warnings as errors");
     }
 
     [Fact]

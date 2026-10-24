@@ -245,12 +245,12 @@ internal sealed class ComponentTypeRegistry
         var generic = new List<Type>();
         Collect(assembly, found, generic);
         found.RemoveAll(ids.ContainsKey);
-        string? problem =
-            generic.Count > 0
-                ? GenericProblem(generic)
-                : types.Count + found.Count > ComponentTypes.Capacity
-                    ? $"The assembly {assembly.GetName().Name} defines {found.Count} component types. With the {types.Count} that have ids, that passes the cap of {ComponentTypes.Capacity} component types in a process, so none of its types can be used."
-                    : null;
+        string? problem = null;
+        if (generic.Count > 0)
+            problem = GenericProblem(generic);
+        else if (types.Count + found.Count > ComponentTypes.Capacity)
+            problem =
+                $"The assembly {assembly.GetName().Name} defines {found.Count} component types. With the {types.Count} that have ids, that passes the cap of {ComponentTypes.Capacity} component types in a process, so none of its types can be used.";
         if (problem == null)
             AddSorted(found);
         scanned.Add(assembly, problem);

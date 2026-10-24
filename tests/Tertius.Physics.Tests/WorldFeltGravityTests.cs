@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// (ω² x, 0, ω² z), away from the axis, and an angular acceleration α about +Y gives a body at (r, 0, 0) the Euler
 /// acceleration (0, 0, α r), against the turn.
 /// </summary>
-public class WorldFeltGravityTests
+public sealed class WorldFeltGravityTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

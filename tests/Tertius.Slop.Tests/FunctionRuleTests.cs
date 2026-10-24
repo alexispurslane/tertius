@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity rules about whole functions and their locals (docs/plans/code-quality-tooling.md, decision 17): the
 /// user's pass-through, single-use local and repeated guard rules, and the scb-check rule for short helpers used once.
 /// </summary>
-public class FunctionRuleTests
+public sealed class FunctionRuleTests
 {
     [Theory]
     [InlineData("void Add(Item item) => items.Add(item);")]

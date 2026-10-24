@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// hull's value by the same rule. No gameplay writes it. The ground of these tests is a root frame with a uniform gravity
 /// of 9.81 m/s² along -Y (see <see cref="Ground"/>), and the planet a root frame with the point gravity of the Earth.
 /// </summary>
-public class FrameProperAccelerationTests
+public sealed class FrameProperAccelerationTests
 {
     private const float G = 9.81f;
     private static readonly Vector3 Weight = new(0, G, 0);

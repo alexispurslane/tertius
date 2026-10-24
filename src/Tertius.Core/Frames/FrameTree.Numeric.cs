@@ -305,9 +305,6 @@ public sealed partial class FrameTree
 
         /// <summary>The highest speed relative to the frame of a body that can move, in m/s.</summary>
         public double Fastest;
-
-        public readonly void Deconstruct(out FrameHandle frame, out int start, out int end) =>
-            (frame, start, end) = (Frame, Start, End);
     }
 
     /// <summary>
@@ -381,9 +378,9 @@ public sealed partial class FrameTree
         // ranges.
         for (int r = 0; r < semanticRanges.Count; r++)
         {
-            (_, int start, int end) = semanticRanges[r];
-            if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[start..end]))
-                UpdateSemanticFrame(start: start, end: end, dt: dt, step: step, changes: changes);
+            SemanticRange range = semanticRanges[r];
+            if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[range.Start..range.End]))
+                UpdateSemanticFrame(start: range.Start, end: range.End, dt: dt, step: step, changes: changes);
         }
 
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
@@ -665,7 +662,9 @@ public sealed partial class FrameTree
         double excess = -1;
         for (int r = 0; r < ranges.Length; r++)
         {
-            (FrameHandle frame, int from, int to) = ranges[r];
+            FrameHandle frame = ranges[r].Frame;
+            int from = ranges[r].Start;
+            int to = ranges[r].End;
             FrameHandle frameParent = Parent(frame);
             if (frameParent == semantic)
             {
@@ -1042,8 +1041,11 @@ public sealed partial class FrameTree
             if (apart[group.Start + i] && !members[i].AnchorsHome)
                 MoveIntoFollowingFrame(ref members[i], step, changes);
         FrameHandle semantic = members[0].Semantic;
-        FrameHandle home = group.Mode == NumericMode.None ? semantic :
-            group.Keeps ? group.Motion.Frame : FrameHandle.Null;
+        FrameHandle home = FrameHandle.Null;
+        if (group.Mode == NumericMode.None)
+            home = semantic;
+        else if (group.Keeps)
+            home = group.Motion.Frame;
         bool anyMoves = false;
         for (int i = 0; i < members.Length; i++)
             anyMoves |= !apart[group.Start + i] && members[i].Home != home;

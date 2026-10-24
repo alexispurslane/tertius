@@ -12,7 +12,7 @@ namespace Tertius.Core.Tests;
 /// puffs. An emitter whose look is not valid makes no puffs, so the validity rules decide which emitters the simulation
 /// reads at all.
 /// </summary>
-public class PuffSeamTests
+public sealed class PuffSeamTests
 {
     private static readonly Vector3 Orange = new(6, 3, 1);
     private static readonly Vector3 Pale = new(0.8f, 0.85f, 0.9f);

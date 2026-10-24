@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// every place and chord is a small vector that can be checked by hand. The axes turn by +90° about +Z, so the coordinates
 /// of a direction that is fixed in inertial space turn by −90°: (x, y, z) becomes (y, −x, z).
 /// </summary>
-public class FrameTurnTests
+public sealed class FrameTurnTests
 {
     private const double QuarterTurn = Math.PI / 2;
 

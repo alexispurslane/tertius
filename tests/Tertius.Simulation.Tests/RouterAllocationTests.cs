@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The sync point allocates nothing after warm-up, except the bookkeeping of a <c>Parallel.For</c> call when a piece of
 /// it runs on the workers (ARCHITECTURE.md, "Threads and the tick"). A routing on the sync thread stays inside that rule.
 /// </summary>
-public class RouterAllocationTests
+public sealed class RouterAllocationTests
 {
     private static readonly Topic Squad = Topics.Get("tests.routerallocation.squad");
 

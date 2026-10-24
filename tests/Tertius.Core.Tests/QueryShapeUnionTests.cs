@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// takes the arm of the case that it holds. <see cref="QueryShapeTests"/> pins what the shape does with each case: its
 /// bounding radius and the reasons why a query refuses it.
 /// </summary>
-public class QueryShapeUnionTests
+public sealed class QueryShapeUnionTests
 {
     // Every field of every case differs from the fields of the other cases, so that a case that reads a field of another
     // case, or a swapped pair of fields, shows.
@@ -43,7 +43,7 @@ public class QueryShapeUnionTests
     {
         QuerySphere(var radius) => $"sphere {radius}",
         QueryBox(var halfExtents) => $"box {halfExtents.X} {halfExtents.Y} {halfExtents.Z}",
-        QueryCapsule(var halfHeight, var radius) => $"capsule {halfHeight} {radius}",
+        QueryCapsule { HalfHeight: var halfHeight, Radius: var radius } => $"capsule {halfHeight} {radius}",
         null => "none"
     };
 

@@ -440,12 +440,14 @@ public sealed partial class JoltPhysicsBackend
     /// handed off into <paramref name="parent"/> in the step: its pose where the step started is in its old parent, which
     /// the design gives no rule for, so for that one step its ghosts keep the rule of the end of the step.
     /// </summary>
-    private StepPoses? PosesInStep(FrameHandle frame, FrameHandle parent, in DPose end) =>
-        frames.StepTurn(frame).IsIdentity && frames.StepTurn(parent).IsIdentity
-            ? null
-            : frames.TreeParent(frame) != parent
-                ? null
-                : new StepPoses(StartPoseOf(frame), end);
+    private StepPoses? PosesInStep(FrameHandle frame, FrameHandle parent, in DPose end)
+    {
+        if (frames.StepTurn(frame).IsIdentity && frames.StepTurn(parent).IsIdentity)
+            return null;
+        if (frames.TreeParent(frame) != parent)
+            return null;
+        return new StepPoses(StartPoseOf(frame), end);
+    }
 
     /// <summary>
     /// The pose of <paramref name="frame"/> in its tree parent where the step started: the pose of the teleport that its
@@ -557,8 +559,13 @@ public sealed partial class JoltPhysicsBackend
                 // The role of a child ghost, which a ghost in a sibling of the bubble has too: neither system holds a hull of
                 // a frame that holds the body, so a ghost of a static body or of a hull there meets hulls, as its body does
                 // (see GhostBody.Role).
-                BodyLayer childRole =
-                    member.IsHull ? BodyLayer.Static : movable ? BodyLayer.Ghost : RoleFor(member.Desc);
+                BodyLayer childRole;
+                if (member.IsHull)
+                    childRole = BodyLayer.Static;
+                else if (movable)
+                    childRole = BodyLayer.Ghost;
+                else
+                    childRole = RoleFor(member.Desc);
 
                 // A moving body that sticks out of the bubble (see BubbleOf) has a ghost in the bubble's tree parent, the
                 // home of the bubble's hull, and in each sibling frame whose content it reaches (it lost the tie of rule 3,

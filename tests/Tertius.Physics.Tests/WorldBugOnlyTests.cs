@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// States that only a bug produces, on the World and the real backend. A Debug build breaks a contract. A Release build
 /// skips the state, records it in <see cref="World.Errors"/>, and goes on with everything else.
 /// </summary>
-public class WorldBugOnlyTests
+public sealed class WorldBugOnlyTests
 {
     /// <summary>
     /// The World refuses at spawn every body that physics cannot create, so a creation that fails in the backend comes only

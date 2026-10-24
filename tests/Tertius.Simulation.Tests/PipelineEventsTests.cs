@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// events from it and adds events to it, and the components after it see the result. It belongs to the run: nothing in
 /// it leaves the entity or outlives the run.
 /// </summary>
-public class PipelineEventsTests
+public sealed class PipelineEventsTests
 {
     private static Lambda AddsNote(int value, int priority = 0) =>
         new(EventMask.Of<Tick>(),

@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// them. The station of the tests is a frame without a body that spins in a root frame, at 0.31321 rad/s, the rate that
 /// gives 9.81 m/s² at a radius of 100 m.
 /// </summary>
-public class WorldFrameTurnTests
+public sealed class WorldFrameTurnTests
 {
     private const double StationRate = 0.31321;
     private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);

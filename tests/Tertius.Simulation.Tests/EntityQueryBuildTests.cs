@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// The heap part cannot be built during an entity's run, so the world builds the static query fields of each component
 /// type before the type's first run.
 /// </summary>
-public class EntityQueryBuildTests
+public sealed class EntityQueryBuildTests
 {
     private static bool Always(Snapshot snapshot, Entity entity) => true;
 

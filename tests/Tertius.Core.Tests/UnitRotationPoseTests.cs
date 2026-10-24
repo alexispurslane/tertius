@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="DPose.Compose"/> as in <see cref="DPose.Inverse"/>. These tests give poses and trees the rotation that Jolt
 /// gives, and the position of a ship in a low orbit, and expect the answers of the rotation normalized in double.
 /// </summary>
-public class UnitRotationPoseTests
+public sealed class UnitRotationPoseTests
 {
     /// <summary>
     /// A rotation that came out of a float quaternion, as Jolt gives it. The float quaternion is (1, 2, 3, 4) / sqrt(30), with

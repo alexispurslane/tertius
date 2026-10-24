@@ -21,7 +21,7 @@ namespace Tertius.Physics.Tests;
 /// <c>HandedOffVelocities</c> and <c>TryHullRecord</c>, which these tests run together.
 /// </para>
 /// </summary>
-public class TurningFollowingFrameTests
+public sealed class TurningFollowingFrameTests
 {
     // ---- A body that enters the bubble of a hull in the step in which the hull stops ----
 

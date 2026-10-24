@@ -20,7 +20,7 @@ namespace Tertius.Physics.Tests;
 /// derives.
 /// </para>
 /// </summary>
-public class SpinStationBodyTests
+public sealed class SpinStationBodyTests
 {
     private const double StationRate = 0.31321;
 

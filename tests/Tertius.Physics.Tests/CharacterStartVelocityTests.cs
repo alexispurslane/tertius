@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// home's step acceleration, so it is not zero in a numeric home under a field, or in a following frame whose anchor
 /// accelerates.
 /// </summary>
-public class CharacterStartVelocityTests
+public sealed class CharacterStartVelocityTests
 {
     /// <summary>A jump of 3.1 m/s along up plus a walk, in m/s.</summary>
     private static readonly Vector3 Jump = new(0.7f, 3.1f, -1.3f);
@@ -56,7 +56,7 @@ public class CharacterStartVelocityTests
 /// weight here is that input for a person 95 m from a station's axis who moves at 2 m/s across it: 9.32 m/s² outward and
 /// 1.25 m/s² of the Coriolis term along the floor.
 /// </summary>
-public class CharacterPressedWeightTests
+public sealed class CharacterPressedWeightTests
 {
     private static readonly Vector3 Weight = new(9.32f, 0, 1.25f);
     private static readonly Vector3 Up = -Vector3.UnitX;

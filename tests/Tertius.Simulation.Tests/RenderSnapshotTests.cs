@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// relative to the camera. The sync point builds a snapshot at the end of every tick from the front tables, the state that
 /// the tick produced. Positions, previous poses and lights have their own test classes.
 /// </summary>
-public class RenderSnapshotTests
+public sealed class RenderSnapshotTests
 {
     [Fact]
     public void ASnapshotNamesTheTickAndTheTimeOfTheStateItShows()

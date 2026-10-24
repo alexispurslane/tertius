@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// characters. Sleep and wake send nothing. A ghost's touch is a touch of its entity, and an entity's body and its ghosts
 /// make one touch.
 /// </summary>
-public class WorldSensorTests
+public sealed class WorldSensorTests
 {
     /// <summary>The length of a step, in seconds, at the world's 60 ticks a second.</summary>
     private const double StepSeconds = 1.0 / 60;

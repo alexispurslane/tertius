@@ -4,7 +4,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>The scene builders of the shared test project build what their names and comments say, on the real physics.</summary>
-public class ScenesTests
+public sealed class ScenesTests
 {
     [Fact]
     public void ABallReleasedAboveTheFloorFallsAndLiesOnIt()

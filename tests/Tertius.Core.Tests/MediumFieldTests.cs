@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="PlanetMedium"/> (the air of a planet at the frame's origin), or the empty medium, which is vacuum. These tests
 /// pin what each case says about the gas at a place: whether it fills the place, its density there and its drag.
 /// </summary>
-public class MediumFieldTests
+public sealed class MediumFieldTests
 {
     private const double EarthRadius = 6_371_000;
     private const float SeaLevelAir = 1.225f;

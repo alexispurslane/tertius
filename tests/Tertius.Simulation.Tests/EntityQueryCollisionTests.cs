@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// The collision filters of entity queries, which read the collision groups that the snapshot publishes for each body
 /// (see BodyFactsTests). Every test runs the real world on the real Jolt backend.
 /// </summary>
-public class EntityQueryCollisionTests
+public sealed class EntityQueryCollisionTests
 {
     private readonly CollisionGroupRegistry registry = new();
 

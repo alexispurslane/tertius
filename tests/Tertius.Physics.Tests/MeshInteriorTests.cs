@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// a mass, so the backend gives the mesh interior 1 kg. These tests put a ball on a mesh floor in the ship's frame and check
 /// that the ball rests there, whatever the hull does.
 /// </summary>
-public class MeshInteriorTests
+public sealed class MeshInteriorTests
 {
     /// <summary>The pull in the ship's frame along its -Y, in m/s².</summary>
     private const float Pull = 9.81f;

@@ -297,10 +297,12 @@ public sealed partial class FrameTree
     /// The rule of <see cref="FollowKindInStep"/>, for a frame whose owner has the slot <paramref name="slot"/> and whose
     /// hull has <paramref name="motion"/> in the step, or no hull.
     /// </summary>
-    private static FollowKind FollowKindOf(BodyMotion? motion, uint slot, ReadOnlySpan<PhysicsIntent> stepIntents) =>
-        motion == BodyMotion.Dynamic
-            ? FollowKind.Physics
-            : motion == BodyMotion.Static || slot >= (uint)stepIntents.Length
-                ? FollowKind.Static
-                : stepIntents[(int)slot].Move.FollowKind;
+    private static FollowKind FollowKindOf(BodyMotion? motion, uint slot, ReadOnlySpan<PhysicsIntent> stepIntents)
+    {
+        if (motion == BodyMotion.Dynamic)
+            return FollowKind.Physics;
+        if (motion == BodyMotion.Static || slot >= (uint)stepIntents.Length)
+            return FollowKind.Static;
+        return stepIntents[(int)slot].Move.FollowKind;
+    }
 }

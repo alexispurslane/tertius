@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// own to write: it changes its offset, and the sync point derives its pose from its chain root. It lives and dies with
 /// its parent. The velocity of a child and the effect of a hand-off have their own test classes.
 /// </summary>
-public class AttachmentTests
+public sealed class AttachmentTests
 {
     private static Pose Offset(float x, float y, float z = 0) => new(new(x, y, z), Quaternion.Identity);
 
@@ -510,7 +510,7 @@ public class AttachmentTests
 /// destruction, answers exactly, and may be read from the gameplay workers. These tests live in this file for now; they
 /// have nothing to do with attachments.
 /// </summary>
-public class SpatialQueryTests
+public sealed class SpatialQueryTests
 {
     [Fact]
     public void ARadiusQueryFindsExactlyTheEntitiesWithinTheRadiusInSlotOrder()

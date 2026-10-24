@@ -5,7 +5,7 @@ using Tertius.Host.Windowing;
 namespace Tertius.Host.Tests;
 
 /// <summary>InputRouter: where each input event of the window goes.</summary>
-public class InputRouterTests
+public sealed class InputRouterTests
 {
     /// <summary>Records what the router asks of the window, in order.</summary>
     private sealed class Window : IInputTarget

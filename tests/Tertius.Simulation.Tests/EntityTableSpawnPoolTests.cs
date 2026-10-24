@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// same handle in every run, whichever worker ran which chunk first. The tests here call the table in different chunk
 /// orders to stand in for the workers.
 /// </summary>
-public class EntityTableSpawnPoolTests
+public sealed class EntityTableSpawnPoolTests
 {
     private const int ChunkSize = 4;
 

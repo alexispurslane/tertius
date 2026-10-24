@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// world against the contact that Jolt really sent. A test of a contact that only a bug produces adds it to the output of
 /// one step, through <see cref="FaultInjectingBackend"/>.
 /// </summary>
-public class PhysicsContactTests
+public sealed class PhysicsContactTests
 {
     /// <summary>The distance between the centers of the two balls of <see cref="Scene"/>, in meters. The balls have a radius of 0.5 m, so they overlap by 0.1 m.</summary>
     private const double Distance = 0.9;

@@ -4,7 +4,7 @@ using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
-public class ShapeTests
+public sealed class ShapeTests
 {
     [Fact]
     public void EveryShapeKindBuildsInJolt()

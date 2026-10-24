@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// semantic frame's own system. The world runs on the real backend, in a frame without gravity, or round the point gravity
 /// of earth.
 /// </summary>
-public class FollowingFrameWakeTests
+public sealed class FollowingFrameWakeTests
 {
     /// <summary>The velocity of the anchor's drift in space, in m/s: 2 km/s along +X, above the 1,000 m/s from which a free body gets a numeric frame.</summary>
     private static readonly Double3 Drift = new(2_000, 0, 0);

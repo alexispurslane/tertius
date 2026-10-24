@@ -32,10 +32,10 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
     /// The frame's motion over the physics step that ends at <paramref name="stepEnd"/>: it stands at
     /// <paramref name="place"/> in its parent, with <see cref="RotationAt"/> of <paramref name="stepEnd"/>, and turns
     /// steadily at <see cref="AngularVelocity"/>. The chord velocity, the velocity, the acceleration and the angular
-    /// acceleration are zero. <paramref name="step"/>, the length of the step in seconds, is unused today: a frame that turns in place does not
-    /// depend on it. It keeps the signature the same as <see cref="KeplerOrbit.Sample"/>.
+    /// acceleration are zero. Unlike <see cref="KeplerOrbit.Sample"/>, it takes no step length: a frame that turns in
+    /// place does not depend on it.
     /// </summary>
-    public readonly MotionSample Sample(Double3 place, double stepEnd, double step) =>
+    public readonly MotionSample Sample(Double3 place, double stepEnd) =>
         new(Pose: new(place, RotationAt(stepEnd)), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
             Acceleration: Double3.Zero, AngularVelocity: AngularVelocity, AngularAcceleration: Double3.Zero);
 }

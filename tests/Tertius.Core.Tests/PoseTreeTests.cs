@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Tertius.Core.Tests;
 
-public class PoseTreeTests
+public sealed class PoseTreeTests
 {
     private static Pose At(float x, float y = 0, float z = 0, float yaw = 0) =>
         new(new(x, y, z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw));

@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// teleported, or the frame tree or its owner's teleport moves a static hull. Jolt wakes a sleeping body only when a
 /// simulated body touches it, and nothing touches a body whose support vanished.
 /// </summary>
-public class WorldWakeTests
+public sealed class WorldWakeTests
 {
     /// <summary>
     /// The reviewer's probes W10 and W10w. A box falls asleep on a support whose top is 2 m above the floor. Then the

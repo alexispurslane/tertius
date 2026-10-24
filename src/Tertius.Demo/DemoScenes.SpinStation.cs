@@ -154,7 +154,7 @@ public static partial class DemoScenes
                 Frame = space,
                 Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
                 AngularVelocity = spin.AngularVelocity.ToVector3(),
-                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
                 Components = [new SpinMotion { Spin = spin }],
                 Body = new(Shape: hull, Motion: BodyMotion.Kinematic, Mass: 1e6f, InteriorShape: MeshShape(ringMesh)),
                 AsFrame = new(FrameBounds.Sphere(Bubble)),

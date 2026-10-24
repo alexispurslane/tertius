@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// (RailsHullTests). These tests read the motion intent of the next step; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
 /// check how frames follow the samples.
 /// </summary>
-public class RailsComponentTests
+public sealed class RailsComponentTests
 {
     private const double Mu = 4e14;
 
@@ -114,7 +114,7 @@ public class RailsComponentTests
 
         test.Run(3);
 
-        Applied(test, ground).Should().Be(spin.Sample(place, test.World.TimeAt(4), test.World.DeltaTime));
+        Applied(test, ground).Should().Be(spin.Sample(place, test.World.TimeAt(4)));
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class RailsComponentTests
         test.World.Frames.LocalPose(frame).Position.Should()
             .Be(stop, "the spin turns the frame where the flight left it");
         Applied(test, frame)!.Value.Should()
-            .Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1), test.World.DeltaTime));
+            .Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1)));
     }
 
     // ---- The checks of a run ------------------------------------------------------------------------------------
@@ -221,7 +221,7 @@ public class RailsComponentTests
 
         test.Run(3);
 
-        Applied(test, ground).Should().Be(default(FrameSpin).Sample(place, test.World.TimeAt(4), test.World.DeltaTime));
+        Applied(test, ground).Should().Be(default(FrameSpin).Sample(place, test.World.TimeAt(4)));
         Applied(test, ground)!.Value.Pose.Rotation.Should().Be(DQuaternion.Identity);
         test.World.Errors.Should().BeEmpty();
     }

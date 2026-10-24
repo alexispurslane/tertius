@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// finds the cells of the moved entities on the workers once enough entities moved. Here the threshold is forced to
 /// one entity, so that every update of a small world takes that path.
 /// </summary>
-public class SpatialIndexWorldTests
+public sealed class SpatialIndexWorldTests
 {
     // The workload moves, spawns and destroys entities in many frames, and hands bodies off between frames. After every
     // tick and after the changes between ticks, the audit compares radius queries with a search through every live

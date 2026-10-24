@@ -302,9 +302,17 @@ internal static class TestTextures
         {
             float u = (x % tile + 0.5f) / tile;
             float v = (y % tile + 0.5f) / tile;
-            float nx = u < bevel ? -slope : u > 1 - bevel ? slope : 0;
+            float nx = 0;
+            if (u < bevel)
+                nx = -slope;
+            else if (u > 1 - bevel)
+                nx = slope;
             // Near the top of a tile (small v) the bevel faces up the image: +bitangent.
-            float ny = v < bevel ? slope : v > 1 - bevel ? -slope : 0;
+            float ny = 0;
+            if (v < bevel)
+                ny = slope;
+            else if (v > 1 - bevel)
+                ny = -slope;
             Vector3 n = Vector3.Normalize(new(nx, ny, 1));
             int i = (y * size + x) * 4;
             rgba[i] = (byte)MathF.Round((n.X * 0.5f + 0.5f) * 255);

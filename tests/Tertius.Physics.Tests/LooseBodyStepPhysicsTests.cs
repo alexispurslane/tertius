@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// feels what a free body felt in the same step. The test records what physics reads, during the step, through the fault
 /// wrapper's edit of the output, which runs on the physics thread after Jolt's step, before the sync point.
 /// </summary>
-public class LooseBodyStepPhysicsTests
+public sealed class LooseBodyStepPhysicsTests
 {
     private const float G = 9.81f;
     private static readonly Double3[] Places = [new(0, 0, 0), new(1, 2, 3), new(-4, 0.5, 2)];

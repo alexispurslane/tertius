@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// origin + t · direction, and the bubble is the ellipsoid of the frame's radii about the frame's origin. Each test works
 /// out the answer with algebra in doubles.
 /// </summary>
-public class FrameBoundsRayTests
+public sealed class FrameBoundsRayTests
 {
     [Fact]
     public void ALineThroughTheCenterOfASphereEntersAndLeavesOneRadiusFromTheCenter()

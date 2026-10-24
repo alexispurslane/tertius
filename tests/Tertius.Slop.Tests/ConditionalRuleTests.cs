@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity rules about conditions, ported from the scb-check slop rules (docs/plans/code-quality-tooling.md,
 /// decision 17): for each rule, code that it flags and a near miss that it leaves alone.
 /// </summary>
-public class ConditionalRuleTests
+public sealed class ConditionalRuleTests
 {
     [Theory]
     [InlineData("if (a) { x(); } else if (b) { y(); } else if (a) { z(); }")]

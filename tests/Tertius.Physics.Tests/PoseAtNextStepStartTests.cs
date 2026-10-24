@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
 /// ter-zsku), so the read gives the pose now there. The world runs on the real backend.
 /// </summary>
-public class PoseAtNextStepStartTests
+public sealed class PoseAtNextStepStartTests
 {
     /// <summary>What a reader saw in one tick: the read of the next step's start, and the pose now, both in the entity's frame.</summary>
     private readonly record struct Seen(DPose NextStepStart, DPose Now);

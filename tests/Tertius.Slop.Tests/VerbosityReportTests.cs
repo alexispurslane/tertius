@@ -7,7 +7,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity of a codebase (docs/plans/code-quality-tooling.md, decision 17): the share of its lines of code that a
 /// rule flags or that jscpd finds in a clone. A covered line counts once, and a blank line never counts.
 /// </summary>
-public class VerbosityReportTests
+public sealed class VerbosityReportTests
 {
     // Lines 1 to 9. Line 6 is blank, so the file has 8 lines of code. manual-min-max flags line 5.
     private const string MinMax = """

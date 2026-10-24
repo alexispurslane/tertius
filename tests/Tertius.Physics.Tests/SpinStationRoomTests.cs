@@ -18,7 +18,7 @@ namespace Tertius.Physics.Tests;
 /// without a turn of its own, so its axes are the station's: a place at r along its +X lies at R + r from the station's axis.
 /// </para>
 /// </summary>
-public class SpinStationRoomTests
+public sealed class SpinStationRoomTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

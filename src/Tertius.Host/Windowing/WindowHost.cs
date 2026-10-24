@@ -362,8 +362,11 @@ internal sealed class WindowHost : IInputTarget
         if (input is null)
             return;
         foreach (IMouse device in input.Mice)
-            device.Cursor.CursorMode = !router.CapturesCursor ? CursorMode.Normal :
-                device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
+            if (!router.CapturesCursor)
+                device.Cursor.CursorMode = CursorMode.Normal;
+            else
+                device.Cursor.CursorMode =
+                    device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
     }
 
     public void Close() => window.Close();

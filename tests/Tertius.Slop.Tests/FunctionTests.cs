@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// Which declarations are functions, and how a function is named and placed (docs/plans/code-quality-tooling.md,
 /// decision 16).
 /// </summary>
-public class FunctionTests
+public sealed class FunctionTests
 {
     [Fact]
     public void EveryKindOfFunctionWithABodyIsFound() =>

@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// run the world on real Jolt and add the report that only a bug produces to the output of the first step, through
 /// <see cref="FaultInjectingBackend"/>.
 /// </summary>
-public class InvariantHandOffTests
+public sealed class InvariantHandOffTests
 {
 #if TERTIUS_CONTRACTS
     [Fact]

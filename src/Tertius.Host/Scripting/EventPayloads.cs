@@ -64,11 +64,11 @@ internal sealed class EventPayloads
             return "it is a ref struct";
         if (OwnGeneric(nameof(Layout)).MakeGenericMethod(type).Invoke(null, null) is not (bool hasReferences, int size))
             throw new UnreachableException("Layout gives a flag and a size.");
-        return hasReferences
-            ? "it has a field that holds a reference"
-            : size > EventTypeRegistry.MaxPayloadSize
-                ? $"it is {size} bytes, and a payload holds at most {EventTypeRegistry.MaxPayloadSize}"
-                : null;
+        if (hasReferences)
+            return "it has a field that holds a reference";
+        if (size > EventTypeRegistry.MaxPayloadSize)
+            return $"it is {size} bytes, and a payload holds at most {EventTypeRegistry.MaxPayloadSize}";
+        return null;
     }
 
     private static (bool HasReferences, int Size) Layout<T>() =>

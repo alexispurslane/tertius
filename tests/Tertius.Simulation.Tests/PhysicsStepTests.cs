@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// a bug, not a failure, so it escapes the tick. These tests run the world on real Jolt. A failure comes from
 /// <see cref="FaultInjectingBackend"/>, which throws from a step or a change batch on request.
 /// </summary>
-public class PhysicsStepTests
+public sealed class PhysicsStepTests
 {
     [Fact]
     public void PhysicsStepsOncePerTickWithTheNumberOfTheTick()

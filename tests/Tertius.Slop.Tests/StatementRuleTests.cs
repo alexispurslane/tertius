@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity rules about single statements and expressions, ported from the scb-check slop rules
 /// (docs/plans/code-quality-tooling.md, decision 17): for each rule, code that it flags and a near miss.
 /// </summary>
-public class StatementRuleTests
+public sealed class StatementRuleTests
 {
     [Theory]
     [InlineData("ys = xs.Select(x => Parse(x));")]

@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// generation of the frame in the high 32 bits and its index in the low 32 bits: it is stable for the life of the frame,
 /// and it changes when the camera changes frame.
 /// </summary>
-public class RenderSnapshotOriginTests
+public sealed class RenderSnapshotOriginTests
 {
     [Fact]
     public void TheOriginIsTheCameraPositionInTheFrameOfTheCamera()

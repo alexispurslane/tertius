@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// large. Reads and the render snapshot between nearby entities compose through their lowest common ancestor, so no large
 /// number enters them.
 /// </summary>
-public class WorldNumericNestingTests
+public sealed class WorldNumericNestingTests
 {
     /// <summary>One light-year, in meters. A double steps by 2 m there.</summary>
     private const double LightYear = 9.4607e15;

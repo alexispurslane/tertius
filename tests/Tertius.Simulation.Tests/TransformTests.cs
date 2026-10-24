@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// owns it: physics owns the transform of an entity with a body, and an attachment parent the transform of its children.
 /// The owner of a frame without a body writes its transform, and the frame takes the write at the sync point.
 /// </summary>
-public class TransformTests
+public sealed class TransformTests
 {
     // ---- Reads see the previous tick, writes show after the sync point -------------------------------------------
 

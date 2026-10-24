@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// back row of its chain root, which is the one entity of a chain that is not attached. The tests read the result from
 /// the back rows of the entity table.
 /// </summary>
-public class AttachmentsSubsystemTests
+public sealed class AttachmentsSubsystemTests
 {
     /// <summary>A quarter turn about +Y, which maps +X to -Z and +Z to +X.</summary>
     private static readonly Quaternion QuarterTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);

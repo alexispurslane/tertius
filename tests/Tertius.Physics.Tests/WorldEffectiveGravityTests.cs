@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// centrifugal acceleration (ω² r, 0, 0), outward, and an angular acceleration α about +Y the Euler acceleration
 /// (0, 0, α r), against the turn.
 /// </summary>
-public class WorldEffectiveGravityTests
+public sealed class WorldEffectiveGravityTests
 {
     private const double StationRate = 0.31321;
     private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);

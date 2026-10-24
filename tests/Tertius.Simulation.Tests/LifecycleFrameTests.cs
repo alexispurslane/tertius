@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// no ancestor survives (the frame is a root), they die with it. Poses are in the frame of the entity unless the test
 /// says otherwise. All frames here are static, except the moon in <see cref="MoonScene"/>.
 /// </summary>
-public class LifecycleFrameTests
+public sealed class LifecycleFrameTests
 {
     private static readonly DQuaternion QuarterTurnAboutY = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
 

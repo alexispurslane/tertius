@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The shape of a shape cast or an overlap query, and the answers of both. A shape is a value with a usable size or a
 /// reason why a query refuses it, and each answer fits one event payload.
 /// </summary>
-public class QueryShapeTests
+public sealed class QueryShapeTests
 {
     [Fact]
     public void AShapeHitAndAnOverlapHitEachFitInOnePayload()

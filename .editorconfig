@@ -32,7 +32,9 @@ resharper_csharp_parentheses_redundancy_style = remove_if_not_clarifies_preceden
 resharper_csharp_accessor_declaration_body = expression_body
 # Modern syntax that ReSharper's cleanup does not write. tools/cleanup.sh applies these Roslyn fixes with dotnet format
 # style before jb cleanupcode. Builds do not report them, because a build reports only warnings and errors. Rider shows them as
-# suggestions. tools/cleanup.sh reads its list of rules from the dotnet_diagnostic.IDE lines here.
+# suggestions. IDE0063 is the exception: a warning, an error through TreatWarningsAsErrors, because every IDisposable local
+# is a using declaration (STYLE.md, "Disposal and ownership"). tools/cleanup.sh reads its list of rules from the
+# dotnet_diagnostic.IDE lines here that are suggestions or warnings.
 dotnet_style_prefer_collection_expression = when_types_loosely_match
 # collection initializers and expressions
 dotnet_diagnostic.IDE0028.severity = suggestion
@@ -89,7 +91,7 @@ dotnet_style_prefer_is_null_check_over_reference_equality_method = true
 dotnet_diagnostic.IDE0041.severity = suggestion
 csharp_prefer_simple_using_statement = true
 # using declarations
-dotnet_diagnostic.IDE0063.severity = suggestion
+dotnet_diagnostic.IDE0063.severity = warning
 dotnet_style_null_propagation = true
 # ?.
 dotnet_diagnostic.IDE0031.severity = suggestion
@@ -213,11 +215,18 @@ dotnet_diagnostic.CA1716.severity = none
 # Type names that end in Flags: the [Flags] enums say what they hold, such as RenderFlags and IntentFlags.
 dotnet_diagnostic.CA1711.severity = none
 # Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). IDE0010 fails the build at an enum switch
-# statement that does not name every member, and at any switch statement without a default case. The only IDE rule that
-# the build reports. IDE0072 stays off: it demands a discard arm on enum switch expressions, and that arm hides a missing
-# member from CS8509.
+# statement that does not name every member, and at any switch statement without a default case. With IDE0063, one of the
+# two IDE rules that the build reports. IDE0072 stays off: it demands a discard arm on enum switch expressions, and that arm
+# hides a missing member from CS8509.
 dotnet_diagnostic.IDE0010.severity = error
 dotnet_diagnostic.IDE0072.severity = none
+# Unused code fails the build: a private member that nothing uses (IDE0051), a private member that is written but
+# never read (IDE0052), and a parameter that the method never reads (IDE0060). IDE0060 does not report a parameter
+# that an interface, an override, an event handler or a delegate shape requires. Unused locals already fail through
+# CS0168 and CS0219.
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.IDE0060.severity = warning
 
 [src/Tertius.Rendering/Passes/**.cs]
 # Overrides of Dispose that skip base.Dispose(): RenderPass.Dispose is an empty hook that owns nothing.
@@ -240,10 +249,16 @@ dotnet_diagnostic.CA1859.severity = none
 dotnet_diagnostic.CA1707.severity = none
 # The null-forgiving operator: the rule against it (STYLE.md, "Nulls") holds for the engine code in src only.
 dotnet_diagnostic.TS0003.severity = none
+# Try methods: a test name is a statement that may start with the name of the Try method that it pins, such as
+# TryGetValueOfAnotherCaseIsFalseAndGivesTheDefault (tests/STYLE.md, "Names").
+dotnet_diagnostic.TS0009.severity = none
 
 [benchmarks/**.cs]
 # Disposable fields in a class that is not IDisposable: BenchmarkDotNet frees them in [GlobalCleanup].
 dotnet_diagnostic.CA1001.severity = none
+# Classes without a subtype: BenchmarkDotNet derives a class from each benchmark class, so it takes only classes that
+# are not sealed.
+dotnet_diagnostic.TS0006.severity = none
 # The null-forgiving operator: the rule against it holds for the engine code in src only.
 dotnet_diagnostic.TS0003.severity = none
 

@@ -105,8 +105,14 @@ public sealed class BoxMeshTests
             // The triangle's shadow on the plane across the axis contains the point.
             static float Side(Vector2 p, Vector2 q, Vector2 r) => (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X);
 
-            Vector2 Shadow(Vector3 point) => axis == Vector3.UnitX ? new(point.Y, point.Z) :
-                axis == Vector3.UnitY ? new(point.X, point.Z) : new(point.X, point.Y);
+            Vector2 Shadow(Vector3 point)
+            {
+                if (axis == Vector3.UnitX)
+                    return new(point.Y, point.Z);
+                if (axis == Vector3.UnitY)
+                    return new(point.X, point.Z);
+                return new(point.X, point.Y);
+            }
 
             Vector2 p = new(u, v), a = Shadow(t.A), b = Shadow(t.B), c = Shadow(t.C);
             float ab = Side(a, b, p), bc = Side(b, c, p), ca = Side(c, a, p);

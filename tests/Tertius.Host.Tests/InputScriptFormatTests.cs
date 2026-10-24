@@ -11,7 +11,7 @@ namespace Tertius.Host.Tests;
 /// <c>InputEvent</c> posts reads as the JSON says. The expected value comes from the raw JSON of the payload, never from
 /// the type that reads it, so the test holds through a change of that type.
 /// </summary>
-public class InputScriptFormatTests
+public sealed class InputScriptFormatTests
 {
     // The kinds of input event as a script writes them, and the members that a payload of each kind has.
     private static readonly Dictionary<string, string> MemberOfKind = new()
@@ -42,8 +42,8 @@ public class InputScriptFormatTests
     /// <summary>An input event as one line: the kind, then the code or the two numbers of the delta.</summary>
     private static string Describe(InputEvent e) => e switch
     {
-        KeyChanged(var code, var isDown) => $"{(isDown ? "keyDown" : "keyUp")} {code}",
-        MouseButtonChanged(var code, var isDown) => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
+        KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
+        MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
         MouseMoved(var delta) => $"mouseMove [{Number(delta.X)}, {Number(delta.Y)}]",
         Scrolled(var delta) => $"scroll [{Number(delta.X)}, {Number(delta.Y)}]",
         null => throw new InvalidOperationException("The test does not describe the empty input event.")

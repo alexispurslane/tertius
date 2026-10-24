@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Tertius.Core.Tests;
 
-public class ContractChangeTests
+public sealed class ContractChangeTests
 {
     [Fact]
     public void ComputeRelativeToIsSafeFromManyThreads()

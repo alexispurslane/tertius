@@ -14,7 +14,7 @@ namespace Tertius.Physics.Tests;
 /// fire, so no code may subscribe to them, and every system must use the backend's listener, also a system that a growth
 /// made.
 /// </summary>
-public class ContactListenerTests
+public sealed class ContactListenerTests
 {
     /// <summary>A ball of radius 0.5 m that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc BallDesc = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
@@ -197,7 +197,7 @@ public sealed class ContactAllocationCollection;
 /// on Jolt's threads, so it runs while no other test runs.
 /// </summary>
 [Collection(nameof(ContactAllocationTests))]
-public class ContactAllocationTests
+public sealed class ContactAllocationTests
 {
     private const int Columns = 10;
     private const int Rows = 10;

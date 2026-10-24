@@ -126,7 +126,7 @@ public static class CheckPanels
     /// <see cref="DemoScenes.SpinStation.Rate"/>, a constant of the scene as G·M is for the orbit. The panel reads no first
     /// row: it holds at each frame.
     /// </summary>
-    public static string[] SpinGravity(ReadoutRow first, ReadoutRow row)
+    public static string[] SpinGravity(ReadoutRow _, ReadoutRow row)
     {
         double omega = DemoScenes.SpinStation.Rate, r = row.Axis;
         string[] lines =
@@ -154,7 +154,7 @@ public static class CheckPanels
     /// <c>uniform 1 g</c>, and writes no "fi" and no "fl": libass draws each such pair as one ligature of Menlo's, which
     /// would draw the line narrower than its count of characters and push it out of line with the others.
     /// </summary>
-    public static string[] Throws(ReadoutRow first, ReadoutRow row)
+    public static string[] Throws(ReadoutRow _, ReadoutRow row)
     {
         double omega = DemoScenes.SpinStation.Rate;
         string[] lines =

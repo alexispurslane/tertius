@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// frame whose owner has no body, and a numeric frame. The motion of the step after the last finished step is derived
 /// from the intents that this step applies (<see cref="FrameTree.HullMotionInStep"/>).
 /// </summary>
-public class FrameTreeHullMotionTests
+public sealed class FrameTreeHullMotionTests
 {
     private readonly FrameTree frames = new();
     private readonly FrameHandle root;

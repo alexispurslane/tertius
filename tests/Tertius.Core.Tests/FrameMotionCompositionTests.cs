@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// the levels of a path with them. The expected values differentiate the inner frame's path and orientation in the parent
 /// by central differences.
 /// </summary>
-public class FrameMotionCompositionTests
+public sealed class FrameMotionCompositionTests
 {
     // The middle frame in the parent, and the inner frame in the middle frame: every vector off the axes, and each frame's
     // spin and spin-up not parallel.

@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="FrameTree.SemanticGravity"/>, around Earth, with frames that a
 /// numeric update made.
 /// </summary>
-public class FrameTreeNumericMotionTests
+public sealed class FrameTreeNumericMotionTests
 {
     private const double EarthMu = 3.986004418e14;
     private const double OrbitRadius = 6.771e6;

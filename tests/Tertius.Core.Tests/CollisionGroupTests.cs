@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// turns each name into one of <see cref="CollisionGroup.Capacity"/> groups. Every body starts in the group
 /// <see cref="CollisionGroup.Solid"/> with the mask <c>InAny(Solid)</c>.
 /// </summary>
-public class CollisionGroupTests
+public sealed class CollisionGroupTests
 {
     private static (CollisionGroup A, CollisionGroup B, CollisionGroup C) ThreeGroups()
     {

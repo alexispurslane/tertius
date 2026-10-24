@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// before it touches the flat faces, so it sinks by 0.25 - 0.2458 = 4.2 mm: the two rounded edges lie 0.05 m on each side of
 /// the joint and 0.05 m below the flat faces, and the ball touches both at the distance 0.25 + 0.05 from its center.
 /// </summary>
-public class ConvexRadiusTests
+public sealed class ConvexRadiusTests
 {
     private const float BallRadius = 0.25f;
 

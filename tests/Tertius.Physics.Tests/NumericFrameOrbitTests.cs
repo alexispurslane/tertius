@@ -16,10 +16,8 @@ namespace Tertius.Physics.Tests;
 /// 50 m/s, and a slow body 2^23 m (8,389 km) or more from its frame's origin gets one too, and without numeric frames, and
 /// it must give the same events and the same motion either way, apart from rounding.
 /// </summary>
-public class NumericFrameOrbitTests
+public sealed class NumericFrameOrbitTests
 {
-    private const double Dt = 1.0 / 60;
-
     /// <summary>The radius of the station's bubble, in meters.</summary>
     private const float BubbleRadius = 16;
 
@@ -113,8 +111,11 @@ public class NumericFrameOrbitTests
     private static string HomeKind(World world, Station station, Entity entity)
     {
         FrameHandle home = world.PhysicsHomeOf(entity);
-        return home == station.Frame ? "station" :
-            home == station.Earth ? "earth" : world.Frames.Numeric(home).ToString();
+        if (home == station.Frame)
+            return "station";
+        if (home == station.Earth)
+            return "earth";
+        return world.Frames.Numeric(home).ToString();
     }
 
     // ---- The hull alone ------------------------------------------------------------------------------------------
@@ -536,7 +537,13 @@ public class NumericFrameOrbitTests
             world.Tick();
             plain.Tick();
             FrameHandle home = world.PhysicsHomeOf(scene.Pod);
-            string kind = home == rockHome ? "rock" : home == orbit ? "orbit" : world.Frames.Numeric(home).ToString();
+            string kind;
+            if (home == rockHome)
+                kind = "rock";
+            else if (home == orbit)
+                kind = "orbit";
+            else
+                kind = world.Frames.Numeric(home).ToString();
             if (homes[^1] != kind)
                 homes.Add(kind);
             largestVelocityDifference = Math.Max(largestVelocityDifference,

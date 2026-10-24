@@ -17,7 +17,7 @@ namespace Tertius.Physics.Tests;
 /// entity's own frame, are equal as doubles after every tick.
 /// </para>
 /// </summary>
-public class PartPushTests
+public sealed class PartPushTests
 {
     private const float CrateMass = 50;
 

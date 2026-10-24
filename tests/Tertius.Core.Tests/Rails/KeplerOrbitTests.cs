@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// an orbit holds no G·M, and each member that needs one takes the G·M of the parent as <c>mu</c>, so a Kepler frame and
 /// the loose bodies in its parent fall on the same G·M.
 /// </summary>
-public class KeplerOrbitTests
+public sealed class KeplerOrbitTests
 {
     private const double Mu = 3.986004418e14;
     private const double Tick = 1.0 / 60;

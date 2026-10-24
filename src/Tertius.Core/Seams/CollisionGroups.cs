@@ -102,10 +102,14 @@ public readonly record struct CollisionMask
     /// Why a body cannot have this mask, or null when it can. Jolt's pair filter tests only an any-of set, and the other
     /// parts would need a managed callback for each contact pair. The message completes a sentence that names the mask.
     /// </summary>
-    internal string? BodyProblem() =>
-        !AllOf.IsEmpty ? "has an all-of part, but a body's collision mask can hold only an any-of set"
-        : !NoneOf.IsEmpty ? "has a none-of part, but a body's collision mask can hold only an any-of set"
-        : null;
+    internal string? BodyProblem()
+    {
+        if (!AllOf.IsEmpty)
+            return "has an all-of part, but a body's collision mask can hold only an any-of set";
+        if (!NoneOf.IsEmpty)
+            return "has a none-of part, but a body's collision mask can hold only an any-of set";
+        return null;
+    }
 }
 
 /// <summary>

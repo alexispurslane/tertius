@@ -16,7 +16,7 @@ namespace Tertius.Core.Tests;
 /// turn by −dt |ω| about ω: the coordinates of a direction that is fixed in inertial space turn backward in its axes.
 /// </para>
 /// </summary>
-public class FrameTreeBeginStepTests
+public sealed class FrameTreeBeginStepTests
 {
     private const double Step = 1.0 / 60;
     private const double StationRate = 0.31321;
@@ -82,7 +82,7 @@ public class FrameTreeBeginStepTests
 
     /// <summary>The station's spin sample of the step that ends at <paramref name="stepEnd"/>.</summary>
     private static MotionIntent Spin(double stepEnd, FrameSpin? spin = null) =>
-        new((spin ?? StationSpin).Sample(Double3.Zero, stepEnd, Step));
+        new((spin ?? StationSpin).Sample(Double3.Zero, stepEnd));
 
     /// <summary>
     /// The full sample of the step that ends at <paramref name="stepEnd"/> of a frame that spins up about its parent's +Y from

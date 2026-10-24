@@ -24,7 +24,7 @@ namespace Tertius.Physics.Tests;
 /// a compound that sets the flag, a convex body's own flag changes nothing, because Jolt uses the flag of either body
 /// of a pair.
 /// </remarks>
-public class InternalEdgeRemovalTests
+public sealed class InternalEdgeRemovalTests
 {
     /// <summary>
     /// How far, in meters, a ball that lands 10 mm from a flat joint may move away from it when edge removal acts. On

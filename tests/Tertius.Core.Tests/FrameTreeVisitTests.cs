@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// no owner, so the walk does not visit them. A visitor must not change what the walk reads, and a contract checks that in a
 /// Debug build. The pass of step 2 walks the tree the same way (see FrameTreeTakeStepRecordsTests).
 /// </summary>
-public class FrameTreeVisitTests
+public sealed class FrameTreeVisitTests
 {
     /// <summary>One light-year, in meters. A double steps by 2 m there.</summary>
     private const double LightYear = 9.4607e15;

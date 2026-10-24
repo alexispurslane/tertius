@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// every per-slot table and every column into larger arrays, so a row or an entry that is lost in the copy would be
 /// lost silently. These tests fill the table well past its first allocation and check that nothing changed.
 /// </summary>
-public class EntityTableGrowthTests
+public sealed class EntityTableGrowthTests
 {
     /// <summary>How many more entities than the table's first allocation each test creates, so that it grows at least once.</summary>
     private const int Beyond = 200;

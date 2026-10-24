@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The entity table's invariant check finds a column entry in a slot that is not live: in a slot that was never used, which
 /// it checks in one pass over the unused tail of each column, and in a released slot, which it checks one by one.
 /// </summary>
-public class EntityTableInvariantTests
+public sealed class EntityTableInvariantTests
 {
     [Fact]
     public void AColumnEntryInASlotThatWasNeverUsedFailsTheCheck()

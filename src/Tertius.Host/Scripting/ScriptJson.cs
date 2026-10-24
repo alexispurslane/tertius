@@ -301,10 +301,12 @@ internal static class ScriptJson
         new("The dump options only write. Reading an entity needs the world.");
 
     /// <summary>The live entity with the scene id. Throws <see cref="JsonException"/> for an unknown id or an entity that is gone.</summary>
-    private static Entity LiveEntity(string id, SceneInstance scene, World world) =>
-        !scene.TryGetEntity(id, out Entity entity)
-            ? throw new JsonException($"No entity has the scene id '{id}'.")
-            : world.IsAlive(entity)
-                ? entity
-                : throw new JsonException($"The entity '{id}' is not alive.");
+    private static Entity LiveEntity(string id, SceneInstance scene, World world)
+    {
+        if (!scene.TryGetEntity(id, out Entity entity))
+            throw new JsonException($"No entity has the scene id '{id}'.");
+        if (!world.IsAlive(entity))
+            throw new JsonException($"The entity '{id}' is not alive.");
+        return entity;
+    }
 }

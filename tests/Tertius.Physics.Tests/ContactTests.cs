@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// on the World and the real backend. A test reads the contacts that Jolt really sent from
 /// <see cref="FaultInjectingBackend.Outputs"/>.
 /// </summary>
-public class ContactTests
+public sealed class ContactTests
 {
     /// <summary>A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down.</summary>
     private static BodyDesc BoxBody(float half, float mass = 1f) =>

@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="RayHit"/>, arrives in the next tick. Every expected distance, point and normal comes from the geometry of
 /// the scene, worked out in the test.
 /// </summary>
-public class WorldRayCastTests
+public sealed class WorldRayCastTests
 {
     private const double Tolerance = 1e-4;
 

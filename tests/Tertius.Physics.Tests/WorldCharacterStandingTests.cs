@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// Whether physics stood a character on walkable ground under gravity in its last step, as components and the snapshot
 /// see it on the World and the real backend: <see cref="BodyHandle.Standing"/> and <see cref="Snapshot.IsStanding"/>.
 /// </summary>
-public class WorldCharacterStandingTests
+public sealed class WorldCharacterStandingTests
 {
     private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: 70);

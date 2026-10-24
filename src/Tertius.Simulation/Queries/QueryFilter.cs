@@ -85,10 +85,10 @@ internal readonly partial struct QueryFilter
             case NearAsker:
                 return TryCenterOfEntity(snapshot: snapshot, center: snapshot.Asker, centerFrame: out frame,
                     centerPoint: out point);
-            case NearEntity(var center, _):
+            case NearEntity { Other: var center }:
                 return TryCenterOfEntity(snapshot: snapshot, center: center, centerFrame: out frame,
                     centerPoint: out point);
-            case NearPoint(var pointFrame, var center, _):
+            case NearPoint { Frame: var pointFrame, Point: var center }:
                 frame = pointFrame;
                 point = center;
                 return snapshot.World.Frames.IsAlive(frame);
@@ -117,9 +117,9 @@ internal readonly partial struct QueryFilter
         WhereFilter(var test) => test(snapshot, entity),
         NearAsker(var distance) => IsWithinRadiusOfEntity(snapshot: snapshot, center: snapshot.Asker, row: row,
             distance: distance),
-        NearEntity(var center, var distance) => IsWithinRadiusOfEntity(snapshot: snapshot, center: center, row: row,
-            distance: distance),
-        NearPoint(var pointFrame, var center, var distance) =>
+        NearEntity { Other: var center, Radius: var distance } => IsWithinRadiusOfEntity(snapshot: snapshot,
+            center: center, row: row, distance: distance),
+        NearPoint { Frame: var pointFrame, Point: var center, Radius: var distance } =>
             snapshot.World.Frames.IsAlive(pointFrame) && IsWithin(row: row, centerFrame: pointFrame,
                 centerPoint: center, distance: distance),
         null => true

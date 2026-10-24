@@ -314,13 +314,13 @@ public sealed partial class World
     private static Double3 CheckedSweep(string what, Double3 direction, double length)
     {
         double size = direction.Length;
-        return !(size > 0) || !double.IsFinite(size)
-            ? throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.",
-                nameof(direction))
-            : !(length > 0) || !double.IsFinite(length)
-                ? throw new ArgumentOutOfRangeException(nameof(length), length,
-                    $"{what} needs a finite length of more than 0 m.")
-                : direction / size;
+        if (!(size > 0) || !double.IsFinite(size))
+            throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.",
+                nameof(direction));
+        if (!(length > 0) || !double.IsFinite(length))
+            throw new ArgumentOutOfRangeException(nameof(length), length,
+                $"{what} needs a finite length of more than 0 m.");
+        return direction / size;
     }
 
     /// <summary>The pose of a shape query with a unit rotation, after the checks of its shape and pose.</summary>

@@ -90,10 +90,10 @@ internal static class QueryPlanner
             case NearAsker(var radius):
                 ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
-            case NearEntity(_, var radius):
+            case NearEntity { Radius: var radius }:
                 ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
-            case NearPoint(_, _, var radius):
+            case NearPoint { Radius: var radius }:
                 ConsiderNear(best: ref best, snapshot: snapshot, near: filter, radius: radius);
                 break;
             case WhereFilter or null:

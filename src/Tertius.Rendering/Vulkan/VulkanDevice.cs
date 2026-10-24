@@ -280,13 +280,10 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (!f12.DescriptorBindingVariableDescriptorCount) return "descriptorBindingVariableDescriptorCount";
         if (!f12.DescriptorBindingSampledImageUpdateAfterBind) return "descriptorBindingSampledImageUpdateAfterBind";
         if (!f12.ShaderSampledImageArrayNonUniformIndexing) return "shaderSampledImageArrayNonUniformIndexing";
-        return !f13.DynamicRendering
-            ? "dynamicRendering"
-            : !f13.Synchronization2
-                ? "synchronization2"
-                : !f13.ShaderDemoteToHelperInvocation
-                    ? "shaderDemoteToHelperInvocation"
-                    : null;
+        if (!f13.DynamicRendering) return "dynamicRendering";
+        if (!f13.Synchronization2) return "synchronization2";
+        if (!f13.ShaderDemoteToHelperInvocation) return "shaderDemoteToHelperInvocation";
+        return null;
     }
 
     private static Device CreateLogicalDevice(Vk vk, PhysicalDevice physicalDevice, uint queueFamily, bool swapchain,

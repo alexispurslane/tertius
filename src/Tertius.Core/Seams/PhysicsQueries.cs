@@ -71,7 +71,8 @@ public readonly partial struct QueryShape
     {
         QuerySphere(var sphereRadius) => sphereRadius,
         QueryBox(var boxHalfExtents) => ((Double3)boxHalfExtents).Length,
-        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) => (double)capsuleHalfHeight + capsuleRadius,
+        QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } =>
+            (double)capsuleHalfHeight + capsuleRadius,
         null => 0
     };
 
@@ -94,7 +95,7 @@ public readonly partial struct QueryShape
         QueryBox(var boxHalfExtents) when !(boxHalfExtents.X > 0 && boxHalfExtents.Y > 0 && boxHalfExtents.Z > 0)
                                           || !float.IsFinite(boxHalfExtents.X + boxHalfExtents.Y + boxHalfExtents.Z) =>
             $"is a box with half extents of {boxHalfExtents} m, which are not all finite and more than 0",
-        QueryCapsule(var capsuleHalfHeight, var capsuleRadius) when !(capsuleRadius > 0) ||
+        QueryCapsule { HalfHeight: var capsuleHalfHeight, Radius: var capsuleRadius } when !(capsuleRadius > 0) ||
                                                                     !float.IsFinite(capsuleRadius)
                                                                     || !(capsuleHalfHeight >= 0) ||
                                                                     !float.IsFinite(capsuleHalfHeight) =>

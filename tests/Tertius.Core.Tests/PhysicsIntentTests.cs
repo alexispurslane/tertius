@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// of a hull's motion stay, which the sync point applies itself (docs/plans/rails-components.md, "Where the motion intent
 /// lives").
 /// </summary>
-public class PhysicsIntentTests
+public sealed class PhysicsIntentTests
 {
     private static readonly FieldInfo[] Fields =
         typeof(PhysicsIntent).GetFields(BindingFlags.Public | BindingFlags.Instance);

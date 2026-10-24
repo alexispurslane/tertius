@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// into. Each rule holds for a plain body, whose row physics writes, and for the owner of a frame, whose body is the
 /// frame's hull and whose row the sync point fills from the frame tree. The world runs on real Jolt.
 /// </summary>
-public class FrameChangedTests
+public sealed class FrameChangedTests
 {
     /// <summary>The two kinds of entity whose frame can change.</summary>
     public enum Mover

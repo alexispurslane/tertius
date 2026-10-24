@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The verbosity rules about exceptions and defensive guards, ported from the scb-check slop rules
 /// (docs/plans/code-quality-tooling.md, decision 17): for each rule, code that it flags and a near miss.
 /// </summary>
-public class ExceptionRuleTests
+public sealed class ExceptionRuleTests
 {
     [Fact]
     public void EachTryOfAFunctionWithThreeOrMoreTryStatementsIsFlagged() =>

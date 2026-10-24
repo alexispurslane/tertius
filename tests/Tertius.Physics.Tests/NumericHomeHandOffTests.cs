@@ -23,7 +23,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="WarmUpAndThrow"/>). From the throw on, every tick and place is as it was when a free crate at 60 m/s fell.
 /// </para>
 /// </summary>
-public class NumericHomeHandOffTests
+public sealed class NumericHomeHandOffTests
 {
     /// <summary>The radius of the ship's bubble, in meters.</summary>
     private const float ShipRadius = 30;

@@ -19,7 +19,7 @@ namespace Tertius.Core.Tests;
 /// centrifugal acceleration (ω² r, 0, 0), and a velocity (u, 0, 0) the Coriolis acceleration (0, 0, 2 ω u).
 /// </para>
 /// </summary>
-public class FrameTreeMotionInStepTests
+public sealed class FrameTreeMotionInStepTests
 {
     private const double Step = 1.0 / 60;
     private const double StationRate = 0.31321;
@@ -63,7 +63,7 @@ public class FrameTreeMotionInStepTests
         Moving(new MotionIntent(new EndPose(new(place, rotation ?? DQuaternion.Identity))));
 
     /// <summary>The spin sample of the station in the step that ends at <paramref name="stepEnd"/>.</summary>
-    private static PhysicsIntent Spinning(double stepEnd) => Moving(StationSpin.Sample(Double3.Zero, stepEnd, Step));
+    private static PhysicsIntent Spinning(double stepEnd) => Moving(StationSpin.Sample(Double3.Zero, stepEnd));
 
     /// <summary>
     /// One step as the sync point leaves the tree: the tree updates, fixes the turns of a step of <see cref="Step"/> seconds
@@ -245,7 +245,7 @@ public class FrameTreeMotionInStepTests
         FrameHandle room = Frame(station, new(radius, 0, 0));
         for (int k = 1; k <= 2; k++)
             RunStep(Intents((station, Spinning(k * Step))));
-        MotionSample stationEnd = StationSpin.Sample(Double3.Zero, 3 * Step, Step);
+        MotionSample stationEnd = StationSpin.Sample(Double3.Zero, 3 * Step);
 
         (_, FrameMotion end) = frames.MotionRelativeInStep(of: room, to: space,
             stepIntents: Intents((station, Spinning(3 * Step))), step: Step);

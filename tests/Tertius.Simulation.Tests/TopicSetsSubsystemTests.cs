@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The topic sets on their own: every read sees every change made so far, in slot order; a frame topic reaches the union
 /// of the frame's members and its explicit subscribers; and a released slot leaves every set.
 /// </summary>
-public class TopicSetsSubsystemTests
+public sealed class TopicSetsSubsystemTests
 {
     private static readonly Topic Squad = Topics.Get("tests.topicsets.squad");
     private static readonly Topic Convoy = Topics.Get("tests.topicsets.convoy");

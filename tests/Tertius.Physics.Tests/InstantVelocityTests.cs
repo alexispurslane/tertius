@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// World and the real backend. Every expected path is worked out here in doubles from the instant state: a parabola under
 /// uniform gravity, a straight line without gravity, and an exponential decay of a velocity or a spin under damping.
 /// </summary>
-public class InstantVelocityTests
+public sealed class InstantVelocityTests
 {
     /// <summary>Half the side of <see cref="Crate"/>, in meters.</summary>
     private const float CrateHalf = 0.1f;

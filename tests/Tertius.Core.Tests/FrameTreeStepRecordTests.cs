@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// intent"): a full sample is its own record, an end pose gives the motion at a constant velocity from the frame's pose in
 /// its semantic parent where the step starts, and a steer target or no motion intent gives none.
 /// </summary>
-public class FrameTreeStepRecordTests
+public sealed class FrameTreeStepRecordTests
 {
     private const double Step = 1.0 / 60;
     private readonly FrameTree frames = new();

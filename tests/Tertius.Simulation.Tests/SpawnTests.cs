@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// live only at the sync point, so it runs for the first time on the next tick, and its first run lists
 /// <see cref="Spawned"/> before any message.
 /// </summary>
-public class SpawnTests
+public sealed class SpawnTests
 {
     /// <summary>The first entity that a component spawns in a fresh world: slot 0 is the root, slot 1 the spawner, so the pool starts at slot 2.</summary>
     private const uint FirstPoolSlot = 2;

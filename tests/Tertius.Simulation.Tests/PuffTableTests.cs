@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// puff's look of its birth and reuses a freed index. The emitters of the tests have no body, so they hold still in their
 /// frames.
 /// </summary>
-public class PuffTableTests
+public sealed class PuffTableTests
 {
     private static readonly PuffLook Hot = new(Life: 2, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3,
         Shading: PuffShading.Glow(new(6, 5.4f, 4.5f)));

@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// N + k, like a message that an entity sends on that tick, and arrives on tick N + k + 1. The recipients are found when
 /// it joins that routing, not when it was sent.
 /// </summary>
-public class MessagingDelayedTests
+public sealed class MessagingDelayedTests
 {
     /// <summary>A component that, on one tick, sends one <see cref="Ping"/> with a delay.</summary>
     private static Lambda SendsAfter(long onTick, int delay, Target target, int value) =>

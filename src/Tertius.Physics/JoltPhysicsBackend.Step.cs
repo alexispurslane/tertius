@@ -35,11 +35,9 @@ public sealed partial class JoltPhysicsBackend
     private BodyRecord? RecordFor(ulong userData)
     {
         uint index = BodyUserData.Index(userData);
-        return index >= (uint)records.Length || records[index] is not { } record
-            ? null
-            : BodyUserData.Names(userData, record.Entity)
-                ? record
-                : null;
+        if (index >= (uint)records.Length || records[index] is not { } record)
+            return null;
+        return BodyUserData.Names(userData, record.Entity) ? record : null;
     }
 
     /// <summary>Copies the IDs of the system's awake rigid bodies into <see cref="activeScratch"/>.</summary>

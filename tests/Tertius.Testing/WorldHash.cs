@@ -61,11 +61,12 @@ public static class WorldHash
         {
             hash = Mix(Mix(Mix(Mix(hash, Bits(look.Life)), Bits(look.StartRadius)), Bits(look.EndRadius)),
                 Bits(look.TemperatureRatio));
-            hash = look.Shading.TryGetValue(out GlowPuffs glow)
-                ? Mix(Mix(hash, 1UL), glow.Radiance)
-                : look.Shading.TryGetValue(out LitPuffs lit)
-                    ? Mix(Mix(hash, 2UL), lit.Albedo)
-                    : Mix(hash, 0UL);
+            if (look.Shading.TryGetValue(out GlowPuffs glow))
+                hash = Mix(Mix(hash, 1UL), glow.Radiance);
+            else if (look.Shading.TryGetValue(out LitPuffs lit))
+                hash = Mix(Mix(hash, 2UL), lit.Albedo);
+            else
+                hash = Mix(hash, 0UL);
         }
 
         return hash;

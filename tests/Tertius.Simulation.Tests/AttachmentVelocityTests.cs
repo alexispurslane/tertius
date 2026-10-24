@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// angular velocity is w. The spawn description of a root with a body gives its velocities. Most tests run a world
 /// with no physics backend, so the root keeps the velocities it was spawned with. The last test runs on real Jolt.
 /// </summary>
-public class AttachmentVelocityTests
+public sealed class AttachmentVelocityTests
 {
     private static Pose Offset(float x, float y, float z = 0) => new(new(x, y, z), Quaternion.Identity);
 

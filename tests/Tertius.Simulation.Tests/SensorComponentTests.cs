@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// sensor's entity in tick N + 1, and the relayed message reaches its recipients in tick N + 2. The tests with physics run
 /// the world on real Jolt. The tests of the relay alone post the contact events to a world without physics.
 /// </summary>
-public class SensorComponentTests
+public sealed class SensorComponentTests
 {
     /// <summary>What a recipient heard from a sensor: the tick, whether the other entity entered or left, the sensor and the other entity.</summary>
     private readonly record struct Relayed(long Tick, bool Entered, Entity Sensor, Entity Other);

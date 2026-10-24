@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// other frame, composed through the frame tree. A turned frame at (100, 0, 0) is the fixture: a rotation of +90 degrees
 /// about +Y maps (x, y, z) to (z, y, -x), and its inverse maps (x, y, z) to (-z, y, x).
 /// </summary>
-public class FramePoseQueryTests
+public sealed class FramePoseQueryTests
 {
     private static readonly DPose TurnedPose = new(new(100, 0, 0), PoseChecks.QuarterTurnAboutY);
 

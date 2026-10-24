@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The mass of a function and the erosion of a codebase (docs/plans/code-quality-tooling.md, decision 16):
 /// mass = CC * sqrt(SLOC), and the erosion is the share of the mass in functions with CC above 10.
 /// </summary>
-public class ErosionReportTests
+public sealed class ErosionReportTests
 {
     [Fact]
     public void TheMassOfAFunctionIsItsComplexityTimesTheSquareRootOfItsSloc() =>

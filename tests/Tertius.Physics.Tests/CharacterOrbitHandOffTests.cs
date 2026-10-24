@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// docs/plans/spin-gravity.md), but with numeric frames its home in earth is a falling frame in which it is weightless,
 /// so it takes the rigid form there, and nothing turns it.
 /// </summary>
-public class CharacterOrbitHandOffTests
+public sealed class CharacterOrbitHandOffTests
 {
     private const double SunMu = 1.32712440018e20;
     private const double EarthMu = 3.986004418e14;

@@ -13,7 +13,7 @@ namespace Tertius.Simulation.Tests;
 /// finished is derived from the pending intent. <c>SetMotion</c> refuses, with an always-on guard, a body that is no hull
 /// and a motion that the hull cannot take.
 /// </summary>
-public class SetMotionTests
+public sealed class SetMotionTests
 {
     /// <summary>A triangle mesh. Jolt never moves a mesh, so a hull of this shape can only be static.</summary>
     private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)],

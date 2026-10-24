@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// world runs 64 ticks per second, so a second is exactly 64 ticks. Every spin here turns a quarter turn per second about
 /// +Y, counterclockwise seen from above, so a quarter turn takes +X to -Z.
 /// </summary>
-public class SpinFrameTests
+public sealed class SpinFrameTests
 {
     private const int TicksPerSecond = 64;
     private static readonly FrameSpin QuarterTurnPerSecond = new(Tilt: DQuaternion.Identity, Rate: Math.PI / 2);
@@ -210,7 +210,7 @@ public class SpinFrameTests
 
         test.Run(10);
 
-        MotionSample sample = spin.Sample(place, test.World.Time, test.World.DeltaTime);
+        MotionSample sample = spin.Sample(place, test.World.Time);
         test.World.Frames.LocalPose(ground).Should().Be(sample.Pose);
         // The ground hangs in the root, which is no numeric frame, so the stored velocity is the one relative to the parent.
         test.World.Frames.TreeLinearVelocity(ground).Should()

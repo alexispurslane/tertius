@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// with <see cref="FrameChanged"/> once. The parent is a ball that flies from the root into a station, and Jolt hands it off in the
 /// step of tick 1.
 /// </summary>
-public class AttachmentHandOffTests
+public sealed class AttachmentHandOffTests
 {
     private static readonly Vector3 ParentSpin = new(0, 1, 0);
 

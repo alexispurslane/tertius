@@ -74,8 +74,13 @@ internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation,
     public static StationBody Take(World world, Entity entity, FrameHandle station, FrameHandle hullHome)
     {
         FrameHandle home = world.PhysicsHomeOf(entity);
-        string kind = home == station ? "station" :
-            home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
+        string kind;
+        if (home == station)
+            kind = "station";
+        else if (home == hullHome)
+            kind = "following frame";
+        else
+            kind = world.Frames.Numeric(home).ToString();
         return new(InStation: world.PoseIn(entity, station).Position,
             VelocityInStation: world.VelocityIn(entity, station),
             InStationFrame: world.GetFrame(entity) == station, Home: kind);

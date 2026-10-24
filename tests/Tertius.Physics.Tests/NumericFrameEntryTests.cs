@@ -14,7 +14,7 @@ namespace Tertius.Physics.Tests;
 /// thrusts always. Any other body thrusts after 0.5 s (30 ticks) of thrust, so each fast ball and ship here carries a
 /// gentle thruster (<see cref="Thruster"/>) along its flight and flies for 30 ticks before its falling frame matters.
 /// </summary>
-public class NumericFrameEntryTests
+public sealed class NumericFrameEntryTests
 {
     private const float Dt = 1f / 60f;
 

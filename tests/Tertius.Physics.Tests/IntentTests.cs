@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="BodyHandle"/> during a tick, and physics applies it in the step of the next tick. So every test sends a
 /// command with <see cref="Send(Simulation.World, Testing.Pilot, Testing.BodyCommand)"/>, which ticks once, and ticks once more to see what the command did.
 /// </summary>
-public class IntentTests
+public sealed class IntentTests
 {
     /// <summary>A world with a root frame that has no gravity.</summary>
     private static (World World, FrameHandle Space) ZeroGravity()

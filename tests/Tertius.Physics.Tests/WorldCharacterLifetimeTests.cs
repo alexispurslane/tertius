@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// with the character. When the character leaves a system, by a destroy, a hand-off or a growth, or when the backend goes,
 /// the backend destroys the native character, and the character's destructor takes the inner body out of the system.
 /// </summary>
-public class WorldCharacterLifetimeTests
+public sealed class WorldCharacterLifetimeTests
 {
     private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: 70);

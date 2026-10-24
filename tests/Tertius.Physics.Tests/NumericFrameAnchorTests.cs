@@ -20,7 +20,7 @@ namespace Tertius.Physics.Tests;
 /// and <see cref="Across"/>): it counts as a body that thrusts from its thirtieth tick on, and from then on it falls when no
 /// anchor holds it. Each scene gives the same thruster to its body in the run without numeric frames.
 /// </summary>
-public class NumericFrameAnchorTests
+public sealed class NumericFrameAnchorTests
 {
     /// <summary>
     /// How many ticks of thrust at 60 Hz a body needs before it thrusts (see <see cref="NumericFrameOptions.ThrustOnset"/>):
