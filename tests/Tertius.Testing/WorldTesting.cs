@@ -68,11 +68,11 @@ public static class WorldTesting
     {
         Frame = frame,
         Pose = At(0, top - 0.5),
-        Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
+        Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
     });
 
     /// <summary>A dynamic cube with sides of 1 m.</summary>
-    public static BodyDesc Cube(float mass = 10) => new(new BoxShapeDesc(new(0.5f)), Mass: mass);
+    public static BodyDesc Cube(float mass = 10) => new(Shape: new BoxShapeDesc(new(0.5f)), Mass: mass);
 
     /// <summary>A closed cube of triangles with <paramref name="half"/> m from its center to each face, every face toward the outside.</summary>
     public static MeshShapeDesc MeshCube(float half)
@@ -91,7 +91,7 @@ public static class WorldTesting
 
     /// <summary>A dynamic ball that nothing slows down on its own, with a radius of <paramref name="radius"/> m.</summary>
     public static BodyDesc Ball(float radius = 0.5f, float mass = 1) =>
-        new(new SphereShapeDesc(radius), Mass: mass, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(radius), Mass: mass, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>True while Jolt simulates the primary body of <paramref name="entity"/> in the system of
     /// <paramref name="frame"/>.</summary>

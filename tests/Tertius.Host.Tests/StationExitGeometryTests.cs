@@ -23,7 +23,7 @@ public sealed class StationExitGeometryTests : IDisposable
     public StationExitGeometryTests()
     {
         world = new(new() { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true }, backend);
-        Entity station = DemoStation.Spawn(world, RendezvousAutopilotTests.Earth(world), scene, RenderResources.None);
+        Entity station = DemoStation.Spawn(world: world, parent: RendezvousAutopilotTests.Earth(world), scene: scene, resources: RenderResources.None);
         frame = world.GetOwnedFrame(station);
         world.Tick();
     }
@@ -34,7 +34,7 @@ public sealed class StationExitGeometryTests : IDisposable
     private double? Ray(Double3 from, Double3 direction)
     {
         var hits = new List<RayCastHit>();
-        backend.CastRay(frame, from, direction, 0, 120, new EveryEntity(), RayCastKind.Nearest, hits);
+        backend.CastRay(frame: frame, origin: from, direction: direction, start: 0, end: 120, filter: new EveryEntity(), kind: RayCastKind.Nearest, hits: hits);
         return hits.Count == 0 ? null : hits[0].Distance;
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Tertius.Simulation;
 
@@ -27,7 +28,7 @@ public static class ScriptRunner
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        ReadyStep[] steps = MakeReady(script, world, scene, playback, payloads, out int lastDump);
+        ReadyStep[] steps = MakeReady(script: script, world: world, scene: scene, playback: playback, payloads: payloads, lastDump: out int lastDump);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
@@ -103,7 +104,10 @@ public static class ScriptRunner
             if (!world.IsAlive(world.Camera))
                 throw new ScriptException(
                     $"{where}{(frame is int number ? $", frame {number}" : "")}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
-            if (!playback!.Capture(world, name))
+            // MakeReady refuses a capture or a film without a playback.
+            if (playback is null)
+                throw new UnreachableException("A capture runs only with a playback.");
+            if (!playback.Capture(world, name))
                 return false;
             captures.Add(name);
             return true;
@@ -158,10 +162,10 @@ public static class ScriptRunner
                     ready[i] = new ReadyRun(run.Ticks);
                     break;
                 case PostStep post:
-                    ready[i] = new ReadyPost(MakeEvent(post, world, scene, payloads, json, $"{where} (post)"));
+                    ready[i] = new ReadyPost(MakeEvent(post: post, world: world, scene: scene, payloads: payloads, json: json, where: $"{where} (post)"));
                     break;
                 case CameraStep cameraStep:
-                    camera = LiveEntity(cameraStep.Entity, world, scene, $"{where} (camera)");
+                    camera = LiveEntity(id: cameraStep.Entity, world: world, scene: scene, where: $"{where} (camera)");
                     ready[i] = new ReadyCamera(camera, $"{where} (camera)");
                     break;
                 case DumpStep dump:
@@ -205,7 +209,7 @@ public static class ScriptRunner
     {
         EventPayloads.PayloadType type = payloads.Find(post.Event, out string? problem) ??
                                          throw new ScriptException($"{where}: {problem}");
-        Target target = TargetOf(post.To, world, scene, where);
+        Target target = TargetOf(to: post.To, world: world, scene: scene, where: where);
         object? payload;
         try
         {
@@ -228,9 +232,9 @@ public static class ScriptRunner
 
     private static Target TargetOf(MessageTarget to, World world, SceneInstance scene, string where) => to switch
     {
-        ToEntity(string id) => LiveEntity(id, world, scene, where),
+        ToEntity(string id) => LiveEntity(id: id, world: world, scene: scene, where: where),
         ToTopic(string name) => Topics.Get(name),
-        ToFrame(string id) => world.GetOwnedFrame(LiveEntity(id, world, scene, where)) is { IsNull: false } frame
+        ToFrame(string id) => world.GetOwnedFrame(LiveEntity(id: id, world: world, scene: scene, where: where)) is { IsNull: false } frame
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),

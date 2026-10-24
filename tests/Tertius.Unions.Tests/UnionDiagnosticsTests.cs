@@ -158,12 +158,12 @@ public class UnionDiagnosticsTests
                                                            [Tertius.GeneratedUnion(typeof(A))]
                                                            public readonly partial struct U;
                                                            """);
-        GeneratorDriver driver = CSharpGeneratorDriver.Create([new UnionGenerator().AsSourceGenerator()],
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generators: [new UnionGenerator().AsSourceGenerator()],
             parseOptions: Parse, driverOptions: new(IncrementalGeneratorOutputKind.None, true));
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         driver = driver.RunGenerators(
-            compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("class Other { }", Parse,
+            compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(text: "class Other { }", options: Parse,
                 cancellationToken: TestContext.Current.CancellationToken)),
             TestContext.Current.CancellationToken);
 
@@ -181,9 +181,9 @@ public class UnionDiagnosticsTests
     {
         CSharpCompilation compilation = TestCompilation.Of(source);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new UnionGenerator()).WithUpdatedParseOptions(Parse);
-        driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation output,
-            out ImmutableArray<Diagnostic> diagnostics,
-            TestContext.Current.CancellationToken);
+        driver.RunGeneratorsAndUpdateCompilation(compilation: compilation, outputCompilation: out Compilation output,
+            diagnostics: out ImmutableArray<Diagnostic> diagnostics,
+            cancellationToken: TestContext.Current.CancellationToken);
         return ([.. diagnostics.Select(d => d.Id)],
         [
             .. output.GetDiagnostics(TestContext.Current.CancellationToken)

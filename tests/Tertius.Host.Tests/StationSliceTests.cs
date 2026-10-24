@@ -54,10 +54,10 @@ internal sealed record StationSample(
             hullHome = world.PhysicsHomeOf(station);
         double mu = world.Frames.Gravity(earth) is PointGravity { Mu: var m } ? m : double.NaN;
         Double3 orbitPlace = world.GetComponent<KeplerMotion>(station)!.Orbit.StateAt(world.Time, mu).Position;
-        return new(world.TickNumber, world.Time,
-            BodyIds.ToDictionary(id => id, id => StationBody.Take(world, scene[id], frame, hullHome)), hullHome,
-            world.Frames.Numeric(hullHome),
-            (world.PoseIn(station, earth).Position - orbitPlace).Length);
+        return new(Tick: world.TickNumber, Time: world.Time,
+            Bodies: BodyIds.ToDictionary(id => id, id => StationBody.Take(world: world, entity: scene[id], station: frame, hullHome: hullHome)), HullHome: hullHome,
+            HullHomeMode: world.Frames.Numeric(hullHome),
+            HullOffEarthOrbit: (world.PoseIn(station, earth).Position - orbitPlace).Length);
     }
 }
 
@@ -74,8 +74,8 @@ internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation,
         FrameHandle home = world.PhysicsHomeOf(entity);
         string kind = home == station ? "station" :
             home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
-        return new(world.PoseIn(entity, station).Position, world.VelocityIn(entity, station),
-            world.GetFrame(entity) == station, kind);
+        return new(InStation: world.PoseIn(entity, station).Position, VelocityInStation: world.VelocityIn(entity, station),
+            InStationFrame: world.GetFrame(entity) == station, Home: kind);
     }
 }
 
@@ -320,7 +320,7 @@ public sealed class StationDeterminismTests
             new() { MaxDegreeOfParallelism = threads, DebugChecks = true, DisposePhysics = true },
             new JoltPhysicsBackend(new() { WorkerThreads = threads }));
         SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
-        RunResult result = ScriptRunner.Run(script, world, scene);
+        RunResult result = ScriptRunner.Run(script: script, world: world, scene: scene);
         world.Errors.Should().BeEmpty();
         return result.Dumps;
     }

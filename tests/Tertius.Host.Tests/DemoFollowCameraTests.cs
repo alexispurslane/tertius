@@ -30,8 +30,8 @@ public sealed class DemoFollowCameraRun : IDisposable
             throw new InvalidOperationException($"scripts/blue-danube.json has no film '{LastFilm}'.");
         World = NewJoltWorld();
         Scene = DemoScenes.All.Single(s => s.Name == full.Scene).Build(World, RenderResources.None);
-        ScriptRunner.Run(full with { Steps = [.. full.Steps.Take(last + 1)] }, World, Scene, outputFolder: null,
-            new Recorder(this));
+        ScriptRunner.Run(script: full with { Steps = [.. full.Steps.Take(last + 1)] }, world: World, scene: Scene, outputFolder: null,
+            playback: new Recorder(this));
         Record();
         SeatedTick = Ticks.First(tick => tick.Seated).Tick;
         // A posted event joins the routing of the next tick, and the shuttle handles it in the tick after that.
@@ -80,10 +80,10 @@ public sealed class DemoFollowCameraRun : IDisposable
         Double3 look = view.Rotation.Rotate(-Double3.UnitZ),
             toEye = eye - view.Position,
             up = body.Rotation.Rotate(Double3.UnitY);
-        var tick = new FollowTick(World.TickNumber, riding, seated, Degrees(look, toEye), toEye.Length,
-            Degrees(up, lastUp),
-            World.GetFrame(camera) == cabin ? World.PoseIn(camera, cabin).Position : null, Reach(view, body), frame,
-            view.Position, InPicture(view, eye), eye);
+        var tick = new FollowTick(Tick: World.TickNumber, Riding: riding, Seated: seated, AngleToEye: Degrees(look, toEye), Distance: toEye.Length,
+            UpTurn: Degrees(up, lastUp),
+            InCabin: World.GetFrame(camera) == cabin ? World.PoseIn(camera, cabin).Position : null, Reach: Reach(view, body), Frame: frame,
+            Camera: view.Position, EyeInPicture: InPicture(view, eye), Eye: eye);
         lastUp = up;
         return tick;
     }
@@ -283,8 +283,8 @@ public sealed class DemoFollowCameraTests(DemoFollowCameraRun run) : IClassFixtu
                 continue;
             (walk[i].EyeInPicture - walk[i - 1].EyeInPicture).Length.Should()
                 .BeLessThan(0.02, $"at tick {walk[i].Tick} the person moved in the picture");
-            bool cameraZigzags = Zigzags(walk[i - 3].Camera, walk[i - 2].Camera, walk[i - 1].Camera, walk[i].Camera);
-            bool eyeZigzags = Zigzags(walk[i - 3].Eye, walk[i - 2].Eye, walk[i - 1].Eye, walk[i].Eye);
+            bool cameraZigzags = Zigzags(a: walk[i - 3].Camera, b: walk[i - 2].Camera, c: walk[i - 1].Camera, d: walk[i].Camera);
+            bool eyeZigzags = Zigzags(a: walk[i - 3].Eye, b: walk[i - 2].Eye, c: walk[i - 1].Eye, d: walk[i].Eye);
             (cameraZigzags && !eyeZigzags).Should().BeFalse($"at tick {walk[i].Tick} the camera zigzagged");
         }
 

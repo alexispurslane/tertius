@@ -54,7 +54,7 @@ public class StaleHandleWorldTests
     /// <summary>A world in which <paramref name="stale"/> was destroyed and <paramref name="successor"/> took its slot.</summary>
     private static World WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder)
     {
-        World world = TestWorld.Create(out FrameHandle root);
+        World world = TestWorld.Create(root: out FrameHandle root);
         stale = world.SpawnWith(root, new Recorder());
         world.Destroy(stale);
         successorsRecorder = new();
@@ -77,7 +77,7 @@ public class StaleHandleWorldTests
     [Fact]
     public void DestroyingAnEntityTwiceReturnsFalseTheSecondTime()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity entity = world.SpawnWith(root);
 
         world.Destroy(entity).Should().BeTrue();
@@ -101,7 +101,7 @@ public class StaleHandleWorldTests
 
         world.Unsubscribe(stale, Squad).Should().BeFalse();
 
-        world.Post(Event.Create(Squad, Entity.Null, new Ping { Value = 4 }));
+        world.Post(Event.Create(target: Squad, sender: Entity.Null, payload: new Ping { Value = 4 }));
         world.Run(2);
         recorder.PingValues().Should().Equal(4);
         world.Unsubscribe(successor, Squad).Should().BeTrue();
@@ -162,7 +162,7 @@ public class StaleHandleWorldTests
     /// <summary>A world with one live entity, and a handle of the named kind.</summary>
     private static World WithHandle(string kind, out Entity handle)
     {
-        World world = TestWorld.Create(out FrameHandle root);
+        World world = TestWorld.Create(root: out FrameHandle root);
         Entity live = world.SpawnWith(root, new Recorder());
         handle = kind switch
         {
@@ -259,7 +259,7 @@ public class StaleHandleWorldTests
     [Fact]
     public void TheListOfLiveEntitiesIsInSlotOrderAndAddsToTheListItIsGiven()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity first = world.SpawnWith(root), second = world.SpawnWith(root), third = world.SpawnWith(root);
         world.Destroy(second);
         Entity fourth = world.SpawnWith(root);
@@ -279,7 +279,7 @@ public class StaleHandleWorldTests
     {
         using World world = WithReusedSlot(out Entity stale, out _, out Recorder successorsRecorder);
 
-        world.Post(Event.Create(stale, Entity.Null, new Ping { Value = 1 }));
+        world.Post(Event.Create(target: stale, sender: Entity.Null, payload: new Ping { Value = 1 }));
         world.Run(3);
 
         successorsRecorder.Seen.Should().BeEmpty();
@@ -290,7 +290,7 @@ public class StaleHandleWorldTests
     public void AMessageSentToADestroyedEntitysHandleDoesNotReachTheEntityThatTookItsSlot()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder);
-        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(stale, new Ping { Value = 1 }));
+        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(target: stale, payload: new Ping { Value = 1 }));
 
         world.Run(3);
 
@@ -302,8 +302,8 @@ public class StaleHandleWorldTests
     public void AMessageToTheLiveEntityStillArrivesWhileTheStaleHandleIsIgnored()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder);
-        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(stale, new Ping { Value = 1 }),
-            SendOnce.Of(successor, new Ping { Value = 2 }));
+        world.SpawnWith(world.GetFrame(successor), SendOnce.Of(target: stale, payload: new Ping { Value = 1 }),
+            SendOnce.Of(target: successor, payload: new Ping { Value = 2 }));
 
         world.Run(3);
 
@@ -313,10 +313,10 @@ public class StaleHandleWorldTests
     [Fact]
     public void AMessageThatWasSentToAnEntityThatDiesInTheSameTickIsNotDeliveredToTheEntityThatTakesItsSlot()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity doomed = world.SpawnWith(root,
             Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
-        world.SpawnWith(root, SendOnce.Of(doomed, new Ping { Value = 1 }));
+        world.SpawnWith(root, SendOnce.Of(target: doomed, payload: new Ping { Value = 1 }));
         world.Tick();
         world.IsAlive(doomed).Should().BeFalse();
         var heir = new Recorder();
@@ -332,9 +332,9 @@ public class StaleHandleWorldTests
     [Fact]
     public void AMessageAlreadyWaitingForAnEntityThatIsDestroyedIsNotDeliveredToTheEntityThatTakesItsSlot()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity doomed = world.SpawnWith(root, new Recorder());
-        world.SpawnWith(root, SendOnce.Of(doomed, new Ping { Value = 1 }));
+        world.SpawnWith(root, SendOnce.Of(target: doomed, payload: new Ping { Value = 1 }));
         world.Tick();
         // The Ping has been routed to the doomed entity's inbox, and its next tick has not run yet.
         world.Destroy(doomed);

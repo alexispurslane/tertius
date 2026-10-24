@@ -53,7 +53,7 @@ internal static class PuffBirths
         while (low < high)
         {
             long middle = low + (high - low) / 2;
-            if ((float)AgeAt(middle, phase, rate, dt) < life)
+            if ((float)AgeAt(index: middle, phase: phase, rate: rate, dt: dt) < life)
                 high = middle;
             else
                 low = middle + 1;

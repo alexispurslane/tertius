@@ -43,9 +43,18 @@
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)analyzers/CodeMetricsConfig.txt" />
   </ItemGroup>
-  <!-- The union generator writes the members of every [GeneratedUnion] struct (docs/plans/union-tooling.md). -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Tertius.Unions'">
+  <!--
+    The union generator writes the members of every [GeneratedUnion] struct (docs/plans/union-tooling.md). The style
+    analyzer leaves it out: the style analyzer is the one analyzer that the union analyzer would check, and the union
+    project takes the style analyzer, so each referencing the other would make a cycle.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Tertius.Unions' And '$(MSBuildProjectName)' != 'Tertius.Style'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Tertius.Unions/Tertius.Unions.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <!-- The style analyzer checks the rules of STYLE.md that a tool can check (ARCHITECTURE.md, "Style analyzer"). -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Tertius.Style'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Tertius.Style/Tertius.Style.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

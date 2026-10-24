@@ -62,7 +62,7 @@ internal sealed unsafe class LightingPass : RenderPass
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         context.BindSceneSets();
         context.SetFullViewport();
-        vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
+        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }
 

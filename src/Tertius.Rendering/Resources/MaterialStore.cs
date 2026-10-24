@@ -93,7 +93,7 @@ internal sealed unsafe class MaterialStore : IDisposable
                 barriers.Buffer(replacement, BufferUse.TransferDestination);
                 barriers.Flush(device.Vk, commandBuffer);
                 var copy = new BufferCopy(0, 0, (ulong)Count * (ulong)sizeof(GpuMaterial));
-                device.Vk.CmdCopyBuffer(commandBuffer, Buffer.Handle, replacement.Handle, 1, &copy);
+                device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: Buffer.Handle, dstBuffer: replacement.Handle, regionCount: 1, pRegions: &copy);
             }
 
             releases.Retire(Buffer, frame);
@@ -106,7 +106,7 @@ internal sealed unsafe class MaterialStore : IDisposable
         Span<GpuMaterial> staged = MemoryMarshal.Cast<byte, GpuMaterial>(stage.Bytes);
         int cursor = 0;
         if (Count == 0)
-            staged[cursor++] = ToGpu(new(Vector4.One));
+            staged[cursor++] = ToGpu(new(BaseColor: Vector4.One));
         foreach ((MaterialId id, MaterialDesc desc) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
@@ -118,14 +118,14 @@ internal sealed unsafe class MaterialStore : IDisposable
         barriers.Buffer(Buffer, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
         var region = new BufferCopy(stage.Offset, (ulong)first * (ulong)sizeof(GpuMaterial), stage.Size);
-        device.Vk.CmdCopyBuffer(commandBuffer, stage.Buffer.Handle, Buffer.Handle, 1, &region);
+        device.Vk.CmdCopyBuffer(commandBuffer: commandBuffer, srcBuffer: stage.Buffer.Handle, dstBuffer: Buffer.Handle, regionCount: 1, pRegions: &region);
         Count += added;
     }
 
-    private GpuBuffer Create(int materials) => GpuBuffer.Create(device, allocator,
-        (ulong)materials * (ulong)sizeof(GpuMaterial),
-        BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
-        MemoryUsage.GpuOnly, "materials");
+    private GpuBuffer Create(int materials) => GpuBuffer.Create(device: device, allocator: allocator,
+        size: (ulong)materials * (ulong)sizeof(GpuMaterial),
+        usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
+        memoryUsage: MemoryUsage.GpuOnly, name: "materials");
 
     public void Dispose() => Buffer.Dispose();
 }

@@ -127,7 +127,7 @@ internal sealed class WindowHost : IInputTarget
                 world.Log += error.WriteLine;
                 SceneInstance scene = sceneToBuild.Build(world, renderer);
                 world.PublishRenderSnapshot();
-                host = new(window, renderer, world, scene, script, outputFolder, speed, record);
+                host = new(window: window, renderer: renderer, world: world, scene: scene, script: script, outputFolder: outputFolder, speed: speed, record: record);
                 host.Play();
                 return host.Report(scriptPath, output, error);
             }
@@ -227,13 +227,14 @@ internal sealed class WindowHost : IInputTarget
     private void SimulationLoop()
     {
         var clock = Stopwatch.StartNew();
-        var playback = new WindowPlayback(pacer, captures, images, () => clock.Elapsed.TotalSeconds, closing.Token);
+        var playback = new WindowPlayback(pacer: pacer, captures: captures, folder: images, secondsSinceStart: () => clock.Elapsed.TotalSeconds, stop: closing.Token);
         try
         {
-            if (freePlay != null)
-                freePlay.Run(playback);
+            // The constructor makes free play exactly when there is no script.
+            if (script is { } run)
+                result = ScriptRunner.Run(script: run, world: world, scene: scene, outputFolder: outputFolder, playback: playback);
             else
-                result = ScriptRunner.Run(script!, world, scene, outputFolder, playback);
+                freePlay?.Run(playback);
         }
         catch (ScriptException ex)
         {
@@ -354,7 +355,10 @@ internal sealed class WindowHost : IInputTarget
     // Raw mode gives the mouse movement without the pointer's acceleration, where the system offers it.
     private void CaptureCursor()
     {
-        foreach (IMouse device in input!.Mice)
+        // Before the window loads, there is no input and no cursor to capture.
+        if (input is null)
+            return;
+        foreach (IMouse device in input.Mice)
             device.Cursor.CursorMode = !router.CapturesCursor ? CursorMode.Normal :
                 device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
     }
@@ -368,7 +372,7 @@ internal sealed class WindowHost : IInputTarget
     private int Report(string? scriptPath, TextWriter output, TextWriter error)
     {
         int code = ReportRun(scriptPath, output, error);
-        return record is null || freePlay is null ? code : ReportRecord(record, freePlay, code, output, error);
+        return record is null || freePlay is null ? code : ReportRecord(record: record, freePlay: freePlay, code: code, output: output, error: error);
     }
 
     /// <summary>
@@ -416,8 +420,9 @@ internal sealed class WindowHost : IInputTarget
             return ScriptCommand.ScriptError;
         }
 
-        if (result != null)
-            ScriptCommand.WriteFiles(result, outputFolder!, images!, output);
+        // A script run in the window has an output folder, so it has its images.
+        if (result != null && images is not null)
+            ScriptCommand.WriteFiles(result: result, outputFolder: images.Folder, target: images, output: output);
         if (result is { Stopped: true })
             error.WriteLine(
                 $"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");

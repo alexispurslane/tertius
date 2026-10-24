@@ -81,13 +81,13 @@ internal sealed class YardRecord
         {
             Entity entity = scene[Bodies[i]];
             FrameHandle home = world.PhysicsHomeOf(entity);
-            bodies[i] = new(world.PoseIn(entity, surface), world.VelocityIn(entity, surface),
-                world.AngularVelocityIn(entity, surface), home,
-                home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
+            bodies[i] = new(Pose: world.PoseIn(entity, surface), Velocity: world.VelocityIn(entity, surface),
+                AngularVelocity: world.AngularVelocityIn(entity, surface), Home: home,
+                HomeMode: home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
         }
 
-        Ticks.Add(new(world.TickNumber, world.Time, bodies, world.IsStanding(scene["person"]),
-            world.Frames.NumericCount, world.Errors.Count));
+        Ticks.Add(new(Tick: world.TickNumber, Time: world.Time, Bodies: bodies, PersonStanding: world.IsStanding(scene["person"]),
+            NumericFrames: world.Frames.NumericCount, Errors: world.Errors.Count));
     }
 }
 

@@ -69,7 +69,7 @@ public class TransformTests
     {
         // A ball falls under gravity, so Jolt reports a new velocity in every step. The velocity at the end of tick t is
         // the one that the step of tick t reported.
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         test.World.SetFrameGravity(test.Root, GravityField.Uniform(new(0, -9.81f, 0)));
         var seenThroughSelf = new List<float>();
         var seenThroughSnapshot = new List<float>();
@@ -103,7 +103,7 @@ public class TransformTests
     [Fact]
     public void AnEntityWithABodyCannotWriteItsTransformBecausePhysicsOwnsIt()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,
@@ -140,7 +140,7 @@ public class TransformTests
     [Fact]
     public void AnEntityKeepsRunningAfterItsTransformWriteIsRefusedAndItsPoseDoesNotChange()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         Lambda refusedWriter =
             Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5)));
         // A later component of the same entity: the refused write must not end the entity's run.
@@ -187,7 +187,7 @@ public class TransformTests
     [Fact]
     public void ABodilessEntityCannotWriteAPhysicsIntent()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             self.Body.AddForce(Vector3.UnitX)));
 

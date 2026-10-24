@@ -20,7 +20,7 @@ public sealed class RevolvedSolidGapTests
     /// <summary>The segment left out: segment 16 spans θ from 180 to 191.25 degrees.</summary>
     private const int Gap = 16;
 
-    private static RevolvedSolid Ring() => RevolvedSolid.Ring(Inner, Outer, HalfWidth, Segments).LeavingOut(Gap);
+    private static RevolvedSolid Ring() => RevolvedSolid.Ring(innerRadius: Inner, outerRadius: Outer, halfWidth: HalfWidth, segments: Segments).LeavingOut(Gap);
 
     /// <summary>The point in the middle of the ring's wall at the angle θ, in radians, measured from +X toward -Z.</summary>
     private static Vector3 InTheWall(double theta) =>
@@ -83,16 +83,16 @@ public sealed class RevolvedSolidGapTests
         }
 
         // The facets lie up to 0.1 m inside the outer circle, 20.5 m (1 - cos(π / 32)), so the probe looks 0.15 m off each face.
-        ExpectFacingOut(Ring().Mesh(), Inside, probe: 0.15f, maxNormalAngle: MathF.PI / 12);
+        ExpectFacingOut(mesh: Ring().Mesh(), inside: Inside, probe: 0.15f, maxNormalAngle: MathF.PI / 12);
     }
 
     /// <summary>A segment that is not one of the ring's is an error, and so is a gap in a cylinder, which is one convex hull.</summary>
     [Fact]
     public void LeavingOutASegmentThatIsNotThereIsAnError()
     {
-        FluentActions.Invoking(() => RevolvedSolid.Ring(Inner, Outer, HalfWidth, Segments).LeavingOut(Segments))
+        FluentActions.Invoking(() => RevolvedSolid.Ring(innerRadius: Inner, outerRadius: Outer, halfWidth: HalfWidth, segments: Segments).LeavingOut(Segments))
             .Should().Throw<ArgumentOutOfRangeException>();
-        FluentActions.Invoking(() => RevolvedSolid.Ring(Inner, Outer, HalfWidth, Segments).LeavingOut(-1))
+        FluentActions.Invoking(() => RevolvedSolid.Ring(innerRadius: Inner, outerRadius: Outer, halfWidth: HalfWidth, segments: Segments).LeavingOut(-1))
             .Should().Throw<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => RevolvedSolid.Cylinder(1, 1, 32).LeavingOut(0)).Should()
             .Throw<InvalidOperationException>();

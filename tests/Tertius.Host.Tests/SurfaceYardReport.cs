@@ -241,42 +241,42 @@ internal static class SurfaceYardReport
         const string stack = "TheTwoCratesLeftOnTheStackFallAsleepAndMoveLessThanAMillimeterInSixtySeconds";
         foreach (StackedCrate crate in m.Stacked)
         {
-            Row(stack, $"{crate.Id} asleep when the walk starts (t = {F(m.SettledTime, 2)} s)", "yes",
-                Yes(crate.AsleepWhenTheWalkStarts), crate.AsleepWhenTheWalkStarts);
-            Row(stack, $"{crate.Id} asleep at the end", "yes", Yes(crate.AsleepAtTheEnd), crate.AsleepAtTheEnd);
-            Row(stack, $"{crate.Id}: largest distance from where it rested at {F(m.SettledTime, 2)} s, over 60 s",
-                "0, below 1 mm",
-                $"{G(crate.LargestMove * 1e3)} mm", crate.LargestMove < YardMeasurements.StackDriftLimit);
-            Row(stack, $"{crate.Id}: distance at the end from where the scene stacked it",
-                "below 2 cm (contacts sink up to 5 mm each)",
-                $"{G(crate.OffsetFromWhereStacked * 1e3)} mm",
-                crate.OffsetFromWhereStacked < YardMeasurements.StackSinkLimit);
-            Row(stack,
-                $"{crate.Id}: times it woke after the dump 'pushed' (tick {m.PushedTick}), while the person stands against the stack",
-                "0",
-                crate.WakesAfterThePush.ToString(CultureInfo.InvariantCulture), crate.WakesAfterThePush == 0);
+            Row(test: stack, what: $"{crate.Id} asleep when the walk starts (t = {F(m.SettledTime, 2)} s)", expected: "yes",
+                measured: Yes(crate.AsleepWhenTheWalkStarts), holds: crate.AsleepWhenTheWalkStarts);
+            Row(test: stack, what: $"{crate.Id} asleep at the end", expected: "yes", measured: Yes(crate.AsleepAtTheEnd), holds: crate.AsleepAtTheEnd);
+            Row(test: stack, what: $"{crate.Id}: largest distance from where it rested at {F(m.SettledTime, 2)} s, over 60 s",
+                expected: "0, below 1 mm",
+                measured: $"{G(crate.LargestMove * 1e3)} mm", holds: crate.LargestMove < YardMeasurements.StackDriftLimit);
+            Row(test: stack, what: $"{crate.Id}: distance at the end from where the scene stacked it",
+                expected: "below 2 cm (contacts sink up to 5 mm each)",
+                measured: $"{G(crate.OffsetFromWhereStacked * 1e3)} mm",
+                holds: crate.OffsetFromWhereStacked < YardMeasurements.StackSinkLimit);
+            Row(test: stack,
+                what: $"{crate.Id}: times it woke after the dump 'pushed' (tick {m.PushedTick}), while the person stands against the stack",
+                expected: "0",
+                measured: crate.WakesAfterThePush.ToString(CultureInfo.InvariantCulture), holds: crate.WakesAfterThePush == 0);
         }
 
         const string walk = "ThePersonStandsWhileItWalks";
         PersonWalk w = m.Walk;
-        Row(walk,
-            $"ticks of the walks ({m.SettledTick} to {m.WalkedTick} and {m.LandedTick} to {m.PushedTick}) in which the person does not stand",
-            "none",
-            w.TicksNotStanding.Count == 0 ? "none" : string.Join(", ", w.TicksNotStanding),
-            w.TicksNotStanding.Count == 0);
-        Row(walk, "largest distance of the person's center from 0.9 m above the floor", "below 5 cm",
-            $"{G(w.LargestHeightError * 100)} cm",
-            w.LargestHeightError < YardMeasurements.StandingHeightTolerance);
-        Row(walk, "largest vertical speed of the person, from the change of its height over each tick",
-            "below 0.05 m/s", $"{G(w.LargestVerticalSpeed)} m/s",
-            w.LargestVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
-        Row(walk, "largest vertical part of the velocity that the world reports for the person", "0, below 0.05 m/s",
-            $"{G(w.LargestReportedVerticalSpeed)} m/s",
-            w.LargestReportedVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
-        Row(walk, "distance of the first walk: 200 ticks at 3 m/s",
-            $"{F(YardMeasurements.WalkDistance, 3)} m ± {F(YardMeasurements.WalkDistanceTolerance, 3)} m",
-            $"{F(w.FirstWalkDistance, 4)} m",
-            Math.Abs(w.FirstWalkDistance - YardMeasurements.WalkDistance) <= YardMeasurements.WalkDistanceTolerance);
+        Row(test: walk,
+            what: $"ticks of the walks ({m.SettledTick} to {m.WalkedTick} and {m.LandedTick} to {m.PushedTick}) in which the person does not stand",
+            expected: "none",
+            measured: w.TicksNotStanding.Count == 0 ? "none" : string.Join(", ", w.TicksNotStanding),
+            holds: w.TicksNotStanding.Count == 0);
+        Row(test: walk, what: "largest distance of the person's center from 0.9 m above the floor", expected: "below 5 cm",
+            measured: $"{G(w.LargestHeightError * 100)} cm",
+            holds: w.LargestHeightError < YardMeasurements.StandingHeightTolerance);
+        Row(test: walk, what: "largest vertical speed of the person, from the change of its height over each tick",
+            expected: "below 0.05 m/s", measured: $"{G(w.LargestVerticalSpeed)} m/s",
+            holds: w.LargestVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
+        Row(test: walk, what: "largest vertical part of the velocity that the world reports for the person", expected: "0, below 0.05 m/s",
+            measured: $"{G(w.LargestReportedVerticalSpeed)} m/s",
+            holds: w.LargestReportedVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
+        Row(test: walk, what: "distance of the first walk: 200 ticks at 3 m/s",
+            expected: $"{F(YardMeasurements.WalkDistance, 3)} m ± {F(YardMeasurements.WalkDistanceTolerance, 3)} m",
+            measured: $"{F(w.FirstWalkDistance, 4)} m",
+            holds: Math.Abs(w.FirstWalkDistance - YardMeasurements.WalkDistance) <= YardMeasurements.WalkDistanceTolerance);
 
         const string fallTest = "ThePushedCrateFallsFromTheStackToTheFloorInTheTimeOfAFreeFallWithTheSurfaceGravity";
         CrateFall fall = m.Fall;
@@ -286,36 +286,36 @@ internal static class SurfaceYardReport
         double worstSpin = fall.FreeFlightTicks.Count == 0
             ? double.NaN
             : fall.FreeFlightTicks.Max(step => step.AngularVelocityChange);
-        Row(fallTest, "steps of free flight", $"at least {YardMeasurements.LeastFreeFlightTicks}",
-            fall.FreeFlightTicks.Count.ToString(CultureInfo.InvariantCulture),
-            fall.FreeFlightTicks.Count >= YardMeasurements.LeastFreeFlightTicks);
-        Row(fallTest, "largest error of the crate's acceleration in free flight, as a share of μ/r²", "0, below 0.001",
-            G(worstShare),
-            worstShare < YardMeasurements.FreeFallRelativeTolerance);
-        Row(fallTest, "largest change of the crate's spin in one step of free flight", "0, below 1e-4 rad/s",
-            $"{G(worstSpin)} rad/s", worstSpin < YardMeasurements.SpinChangeLimit);
+        Row(test: fallTest, what: "steps of free flight", expected: $"at least {YardMeasurements.LeastFreeFlightTicks}",
+            measured: fall.FreeFlightTicks.Count.ToString(CultureInfo.InvariantCulture),
+            holds: fall.FreeFlightTicks.Count >= YardMeasurements.LeastFreeFlightTicks);
+        Row(test: fallTest, what: "largest error of the crate's acceleration in free flight, as a share of μ/r²", expected: "0, below 0.001",
+            measured: G(worstShare),
+            holds: worstShare < YardMeasurements.FreeFallRelativeTolerance);
+        Row(test: fallTest, what: "largest change of the crate's spin in one step of free flight", expected: "0, below 1e-4 rad/s",
+            measured: $"{G(worstSpin)} rad/s", holds: worstSpin < YardMeasurements.SpinChangeLimit);
         string leaving = fall.Leaving is { } state
             ? $"at height {F(state.Pose.Position.Y - YardMeasurements.FloorTop)} m, lowest corner {F(YardMeasurements.CornerExtremes(state.Pose).LowestY - YardMeasurements.FloorTop)} m, "
               + $"vertical speed {F(state.Velocity.Y)} m/s, spin {F(state.AngularVelocity.Length(), 3)} rad/s"
             : "never";
-        Row(fallTest,
-            $"time from tick {Tick(fall.LeaveTick)}, when the crate has left the stack ({leaving}), until its lowest corner reaches the floor",
-            fall.PredictedFallTime is double predicted
+        Row(test: fallTest,
+            what: $"time from tick {Tick(fall.LeaveTick)}, when the crate has left the stack ({leaving}), until its lowest corner reaches the floor",
+            expected: fall.PredictedFallTime is double predicted
                 ? $"a free fall from that state with g = μ/R² and the spin kept: {F(predicted, 5)} s, in which its center falls {F(fall.PredictedCenterDrop ?? double.NaN)} m; ± one tick ({F(m.TickSeconds, 5)} s)"
                 : "a free fall from that state, which does not reach the floor",
-            fall.MeasuredFallTime is double measured ? $"{F(measured, 5)} s" : "never",
-            fall.MeasuredFallTime is double a && fall.PredictedFallTime is double b &&
+            measured: fall.MeasuredFallTime is double measured ? $"{F(measured, 5)} s" : "never",
+            holds: fall.MeasuredFallTime is double a && fall.PredictedFallTime is double b &&
             Math.Abs(a - b) <= m.TickSeconds);
 
         const string push = "ThePersonAndTheTopCrateHearEachOtherWhenThePersonPushesIt";
         foreach (string hearer in new[] { "person", "top-crate" })
         {
             PushCollision? first = m.PushCollisions.FirstOrDefault(collision => collision.To == hearer);
-            Row(push, $"the first Collision between the person and the top crate that the {hearer} hears",
-                $"at tick {Tick(fall.PushTick)} ± 1, the crate's first move, "
+            Row(test: push, what: $"the first Collision between the person and the top crate that the {hearer} hears",
+                expected: $"at tick {Tick(fall.PushTick)} ± 1, the crate's first move, "
                 + $"with an impulse above 0 and at most the head-on {F(YardMeasurements.HeadOnPushImpulse, 3)} N·s (3 m/s times the reduced mass)",
-                first is null ? "none" : $"tick {first.Tick}, impulse {F(first.Impulse, 3)} N·s",
-                first is not null && fall.PushTick is long pushTick && Math.Abs(first.Tick - pushTick) <= 1 &&
+                measured: first is null ? "none" : $"tick {first.Tick}, impulse {F(first.Impulse, 3)} N·s",
+                holds: first is not null && fall.PushTick is long pushTick && Math.Abs(first.Tick - pushTick) <= 1 &&
                 first.Impulse > 0
                 && first.Impulse <= YardMeasurements.HeadOnPushImpulse * 1.001);
         }
@@ -323,36 +323,36 @@ internal static class SurfaceYardReport
         const string jitter = "NoBodyJittersOnceTheYardIsAtRest";
         foreach (RestingBody body in m.AtRest)
         {
-            Row(jitter, $"{body.Id}: largest move in one tick, from {F(m.RestFromTime, 2)} s to the end",
-                "0, below 0.1 mm", $"{G(body.LargestStep * 1e3)} mm",
-                body.LargestStep < YardMeasurements.JitterStepLimit);
-            Row(jitter, $"{body.Id}: largest distance from where it was at {F(m.RestFromTime, 2)} s", "0, below 1 mm",
-                $"{G(body.LargestMove * 1e3)} mm",
-                body.LargestMove < YardMeasurements.RestDriftLimit);
+            Row(test: jitter, what: $"{body.Id}: largest move in one tick, from {F(m.RestFromTime, 2)} s to the end",
+                expected: "0, below 0.1 mm", measured: $"{G(body.LargestStep * 1e3)} mm",
+                holds: body.LargestStep < YardMeasurements.JitterStepLimit);
+            Row(test: jitter, what: $"{body.Id}: largest distance from where it was at {F(m.RestFromTime, 2)} s", expected: "0, below 1 mm",
+                measured: $"{G(body.LargestMove * 1e3)} mm",
+                holds: body.LargestMove < YardMeasurements.RestDriftLimit);
             if (body.Id != "person")
-                Row(jitter, $"{body.Id} asleep at the end", "yes", Yes(body.AsleepAtTheEnd), body.AsleepAtTheEnd);
+                Row(test: jitter, what: $"{body.Id} asleep at the end", expected: "yes", measured: Yes(body.AsleepAtTheEnd), holds: body.AsleepAtTheEnd);
         }
 
         const string homes = "NoNumericFrameHoldsTheYardsBodiesAndTheyRestInTheJoltSystemOfEarthSurfaceItself";
-        Row(homes, "most numeric frames in the frame tree after a tick", "0",
-            m.MostNumericFrames.ToString(CultureInfo.InvariantCulture), m.MostNumericFrames == 0);
+        Row(test: homes, what: "most numeric frames in the frame tree after a tick", expected: "0",
+            measured: m.MostNumericFrames.ToString(CultureInfo.InvariantCulture), holds: m.MostNumericFrames == 0);
         foreach (BodyHomes body in m.Homes)
-            Row(homes, $"{body.Id}: ticks from 0 on with a physics home other than earth-surface itself", "0",
-                body.TicksNotInEarthSurface == 0
+            Row(test: homes, what: $"{body.Id}: ticks from 0 on with a physics home other than earth-surface itself", expected: "0",
+                measured: body.TicksNotInEarthSurface == 0
                     ? "0"
                     : $"{body.TicksNotInEarthSurface} (first: {string.Join(", ", body.FirstTicksNotInEarthSurface)})",
-                body.TicksNotInEarthSurface == 0);
+                holds: body.TicksNotInEarthSurface == 0);
         foreach (RestingBody body in m.AtRest)
-            Row(homes,
-                $"{body.Id}: largest move in one tick, from {F(m.RestFromTime, 2)} s to the end, 6,371 km from the origin of its Jolt system",
-                "0, below 0.1 mm", $"{G(body.LargestStep * 1e3)} mm",
-                body.LargestStep < YardMeasurements.JitterStepLimit);
+            Row(test: homes,
+                what: $"{body.Id}: largest move in one tick, from {F(m.RestFromTime, 2)} s to the end, 6,371 km from the origin of its Jolt system",
+                expected: "0, below 0.1 mm", measured: $"{G(body.LargestStep * 1e3)} mm",
+                holds: body.LargestStep < YardMeasurements.JitterStepLimit);
 
         const string errors = "TheRunRecordsNoErrors";
-        Row(errors, "World.Errors at the end", "0", run.World.Errors.Count.ToString(CultureInfo.InvariantCulture),
-            run.World.Errors.Count == 0);
-        Row(errors, "Vulkan validation messages", "0",
-            run.ValidationMessages.Count.ToString(CultureInfo.InvariantCulture), run.ValidationMessages.Count == 0);
+        Row(test: errors, what: "World.Errors at the end", expected: "0", measured: run.World.Errors.Count.ToString(CultureInfo.InvariantCulture),
+            holds: run.World.Errors.Count == 0);
+        Row(test: errors, what: "Vulkan validation messages", expected: "0",
+            measured: run.ValidationMessages.Count.ToString(CultureInfo.InvariantCulture), holds: run.ValidationMessages.Count == 0);
         Line(text);
     }
 

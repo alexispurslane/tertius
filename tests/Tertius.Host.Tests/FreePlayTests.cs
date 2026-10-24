@@ -140,7 +140,7 @@ public sealed class FreePlayTests : IDisposable
     /// <summary>The (tick, code) of each post step of a script: the number of ticks that run before the post, and the key code.</summary>
     private static (long Tick, int Code)[] PostsOf(Script script)
     {
-        var posts = new List<(long, int)>();
+        var posts = new List<(long Tick, int Code)>();
         long tick = 0;
         foreach (ScriptStep step in script.Steps)
             if (step is RunStep run)
@@ -161,7 +161,7 @@ public sealed class FreePlayTests : IDisposable
         {
             TestWindow window = new TestWindow(6).At(3, router => router.Key(Key.W, down: true));
 
-            Play(world, scene, window, record: false);
+            Play(world: world, scene: scene, window: window, record: false);
 
             // Posted before tick 3 (3 ticks done), routed at the end of tick 3, handled during tick 4 (4 ticks done).
             SeenInput(world, scene).Should().Equal((4L, (int)Key.W));
@@ -176,7 +176,7 @@ public sealed class FreePlayTests : IDisposable
         {
             TestWindow window = new TestWindow(3).At(1, router => router.Key(Key.W, down: true));
 
-            FreePlay freePlay = Play(world, scene, window, record: false);
+            FreePlay freePlay = Play(world: world, scene: scene, window: window, record: false);
 
             File.Exists(RecordPath).Should().BeFalse();
             freePlay.RecordFailure.Should().BeNull();
@@ -194,7 +194,7 @@ public sealed class FreePlayTests : IDisposable
                 .At(3, router => router.Key(Key.W, down: true))
                 .At(10, router => router.Key(Key.W, down: false));
 
-            FreePlay freePlay = Play(world, scene, window);
+            FreePlay freePlay = Play(world: world, scene: scene, window: window);
 
             freePlay.RecordFailure.Should().BeNull();
             freePlay.RecordWritten.Should().BeTrue();
@@ -223,11 +223,11 @@ public sealed class FreePlayTests : IDisposable
                 .At(7, router => router.Key(Key.A, down: true))
                 .At(7, router => router.MouseButton(MouseButton.Left, down: true))
                 .At(19, router => router.Key(Key.W, down: false));
-            Play(session, sessionScene, window);
+            Play(world: session, scene: sessionScene, window: window);
 
             using World replay = NewJoltWorld();
             SceneInstance replayScene = InputProbeScene.Build(replay, RenderResources.None);
-            ScriptRunner.Run(Written(RecordPath), replay, replayScene);
+            ScriptRunner.Run(script: Written(RecordPath), world: replay, scene: replayScene);
 
             SeenInput(replay, replayScene).Should().Equal(SeenInput(session, sessionScene));
             // Two events from one gap between ticks reach the world together, and the replay handles them on the same tick.
@@ -248,7 +248,7 @@ public sealed class FreePlayTests : IDisposable
                 router.Key(Key.V, down: false);
             });
 
-            Play(world, scene, window);
+            Play(world: world, scene: scene, window: window);
 
             world.Camera.Should().Be(scene["eye-b"]);
             ScriptRecorderTests.Describe(Written(RecordPath)).Should()
@@ -269,7 +269,7 @@ public sealed class FreePlayTests : IDisposable
                 router.Key(Key.V, down: true);
             });
 
-            Play(world, scene, window);
+            Play(world: world, scene: scene, window: window);
 
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal("camera eye-a", "run 2", "camera eye-b",
                 "camera eye-a", "run 2", "dump end");
@@ -284,7 +284,7 @@ public sealed class FreePlayTests : IDisposable
         {
             world.Camera = world.Spawn(new() { Frame = world.GetOwnedFrame(scene["space"]) });
 
-            Play(world, scene, new(2));
+            Play(world: world, scene: scene, window: new(2));
 
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal("run 2", "dump end");
         }
@@ -298,7 +298,7 @@ public sealed class FreePlayTests : IDisposable
         {
             world.Camera = Entity.Null;
 
-            Play(world, scene, new(2));
+            Play(world: world, scene: scene, window: new(2));
 
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal("run 2", "dump end");
         }
@@ -321,7 +321,7 @@ public sealed class FreePlayTests : IDisposable
                 })
                 .At(3, router => router.Key(Key.F1, down: true));
 
-            Play(world, scene, window);
+            Play(world: world, scene: scene, window: window);
 
             window.FlyChanges.Should().Equal(true, false);
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal("camera eye-a", "run 6", "dump end");
@@ -338,7 +338,7 @@ public sealed class FreePlayTests : IDisposable
                 .At(1, router => router.Key(Key.W, down: true))
                 .At(2, router => router.Key(Key.F1, down: true));
 
-            Play(world, scene, window);
+            Play(world: world, scene: scene, window: window);
 
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
                 "camera eye-a",
@@ -361,7 +361,7 @@ public sealed class FreePlayTests : IDisposable
                 .At(2, router => router.Key(Key.W, down: true))
                 .At(5, router => router.Key(Key.Escape, down: true));
 
-            Play(world, scene, window);
+            Play(world: world, scene: scene, window: window);
 
             world.TickNumber.Should().Be(5);
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
@@ -379,7 +379,7 @@ public sealed class FreePlayTests : IDisposable
                 .At(2, router => router.Key(Key.W, down: true))
                 .At(7, _ => throw new InvalidOperationException("the run broke on purpose"));
 
-            Action play = () => Play(world, scene, window);
+            Action play = () => Play(world: world, scene: scene, window: window);
 
             play.Should().Throw<InvalidOperationException>().WithMessage("*on purpose*");
             ScriptRecorderTests.Describe(Written(RecordPath)).Should().Equal(
@@ -414,7 +414,7 @@ public sealed class FreePlayTests : IDisposable
         (World world, SceneInstance scene) = InputProbe();
         using (world)
         {
-            string path = Path.Combine(folder, "records", "today", "record.json");
+            string path = Path.Combine(path1: folder, path2: "records", path3: "today", path4: "record.json");
             var window = new TestWindow(2);
             var freePlay = new FreePlay(world, scene, new(path, "input-probe", Size));
             window.FreePlay = freePlay;
@@ -448,7 +448,7 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record, freePlay, ScriptCommand.Ok, output, error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output, error: error);
 
         code.Should().Be(ScriptCommand.Ok);
         output.ToString().Should().Be(RecordPath + Environment.NewLine);
@@ -464,7 +464,7 @@ public sealed class FreePlayTests : IDisposable
         var output = new StringWriter();
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record, freePlay, ScriptCommand.Ok, output, error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.Ok, output: output, error: error);
 
         code.Should().Be(ScriptCommand.FileError);
         error.ToString().Should().Contain("Cannot write the record").And.Contain("taken");
@@ -479,7 +479,7 @@ public sealed class FreePlayTests : IDisposable
         (RecordTo record, FreePlay freePlay) = PlayThreeTicks(Path.Combine(taken, "record.json"));
         var error = new StringWriter();
 
-        int code = WindowHost.ReportRecord(record, freePlay, ScriptCommand.InternalError, new StringWriter(), error);
+        int code = WindowHost.ReportRecord(record: record, freePlay: freePlay, code: ScriptCommand.InternalError, output: new StringWriter(), error: error);
 
         code.Should().Be(ScriptCommand.InternalError);
         error.ToString().Should().Contain("Cannot write the record");
@@ -611,7 +611,7 @@ public sealed class FreePlayReplayTests : IDisposable
             using World replay = NewJoltWorld();
             SceneInstance replayScene =
                 DemoScenes.All.Single(s => s.Name == "orbit").Build(replay, RenderResources.None);
-            StateDump replayEnd = ScriptRunner.Run(script, replay, replayScene).Dump("end");
+            StateDump replayEnd = ScriptRunner.Run(script: script, world: replay, scene: replayScene).Dump("end");
 
             Json(replayEnd, replayScene).Should().Be(Json(sessionEnd, scene));
         }

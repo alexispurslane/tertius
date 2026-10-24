@@ -34,9 +34,9 @@ public sealed class OrbitRun : IDisposable
         World = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = Math.PI / MeanMotion - 10 },
             new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
-        Result = ScriptRunner.Run(Script.Parse("""
+        Result = ScriptRunner.Run(script: Script.Parse("""
                                                { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
-                                               """), World, Scene);
+                                               """), world: World, scene: Scene);
     }
 
     public World World { get; }
@@ -306,8 +306,8 @@ public sealed class OrbitSliceImageTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
-                folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script: script, world: world, scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+                outputFolder: folder, playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {
@@ -323,9 +323,9 @@ public sealed class OrbitSliceImageTests : IDisposable
     {
         // The chase camera rides in the ship's frame, which turns once per orbit to face Earth. The stars are fixed to the
         // sun frame's axes, so a quarter orbit later they stand elsewhere in the view. The rows above the ship show sky.
-        static HashSet<(int, int)> Stars(Png image)
+        static HashSet<(int X, int Y)> Stars(Png image)
         {
-            var stars = new HashSet<(int, int)>();
+            var stars = new HashSet<(int X, int Y)>();
             for (int y = 0; y < 250; y++)
             for (int x = 0; x < image.Width; x++)
             {
@@ -337,7 +337,7 @@ public sealed class OrbitSliceImageTests : IDisposable
             return stars;
         }
 
-        HashSet<(int, int)> start = Stars(ChaseAt(0, "stars-0")), quarter = Stars(ChaseAt(90, "stars-90"));
+        HashSet<(int X, int Y)> start = Stars(ChaseAt(0, "stars-0")), quarter = Stars(ChaseAt(90, "stars-90"));
 
         start.Count.Should().BeGreaterThan(50);
         quarter.Count.Should().BeGreaterThan(50);
@@ -367,8 +367,8 @@ public sealed class OrbitSliceImageTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
-                folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
+            ScriptRunner.Run(script: script, world: world, scene: DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer),
+                outputFolder: folder, playback: new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {

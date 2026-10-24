@@ -215,7 +215,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle earth = SunAndEarth(world, resources, scene, EarthDate.MarchEquinox);
+            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: EarthDate.MarchEquinox);
 
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
             // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
@@ -231,16 +231,16 @@ public static partial class DemoScenes
                 Components = [new KeplerMotion { Orbit = orbit }],
                 // The hull outside the frame: the solid module and the radiator. It is kinematic, and its KeplerMotion
                 // moves it.
-                Body = new(new CompoundShapeDesc([
+                Body = new(Shape: new CompoundShapeDesc([
                         new(new BoxShapeDesc(Hull), new(Vector3.Zero, Quaternion.Identity)),
                         new(new BoxShapeDesc(Radiator.Extents), new(Radiator.Center, Quaternion.Identity))
-                    ]), BodyMotion.Kinematic, Mass: 2e5f,
+                    ]), Motion: BodyMotion.Kinematic, Mass: 2e5f,
                     InteriorShape: new CompoundShapeDesc([
                         .. Interior().Select(box =>
                             new CompoundChild(new BoxShapeDesc(box.Extents), new(box.Center, Quaternion.Identity)))
                     ])),
                 AsFrame = new(new(Bubble)),
-                Render = Drawn(resources, HullMesh(), new(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33)
+                Render = Drawn(resources: resources, mesh: HullMesh(), color: new(x: 0.8f, y: 0.8f, z: 0.82f, w: 1), boundingRadius: 33)
             });
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
@@ -250,7 +250,7 @@ public static partial class DemoScenes
             // the lamps' own faces white.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
             MaterialId lampMaterial =
-                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(2, 1.8f, 1.5f)));
+                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(2, 1.8f, 1.5f)));
             for (int i = -2; i <= 2; i++)
                 world.Spawn(new()
                 {
@@ -262,7 +262,7 @@ public static partial class DemoScenes
                         Material = lampMaterial,
                         BoundingRadius = 0.85f,
                         Flags = RenderFlags.Visible,
-                        Light = new PointLightData(new(new(0, -0.1f, 0), Quaternion.Identity), new(1, 0.9f, 0.75f),
+                        Light = new PointLightData(Offset: new(new(0, -0.1f, 0), Quaternion.Identity), Color: new(1, 0.9f, 0.75f),
                             Intensity: 40, Range: 20)
                     }
                 });
@@ -271,23 +271,23 @@ public static partial class DemoScenes
             // inner wall. Each slides 0.1 m farther than its doorway is wide or tall, so that its edge hides in the wall.
             // The outer door spawns open, so that it never moves past the pods (see Station).
             Entity outerDoor =
-                world.Spawn(DoorOf(frame, Hatch, new(0, 0, 2 * Hatch.Extents.Z + 0.1f), open: true, resources));
-            Entity innerDoor = world.Spawn(DoorOf(frame, InnerDoorway, new(0, 2 * InnerDoorway.Extents.Y + 0.1f, 0),
-                open: false, resources));
+                world.Spawn(DoorOf(frame: frame, doorway: Hatch, slide: new(0, 0, 2 * Hatch.Extents.Z + 0.1f), open: true, resources: resources));
+            Entity innerDoor = world.Spawn(DoorOf(frame: frame, doorway: InnerDoorway, slide: new(0, 2 * InnerDoorway.Extents.Y + 0.1f, 0),
+                open: false, resources: resources));
             scene.Add("airlock-inner", innerDoor);
             scene.Add("airlock-outer", outerDoor);
             scene.Add("airlock", world.Spawn(new()
             {
                 Frame = frame,
                 Pose = new(Chamber.Center, DQuaternion.Identity),
-                Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3, outerOpenAtStart: true)]
+                Components = [new Airlock(innerDoor: innerDoor, outerDoor: outerDoor, cycleSeconds: 3, outerOpenAtStart: true)]
             }));
 
-            var orange = new Vector4(1, 0.45f, 0.1f, 1);
+            var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
             RenderData pod = new()
             {
                 Mesh = resources.CreateMesh(Primitives.Box(new(PodHalfSize))),
-                Material = resources.CreateMaterial(new(orange, Emissive: MarkerGlow(orange))),
+                Material = resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))),
                 BoundingRadius = PodHalfSize * MathF.Sqrt(3),
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow
             };
@@ -297,7 +297,7 @@ public static partial class DemoScenes
                     Frame = frame,
                     Pose = new(start, DQuaternion.Identity),
                     LinearVelocity = velocity,
-                    Body = new(new BoxShapeDesc(new(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0,
+                    Body = new(Shape: new BoxShapeDesc(new(PodHalfSize)), Motion: BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0,
                         AngularDamping: 0),
                     AsFrame = new(FrameBounds.Sphere(0.01f)),
                     Render = pod
@@ -307,18 +307,18 @@ public static partial class DemoScenes
             {
                 Frame = frame,
                 Pose = new(ThinWall.Center, DQuaternion.Identity),
-                Body = new(new BoxShapeDesc(ThinWall.Extents), BodyMotion.Static),
-                Render = Drawn(resources, Primitives.Box(ThinWall.Extents), new(0.14f, 0.18f, 0.34f, 1),
+                Body = new(Shape: new BoxShapeDesc(ThinWall.Extents), Motion: BodyMotion.Static),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(ThinWall.Extents), color: new(x: 0.14f, y: 0.18f, z: 0.34f, w: 1),
                     boundingRadius: ThinWall.Extents.Length())
             }));
-            var crate = new CrateSpec(new(CrateHalfSize), CrateMass,
-                resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
-                resources.CreateMaterial(MaterialDesc.Color(new(0.15f, 0.55f, 0.1f, 1))));
+            var crate = new CrateSpec(HalfExtents: new(CrateHalfSize), Mass: CrateMass,
+                Mesh: resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
+                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.15f, y: 0.55f, z: 0.1f, w: 1))));
             scene.Add("crate", world.Spawn(new()
             {
                 Frame = frame,
                 Pose = new(CrateStart, DQuaternion.Identity),
-                Body = new(new BoxShapeDesc(crate.HalfExtents), Mass: crate.Mass, LinearDamping: 0, AngularDamping: 0),
+                Body = new(Shape: new BoxShapeDesc(crate.HalfExtents), Mass: crate.Mass, LinearDamping: 0, AngularDamping: 0),
                 Render = crate.Drawn(),
                 Components = [new Crate(crate), new Launchable()]
             }));
@@ -366,8 +366,8 @@ public static partial class DemoScenes
             {
                 Frame = frame,
                 Pose = new(open ? doorway.Center + slide : doorway.Center, DQuaternion.Identity),
-                Body = new(new BoxShapeDesc(half), BodyMotion.Kinematic),
-                Render = Drawn(resources, Primitives.Box(half), new(0.85f, 0.45f, 0.1f, 1),
+                Body = new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Kinematic),
+                Render = Drawn(resources: resources, mesh: Primitives.Box(half), color: new(x: 0.85f, y: 0.45f, z: 0.1f, w: 1),
                     boundingRadius: half.Length()),
                 Components = [new Door(slide, openSeconds: 1.5f, openAtStart: open)]
             };

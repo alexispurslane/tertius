@@ -284,7 +284,7 @@ public sealed record MaterialDesc(
     TextureId Normal = default,
     TextureId SpecularGloss = default)
 {
-    public static MaterialDesc Color(Vector4 color, float gloss = 0.5f) => new(color, Gloss: gloss);
+    public static MaterialDesc Color(Vector4 color, float gloss = 0.5f) => new(BaseColor: color, Gloss: gloss);
 }
 
 /// <summary>

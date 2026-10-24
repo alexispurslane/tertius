@@ -28,7 +28,7 @@ public sealed class BatcherTests
         SceneBatcher? batcher = null)
     {
         var scene = new PreparedScene();
-        (batcher ?? new SceneBatcher()).Prepare(snapshot, alpha, 1600, 900, Meshes, materials, scene);
+        (batcher ?? new SceneBatcher()).Prepare(snapshot: snapshot, alpha: alpha, width: 1600, height: 900, meshes: Meshes, materialCount: materials, scene: scene);
         return scene;
     }
 
@@ -37,8 +37,8 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         for (int i = 0; i < 100; i++)
-            snapshot.Instances.Add(Gpu.Instance(new(i % 2), new(i % 3), new(i % 10 - 5, 0, -10 - i), Vector3.One));
-        PreparedScene scene = Prepare(snapshot);
+            snapshot.Instances.Add(Gpu.Instance(mesh: new(i % 2), material: new(i % 3), position: new(i % 10 - 5, 0, -10 - i), scale: Vector3.One));
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.VisibleCount.Should().Be(100);
         scene.InstanceCount.Should().Be(100);
@@ -58,12 +58,12 @@ public sealed class BatcherTests
     public void RangesAreOrderedFarToNearAndStraddlersAppearInBoth()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(0, 0, -10), Vector3.One));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(0, 0, -50_000), new(1_000)));
-        snapshot.Instances.Add(Gpu.Instance(new(1), new(0), new(0, 0, -3e7f), new(6e6f)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -10), scale: Vector3.One));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -50_000), scale: new(1_000)));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(1), material: new(0), position: new(0, 0, -3e7f), scale: new(6e6f)));
         // Radius 50 m around 2 km: drawn in the near and middle ranges.
-        snapshot.Instances.Add(Gpu.Instance(new(1), new(0), new(0, 0, -2_000), new(50)));
-        PreparedScene scene = Prepare(snapshot);
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(1), material: new(0), position: new(0, 0, -2_000), scale: new(50)));
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.VisibleCount.Should().Be(4);
         scene.InstanceCount.Should().Be(5, "the straddler is written once per range");
@@ -83,9 +83,9 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         float[] depths = [5, 3_000, 20, 1e7f, 12, 700];
         foreach (float depth in depths)
-            snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(0, 0, -depth), Vector3.One,
+            snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -depth), scale: Vector3.One,
                 flags: RenderFlags.Transparent));
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.InstanceCount.Should().Be(6);
         scene.Transparent[DepthRanges.Far].Should().Equal(new TransparentRun(new MeshCommands(new(0, 1))));
@@ -103,20 +103,20 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         var box = new MeshId(0);
         var material = new MaterialId(0);
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(0, 0, -5), Vector3.One));
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(0, 0, 5), Vector3.One)); // behind
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(100, 0, -5), Vector3.One)); // far right
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(0, -100, -5), Vector3.One)); // far below
-        snapshot.Instances.Add(Gpu.Instance(new(7), material, new(0, 0, -5), Vector3.One)); // unknown mesh
-        snapshot.Instances.Add(Gpu.Instance(MeshId.None, material, new(0, 0, -5), Vector3.One)); // no mesh
-        snapshot.Instances.Add(RenderInstance.Create(box, material, new(0, 0, -5), Quaternion.Identity, Vector3.One, 0f,
-            HemisphereUp.Even,
-            RenderFlags.CastsShadow)); // not Visible
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(0, 0, -5), new(1, 0, 1))); // flat
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, -5), scale: Vector3.One));
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, 5), scale: Vector3.One)); // behind
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(100, 0, -5), scale: Vector3.One)); // far right
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, -100, -5), scale: Vector3.One)); // far below
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(7), material: material, position: new(0, 0, -5), scale: Vector3.One)); // unknown mesh
+        snapshot.Instances.Add(Gpu.Instance(mesh: MeshId.None, material: material, position: new(0, 0, -5), scale: Vector3.One)); // no mesh
+        snapshot.Instances.Add(RenderInstance.Create(mesh: box, material: material, position: new(0, 0, -5), rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 0f,
+            hemisphere: HemisphereUp.Even,
+            flags: RenderFlags.CastsShadow)); // not Visible
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(0, 0, -5), scale: new(1, 0, 1))); // flat
         snapshot.Instances.Add(default); // zeroed
         // Partly in view: the center is outside the right plane but the bounding sphere reaches in.
-        snapshot.Instances.Add(Gpu.Instance(box, material, new(9.5f, 0, -5), Vector3.One, radius: 4f));
-        PreparedScene scene = Prepare(snapshot);
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: material, position: new(9.5f, 0, -5), scale: Vector3.One, radius: 4f));
+        PreparedScene scene = Prepare(snapshot: snapshot);
         scene.SubmittedInstances.Should().Be(10);
         scene.VisibleCount.Should().Be(2);
     }
@@ -125,14 +125,14 @@ public sealed class BatcherTests
     public void InterpolationUsesAlphaForInstancesAndTheCamera()
     {
         RenderSnapshot snapshot = Empty();
-        RenderInstance instance = Gpu.Instance(new(0), new(0), new(4, 0, -10), Vector3.One,
-            Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
+        RenderInstance instance = Gpu.Instance(mesh: new(0), material: new(0), position: new(4, 0, -10), scale: Vector3.One,
+            rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2));
         instance.PreviousPosition = new(-4, 0, -10);
         instance.PreviousRotation = Quaternion.Identity;
         snapshot.Instances.Add(instance);
         snapshot.Camera.PreviousPosition = new(0, 2, 0);
 
-        PreparedScene quarter = Prepare(snapshot, alpha: 0.25f);
+        PreparedScene quarter = Prepare(snapshot: snapshot, alpha: 0.25f);
         PreparedInstance prepared = quarter.Visible[0];
         // Instance at lerp(-4, 4, 0.25) = -2; the camera at lerp(2, 0, 0.25) = 1.5 is subtracted.
         prepared.Position.Should().Be(new Vector3(-2, -1.5f, -10));
@@ -141,7 +141,7 @@ public sealed class BatcherTests
         angle.Should().BeApproximately(MathF.PI / 8, 1e-4f);
 
         // Alpha outside [0, 1] is clamped.
-        Prepare(snapshot, alpha: 3f).Visible[0].Position.Should().Be(new Vector3(4, 0, -10));
+        Prepare(snapshot: snapshot, alpha: 3f).Visible[0].Position.Should().Be(new Vector3(4, 0, -10));
     }
 
     [Fact]
@@ -149,11 +149,11 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         snapshot.Camera = new() { VerticalFov = 0 };
-        RenderInstance instance = Gpu.Instance(new(0), new(42), new(0, 0, -5), Vector3.One);
+        RenderInstance instance = Gpu.Instance(mesh: new(0), material: new(42), position: new(0, 0, -5), scale: Vector3.One);
         instance.Rotation = default;
         instance.PreviousRotation = default;
         snapshot.Instances.Add(instance);
-        PreparedScene scene = Prepare(snapshot, materials: 4);
+        PreparedScene scene = Prepare(snapshot: snapshot, materials: 4);
         scene.Visible[0].Rotation.Should().Be(Quaternion.Identity);
         scene.Visible[0].Material.Should().Be(MaterialStore.DefaultSlot);
         scene.Camera.VerticalFov.Should().BeApproximately(MathF.PI / 3, 1e-5f);
@@ -164,13 +164,13 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         // Four slots on the GPU: the default and materials 0 to 2.
-        snapshot.Instances.Add(Gpu.Instance(new(0), MaterialId.None, new(-2, 0, -5), Vector3.One, entity: 1));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(0, 0, -5), Vector3.One, entity: 2));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(2), new(2, 0, -5), Vector3.One, entity: 3));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(3), new(0, 2, -5), Vector3.One, entity: 4));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(-7), new(0, -2, -5), Vector3.One, entity: 5));
-        snapshot.Instances.Add(Gpu.Instance(MeshId.None, new(0), new(0, 0, -6), Vector3.One, entity: 6));
-        PreparedScene scene = Prepare(snapshot, materials: MaterialStore.BuiltInCount + 3);
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: MaterialId.None, position: new(-2, 0, -5), scale: Vector3.One, entity: 1));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -5), scale: Vector3.One, entity: 2));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(2), position: new(2, 0, -5), scale: Vector3.One, entity: 3));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(3), position: new(0, 2, -5), scale: Vector3.One, entity: 4));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(-7), position: new(0, -2, -5), scale: Vector3.One, entity: 5));
+        snapshot.Instances.Add(Gpu.Instance(mesh: MeshId.None, material: new(0), position: new(0, 0, -6), scale: Vector3.One, entity: 6));
+        PreparedScene scene = Prepare(snapshot: snapshot, materials: MaterialStore.BuiltInCount + 3);
 
         Dictionary<uint, uint> materials =
             scene.VisibleSpan.ToArray().ToDictionary(v => v.EntityIndex, v => v.Material);
@@ -193,9 +193,9 @@ public sealed class BatcherTests
     public void ThePartOfAnEntityReachesThePreparedInstance()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(-1, 0, -5), Vector3.One, entity: 9, part: 0));
-        snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(1, 0, -5), Vector3.One, entity: 9, part: 3));
-        PreparedScene scene = Prepare(snapshot);
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(-1, 0, -5), scale: Vector3.One, entity: 9, part: 0));
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(1, 0, -5), scale: Vector3.One, entity: 9, part: 3));
+        PreparedScene scene = Prepare(snapshot: snapshot);
         scene.VisibleSpan.ToArray().Select(v => (v.EntityIndex, v.Part)).Should().Equal((9u, 0), (9u, 3));
     }
 
@@ -214,7 +214,7 @@ public sealed class BatcherTests
         snapshot.Sun = new()
             { Direction = new(0, y, z), Color = Vector3.One, Intensity = intensity, AngularRadius = 0.005f };
         SceneBatcher.HasSun(snapshot.Sun).Should().Be(lit);
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
         Vector4 radiance = scene.Constants.SunRadiance;
         if (lit)
         {
@@ -233,19 +233,19 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         snapshot.Camera.PreviousPosition = new(0, 0, 2);
-        snapshot.Lights.Add(new PointRenderLight(new(0, 1, -5), new(1, 0.5f, 0.25f), Intensity: 4, Range: 10));
-        snapshot.Lights.Add(new SpotRenderLight(new(0, 3, -5), new(0, -2, 0), Vector3.One, Intensity: 1, Range: 8,
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 1, -5), Color: new(1, 0.5f, 0.25f), Intensity: 4, Range: 10));
+        snapshot.Lights.Add(new SpotRenderLight(Position: new(0, 3, -5), Direction: new(0, -2, 0), Color: Vector3.One, Intensity: 1, Range: 8,
             InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
-        snapshot.Lights.Add(new PointRenderLight(new(0, 0, 50), Vector3.One, Intensity: 1, Range: 10)); // behind
-        snapshot.Lights.Add(new PointRenderLight(new(0, 0, -5), Vector3.One, Intensity: 1, Range: 0)); // no range
-        PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, 50), Color: Vector3.One, Intensity: 1, Range: 10)); // behind
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 0)); // no range
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
 
         scene.LightCount.Should().Be(2);
         GpuLight point = scene.Lights[0], spot = scene.Lights[1];
-        point.PositionRange.Should().Be(new Vector4(0, 1, -6, 10));
-        point.RadianceKind.Should().Be(new Vector4(4, 2, 1, 0));
+        point.PositionRange.Should().Be(new Vector4(x: 0, y: 1, z: -6, w: 10));
+        point.RadianceKind.Should().Be(new Vector4(x: 4, y: 2, z: 1, w: 0));
         // Each case has its own arm in the batcher, so each case's position relative to the camera, and its range, needs its own check.
-        spot.PositionRange.Should().Be(new Vector4(0, 3, -6, 8));
+        spot.PositionRange.Should().Be(new Vector4(x: 0, y: 3, z: -6, w: 8));
         spot.RadianceKind.W.Should().Be(1f);
         new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should()
             .Be(new Vector3(0, -1, 0));
@@ -264,17 +264,17 @@ public sealed class BatcherTests
         foreach ((Vector3 position, float intensity, float range) in new[]
                      { (ahead, 1f, 0f), (farAhead, 1f, -3f), (ahead, 0f, 10f), (behind, 1f, 10f) })
         {
-            snapshot.Lights.Add(new PointRenderLight(position, Vector3.One, intensity, range));
+            snapshot.Lights.Add(new PointRenderLight(Position: position, Color: Vector3.One, Intensity: intensity, Range: range));
             snapshot.Lights.Add(
-                new SpotRenderLight(position, -Vector3.UnitY, Vector3.One, intensity, range, 0.3f, 0.5f));
+                new SpotRenderLight(Position: position, Direction: -Vector3.UnitY, Color: Vector3.One, Intensity: intensity, Range: range, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
         }
 
         snapshot.Lights.Add(default);
         // One of each case that reaches the view, to show that the others were left out and not everything.
-        snapshot.Lights.Add(new PointRenderLight(ahead, Vector3.One, 1, 10));
-        snapshot.Lights.Add(new SpotRenderLight(ahead, -Vector3.UnitY, Vector3.One, 1, 10, 0.3f, 0.5f));
+        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(new SpotRenderLight(Position: ahead, Direction: -Vector3.UnitY, Color: Vector3.One, Intensity: 1, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(2,
             "the empty light holds no light, and the eight lights that reach nothing are left out");
@@ -286,9 +286,9 @@ public sealed class BatcherTests
     public void APointLightLeavesTheDirectionAndTheConeOfItsGpuLightZeroBecauseItHasNone()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(new(0, 1, -5), Vector3.One, 1, 10));
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: 1, Range: 10));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(1);
         GpuLight point = scene.Lights[0];
@@ -302,9 +302,9 @@ public sealed class BatcherTests
     public void ASpotLightWithoutADirectionShinesStraightDown()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new SpotRenderLight(new(0, 1, -5), Vector3.Zero, Vector3.One, 1, 10, 0.3f, 0.5f));
+        snapshot.Lights.Add(new SpotRenderLight(Position: new(0, 1, -5), Direction: Vector3.Zero, Color: Vector3.One, Intensity: 1, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(1);
         GpuLight spot = scene.Lights[0];
@@ -317,10 +317,10 @@ public sealed class BatcherTests
     {
         // The shader's smoothstep needs an inner cosine above the outer one, so the batcher widens an empty or inverted interval.
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new SpotRenderLight(new(0, 1, -5), -Vector3.UnitY, Vector3.One, 1, 10, InnerConeAngle: 0.6f,
+        snapshot.Lights.Add(new SpotRenderLight(Position: new(0, 1, -5), Direction: -Vector3.UnitY, Color: Vector3.One, Intensity: 1, Range: 10, InnerConeAngle: 0.6f,
             OuterConeAngle: 0.4f));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(1);
         GpuLight spot = scene.Lights[0];
@@ -335,11 +335,11 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         for (int i = 0; i < 40; i++)
             snapshot.Lights.Add(i % 2 == 0
-                ? new PointRenderLight(new(0, 1, -5), Vector3.One, Intensity: i + 1, Range: 10)
-                : new SpotRenderLight(new(0, 1, -5), -Vector3.UnitY, Vector3.One, Intensity: i + 1, Range: 10,
+                ? new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: i + 1, Range: 10)
+                : new SpotRenderLight(Position: new(0, 1, -5), Direction: -Vector3.UnitY, Color: Vector3.One, Intensity: i + 1, Range: 10,
                     InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(40);
         for (int i = 0; i < 40; i++)
@@ -354,10 +354,10 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         for (int i = 0; i < 10; i++)
-            snapshot.Instances.Add(Gpu.Instance(new(0), new(0), new(0, 0, -10 - i * 100), Vector3.One));
+            snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -10 - i * 100), scale: Vector3.One));
         var batcher = new SceneBatcher();
         batcher.Processors.Add(new BillboardSwap());
-        PreparedScene scene = Prepare(snapshot, batcher: batcher);
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: batcher);
         // Objects beyond 300 m became mesh 2 "billboards".
         scene.VisibleCount.Should().Be(10);
         scene.CommandCount.Should().Be(2);
@@ -386,10 +386,10 @@ public sealed class BatcherTests
     [Fact]
     public void GpuInstanceMatchesSystemNumericsTransforms()
     {
-        Quaternion rotation = Quaternion.Normalize(new(0.3f, -0.5f, 0.2f, 0.8f));
+        Quaternion rotation = Quaternion.Normalize(new(x: 0.3f, y: -0.5f, z: 0.2f, w: 0.8f));
         var scale = new Vector3(2, 3, 0.5f);
         var position = new Vector3(10, -20, 30);
-        GpuInstance instance = GpuInstance.From(position, rotation, scale, 7);
+        GpuInstance instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7);
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);
         var transformed = new Vector3(Vector4.Dot(instance.ModelRow0, p), Vector4.Dot(instance.ModelRow1, p),
@@ -400,10 +400,10 @@ public sealed class BatcherTests
         // The shader's normal transform R · S⁻¹ · n from M · (n / s²).
         Vector3 normal = Vector3.Normalize(new(1, 2, 3));
         var linear = new Matrix4x4(
-            instance.ModelRow0.X, instance.ModelRow1.X, instance.ModelRow2.X, 0,
-            instance.ModelRow0.Y, instance.ModelRow1.Y, instance.ModelRow2.Y, 0,
-            instance.ModelRow0.Z, instance.ModelRow1.Z, instance.ModelRow2.Z, 0,
-            0, 0, 0, 1);
+            m11: instance.ModelRow0.X, m12: instance.ModelRow1.X, m13: instance.ModelRow2.X, m14: 0,
+            m21: instance.ModelRow0.Y, m22: instance.ModelRow1.Y, m23: instance.ModelRow2.Y, m24: 0,
+            m31: instance.ModelRow0.Z, m32: instance.ModelRow1.Z, m33: instance.ModelRow2.Z, m34: 0,
+            m41: 0, m42: 0, m43: 0, m44: 1);
         Vector3 shaderNormal =
             Vector3.Normalize(Vector3.TransformNormal(normal * instance.InverseScaleSquared, linear));
         Vector3 expectedNormal = Vector3.Normalize(Vector3.Transform(normal / scale, rotation));
@@ -417,25 +417,25 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         // At alpha 0.5 the eye is 1 m along +X from the render origin, so every position moves 1 m along -X.
         snapshot.Camera.PreviousPosition = new(2, 0, 0);
-        snapshot.Instances.Add(RenderInstance.Create(new(0), new(1), new(0, 0, -10), Quaternion.Identity, Vector3.One,
-            1,
-            HemisphereUp.Along(Vector3.UnitX)));
-        var moving = RenderInstance.Create(new(0), new(1), new(0, 1, -10), Quaternion.Identity, Vector3.One, 1,
-            HemisphereUp.AwayFrom(new(0, -50, 0)));
+        snapshot.Instances.Add(RenderInstance.Create(mesh: new(0), material: new(1), position: new(0, 0, -10), rotation: Quaternion.Identity, scale: Vector3.One,
+            boundingRadius: 1,
+            hemisphere: HemisphereUp.Along(Vector3.UnitX)));
+        var moving = RenderInstance.Create(mesh: new(0), material: new(1), position: new(0, 1, -10), rotation: Quaternion.Identity, scale: Vector3.One, boundingRadius: 1,
+            hemisphere: HemisphereUp.AwayFrom(new(0, -50, 0)));
         moving.PreviousPosition = new(4, 1, -10);
         snapshot.Instances.Add(moving);
-        snapshot.Instances.Add(RenderInstance.Create(new(0), new(1), new(0, 2, -10), Quaternion.Identity, Vector3.One,
-            1,
-            HemisphereUp.Even));
+        snapshot.Instances.Add(RenderInstance.Create(mesh: new(0), material: new(1), position: new(0, 2, -10), rotation: Quaternion.Identity, scale: Vector3.One,
+            boundingRadius: 1,
+            hemisphere: HemisphereUp.Even));
 
-        PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
 
         // The kind is in w: 1 along a direction, 2 away from a point, 0 even. The point moves with its instance: halfway
         // from x = 4 to x = 0 is x = 2, less the eye's 1 m, so 50 m below (1, 1, -10).
         scene.Instances.AsSpan(0, 3).ToArray().Select(instance => instance.Hemisphere).Should().BeEquivalentTo(
         [
-            new(1, 0, 0, 1),
-            new(1, -49, -10, 2),
+            new(x: 1, y: 0, z: 0, w: 1),
+            new(x: 1, y: -49, z: -10, w: 2),
             Vector4.Zero
         ]);
     }
@@ -447,11 +447,11 @@ public sealed class BatcherTests
         snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
 
-        Vector4 root = Prepare(snapshot, alpha: 0.25f).Constants.RootRotation;
+        Vector4 root = Prepare(snapshot: snapshot, alpha: 0.25f).Constants.RootRotation;
 
         // A quarter of the way from the previous rotation to the current one: an eighth of a turn about +Y.
         var expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 8);
-        Vector4.Distance(root, new(expected.X, expected.Y, expected.Z, expected.W)).Should().BeLessThan(1e-6f);
+        Vector4.Distance(root, new(x: expected.X, y: expected.Y, z: expected.Z, w: expected.W)).Should().BeLessThan(1e-6f);
     }
 
     [Fact]
@@ -461,7 +461,7 @@ public sealed class BatcherTests
         snapshot.RootRotation = default;
         snapshot.PreviousRootRotation = default;
 
-        Prepare(snapshot).Constants.RootRotation.Should().Be(new Vector4(0, 0, 0, 1));
+        Prepare(snapshot: snapshot).Constants.RootRotation.Should().Be(new Vector4(x: 0, y: 0, z: 0, w: 1));
     }
 
     /// <summary>A still puff: its previous place is its place.</summary>
@@ -501,7 +501,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(new() { Position = new(4, 0, -10), PreviousPosition = new(-4, 0, -10), Age = 1f, Look = 0 });
         snapshot.Camera.PreviousPosition = new(0, 2, 0);
 
-        GpuPuff puff = Drawn(Prepare(snapshot, alpha: 0.25f)).Should().ContainSingle().Subject;
+        GpuPuff puff = Drawn(Prepare(snapshot: snapshot, alpha: 0.25f)).Should().ContainSingle().Subject;
 
         // The place is lerp(−4, 4, 0.25) = −2, less the camera at lerp(2, 0, 0.25) = 1.5. The render age is
         // 1 − 0.75 · 0.2 = 0.85 s, so t = 0.425: the radius is 1 + 2 · 0.425 and the own share is 0.575.
@@ -518,7 +518,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(new() { Position = new(4, 0, -10), PreviousPosition = new(-4, 0, -10), Age = 1f, Look = 0 });
         snapshot.Camera.PreviousPosition = new(0, 2, 0);
 
-        GpuPuff puff = Drawn(Prepare(snapshot, alpha: 1f)).Should().ContainSingle().Subject;
+        GpuPuff puff = Drawn(Prepare(snapshot: snapshot, alpha: 1f)).Should().ContainSingle().Subject;
 
         ShouldBeClose(Center(puff), new(4, 0, -10));
         puff.PositionRadius.W.Should().BeApproximately(2f, 1e-5f);
@@ -537,11 +537,11 @@ public sealed class BatcherTests
         // A puff just before the end of its life.
         snapshot.Puffs.Add(Puff(new(2, 0, -10), age: 1.999f));
 
-        Drawn(Prepare(snapshot, alpha: 0.5f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([0f, 2f],
+        Drawn(Prepare(snapshot: snapshot, alpha: 0.5f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([0f, 2f],
             "at alpha 0.5 the newborn's render age is −0.01 s, and the old puff's is 1.95 s, inside its life");
-        Drawn(Prepare(snapshot, alpha: 0.7f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 0f, 2f],
+        Drawn(Prepare(snapshot: snapshot, alpha: 0.7f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 0f, 2f],
             "at alpha 0.7 the newborn is 0.01 s old");
-        Drawn(Prepare(snapshot, alpha: 1f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 2f],
+        Drawn(Prepare(snapshot: snapshot, alpha: 1f)).Select(p => p.PositionRadius.X).Should().BeEquivalentTo([-2f, 2f],
             "at alpha 1 the old puff's render age is its life, so it is dead");
     }
 
@@ -553,7 +553,7 @@ public sealed class BatcherTests
         for (int i = 0; i < ages.Length; i++)
             snapshot.Puffs.Add(Puff(new(3 * i - 4.5f, 0, -12), age: ages[i]));
 
-        GpuPuff[] drawn = [.. Drawn(Prepare(snapshot)).OrderBy(p => p.PositionRadius.X)];
+        GpuPuff[] drawn = [.. Drawn(Prepare(snapshot: snapshot)).OrderBy(p => p.PositionRadius.X)];
 
         drawn.Select(p => p.PositionRadius.W).Should().Equal([1f, 1.5f, 2f, 2.5f], (a, b) => MathF.Abs(a - b) < 1e-5f);
         drawn.Select(p => p.ColorKind.X / 4).Should()
@@ -574,7 +574,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, 5), look: 0));
         snapshot.Puffs.Add(Puff(new(0, 0, 0.5f), look: 0));
 
-        GpuPuff[] drawn = Drawn(Prepare(snapshot));
+        GpuPuff[] drawn = Drawn(Prepare(snapshot: snapshot));
 
         drawn.Select(p => p.PositionRadius.W).Should().BeEquivalentTo([1.5f, 1f]);
         drawn.Select(Center).Should().BeEquivalentTo([new(12, 0, -10.0001f), new Vector3(0, 0, 0.5f)]);
@@ -602,7 +602,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(ahead, look: 5)); // outside the list
         snapshot.Puffs.Add(Puff(ahead, look: -1));
 
-        Drawn(Prepare(snapshot, alpha: 0.5f)).Should().ContainSingle().Which.PositionRadius.W.Should()
+        Drawn(Prepare(snapshot: snapshot, alpha: 0.5f)).Should().ContainSingle().Which.PositionRadius.W.Should()
             .BeApproximately(1.5f, 1e-5f);
     }
 
@@ -615,7 +615,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -10), look: 1));
         snapshot.Puffs.Add(Puff(new(0, 0, -10), look: 2));
 
-        Drawn(Prepare(snapshot)).Should().ContainSingle();
+        Drawn(Prepare(snapshot: snapshot)).Should().ContainSingle();
     }
 
     [Fact]
@@ -623,11 +623,11 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = PuffSnapshot();
         snapshot.Instances.Add(
-            Gpu.Instance(new(2), new(0), new(0, 0, -10), Vector3.One, flags: RenderFlags.Transparent));
+            Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -10), scale: Vector3.One, flags: RenderFlags.Transparent));
         snapshot.Puffs.Add(Puff(new(0, 0, -5)));
         snapshot.Puffs.Add(Puff(new(0, 0, -15)));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 1), MeshRun(0, 1), PuffRun(1, 1));
         Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-15f, -5f);
@@ -639,15 +639,15 @@ public sealed class BatcherTests
     public void PuffsBetweenTwoPanesFormOneRun()
     {
         RenderSnapshot snapshot = PuffSnapshot();
-        snapshot.Instances.Add(Gpu.Instance(new(2), new(0), new(0, 0, -5), Vector3.One,
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -5), scale: Vector3.One,
             flags: RenderFlags.Transparent));
         snapshot.Instances.Add(
-            Gpu.Instance(new(2), new(0), new(0, 0, -20), Vector3.One, flags: RenderFlags.Transparent));
+            Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -20), scale: Vector3.One, flags: RenderFlags.Transparent));
         snapshot.Puffs.Add(Puff(new(0, 0, -12)));
         snapshot.Puffs.Add(Puff(new(0, 0, -8)));
         snapshot.Puffs.Add(Puff(new(0, 0, -15)));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         // The two panes share a mesh, but the puffs between them split their draws into two commands.
         scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 3), MeshRun(1, 1));
@@ -665,9 +665,9 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -10), age: 1.5f));
         snapshot.Puffs.Add(Puff(new(0, 0, -10), age: 0.5f));
         snapshot.Instances.Add(
-            Gpu.Instance(new(2), new(0), new(0, 0, -10), Vector3.One, flags: RenderFlags.Transparent));
+            Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -10), scale: Vector3.One, flags: RenderFlags.Transparent));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 2));
         Drawn(scene).Select(p => p.PositionRadius.W).Should().Equal(2.5f, 1.5f);
@@ -683,7 +683,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -2_010)));
         snapshot.Puffs.Add(Puff(new(0, 0, -3e6f)));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.Transparent[DepthRanges.Far].Should().Equal(PuffRun(0, 1));
         scene.Transparent[DepthRanges.Middle].Should().Equal(PuffRun(1, 1));
@@ -701,7 +701,7 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(-2, 0, -10), look: 0));
         snapshot.Puffs.Add(Puff(new(2, 0, -10), look: 1));
 
-        GpuPuff[] drawn = [.. Drawn(Prepare(snapshot)).OrderBy(p => p.PositionRadius.X)];
+        GpuPuff[] drawn = [.. Drawn(Prepare(snapshot: snapshot)).OrderBy(p => p.PositionRadius.X)];
 
         // Age 0.5 s of a life of 2 s: the own share is 0.75.
         ShouldBeClose(Color(drawn[0]), new Vector3(4, 2, 1) * 0.75f);
@@ -717,7 +717,7 @@ public sealed class BatcherTests
         for (int i = 0; i < 300; i++)
             snapshot.Puffs.Add(Puff(new(0, 0, -5 - i * 37 % 300)));
 
-        PreparedScene scene = Prepare(snapshot);
+        PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 300));
         Drawn(scene).Select(p => -p.PositionRadius.Z).Should().BeInDescendingOrder().And.HaveCount(300);
@@ -730,10 +730,10 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -10)));
         var scene = new PreparedScene();
         var batcher = new SceneBatcher();
-        batcher.Prepare(snapshot, 1f, 1600, 900, Meshes, 8, scene);
+        batcher.Prepare(snapshot: snapshot, alpha: 1f, width: 1600, height: 900, meshes: Meshes, materialCount: 8, scene: scene);
         scene.PuffCount.Should().Be(1);
 
-        batcher.Prepare(Empty(), 1f, 1600, 900, Meshes, 8, scene);
+        batcher.Prepare(snapshot: Empty(), alpha: 1f, width: 1600, height: 900, meshes: Meshes, materialCount: 8, scene: scene);
 
         scene.PuffCount.Should().Be(0);
         scene.Transparent.Should().AllSatisfy(runs => runs.Should().BeEmpty());
@@ -743,15 +743,15 @@ public sealed class BatcherTests
     public void RenderStatsCountsTheDrawnPuffs()
     {
         RenderSnapshot snapshot = PuffSnapshot();
-        snapshot.Instances.Add(Gpu.Instance(new(2), new(0), new(0, 0, -5), Vector3.One,
+        snapshot.Instances.Add(Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -5), scale: Vector3.One,
             flags: RenderFlags.Transparent));
         snapshot.Instances.Add(
-            Gpu.Instance(new(2), new(0), new(0, 0, -20), Vector3.One, flags: RenderFlags.Transparent));
+            Gpu.Instance(mesh: new(2), material: new(0), position: new(0, 0, -20), scale: Vector3.One, flags: RenderFlags.Transparent));
         snapshot.Puffs.Add(Puff(new(0, 0, -12)));
         snapshot.Puffs.Add(Puff(new(0, 0, -8)));
         snapshot.Puffs.Add(Puff(new(0, 0, 30))); // behind the eye
 
-        RenderStats stats = VulkanRenderer.StatsOf(Prepare(snapshot), impostors: null, indirectDrawCalls: 0);
+        RenderStats stats = VulkanRenderer.StatsOf(Prepare(snapshot: snapshot), impostors: null, indirectDrawCalls: 0);
 
         stats.Puffs.Should().Be(2);
         stats.TransparentCommands.Should().Be(2, "a run of puffs adds no indirect command");

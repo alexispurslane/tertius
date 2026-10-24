@@ -11,7 +11,7 @@ internal readonly record struct Push(Double3 Force, Double3 Torque, Double3 Impu
 {
     /// <summary>The four additive fields of <paramref name="intent"/>, widened. Every float is exact as a double.</summary>
     public static Push Of(in PhysicsIntent intent) =>
-        new(intent.Force, intent.Torque, intent.Impulse, intent.AngularImpulse);
+        new(Force: intent.Force, Torque: intent.Torque, Impulse: intent.Impulse, AngularImpulse: intent.AngularImpulse);
 
     /// <summary>
     /// The lever of a part: <paramref name="placeInBody"/> less <paramref name="centerOfMass"/>, both in meters in the root
@@ -27,11 +27,11 @@ internal readonly record struct Push(Double3 Force, Double3 Torque, Double3 Impu
     /// angular impulse are free vectors, so the lever does not change them.
     /// </summary>
     public Push At(Double3 lever) =>
-        new(Force, Torque + Double3.Cross(lever, Force), Impulse, AngularImpulse + Double3.Cross(lever, Impulse));
+        new(Force: Force, Torque: Torque + Double3.Cross(lever, Force), Impulse: Impulse, AngularImpulse: AngularImpulse + Double3.Cross(lever, Impulse));
 
     /// <summary>The sum of this push and <paramref name="other"/>, field by field, in doubles.</summary>
     public Push Plus(in Push other) =>
-        new(Force + other.Force, Torque + other.Torque, Impulse + other.Impulse, AngularImpulse + other.AngularImpulse);
+        new(Force: Force + other.Force, Torque: Torque + other.Torque, Impulse: Impulse + other.Impulse, AngularImpulse: AngularImpulse + other.AngularImpulse);
 
     /// <summary>
     /// Narrows the four fields once, into the force, the torque, the impulse and the angular impulse of

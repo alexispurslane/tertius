@@ -19,7 +19,7 @@ public class PhysicsBodyStateTests
     /// <summary>The world on the wrapper, with a ground frame whose gravity of 9.81 m/s² along -Y makes every ball fall, so that Jolt reports it in every step.</summary>
     private static World NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground)
     {
-        World world = NewWorldWithFaults(out faults);
+        World world = NewWorldWithFaults(faults: out faults);
         ground = Ground(world, 9.81f);
         return world;
     }
@@ -239,7 +239,7 @@ public class PhysicsBodyStateTests
     {
         // At 64 ticks per second a step is exactly 1/64 s, so three steps at 8 m/s move the ball 24/64 = 0.375 m. The ground has no gravity.
         using World world =
-            NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+            NewWorldWithFaults(faults: out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
         FrameHandle space = Ground(world, 0);
         Entity ball = world.Spawn(new() { Frame = space, Pose = At(1), LinearVelocity = new(8, 0, 0), Body = Ball() });
 

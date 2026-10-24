@@ -168,7 +168,7 @@ public readonly ref struct FoundEntities
                     // The grid lists the entities of a cell in no order, so the run sorts them into entity index order.
                     buffer = QueryBuffers.Rent(plan.Count);
                     Span<Entity> near = buffer.AsSpan(0,
-                        snapshot.World.Spatial.CollectNear(plan.Frame, plan.Point, plan.Radius, buffer));
+                        snapshot.World.Spatial.CollectNear(frame: plan.Frame, center: plan.Point, radius: plan.Radius, into: buffer));
                     near.Sort();
                     candidates = near;
                     break;

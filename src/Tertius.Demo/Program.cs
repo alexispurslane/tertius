@@ -41,9 +41,9 @@ public static class Program
         args switch
         {
             ["--generate", ..] => Generate(args, output, error),
-            ["--readouts", ..] => Readouts(args, DemoScenes.All, output, error),
-            ["--edit", ..] => EditCommand.Run(args, BlueDanubeEdit.Cuts, output, error),
-            _ => ScriptCommand.Run(args, DemoScenes.All, output, error)
+            ["--readouts", ..] => Readouts(args: args, scenes: DemoScenes.All, output: output, error: error),
+            ["--edit", ..] => EditCommand.Run(args: args, cuts: BlueDanubeEdit.Cuts, output: output, error: error),
+            _ => ScriptCommand.Run(args: args, scenes: DemoScenes.All, output: output, error: error)
         };
 
     /// <summary>
@@ -163,7 +163,8 @@ public static class Program
                      ? BlueDanube.Cuts
                      : [])
         {
-            string cut = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, file);
+            // The folder of the script, which the check before the rehearsal found, or the root.
+            string cut = Path.Combine(folder ?? Path.GetPathRoot(Path.GetFullPath(path)) ?? "", file);
             if (!Write(cut, BlueDanube.FilmedBetween(script, firstSection, lastSection), error))
                 return ScriptCommand.FileError;
             output.WriteLine(cut);

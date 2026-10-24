@@ -17,11 +17,11 @@ namespace Tertius.Physics.Tests;
 public class ContactListenerTests
 {
     /// <summary>A ball of radius 0.5 m that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc BallDesc = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+    private static readonly BodyDesc BallDesc = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static cube with sides of 1 m that does not bounce. Jolt takes the larger restitution of two bodies.</summary>
-    private static readonly BodyDesc WallDesc = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static, Restitution: 0);
+    private static readonly BodyDesc WallDesc = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static, Restitution: 0);
 
     /// <summary>The backing fields of the binding's four contact events on <see cref="PhysicsSystem"/>.</summary>
     private static readonly FieldInfo[] BindingContactEvents =
@@ -46,7 +46,7 @@ public class ContactListenerTests
     {
         public Walls()
         {
-            World = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults, Warnings);
+            World = WorldTestingGrowth.NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults, warnings: Warnings);
             Backend = faults.Jolt;
             Space = Ground(World, 0);
             NearWall = World.Spawn(new() { Frame = Space, Pose = At(1.01), Body = WallDesc });
@@ -170,8 +170,8 @@ public class ContactListenerTests
         // Two boxes that overlap by 10 cm, so that Jolt reports their contact in every update.
         foreach (double x in new[] { 0.0, 0.9 })
         {
-            using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(cube,
-                new RVector3(x, 0, 0), Quaternion.Identity, MotionType.Dynamic, moving));
+            using BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(shape: cube,
+                position: new RVector3(x, 0, 0), rotation: Quaternion.Identity, motionType: MotionType.Dynamic, objectLayer: moving));
             system.BodyInterface.CreateAndAddBody(settings, Activation.Activate);
         }
 
@@ -208,13 +208,13 @@ public class ContactAllocationTests
     [Fact]
     public void StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle ground = Ground(world, 9.81f);
         world.Spawn(KinematicDrift.Drifting(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(60, 0.5f, 60)), BodyMotion.Kinematic)
+            Body = new(Shape: new BoxShapeDesc(new(60, 0.5f, 60)), Motion: BodyMotion.Kinematic)
         }, world, new(1, 0, 0)));
         for (int i = 0; i < Columns * Rows; i++)
         {
@@ -255,19 +255,19 @@ public class ContactAllocationTests
     [Fact]
     public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle bubble =
             world.GetOwnedFrame(world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) }));
         var blockContacts = new ContactCounter();
         world.Spawn(new()
         {
-            Frame = bubble, Pose = At(10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic),
+            Frame = bubble, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic),
             Components = [blockContacts]
         });
         world.Spawn(new()
-            { Frame = space, Pose = At(13.75), Body = new(new BoxShapeDesc(new(0.25f, 1, 1)), BodyMotion.Static) });
-        var bouncy = new BodyDesc(new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0,
+            { Frame = space, Pose = At(13.75), Body = new(Shape: new BoxShapeDesc(new(0.25f, 1, 1)), Motion: BodyMotion.Static) });
+        var bouncy = new BodyDesc(Shape: new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0,
             AngularDamping: 0);
         for (int i = 0; i < 16; i++)
             world.Spawn(new()

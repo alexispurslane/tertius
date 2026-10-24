@@ -62,7 +62,7 @@ internal sealed class PhysicsQueryRunner(
 
     /// <summary>The content scale of each frame, by frame slot, and the sync point that worked it out: see
     /// <see cref="ContentScale"/>.</summary>
-    private (int Stamp, double Scale)[] contentScales = new (int, double)[16];
+    private (int Stamp, double Scale)[] contentScales = new (int Stamp, double Scale)[16];
 
     /// <summary>Counts the sync points that ran requests, so that a content scale of an earlier one is never read as current.</summary>
     private int syncStamp;
@@ -165,12 +165,12 @@ internal sealed class PhysicsQueryRunner(
         hits.Clear();
         filter.Begin(request.Asker, request.Query);
         bool frameAlive = frames.IsAlive(request.Frame);
-        if (physics != null && frameAlive)
-            Walk(request);
+        if (physics is { } backend && frameAlive)
+            Walk(request, backend);
         Emit(request, frameAlive);
     }
 
-    private void Walk(in PhysicsRequest request)
+    private void Walk(in PhysicsRequest request, IPhysicsBackend backend)
     {
         PhysicsQuestion question = request.Question;
         bool firstOnly = question.FirstHitOnly;
@@ -186,7 +186,7 @@ internal sealed class PhysicsQueryRunner(
         };
         Double3 from = question.Origin;
         visits.Clear();
-        visits.Add(new(request.Frame, 0, length, FrameHandle.Null, GoesUp: true));
+        visits.Add(new(Frame: request.Frame, Start: 0, End: length, CameFrom: FrameHandle.Null, GoesUp: true));
         while (visits.Count > 0)
         {
             Visit visit = visits[^1];
@@ -199,7 +199,7 @@ internal sealed class PhysicsQueryRunner(
             // The parent's system holds the hull of the frame that the query came up from, around the query's start.
             filter.Skip(visit.GoesUp ? visit.CameFrom.Entity : Entity.Null);
             DPose toVisit = frames.Relative(request.Frame, visit.Frame);
-            Query(visit.Frame, request, toVisit, visit.Start, end);
+            Query(backend: backend, frame: visit.Frame, request: request, toFrame: toVisit, start: visit.Start, end: end);
 
             double limit = Limit(length, firstOnly);
             foreach (ref readonly FrameLink link in links.AsSpan())
@@ -210,19 +210,19 @@ internal sealed class PhysicsQueryRunner(
                 if (link.Numeric)
                 {
                     // A numeric frame has no bubble: its bodies are the frame's own, wherever they are.
-                    Query(link.Child, request, toChild, visit.Start, end);
+                    Query(backend: backend, frame: link.Child, request: request, toFrame: toChild, start: visit.Start, end: end);
                     continue;
                 }
 
                 FrameBounds bubble = frames.Bounds(link.Child);
                 var region =
                     new FrameBounds(bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius));
-                if (!region.TryIntersectLine(toChild.TransformPoint(from), toChild.Rotation.Rotate(line),
-                        out double entry, out double exit))
+                if (!region.TryIntersectLine(origin: toChild.TransformPoint(from), direction: toChild.Rotation.Rotate(line),
+                        entry: out double entry, exit: out double exit))
                     continue;
                 double start = Math.Max(0, entry), stop = Math.Min(limit, exit);
                 if (start <= stop)
-                    visits.Add(new(link.Child, start, stop, visit.Frame, GoesUp: false));
+                    visits.Add(new(Frame: link.Child, Start: start, End: stop, CameFrom: visit.Frame, GoesUp: false));
             }
 
             FrameHandle parent = visit.GoesUp ? frames.Parent(visit.Frame) : FrameHandle.Null;
@@ -234,11 +234,11 @@ internal sealed class PhysicsQueryRunner(
                 FrameBounds bubble = frames.Bounds(visit.Frame);
                 double inner = 1 - reach / bubble.MinRadius;
                 if (inner > 0 && new FrameBounds(bubble.Radii * (float)inner).TryIntersectLine(
-                        toVisit.TransformPoint(from), toVisit.Rotation.Rotate(line),
-                        out double entry, out double exit) && entry <= start && start < exit)
+                        origin: toVisit.TransformPoint(from), direction: toVisit.Rotation.Rotate(line),
+                        entry: out double entry, exit: out double exit) && entry <= start && start < exit)
                     start = exit;
                 if (start <= end)
-                    visits.Add(new(parent, start, end, visit.Frame, GoesUp: true));
+                    visits.Add(new(Frame: parent, Start: start, End: end, CameFrom: visit.Frame, GoesUp: true));
             }
         }
 
@@ -301,32 +301,33 @@ internal sealed class PhysicsQueryRunner(
     /// <paramref name="end"/>, and keeps the nearest hit of each entity. <paramref name="toFrame"/> maps the query's frame
     /// into <paramref name="frame"/>.
     /// </summary>
-    private void Query(FrameHandle frame, in PhysicsRequest request, in DPose toFrame, double start, double end)
+    private void Query(IPhysicsBackend backend, FrameHandle frame, in PhysicsRequest request, in DPose toFrame,
+        double start, double end)
     {
         DQuaternion back = toFrame.Rotation.Conjugate();
         switch (request.Question)
         {
             case RayQuestion(var origin, var direction, _, var kind):
                 rayHits.Clear();
-                physics!.CastRay(frame, toFrame.TransformPoint(origin), toFrame.Rotation.Rotate(direction), start, end,
-                    filter, kind, rayHits);
+                backend.CastRay(frame: frame, origin: toFrame.TransformPoint(origin), direction: toFrame.Rotation.Rotate(direction), start: start, end: end,
+                    filter: filter, kind: kind, hits: rayHits);
                 foreach (RayCastHit found in rayHits)
-                    Keep(new(found.Entity, found.Distance, origin + direction * found.Distance,
-                        back.Rotate(found.Normal)));
+                    Keep(new(Entity: found.Entity, Distance: found.Distance, Point: origin + direction * found.Distance,
+                        Normal: back.Rotate(found.Normal)));
                 break;
             case ShapeCastQuestion(var shape, var startPose, var direction, _):
                 shapeHits.Clear();
-                physics!.CastShape(frame, shape, DPose.Compose(toFrame, startPose), toFrame.Rotation.Rotate(direction),
-                    start, end, filter, shapeHits);
+                backend.CastShape(frame: frame, shape: shape, start: DPose.Compose(toFrame, startPose), direction: toFrame.Rotation.Rotate(direction),
+                    startDistance: start, endDistance: end, filter: filter, hits: shapeHits);
                 foreach (ShapeCastHit found in shapeHits)
-                    Keep(new(found.Entity, found.Distance, toFrame.InverseTransformPoint(found.Point),
-                        back.Rotate(found.Normal)));
+                    Keep(new(Entity: found.Entity, Distance: found.Distance, Point: toFrame.InverseTransformPoint(found.Point),
+                        Normal: back.Rotate(found.Normal)));
                 break;
             case OverlapQuestion(var shape, var pose):
                 overlapped.Clear();
-                physics!.Overlap(frame, shape, DPose.Compose(toFrame, pose), filter, overlapped);
+                backend.Overlap(frame: frame, shape: shape, pose: DPose.Compose(toFrame, pose), filter: filter, entities: overlapped);
                 foreach (Entity found in overlapped)
-                    hits.Add(new(found, 0, default, default));
+                    hits.Add(new(Entity: found, Distance: 0, Point: default, Normal: default));
                 return;
             default:
                 throw new UnreachableException("Run refuses a request without a question before it walks.");
@@ -416,7 +417,7 @@ internal sealed class PhysicsQueryRunner(
 
     /// <summary>The engine event that brings <paramref name="answer"/> to <paramref name="asker"/>.</summary>
     private static Event AnswerTo<T>(Entity asker, in T answer) where T : unmanaged, IEventPayload =>
-        Event.Create(new(asker), Entity.Null, answer);
+        Event.Create(target: new(asker), sender: Entity.Null, payload: answer);
 
     /// <summary>
     /// The filter of the request that runs: the request's entity query on the snapshot, around the asker, which it never

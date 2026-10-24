@@ -32,9 +32,9 @@ public class FrameProperAccelerationTests
     private uint nextOwner = 1;
 
     private FrameHandle Frame(FrameHandle parent, DPose pose = default, GravityField field = default) =>
-        frames.Create(new(nextOwner++, 1), parent,
-            pose.Rotation.LengthSquared == 0 ? new(pose.Position, DQuaternion.Identity) : pose,
-            FrameBounds.Sphere(1e9f), field);
+        frames.Create(frameOwner: new(nextOwner++, 1), parent: parent,
+            localPose: pose.Rotation.LengthSquared == 0 ? new(pose.Position, DQuaternion.Identity) : pose,
+            frameBounds: FrameBounds.Sphere(1e9f), field: field);
 
     [Fact]
     public void AFrameAtRestInAFrameThatHoldsStillInAFieldFeelsThatFieldOneSyncPointLater()
@@ -43,14 +43,14 @@ public class FrameProperAccelerationTests
         FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
         FrameHandle crate = Frame(cabin, TestPose(1, 0, 0));
 
-        frames.TakeStepRecords([], Dt);
+        frames.TakeStepRecords(stepIntents: [], step: Dt);
 
         frames.ProperAcceleration(cabin).Should()
             .Be(new Vector3(0, 9.81f, 0), "the cabin holds still against the ground's gravity");
         frames.ProperAcceleration(crate).Should().Be(Vector3.Zero,
             "the rule read the cabin's value as the step found it, though the pass gave the cabin its new value before it reached the crate");
 
-        frames.TakeStepRecords([], Dt);
+        frames.TakeStepRecords(stepIntents: [], step: Dt);
 
         frames.ProperAcceleration(crate).Should().Be(new Vector3(0, 9.81f, 0),
             "the cabin has no field of its own, so the gravity at the crate's place is the cabin's proper acceleration reversed");
@@ -61,12 +61,12 @@ public class FrameProperAccelerationTests
     {
         FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new(0, -9.81f, 0)));
         FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
-        frames.TakeStepRecords([], Dt);
+        frames.TakeStepRecords(stepIntents: [], step: Dt);
         frames.SetGravity(ground, GravityField.Uniform(new(0, -3.7f, 0)));
         var owners = new StepOwners();
         owners.Skipped.Add(cabin);
 
-        frames.TakeStepRecords([], Dt, owners);
+        frames.TakeStepRecords(stepIntents: [], step: Dt, owners: owners);
 
         frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0),
             "a skipped update changes nothing, as for the velocities");
@@ -83,7 +83,7 @@ public class FrameProperAccelerationTests
         frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
 
         frames.AdvanceNumericFrames(Dt);
-        frames.TakeStepRecords([], Dt);
+        frames.TakeStepRecords(stepIntents: [], step: Dt);
 
         frames.ProperAcceleration(cabin).Length().Should().BeLessThan(1e-6f,
             "the cabin moves with the falling frame, which accelerates by the gravity at its origin");
@@ -99,10 +99,10 @@ public class FrameProperAccelerationTests
         var thrust = new Double3(0, 3, 0);
         Double3 end = place + chord * Dt;
         Double3 gravity = Earth.AtPrecise(place);
-        var record = new MotionSample(new(end, DQuaternion.Identity), chord, chord, gravity + thrust, Double3.Zero,
-            Double3.Zero);
+        var record = new MotionSample(Pose: new(end, DQuaternion.Identity), ChordVelocity: chord, Velocity: chord, Acceleration: gravity + thrust, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
 
-        frames.TakeStepRecords(Moving(ship, new PhysicsIntent { Frame = earth, Move = new(record) }), Dt);
+        frames.TakeStepRecords(stepIntents: Moving(ship, new PhysicsIntent { Frame = earth, Move = new(record) }), step: Dt);
 
         Vector3 proper = frames.ProperAcceleration(ship);
         proper.X.Should().BeApproximately(0, 1e-9f);
@@ -118,10 +118,10 @@ public class FrameProperAccelerationTests
         FrameHandle ship = Frame(ground);
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
         var jolt = new Vector3(0, 0, 120);
-        var rest = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero);
+        var rest = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
 
-        frames.TakeStepRecords([], Dt, new StepOwners().WithHullRecord(ship, rest, jolt));
+        frames.TakeStepRecords(stepIntents: [], step: Dt, owners: new StepOwners().WithHullRecord(ship, rest, jolt));
 
         frames.ProperAcceleration(ship).Should().Be(jolt);
     }
@@ -175,8 +175,8 @@ public class FrameProperAccelerationTests
         FrameHandle room = Frame(station, TestPose(100, 0, 0));
 
         static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-            new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
-            Double3.Zero, Double3.Zero, Double3.Zero, new(0, spinUp * stepEnd, 0), new(0, spinUp, 0)));
+            Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
+            ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, spinUp * stepEnd, 0), AngularAcceleration: new(0, spinUp, 0)));
 
         RunStep(Moving(station, SpinningUp(1 * Dt)));
         frames.ProperAcceleration(room).Z.Should().Be(0, "the first step of a new frame assumes a steady turn");
@@ -192,14 +192,14 @@ public class FrameProperAccelerationTests
     /// <summary>The spin sample of a station that turns at <see cref="StationRate"/> about its +Y, in the step that ends at
     /// <paramref name="stepEnd"/>.</summary>
     private static MotionIntent Spinning(double stepEnd) =>
-        new(new FrameSpin(DQuaternion.Identity, StationRate).Sample(Double3.Zero, stepEnd, Dt));
+        new(new FrameSpin(Tilt: DQuaternion.Identity, Rate: StationRate).Sample(Double3.Zero, stepEnd, Dt));
 
     /// <summary>One step: the tree updates, fixes the turns of the step that applies <paramref name="intents"/>, and takes the records of the step.</summary>
     private void RunStep(PhysicsIntent[] intents)
     {
         frames.Update();
         frames.BeginStep(intents, Dt, lastStepFailed: false);
-        frames.TakeStepRecords(intents, Dt);
+        frames.TakeStepRecords(stepIntents: intents, step: Dt);
     }
 
     /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, its motion intent
@@ -231,7 +231,7 @@ public class FrameProperAccelerationTests
             Entity = new(1000, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves => home = moves.Single().To);
         frames.IsNumeric(home).Should().BeTrue();
         return home;
     }

@@ -118,7 +118,7 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
         if (use)
         {
-            self.Snapshot.QueryRadius(self.Frame, self.PoseIn(self.Frame).Position, Reach, nearby);
+            self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseIn(self.Frame).Position, radius: Reach, results: nearby);
             foreach (Entity other in nearby)
                 if (other != self.Entity)
                     outbox.Send(other, new Use { User = self.Entity });

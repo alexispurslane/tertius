@@ -41,13 +41,13 @@ public class SpinningShipBodyTests
         // the path in which each step turns by the predicted rate, and in inertial space it is the crate's place turned
         // once by α dt² about the ship's axis, in the sense of the spin: 5.6 mm at 20 m. The crate's expected path, its
         // place at rest in inertial space, misses that by the Euler force of one step, α r dt².
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const long torqueFrom = 10;
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new SphereShapeDesc(2)),
             AsFrame = new(FrameBounds.Sphere(30)),
             Components = [new SteadyTorque(new(0, 10_000, 0), torqueFrom)]
@@ -58,7 +58,7 @@ public class SpinningShipBodyTests
         {
             Frame = ship,
             Pose = new(place, DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
         });
 
         double dt = world.DeltaTime;
@@ -109,13 +109,13 @@ public class SpinningShipBodyTests
     [Fact]
     public void AShipThatFallsAsleepStopsTurningWithoutTurningBack()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new()
         {
             Frame = space,
             AngularVelocity = new(0, 0.05f, 0),
-            Body = new(new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 5,
+            Body = new(Shape: new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 5,
                 InteriorShape: new SphereShapeDesc(2)),
             AsFrame = new(FrameBounds.Sphere(30))
         });

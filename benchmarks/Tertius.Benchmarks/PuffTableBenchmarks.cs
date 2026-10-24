@@ -47,7 +47,7 @@ public class PuffTableBenchmarks
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "newborns")]
     private static extern ref Puff[] NewbornsOf(PuffTable table);
 
-    private static PuffLook Look(float life) => new(life, 0.2f, 1, 3, PuffShading.Glow(new(4, 3, 2)));
+    private static PuffLook Look(float life) => new(Life: life, StartRadius: 0.2f, EndRadius: 1, TemperatureRatio: 3, Shading: PuffShading.Glow(new(4, 3, 2)));
 
     /// <summary>The world, its frame of the puffs and the place of the emitter in it.</summary>
     private (FrameHandle Frame, Double3 Place) Scene(int capacity)
@@ -61,17 +61,17 @@ public class PuffTableBenchmarks
             case "earth-surface":
             {
                 FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
-                var spin = new FrameSpin(DQuaternion.Identity, 7.2921e-5);
+                var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: 7.2921e-5);
                 return (
                     Spinning(earth, spin,
                         new(FrameBounds.Sphere(5e7f), GravityField.Point(EarthMu),
-                            MediumField.Planet(6.371e6, 1.225f, 8500, 2))),
+                            MediumField.Planet(radius: 6.371e6, surfaceDensity: 1.225f, scaleHeight: 8500, drag: 2))),
                     new(6.371e6 + 100, 0, 0));
             }
             default:
             {
                 FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-                return (Spinning(space, new(DQuaternion.Identity, 0.31321), new(FrameBounds.Sphere(150))),
+                return (Spinning(space, new(Tilt: DQuaternion.Identity, Rate: 0.31321), new(FrameBounds.Sphere(150))),
                     new(8, 0, 0));
             }
         }
@@ -92,7 +92,7 @@ public class PuffTableBenchmarks
     {
         Frame = frame,
         Pose = new(place, DQuaternion.Identity),
-        Render = new RenderData { Emitter = new(rate, 10, 1, Look(life)) }
+        Render = new RenderData { Emitter = new(Rate: rate, Speed: 10, Spread: 1, Look: Look(life)) }
     });
 
     [GlobalSetup(Target = nameof(Step))]
@@ -101,7 +101,7 @@ public class PuffTableBenchmarks
         (FrameHandle frame, Double3 place) = Scene(Puffs);
         world.Tick();
         // One step of an emitter at Puffs puffs per step fills the table.
-        SpawnEmitter(frame, place, Puffs * 60.5f, life: 1e6f);
+        SpawnEmitter(frame: frame, place: place, rate: Puffs * 60.5f, life: 1e6f);
         world.Tick();
         table = world.Puffs;
         if (table.Count != Puffs)
@@ -116,7 +116,7 @@ public class PuffTableBenchmarks
         (FrameHandle frame, Double3 place) = Scene(capacity: 1 << 20);
         world.Tick();
         // 64 puffs per step that live Puffs / 64 steps.
-        SpawnEmitter(frame, place, NewbornsPerStep * 60, life: Puffs / (float)NewbornsPerStep / 60);
+        SpawnEmitter(frame: frame, place: place, rate: NewbornsPerStep * 60, life: Puffs / (float)NewbornsPerStep / 60);
         for (int i = 0; i < 3 + Puffs / NewbornsPerStep; i++)
             world.Tick();
         table = world.Puffs;

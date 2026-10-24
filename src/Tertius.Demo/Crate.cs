@@ -63,7 +63,7 @@ public readonly record struct CrateSpec(
         Frame = frame,
         Pose = pose,
         LinearVelocity = velocity,
-        Body = new(new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
+        Body = new(Shape: new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
         Render = Drawn(),
         Components = [new Crate(this), .. more]
     };

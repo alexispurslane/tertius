@@ -22,7 +22,7 @@ public sealed class ChaseCameraTests : IDisposable
     /// <summary>The half extents of the person's box: the capsule's height and width.</summary>
     private static readonly Vector3 Half = new(0.3f, 0.9f, 0.3f);
 
-    private readonly World world = NewWorld(out _);
+    private readonly World world = NewWorld(backend: out _);
 
     public void Dispose() => world.Dispose();
 
@@ -30,7 +30,7 @@ public sealed class ChaseCameraTests : IDisposable
     {
         Frame = frame,
         Pose = new(position, DQuaternion.Identity),
-        Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
         Render = new RenderData { ViewOffset = new(Eye, Quaternion.Identity) },
         Components = components
     });
@@ -42,7 +42,7 @@ public sealed class ChaseCameraTests : IDisposable
         AttachTo = person,
         AttachOffset = new(Eye + new Vector3(0, (float)Above, 0) + behind * (float)Behind, Quaternion.Identity),
         Render = new RenderData(),
-        Components = [new ChaseCamera(Behind, Above, Ahead, Half, world.VerticalFov)]
+        Components = [new ChaseCamera(behind: Behind, above: Above, ahead: Ahead, subjectHalf: Half, verticalFov: world.VerticalFov)]
     });
 
     /// <summary>Where the person's eye is in <paramref name="frame"/>.</summary>
@@ -137,7 +137,7 @@ public sealed class ChaseCameraTests : IDisposable
     {
         FrameHandle ground = OnTheGround();
         world.Spawn(new()
-            { Frame = ground, Pose = At(8, 0.15), Body = new(new BoxShapeDesc(new(5, 0.15f, 5)), BodyMotion.Static) });
+            { Frame = ground, Pose = At(8, 0.15), Body = new(Shape: new BoxShapeDesc(new(5, 0.15f, 5)), Motion: BodyMotion.Static) });
         Entity person = Person(ground, new(0, 0.95, 0), new Walker([new(ground, new(7, 1.2, 0))]));
         Entity camera = Camera(person, -Vector3.UnitX);
         Tick(world, 30);
@@ -209,7 +209,7 @@ public sealed class ChaseCameraTests : IDisposable
         FrameHandle ground = OnTheGround();
         world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, 2, 1.25), Body = new(new BoxShapeDesc(new(5, 2, 0.25f)), BodyMotion.Static)
+            Frame = ground, Pose = At(0, 2, 1.25), Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static)
         });
         Entity person = Person(ground, new(0, 0.95, 0));
         Entity camera = Camera(person, Vector3.UnitZ);
@@ -236,7 +236,7 @@ public sealed class ChaseCameraTests : IDisposable
         FrameHandle ground = OnTheGround();
         Entity wall = world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, 2, 1.25), Body = new(new BoxShapeDesc(new(5, 2, 0.25f)), BodyMotion.Static)
+            Frame = ground, Pose = At(0, 2, 1.25), Body = new(Shape: new BoxShapeDesc(new(5, 2, 0.25f)), Motion: BodyMotion.Static)
         });
         Entity person = Person(ground, new(0, 0.95, 0));
         Entity camera = Camera(person, Vector3.UnitZ);
@@ -265,7 +265,7 @@ public sealed class ChaseCameraTests : IDisposable
     public void TheCameraFollowsThePersonIntoAShipsFrameSmoothly()
     {
         FrameHandle ground = OnTheGround();
-        Entity shuttle = Shuttle.Park(world, ground, new(new(0, Shuttle.Hull.Y, 0), DQuaternion.Identity));
+        Entity shuttle = Shuttle.Park(world: world, frame: ground, pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.Identity));
         FrameHandle cabin = world.GetOwnedFrame(shuttle);
         Entity person = Person(ground, new(16, 0.95, Shuttle.Hatch.Center.Z),
             new Walker([new(cabin, Shuttle.OutsideHatch)]));

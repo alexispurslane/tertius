@@ -63,12 +63,12 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
                                       ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit;
         try
         {
-            Color = GpuImage.Create(device, allocator, extent, ColorFormat, usage, MipLevels, "impostor atlas color",
-                (uint)tiles, arrayView: true);
-            DepthOffset = GpuImage.Create(device, allocator, extent, DepthOffsetFormat, usage, MipLevels,
-                "impostor atlas depth offset", (uint)tiles, arrayView: true);
-            CaptureDepth = GpuImage.Create(device, allocator, extent, CaptureDepthFormat,
-                ImageUsageFlags.DepthStencilAttachmentBit, 1, "impostor capture depth");
+            Color = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: ColorFormat, usage: usage, mipLevels: MipLevels, name: "impostor atlas color",
+                arrayLayers: (uint)tiles, arrayView: true);
+            DepthOffset = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: DepthOffsetFormat, usage: usage, mipLevels: MipLevels,
+                name: "impostor atlas depth offset", arrayLayers: (uint)tiles, arrayView: true);
+            CaptureDepth = GpuImage.Create(device: device, allocator: allocator, extent: extent, format: CaptureDepthFormat,
+                usage: ImageUsageFlags.DepthStencilAttachmentBit, mipLevels: 1, name: "impostor capture depth");
             for (int i = 0; i < tiles; i++)
             {
                 colorViews[i] = Color.CreateLayerView((uint)i);
@@ -77,8 +77,8 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
 
             // The pool frees the set when the descriptor layouts are disposed.
             Set = layouts.AllocateAtlasSet();
-            layouts.WriteImage(Set, 0, 0, Color);
-            layouts.WriteImage(Set, 1, 0, DepthOffset);
+            layouts.WriteImage(set: Set, binding: 0, arrayElement: 0, image: Color);
+            layouts.WriteImage(set: Set, binding: 1, arrayElement: 0, image: DepthOffset);
         }
         catch
         {
@@ -90,11 +90,11 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
     /// <summary>The number of tiles (array layers).</summary>
     public int Tiles { get; }
 
-    public GpuImage Color { get; } = null!;
-    public GpuImage DepthOffset { get; } = null!;
+    public GpuImage Color { get; }
+    public GpuImage DepthOffset { get; }
 
     /// <summary>The depth buffer of a capture: D32, reversed (1 nearest the eye).</summary>
-    public GpuImage CaptureDepth { get; } = null!;
+    public GpuImage CaptureDepth { get; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ImpostorLayout"/>: both arrays and the atlas sampler.</summary>
     public DescriptorSet Set { get; }

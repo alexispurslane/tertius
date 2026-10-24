@@ -15,11 +15,11 @@ public class GhostTests
 {
     /// <summary>A ball that nothing slows down and that does not bounce.</summary>
     private static BodyDesc BallBody(float radius) =>
-        new(new SphereShapeDesc(radius), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(radius), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down, and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half) =>
-        new(new BoxShapeDesc(new(half)), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     private static FrameHandle Space(World world) =>
         world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
@@ -29,15 +29,15 @@ public class GhostTests
         world.Spawn(new() { Frame = parent, Pose = pose, AsFrame = new(FrameBounds.Sphere(radius)) });
 
     private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(BubbleOwner(world, parent, pose, radius));
+        world.GetOwnedFrame(BubbleOwner(world: world, parent: parent, pose: pose, radius: radius));
 
     [Fact]
     public void GhostExistsOnlyWhileTheBodyStraddlesTheBubble()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var center = new Double3(50, 0, 0);
-        FrameHandle bubble = Bubble(world, space, new(center, DQuaternion.Identity), 20);
+        FrameHandle bubble = Bubble(world: world, parent: space, pose: new(center, DQuaternion.Identity), radius: 20);
         const float radius = 0.5f;
         var pilot = new Pilot();
         Entity ball = world.Spawn(new()
@@ -91,11 +91,11 @@ public class GhostTests
     [Fact]
     public void ABodyInTheParentAndABodyThatSticksOutOfTheChildEachHearTheirContactThroughTheGhost()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
-        FrameHandle bubble = Bubble(world, space, DPose.Identity, 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, pose: DPose.Identity, radius: 10);
         // A kinematic block in the child sits on the bubble's edge and sticks 1 m out of it.
-        var blockDesc = new BodyDesc(new BoxShapeDesc(new(1)), BodyMotion.Kinematic);
+        var blockDesc = new BodyDesc(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic);
         var pilot = new Pilot();
         var blockLog = new CollisionLog();
         Entity block = world.Spawn(new()
@@ -143,11 +143,11 @@ public class GhostTests
     public void GhostsInADestroyedFrameGoWithIt()
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings);
         FrameHandle space = Space(world);
-        Entity leftOwner = BubbleOwner(world, space, At(-10.6), 10);
+        Entity leftOwner = BubbleOwner(world: world, parent: space, pose: At(-10.6), radius: 10);
         FrameHandle left = world.GetOwnedFrame(leftOwner);
-        FrameHandle right = Bubble(world, space, At(10.4), 10);
+        FrameHandle right = Bubble(world: world, parent: space, pose: At(10.4), radius: 10);
         // The ball enters the right bubble and sticks out of it: space and the left frame hold ghosts of it.
         Entity ball = world.Spawn(new() { Frame = space, Pose = At(0), Body = BallBody(1f) });
         world.Tick();
@@ -170,12 +170,12 @@ public class GhostTests
     [Fact]
     public void GhostMirrorsTheRealBodyInTheOtherFramesCoordinates()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         DQuaternion rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.7);
-        FrameHandle bubble = Bubble(world, space, new(new(-30, 5, 2), rotation), 10);
+        FrameHandle bubble = Bubble(world: world, parent: space, pose: new(new(-30, 5, 2), rotation), radius: 10);
         // A kinematic body at the child's edge, sticking out of the bubble.
-        var desc = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Kinematic);
+        var desc = new BodyDesc(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Kinematic);
         Entity rider = world.Spawn(new() { Frame = bubble, Pose = At(0, 0, 9.8), Body = desc });
         // A probe ball in the parent, placed so that it rests against where the ghost will be.
         Entity probe = world.Spawn(new()
@@ -198,7 +198,7 @@ public class GhostTests
     [Fact]
     public void FrameHullsAreGhostedIntoOverlappingSiblingFrames()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         // A static station whose hull is a triangle mesh: a wall facing -X at x = 15, inside both bubbles. Jolt
         // ignores the back faces of triangles, so the winding must face the ship.
@@ -208,7 +208,7 @@ public class GhostTests
         {
             Frame = space,
             Pose = At(30),
-            Body = new(wall, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+            Body = new(Shape: wall, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
             AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
@@ -217,7 +217,7 @@ public class GhostTests
         {
             Frame = space,
             Pose = At(0),
-            Body = new(new SphereShapeDesc(2), Mass: 1000, InteriorShape: new SphereShapeDesc(1)),
+            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, InteriorShape: new SphereShapeDesc(1)),
             AsFrame = new(FrameBounds.Sphere(20))
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);

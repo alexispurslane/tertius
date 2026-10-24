@@ -132,7 +132,7 @@ public sealed partial class JoltPhysicsBackend
                     normal = -normal;
                 }
 
-                bodyPairStarts.Add(new(a, b, world.Frame, raw.Point, normal, impulse));
+                bodyPairStarts.Add(new(A: a, B: b, Frame: world.Frame, Point: raw.Point, Normal: normal, Impulse: impulse));
             }
         }
 

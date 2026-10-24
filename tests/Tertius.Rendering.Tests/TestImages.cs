@@ -25,7 +25,7 @@ internal static class TestImages
         Fill(width, height, (_, _) => (r, g, b));
 
     /// <summary>A uniform gray: all three channels hold <paramref name="value"/>, display-encoded (sRGB).</summary>
-    public static Capture Gray(int width, int height, byte value) => Uniform(width, height, value, value, value);
+    public static Capture Gray(int width, int height, byte value) => Uniform(width: width, height: height, r: value, g: value, b: value);
 
     /// <summary>A gray image with the pixels of <paramref name="changed"/> set to another gray.</summary>
     public static Capture GrayWith(int width, int height, byte value, Func<int, int, bool> changed,

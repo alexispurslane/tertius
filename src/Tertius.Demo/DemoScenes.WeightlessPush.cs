@@ -39,16 +39,16 @@ public static partial class DemoScenes
         FrameHandle shipFrame = world.GetOwnedFrame(scene["ship"]);
 
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        var suit = new Vector4(0.95f, 0.8f, 0.2f, 1);
+        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
         Entity astronaut = world.Spawn(new()
         {
             Frame = shipFrame,
             Pose = new(AstronautStart, DQuaternion.Identity),
-            Body = new(capsule, BodyMotion.Character, Mass: 70),
+            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                Material = resources.CreateMaterial(new(suit, Emissive: MarkerGlow(suit))),
+                Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
                 BoundingRadius = 1,
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow
             },
@@ -57,10 +57,10 @@ public static partial class DemoScenes
         });
         scene.Add("astronaut", astronaut);
 
-        var orange = new Vector4(1, 0.45f, 0.1f, 1);
-        var crate = new CrateSpec(PushedCrateHalfExtents, PushedCrateMass,
-            resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
-            resources.CreateMaterial(new(orange, Emissive: MarkerGlow(orange))));
+        var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
+        var crate = new CrateSpec(HalfExtents: PushedCrateHalfExtents, Mass: PushedCrateMass,
+            Mesh: resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
+            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))));
         var cratePose = new DPose(AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),
             DQuaternion.Identity);
         scene.Add("free-crate", world.Spawn(crate.Spawn(shipFrame, cratePose, Double3.Zero)));

@@ -81,7 +81,7 @@ internal sealed class ShapeCache : IDisposable
     {
         var triangles = new IndexedTriangle[mesh.Indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++)
-            triangles[i] = new(mesh.Indices[3 * i], mesh.Indices[3 * i + 1], mesh.Indices[3 * i + 2]);
+            triangles[i] = new(i1: mesh.Indices[3 * i], i2: mesh.Indices[3 * i + 1], i3: mesh.Indices[3 * i + 2]);
         using MeshShapeSettings settings =
             NativeOwnership.Owned(new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan()));
         MeshShape shape = NativeOwnership.Owned(new MeshShape(settings));
@@ -97,7 +97,7 @@ internal sealed class ShapeCache : IDisposable
         foreach (CompoundChild child in compound.Children)
         {
             Pose pose = child.Pose;
-            settings.AddShape(pose.Position, Quaternion.Normalize(pose.Rotation), Get(child.Shape));
+            settings.AddShape(position: pose.Position, rotation: Quaternion.Normalize(pose.Rotation), shape: Get(child.Shape));
         }
 
         StaticCompoundShape shape = NativeOwnership.Owned(new StaticCompoundShape(settings));

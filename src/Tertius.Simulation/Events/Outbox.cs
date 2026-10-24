@@ -27,7 +27,7 @@ public readonly ref struct Outbox
     {
         if (!target.HasValue)
             ThrowNoTarget();
-        Write(ref chunk.Outbox.AddRef(), target, payload, extra);
+        Write(e: ref chunk.Outbox.AddRef(), target: target, payload: payload, extra: extra);
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ public readonly ref struct Outbox
             ThrowNoTarget();
         ref DelayedEvent delayed = ref chunk.Delayed.AddRef();
         delayed.Due = tick + ticks;
-        Write(ref delayed.Event, target, payload, extra);
+        Write(e: ref delayed.Event, target: target, payload: payload, extra: extra);
     }
 
     private readonly void Write<T>(ref Event e, Target target, in T payload, object? extra)

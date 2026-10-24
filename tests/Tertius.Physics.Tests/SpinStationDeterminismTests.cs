@@ -30,14 +30,14 @@ public class SpinStationDeterminismTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(
             new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-                .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true)));
+                .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true)));
         world.Spawn(new()
         {
             Frame = station,
             Pose = At(FloorRadius + 0.5),
-            Body = new(new BoxShapeDesc(new(0.5f, 20, 20)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 20, 20)), Motion: BodyMotion.Static)
         });
-        var crate = new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 10);
+        var crate = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10);
         var logs = new List<CollisionLog>();
         var bodies = new List<Entity>();
 
@@ -56,7 +56,7 @@ public class SpinStationDeterminismTests
             Frame = station,
             Components = log,
             Pose = At(FloorRadius - 1, 0, 8),
-            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(0.9f))
         });
         Add(log => new()
@@ -79,7 +79,7 @@ public class SpinStationDeterminismTests
             Components = log,
             Pose = At(60, 5, -10),
             AngularVelocity = new(1, 2, 0),
-            Body = new(new SphereShapeDesc(0.5f), Mass: 10)
+            Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 10)
         });
 
         var lines = new List<string>();

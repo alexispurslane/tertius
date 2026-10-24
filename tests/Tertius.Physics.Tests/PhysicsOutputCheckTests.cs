@@ -14,15 +14,15 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class PhysicsOutputCheckTests
 {
-    private static readonly BodyDesc PersonBody = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc PersonBody = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
-        new(new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A dynamic ball that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BallBody(float radius, float mass) =>
-        new(new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new SphereShapeDesc(radius), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>
     /// A world that holds: a ship frame that physics drives, 10 m along +X in space, with a cockpit frame inside it, a ball in
@@ -36,7 +36,7 @@ public class PhysicsOutputCheckTests
     {
         public Scene()
         {
-            World = NewWorldWithFaults(out FaultInjectingBackend faults);
+            World = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
             Faults = faults;
             Space = World.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Point(1)));
             Entity shipOwner = World.Spawn(new()
@@ -59,7 +59,7 @@ public class PhysicsOutputCheckTests
             }));
             Island = World.GetOwnedFrame(World.Spawn(new()
             {
-                Body = new(new SphereShapeDesc(5), BodyMotion.Static),
+                Body = new(Shape: new SphereShapeDesc(5), Motion: BodyMotion.Static),
                 AsFrame = new(FrameBounds.Sphere(10))
             }));
             Raft = World.GetOwnedFrame(World.Spawn(new()
@@ -71,7 +71,7 @@ public class PhysicsOutputCheckTests
             {
                 Frame = Space,
                 Pose = At(0, -200),
-                Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+                Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
                 AsFrame = new(FrameBounds.Sphere(5))
             }));
             Moon = World.GetOwnedFrame(World.Spawn(new SpawnDesc
@@ -136,10 +136,10 @@ public class PhysicsOutputCheckTests
     }
 
     private static HandOff HandOffOf(Entity entity, FrameHandle from, FrameHandle to) =>
-        new(entity, from, to, DPose.Identity, Vector3.Zero, Vector3.Zero);
+        new(Entity: entity, From: from, To: to, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero);
 
     private static ContactStarted ContactOf(Entity a, Entity b, FrameHandle frame) =>
-        new(a, b, frame, Double3.Zero, Vector3.UnitX, 0);
+        new(A: a, B: b, Frame: frame, Point: Double3.Zero, Normal: Vector3.UnitX, Impulse: 0);
 
     [Fact]
     public void AHandOffThatTheFrameTreeRefusesThrowsOutOfTheStep()
@@ -158,7 +158,7 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(scene.Ball, scene.Gone, DPose.Identity, Vector3.Zero, Vector3.Zero)),
+            output => output.Bodies.Add(new(Entity: scene.Ball, Frame: scene.Gone, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Ball}*{scene.Gone}*");
     }
 
@@ -168,7 +168,7 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Bodies.Add(new(scene.Wreck, scene.Space, DPose.Identity, Vector3.Zero, Vector3.Zero)),
+            output => output.Bodies.Add(new(Entity: scene.Wreck, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Wreck}*no longer exists*");
 
         scene.World.IsAlive(scene.Wreck).Should().BeFalse();
@@ -182,7 +182,7 @@ public class PhysicsOutputCheckTests
 
         scene.ShouldRefuse(
             output => output.Bodies.Add(
-                new(scene.Space.Entity, scene.Space, DPose.Identity, Vector3.Zero, Vector3.Zero)),
+                new(Entity: scene.Space.Entity, Frame: scene.Space, Pose: DPose.Identity, LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)),
             $"*body state of {scene.Space.Entity}*has no body*");
     }
 
@@ -254,8 +254,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(scene.Drifter, DPose.Identity, Double3.Zero, Vector3.Zero,
-                Vector3.Zero)),
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Drifter, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+                measured: Vector3.Zero)),
             $"*step record of {scene.Drifter}*has no body*");
     }
 
@@ -265,8 +265,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(scene.Raft, DPose.Identity, Double3.Zero, Vector3.Zero,
-                Vector3.Zero)),
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Raft, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+                measured: Vector3.Zero)),
             $"*step record of {scene.Raft}*root frame*");
     }
 
@@ -290,8 +290,8 @@ public class PhysicsOutputCheckTests
         using var scene = new Scene();
 
         scene.ShouldRefuse(
-            output => output.Frames.Add(StepRecords.Of(scene.Gone, DPose.Identity, Double3.Zero, Vector3.Zero,
-                Vector3.Zero)),
+            output => output.Frames.Add(StepRecords.Of(frame: scene.Gone, pose: DPose.Identity, velocity: Double3.Zero, angularVelocity: Vector3.Zero,
+                measured: Vector3.Zero)),
             $"*step record of the stale frame {scene.Gone}*");
     }
 
@@ -388,7 +388,7 @@ public class PhysicsOutputCheckTests
     [Fact]
     public void AnEntityWithABodyStateAndAHandOffInOneStepKeepsTheStateOfItsHandOff()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (_, FrameHandle carrier, Entity fighter) = FighterApproachingCarrier(world, fighterOwnsFrame: false);
         bool reportedBoth = false;
         faults.EditOutput = output =>
@@ -429,7 +429,7 @@ public class PhysicsOutputCheckTests
     [Fact]
     public void AnEntityWhoseBrokenHandOffATestRefusesKeepsTheStateItHadBeforeTheStep()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (FrameHandle space, FrameHandle carrier, Entity fighter) =
             FighterApproachingCarrier(world, fighterOwnsFrame: true);
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
@@ -474,12 +474,12 @@ public class PhysicsOutputCheckTests
     [Fact]
     public void ACharacterWhoseBrokenHandOffATestRefusesKeepsTheStandingStateOfItsLastStep()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(100, 0.5f, 100)), BodyMotion.Static)
+            Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(100, 0.5f, 100)), Motion: BodyMotion.Static)
         });
         FrameHandle building = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -488,7 +488,7 @@ public class PhysicsOutputCheckTests
         }));
         world.Spawn(new()
         {
-            Frame = building, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(15, 0.5f, 15)), BodyMotion.Static)
+            Frame = building, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(15, 0.5f, 15)), Motion: BodyMotion.Static)
         });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new(4, 0, 0)) };
         Entity walker = world.Spawn(new()

@@ -15,7 +15,7 @@ public class ParallelForOverheadBenchmarks
     [Params(8, 64, 1024)] public int Items;
 
     [Benchmark]
-    public void ParallelFor() => Parallel.For(0, Items, Options, empty);
+    public void ParallelFor() => Parallel.For(fromInclusive: 0, toExclusive: Items, parallelOptions: Options, body: empty);
 
     [Benchmark]
     public void SerialFor()

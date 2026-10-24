@@ -140,7 +140,7 @@ public sealed class EarthSystemTests : IDisposable
         {
             Frame = surface,
             Pose = new(restingOn + new Double3(0, 0.05, 0), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 100)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 100)
         });
 
         Tick(world, 5 * 60);

@@ -22,12 +22,12 @@ public class WorldNumericClusteringTests
     /// <summary>The velocity of a circular orbit through (<see cref="OrbitRadius"/>, 0, 0), along Z.</summary>
     private static readonly Double3 Orbit = new(0, 0, OrbitSpeed);
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
-    private static readonly BodyDesc Hull = new(new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
+    private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
         AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
 
@@ -61,15 +61,15 @@ public class WorldNumericClusteringTests
     /// </summary>
     private static List<string> RunScatteringCrates()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
         Entity[] crates =
         [
-            CrateInEarth(world, earth, new(0, 0, 0), new(-2, 0, 0)),
-            CrateInEarth(world, earth, new(0, 1.1, 0), new(0, 3, 0)),
-            CrateInEarth(world, earth, new(0, 0, 1.1), new(0, 0, 4)),
-            CrateInEarth(world, earth, new(0, 1.1, 1.1), new(0, 2, 2)),
-            CrateInEarth(world, earth, new(0, -40, 0), new(0, 4, 0))
+            CrateInEarth(world: world, earth: earth, offset: new(0, 0, 0), relativeVelocity: new(-2, 0, 0)),
+            CrateInEarth(world: world, earth: earth, offset: new(0, 1.1, 0), relativeVelocity: new(0, 3, 0)),
+            CrateInEarth(world: world, earth: earth, offset: new(0, 0, 1.1), relativeVelocity: new(0, 0, 4)),
+            CrateInEarth(world: world, earth: earth, offset: new(0, 1.1, 1.1), relativeVelocity: new(0, 2, 2)),
+            CrateInEarth(world: world, earth: earth, offset: new(0, -40, 0), relativeVelocity: new(0, 4, 0))
         ];
         var lines = new List<string>();
         for (int tick = 0; tick < 900; tick++)
@@ -85,7 +85,7 @@ public class WorldNumericClusteringTests
     [Fact]
     public void APersonWhoThrustsForAMinuteNearTheShipsOrbitGainsLessThanAMillimeterPerSecondOfErrorRelativeToTheShip()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle earth = Earth(world);
         Entity hull = world.Spawn(new()
         {
@@ -138,9 +138,9 @@ public class WorldNumericClusteringTests
     [Fact]
     public void APersonBehindACrateAlongTheOrbitClosesOnItAsIfItMovedWithThePersonAndTouchesItOnlyWhenTheyMeet()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
-        Entity crate = CrateInEarth(world, earth, Double3.Zero, Double3.Zero);
+        Entity crate = CrateInEarth(world: world, earth: earth, offset: Double3.Zero, relativeVelocity: Double3.Zero);
         // The person starts 20 m behind the crate along the orbit and closes at 1 m/s. Its capsule of radius 0.3 m meets
         // the crate's back face, 0.5 m from its center, after about 19.2 m.
         Entity person = world.Spawn(new()
@@ -174,7 +174,7 @@ public class WorldNumericClusteringTests
     [Fact]
     public void ACrateAtRestOnAFloorFarFromItsFramesOriginGetsARestingFrameAndStaysAtRest()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         const double top = 1e7;
         Entity floor = Floor(world, ground, top);
@@ -194,7 +194,7 @@ public class WorldNumericClusteringTests
     [Fact]
     public void ACrateThrownOutOfTheShipJoinsTheShipsNumericFrameThenLeavesItOnceWithNoThrashing()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
         Entity owner = world.Spawn(new()
         {

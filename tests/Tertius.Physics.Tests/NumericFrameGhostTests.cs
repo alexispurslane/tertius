@@ -74,20 +74,20 @@ public class NumericFrameGhostTests
     private static readonly Double3 StationCenter = new(1000, 0, 0);
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
+    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A crate of 2 m by 2 m by 2 m and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
+    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A rock: a ball of radius 0.5 m and 1 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc RockBody = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+    private static readonly BodyDesc RockBody = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults,
+        NewWorldWithFaults(faults: out faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>
@@ -101,7 +101,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static World NewStationWorld(bool numericFrames, out FaultInjectingBackend faults,
         double lookahead = 0.2) =>
-        NewWorldWithFaults(out faults, configure: options =>
+        NewWorldWithFaults(faults: out faults, configure: options =>
             options.NumericFrames = numericFrames ? new() { LookaheadTime = lookahead } : WithoutNumericFrames);
 
     /// <summary>
@@ -148,7 +148,7 @@ public class NumericFrameGhostTests
     /// thruster. The scene returns after the <see cref="WarmUpTicks"/>, with the ship at (1100, <paramref name="lane"/>, 0).
     /// </summary>
     private static StationScene ShipPassingAStation(World world, double lane) =>
-        CratesPassingAStation(world, lane, At(15, 10), shipCrate: null);
+        CratesPassingAStation(world: world, lane: lane, stationCrate: At(15, 10), shipCrate: null);
 
     /// <summary>
     /// The station and the ship of <see cref="ShipPassingAStation"/>, with a crate of 2 m by 2 m by 2 m and 2 kg at rest at
@@ -165,20 +165,20 @@ public class NumericFrameGhostTests
         {
             Frame = space,
             Pose = new(StationCenter, DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(StationRadius))
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         Entity crate = stationCrate is { } inStation
             ? world.Spawn(new() { Frame = station, Pose = inStation, Body = CrateBody })
             : Entity.Null;
-        Entity shipOwner = SpawnFastShip(world, space, new(shipX, lane, 0), ShipRadius);
+        Entity shipOwner = SpawnFastShip(world: world, space: space, at: new(shipX, lane, 0), radius: ShipRadius);
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         Entity cargo = shipCrate is { } inShip
             ? world.Spawn(new() { Frame = ship, Pose = inShip, Body = CrateBody })
             : Entity.Null;
         Tick(world, WarmUpTicks);
-        return new(space, stationOwner, station, crate, shipOwner, ship, cargo);
+        return new(Space: space, StationOwner: stationOwner, Station: station, Crate: crate, ShipOwner: shipOwner, Ship: ship, ShipCrate: cargo);
     }
 
     /// <summary>The distance in meters from the station's center to the ship's, at the end of the last step.</summary>
@@ -297,12 +297,12 @@ public class NumericFrameGhostTests
         {
             Frame = space,
             Pose = new(StationCenter, DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(StationRadius))
         }));
         // After the warm-up and 3 more ticks, the ship is at about (1057, 28.6, 0), 64 m from the station's center, so
         // the bubbles overlap.
-        Entity shipOwner = SpawnFastShip(world, space, new(1060, 30, 0), ShipRadius);
+        Entity shipOwner = SpawnFastShip(world: world, space: space, at: new(1060, 30, 0), radius: ShipRadius);
         Tick(world, WarmUpTicks + 3);
         FrameHandle home = world.PhysicsHomeOf(shipOwner);
         if (numericFrames)
@@ -453,7 +453,7 @@ public class NumericFrameGhostTests
     private static (int Ticks, Double3 Position, Double3 Velocity) StopTheShipsCrate(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out _);
-        StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: At(0, -10));
+        StationScene scene = CratesPassingAStation(world: world, lane: 10, stationCrate: null, shipCrate: At(0, -10));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -497,7 +497,7 @@ public class NumericFrameGhostTests
         bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out _);
-        StationScene scene = CratesPassingAStation(world, lane: 45, stationCrate: At(15, 15), shipCrate: At(0, -30));
+        StationScene scene = CratesPassingAStation(world: world, lane: 45, stationCrate: At(15, 15), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -542,7 +542,7 @@ public class NumericFrameGhostTests
         bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out _);
-        StationScene scene = CratesPassingAStation(world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -10));
+        StationScene scene = CratesPassingAStation(world: world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -10));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -584,7 +584,7 @@ public class NumericFrameGhostTests
     /// station's crate in the ship. Nothing touches.
     /// </summary>
     private static StationScene CratesThatStickOut(World world) =>
-        CratesPassingAStation(world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -30));
+        CratesPassingAStation(world: world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -30));
 
     /// <summary>True when the station's hull has a ghost in the ship, the ship's crate in the station, and the station's crate in the ship.</summary>
     private static bool HasEveryGhost(FaultInjectingBackend faults, StationScene scene) =>
@@ -601,8 +601,8 @@ public class NumericFrameGhostTests
     {
         using World world = NewStationWorld(numericFrames: true, out FaultInjectingBackend faults);
         StationScene scene = CratesThatStickOut(world);
-        FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
+        FrameHandle buoy = EmptyFrame(world: world, parent: scene.Space, pose: At(-5000), radius: 5);
+        FrameHandle depot = EmptyFrame(world: world, parent: scene.Space, pose: At(5000), radius: 50);
         TickUntil(world, () => HasEveryGhost(faults, scene), 120);
         HasEveryGhost(faults, scene).Should()
             .BeTrue("after about 1.2 s the crates touch the other bubbles, and the bubbles overlap");
@@ -651,9 +651,9 @@ public class NumericFrameGhostTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new()
-            { Frame = space, Pose = At(5_008, 0, -100), Body = new(new SphereShapeDesc(1), BodyMotion.Static) });
-        FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, space, At(-6000), 50);
+            { Frame = space, Pose = At(5_008, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
+        FrameHandle buoy = EmptyFrame(world: world, parent: space, pose: At(-5000), radius: 5);
+        FrameHandle depot = EmptyFrame(world: world, parent: space, pose: At(-6000), radius: 50);
         Tick(world, 2);
         NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
@@ -689,11 +689,11 @@ public class NumericFrameGhostTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new()
-            { Frame = space, Pose = At(5_008, 0, -100), Body = new(new SphereShapeDesc(1), BodyMotion.Static) });
+            { Frame = space, Pose = At(5_008, 0, -100), Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static) });
         // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
-        FrameHandle station = EmptyFrame(world, space, At(0, 3_000), 10);
+        FrameHandle station = EmptyFrame(world: world, parent: space, pose: At(0, 3_000), radius: 10);
         Entity crate = world.Spawn(new()
-            { Frame = station, Pose = At(0, 10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic) });
+            { Frame = station, Pose = At(0, 10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic) });
         Tick(world, 2);
         NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
@@ -762,7 +762,7 @@ public class NumericFrameGhostTests
     public void BodiesThatStayAwayFromABubbleHaveNoGhostThereButOneInTheirFramesTreeParent(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults, lookahead: 0.8);
-        StationScene scene = CratesPassingAStation(world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
+        StationScene scene = CratesPassingAStation(world: world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
         FrameHandle shipParent = world.Frames.TreeParent(scene.Ship);
@@ -820,7 +820,7 @@ public class NumericFrameGhostTests
         bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
-        StationScene scene = CratesPassingAStation(world, lane: 30, stationCrate: At(24, 32), shipCrate: At(-30),
+        StationScene scene = CratesPassingAStation(world: world, lane: 30, stationCrate: At(24, 32), shipCrate: At(-30),
             shipX: 1040,
             gravity: GravityField.Uniform(new(0, -9.81f, 0)));
         Tick(world, 3);
@@ -883,9 +883,9 @@ public class NumericFrameGhostTests
             Body = ShipHull,
             AsFrame = new(FrameBounds.Sphere(100))
         });
-        Entity fastOwner = SpawnFastShip(world, space, new(150, 140, 0), 60);
+        Entity fastOwner = SpawnFastShip(world: world, space: space, at: new(150, 140, 0), radius: 60);
         Tick(world, WarmUpTicks);
-        return new(space, slowOwner, world.GetOwnedFrame(slowOwner), fastOwner, world.GetOwnedFrame(fastOwner));
+        return new(Space: space, SlowOwner: slowOwner, Slow: world.GetOwnedFrame(slowOwner), FastOwner: fastOwner, Fast: world.GetOwnedFrame(fastOwner));
     }
 
     [Theory]
@@ -940,8 +940,8 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         ShipsScene scene = ShipPassingAShip(world);
-        FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
+        FrameHandle buoy = EmptyFrame(world: world, parent: scene.Space, pose: At(-5000), radius: 5);
+        FrameHandle depot = EmptyFrame(world: world, parent: scene.Space, pose: At(5000), radius: 50);
         TickUntil(world, () => faults.Jolt.HasGhostIn(scene.SlowOwner, scene.Fast), 120);
         faults.Jolt.HasGhostIn(scene.SlowOwner, scene.Fast).Should().BeTrue("the bubbles overlap after about 1.2 s");
         world.Frames.Numeric(world.Frames.TreeParent(scene.Fast)).Should().Be(NumericMode.Falling);
@@ -990,7 +990,7 @@ public class NumericFrameGhostTests
         Entity rock = rockPose is { } pose
             ? world.Spawn(new() { Frame = space, Pose = pose, LinearVelocity = rockVelocity, Body = RockBody })
             : Entity.Null;
-        return new(space, shipOwner, ship, crate, rock);
+        return new(Space: space, ShipOwner: shipOwner, Ship: ship, Crate: crate, Rock: rock);
     }
 
     /// <summary>
@@ -1009,8 +1009,8 @@ public class NumericFrameGhostTests
     private static RockScene FallingShipPassingARock(World world, bool withRock = true, double crateY = -BigShipRadius,
         GravityField gravity = default)
     {
-        RockScene scene = ShipAndRock(world, At(1100 + WarmUpDistance), new(-ShipSpeed, 0, 0), At(0, crateY),
-            withRock ? At(1000, -BigShipRadius - 0.6) : null, gravity: gravity, shipComponents: [ShipThruster()]);
+        RockScene scene = ShipAndRock(world: world, shipPose: At(1100 + WarmUpDistance), shipVelocity: new(-ShipSpeed, 0, 0), cratePose: At(0, crateY),
+            rockPose: withRock ? At(1000, -BigShipRadius - 0.6) : null, gravity: gravity, shipComponents: [ShipThruster()]);
         Tick(world, WarmUpTicks);
         return scene;
     }
@@ -1030,7 +1030,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static RockScene
         ShipRestingBesideARock(World world, bool withRock = true, double crateX = -BigShipRadius) =>
-        ShipAndRock(world, At(RestDistance + 150), Double3.Zero, At(crateX), withRock ? At(RestDistance - 70) : null,
+        ShipAndRock(world: world, shipPose: At(RestDistance + 150), shipVelocity: Double3.Zero, cratePose: At(crateX), rockPose: withRock ? At(RestDistance - 70) : null,
             rockVelocity: new(10, 0, 0));
 
     /// <summary>
@@ -1086,7 +1086,7 @@ public class NumericFrameGhostTests
         using World world = NewWorld(numericFrames, out _);
         RockScene scene = build(world);
         world.Tick();
-        ShipHomeShouldBe(world, scene, numericFrames, mode);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: numericFrames, mode: mode);
         world.PhysicsHomeOf(scene.Rock).Should().Be(world.PhysicsHomeOf(scene.ShipOwner),
             "the merge test links the rock to the place of the crate's ghost, which lives in the home of the ship's hull");
 
@@ -1102,8 +1102,8 @@ public class NumericFrameGhostTests
         Tick(world, total - ticks);
 
         world.Errors.Should().BeEmpty();
-        return new(ticks, world.PoseIn(scene.Rock, scene.Space).Position, world.VelocityIn(scene.Rock, scene.Space),
-            world.GetFrame(scene.Rock) == scene.Space, rockHome == hullHome, world.Frames.Numeric(rockHome));
+        return new(Ticks: ticks, Position: world.PoseIn(scene.Rock, scene.Space).Position, Velocity: world.VelocityIn(scene.Rock, scene.Space),
+            InSpace: world.GetFrame(scene.Rock) == scene.Space, HitInHullsHome: rockHome == hullHome, HitMode: world.Frames.Numeric(rockHome));
     }
 
     /// <summary>
@@ -1118,11 +1118,11 @@ public class NumericFrameGhostTests
     public void
         ACrateThatSticksOutOfAFallingShipPushesARockBeyondTheReachOfTheHullInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
     {
-        static RockScene build(World world) => FallingShipPassingARock(world);
+        static RockScene build(World world) => FallingShipPassingARock(world: world);
         RockRun withNumericFrames =
-            RunTheRock(numericFrames: true, build, NumericMode.Falling, velocity => velocity.Length > 10);
+            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Falling, done: velocity => velocity.Length > 10);
         RockRun withoutNumericFrames =
-            RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length > 10);
+            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None, done: velocity => velocity.Length > 10);
 
         // The front of the crate reaches the back of the rock, at x = 1000.5 in space, after 98.5 m, or 1.64 s.
         withoutNumericFrames.Ticks.Should()
@@ -1147,9 +1147,9 @@ public class NumericFrameGhostTests
     {
         static RockScene build(World world) => ShipRestingBesideARock(world);
         RockRun withNumericFrames =
-            RunTheRock(numericFrames: true, build, NumericMode.Resting, velocity => velocity.Length < 1);
+            RunTheRock(numericFrames: true, build: build, mode: NumericMode.Resting, done: velocity => velocity.Length < 1);
         RockRun withoutNumericFrames =
-            RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length < 1);
+            RunTheRock(numericFrames: false, build: build, mode: NumericMode.None, done: velocity => velocity.Length < 1);
 
         // The front of the rock reaches the face of the crate, at x = RestDistance - 51 in space, after 18.5 m, or 1.85 s.
         withoutNumericFrames.Ticks.Should()
@@ -1256,13 +1256,13 @@ public class NumericFrameGhostTests
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         RockScene scene = shipRests
             ? ShipRestingBesideARock(world, withRock: false)
-            : FallingShipPassingARock(world, withRock: false);
-        FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
+            : FallingShipPassingARock(world: world, withRock: false);
+        FrameHandle buoy = EmptyFrame(world: world, parent: scene.Space, pose: At(-5000), radius: 5);
+        FrameHandle depot = EmptyFrame(world: world, parent: scene.Space, pose: At(5000), radius: 50);
         // The sync point of the first tick after the warm-up gives the falling ship's hull its numeric frame, after that
         // tick's step, and the ghost pass of the next step puts the crate's ghost there.
         Tick(world, 2);
-        ShipHomeShouldBe(world, scene, numericFrames: true, shipRests ? NumericMode.Resting : NumericMode.Falling);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: true, mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
         FrameHandle home = world.PhysicsHomeOf(scene.ShipOwner);
         faults.Jolt.HasGhostIn(scene.Crate, home).Should()
             .BeTrue("the crate sticks out of the ship into its tree parent");
@@ -1299,9 +1299,9 @@ public class NumericFrameGhostTests
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         RockScene scene = shipRests
             ? ShipRestingBesideARock(world, withRock: false, crateX: -BigShipRadius + 100)
-            : FallingShipPassingARock(world, withRock: false, crateY: -BigShipRadius + 100);
+            : FallingShipPassingARock(world: world, withRock: false, crateY: -BigShipRadius + 100);
         world.Tick();
-        ShipHomeShouldBe(world, scene, numericFrames, shipRests ? NumericMode.Resting : NumericMode.Falling);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: numericFrames, mode: shipRests ? NumericMode.Resting : NumericMode.Falling);
 
         for (int tick = 0; tick < 60; tick++)
         {
@@ -1331,9 +1331,9 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         RockScene scene =
-            FallingShipPassingARock(world, withRock: false, gravity: GravityField.Uniform(new(0, -9.81f, 0)));
+            FallingShipPassingARock(world: world, withRock: false, gravity: GravityField.Uniform(new(0, -9.81f, 0)));
         Tick(world, 3);
-        ShipHomeShouldBe(world, scene, numericFrames, NumericMode.Falling);
+        ShipHomeShouldBe(world: world, scene: scene, numericFrames: numericFrames, mode: NumericMode.Falling);
 
         FrameHandle treeParent = world.Frames.TreeParent(scene.Ship);
         JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, treeParent);

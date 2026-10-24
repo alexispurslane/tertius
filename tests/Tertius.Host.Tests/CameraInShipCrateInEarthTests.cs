@@ -44,7 +44,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None);
         earth = world.GetOwnedFrame(scene["earth"]);
         ship = world.GetOwnedFrame(scene["ship"]);
-        var spec = new CrateSpec(new(0.2f), 5, new(1), new(1));
+        var spec = new CrateSpec(HalfExtents: new(0.2f), Mass: 5, Mesh: new(1), Material: new(1));
         // One tick first, so that the ship has the rotation that Jolt keeps. The crates then start at their places in the
         // ship's axes, with the ship's velocity and a drift away from it.
         world.Tick();

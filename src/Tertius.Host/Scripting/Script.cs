@@ -256,8 +256,8 @@ public sealed record FilmStep(string Name, int Frames, int Every)
         captureName.Length == Name.Length + 7
         && captureName.StartsWith(Name, StringComparison.Ordinal)
         && captureName[Name.Length] == '-'
-        && int.TryParse(captureName.AsSpan(Name.Length + 1), NumberStyles.None, CultureInfo.InvariantCulture,
-            out int number)
+        && int.TryParse(s: captureName.AsSpan(Name.Length + 1), style: NumberStyles.None, provider: CultureInfo.InvariantCulture,
+            result: out int number)
         && number < Frames;
 }
 

@@ -60,12 +60,12 @@ internal sealed unsafe class ToneMapPass : RenderPass
         vk.CmdBeginRendering(commandBuffer, &rendering);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         DescriptorSet set = context.Targets.PostSet;
-        vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, layouts.PostLayout, 0, 1, &set, 0, null);
+        vk.CmdBindDescriptorSets(commandBuffer: commandBuffer, pipelineBindPoint: PipelineBindPoint.Graphics, layout: layouts.PostLayout, firstSet: 0, descriptorSetCount: 1, pDescriptorSets: &set, dynamicOffsetCount: 0, pDynamicOffsets: null);
         context.SetFullViewport();
         var push = new ToneMapPushConstants { Exposure = context.Exposure, EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
-        vk.CmdPushConstants(commandBuffer, layouts.PostLayout, ShaderStageFlags.FragmentBit, 0,
-            (uint)sizeof(ToneMapPushConstants), &push);
-        vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
+        vk.CmdPushConstants(commandBuffer: commandBuffer, layout: layouts.PostLayout, stageFlags: ShaderStageFlags.FragmentBit, offset: 0,
+            size: (uint)sizeof(ToneMapPushConstants), pValues: &push);
+        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
         vk.CmdEndRendering(commandBuffer);
     }
 

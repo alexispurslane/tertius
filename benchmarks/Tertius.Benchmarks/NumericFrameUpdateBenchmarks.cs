@@ -30,7 +30,7 @@ public class NumericFrameUpdateBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         for (int r = 0; r < Rocks; r++)
         {
@@ -51,8 +51,8 @@ public class NumericFrameUpdateBenchmarks
 
         for (int b = 0; b < Bubbles; b++)
         {
-            FrameHandle station = frames.Create(new(next++, 1), space, new(new(100 * b, 50, 0), DQuaternion.Identity),
-                FrameBounds.Sphere(40));
+            FrameHandle station = frames.Create(frameOwner: new(next++, 1), parent: space, localPose: new(new(100 * b, 50, 0), DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(40));
             for (int c = 0; c < 10; c++)
             {
                 var position = new Double3(3 * c - 15, 0, 0);
@@ -93,7 +93,7 @@ public class NumericFrameUpdateBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies, 1.0 / 60, 1.0 / 60, changes, applyMoves);
+        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes, applyMoves: applyMoves);
     }
 }
 
@@ -130,17 +130,17 @@ public class NumericFramePlaceBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle space = frames.Create(frameOwner: new(next++, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         var ships = new Double3[Ships];
         for (int s = 0; s < Ships; s++)
         {
             ships[s] = new(80 * s, 0, 0);
-            FrameHandle ship = frames.Create(new(next++, 1), space, new(ships[s], DQuaternion.Identity),
-                FrameBounds.Sphere(40));
-            list.Add(Body(next++, ship, Double3.Zero, new(60, 0, 0)) with { Character = true });
+            FrameHandle ship = frames.Create(frameOwner: new(next++, 1), parent: space, localPose: new(ships[s], DQuaternion.Identity),
+                frameBounds: FrameBounds.Sphere(40));
+            list.Add(Body(id: next++, frame: ship, position: Double3.Zero, velocity: new(60, 0, 0)) with { Character = true });
             foreach (Double3 axis in Axes)
-                list.Add(Body(next++, ship, axis * 39.5, Double3.Zero));
+                list.Add(Body(id: next++, frame: ship, position: axis * 39.5, velocity: Double3.Zero));
         }
 
         // A grid 40 m apart around the row of ships, outside every bubble, as many points as asked: 2 * Ships + 8 columns
@@ -158,7 +158,7 @@ public class NumericFramePlaceBenchmarks
                 inBubble |= (position - ship).Length < 42;
             if (inBubble)
                 continue;
-            list.Add(Body(next++, space, position, Axes[rocks % Axes.Length] * 5));
+            list.Add(Body(id: next++, frame: space, position: position, velocity: Axes[rocks % Axes.Length] * 5));
             rocks++;
         }
 
@@ -188,6 +188,6 @@ public class NumericFramePlaceBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies, 1.0 / 60, 1.0 / 60, changes, applyMoves);
+        frames.UpdateNumericFrames(bodies: bodies, dt: 1.0 / 60, step: 1.0 / 60, changes: changes, applyMoves: applyMoves);
     }
 }

@@ -38,8 +38,8 @@ public sealed class BackJet : IComponent
     /// the person (docs/plans/blue-danube-demo.md, "The plumes").
     /// </summary>
     public static Plume Plume { get; } = new(
-        new(Life: 1.5f, StartRadius: 0.04f, EndRadius: 0.3f, TemperatureRatio: 0.75f,
-            PuffShading.Lit(new(0.85f, 0.87f, 0.9f))),
+        Look: new(Life: 1.5f, StartRadius: 0.04f, EndRadius: 0.3f, TemperatureRatio: 0.75f,
+            Shading: PuffShading.Lit(new(0.85f, 0.87f, 0.9f))),
         FullRate: 30, Speed: 3, Spread: 0.2f);
 
     /// <summary>Where the jet sits on the person, in meters, in the person's axes: on its back, at its chest's height.</summary>

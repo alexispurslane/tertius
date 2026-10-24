@@ -42,6 +42,6 @@ internal static class StepTwo
         StepOwners? owners = null, bool stepFailed = false)
     {
         StepOwners facts = owners ?? new StepOwners();
-        frames.TakeStepRecords(ref facts, stepIntents, stepFailed, step);
+        frames.TakeStepRecords(owners: ref facts, stepIntents: stepIntents, stepFailed: stepFailed, step: step);
     }
 }

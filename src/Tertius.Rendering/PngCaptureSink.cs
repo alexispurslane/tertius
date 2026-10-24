@@ -30,6 +30,6 @@ public sealed class PngCaptureSink : ICaptureSink
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
         using FileStream stream = File.Create(full);
-        new ImageWriter().WritePng(rgba, image.Width, image.Height, ColorComponents.RedGreenBlueAlpha, stream);
+        new ImageWriter().WritePng(data: rgba, width: image.Width, height: image.Height, components: ColorComponents.RedGreenBlueAlpha, dest: stream);
     }
 }

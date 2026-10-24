@@ -121,19 +121,19 @@ internal sealed class LaunchLog
             ? world.PoseIn(holding.Copy, cabin)
             : null;
         DPose inEarth = world.PoseIn(shuttle, earth);
-        Ticks.Add(new(world.TickNumber, world.GetFrame(shuttle), inEarth.Position, world.VelocityIn(shuttle, earth),
-            inEarth.Rotation,
-            world.AngularVelocityIn(shuttle, earth), world.PoseIn(shuttle, surface).Position,
-            world.VelocityIn(shuttle, surface),
-            world.PoseIn(scene["earth-surface"], earth).Rotation, ascent,
-            world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position,
-            passenger,
-            penLives
+        Ticks.Add(new(Tick: world.TickNumber, Frame: world.GetFrame(shuttle), Position: inEarth.Position, Velocity: world.VelocityIn(shuttle, earth),
+            Rotation: inEarth.Rotation,
+            AngularVelocity: world.AngularVelocityIn(shuttle, earth), GroundPosition: world.PoseIn(shuttle, surface).Position,
+            GroundVelocity: world.VelocityIn(shuttle, surface),
+            GroundRotation: world.PoseIn(scene["earth-surface"], earth).Rotation, Ascent: ascent,
+            CabinAcceleration: world.Frames.ProperAcceleration(cabin), PersonFrame: world.GetFrame(person), PersonInCabin: world.PoseIn(person, cabin).Position,
+            Passenger: passenger,
+            Pen: penLives
                 ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation)
                 : null,
-            penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
-            penLives ? world.GetComponent<Clip>(pen)!.State : null, held,
-            WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)));
+            PenFromShuttle: penLives ? world.PoseIn(pen, earth).Position - inEarth.Position : null,
+            Clip: penLives ? world.GetComponent<Clip>(pen)!.State : null, Held: held,
+            PersonHeading: WalkHeading.Yaw(world.GetRender(person).ViewOffset.Rotation)));
         if (ascent.Value is Orbit && OrbitTick < 0)
             OrbitTick = world.TickNumber;
         if (OrbitTick >= 0 && ball.IsNull && world.TickNumber == OrbitTick + 420)

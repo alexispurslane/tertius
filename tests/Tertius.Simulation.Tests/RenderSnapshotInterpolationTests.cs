@@ -207,9 +207,9 @@ public class RenderSnapshotInterpolationTests
     {
         public HandOffScene()
         {
-            Test = TestWorld.OnJolt(out _);
+            Test = TestWorld.OnJolt(faults: out _);
             B = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-            Scenes.Approach flight = Scenes.ApproachToBubble(Test.World, B, tick: 2);
+            Scenes.Approach flight = Scenes.ApproachToBubble(world: Test.World, into: B, tick: 2);
             Camera = Test.World.Spawn(new()
             {
                 Frame = Test.Root,
@@ -344,11 +344,11 @@ public class RenderSnapshotInterpolationTests
     [Fact]
     public void AnObjectHandedOffBetweenFramesInterpolatesFromItsPoseInTheOldFrame()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity camera = test.SpawnCamera(test.Root, DPose.Identity);
         // The ball flies from the root into the frame b. Jolt hands it off in the step of tick 2.
-        Scenes.Approach flight = Scenes.ApproachToBubble(test.World, b, tick: 2);
+        Scenes.Approach flight = Scenes.ApproachToBubble(world: test.World, into: b, tick: 2);
         Entity ball = test.World.Spawn(new()
         {
             Frame = test.Root,

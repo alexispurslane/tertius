@@ -143,7 +143,7 @@ public class EdgeRemovalBenchmarks
         world = new(new() { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         frame = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(9.81f, 0, 0))));
         world.Spawn(new()
-            { Frame = frame, Body = new(Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), BodyMotion.Static) });
+            { Frame = frame, Body = new(Shape: Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), Motion: BodyMotion.Static) });
         List<Entity> slidingBoxes = [], slidingBalls = [];
         if (Load == FloorLoad.Characters)
             people = SpawnCharacters();
@@ -224,7 +224,7 @@ public class EdgeRemovalBenchmarks
                 {
                     Frame = frame,
                     Pose = OnFloor(theta, y),
-                    Body = new(boxes ? box : ball, Mass: boxes ? 10 : 1),
+                    Body = new(Shape: boxes ? box : ball, Mass: boxes ? 10 : 1),
                     Components = slides ? [new Shuttle()] : []
                 });
                 if (slides)
@@ -262,7 +262,7 @@ public class EdgeRemovalBenchmarks
             {
                 Frame = frame,
                 Pose = new(lowerCenter - PersonHalfHeight * Double3.UnitX, upright),
-                Body = new(capsule, BodyMotion.Character, Mass: 70),
+                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
                 Components = [new Walker()]
             }));
         }

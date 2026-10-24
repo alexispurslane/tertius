@@ -92,9 +92,9 @@ public class RouterOnWorkersTests
                 {
                     Event e = kind switch
                     {
-                        < 4 => Event.Create(target, Entity.Null, new Ping { Value = v }),
-                        < 7 => Event.Create(target, Entity.Null, new Heal { Amount = v }),
-                        _ => Event.Create(target, Entity.Null, new Destroy())
+                        < 4 => Event.Create(target: target, sender: Entity.Null, payload: new Ping { Value = v }),
+                        < 7 => Event.Create(target: target, sender: Entity.Null, payload: new Heal { Amount = v }),
+                        _ => Event.Create(target: target, sender: Entity.Null, payload: new Destroy())
                     };
                     switch (source)
                     {
@@ -287,9 +287,9 @@ public class RouterOnWorkersTests
     {
         RouterHarness h = RouterHarness.OnWorkers(threshold: 3);
         Entity a = h.Spawn(EventMask.Of<Ping>());
-        h.Router.AddEngineEvent(Event.Create(a, Entity.Null, new Ping { Value = 1 }));
+        h.Router.AddEngineEvent(Event.Create(target: a, sender: Entity.Null, payload: new Ping { Value = 1 }));
         h.Send(0, a, new Ping { Value = 2 });
-        h.SendAt(0, 0, a, new Ping { Value = 3 });
+        h.SendAt(chunk: 0, due: 0, target: a, payload: new Ping { Value = 3 });
 
         h.Route(tick: 0);
 

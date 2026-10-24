@@ -68,7 +68,10 @@ public static class ComponentTypes
     internal static List<Assembly> MayDefineComponents(Assembly[] loaded)
     {
         Assembly simulation = typeof(IComponent).Assembly;
-        var names = new HashSet<string>(StringComparer.Ordinal) { simulation.GetName().Name! };
+        // An assembly without a name cannot be referenced by name, so it adds nothing to the names.
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        if (simulation.GetName().Name is { } simulationName)
+            names.Add(simulationName);
         var result = new List<Assembly> { simulation };
         List<Assembly> rest = [.. loaded.Where(a => !a.IsDynamic && a != simulation)];
         bool grew = true;
@@ -80,7 +83,8 @@ public static class ComponentTypes
                 if (!rest[i].GetReferencedAssemblies()
                         .Any(reference => reference.Name is { } name && names.Contains(name)))
                     continue;
-                names.Add(rest[i].GetName().Name!);
+                if (rest[i].GetName().Name is { } name)
+                    names.Add(name);
                 result.Add(rest[i]);
                 rest.RemoveAt(i);
                 grew = true;

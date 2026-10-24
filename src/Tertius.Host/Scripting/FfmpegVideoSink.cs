@@ -67,7 +67,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         string full = Path.GetFullPath(video.Path);
         var start = new ProcessStartInfo(program)
             { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (string argument in Arguments(full, size.Width, size.Height, video.FramesPerSecond))
+        foreach (string argument in Arguments(path: full, width: size.Width, height: size.Height, framesPerSecond: video.FramesPerSecond))
             start.ArgumentList.Add(argument);
         var ffmpeg = new Process { StartInfo = start };
         try
@@ -84,7 +84,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
         {
             if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
                 Directory.CreateDirectory(directory);
-            return new(ffmpeg, full, size.Width, size.Height);
+            return new(ffmpeg: ffmpeg, path: full, width: size.Width, height: size.Height);
         }
         // ffmpeg has had no frame, so it has opened no output, and once stopped it never does.
         catch
@@ -204,7 +204,7 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
             lines = [.. errorLines];
         }
 
-        return new(path, ffmpeg.ExitCode, FramesWritten, lines, inner);
+        return new(path: path, exitCode: ffmpeg.ExitCode, framesWritten: FramesWritten, errorLines: lines, inner: inner);
     }
 
     private void KeepErrorLine(object sender, DataReceivedEventArgs line)
@@ -229,7 +229,7 @@ public sealed class VideoStreamException(
     int framesWritten,
     IReadOnlyList<string> errorLines,
     Exception? inner) : IOException(
-    Describe(path, exitCode, framesWritten, errorLines ?? throw new ArgumentNullException(nameof(errorLines))),
+    Describe(path: path, exitCode: exitCode, framesWritten: framesWritten, errorLines: errorLines ?? throw new ArgumentNullException(nameof(errorLines))),
     inner)
 {
     /// <summary>The file of the video.</summary>

@@ -22,13 +22,13 @@ public class SensorComponentTests
     private static List<Relayed> RelayedTo(Recorder listener) =>
     [
         .. listener.Seen.Select(seen => seen.Event.Is<Entered>()
-            ? new(seen.Tick, true, seen.Event.As<Entered>().Sensor, seen.Event.As<Entered>().Other)
-            : new Relayed(seen.Tick, false, seen.Event.As<Left>().Sensor, seen.Event.As<Left>().Other))
+            ? new(Tick: seen.Tick, Entered: true, Sensor: seen.Event.As<Entered>().Sensor, Other: seen.Event.As<Entered>().Other)
+            : new Relayed(Tick: seen.Tick, Entered: false, Sensor: seen.Event.As<Left>().Sensor, Other: seen.Event.As<Left>().Other))
     ];
 
     /// <summary>A static sensor box with the half extents <paramref name="half"/>.</summary>
     private static BodyDesc SensorBox(Vector3 half) =>
-        new(new BoxShapeDesc(half), BodyMotion.Static) { IsSensor = true };
+        new(Shape: new BoxShapeDesc(half), Motion: BodyMotion.Static) { IsSensor = true };
 
     /// <summary>
     /// A ball with a radius of 0.25 m that flies at 3 m/s along +X from x = -1.02 m and <paramref name="z"/>, in a frame with no
@@ -40,7 +40,7 @@ public class SensorComponentTests
             Frame = space,
             Pose = At(-1.02, 0, z),
             LinearVelocity = new Vector3(3, 0, 0),
-            Body = new(new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
             Components = components
         });
 
@@ -53,7 +53,7 @@ public class SensorComponentTests
     [Fact]
     public void ASensorRelaysAnEnteredAndALeftToTheSubscribersOfItsTopicOneTickAfterItsEntityHearsTheTouch()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var touches = new CollisionLog();
         Entity sensor = world.Spawn(new()
@@ -69,8 +69,8 @@ public class SensorComponentTests
         Tick(world, 60);
 
         long started = touches.Seen.Single().Tick, ended = touches.Ended.Single().Tick;
-        RelayedTo(subscriber).Should().Equal(new Relayed(started + 1, true, sensor, ball),
-            new Relayed(ended + 1, false, sensor, ball));
+        RelayedTo(subscriber).Should().Equal(new Relayed(Tick: started + 1, Entered: true, Sensor: sensor, Other: ball),
+            new Relayed(Tick: ended + 1, Entered: false, Sensor: sensor, Other: ball));
         bystander.Seen.Should().BeEmpty("an entity that does not subscribe to the topic hears nothing");
         world.Errors.Should().BeEmpty();
     }
@@ -78,7 +78,7 @@ public class SensorComponentTests
     [Fact]
     public void ASensorWithoutATopicRelaysItsEnteredAndLeftToEveryEntity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity sensor = world.Spawn(new() { Frame = space, Body = SensorBox(new(0.5f)), Components = [new Sensor()] });
         Recorder first = Listener(), second = Listener(), ballListener = Listener();
@@ -98,7 +98,7 @@ public class SensorComponentTests
     [Fact]
     public void ASensorsFilterDropsTheTouchesOfAnEntityThatFailsItsQuery()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var touches = new CollisionLog();
         world.Spawn(new()
@@ -125,18 +125,18 @@ public class SensorComponentTests
     [Fact]
     public void ASensorOnASolidBodyRelaysItsTouches()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
         {
-            Frame = space, Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static), Components = [new Sensor()]
+            Frame = space, Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static), Components = [new Sensor()]
         });
         Recorder listener = Listener();
         Bystander(world, space, listener);
         Entity ball = world.Spawn(new()
         {
             Frame = space, Pose = At(-1.02), LinearVelocity = new Vector3(3, 0, 0),
-            Body = new(new SphereShapeDesc(0.25f), Mass: 1, Restitution: 1, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new SphereShapeDesc(0.25f), Mass: 1, Restitution: 1, LinearDamping: 0, AngularDamping: 0)
         });
 
         Tick(world, 60);
@@ -154,7 +154,7 @@ public class SensorComponentTests
     [Fact]
     public void ASensorRelaysALeftForAnEntityThatIsDestroyedWhileItTouchesTheSensor()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity sensor = world.Spawn(new()
         {
@@ -182,10 +182,10 @@ public class SensorComponentTests
         world.Spawn(new() { Frame = root, Components = [new Sensor { Filter = EntityQuery.With<Crew>() }] });
 
     private static void Touch(World world, Entity sensor, Entity other) =>
-        world.Post(Event.Create(sensor, Entity.Null, new Collision { Other = other }));
+        world.Post(Event.Create(target: sensor, sender: Entity.Null, payload: new Collision { Other = other }));
 
     private static void Part(World world, Entity sensor, Entity other) =>
-        world.Post(Event.Create(sensor, Entity.Null, new CollisionEnded { Other = other }));
+        world.Post(Event.Create(target: sensor, sender: Entity.Null, payload: new CollisionEnded { Other = other }));
 
     /// <summary>
     /// The world routes the starts of a step before its ends. So when one contact with an entity ends and another one with
@@ -196,7 +196,7 @@ public class SensorComponentTests
     [Fact]
     public void AContactThatEndsInTheStepInWhichAnotherWithTheSameEntityStartsRelaysNothing()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity sensor = CrewSensor(world, root);
         Recorder listener = Listener();
         world.Spawn(new() { Frame = root, Components = [listener] });
@@ -224,7 +224,7 @@ public class SensorComponentTests
     [Fact]
     public void ASensorRelaysNoLeftForATouchWhoseStartItsFilterDropped()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity sensor = CrewSensor(world, root);
         Recorder listener = Listener();
         world.Spawn(new() { Frame = root, Components = [listener] });
@@ -247,14 +247,14 @@ public class SensorComponentTests
     public void ASensorFromABlueprintRelaysToTheTopicThatTheBlueprintNames()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new("plate", [
+        blueprints.Register(new(Name: "plate", Components: [
             new(typeof(Sensor), new Dictionary<string, object?>
             {
                 ["Topic"] = "sensor-tests/blueprint-plates",
                 ["Filter"] = EntityQuery.With<Crew>()
             })
         ]));
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity plate = world.Spawn(blueprints.CreateSpawnDesc("plate", root, DPose.Identity));
         Recorder subscriber = Listener(), bystander = Listener();
         world.Spawn(new()
@@ -277,7 +277,7 @@ public class SensorComponentTests
     [Fact]
     public void AnEntityThatLeavesAndTouchesTheSensorAgainEntersAgain()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using World world = TestWorld.Create(root: out FrameHandle root);
         Entity sensor = CrewSensor(world, root);
         Recorder listener = Listener();
         world.Spawn(new() { Frame = root, Components = [listener] });

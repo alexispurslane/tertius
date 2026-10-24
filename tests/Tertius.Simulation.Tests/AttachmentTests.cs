@@ -480,7 +480,7 @@ public class AttachmentTests
         using var test = new TestWorld();
         Entity parent = test.SpawnWith();
         Entity child = test.World.Spawn(new() { Frame = test.Root, AttachTo = parent });
-        test.SpawnWith(SendOnce.Of(parent, new Destroy()));
+        test.SpawnWith(SendOnce.Of(target: parent, payload: new Destroy()));
 
         test.Run(2);
 
@@ -534,7 +534,7 @@ public class SpatialQueryTests
 
         foreach (double radius in new[] { 0.0, 10, 50, 75, 150, 1e6 })
         {
-            test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, radius, results);
+            test.World.Snapshot.QueryRadius(frame: test.Root, center: Double3.Zero, radius: radius, results: results);
 
             List<Entity> expected =
             [
@@ -554,7 +554,7 @@ public class SpatialQueryTests
         Entity onEdge = test.SpawnAt(new(50, 0, 0));
         var results = new List<Entity>();
 
-        test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, 50, results);
+        test.World.Snapshot.QueryRadius(frame: test.Root, center: Double3.Zero, radius: 50, results: results);
 
         results.Should().Equal(onEdge);
     }
@@ -568,7 +568,7 @@ public class SpatialQueryTests
         Entity inOther = test.World.SpawnAt(other, new(1, 0, 0));
         var results = new List<Entity>();
 
-        test.World.Snapshot.QueryRadius(other, Double3.Zero, 10, results);
+        test.World.Snapshot.QueryRadius(frame: other, center: Double3.Zero, radius: 10, results: results);
 
         results.Should().Equal(inOther);
         results.Should().NotContain(inRoot);
@@ -582,7 +582,7 @@ public class SpatialQueryTests
         test.SpawnAt(Double3.Zero);
         var found = new List<Entity> { test.Root.Entity };
 
-        test.World.Snapshot.QueryRadius(empty, Double3.Zero, 100, found);
+        test.World.Snapshot.QueryRadius(frame: empty, center: Double3.Zero, radius: 100, results: found);
 
         found.Should().BeEmpty();
     }
@@ -592,7 +592,7 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(FrameHandle.Null, Double3.Zero, 1, []);
+        Action query = () => test.World.Snapshot.QueryRadius(frame: FrameHandle.Null, center: Double3.Zero, radius: 1, results: []);
 
         query.Should().Throw<InvalidOperationException>();
     }
@@ -602,7 +602,7 @@ public class SpatialQueryTests
     {
         using var test = new TestWorld();
 
-        Action query = () => test.World.Snapshot.QueryRadius(test.Root, Double3.Zero, -1, []);
+        Action query = () => test.World.Snapshot.QueryRadius(frame: test.Root, center: Double3.Zero, radius: -1, results: []);
 
         query.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -616,7 +616,7 @@ public class SpatialQueryTests
 
         for (int tick = 0; tick < 8; tick++)
         {
-            test.World.Snapshot.QueryRadius(test.Root, new(40 * tick, 0, 0), 1, results);
+            test.World.Snapshot.QueryRadius(frame: test.Root, center: new(40 * tick, 0, 0), radius: 1, results: results);
 
             results.Should().Equal(runner);
             test.Run(1);
@@ -629,12 +629,12 @@ public class SpatialQueryTests
         using var test = new TestWorld();
         Entity post = test.SpawnAt(new(200, 50, 0));
         var results = new List<Entity>();
-        test.World.Snapshot.QueryRadius(test.Root, new(200, 50, 0), 1, results);
+        test.World.Snapshot.QueryRadius(frame: test.Root, center: new(200, 50, 0), radius: 1, results: results);
         results.Should().Equal(post);
 
         test.World.Destroy(post);
 
-        test.World.Snapshot.QueryRadius(test.Root, new(200, 50, 0), 1, results);
+        test.World.Snapshot.QueryRadius(frame: test.Root, center: new(200, 50, 0), radius: 1, results: results);
         results.Should().BeEmpty();
     }
 
@@ -656,7 +656,7 @@ public class SpatialQueryTests
                     Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                     {
                         var found = new List<Entity>();
-                        self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 15, found);
+                        self.Snapshot.QueryRadius(frame: self.Frame, center: self.PoseInOwnFrame().Position, radius: 15, results: found);
                         counts[index] = found.Count;
                     })
                 ]

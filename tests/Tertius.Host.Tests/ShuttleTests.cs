@@ -30,7 +30,7 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle earth =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(DemoScenes.EarthMu)));
         double r = DemoScenes.EarthRadius + Shuttle.Hull.Y;
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, earth, new(new(0, r, 0), DQuaternion.Identity)));
+        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world: world, frame: earth, pose: new(new(0, r, 0), DQuaternion.Identity)));
         Entity ball = world.Spawn(new() { Frame = cabin, Pose = At(0, -Shuttle.Cabin.Y + 1.5), Body = Ball(0.1f) });
         Tick(world, 2);
         Double3 before = world.VelocityIn(ball, cabin);
@@ -54,7 +54,7 @@ public sealed class ShuttleTests : IDisposable
     public void TheInteriorStaysSolidAtTheGlass()
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, space, DPose.Identity));
+        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world: world, frame: space, pose: DPose.Identity));
         Shuttle.Glass.Should().HaveCount(40);
         (HullPane Pane, Entity Crate)[] crates =
         [
@@ -63,7 +63,7 @@ public sealed class ShuttleTests : IDisposable
                 Frame = cabin,
                 Pose = new(pane.Center - PaneChecks.Normal(pane), DQuaternion.Identity),
                 LinearVelocity = PaneChecks.Normal(pane) * 5,
-                Body = new(new BoxShapeDesc(new(0.15f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
+                Body = new(Shape: new BoxShapeDesc(new(0.15f)), Mass: 5, LinearDamping: 0, AngularDamping: 0)
             })))
         ];
         Tick(world, 30);
@@ -356,7 +356,7 @@ public sealed class ShuttleTests : IDisposable
         FrameHandle ground =
             world.CreateRootFrame(new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0))));
         world.Spawn(new()
-            { Frame = ground, Pose = At(0, 0.6), Body = new(new BoxShapeDesc(new(8, 0.6f, 8)), BodyMotion.Static) });
+            { Frame = ground, Pose = At(0, 0.6), Body = new(Shape: new BoxShapeDesc(new(8, 0.6f, 8)), Motion: BodyMotion.Static) });
         Entity hull = world.Spawn(new()
         {
             Frame = ground,

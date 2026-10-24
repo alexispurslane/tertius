@@ -17,12 +17,12 @@ public class FrameTreeHullMotionTests
 
     public FrameTreeHullMotionTests()
     {
-        root = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        root = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     /// <summary>A frame of the owner <paramref name="id"/>, 100 m along +X in <paramref name="parent"/>.</summary>
     private FrameHandle Child(uint id, FrameHandle parent) =>
-        frames.Create(new(id, 1), parent, new(new(100, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(10));
+        frames.Create(frameOwner: new(id, 1), parent: parent, localPose: new(new(100, 0, 0), DQuaternion.Identity), frameBounds: FrameBounds.Sphere(10));
 
     [Theory]
     [InlineData(BodyMotion.Static)]

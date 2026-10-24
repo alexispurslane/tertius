@@ -42,21 +42,21 @@ public class WorldFeltGravityTests
         // into it. Its proper acceleration is the floor's push, ω² R toward the axis at the distance R of its origin from
         // the axis, and a place r in it adds its own centrifugal term. So a body at rest at r feels ω² (R + r) away from the
         // axis: (ω² (R + rx), 0, ω² rz) in the station's axes. The floor's push comes from physics, to about 2e-3 m/s².
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = Space(world);
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = StationSpec }
-            .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true)));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true)));
         world.Spawn(new()
         {
             Frame = station,
             Pose = At(FloorRadius + 0.5),
-            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
         });
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = station,
             Pose = At(FloorRadius - 1),
-            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(0.5f))
         }));
         var place = new Double3(-0.5, 0.6, 1.5);
@@ -87,7 +87,7 @@ public class WorldFeltGravityTests
         // at α t. A body at the rim feels ω² r outward along the station's +X and α r = 50 m/s² against the turn along its +Z.
         // The station's angular velocity is stored in floats, so the centrifugal term is good to about 1e-8 m/s² here.
         const double spinUp = 0.5;
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle holder = TiltedHolder(world, Space(world));
         double start = world.Time;
         FrameHandle station =
@@ -107,7 +107,7 @@ public class WorldFeltGravityTests
         // A frame without a body holds still in a root frame with a uniform gravity of 9.81 m/s², so its proper acceleration
         // is that gravity reversed, and it holds a point field of its own. Neither frame turns, so the read adds no rotation
         // term, not even a zero one.
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -152,7 +152,7 @@ public class WorldFeltGravityTests
         // ended, and not the effective gravity of the step in flight beside the tick. A read after that tick reads the
         // effective gravity that the step in flight had.
         const double spinUp = 0.5;
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         FrameHandle station =
             world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = space, AsFrame = StationSpec }, world,

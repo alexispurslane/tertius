@@ -110,10 +110,10 @@ public static class CheckPanels
         [
             string.Format(Invariant, "TEXTBOOK CHECK   parking orbit, {0:F1} km up",
                 (r - DemoScenes.EarthRadius) / 1e3),
-            string.Format(Invariant, "circular speed √(GM/r)   {0,11}   run {1}", ReadoutText.Speed(circularSpeed),
-                ReadoutText.Speed(row.Speed)),
-            string.Format(Invariant, "one orbit 2π√(r³/GM)     {0,11}   run {1}",
-                string.Format(Invariant, "{0:F1} min", circlePeriod / 60), run)
+            string.Format(provider: Invariant, format: "circular speed √(GM/r)   {0,11}   run {1}", arg0: ReadoutText.Speed(circularSpeed),
+                arg1: ReadoutText.Speed(row.Speed)),
+            string.Format(provider: Invariant, format: "one orbit 2π√(r³/GM)     {0,11}   run {1}",
+                arg0: string.Format(Invariant, "{0:F1} min", circlePeriod / 60), arg1: run)
         ];
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];
@@ -131,9 +131,9 @@ public static class CheckPanels
         string[] lines =
         [
             "TEXTBOOK CHECK   spin gravity in the wheel",
-            string.Format(Invariant, "ω {0:F5} rad/s, r {1:F2} m from the axis", omega, r),
-            string.Format(Invariant, "felt gravity ω²r   {0}   run {1}", Acceleration(omega * omega * r),
-                Acceleration(row.Felt))
+            string.Format(provider: Invariant, format: "ω {0:F5} rad/s, r {1:F2} m from the axis", arg0: omega, arg1: r),
+            string.Format(provider: Invariant, format: "felt gravity ω²r   {0}   run {1}", arg0: Acceleration(omega * omega * r),
+                arg1: Acceleration(row.Felt))
         ];
         int width = lines.Max(line => line.Length);
         return [.. lines.Select(line => line.PadRight(width))];
@@ -157,7 +157,7 @@ public static class CheckPanels
         string[] lines =
         [
             string.Format(Invariant, "TEXTBOOK CHECK   a box thrown in the wheel, ω {0:F5} rad/s", omega),
-            ThrowColumns("lands", "release", "straight line", "run", "uniform 1 g"),
+            ThrowColumns(name: "lands", release: "release", line: "straight line", run: "run", flat: "uniform 1 g"),
             ThrowLine("spinward", 1, row.FirstThrow),
             ThrowLine("antispinward", -1, row.SecondThrow)
         ];
@@ -182,7 +182,7 @@ public static class CheckPanels
         string line = Meters(Along(release.Landing(omega, floor, half).Place));
         string run = thrown.Landing is { } landing ? Meters(Along(landing.Place)) : "in the air";
         string flat = Meters(direction * release.FlatLanding(omega * omega * floor.Radius, floor, half).Spinward);
-        return ThrowColumns(name, string.Format(Invariant, "{0:F2} m/s {1:F1}°", speed, angle), line, run, flat);
+        return ThrowColumns(name: name, release: string.Format(provider: Invariant, format: "{0:F2} m/s {1:F1}°", arg0: speed, arg1: angle), line: line, run: run, flat: flat);
     }
 
     /// <summary>

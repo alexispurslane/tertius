@@ -17,7 +17,7 @@ public class SpatialIndexWorldTests
     [InlineData(7)]
     public void AWorldThatFindsTheCellsOfItsMovedEntitiesOnTheWorkersAnswersEveryRadiusQueryRight(int seed)
     {
-        using var workload = new ChaoticWorkload(seed, maxDegreeOfParallelism: 4);
+        using var workload = new ChaoticWorkload(seed: seed, maxDegreeOfParallelism: 4);
         workload.World.Spatial.ParallelThreshold = 1;
 
         workload.Run(100);

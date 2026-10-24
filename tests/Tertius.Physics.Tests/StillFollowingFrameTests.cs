@@ -47,7 +47,7 @@ public class StillFollowingFrameTests
     /// </summary>
     private static (World World, FrameHandle Space, Entity Ball) StillBall(double distance, bool numericFrames)
     {
-        World world = NewWorld(out _,
+        World world = NewWorld(backend: out _,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -122,7 +122,7 @@ public class StillFollowingFrameTests
     private static (World World, FrameHandle Space, Entity Owner) SkippingHull(bool numericFrames,
         out JoltPhysicsBackend backend)
     {
-        World world = NewWorld(out backend,
+        World world = NewWorld(backend: out backend,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -227,7 +227,7 @@ public class StillFollowingFrameTests
     private static (World World, FrameHandle Space, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames,
         long stopTick, bool ship = false)
     {
-        World world = NewWorld(out _,
+        World world = NewWorld(backend: out _,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -235,7 +235,7 @@ public class StillFollowingFrameTests
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic, Mass: 1e5f),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
             AsFrame = new(FrameBounds.Sphere(16)),
             LinearVelocity = Drift,
             FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
@@ -244,7 +244,7 @@ public class StillFollowingFrameTests
         Entity crate = world.Spawn(new()
         {
             Frame = world.GetOwnedFrame(owner), Pose = At(0, 15), LinearVelocity = new(0, 2, 0),
-            Body = new(new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             AsFrame = ship ? new FrameSpec(FrameBounds.Sphere(0.1f)) : null
         });
         return (world, space, owner, crate);
@@ -317,7 +317,7 @@ public class StillFollowingFrameTests
         bool character,
         out JoltPhysicsBackend backend)
     {
-        World world = NewWorld(out backend,
+        World world = NewWorld(backend: out backend,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -325,7 +325,7 @@ public class StillFollowingFrameTests
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic, Mass: 1e5f),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
             AsFrame = new(FrameBounds.Sphere(16)),
             LinearVelocity = Drift,
             FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
@@ -335,8 +335,8 @@ public class StillFollowingFrameTests
         {
             Frame = space, Pose = At(-24, 5), LinearVelocity = Drift + new Double3(10, 0, 0),
             Body = character
-                ? new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
-                : new BodyDesc(new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0,
+                ? new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
+                : new BodyDesc(Shape: new BoxShapeDesc(new(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0,
                     AngularDamping: 0)
         });
         return (world, space, owner, crate);
@@ -407,7 +407,7 @@ public class StillFollowingFrameTests
     private static (World World, FrameHandle Space, Entity Owner, Entity Ship) ShipBesideAStoppingHull(
         bool numericFrames)
     {
-        World world = NewWorld(out _,
+        World world = NewWorld(backend: out _,
             configure: numericFrames
                 ? null
                 : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
@@ -415,7 +415,7 @@ public class StillFollowingFrameTests
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Kinematic, Mass: 1e5f),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Kinematic, Mass: 1e5f),
             AsFrame = new(FrameBounds.Sphere(16)),
             LinearVelocity = Drift,
             FirstMove = new(new EndPose(new(Drift * world.DeltaTime, DQuaternion.Identity))),
@@ -425,7 +425,7 @@ public class StillFollowingFrameTests
         {
             Frame = space, Pose = At(-10, 22), LinearVelocity = Drift + new Double3(10, 0, 0),
             AsFrame = new(FrameBounds.Sphere(3)),
-            Body = new(new BoxShapeDesc(new(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
         });
         return (world, space, owner, ship);
     }
@@ -526,7 +526,7 @@ public class StillFollowingFrameTests
         {
             Frame = space, Pose = new(position + new Double3(0, -3.5, 0), DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
         });
         world.Tick();
         if (numericFrames)

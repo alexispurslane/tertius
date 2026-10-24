@@ -84,8 +84,8 @@ internal static class UnionReader
             ValueModel[] values = parameters is { } fields
                 ? [.. fields.Select(p => new ValueModel(p.Name, slots.Place(p.Type, $"{display}.{p.Name}")))]
                 : [new(null, slots.Place(type, display))];
-            models.Add(new(type.ToDisplayString(TypeFormat), display, kind++,
-                new([.. values]), parameters == null));
+            models.Add(new(Type: type.ToDisplayString(TypeFormat), Display: display, Kind: kind++,
+                Values: new([.. values]), Whole: parameters == null));
         }
 
         (ImmutableArray<SlotModel> ordered, int[] renumber) = slots.Ordered();
@@ -107,8 +107,8 @@ internal static class UnionReader
             : union.ContainingNamespace.ToDisplayString();
         string hint = string.Join(".", new[] { space }.Concat(containers.Select(c => c.Split(' ').Last()))
             .Append(union.Name).Where(part => part != null)) + ".g.cs";
-        return new(space, new([.. containers]), union.Name, union.IsReadOnly,
-            renumbered, new(ordered), zeroCase != null, hint.Replace('<', '{').Replace('>', '}'));
+        return new(Namespace: space, Containers: new([.. containers]), Name: union.Name, IsReadOnly: union.IsReadOnly,
+            Cases: renumbered, Slots: new(ordered), HasZeroCase: zeroCase != null, HintName: hint.Replace('<', '{').Replace('>', '}'));
     }
 
     /// <summary>

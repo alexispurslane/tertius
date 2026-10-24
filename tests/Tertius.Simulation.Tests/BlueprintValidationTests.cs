@@ -35,38 +35,38 @@ public class BlueprintValidationTests
     /// </summary>
     private static (Blueprint Blueprint, string MessageHas) Invalid(string problem) => problem switch
     {
-        "unknown field" => (new("x", [new(typeof(Health), Fields(("Maximum", 1f)))]), "Maximum"),
-        "field name in the wrong case" => (new("x", [new(typeof(Health), Fields(("max", 1f)))]), "max"),
-        "string for a number" => (new("x", [new(typeof(Health), Fields(("Max", "lots")))]), "Max"),
-        "number for a string" => (new("x", [new(typeof(Health), Fields(("Name", 5)))]), "Name"),
-        "null for a value type" => (new("x", [new(typeof(Health), Fields(("Max", null)))]), "cannot be null"),
-        "number too large for the field" => (new("x", [new(typeof(Radio), Fields(("Channel", 1e20)))]), "Channel"),
-        "unknown enum name" => (new("x", [new(typeof(Health), Fields(("Side", "Pirates")))]), "Side"),
-        "enum name in the wrong case" => (new("x", [new(typeof(Health), Fields(("Side", "rebel")))]), "Side"),
-        "read-only field" => (new("x", [new(typeof(Sealed), Fields(("Fixed", 4)))]), "Fixed"),
-        "property without a setter" => (new("x", [new(typeof(Labelled), Fields(("Computed", 1)))]), "Computed"),
-        "property with a private setter" => (new("x", [new(typeof(Labelled), Fields(("Locked", 1)))]), "Locked"),
-        "constant" => (new("x", [new(typeof(Labelled), Fields(("Limit", 1)))]), "Limit"),
-        "static field" => (new("x", [new(typeof(Labelled), Fields(("Counter", 1)))]), "Counter"),
-        "non-public field" => (new("x", [new(typeof(Labelled), Fields(("Internal", 1)))]), "Internal"),
-        "type that is not a component" => (new("x", [new(typeof(string))]), "IComponent"),
-        "abstract component" => (new("x", [new(typeof(AbstractComponent))]), "concrete class"),
-        "struct component" => (new("x", [new(typeof(ValueComponent))]), "concrete class"),
-        "open generic component" => (new("x", [new(EmittedComponents.OpenGeneric)]), "concrete class"),
-        "component with no parameterless constructor" => (new("x", [new(typeof(NeedsArgument))]),
+        "unknown field" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Maximum", 1f)))]), "Maximum"),
+        "field name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("max", 1f)))]), "max"),
+        "string for a number" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Max", "lots")))]), "Max"),
+        "number for a string" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Name", 5)))]), "Name"),
+        "null for a value type" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Max", null)))]), "cannot be null"),
+        "number too large for the field" => (new(Name: "x", Components: [new(typeof(Radio), Fields(("Channel", 1e20)))]), "Channel"),
+        "unknown enum name" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Side", "Pirates")))]), "Side"),
+        "enum name in the wrong case" => (new(Name: "x", Components: [new(typeof(Health), Fields(("Side", "rebel")))]), "Side"),
+        "read-only field" => (new(Name: "x", Components: [new(typeof(Sealed), Fields(("Fixed", 4)))]), "Fixed"),
+        "property without a setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Computed", 1)))]), "Computed"),
+        "property with a private setter" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Locked", 1)))]), "Locked"),
+        "constant" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Limit", 1)))]), "Limit"),
+        "static field" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Counter", 1)))]), "Counter"),
+        "non-public field" => (new(Name: "x", Components: [new(typeof(Labelled), Fields(("Internal", 1)))]), "Internal"),
+        "type that is not a component" => (new(Name: "x", Components: [new(typeof(string))]), "IComponent"),
+        "abstract component" => (new(Name: "x", Components: [new(typeof(AbstractComponent))]), "concrete class"),
+        "struct component" => (new(Name: "x", Components: [new(typeof(ValueComponent))]), "concrete class"),
+        "open generic component" => (new(Name: "x", Components: [new(EmittedComponents.OpenGeneric)]), "concrete class"),
+        "component with no parameterless constructor" => (new(Name: "x", Components: [new(typeof(NeedsArgument))]),
             "parameterless constructor"),
-        "component with no public constructor" => (new("x", [new(typeof(HiddenConstructor))]),
+        "component with no public constructor" => (new(Name: "x", Components: [new(typeof(HiddenConstructor))]),
             "parameterless constructor"),
-        "same component type twice" => (new("x", [new(typeof(Radio)), new(typeof(Radio))]), "Radio"),
-        "component spec with no type" => (new("x", [new(null!)]), "no type"),
-        "null component spec" => (new("x", [null!]), "null component spec"),
-        "no component list" => (new("x", null!), "component list"),
-        "parent that is not registered" => (new("x", [], Parent: "nobody"), "nobody"),
-        "its own name as the parent" => (new("x", [], Parent: "x"), "not registered"),
+        "same component type twice" => (new(Name: "x", Components: [new(typeof(Radio)), new(typeof(Radio))]), "Radio"),
+        "component spec with no type" => (new(Name: "x", Components: [new(null!)]), "no type"),
+        "null component spec" => (new(Name: "x", Components: [null!]), "null component spec"),
+        "no component list" => (new(Name: "x", Components: null!), "component list"),
+        "parent that is not registered" => (new(Name: "x", Components: [], Parent: "nobody"), "nobody"),
+        "its own name as the parent" => (new(Name: "x", Components: [], Parent: "x"), "not registered"),
         "invalid spec after a valid one" => (
-            new("x", [new(typeof(Radio)), new(typeof(Health), Fields(("Maximum", 1f)))]), "Maximum"),
-        "empty name" => (new("", []), "needs a name"),
-        "blank name" => (new Blueprint("   ", []), "needs a name"),
+            new(Name: "x", Components: [new(typeof(Radio)), new(typeof(Health), Fields(("Maximum", 1f)))]), "Maximum"),
+        "empty name" => (new(Name: "", Components: []), "needs a name"),
+        "blank name" => (new Blueprint(Name: "   ", Components: []), "needs a name"),
         _ => throw new ArgumentOutOfRangeException(nameof(problem), problem, null)
     };
 
@@ -115,7 +115,7 @@ public class BlueprintValidationTests
         Action bad = () => blueprints.Register(Invalid("unknown field").Blueprint);
         bad.Should().Throw<ArgumentException>();
 
-        blueprints.Register(new("x", [new(typeof(Radio))]));
+        blueprints.Register(new(Name: "x", Components: [new(typeof(Radio))]));
 
         blueprints.Instantiate("x").Should().ContainSingle().Which.Should().BeOfType<Radio>();
     }
@@ -124,11 +124,11 @@ public class BlueprintValidationTests
     public void AParentMustBeRegisteredBeforeItsChild()
     {
         var blueprints = new Blueprints();
-        var child = new Blueprint("officer", [], Parent: "soldier");
+        var child = new Blueprint(Name: "officer", Components: [], Parent: "soldier");
         Action early = () => blueprints.Register(child);
         early.Should().Throw<ArgumentException>().Where(ex => ex.Message.Contains("soldier"));
 
-        blueprints.Register(new("soldier", [new(typeof(Radio))]));
+        blueprints.Register(new(Name: "soldier", Components: [new(typeof(Radio))]));
         blueprints.Register(child);
 
         blueprints.Resolve("officer").Components.Select(c => c.Type).Should().Equal(typeof(Radio));
@@ -151,7 +151,7 @@ public class BlueprintValidationTests
     {
         Blueprints blueprints = Soldiers();
 
-        Action again = () => blueprints.Register(new("soldier", []));
+        Action again = () => blueprints.Register(new(Name: "soldier", Components: []));
 
         again.Should().Throw<ArgumentException>().Where(ex => ex.Message.Contains("'soldier'"));
         blueprints.Instantiate("soldier").Should().HaveCount(2);
@@ -162,7 +162,7 @@ public class BlueprintValidationTests
     {
         Blueprints blueprints = Soldiers();
 
-        blueprints.Register(new("Soldier", []));
+        blueprints.Register(new(Name: "Soldier", Components: []));
 
         blueprints.Instantiate("Soldier").Should().BeEmpty();
         blueprints.Instantiate("soldier").Should().HaveCount(2);
@@ -229,7 +229,7 @@ public class BlueprintValidationTests
     {
         var blueprints = new Blueprints();
         var spec = new FrameSpec(FrameBounds.Sphere(30));
-        blueprints.Register(new("hull", [], TestWorld.Ball, new RenderData { Mesh = new(6) }, spec));
+        blueprints.Register(new(Name: "hull", Components: [], Body: TestWorld.Ball, Render: new RenderData { Mesh = new(6) }, Frame: spec));
 
         SpawnDesc desc = blueprints.CreateSpawnDesc("hull", default, DPose.Identity);
 

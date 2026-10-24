@@ -38,10 +38,10 @@ internal sealed class SpatialGrid
 
     public void Add(CellKey key, Entity entity)
     {
-        ref List<Entity>? list = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, key, out bool exists);
-        if (!exists)
-            list = spareLists.Count > 0 ? spareLists.Pop() : [with(4)];
-        list!.Add(entity);
+        // A cell that exists holds a list, so only a new cell has none.
+        ref List<Entity>? list = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, key, out _);
+        list ??= spareLists.Count > 0 ? spareLists.Pop() : [with(4)];
+        list.Add(entity);
     }
 
     /// <summary>Removes an entity from a cell. Order inside a cell does not matter, because queries sort their results.</summary>
@@ -81,15 +81,15 @@ internal sealed class SpatialGrid
 
         List<Entity> list = source;
         Cells.Remove(from);
-        ref List<Entity>? target = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, to, out bool exists);
-        if (!exists)
+        ref List<Entity>? target = ref CollectionsMarshal.GetValueRefOrAddDefault(Cells, to, out _);
+        if (target is null)
         {
             // The list holds this entity alone, which is what the new cell needs.
             target = list;
             return;
         }
 
-        target!.Add(entity);
+        target.Add(entity);
         list.Clear();
         spareLists.Push(list);
     }

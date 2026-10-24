@@ -14,19 +14,19 @@ public class CharacterTests
 {
     // The capsule center rests 0.9 m above the floor, plus Jolt's character padding.
     private const double StandingHeight = 0.9;
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A dynamic cube with sides of <c>2 · half</c> m that nothing slows down and that does not bounce.</summary>
     private static BodyDesc Box(float half, float mass = 1f) =>
-        new(new BoxShapeDesc(new(half)), BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
             AngularDamping: 0);
 
-    private static BodyDesc StaticBox(Vector3 halfExtents) => new(new BoxShapeDesc(halfExtents), BodyMotion.Static);
+    private static BodyDesc StaticBox(Vector3 halfExtents) => new(Shape: new BoxShapeDesc(halfExtents), Motion: BodyMotion.Static);
 
     /// <summary>A world with a root frame of 9.81 m/s² of gravity along -Y and a floor whose top is at y = 0.</summary>
     private static (World World, FrameHandle Ground) WorldWithFloor()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         return (world, ground);
@@ -54,7 +54,7 @@ public class CharacterTests
         (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
-            Entity person = SpawnPerson(world, ground, At(1, StandingHeight + 0.3, 2));
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(1, StandingHeight + 0.3, 2));
             Tick(world, 90);
             world.GetFrame(person).Should().Be(ground);
             DPose pose = world.PoseInOwnFrame(person);
@@ -75,7 +75,7 @@ public class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0), pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
             Tick(world, 10);
             // The vertical part of a desired velocity is ignored under gravity.
             Send(world, pilot, body => body.MoveCharacter(new(3, 5, 0)));
@@ -107,7 +107,7 @@ public class CharacterTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0), pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: pilot);
             Tick(world, 20);
             double floor = world.PoseInOwnFrame(person).Position.Y;
             Send(world, pilot, body => body.Jump(5));
@@ -132,10 +132,10 @@ public class CharacterTests
         using (world)
         {
             var liftPilot = new SelfPilot();
-            var platform = new BodyDesc(new BoxShapeDesc(new(2, 0.25f, 2)), BodyMotion.Kinematic);
+            var platform = new BodyDesc(Shape: new BoxShapeDesc(new(2, 0.25f, 2)), Motion: BodyMotion.Kinematic);
             Entity lift = world.Spawn(new()
                 { Frame = ground, Pose = At(0, 1, 0), Body = platform, Components = [liftPilot] });
-            Entity person = SpawnPerson(world, ground, At(0, 1.25 + StandingHeight + 0.02, 0));
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 20);
             Double3 start = world.PoseInOwnFrame(person).Position;
 
@@ -168,9 +168,9 @@ public class CharacterTests
         (World world, FrameHandle ground) = WorldWithFloor();
         using (world)
         {
-            var platform = new BodyDesc(new BoxShapeDesc(new(3, 0.25f, 3)), BodyMotion.Kinematic);
+            var platform = new BodyDesc(Shape: new BoxShapeDesc(new(3, 0.25f, 3)), Motion: BodyMotion.Kinematic);
             Entity deck = world.Spawn(new() { Frame = ground, Pose = At(0, 1, 0), Body = platform });
-            Entity person = SpawnPerson(world, ground, At(0, 1.25 + StandingHeight + 0.02, 0));
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 10);
             // A kinematic body moves only by its motion intents, so the deck drifts by end poses from the step after this tick.
             world.AddComponent(deck, new KinematicDrift(new(0, 0, 2)));
@@ -191,7 +191,7 @@ public class CharacterTests
         {
             var pilot = new Pilot();
             // High above the floor, so the character is in the air and keeps its momentum.
-            Entity person = SpawnPerson(world, ground, At(0, 40, 0), pilot);
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 40, 0), pilot: pilot);
             world.Tick();
 
             // 140 N·s and 4200 N for one step on 70 kg: +2 m/s along X and +1 m/s along Z.
@@ -222,10 +222,10 @@ public class CharacterTests
     /// <summary>A frame with no gravity, and a person floating at its origin.</summary>
     private static (World World, FrameHandle Space, Entity Person, Pilot Pilot) Floating()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, space, At(0, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, frame: space, pose: At(0, 0, 0), pilot: pilot);
         world.Tick();
         return (world, space, person, pilot);
     }
@@ -347,7 +347,7 @@ public class CharacterTests
             {
                 Frame = space,
                 Pose = At(1, 0, 0),
-                Body = new(new BoxShapeDesc(new(0.5f, 5, 5)), BodyMotion.Kinematic)
+                Body = new(Shape: new BoxShapeDesc(new(0.5f, 5, 5)), Motion: BodyMotion.Kinematic)
             });
             world.Tick();
             var drift = new KinematicDrift(new(-1, 0, 0));
@@ -395,11 +395,11 @@ public class CharacterTests
     [Fact]
     public void InGravityBelowTheThresholdACharacterFallsLikeLooseCargo()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         // 0.04 m/s², too weak to stand in, as when a ship thrusts gently.
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new(0, 0, 0.04f))));
-        Entity person = SpawnPerson(world, space, At(0, 0, 0));
+        Entity person = SpawnPerson(world: world, frame: space, pose: At(0, 0, 0));
         Entity crate = world.Spawn(new() { Frame = space, Pose = At(3, 0, 0), Body = Box(0.25f, mass: 5) });
         Tick(world, 60);
 
@@ -432,14 +432,14 @@ public class CharacterTests
     [Fact]
     public void ACharacterThatWalksOutOfTheGravityKeepsDriftingAtItsWalkingVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         // Gravity acts only where x < 0. The floor goes on to x = 1, so the character walks out of the gravity on the
         // floor and then off its edge.
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-50), new(0, 50, 50)))));
         world.Spawn(new() { Frame = ground, Pose = At(-4, -0.5, 0), Body = StaticBox(new(5, 0.5f, 5)) });
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, ground, At(-3, StandingHeight + 0.02, 0), pilot);
+        Entity person = SpawnPerson(world: world, frame: ground, pose: At(-3, StandingHeight + 0.02, 0), pilot: pilot);
         Tick(world, 20);
         double height = world.PoseInOwnFrame(person).Position.Y;
         Send(world, pilot, body => body.MoveCharacter(new(3, 0, 0)));
@@ -461,7 +461,7 @@ public class CharacterTests
     [Fact]
     public void StandsOnPlanetFarFromOrigin()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         const double radius = 6_371_000, mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         // Stand on the side of the planet along +X, where up is +X.
@@ -472,7 +472,7 @@ public class CharacterTests
             Pose = new(new(radius - 0.5, 0, 0), slabRotation),
             Body = StaticBox(new(20, 0.5f, 20))
         });
-        Entity person = SpawnPerson(world, planet, new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
+        Entity person = SpawnPerson(world: world, frame: planet, pose: new(new(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
         Tick(world, 60);
         DPose pose = world.PoseInOwnFrame(person);
         (pose.Position.X - radius).Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);

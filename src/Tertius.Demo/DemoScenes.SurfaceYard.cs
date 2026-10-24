@@ -61,13 +61,13 @@ public static partial class DemoScenes
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle surface = EarthSurface(world, resources, scene, YardFloorHalfExtents);
+        FrameHandle surface = EarthSurface(world: world, resources: resources, scene: scene, floorHalfExtents: YardFloorHalfExtents);
 
         MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(YardCrateHalfSize)));
-        var heavy = new CrateSpec(new(YardCrateHalfSize), HeavyCrateMass, crateMesh,
-            resources.CreateMaterial(MaterialDesc.Color(new(0.45f, 0.3f, 0.15f, 1))));
-        var light = new CrateSpec(new(YardCrateHalfSize), LightCrateMass, crateMesh,
-            resources.CreateMaterial(MaterialDesc.Color(new(0.95f, 0.5f, 0.1f, 1))));
+        var heavy = new CrateSpec(HalfExtents: new(YardCrateHalfSize), Mass: HeavyCrateMass, Mesh: crateMesh,
+            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.45f, y: 0.3f, z: 0.15f, w: 1))));
+        var light = new CrateSpec(HalfExtents: new(YardCrateHalfSize), Mass: LightCrateMass, Mesh: crateMesh,
+            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1))));
 
         // The crates start just touching: the bottom of each on the top of the one below.
         static DPose Stacked(int level, double z) => new(new(0, EarthRadius + YardCrateHalfSize * (2 * level + 1), z),
@@ -80,7 +80,7 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = Stacked(2, TopCrateOverhang),
-            Body = new(new BoxShapeDesc(light.HalfExtents), Mass: light.Mass, Friction: TopCrateFriction,
+            Body = new(Shape: new BoxShapeDesc(light.HalfExtents), Mass: light.Mass, Friction: TopCrateFriction,
                 LinearDamping: 0, AngularDamping: 0),
             Render = light.Drawn(),
             Components = [new Crate(light)]
@@ -92,8 +92,8 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = new(new(0, EarthRadius + 0.95, YardPersonStartZ), DQuaternion.Identity),
-            Body = new(capsule, BodyMotion.Character, Mass: YardPersonMass),
-            Render = Drawn(resources, Primitives.Box(new(0.3f, 0.9f, 0.3f)), new(0.2f, 0.45f, 0.8f, 1),
+            Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)), color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
                 boundingRadius: 1),
             Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input]
@@ -114,7 +114,7 @@ public static partial class DemoScenes
         }));
 
         // The sun frame's origin is where the light comes from: up, and to the cameras' side of the yard.
-        SunAt(world, scene, surface, new(30, EarthRadius + 50, 20));
+        SunAt(world: world, scene: scene, frame: surface, position: new(30, EarthRadius + 50, 20));
 
         scene.AddView("yard-camera");
         scene.AddView("stack-camera");
@@ -134,7 +134,7 @@ public static partial class DemoScenes
         // The frame's bounds do not matter for a root frame, which nothing leaves.
         FrameHandle surface = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
         scene.Add("earth-surface", surface.Entity);
-        Floor(world, resources, scene, surface, floorHalfExtents);
+        Floor(world: world, resources: resources, scene: scene, surface: surface, floorHalfExtents: floorHalfExtents);
         return surface;
     }
 
@@ -151,8 +151,8 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = new(new(0, EarthRadius - floorHalfExtents.Y, 0), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(floorHalfExtents), BodyMotion.Static),
-            Render = Drawn(resources, Primitives.Box(floorHalfExtents), new(0.4f, 0.4f, 0.38f, 1),
+            Body = new(Shape: new BoxShapeDesc(floorHalfExtents), Motion: BodyMotion.Static),
+            Render = Drawn(resources: resources, mesh: Primitives.Box(floorHalfExtents), color: new(x: 0.4f, y: 0.4f, z: 0.38f, w: 1),
                 boundingRadius: MathF.Ceiling(floorHalfExtents.Length()))
         }));
     }

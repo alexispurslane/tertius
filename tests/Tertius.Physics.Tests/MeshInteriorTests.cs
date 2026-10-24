@@ -47,7 +47,7 @@ public class MeshInteriorTests
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(4e5, phase: 0.3, spinRate: 0.2);
 
     /// <summary>A turn in place about the frame's own +Y at 0.2 rad/s.</summary>
-    private static readonly FrameSpin Spin = new(DQuaternion.Identity, 0.2);
+    private static readonly FrameSpin Spin = new(Tilt: DQuaternion.Identity, Rate: 0.2);
 
     /// <summary>What a test needs of a ship with a ball on its mesh floor.</summary>
     private sealed record Scene(
@@ -69,7 +69,7 @@ public class MeshInteriorTests
     private static SpawnDesc Ship(FrameHandle space, BodyMotion motion) => new()
     {
         Frame = space,
-        Body = new(new BoxShapeDesc(new(5, 3, 5)), motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: motion, Mass: 1000, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: MeshFloor),
         AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -Pull, 0)))
     };
@@ -92,14 +92,14 @@ public class MeshInteriorTests
     /// </summary>
     private static Scene ShipWithBall(Func<World, FrameHandle> makeSpace, Func<World, FrameHandle, SpawnDesc> ship)
     {
-        World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = makeSpace(world);
         Entity owner = world.Spawn(ship(world, space));
         // A frame on rails stands on its rails from the second sync point after its spawn, so the ball comes after that.
         Tick(world, 3);
         Entity ball = DropBall(world, owner);
         Tick(world, SettleTicks);
-        return new(world, faults, space, owner, world.GetOwnedFrame(owner), ball);
+        return new(World: world, Faults: faults, Space: space, Owner: owner, Ship: world.GetOwnedFrame(owner), Ball: ball);
     }
 
     private static FrameHandle PlainSpace(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));
@@ -213,10 +213,10 @@ public class MeshInteriorTests
         DPose parked = scene.World.PoseIn(scene.Owner, scene.Space);
         var spin = new SpinMotion { Spin = Spin };
 
-        scene.World.SetMotionNextTick(scene.Owner, BodyMotion.Kinematic, add: spin);
+        scene.World.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Kinematic, add: spin);
         double driftWhileTurning = LargestDriftFrom(scene, rest, SettleTicks);
         DPose turning = scene.World.PoseIn(scene.Owner, scene.Space);
-        scene.World.SetMotionNextTick(scene.Owner, BodyMotion.Static, remove: spin);
+        scene.World.SetMotionNextTick(owner: scene.Owner, motion: BodyMotion.Static, remove: spin);
         double driftWhileStopping = LargestDriftFrom(scene, rest, SettleTicks);
         DPose stopped = scene.World.PoseIn(scene.Owner, scene.Space);
         scene.World.Tick();

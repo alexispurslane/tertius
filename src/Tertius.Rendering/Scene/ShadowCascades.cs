@@ -199,7 +199,7 @@ internal static class ShadowCascades
         {
             float near = i == 0 ? DepthRanges.NearPlane : BlendStart(i - 1);
             float far = Splits[i];
-            (float centerDepth, float radius) = BoundingSphere(near, far, camera.TanHalfX, camera.TanHalfY);
+            (float centerDepth, float radius) = BoundingSphere(near: near, far: far, tanHalfX: camera.TanHalfX, tanHalfY: camera.TanHalfY);
             float texel = 2f * radius / (mapSize - 2 * MarginTexels);
             float halfExtent = 0.5f * texel * mapSize;
 
@@ -217,7 +217,7 @@ internal static class ShadowCascades
             cascade.TexelSize = texel;
             cascade.NearDepth = near;
             cascade.FarDepth = far;
-            cascade.ViewProjection = ViewProjection(light, center, halfExtent, cascade.DepthHalfRange);
+            cascade.ViewProjection = ViewProjection(light: light, center: center, halfExtent: halfExtent, depthHalfRange: cascade.DepthHalfRange);
         }
     }
 
@@ -232,9 +232,9 @@ internal static class ShadowCascades
         float depth = 0.5f / depthHalfRange;
         Vector3 x = light.X * lateral, y = light.Y * lateral, z = light.Z * depth;
         return new(
-            x.X, y.X, z.X, 0f,
-            x.Y, y.Y, z.Y, 0f,
-            x.Z, y.Z, z.Z, 0f,
-            -center.X * lateral, -center.Y * lateral, 0.5f - center.Z * depth, 1f);
+            m11: x.X, m12: y.X, m13: z.X, m14: 0f,
+            m21: x.Y, m22: y.Y, m23: z.Y, m24: 0f,
+            m31: x.Z, m32: y.Z, m33: z.Z, m34: 0f,
+            m41: -center.X * lateral, m42: -center.Y * lateral, m43: 0.5f - center.Z * depth, m44: 1f);
     }
 }

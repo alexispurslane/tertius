@@ -68,7 +68,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     // Steps count from 1, so a fresh entry of 0 never counts as cached. Only Step uses the cache.
     private long[] predictedStep = new long[16];
 
-    private FrameTree frames = null!;
+    // The tree of the call in progress: ApplyChanges and Step set it before anything reads it. An empty tree until the
+    // first call.
+    private FrameTree frames = new();
 
     // The intents that the current step applies, by entity slot (see PhysicsStepContext.Intents). Valid during a step only.
     private ReadOnlyMemory<PhysicsIntent> stepIntents;
@@ -547,12 +549,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 }
 
                 locks.UnlockRead(read);
-                facts.Add(new(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
-                    bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(),
-                    bodies.GetRotation(id),
-                    linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id),
-                    inverseMass,
-                    inverseInertia, inertiaRotation, linearDamping, angularDamping, edgeRemoval));
+                facts.Add(new(Id: id, UserData: bodies.GetUserData(id), Motion: bodies.GetMotionType(id), Layer: bodies.GetObjectLayer(id),
+                    Shape: bodies.GetShape(id)?.Handle ?? 0, Quality: bodies.GetMotionQuality(id), Position: position.ToDouble3(),
+                    Rotation: bodies.GetRotation(id),
+                    LinearVelocity: linear, AngularVelocity: angular, Active: bodies.IsActive(id), Friction: bodies.GetFriction(id), Restitution: bodies.GetRestitution(id),
+                    InverseMass: inverseMass,
+                    InverseInertia: inverseInertia, InertiaRotation: inertiaRotation, LinearDamping: linearDamping, AngularDamping: angularDamping, EnhancedInternalEdgeRemoval: edgeRemoval));
             }
         }
 
@@ -795,7 +797,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // A hull has the Jolt motion type of its record's motion. The record takes the motion of each step at the start of
             // that step (see FollowHullMotions).
             if (owner.HasPrimary)
-                Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
+                Contract.Invariant(owner.World.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }
     }
 
@@ -947,7 +949,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         BodyRecord? hull = OwnerRecord(frame);
         if ((hull is null || hull.Motion == BodyMotion.Kinematic) &&
-            frames.StepRecordInStep(frame, stepIntents.Span, stepDt, out MotionSample move))
+            frames.StepRecordInStep(frame: frame, stepIntents: stepIntents.Span, step: stepDt, record: out MotionSample move))
         {
             if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))
             {
@@ -971,8 +973,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
         // pose in its home, the frame's tree parent, at rest.
         return hull is { HasPrimary: true } && hull.TeleportStep == stepIndex
-            ? new(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero)
-            : new(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+            ? new(Pose: hull.TeleportPose, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero)
+            : new(Pose: frames.TreeLocalPose(frame), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
     }
 
     /// <summary>
@@ -983,8 +985,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private FrameMotion MotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new(record.Pose, record.ChordVelocity, record.AngularVelocity, record.Acceleration,
-            record.AngularAcceleration);
+        return new(Pose: record.Pose, Velocity: record.ChordVelocity, AngularVelocity: record.AngularVelocity, Acceleration: record.Acceleration,
+            AngularAcceleration: record.AngularAcceleration);
     }
 
     /// <summary>
@@ -1015,7 +1017,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // HomeSteppedVelocityOverPlan). A hull that handed off in the step is awake in its new home.
             double half = 0.5 * stepDt;
             Double3 velocity = chord + acceleration * half;
-            if (hull.World!.Bodies.IsActive(hull.Body))
+            if (hull.World.Bodies.IsActive(hull.Body))
             {
                 velocity += HomeSteppedVelocityOverPlan(hull.Frame);
                 // In a turning home the chord of an awake hull that stayed there spans the home's turn of the step, so the
@@ -1027,7 +1029,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                                 (Double3)hull.FrameAcceleration.Turning * half;
             }
 
-            record = new(s.Pose, chord, velocity, acceleration, s.Angular, hull.AngularAcceleration);
+            record = new(Pose: s.Pose, ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration, AngularVelocity: s.Angular, AngularAcceleration: hull.AngularAcceleration);
             return true;
         }
 

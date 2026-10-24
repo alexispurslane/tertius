@@ -19,12 +19,12 @@ public class WorldFrameOwnerRowTests
     /// </summary>
     private const double Speed = 1 << 19;
 
-    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
+    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, LinearDamping: 0,
         AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
 
     /// <summary>A light crate, whose drift away from its ship moves the ship a little in their shared falling frame.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 0.01f, LinearDamping: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 0.01f, LinearDamping: 0,
         AngularDamping: 0);
 
     [Fact]
@@ -33,7 +33,7 @@ public class WorldFrameOwnerRowTests
         // 24 ships 3,000 km out, each with a crate a little ahead of it that drifts away at 1/16 m/s. Ship and crate share a
         // falling frame, which nests at once. The crate's drift moves the ship in that frame by fractions of a nanometer each
         // tick, so its place there has fine bits. The crates sit at other distances from their ships, so the bits differ.
-        using World world = WorldTesting.NewWorld(out _, debugChecks: false,
+        using World world = WorldTesting.NewWorld(backend: out _, debugChecks: false,
             configure: o => o.NumericFrames = new() { NestDistance = 1 << 21 });
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e18f), GravityField.None));
         var ships = new List<FrameHandle>();

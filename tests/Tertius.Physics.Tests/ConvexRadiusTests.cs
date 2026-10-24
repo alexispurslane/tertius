@@ -48,7 +48,7 @@ public class ConvexRadiusTests
 
     /// <summary>Spawns <paramref name="shape"/> as a static body whose origin is at (<paramref name="x"/>, 0, 0).</summary>
     private static void SpawnStatic(World world, FrameHandle ground, double x, ShapeDesc shape) =>
-        world.Spawn(new() { Frame = ground, Pose = At(x), Body = new(shape, BodyMotion.Static) });
+        world.Spawn(new() { Frame = ground, Pose = At(x), Body = new(Shape: shape, Motion: BodyMotion.Static) });
 
     /// <summary>Drops a ball 1 cm above its resting height onto (<paramref name="x"/>, 0, 0), lets it settle, and returns the height of its center.</summary>
     private static double RestingHeightOfBallAt(World world, FrameHandle ground, double x)
@@ -61,9 +61,9 @@ public class ConvexRadiusTests
 
     private static double HeightOfBallAcrossTheJointOf(ShapeDesc joint)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
-        SpawnStatic(world, ground, 0, joint);
+        SpawnStatic(world: world, ground: ground, x: 0, shape: joint);
 
         double height = RestingHeightOfBallAt(world, ground, 0);
 
@@ -161,12 +161,12 @@ public class ConvexRadiusTests
     [Fact]
     public void ABoxOfConvexRadiusZeroHoldsARestingBallAtItsTopFace()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A block with the half extents (2, 0.5, 2), whose flat top is at height 0.
         world.Spawn(new()
         {
-            Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(2, 0.5f, 2), 0), BodyMotion.Static)
+            Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2), 0), Motion: BodyMotion.Static)
         });
 
         RestingHeightOfBallAt(world, ground, 0).Should().BeApproximately(RestingHeight, Tolerance);
@@ -176,11 +176,11 @@ public class ConvexRadiusTests
     [Fact]
     public void ABoxWhoseConvexRadiusIsLargerThanItsSmallestHalfExtentStillHoldsARestingBallAtItsTopFace()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A plate with the half extents (2, 0.1, 2) and a convex radius of 5 m: physics rounds it by 0.1 m at the most.
         var plate = new BoxShapeDesc(new(2, 0.1f, 2), 5);
-        world.Spawn(new() { Frame = ground, Pose = At(0, -0.1), Body = new(plate, BodyMotion.Static) });
+        world.Spawn(new() { Frame = ground, Pose = At(0, -0.1), Body = new(Shape: plate, Motion: BodyMotion.Static) });
 
         RestingHeightOfBallAt(world, ground, 0).Should().BeApproximately(RestingHeight, Tolerance);
         world.Errors.Should().BeEmpty();
@@ -213,14 +213,14 @@ public class ConvexRadiusTests
     [Fact]
     public void TwoHullsThatDifferOnlyInConvexRadiusGiveDifferentCollisionResults()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         // The same point arrays, in one world and so in one shape cache. Only the radius differs.
         var roundedLeft = new ConvexHullShapeDesc(LeftSlab);
         var roundedRight = new ConvexHullShapeDesc(RightSlab);
-        SpawnStatic(world, ground, -10, Joint(roundedLeft, roundedRight));
-        SpawnStatic(world, ground, 10,
-            Joint(roundedLeft with { ConvexRadius = 0 }, roundedRight with { ConvexRadius = 0 }));
+        SpawnStatic(world: world, ground: ground, x: -10, shape: Joint(roundedLeft, roundedRight));
+        SpawnStatic(world: world, ground: ground, x: 10,
+            shape: Joint(roundedLeft with { ConvexRadius = 0 }, roundedRight with { ConvexRadius = 0 }));
 
         double onRounded = RestingHeightOfBallAt(world, ground, -10);
         double onSharp = RestingHeightOfBallAt(world, ground, 10);

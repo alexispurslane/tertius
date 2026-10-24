@@ -23,7 +23,7 @@ public sealed class LitPuffRenderTests
 
     private static readonly Vector3 Albedo = new(0.8f, 0.6f, 0.4f);
 
-    private static Vector2 Pixel(Vector3 point) => Gpu.Project(point, Width, Height);
+    private static Vector2 Pixel(Vector3 point) => Gpu.Project(point: point, width: Width, height: Height);
 
     private static RenderPuff Puff(Vector3 position, int look) =>
         new() { Position = position, PreviousPosition = position, Age = 0f, Look = look };
@@ -65,10 +65,10 @@ public sealed class LitPuffRenderTests
     /// </summary>
     private static void ShouldMatchGlowPuffs(RenderSnapshot snapshot, Vector3[] expected, string name)
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            ShouldMatchGlowPuffs(renderer, snapshot, expected, name);
+            ShouldMatchGlowPuffs(renderer: renderer, snapshot: snapshot, expected: expected, name: name);
         }
         finally
         {
@@ -81,11 +81,11 @@ public sealed class LitPuffRenderTests
     {
         snapshot.PuffLooks.Count.Should().Be(expected.Length);
         List<PuffLook> litLooks = [.. snapshot.PuffLooks];
-        Capture lit = Gpu.RenderAndCapture(renderer, snapshot, name + "-lit");
+        Capture lit = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name + "-lit");
         snapshot.PuffLooks.Clear();
         for (int i = 0; i < litLooks.Count; i++)
             snapshot.PuffLooks.Add(litLooks[i] with { Shading = PuffShading.Glow(expected[i]) });
-        Capture glow = Gpu.RenderAndCapture(renderer, snapshot, name + "-glow");
+        Capture glow = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name + "-glow");
         snapshot.PuffLooks.Clear();
         snapshot.PuffLooks.AddRange(litLooks);
 
@@ -139,7 +139,7 @@ public sealed class LitPuffRenderTests
         var color = new Vector3(1f, 0.8f, 0.5f);
         // The puff is 2 m from the lamp, near the lamp's range, where the window of the attenuation is 0.42.
         const float intensity = 60f, range = 2.6f;
-        snapshot.Lights.Add(new PointRenderLight(lamp, color, intensity, range));
+        snapshot.Lights.Add(new PointRenderLight(Position: lamp, Color: color, Intensity: intensity, Range: range));
         AddLitPuff(snapshot, puff);
 
         Vector3 irradiance = Irradiance(color * intensity, range, Vector3.Distance(lamp, puff));
@@ -155,7 +155,7 @@ public sealed class LitPuffRenderTests
         var lamp = new Vector3(-1.5f, 2f, -6);
         var color = new Vector3(0.6f, 0.8f, 1f);
         const float intensity = 30f, range = 8f;
-        snapshot.Lights.Add(new SpotRenderLight(lamp, -Vector3.UnitY, color, intensity, range, InnerConeAngle: 0.2f,
+        snapshot.Lights.Add(new SpotRenderLight(Position: lamp, Direction: -Vector3.UnitY, Color: color, Intensity: intensity, Range: range, InnerConeAngle: 0.2f,
             OuterConeAngle: 0.3f));
         AddLitPuff(snapshot, inside);
         AddLitPuff(snapshot, outside);
@@ -169,25 +169,25 @@ public sealed class LitPuffRenderTests
     {
         // The sun is almost straight above. A slab 3 m above the left puff shadows it through the shadow maps. The slab's
         // bounding radius of 1.4 m is too small for a far shadow (SceneBatcher.CollectFarShadows), so only the maps shadow it.
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(0.4f, 0.4f, 0.4f, 1), gloss: 0.2f) with
+            MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), gloss: 0.2f) with
             {
                 SpecularIntensity = 0f
             });
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.05f), sunIntensity: 6f);
             var shaded = new Vector3(-1.5f, 0, -8);
             var open = new Vector3(1.5f, 0, -8);
-            snapshot.Instances.Add(Gpu.Instance(box, gray, shaded + new Vector3(0.3f, 3f, 0.15f), new(1.6f, 0.2f, 1.6f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: shaded + new Vector3(0.3f, 3f, 0.15f), scale: new(1.6f, 0.2f, 1.6f),
                 flags: RenderFlags.CastsShadow));
             AddLitPuff(snapshot, shaded);
             AddLitPuff(snapshot, open);
 
             Vector3 ambient = Albedo * MeanAmbient(snapshot);
-            ShouldMatchGlowPuffs(renderer, snapshot,
-                [ambient, ambient + Albedo * SunRadiance(snapshot) / (4 * MathF.PI)], "lit-puff-box-shadow");
+            ShouldMatchGlowPuffs(renderer: renderer, snapshot: snapshot,
+                expected: [ambient, ambient + Albedo * SunRadiance(snapshot) / (4 * MathF.PI)], name: "lit-puff-box-shadow");
         }
         finally
         {
@@ -200,18 +200,18 @@ public sealed class LitPuffRenderTests
     {
         // A caster of radius 500 m, 3 km from the puff toward the sun, is beyond the shadow maps: only its far shadow, the
         // analytic sphere, hides the sun from the puff.
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
-            MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(0.4f, 0.4f, 0.4f, 1), gloss: 0.2f));
+            MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), gloss: 0.2f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.2f), sunIntensity: 6f);
             var puff = new Vector3(0, 0, -20);
-            snapshot.Instances.Add(Gpu.Instance(sphere, gray, puff + 3_000f * snapshot.Sun.Direction, new(500f),
+            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: gray, position: puff + 3_000f * snapshot.Sun.Direction, scale: new(500f),
                 flags: RenderFlags.CastsShadow));
             AddLitPuff(snapshot, puff);
 
-            ShouldMatchGlowPuffs(renderer, snapshot, [Albedo * MeanAmbient(snapshot)], "lit-puff-far-shadow");
+            ShouldMatchGlowPuffs(renderer: renderer, snapshot: snapshot, expected: [Albedo * MeanAmbient(snapshot)], name: "lit-puff-far-shadow");
         }
         finally
         {
@@ -243,7 +243,7 @@ public sealed class LitPuffRenderTests
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(0.35f, 0.35f, 0.35f, 1), gloss: 0.2f) with
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
         {
             SpecularIntensity = 0f
         });
@@ -251,13 +251,13 @@ public sealed class LitPuffRenderTests
         inSun = new(2.5f, 0.2f, -9);
         inShadow = new(-2.8f, 0.2f, -9.6f);
         underLamp = new(-0.6f, 0.2f, -9.6f);
-        snapshot.Instances.Add(Gpu.Instance(plane, gray, new(0, -1.5f, -20), new(30, 1, 30),
+        snapshot.Instances.Add(Gpu.Instance(mesh: plane, material: gray, position: new(0, -1.5f, -20), scale: new(30, 1, 30),
             flags: RenderFlags.CastsShadow));
         // The sun rises 3 m for each 1 m that it moves along x and along z, so the roof's shadow 2 m below it is 0.67 m to the
         // left of the roof and 0.67 m nearer the camera.
-        snapshot.Instances.Add(Gpu.Instance(box, gray, new(-1.1f, 2.35f, -8.93f), new(5f, 0.3f, 2.6f),
+        snapshot.Instances.Add(Gpu.Instance(mesh: box, material: gray, position: new(-1.1f, 2.35f, -8.93f), scale: new(5f, 0.3f, 2.6f),
             flags: RenderFlags.CastsShadow));
-        snapshot.Lights.Add(new PointRenderLight(underLamp + new Vector3(0, 1f, 0), new(1f, 0.75f, 0.45f),
+        snapshot.Lights.Add(new PointRenderLight(Position: underLamp + new Vector3(0, 1f, 0), Color: new(1f, 0.75f, 0.45f),
             Intensity: 8f, Range: 2f));
         snapshot.PuffLooks.Add(new(Life: 2f, StartRadius: 0.6f, EndRadius: 0.6f, TemperatureRatio: 0.5f,
             Shading: PuffShading.Lit(new(0.85f, 0.85f, 0.9f))));
@@ -276,16 +276,16 @@ public sealed class LitPuffRenderTests
     [Fact]
     public void LitPuffsAreBrightInTheSunDimInTheShadowOfABoxAndWarmUnderALamp()
     {
-        VulkanRenderer renderer = Gpu.Headless(Width, Height);
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot =
-                LitScene(renderer, out Vector3 inSun, out Vector3 inShadow, out Vector3 underLamp);
+                LitScene(renderer: renderer, inSun: out Vector3 inSun, inShadow: out Vector3 inShadow, underLamp: out Vector3 underLamp);
             List<RenderPuff> puffs = [.. snapshot.Puffs];
             snapshot.Puffs.Clear();
-            Capture without = Gpu.RenderAndCapture(renderer, snapshot, "puffs-lit-without");
+            Capture without = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "puffs-lit-without");
             snapshot.Puffs.AddRange(puffs);
-            Capture with = Gpu.RenderAndCapture(renderer, snapshot, "puffs-lit");
+            Capture with = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "puffs-lit");
 
             float Added(Vector3 place) =>
                 LinearLuma(with.Color(Pixel(place))) - LinearLuma(without.Color(Pixel(place)));

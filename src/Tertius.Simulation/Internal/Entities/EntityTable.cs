@@ -432,7 +432,7 @@ internal sealed partial class EntityTable
 
         public void Grow(int capacity) => Array.Resize(ref items, capacity);
 
-        public void Clear(uint slot) => items[slot] = default!;
+        public void Clear(uint slot) => items.AsSpan((int)slot, 1).Clear();
 
         public bool IsClear(int start, int count) => IsDefault(items.AsSpan(start, count));
     }
@@ -466,7 +466,7 @@ internal sealed partial class EntityTable
 
         void IColumn.Grow(int capacity) => Array.Resize(ref items, capacity);
 
-        void IColumn.Clear(uint slot) => items[slot] = default!;
+        void IColumn.Clear(uint slot) => items.AsSpan((int)slot, 1).Clear();
 
         bool IColumn.IsClear(int start, int count) => IsDefault(items.AsSpan(start, count));
     }
@@ -477,7 +477,7 @@ internal sealed partial class EntityTable
     /// </summary>
     public struct LiveEntityEnumerator
     {
-        private readonly EntityTable? table;
+        private readonly EntityTable table;
         private readonly int end;
         private int next;
 
@@ -499,7 +499,7 @@ internal sealed partial class EntityTable
             while (next < end)
             {
                 int slot = next++;
-                if (table!.state[slot] == SlotState.Live)
+                if (table.state[slot] == SlotState.Live)
                 {
                     Current = new((uint)slot, table.generation[slot]);
                     return true;
@@ -853,7 +853,9 @@ internal sealed partial class EntityTable
     {
         uint slot = LiveSlot(entity);
         ref Record rec = ref records[slot];
-        IComponent[] old = rec.Components!;
+        // A live entity has its components and their wants (see AssertInvariants).
+        Contract.Assert(rec.Components is not null && rec.Wants is not null);
+        IComponent[] old = rec.Components;
         foreach (IComponent existing in old)
             if (ReferenceEquals(existing, component))
                 throw new InvalidOperationException($"{entity} already has this {component.GetType().Name} instance.");
@@ -861,7 +863,7 @@ internal sealed partial class EntityTable
         int at = old.Length;
         while (at > 0 && old[at - 1].Priority > priority)
             at--;
-        EventMask[] oldWants = rec.Wants!;
+        EventMask[] oldWants = rec.Wants;
         IComponent[] components = [.. old.AsSpan(0, at), component, .. old.AsSpan(at)];
         EventMask[] wants = [.. oldWants.AsSpan(0, at), component.Wants, .. oldWants.AsSpan(at)];
         int typeId = ComponentTypes.IdOf(component.GetType());
@@ -884,11 +886,12 @@ internal sealed partial class EntityTable
             return false;
         uint slot = entity.Index;
         ref Record rec = ref records[slot];
-        IComponent[] old = rec.Components!;
+        Contract.Assert(rec.Components is not null && rec.Wants is not null);
+        IComponent[] old = rec.Components;
         int at = Array.FindIndex(old, c => ReferenceEquals(c, component));
         if (at < 0)
             return false;
-        EventMask[] oldWants = rec.Wants!;
+        EventMask[] oldWants = rec.Wants;
         rec.Components = [.. old.AsSpan(0, at), .. old.AsSpan(at + 1)];
         rec.Wants = [.. oldWants.AsSpan(0, at), .. oldWants.AsSpan(at + 1)];
         masks[slot] = MaskOf(rec.Wants);
@@ -1334,7 +1337,7 @@ internal sealed partial class EntityTable
         int count = ChunkCountFor(slotCount);
         if (copyParallelism != null && GameplayDirtyCount(count) >= parallelCopyThreshold)
         {
-            Parallel.For(0, count, copyParallelism, copyChunk ??= CopyChunk);
+            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: copyParallelism, body: copyChunk ??= CopyChunk);
             for (int c = 0; c < count; c++)
             {
                 ChunkBook book = books[c];
@@ -1553,7 +1556,7 @@ internal sealed partial class EntityTable
             ref readonly Record rec = ref records[slot];
             Contract.Invariant(rec.Components != null && rec.Wants != null &&
                                rec.Components.Length == rec.Wants.Length);
-            Contract.Invariant(masks[slot] == MaskOf(rec.Wants!));
+            Contract.Invariant(masks[slot] == MaskOf(rec.Wants));
             if ((f & SlotFlags.TransformDirty) == 0)
                 Contract.Invariant(BitEquals(frontTransform[slot], backTransform[slot]));
             if ((f & SlotFlags.RenderDirty) == 0)

@@ -34,7 +34,7 @@ public sealed class ReadoutLogTests
         {
             Frame = earth,
             Pose = new(new(30, 5, 0), DQuaternion.FromAxisAngle(-Double3.UnitZ, Math.PI / 2)),
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static)
         }));
         scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 10), Render = new RenderData() }));
         return scene;
@@ -57,7 +57,7 @@ public sealed class ReadoutLogTests
         var scene = new SceneInstance();
         FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e4f)));
         scene.Add("earth", earth.Entity);
-        var spin = new FrameSpin(DQuaternion.Identity, GroundRate, PhaseAtEpoch: Math.PI / 2);
+        var spin = new FrameSpin(Tilt: DQuaternion.Identity, Rate: GroundRate, PhaseAtEpoch: Math.PI / 2);
         Entity ground = world.Spawn(new()
         {
             Frame = earth,
@@ -68,7 +68,7 @@ public sealed class ReadoutLogTests
         });
         scene.Add("earth-surface", ground);
         FrameHandle surface = world.GetOwnedFrame(ground);
-        var box = new BodyDesc(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+        var box = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
         scene.Add("person", world.Spawn(new() { Frame = surface, Pose = At(10), Body = box }));
         scene.Add("station", world.Spawn(new() { Frame = earth, Pose = At(10), Body = box }));
         scene.Add("camera", world.Spawn(new() { Frame = earth, Pose = At(0, 2, 20), Render = new RenderData() }));
@@ -274,7 +274,7 @@ public sealed class ReadoutLogTests
             var output = new StringWriter();
             var error = new StringWriter();
 
-            int exit = Program.Readouts(["--readouts", script, log], [Drop], output, error);
+            int exit = Program.Readouts(args: ["--readouts", script, log], scenes: [Drop], output: output, error: error);
 
             exit.Should().Be(ScriptCommand.Ok, error.ToString());
             ReadoutLog.FromCsv(File.ReadAllText(log)).Should().Equal(Rows);
@@ -294,7 +294,7 @@ public sealed class ReadoutLogTests
     {
         var error = new StringWriter();
 
-        int exit = Program.Readouts(args, [Drop], new StringWriter(), error);
+        int exit = Program.Readouts(args: args, scenes: [Drop], output: new StringWriter(), error: error);
 
         exit.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain("--readouts <script> <log.csv>");

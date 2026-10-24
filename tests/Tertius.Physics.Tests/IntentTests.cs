@@ -14,14 +14,14 @@ public class IntentTests
     /// <summary>A world with a root frame that has no gravity.</summary>
     private static (World World, FrameHandle Space) ZeroGravity()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         return (world, space);
     }
 
     /// <summary>A dynamic cube with sides of <c>2 · half</c> m that nothing slows down.</summary>
     private static BodyDesc Box(float half, float mass = 1f) =>
-        new(new BoxShapeDesc(new(half)), BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
             AngularDamping: 0);
 
     /// <summary>
@@ -55,7 +55,7 @@ public class IntentTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity box = Spawn(world, space, Box(0.5f), At(0, 0, 0), pilot, velocity: new(3, 0, 0),
+            Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 0, 0), pilot: pilot, velocity: new(3, 0, 0),
                 angularVelocity: new(0, 1, 0));
             Tick(world, 3);
             var target = new DPose(new(100, 5, -7), DQuaternion.FromAxisAngle(Double3.UnitX, 0.5));
@@ -79,9 +79,9 @@ public class IntentTests
         {
             var moverPilot = new SelfPilot();
             var boxPilot = new SelfPilot();
-            Entity mover = Spawn(world, space, new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic), At(0, 0, 0),
-                moverPilot);
-            Entity box = Spawn(world, space, Box(0.5f), At(0, 10, 0), boxPilot);
+            Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0),
+                pilot: moverPilot);
+            Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 10, 0), pilot: boxPilot);
             world.Tick();
 
             // Each body teleports 20 m away and, in the same intent, gets an aim pose half a meter and 0.1 rad further on:
@@ -129,7 +129,7 @@ public class IntentTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity ball = Spawn(world, space, Ball(0.5f, mass: 2), At(0, 0, 0), pilot);
+            Entity ball = Spawn(world: world, frame: space, body: Ball(0.5f, mass: 2), pose: At(0, 0, 0), pilot: pilot);
             Send(world, pilot, body => body.AddTorque(new(0, 12, 0)));
             world.Tick();
             // α = τ / I = 12 / 0.2 = 60 rad/s², for one step.
@@ -141,10 +141,10 @@ public class IntentTests
     [Fact]
     public void MoveKinematicWritesAnEndPoseThatTheNextStepApplies()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new SelfPilot();
-        Entity mover = Spawn(world, space, new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic), At(0, 0, 0), pilot);
+        Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0), pilot: pilot);
         var end = new DPose(new(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
 
         Send(world, pilot, self => self.MoveKinematic(end));
@@ -170,7 +170,7 @@ public class IntentTests
         using (world)
         {
             var pilot = new SelfPilot();
-            Entity mover = Spawn(world, space, new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic), At(0, 0, 0), pilot);
+            Entity mover = Spawn(world: world, frame: space, body: new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic), pose: At(0, 0, 0), pilot: pilot);
             var target = new DPose(new(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
             Send(world, pilot, self => self.MoveKinematic(target));
             world.Tick();
@@ -193,7 +193,7 @@ public class IntentTests
         using (world)
         {
             var pilot = new Pilot();
-            Entity box = Spawn(world, space, Box(0.5f), At(0, 0, 0), pilot);
+            Entity box = Spawn(world: world, frame: space, body: Box(0.5f), pose: At(0, 0, 0), pilot: pilot);
             var target = new DPose(new(0.2, 0.1, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.2));
             Send(world, pilot, body => body.SteerTo(target));
             world.Tick();
@@ -208,13 +208,13 @@ public class IntentTests
     [Fact]
     public void FrameHullTakesForcesFromItsOwnerIntent()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new SphereShapeDesc(2), Mass: 500, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new SphereShapeDesc(2), Mass: 500, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(30)),
             Components = [pilot]
         });

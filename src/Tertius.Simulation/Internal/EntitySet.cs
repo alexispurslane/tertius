@@ -88,7 +88,7 @@ internal sealed class EntitySet
         }
 
         pending.Clear();
-        Array.Sort(pendingKeys, pendingWants, 0, k);
+        Array.Sort(keys: pendingKeys, items: pendingWants, index: 0, length: k);
 
         if (spare.Length < count + k)
             spare = new Entity[Math.Max(count + k, spare.Length * 2)];

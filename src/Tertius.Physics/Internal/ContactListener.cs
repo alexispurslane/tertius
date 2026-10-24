@@ -91,12 +91,12 @@ internal sealed unsafe class ContactListener : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold,
         ContactSettings* settings) =>
-        WorldOf(userData)?.OnContactAdded(body1, body2, manifold, settings);
+        WorldOf(userData)?.OnContactAdded(body1: body1, body2: body2, manifold: manifold, settings: settings);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactPersisted(nint userData, nint body1, nint body2, nint manifold,
         ContactSettings* settings) =>
-        WorldOf(userData)?.OnContactPersisted(body1, body2, manifold, settings);
+        WorldOf(userData)?.OnContactPersisted(body1: body1, body2: body2, manifold: manifold, settings: settings);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactRemoved(nint userData, SubShapeIDPair* pair) =>

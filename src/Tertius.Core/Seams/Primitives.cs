@@ -77,14 +77,14 @@ public static class Primitives
         {
             Position = new(x, 0, z),
             Normal = Vector3.UnitY,
-            Tangent = new(1, 0, 0, 1),
+            Tangent = new(x: 1, y: 0, z: 0, w: 1),
             TexCoord = new(u, w)
         };
 
         return new(
             [
-                V(-halfSize, halfSize, 0, uvRepeat), V(halfSize, halfSize, uvRepeat, uvRepeat),
-                V(halfSize, -halfSize, uvRepeat, 0), V(-halfSize, -halfSize, 0, 0)
+                V(x: -halfSize, z: halfSize, u: 0, w: uvRepeat), V(x: halfSize, z: halfSize, u: uvRepeat, w: uvRepeat),
+                V(x: halfSize, z: -halfSize, u: uvRepeat, w: 0), V(x: -halfSize, z: -halfSize, u: 0, w: 0)
             ],
             [0, 1, 2, 0, 2, 3]);
     }

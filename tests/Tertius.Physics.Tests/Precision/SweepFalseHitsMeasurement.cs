@@ -15,7 +15,7 @@ public sealed class SweepFalseHitsMeasurement
     /// rotation. Along the unit vector d its surface reaches the radius plus 0.6 m times the part of d along Y.
     /// </summary>
     private static readonly MovingPair.Member Character = new(
-        new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70),
         d => 0.3 + 0.6 * Math.Abs(d.Y),
         TurnsOntoD: false);
 
@@ -24,7 +24,7 @@ public sealed class SweepFalseHitsMeasurement
     /// the character's whole outline along the diagonal too.
     /// </summary>
     private static readonly MovingPair.Member Crate = new(
-        new(new BoxShapeDesc(new(0.5f, 1, 1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+        new(Shape: new BoxShapeDesc(new(0.5f, 1, 1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
         _ => 0.5,
         TurnsOntoD: true);
 

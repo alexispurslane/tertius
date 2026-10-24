@@ -52,7 +52,7 @@ public class ShapeCenterOfMassTests
     [Fact]
     public void TheCenterOfMassOfABoxASphereAndACapsuleIsTheirOrigin()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
 
         backend.ShapeCenterOfMass(new BoxShapeDesc(new(0.5f, 1, 2))).Should().Be(Vector3.Zero);
         backend.ShapeCenterOfMass(new SphereShapeDesc(0.7f)).Should().Be(Vector3.Zero);
@@ -63,10 +63,10 @@ public class ShapeCenterOfMassTests
     [MemberData(nameof(OffCenterShapes))]
     public void TheCenterOfMassOfAShapeIsWhereJoltPutsTheCenterOfMassOfABodyAtRestAtTheOrigin(string name)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         ShapeDesc shape = ShapeNamed(name);
-        Entity body = world.Spawn(new() { Frame = space, Pose = DPose.Identity, Body = new(shape, Mass: 3) });
+        Entity body = world.Spawn(new() { Frame = space, Pose = DPose.Identity, Body = new(Shape: shape, Mass: 3) });
         Tick(world, 1);
 
         BodyID id = backend.BodiesIn(space).Single(facts =>
@@ -88,8 +88,8 @@ public class ShapeCenterOfMassTests
     public void TheSameDescriptionGivesTheSameCenterOfMassBitForBit(string name)
     {
         ShapeDesc shape = ShapeNamed(name);
-        using World first = NewWorld(out JoltPhysicsBackend backend);
-        using World second = NewWorld(out JoltPhysicsBackend other);
+        using World first = NewWorld(backend: out JoltPhysicsBackend backend);
+        using World second = NewWorld(backend: out JoltPhysicsBackend other);
 
         Vector3 answer = backend.ShapeCenterOfMass(shape);
 
@@ -102,7 +102,7 @@ public class ShapeCenterOfMassTests
     [Fact]
     public void AFirstQuestionWaitsForTheBackendGateAndThenGetsTheAnswerOfAQuietBackend()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         ShapeDesc unbuilt = LopsidedHull();
         Vector3? answer = null;
         var asker = new Thread(() => answer = backend.ShapeCenterOfMass(unbuilt));
@@ -122,7 +122,7 @@ public class ShapeCenterOfMassTests
 
         asker.Join(TimeSpan.FromSeconds(10)).Should().BeTrue("the question goes on once the gate is free");
 
-        using World other = NewWorld(out JoltPhysicsBackend quiet);
+        using World other = NewWorld(backend: out JoltPhysicsBackend quiet);
         ShouldBeBitForBit(answer!.Value, quiet.ShapeCenterOfMass(unbuilt),
             "a question that waited for the gate gets the answer of a quiet backend");
     }
@@ -130,7 +130,7 @@ public class ShapeCenterOfMassTests
     [Fact]
     public void AKeptAnswerNeedsNoBackendGate()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         ShapeDesc shape = TwoChildren();
         Vector3 first = backend.ShapeCenterOfMass(shape);
         Vector3? again = null;
@@ -154,7 +154,7 @@ public class ShapeCenterOfMassTests
     [Fact]
     public void AKeptAnswerAllocatesNothing()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         ShapeDesc shape = TwoChildren();
         backend.ShapeCenterOfMass(shape);
         backend.ShapeProblem(shape);
@@ -175,7 +175,7 @@ public class ShapeCenterOfMassTests
     [Fact]
     public void AShapeThatJoltCannotBuildHasNoCenterOfMass()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         var flat = new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(2, 0, 0), new(3, 0, 0)]);
 
         Action ask = () => backend.ShapeCenterOfMass(flat);

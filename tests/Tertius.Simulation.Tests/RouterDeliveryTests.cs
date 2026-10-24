@@ -262,7 +262,7 @@ public class RouterDeliveryTests
     {
         RouterHarness h = NewHarness();
         Entity doomed = h.Spawn(EventMask.Of<Ping>());
-        h.SendAt(0, 3, doomed, new Ping { Value = 1 });
+        h.SendAt(chunk: 0, due: 3, target: doomed, payload: new Ping { Value = 1 });
         h.Route(tick: 2);
         h.Entities.Release(doomed);
         Entity reused = h.Spawn(EventMask.Of<Ping>());

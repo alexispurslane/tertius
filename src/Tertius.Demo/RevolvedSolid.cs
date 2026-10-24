@@ -145,8 +145,8 @@ public sealed class RevolvedSolid
         ArgumentOutOfRangeException.ThrowIfLessThan(segments, 3);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(segments, MaxHullPoints / 2);
         ExpectBends(radius, segments, nameof(segments));
-        return new([new(0, -halfHeight), new(radius, -halfHeight), new(radius, halfHeight), new(0, halfHeight)],
-            smooth: false, convex: true, segments);
+        return new(corners: [new(0, -halfHeight), new(radius, -halfHeight), new(radius, halfHeight), new(0, halfHeight)],
+            smooth: false, convex: true, segments: segments);
     }
 
     /// <summary>
@@ -163,10 +163,10 @@ public sealed class RevolvedSolid
                 $"The outer radius must be finite and more than the inner radius {innerRadius}.");
         Positive(halfWidth, nameof(halfWidth));
         return new(
-        [
+        corners: [
             new(innerRadius, -halfWidth), new(outerRadius, -halfWidth), new(outerRadius, halfWidth),
             new(innerRadius, halfWidth)
-        ], smooth: false, convex: false, segments);
+        ], smooth: false, convex: false, segments: segments);
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public sealed class RevolvedSolid
             tube[j] = new((float)(majorRadius + minorRadius * Math.Cos(phi)), (float)(minorRadius * Math.Sin(phi)));
         }
 
-        return new(tube, smooth: true, convex: false, segments);
+        return new(corners: tube, smooth: true, convex: false, segments: segments);
     }
 
     /// <summary>
@@ -256,7 +256,7 @@ public sealed class RevolvedSolid
         var vertices = new Vertex[n * profile.Count];
         for (int k = 0; k < n; k++)
         {
-            var tangent = new Vector4((float)-sin[k], 0, (float)-cos[k], 1);
+            var tangent = new Vector4(x: (float)-sin[k], y: 0, z: (float)-cos[k], w: 1);
             for (int p = 0; p < profile.Count; p++)
             {
                 (int corner, Vector2 normal) = profile[p];
@@ -304,7 +304,7 @@ public sealed class RevolvedSolid
             uint first = (uint)all.Count;
             for (int c = 0; c < corners.Length; c++)
                 all.Add(new()
-                    { Position = Point(c, k), Normal = normal, Tangent = new((float)cos[k], 0, (float)-sin[k], 1) });
+                    { Position = Point(c, k), Normal = normal, Tangent = new(x: (float)cos[k], y: 0, z: (float)-sin[k], w: 1) });
             for (int c = 1; c + 1 < corners.Length; c++)
             {
                 uint b = first + (uint)c, d = first + (uint)c + 1;

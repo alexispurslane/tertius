@@ -20,7 +20,7 @@ public sealed class ThrowReleaseTests
     /// flat field's floor, the facet's plane, is the circle's tangent there. The circle has no facets to speak of, so the
     /// numbers are those of any place round it.
     /// </summary>
-    private static readonly Double3 Eye = Circle.OnFacet(Circle.Segments / 2, 1.65, 0);
+    private static readonly Double3 Eye = Circle.OnFacet(facet: Circle.Segments / 2, height: 1.65, y: 0);
 
     /// <summary>8 m/s at 30 degrees above the floor at the eye, spinward for 1 and antispinward for -1.</summary>
     private static Double3 Throw(int way) => WheelFloor.UpAt(Eye) * (8 * Math.Sin(Math.PI / 6)) +

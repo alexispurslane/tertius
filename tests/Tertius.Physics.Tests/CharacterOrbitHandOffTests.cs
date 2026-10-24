@@ -24,7 +24,7 @@ public class CharacterOrbitHandOffTests
 
     private const float Dt = 1f / 60f;
 
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character,
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: PersonMass);
 
     /// <summary>
@@ -80,7 +80,7 @@ public class CharacterOrbitHandOffTests
     private static Drift Run(bool numericFrames)
     {
         var run = new Drift();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle sun = world.CreateRootFrame(new(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)));
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -88,7 +88,7 @@ public class CharacterOrbitHandOffTests
             Frame = sun,
             AsFrame = new(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu))
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
-        var hull = new BodyDesc(new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new(-9.5f, -3.5f, -29.5f), new(9.5f, 3.5f, 29.5f));
         Entity shipOwner = world.Spawn(new()
@@ -114,8 +114,8 @@ public class CharacterOrbitHandOffTests
         HandOff? handOff = null;
         FrameStepRecord shipState = default;
 
-        BodyState StateNow() => new(person, world.GetFrame(person), world.PoseInOwnFrame(person),
-            world.VelocityInOwnFrame(person), world.AngularVelocityInOwnFrame(person));
+        BodyState StateNow() => new(Entity: person, Frame: world.GetFrame(person), Pose: world.PoseInOwnFrame(person),
+            LinearVelocity: world.VelocityInOwnFrame(person), AngularVelocity: world.AngularVelocityInOwnFrame(person));
 
         void Step()
         {

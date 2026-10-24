@@ -32,9 +32,9 @@ public class InputScriptFormatTests
     [
         .. ScriptFiles()
             .SelectMany(path => Script.Load(path).Steps
-                .Select((step, index) => (Path.GetFileName(path), index, step))
+                .Select((step, index) => (File: Path.GetFileName(path), index, step))
                 .Where(x => x.step is PostStep { Event: "InputEvent" })
-                .Select(x => (x.Item1, x.index, ((PostStep)x.step.Value!).Payload!.Value)))
+                .Select(x => (x.File, Step: x.index, Payload: ((PostStep)x.step.Value!).Payload!.Value)))
     ];
 
     private static string Number(float value) => value.ToString("R", CultureInfo.InvariantCulture);

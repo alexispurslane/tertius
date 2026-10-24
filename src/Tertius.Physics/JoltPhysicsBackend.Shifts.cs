@@ -42,8 +42,8 @@ public sealed partial class JoltPhysicsBackend
                 }
 
                 BodySnapshot s = ReadPrimary(record);
-                bodies.SetRPositionAndRotation(record.Body, (s.Pose.Position - shift.Offset).ToJolt(),
-                    s.Pose.Rotation.ToJolt(), Activation.DontActivate);
+                bodies.SetRPositionAndRotation(bodyID: record.Body, position: (s.Pose.Position - shift.Offset).ToJolt(),
+                    rotation: s.Pose.Rotation.ToJolt(), activationMode: Activation.DontActivate);
                 // A nonzero velocity wakes a sleeping body, as it must: the body now moves in the system.
                 if (record.IsMovable && velocity != Double3.Zero)
                     bodies.SetLinearVelocity(record.Body, (s.Linear - velocity).ToVector3());

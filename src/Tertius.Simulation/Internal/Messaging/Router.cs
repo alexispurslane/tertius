@@ -299,9 +299,9 @@ internal sealed class Router
     /// </summary>
     private void Run(int count, Action<int> body)
     {
-        if (onWorkers)
+        if (onWorkers && workers is not null)
         {
-            Parallel.For(0, count, workers!, body);
+            Parallel.For(fromInclusive: 0, toExclusive: count, parallelOptions: workers, body: body);
             return;
         }
 
@@ -365,15 +365,15 @@ internal sealed class Router
                 case Entity target:
                     // A stale handle reaches nobody, even if a new entity reuses the slot.
                     if (entities.IsAlive(target))
-                        AddDelivery(mine, target, i, type);
+                        AddDelivery(mine: mine, recipient: target, eventIndex: i, type: type);
                     break;
                 case Topic topic:
                     foreach (Entity recipient in topics.RecipientsOf(topic))
-                        AddDelivery(mine, recipient, i, type);
+                        AddDelivery(mine: mine, recipient: recipient, eventIndex: i, type: type);
                     break;
                 case Broadcast:
                     foreach (Entity recipient in entities.LiveEntities)
-                        AddDelivery(mine, recipient, i, type);
+                        AddDelivery(mine: mine, recipient: recipient, eventIndex: i, type: type);
                     break;
                 default:
                     // World.Post, Outbox.Send and Outbox.SendAfter refuse a target with no value.

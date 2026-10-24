@@ -65,7 +65,7 @@ internal sealed partial class EntityTable
     /// <summary>The enumerator of <see cref="EmitterEntities"/>.</summary>
     public struct EmitterEntityEnumerator
     {
-        private readonly EntityTable? table;
+        private readonly EntityTable table;
         private readonly int words;
         private int word;
         private ulong bits;
@@ -89,12 +89,12 @@ internal sealed partial class EntityTable
             {
                 if (++word >= words)
                     return false;
-                bits = table!.emitterSlots.Word(word);
+                bits = table.emitterSlots.Word(word);
             }
 
             uint slot = (uint)(word * 64 + BitOperations.TrailingZeroCount(bits));
             bits &= bits - 1;
-            Current = new(slot, table!.generation[slot]);
+            Current = new(slot, table.generation[slot]);
             return true;
         }
     }

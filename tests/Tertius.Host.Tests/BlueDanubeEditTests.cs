@@ -34,8 +34,8 @@ public sealed class BlueDanubeEditTests
         List<ReadoutRow> rows =
         [
             .. Films.SelectMany(film => Enumerable.Range(0, film.Frames).Select(k =>
-                new ReadoutRow($"{film.Name}-{k:000000}", film.FirstTick, new(DemoScenes.EarthRadius, 0, 0), 0, 0, 0,
-                    0)))
+                new ReadoutRow(Frame: $"{film.Name}-{k:000000}", Tick: film.FirstTick, Position: new(DemoScenes.EarthRadius, 0, 0), Speed: 0, ToStation: 0, Axis: 0,
+                    Felt: 0)))
         ];
 
         Action cut = () => EditSubtitles.Film(Stretch.Of(Films, BlueDanubeEdit.Cuts.Trims), rows, BlueDanubeEdit.Cuts);

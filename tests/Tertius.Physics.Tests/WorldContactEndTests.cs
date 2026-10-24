@@ -14,17 +14,17 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class WorldContactEndTests
 {
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A heavy box, which a character cannot push: friction holds 0.5 · 500 kg · g, and a character pushes with 100 N.</summary>
-    private static readonly BodyDesc HeavyBox = new(new BoxShapeDesc(new(0.5f)), Mass: 500);
+    private static readonly BodyDesc HeavyBox = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 500);
 
     /// <summary>The floor of <see cref="Floor"/>, with <paramref name="log"/> on it.</summary>
     private static Entity LoggedFloor(World world, FrameHandle frame, CollisionLog log) => world.Spawn(new()
     {
         Frame = frame,
         Pose = At(0, -0.5),
-        Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static),
+        Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
         Components = [log]
     });
 
@@ -33,7 +33,7 @@ public class WorldContactEndTests
     {
         Frame = frame,
         Pose = At(-40, 20),
-        Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Kinematic)
+        Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic)
     }, world, new(0, 0, 0.1)));
 
     /// <summary>A frame with no body and a bubble of radius 5 m at <paramref name="x"/> on the X axis of
@@ -49,7 +49,7 @@ public class WorldContactEndTests
     [Fact]
     public void ABoxThatJumpsOffTheFloorAndTheFloorEachHearTheEndAndTheNextLanding()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
@@ -78,7 +78,7 @@ public class WorldContactEndTests
     [InlineData(true)]
     public void ABoxThatSleepsOnTheFloorAndWakesThereHearsNoEnd(bool systemKeepsStepping)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
@@ -110,7 +110,7 @@ public class WorldContactEndTests
     [Fact]
     public void ABoxThatRestsOneCentimeterFromTheFloorHearsNoCollision()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var floorLog = new CollisionLog();
         LoggedFloor(world, space, floorLog);
@@ -130,7 +130,7 @@ public class WorldContactEndTests
     [Fact]
     public void ABoxThatLeavesAFloorThatItNeverTouchedHearsNoEnd()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var floorLog = new CollisionLog();
         LoggedFloor(world, space, floorLog);
@@ -153,7 +153,7 @@ public class WorldContactEndTests
     [Fact]
     public void DestroyingABoxEndsNothingWithANeighborThatItNeverTouched()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity doomed = world.Spawn(new() { Frame = space, Body = Cube() });
         var log = new CollisionLog();
@@ -181,14 +181,14 @@ public class WorldContactEndTests
             backend);
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
-            { Frame = space, Pose = At(1.01), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+            { Frame = space, Pose = At(1.01), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         var log = new CollisionLog();
         var pilot = new Pilot();
         world.Spawn(new() { Frame = space, Body = Ball(), Components = [log, pilot] });
         Tick(world, 10);
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = space, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+                { Frame = space, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         Tick(world, 10);
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
         log.Seen.Should().BeEmpty("the ball has not touched the wall yet");
@@ -208,10 +208,10 @@ public class WorldContactEndTests
     [Fact]
     public void ABallThatHitsAWallAtOneMeterPerSecondHearsTheImpulseThatStopsIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         world.Spawn(new()
-            { Frame = space, Pose = At(1.055), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+            { Frame = space, Pose = At(1.055), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         var log = new CollisionLog();
         world.Spawn(new() { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
 
@@ -229,13 +229,13 @@ public class WorldContactEndTests
     [Fact]
     public void ABallThatPassesOnePartOfABodyAndHitsAnotherHearsTheImpulseThatStopsIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var plateAndWall = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(3, 0.1f, 3)), new(new(0, -0.61f, 0), Quaternion.Identity)),
             new(new BoxShapeDesc(new(0.5f, 1, 1)), new(new(1.055f, 0, 0), Quaternion.Identity))
         ]);
-        Entity body = world.Spawn(new() { Frame = space, Body = new(plateAndWall, BodyMotion.Static) });
+        Entity body = world.Spawn(new() { Frame = space, Body = new(Shape: plateAndWall, Motion: BodyMotion.Static) });
         var log = new CollisionLog();
         world.Spawn(new() { Frame = space, LinearVelocity = new Vector3(1, 0, 0), Body = Ball(), Components = [log] });
 
@@ -254,7 +254,7 @@ public class WorldContactEndTests
     [Fact]
     public void AnAwakeBoxAndItsFloorThatMoveIntoANumericFrameHearNoNewContactAndNoEnd()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
@@ -283,10 +283,10 @@ public class WorldContactEndTests
     [Fact]
     public void ABallThatDriftsSlowlyIntoAWallHearsItWhenItTouches()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         Entity wall = world.Spawn(new()
-            { Frame = space, Pose = At(1.0508), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+            { Frame = space, Pose = At(1.0508), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         var log = new CollisionLog();
         world.Spawn(
             new() { Frame = space, LinearVelocity = new Vector3(0.1f, 0, 0), Body = Ball(), Components = [log] });
@@ -306,7 +306,7 @@ public class WorldContactEndTests
     [Fact]
     public void DestroyingABoxEndsItsContactsWithTheFloorTheBoxOnItAndTheCharacterAgainstIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         LoggedFloor(world, ground, floorLog);
@@ -336,7 +336,7 @@ public class WorldContactEndTests
     [Fact]
     public void DestroyingACharacterEndsItsContactsWithTheFloorAndTheBoxItLeanedOn()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         LoggedFloor(world, ground, floorLog);
@@ -367,7 +367,7 @@ public class WorldContactEndTests
     [InlineData(true)]
     public void ACharacterThatWalksAwayFromASleepingBoxAndTheBoxEachHearTheEnd(bool systemKeepsStepping)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
@@ -407,7 +407,7 @@ public class WorldContactEndTests
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(block, Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: block),
+            Body = new(Shape: block, Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: block),
             AsFrame = new(FrameBounds.Sphere(3)),
             Components = [ownerLog]
         });
@@ -420,7 +420,7 @@ public class WorldContactEndTests
     [Fact]
     public void ACrateThatLeavesTheInteriorOfAFrameAndTheFrameOwnerEachHearTheEnd()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var ownerLog = new CollisionLog();
         var crateLog = new CollisionLog();
         var pilot = new Pilot();
@@ -441,7 +441,7 @@ public class WorldContactEndTests
     [Fact]
     public void DestroyingAFrameOwnerEndsTheContactOfItsInteriorWithTheCrateOnIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         var crateLog = new CollisionLog();
         (Entity owner, Entity crate) = CrateOnInterior(world, new(), crateLog);
         Tick(world, 30);
@@ -462,7 +462,7 @@ public class WorldContactEndTests
     [Fact]
     public void TwoTouchingCratesThatEnterAFrameInOneStepKeepTheirContact()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         FrameHandle inside = Bubble(world, space, 20);
         var firstLog = new CollisionLog();
@@ -499,7 +499,7 @@ public class WorldContactEndTests
     [InlineData(false)]
     public void ACrateThatEntersAFrameAheadOfTheCrateThatTouchesItKeepsTheContactThroughItsGhost(bool frontFirst)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         FrameHandle inside = Bubble(world, space, 20);
         var frontLog = new CollisionLog();
@@ -538,7 +538,7 @@ public class WorldContactEndTests
     [InlineData(false)]
     public void ACrateThatSlidesOnAStaticFloorIntoABubbleKeepsItsContactWithTheFloor(bool acrossFrames)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         FrameHandle inside = !acrossFrames
             ? ground
@@ -556,7 +556,7 @@ public class WorldContactEndTests
             Frame = ground,
             Pose = At(13, 0.5),
             LinearVelocity = new Vector3(2, 0, 0),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
             Components = [crateLog]
         });
 
@@ -594,7 +594,7 @@ public class WorldContactEndTests
         // One batch of 15 static crates far below the floor grows the ground's system twice.
         for (int i = 0; i < 15; i++)
             world.Spawn(new()
-                { Frame = ground, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+                { Frame = ground, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);

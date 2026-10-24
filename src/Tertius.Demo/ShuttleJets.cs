@@ -102,20 +102,20 @@ public sealed class ShuttleJets
         [
             // The couples, in the order of Couple(axis, negative). Pitch and yaw push across Z at the nose's ring and the
             // tail's ring, 12.5 m apart. Roll pushes across X between the belly and the roof, 4 m apart.
-            Couple("pitch-up", new(0, -roof, NoseRing), new(0, roof, TailRing), y, x),
-            Couple("pitch-down", new(0, -roof, TailRing), new(0, roof, NoseRing), y, -x),
-            Couple("yaw-port", new(-side, LowerSide, TailRing), new(side, LowerSide, NoseRing), x, y),
-            Couple("yaw-starboard", new(-side, LowerSide, NoseRing), new(side, LowerSide, TailRing), x, -y),
-            Couple("roll-port", new(RollSpan, -roof, TailRing), new(-RollSpan, roof, TailRing), y, z),
-            Couple("roll-starboard", new(-RollSpan, -roof, NoseRing), new(RollSpan, roof, NoseRing), y, -z),
+            Couple(name: "pitch-up", first: new(0, -roof, NoseRing), second: new(0, roof, TailRing), push: y, turn: x),
+            Couple(name: "pitch-down", first: new(0, -roof, TailRing), second: new(0, roof, NoseRing), push: y, turn: -x),
+            Couple(name: "yaw-port", first: new(-side, LowerSide, TailRing), second: new(side, LowerSide, NoseRing), push: x, turn: y),
+            Couple(name: "yaw-starboard", first: new(-side, LowerSide, NoseRing), second: new(side, LowerSide, TailRing), push: x, turn: -y),
+            Couple(name: "roll-port", first: new(RollSpan, -roof, TailRing), second: new(-RollSpan, roof, TailRing), push: y, turn: z),
+            Couple(name: "roll-starboard", first: new(-RollSpan, -roof, NoseRing), second: new(RollSpan, roof, NoseRing), push: y, turn: -z),
             // The translation pairs, in the order of Translation(axis, negative). Each pair's two places differ along one
             // axis across its push, and both take the center of mass's value on the other.
-            Translation("move-starboard", new(-side, c.Y, -TranslationRib), new(-side, c.Y, TranslationRib), x, c.Z),
-            Translation("move-port", new(side, c.Y, -TranslationRib), new(side, c.Y, TranslationRib), -x, c.Z),
-            Translation("move-up", new(c.X, -roof, -TranslationRib), new(c.X, -roof, TranslationRib), y, c.Z),
-            Translation("move-down", new(c.X, roof, -TranslationRib), new(c.X, roof, TranslationRib), -y, c.Z),
-            Translation("move-aft", new(-side, c.Y, NoseRing), new(side, c.Y, NoseRing), z, c.X),
-            Translation("move-forward", new(c.X - TailSpread, c.Y, tail), new(c.X + TailSpread, c.Y, tail), -z, c.X)
+            Translation(name: "move-starboard", first: new(-side, c.Y, -TranslationRib), second: new(-side, c.Y, TranslationRib), push: x, center: c.Z),
+            Translation(name: "move-port", first: new(side, c.Y, -TranslationRib), second: new(side, c.Y, TranslationRib), push: -x, center: c.Z),
+            Translation(name: "move-up", first: new(c.X, -roof, -TranslationRib), second: new(c.X, -roof, TranslationRib), push: y, center: c.Z),
+            Translation(name: "move-down", first: new(c.X, roof, -TranslationRib), second: new(c.X, roof, TranslationRib), push: -y, center: c.Z),
+            Translation(name: "move-aft", first: new(-side, c.Y, NoseRing), second: new(side, c.Y, NoseRing), push: z, center: c.X),
+            Translation(name: "move-forward", first: new(c.X - TailSpread, c.Y, tail), second: new(c.X + TailSpread, c.Y, tail), push: -z, center: c.X)
         ];
     }
 
@@ -186,8 +186,8 @@ public sealed class ShuttleJets
         double perNewton = Double3.Dot(Double3.Cross(first - second, push), turn);
         double most = Double3.Dot(coupleTorque, new(Math.Abs(turn.X), Math.Abs(turn.Y), Math.Abs(turn.Z)));
         double thrust = most / perNewton;
-        return new(name, new($"jet-{name}-first", first, push, thrust),
-            new($"jet-{name}-second", second, -push, thrust));
+        return new(name, new(Id: $"jet-{name}-first", Place: first, Push: push, MaxThrust: thrust),
+            new(Id: $"jet-{name}-second", Place: second, Push: -push, MaxThrust: thrust));
     }
 
     /// <summary>
@@ -201,8 +201,8 @@ public sealed class ShuttleJets
         Double3 span = second - first;
         int axis = Math.Abs(span.X) > 0 ? 0 : Math.Abs(span.Y) > 0 ? 1 : 2;
         double firstShare = (Along(second, axis) - center) / Along(span, axis);
-        return new(name, new($"jet-{name}-first", first, push, firstShare * translationThrust),
-            new($"jet-{name}-second", second, push, (1 - firstShare) * translationThrust));
+        return new(name, new(Id: $"jet-{name}-first", Place: first, Push: push, MaxThrust: firstShare * translationThrust),
+            new(Id: $"jet-{name}-second", Place: second, Push: push, MaxThrust: (1 - firstShare) * translationThrust));
     }
 
     private static double Along(Double3 v, int axis) => axis switch { 0 => v.X, 1 => v.Y, _ => v.Z };

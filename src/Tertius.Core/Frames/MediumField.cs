@@ -75,7 +75,7 @@ public readonly partial struct MediumField
     /// <param name="scaleHeight">The height over which the density falls by the factor e, in m.</param>
     /// <param name="drag">The drag, in 1/s.</param>
     public static MediumField Planet(double radius, float surfaceDensity, float scaleHeight, float drag) =>
-        new(new PlanetMedium(radius, surfaceDensity, scaleHeight, drag));
+        new(new PlanetMedium(Radius: radius, SurfaceDensity: surfaceDensity, ScaleHeight: scaleHeight, Drag: drag));
 
     private static bool NotNegative(float value) => float.IsFinite(value) && value >= 0;
 

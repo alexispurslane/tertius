@@ -30,7 +30,7 @@ public class MotionChangeTests
 
     /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
     private static BodyDesc BoxBody(float half, float mass) =>
-        new(new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>The Jolt motion type of a hull with <paramref name="motion"/>.</summary>
     private static MotionType MotionOf(BodyMotion motion) => motion switch
@@ -145,11 +145,11 @@ public class MotionChangeTests
     [Fact]
     public void AShipThatParksHoldsStillWhereTheStepLeftItAndItsFrameStopsAtTheNextSyncPoint()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (FrameHandle planet, Entity owner, FrameHandle ship) = FlyingShip(world, new Thrust(new(1000, 0, 0)));
         world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the engine pushes the ship");
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         world.Tick();
         DPose parked = world.Frames.LocalPose(ship);
         world.Frames.LinearVelocity(ship).X.Should().BeGreaterThan(10,
@@ -177,11 +177,11 @@ public class MotionChangeTests
     [Fact]
     public void AShipThatParksAndUnparksWithinOneTickFallsOnAsBefore()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         (Entity owner, FrameHandle ship) = FallingShip(world);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 30);
 
         // 35 ticks of free fall from the spawn, which semi-implicit Euler gives to the float rounding of the velocity.
@@ -199,7 +199,7 @@ public class MotionChangeTests
     [Fact]
     public void AChangeToTheMotionThatAHullHasLeavesASleepingHullAsleep()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity owner = world.Spawn(new()
@@ -213,7 +213,7 @@ public class MotionChangeTests
         TickUntil(world, () => !IsAwake(backend, ground, owner), 600);
         IsAwake(backend, ground, owner).Should().BeFalse("the lander came to rest on the floor");
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 3);
 
         IsAwake(backend, ground, owner).Should().BeFalse();
@@ -227,13 +227,13 @@ public class MotionChangeTests
     [Fact]
     public void AShipThatIsParkedForOneStepFallsFromRest()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         (Entity owner, FrameHandle ship) = FallingShip(world);
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         world.Tick();
         DPose parked = world.Frames.LocalPose(ship);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         world.Tick();
         world.Frames.LocalPose(ship).Should().Be(parked, "the parked ship held still for one step");
         world.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
@@ -252,7 +252,7 @@ public class MotionChangeTests
     [Fact]
     public void AStaticHullThatBecomesDynamicFallsWithItsFrame()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Entity owner = world.Spawn(new()
         {
@@ -265,7 +265,7 @@ public class MotionChangeTests
         Tick(world, 3);
         world.Frames.LocalPose(lander).Position.Y.Should().Be(100, "a static frame does not fall");
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         world.Tick();
         int reported = faults.Outputs.Count;
         Tick(world, 30);
@@ -290,7 +290,7 @@ public class MotionChangeTests
     [Fact]
     public void PhysicsChangesTheJoltMotionTypeAtTheStartOfTheStepAfterTheSyncPoint()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Entity owner = world.Spawn(new()
         {
@@ -302,7 +302,7 @@ public class MotionChangeTests
         FrameHandle lander = world.GetOwnedFrame(owner);
         Tick(world, 3);
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         world.Tick();
 
         world.Frames.HullMotion(lander).Should().Be(BodyMotion.Static,
@@ -331,7 +331,7 @@ public class MotionChangeTests
     [Fact]
     public void AHullThatBecameDynamicFollowsPhysicsAtTheSyncPointAfterTheStepThatAppliesTheChange()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity owner = world.Spawn(new()
         {
@@ -343,7 +343,7 @@ public class MotionChangeTests
         FrameHandle lander = world.GetOwnedFrame(owner);
         Tick(world, 3);
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         world.Tick();
 
         world.Frames.Followed(lander).Should()
@@ -379,17 +379,17 @@ public class MotionChangeTests
     [Fact]
     public void TheFirstHandOffOfAnUnparkedHullIsNoBug()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(100))
         }));
         BodyDesc hull = BoxBody(1, 1000) with { Motion = BodyMotion.Static };
         Scenes.Approach approach =
-            Scenes.ApproachToBubble(world, station, tick: 0, ballRadius: hull.Shape.BoundingRadius());
+            Scenes.ApproachToBubble(world: world, into: station, tick: 0, ballRadius: hull.Shape.BoundingRadius());
         Entity owner = world.Spawn(new()
         {
             Frame = space,
@@ -419,7 +419,7 @@ public class MotionChangeTests
     [Fact]
     public void TheNumericUpdateOfTheWritingTicksSyncPointPlansTheNextStepWithTheNewMotion()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new()
         {
@@ -433,7 +433,7 @@ public class MotionChangeTests
         world.Frames.Numeric(world.Frames.TreeParent(ship)).Should()
             .Be(NumericMode.Falling, "at 2 km/s the hull has a falling frame of its own");
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         world.Tick();
 
         world.Frames.TreeParent(ship).Should().Be(space, "a static hull lives in its semantic frame's own system");
@@ -463,7 +463,7 @@ public class MotionChangeTests
     [Fact]
     public void AKeplerHullThatBecomesDynamicCoastsOnItsOrbitAndFollowsTheOrbitAgainWhenItBecomesKinematic()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         // The orbit turns the frame at 0.05 rad/s, so that the rotation and the angular velocity of a sample differ from zero.
         KeplerOrbit orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
@@ -480,7 +480,7 @@ public class MotionChangeTests
             "at 7.5 km/s the hull has a following frame of its own");
 
         // Engines on.
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner)!);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner)!);
         world.Tick();
         world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Falling,
             "the following frame falls on without its anchor's samples");
@@ -496,7 +496,7 @@ public class MotionChangeTests
             .BeLessThan(0.5);
 
         // Into orbit.
-        world.SetMotionNextTick(owner, BodyMotion.Kinematic, add: new KeplerMotion { Orbit = orbit });
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Kinematic, add: new KeplerMotion { Orbit = orbit });
         world.Tick();
         for (int i = 0; i < 10; i++)
         {
@@ -547,7 +547,7 @@ public class MotionChangeTests
     [Fact]
     public void ASlowKeplerHullThatBecomesDynamicCoastsOnWithTheVelocityOfItsLastSample()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
@@ -560,7 +560,7 @@ public class MotionChangeTests
         world.Frames.TreeParent(ship).Should()
             .Be(planet, "a slow hull near the planet's origin needs no numeric frame");
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
         Tick(world, 2);
 
         Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic);
@@ -583,12 +583,12 @@ public class MotionChangeTests
     [InlineData(BodyMotion.Kinematic, BodyMotion.Static)]
     public void AHullKeepsItsBodyIdAndItsSystemThroughAChangeOfMotion(BodyMotion from, BodyMotion to)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         (FrameHandle planet, Entity owner, _) = ShipAbovePlanet(world, from);
         Tick(world, 5);
         BodyID before = Hull(world, backend, owner).Id;
 
-        world.SetMotionNextTick(owner, to);
+        world.SetMotionNextTick(owner: owner, motion: to);
         Tick(world, 2);
 
         world.PhysicsHomeOf(owner).Should().Be(planet);
@@ -612,7 +612,7 @@ public class MotionChangeTests
             faults.Jolt.BodiesIn(frame).Single(facts =>
                 BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, owner));
 
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new()
         {
@@ -631,7 +631,7 @@ public class MotionChangeTests
         faults.Jolt.HasGhostIn(owner, station).Should().BeTrue("the bubbles overlap");
         BodyID moving = GhostIn(faults, station, owner).Id;
 
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should()
@@ -640,7 +640,7 @@ public class MotionChangeTests
         parked.Id.Should().NotBe(moving, "physics made the ghost again");
         parked.Motion.Should().Be(MotionType.Static, "the parked ship holds still in the station");
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should()
@@ -682,7 +682,7 @@ public class MotionChangeTests
             faults);
         (FrameHandle planet, Entity owner, _) = ShipAbovePlanet(world, from);
         world.Tick();
-        world.SetMotionNextTick(owner, to);
+        world.SetMotionNextTick(owner: owner, motion: to);
         world.Tick();
         world.Tick();
         JoltPhysicsBackend.BodyFacts before = Hull(world, faults.Jolt, owner);
@@ -691,7 +691,7 @@ public class MotionChangeTests
         int room = (int)faults.Jolt.CapacityOf(planet) - faults.Jolt.BodiesIn(planet).Count;
         for (int i = 0; i <= room; i++)
             world.Spawn(new()
-                { Frame = planet, Pose = At(3 * i, -100), Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static) });
+                { Frame = planet, Pose = At(3 * i, -100), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static) });
         ApplyThePendingChangesWithoutAStep(world, faults);
 
         faults.Jolt.CapacityOf(planet).Should().Be(16);
@@ -714,12 +714,12 @@ public class MotionChangeTests
     [InlineData(false)]
     public void AHullThatADestroyReHomesAfterAChangeOfMotionKeepsItsNewMotion(bool atTheChange)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         Entity hangarOwner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(100))
         });
         Entity owner = world.Spawn(new()
@@ -732,7 +732,7 @@ public class MotionChangeTests
         FrameHandle ship = world.GetOwnedFrame(owner);
         world.Tick();
 
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic);
         if (!atTheChange)
             world.Tick();
         world.AddComponent(hangarOwner, new DestroysItself());
@@ -761,10 +761,10 @@ public class MotionChangeTests
     [InlineData(BodyMotion.Kinematic, BodyMotion.Dynamic)]
     public void AHullTakesAChangeOfMotionThatAFailedStepMissedAtTheNextStep(BodyMotion from, BodyMotion to)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         (_, Entity owner, FrameHandle ship) = ShipAbovePlanet(world, from);
         world.Tick();
-        world.SetMotionNextTick(owner, to);
+        world.SetMotionNextTick(owner: owner, motion: to);
         world.Tick();
         ApplyThePendingChangesWithoutAStep(world, faults);
 
@@ -805,12 +805,12 @@ public class MotionChangeTests
     public void AMotionInTheTreeThatAHullCannotTakeComesOnlyFromABug(ImpossibleChange change)
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings, debugChecks: false);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, warnings: warnings, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var ramp = new MeshShapeDesc([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
         BodyDesc desc = change == ImpossibleChange.MasslessToDynamic
-            ? new(new BoxShapeDesc(new(2)), BodyMotion.Static, Mass: 0)
-            : new BodyDesc(ramp, BodyMotion.Static);
+            ? new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0)
+            : new BodyDesc(Shape: ramp, Motion: BodyMotion.Static);
         Entity owner = world.Spawn(new()
         {
             Frame = space,

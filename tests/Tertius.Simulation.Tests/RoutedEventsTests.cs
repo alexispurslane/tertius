@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 public class RoutedEventsTests
 {
     private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
-        Event.Create(target, Entity.Null, payload);
+        Event.Create(target: target, sender: Entity.Null, payload: payload);
 
     private static List<int> PingValues(World world)
     {
@@ -54,7 +54,7 @@ public class RoutedEventsTests
     {
         using var t = new TestWorld();
         Entity target = t.SpawnWith(new Recorder());
-        t.SpawnWith(SendOnce.Of(target, new Ping { Value = 1 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Ping { Value = 1 }));
         // Posted first in time, and still routed after the message that the entity sends during the tick.
         t.World.Post(Message(target, new Ping { Value = 2 }));
 

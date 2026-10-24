@@ -167,7 +167,7 @@ public static partial class DemoScenes
                     .Select(glass => (glass.Edge, glass.Name, Bay: bay)))
             .Aggregate(
                 new LoftedHull([new(-Hull.Z, NoseFront), new(NoseStart, Full), new(Hull.Z, Full)], Wall, Ribs)
-                    .Door(Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
+                    .Door(door: Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
                     .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
                     .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
                     .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8),
@@ -200,7 +200,7 @@ public static partial class DemoScenes
         /// segments. It is drawn only, so its outside stays 0.1 m from the walls of the tail pocket, which reach 0.7 m from
         /// the pocket's middle.
         /// </summary>
-        public static RevolvedSolid Nozzle { get; } = RevolvedSolid.Ring(0.5f, 0.6f, 0.25f, 32);
+        public static RevolvedSolid Nozzle { get; } = RevolvedSolid.Ring(innerRadius: 0.5f, outerRadius: 0.6f, halfWidth: 0.25f, segments: 32);
 
         /// <summary>
         /// The nozzle's middle along the shuttle's Z, in meters: its aft rim lies 5 cm inside the tail face, so it runs from
@@ -242,11 +242,11 @@ public static partial class DemoScenes
         /// </summary>
         public static IReadOnlyList<(string Id, BoundingBox Panel)> Lamps { get; } =
         [
-            .. new[] { ("port", -1f), ("starboard", 1f) }.SelectMany(wall =>
-                new[] { ("fore", -3f), ("aft", 3f) }.Select(place =>
+            .. new[] { (Name: "port", Side: -1f), (Name: "starboard", Side: 1f) }.SelectMany(wall =>
+                new[] { (Name: "fore", Z: -3f), (Name: "aft", Z: 3f) }.Select(place =>
                 {
-                    var center = new Vector3(wall.Item2 * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Item2);
-                    return (Id: $"lamp-{wall.Item1}-{place.Item1}",
+                    var center = new Vector3(wall.Side * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Z);
+                    return (Id: $"lamp-{wall.Name}-{place.Name}",
                         Panel: new BoundingBox(center - LampHalf, center + LampHalf));
                 }))
         ];
@@ -271,7 +271,7 @@ public static partial class DemoScenes
         /// </summary>
         public static IComponent[] FlightControls(double climbHeight, LaunchPlane plane, Entity station) =>
         [
-            new AscentAutopilot(MainEngineThrust, ParkingOrbitRadius, climbHeight, plane),
+            new AscentAutopilot(maxThrust: MainEngineThrust, orbitRadius: ParkingOrbitRadius, climbHeight: climbHeight, plane: plane),
             new RendezvousAutopilot(station, RendezvousPlan.Demo, MainEngineThrust),
             new DockingAutopilot(station)
         ];
@@ -293,7 +293,7 @@ public static partial class DemoScenes
         /// <summary>Spawns the shuttle's main engine and jets as parts of <paramref name="hull"/> and adds their control, as
         /// <see cref="FitActuators"/> does, without the attitude autopilot.</summary>
         public static ShuttleJetControl FitJets(World world, Entity hull) =>
-            ShuttleJetControl.Fit(world, hull, MainEngineThrust, Inertia, TranslationThrust);
+            ShuttleJetControl.Fit(world: world, hull: hull, mainThrust: MainEngineThrust, inertia: Inertia, translationThrust: TranslationThrust);
 
         /// <summary>
         /// Where the nozzle lies, in the shuttle's axes, for a hull whose center of mass lies at
@@ -322,7 +322,7 @@ public static partial class DemoScenes
             {
                 Frame = cabin,
                 Pose = NozzlePose(hull.CenterOfMass),
-                Render = Drawn(resources, Nozzle.Mesh(), new(0.18f, 0.18f, 0.2f, 1), boundingRadius: 0.7f)
+                Render = Drawn(resources: resources, mesh: Nozzle.Mesh(), color: new(x: 0.18f, y: 0.18f, z: 0.2f, w: 1), boundingRadius: 0.7f)
             });
             scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);
             return nozzle;
@@ -331,7 +331,7 @@ public static partial class DemoScenes
         /// <summary>The hull's body with <paramref name="motion"/>: <see cref="HullShape"/>, <see cref="Mass"/>, no damping, and
         /// <see cref="InteriorShape"/>.</summary>
         public static BodyDesc Body(BodyMotion motion) =>
-            new(HullShape, motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0, InteriorShape: InteriorShape);
+            new(Shape: HullShape, Motion: motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0, InteriorShape: InteriorShape);
 
         /// <summary>
         /// The drawn hull of <see cref="Loft"/>, in light gray. It casts shadows and is never an impostor: a flat picture of
@@ -340,7 +340,7 @@ public static partial class DemoScenes
         /// </summary>
         public static RenderData DrawnHull(IRenderResources resources)
         {
-            RenderData render = Drawn(resources, Loft.Mesh(), new(0.85f, 0.85f, 0.88f, 1),
+            RenderData render = Drawn(resources: resources, mesh: Loft.Mesh(), color: new(x: 0.85f, y: 0.85f, z: 0.88f, w: 1),
                 boundingRadius: MathF.Ceiling(Hull.Length()));
             render.Flags |= RenderFlags.NoImpostor;
             return render;
@@ -357,7 +357,7 @@ public static partial class DemoScenes
         public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources,
             string prefix = "")
         {
-            MaterialId glass = resources.CreateMaterial(new(new(0.45f, 0.65f, 1, 0.2f),
+            MaterialId glass = resources.CreateMaterial(new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
                 SpecularIntensity: AntiReflective, Gloss: 0.9f));
             foreach (HullPane pane in Glass)
             {
@@ -387,7 +387,7 @@ public static partial class DemoScenes
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
             MaterialId material =
-                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
+                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
             foreach ((string id, BoundingBox panel) in Lamps)
                 scene.Add(id, world.Spawn(new()
                 {
@@ -400,8 +400,8 @@ public static partial class DemoScenes
                         BoundingRadius = LampHalf.Length(),
                         Flags = RenderFlags.Visible,
                         Light = new PointLightData(
-                            new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
-                            new(1, 0.9f, 0.75f), Intensity: 50, Range: 10)
+                            Offset: new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
+                            Color: new(1, 0.9f, 0.75f), Intensity: 50, Range: 10)
                     }
                 }));
         }

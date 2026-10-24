@@ -28,7 +28,7 @@ public class FrameTreeBeginStepTests
     /// <summary>The angular acceleration of the frames that spin up in the tests, in rad/s².</summary>
     private const double SpinUpRate = 0.5;
 
-    private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
+    private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);
 
     private static readonly KeplerOrbit FacingOrbit = KeplerOrbit.Circular(OrbitRadius) with
     {
@@ -43,14 +43,14 @@ public class FrameTreeBeginStepTests
 
     public FrameTreeBeginStepTests()
     {
-        space = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     /// <summary>A new frame of a new owner in <paramref name="parent"/> at <paramref name="pose"/>, with a hull of
     /// <paramref name="hull"/> or none.</summary>
     private FrameHandle Frame(FrameHandle parent, DPose pose, BodyMotion? hull = null)
     {
-        FrameHandle frame = frames.Create(new(nextOwner++, 1), parent, pose, FrameBounds.Sphere(1e8f));
+        FrameHandle frame = frames.Create(frameOwner: new(nextOwner++, 1), parent: parent, localPose: pose, frameBounds: FrameBounds.Sphere(1e8f));
         frames.SetHullMotion(frame, hull);
         return frame;
     }
@@ -72,7 +72,7 @@ public class FrameTreeBeginStepTests
     {
         frames.Update();
         frames.BeginStep(intents, Step, lastStepFailed);
-        frames.TakeStepRecords(intents, Step, owners);
+        frames.TakeStepRecords(stepIntents: intents, step: Step, owners: owners);
     }
 
     /// <summary>The time at the end of step <paramref name="k"/>, the first step being 1, from a start at time 0.</summary>
@@ -88,8 +88,8 @@ public class FrameTreeBeginStepTests
     /// the rate times the time.
     /// </summary>
     private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-        new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
-        Double3.Zero, Double3.Zero, Double3.Zero, new(0, SpinUpRate * stepEnd, 0), new(0, SpinUpRate, 0)));
+        Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
+        ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, SpinUpRate * stepEnd, 0), AngularAcceleration: new(0, SpinUpRate, 0)));
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -192,7 +192,7 @@ public class FrameTreeBeginStepTests
             HomePosition = new(1_000, 0, 0), Velocity = new(60, 0, 0), Radius = 2, Mass = 1, Character = true,
             OwnedFrame = ship
         };
-        frames.UpdateNumericFrames([hull], 0.1, Step, new(), _ => { });
+        frames.UpdateNumericFrames(bodies: [hull], dt: 0.1, step: Step, changes: new(), applyMoves: _ => { });
         frames.IsNumeric(frames.TreeParent(ship)).Should().BeTrue();
 
         frames.Update();
@@ -231,10 +231,10 @@ public class FrameTreeBeginStepTests
         // Fork F3: the rate of the step in flight is the row's angular velocity plus the record's angular acceleration times
         // the step, 0.25 + 0.125 / 60 rad/s about Y.
         FrameHandle ship = Frame(space, DPose.Identity, BodyMotion.Dynamic);
-        var record = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0.25, 0),
-            new(0, 0.125, 0));
+        var record = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0.25, 0),
+            AngularAcceleration: new(0, 0.125, 0));
         frames.Update();
-        frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(ship, record));
+        frames.TakeStepRecords(stepIntents: [], step: Step, owners: new StepOwners().WithHullRecord(ship, record));
 
         frames.Update();
         frames.BeginStep([], Step, lastStepFailed: false);
@@ -250,8 +250,8 @@ public class FrameTreeBeginStepTests
         FrameHandle ship = Frame(space, new(Double3.Zero, DQuaternion.FromAxisAngle(new(1, 2, 3), 0.7)),
             BodyMotion.Dynamic);
         frames.Update();
-        frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(ship, new(frames.TreeLocalPose(ship),
-            new(1, 0, 0), new(1, 0, 0), Double3.Zero, Double3.Zero, Double3.Zero)));
+        frames.TakeStepRecords(stepIntents: [], step: Step, owners: new StepOwners().WithHullRecord(ship, new(Pose: frames.TreeLocalPose(ship),
+            ChordVelocity: new(1, 0, 0), Velocity: new(1, 0, 0), Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero)));
 
         frames.Update();
         frames.BeginStep([], Step, lastStepFailed: false);
@@ -455,8 +455,8 @@ public class FrameTreeBeginStepTests
     {
         FrameHandle station = Frame(space, DPose.Identity);
         FrameHandle ship = Frame(space, DPose.Identity, BodyMotion.Dynamic);
-        var hullRecord = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0.25, 0),
-            new(0.5, 0, 0));
+        var hullRecord = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0.25, 0),
+            AngularAcceleration: new(0.5, 0, 0));
 
         RunStep(Intents((station, SpinningUp(End(1)))), owners: new StepOwners().WithHullRecord(ship, hullRecord));
 
@@ -473,12 +473,12 @@ public class FrameTreeBeginStepTests
     public void AFrameWhoseUpdateTheStepSkippedKeepsItsAngularAcceleration()
     {
         FrameHandle ship = Frame(space, DPose.Identity, BodyMotion.Dynamic);
-        var hullRecord = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0.25, 0),
-            new(0.5, 0, 0));
+        var hullRecord = new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0.25, 0),
+            AngularAcceleration: new(0.5, 0, 0));
         RunStep(Intents(), owners: new StepOwners().WithHullRecord(ship, hullRecord));
 
         frames.Update();
-        frames.TakeStepRecords([], Step, stepFailed: true);
+        frames.TakeStepRecords(stepIntents: [], step: Step, stepFailed: true);
 
         frames.AngularAcceleration(ship).Should().Be(new Double3(0.5, 0, 0));
     }
@@ -493,11 +493,11 @@ public class FrameTreeBeginStepTests
         FrameHandle room = Frame(station, new(new(10, 0, 0), DQuaternion.Identity));
         PhysicsIntent[] intents = Intents(
             (station,
-                new(new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0, 1),
-                    new(0, 0, 0.5)))),
-            (room, new(new MotionSample(new(new(10, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero,
-                Double3.Zero,
-                new(1, 0, 0), new(0, 2, 0)))));
+                new(new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0, 1),
+                    AngularAcceleration: new(0, 0, 0.5)))),
+            (room, new(new MotionSample(Pose: new(new(10, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: new(1, 0, 0), AngularAcceleration: new(0, 2, 0)))));
         RunStep(intents);
 
         frames.Reparent(room, space);
@@ -519,13 +519,13 @@ public class FrameTreeBeginStepTests
         FrameHandle ring = Frame(space, new(new(0, 50, 0), quarter));
         PhysicsIntent[] intents = Intents(
             (station,
-                new(new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0, 1),
-                    new(0, 0, 0.5)))),
-            (room, new(new MotionSample(new(new(10, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero,
-                Double3.Zero,
-                new(1, 0, 0), new(0, 2, 0)))),
-            (ring, new(new MotionSample(new(new(0, 50, 0), quarter), Double3.Zero, Double3.Zero, Double3.Zero,
-                new(0, 2, 0), new(1, 0, 0)))));
+                new(new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0, 1),
+                    AngularAcceleration: new(0, 0, 0.5)))),
+            (room, new(new MotionSample(Pose: new(new(10, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: new(1, 0, 0), AngularAcceleration: new(0, 2, 0)))),
+            (ring, new(new MotionSample(Pose: new(new(0, 50, 0), quarter), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+                AngularVelocity: new(0, 2, 0), AngularAcceleration: new(1, 0, 0)))));
         RunStep(intents);
 
         frames.Reparent(room, ring);
@@ -547,14 +547,14 @@ public class FrameTreeBeginStepTests
         FrameHandle station = Frame(ring, DPose.Identity);
         FrameHandle room = Frame(station, new(new(10, 0, 0), DQuaternion.Identity));
         PhysicsIntent[] intents = Intents(
-            (ring, new(new MotionSample(new(new(0, 50, 0), quarter), Double3.Zero, Double3.Zero, Double3.Zero,
-                new(0, 2, 0), new(1, 0, 0)))),
+            (ring, new(new MotionSample(Pose: new(new(0, 50, 0), quarter), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+                AngularVelocity: new(0, 2, 0), AngularAcceleration: new(1, 0, 0)))),
             (station,
-                new(new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, new(0, 0, 1),
-                    new(0, 0, 0.5)))),
-            (room, new(new MotionSample(new(new(10, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero,
-                Double3.Zero,
-                new(1, 0, 0), new(0, 2, 0)))));
+                new(new MotionSample(Pose: DPose.Identity, ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, 0, 1),
+                    AngularAcceleration: new(0, 0, 0.5)))),
+            (room, new(new MotionSample(Pose: new(new(10, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero,
+                Acceleration: Double3.Zero,
+                AngularVelocity: new(1, 0, 0), AngularAcceleration: new(0, 2, 0)))));
         RunStep(intents);
 
         frames.Reparent(room, space);
@@ -646,7 +646,7 @@ public class FrameTreeBeginStepTests
             Entity = new(100, 1), Semantic = station, Home = station, Position = place, HomePosition = place,
             Velocity = Double3.Zero, Radius = 0.5, Mass = 1, Kinematic = true
         };
-        frames.UpdateNumericFrames([ball], Step, Step, new(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [ball], dt: Step, step: Step, changes: new(), applyMoves: moves => home = moves.Single().To);
         frames.Anchors(home, ball.Entity).Should().BeTrue("a kinematic body 10,000 km out anchors a following frame");
 
         for (int k = 1; k <= 3; k++)
@@ -666,7 +666,7 @@ public class FrameTreeBeginStepTests
             frames.TreeLocalPose(home).Position.Should()
                 .Be(place, "the frame takes the plan's place, where its anchor stands");
             frames.LinearVelocity(home).Should().Be(Double3.Zero, "and the plan's chord");
-            frames.TakeStepRecords(Intents((station, Spin(End(k)))), Step);
+            frames.TakeStepRecords(stepIntents: Intents((station, Spin(End(k)))), step: Step);
         }
     }
 
@@ -680,7 +680,7 @@ public class FrameTreeBeginStepTests
             Entity = new(100, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves => home = moves.Single().To);
         frames.Numeric(home).Should().Be(NumericMode.Falling);
         frames.TreeLocalPose(home).Position.Should().Be(position);
         frames.TreeLinearVelocity(home).Should().Be(velocity);

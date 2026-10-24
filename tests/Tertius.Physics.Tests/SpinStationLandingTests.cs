@@ -49,10 +49,10 @@ public class SpinStationLandingTests
     private static readonly Double3 Omega = new(0, StationRate, 0);
 
     /// <summary>A person: a capsule with a half height of 0.6 m and a radius of 0.3 m, of 70 kg.</summary>
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>An undamped crate, a box of 1 m and 10 kg, so that its path is its inertial line until it lands.</summary>
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0,
         AngularDamping: 0);
 
     /// <summary>
@@ -93,17 +93,17 @@ public class SpinStationLandingTests
             Frame = space, AsFrame = new(FrameBounds.Sphere(150)),
             Body = floor == FloorKind.Interior
                 ? new BodyDesc(
-                    new CompoundShapeDesc([
+                    Shape: new CompoundShapeDesc([
                         .. Enumerable.Range(0, FloorFaces).Select(i => new CompoundChild(Slab, SlabPose(i).ToPose()))
                     ]),
-                    BodyMotion.Kinematic, InteriorShape: RingMesh())
+                    Motion: BodyMotion.Kinematic, InteriorShape: RingMesh())
                 : null
         };
-        Entity owner = world.Spawn(desc.Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true));
+        Entity owner = world.Spawn(desc.Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
         if (floor == FloorKind.Slabs)
             for (int i = 0; i < FloorFaces; i++)
-                world.Spawn(new() { Frame = frame, Pose = SlabPose(i), Body = new(Slab, BodyMotion.Static) });
+                world.Spawn(new() { Frame = frame, Pose = SlabPose(i), Body = new(Shape: Slab, Motion: BodyMotion.Static) });
         return new(space, frame);
     }
 
@@ -225,18 +225,18 @@ public class SpinStationLandingTests
         double radius = 60,
         FloorKind floor = FloorKind.Slabs)
     {
-        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        using World world = NewWorld(backend: out _, debugChecks: false, configure: options => options.NumericFrames = rules);
         Station station = SpawnStation(world, floor);
-        Entity crosser = SpawnCrosser(world, station, body, radius, thrusts: thrusts);
+        Entity crosser = SpawnCrosser(world: world, station: station, body: body, radius: radius, thrusts: thrusts);
         var crossing = new Crossing([]);
         for (int tick = 0; tick < seconds * world.Options.TickRate; tick++)
         {
             world.Tick();
             DPose pose = world.PoseIn(crosser, station.Frame);
             FrameHandle home = world.PhysicsHomeOf(crosser);
-            crossing.Moments.Add(new(pose.Position, Depth(pose, body.Motion == BodyMotion.Character),
-                world.Frames.IsNumeric(home),
-                world.VelocityIn(crosser, station.Frame).Length, world.VelocityIn(crosser, home).Length));
+            crossing.Moments.Add(new(Place: pose.Position, Depth: Depth(pose, body.Motion == BodyMotion.Character),
+                Falling: world.Frames.IsNumeric(home),
+                Speed: world.VelocityIn(crosser, station.Frame).Length, HomeSpeed: world.VelocityIn(crosser, home).Length));
             world.GetFrame(crosser).Should().Be(station.Frame, "the body stays inside the station");
         }
 
@@ -269,8 +269,8 @@ public class SpinStationLandingTests
     public void APersonWhoLeavesTheFloorAt50MetersPerSecondAcrossTheStationLandsOnTheFarSideAndStaysOnIt(
         FloorKind floor, bool numericFrames)
     {
-        Crossing crossing = Cross(numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, Person,
-            thrusts: false, seconds: 7, radius: 98, floor);
+        Crossing crossing = Cross(rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, body: Person,
+            thrusts: false, seconds: 7, radius: 98, floor: floor);
 
         int landing = crossing.Landing;
         landing.Should().BeGreaterThan(0, "the person reaches the floor");
@@ -297,7 +297,7 @@ public class SpinStationLandingTests
     public void APersonWhoLeavesTheFloorAt50MetersPerSecondCrossesNearTheAxisAndMeetsTheFarFloorAbove50MetersPerSecond(
         bool numericFrames)
     {
-        Crossing crossing = Cross(numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, Person,
+        Crossing crossing = Cross(rules: numericFrames ? new() : NumericFrameTesting.WithoutNumericFrames, body: Person,
             thrusts: false, seconds: 7, radius: 98);
 
         int landing = crossing.Landing;
@@ -322,8 +322,8 @@ public class SpinStationLandingTests
     [Fact]
     public void ACrateThatThrustsAndCrossesTheMiddleOfTheStationAt40MetersPerSecondLandsAsWithoutNumericFrames()
     {
-        Crossing numeric = Cross(new(), Crate, thrusts: true, seconds: 5);
-        Crossing plain = Cross(NumericFrameTesting.WithoutNumericFrames, Crate, thrusts: true, seconds: 5);
+        Crossing numeric = Cross(rules: new(), body: Crate, thrusts: true, seconds: 5);
+        Crossing plain = Cross(rules: NumericFrameTesting.WithoutNumericFrames, body: Crate, thrusts: true, seconds: 5);
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the crate reaches the floor");
@@ -367,8 +367,8 @@ public class SpinStationLandingTests
     {
         NumericFrameOptions falls = NumericFrameTesting.EveryGroupFalls with { LookaheadTime = 0 };
         BodyDesc body = person ? Person : Crate;
-        Crossing numeric = Cross(falls, body, thrusts: false, seconds: 5);
-        Crossing plain = Cross(NumericFrameTesting.WithoutNumericFrames, body, thrusts: false, seconds: 5);
+        Crossing numeric = Cross(rules: falls, body: body, thrusts: false, seconds: 5);
+        Crossing plain = Cross(rules: NumericFrameTesting.WithoutNumericFrames, body: body, thrusts: false, seconds: 5);
 
         int landing = plain.Landing;
         landing.Should().BeGreaterThan(0, "the body reaches the floor");
@@ -417,9 +417,9 @@ public class SpinStationLandingTests
         var logs = new List<CollisionLog> { new(), new(), new() };
         Entity[] bodies =
         [
-            SpawnCrosser(world, station, Person, height: -5, log: logs[0]),
-            SpawnCrosser(world, station, Crate, height: 0, thrusts: true, log: logs[1]),
-            SpawnCrosser(world, station, Crate, height: 5, log: logs[2])
+            SpawnCrosser(world: world, station: station, body: Person, height: -5, log: logs[0]),
+            SpawnCrosser(world: world, station: station, body: Crate, height: 0, thrusts: true, log: logs[1]),
+            SpawnCrosser(world: world, station: station, body: Crate, height: 5, log: logs[2])
         ];
 
         var lines = new List<string>();

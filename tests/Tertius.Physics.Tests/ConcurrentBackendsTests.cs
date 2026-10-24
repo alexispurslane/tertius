@@ -44,7 +44,7 @@ public sealed class ConcurrentBackendsTests
     /// </summary>
     private static ulong HeapAndCharacterRun()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         for (int i = 0; i < 24; i++)
@@ -53,7 +53,7 @@ public sealed class ConcurrentBackendsTests
         {
             Frame = ground,
             Pose = At(4, 0.91),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
         });
         for (int tick = 0; tick < Ticks; tick++)
             world.Tick();

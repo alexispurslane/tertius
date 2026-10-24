@@ -26,7 +26,7 @@ public class FrameTreeEffectiveGravityTests
     /// <summary>The angular acceleration of the station that spins up, in rad/s².</summary>
     private const double SpinUpRate = 0.5;
 
-    private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
+    private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);
     private static readonly GravityField StationField = GravityField.Uniform(new(0, -2, 0));
     private static readonly Double3 Rim = new(100, 0, 0);
 
@@ -36,11 +36,11 @@ public class FrameTreeEffectiveGravityTests
 
     public FrameTreeEffectiveGravityTests()
     {
-        space = frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        space = frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
     }
 
     private FrameHandle Station(GravityField? field = null) =>
-        frames.Create(new(nextOwner++, 1), space, DPose.Identity, FrameBounds.Sphere(1e5f), field ?? StationField);
+        frames.Create(frameOwner: new(nextOwner++, 1), parent: space, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e5f), field: field ?? StationField);
 
     /// <summary>The intents of a step in which the owner of <paramref name="frame"/> wrote <paramref name="move"/>, relative to the frame's parent.</summary>
     private PhysicsIntent[] Intents(FrameHandle frame, MotionIntent move)
@@ -55,7 +55,7 @@ public class FrameTreeEffectiveGravityTests
     {
         frames.Update();
         frames.BeginStep(intents, Step, lastStepFailed: false);
-        frames.TakeStepRecords(intents, Step, null);
+        frames.TakeStepRecords(stepIntents: intents, step: Step, owners: null);
     }
 
     /// <summary>The time at the end of step <paramref name="k"/>, the first step being 1, from a start at time 0.</summary>
@@ -66,8 +66,8 @@ public class FrameTreeEffectiveGravityTests
     /// <summary>The full sample of the step that ends at <paramref name="stepEnd"/> of a frame that spins up about +Y from rest at time 0, at
     /// <see cref="SpinUpRate"/>.</summary>
     private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
-        new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
-        Double3.Zero, Double3.Zero, Double3.Zero, new(0, SpinUpRate * stepEnd, 0), new(0, SpinUpRate, 0)));
+        Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),
+        ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: new(0, SpinUpRate * stepEnd, 0), AngularAcceleration: new(0, SpinUpRate, 0)));
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -169,7 +169,7 @@ public class FrameTreeEffectiveGravityTests
             Entity = new(100, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1
         };
-        frames.UpdateNumericFrames([body], 0.1, 0.1, new(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: moves => home = moves.Single().To);
         frames.Numeric(home).Should().Be(NumericMode.Falling);
         return home;
     }

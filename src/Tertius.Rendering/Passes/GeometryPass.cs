@@ -80,7 +80,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                     LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
                     StoreOp = AttachmentStoreOp.Store,
                     // Zero everywhere: distance 0 marks sky for the lighting pass.
-                    ClearValue = new(new ClearColorValue(0f, 0f, 0f, 0f))
+                    ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f))
                 };
             var depth = new RenderingAttachmentInfo
             {
@@ -114,7 +114,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             CommandRange commands = scene.Opaque[range];
             if (commands.Count > 0)
             {
-                PushDraw(context, scene.RangeViewProjection[range]);
+                PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
                 DrawIndirect(context, commands);
             }
 
@@ -129,8 +129,8 @@ internal sealed unsafe class GeometryPass : RenderPass
     {
         ulong offset = 0;
         Buffer vertexBuffer = context.Geometry.VertexBuffer.Handle;
-        context.Vk.CmdBindVertexBuffers(context.CommandBuffer, 0, 1, &vertexBuffer, &offset);
-        context.Vk.CmdBindIndexBuffer(context.CommandBuffer, context.Geometry.IndexBuffer.Handle, 0, IndexType.Uint32);
+        context.Vk.CmdBindVertexBuffers(commandBuffer: context.CommandBuffer, firstBinding: 0, bindingCount: 1, pBuffers: &vertexBuffer, pOffsets: &offset);
+        context.Vk.CmdBindIndexBuffer(commandBuffer: context.CommandBuffer, buffer: context.Geometry.IndexBuffer.Handle, offset: 0, indexType: IndexType.Uint32);
     }
 
     /// <summary>
@@ -141,16 +141,16 @@ internal sealed unsafe class GeometryPass : RenderPass
         PipelineLayout layout = default)
     {
         var push = new DrawPushConstants { ViewProj = viewProjection, Eye = new(eye, 1f) };
-        context.Vk.CmdPushConstants(context.CommandBuffer, layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
-            ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0, (uint)sizeof(DrawPushConstants), &push);
+        context.Vk.CmdPushConstants(commandBuffer: context.CommandBuffer, layout: layout.Handle != 0 ? layout : context.Layouts.SceneLayout,
+            stageFlags: ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, offset: 0, size: (uint)sizeof(DrawPushConstants), pValues: &push);
     }
 
     /// <summary>One multi-draw over a run of this frame's indirect commands.</summary>
     public static void DrawIndirect(FrameContext context, CommandRange commands)
     {
         uint stride = (uint)Unsafe.SizeOf<DrawIndexedIndirectCommand>();
-        context.Vk.CmdDrawIndexedIndirect(context.CommandBuffer, context.Frame.Commands.Buffer.Handle,
-            (ulong)commands.First * stride, (uint)commands.Count, stride);
+        context.Vk.CmdDrawIndexedIndirect(commandBuffer: context.CommandBuffer, buffer: context.Frame.Commands.Buffer.Handle,
+            offset: (ulong)commands.First * stride, drawCount: (uint)commands.Count, stride: stride);
         context.IndirectDrawCalls++;
     }
 

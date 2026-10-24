@@ -59,7 +59,7 @@ public sealed class ExitRun : IDisposable
         Cabin = World.GetOwnedFrame(Scene["shuttle"]);
         Start = Record(0);
         Entity person = Scene["person"];
-        World.Post(Event.Create(person, Entity.Null, new LeaveShip()));
+        World.Post(Event.Create(target: person, sender: Entity.Null, payload: new LeaveShip()));
         int after = -1;
         for (long tick = 1; tick <= 120 * 60 && after != 0; tick++)
         {
@@ -93,22 +93,22 @@ public sealed class ExitRun : IDisposable
             Station);
         Double3 sight = position - view.Position;
         var hits = new List<RayCastHit>();
-        backend.CastRay(Station, view.Position, sight.Normalized(), 0, sight.Length, new AllBut(person),
-            RayCastKind.Nearest, hits);
+        backend.CastRay(frame: Station, origin: view.Position, direction: sight.Normalized(), start: 0, end: sight.Length, filter: new AllBut(person),
+            kind: RayCastKind.Nearest, hits: hits);
         Entity copy = World.GetComponent<Passenger>(person)!.State.Value switch
         {
             Strapped strapped => strapped.Copy,
             Unstrapped unstrapped => unstrapped.Copy,
             _ => Entity.Null
         };
-        return new(tick, frame == Cabin, frame == Station, position, World.PoseIn(person, Cabin).Position,
-            World.VelocityIn(person, Station),
-            World.IsStanding(person), World.GetComponent<Disembark>(person)!.State,
-            World.GetComponent<Passenger>(person)!.State,
-            World.Frames.FeltGravity(Station, position).Length,
-            !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
-            pose.Rotation, view, hits.Count == 0,
-            pose.Rotation.Rotate(
+        return new(Tick: tick, InCabin: frame == Cabin, InStation: frame == Station, Position: position, InCabinAxes: World.PoseIn(person, Cabin).Position,
+            Velocity: World.VelocityIn(person, Station),
+            Standing: World.IsStanding(person), Exit: World.GetComponent<Disembark>(person)!.State,
+            Belt: World.GetComponent<Passenger>(person)!.State,
+            FeltGravity: World.Frames.FeltGravity(Station, position).Length,
+            CopyHeld: !copy.IsNull && World.IsAlive(copy) && World.Attachments.ParentOf(copy) == person,
+            Rotation: pose.Rotation, ChuteView: view, ChuteViewClear: hits.Count == 0,
+            Facing: pose.Rotation.Rotate(
                 (Double3)Vector3.Transform(-Vector3.UnitZ, World.GetRender(person).ViewOffset.Rotation)));
     }
 
@@ -401,8 +401,8 @@ public sealed class DisembarkTests(ExitRun run) : IClassFixture<ExitRun>
                 $"the camera is above the trough's open side at tick {s.Tick}");
             Double3.Distance(camera, s.Position).Should()
                 .BeInRange(1.5, 4, $"the camera keeps its distance at tick {s.Tick}");
-            double cover = Picture.Cover(s.ChuteView, new(s.Position, s.Rotation), DemoScenes.DemoSurface.PersonHalf,
-                run.World.VerticalFov);
+            double cover = Picture.Cover(view: s.ChuteView, body: new(s.Position, s.Rotation), half: DemoScenes.DemoSurface.PersonHalf,
+                verticalFov: run.World.VerticalFov);
             cover.Should().BeInRange(0.01, 0.3, $"the person fills part of the picture at tick {s.Tick}");
             for (int corner = 0; corner < 8; corner++)
             {
@@ -546,7 +546,7 @@ public sealed class DisembarkShortRunTests : IDisposable
     public void StandingAboveTheCeilingIsNoLandingAndTheSlideAsksForNoWalk()
     {
         FrameHandle station = world.GetOwnedFrame(scene["station"]);
-        world.Post(Event.Create(Person, Entity.Null, new LeaveShip()));
+        world.Post(Event.Create(target: Person, sender: Entity.Null, payload: new LeaveShip()));
         for (int i = 0; i < 120 * 60 && world.GetComponent<Disembark>(Person)!.State.Value is not Sliding; i++)
             world.Tick();
         world.GetComponent<Disembark>(Person)!.State.Value.Should().BeOfType<Sliding>();
@@ -593,7 +593,7 @@ public sealed class DisembarkShortRunTests : IDisposable
     [InlineData(nameof(Strolling))]
     public void TheExitHaltsWhenTheStationIsGone(string during)
     {
-        world.Post(Event.Create(Person, Entity.Null, new LeaveShip()));
+        world.Post(Event.Create(target: Person, sender: Entity.Null, payload: new LeaveShip()));
         for (int i = 0;
              i < 120 * 60 && world.GetComponent<Disembark>(Person)!.State.Value.GetType().Name != during;
              i++)

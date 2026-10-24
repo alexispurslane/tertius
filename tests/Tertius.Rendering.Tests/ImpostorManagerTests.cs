@@ -11,7 +11,7 @@ public sealed class ImpostorManagerTests
 {
     private const int Width = 1280, Height = 720;
     private const int Sphere = 1;
-    private static readonly MeshInfo[] Meshes = [new(0, 36, 0, MathF.Sqrt(0.75f)), new(36, 600, 24, 1f)];
+    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f)), new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f)];
     private static readonly MaterialId BallMaterial = new(0);
     private static readonly MaterialId OtherMaterial = new(1);
 
@@ -31,7 +31,7 @@ public sealed class ImpostorManagerTests
 
         public PreparedScene Run(RenderSnapshot snapshot)
         {
-            Batcher.Prepare(snapshot, 1f, Width, Height, Meshes, 8, Scene);
+            Batcher.Prepare(snapshot: snapshot, alpha: 1f, width: Width, height: Height, meshes: Meshes, materialCount: 8, scene: Scene);
             return Scene;
         }
 
@@ -58,22 +58,22 @@ public sealed class ImpostorManagerTests
 
     /// <summary>The key of a ball: its entity and part, the sphere mesh, and its material's slot.</summary>
     private static ImpostorKey Key(uint entity, ushort part = 0, MaterialId? material = null) =>
-        new(entity, part, Sphere, MaterialStore.Slot(material ?? BallMaterial));
+        new(EntityIndex: entity, Part: part, Mesh: Sphere, Material: MaterialStore.Slot(material ?? BallMaterial));
 
     private static RenderInstance Ball(uint entity, Vector3 position, Quaternion? rotation = null,
         RenderFlags flags = RenderFlags.None,
         Vector3? scale = null, ushort part = 0, MaterialId? material = null, HemisphereUp? hemisphere = null)
     {
-        RenderInstance ball = Gpu.Instance(new(Sphere), material ?? BallMaterial, position, scale ?? Vector3.One,
-            rotation, flags, entity: entity, part: part);
+        RenderInstance ball = Gpu.Instance(mesh: new(Sphere), material: material ?? BallMaterial, position: position, scale: scale ?? Vector3.One,
+            rotation: rotation, flags: flags, entity: entity, part: part);
         ball.Hemisphere = hemisphere ?? ball.Hemisphere;
         return ball;
     }
 
     /// <summary>An invisible sphere of <paramref name="radius"/> that casts a far shadow: a moon, for an eclipse.</summary>
     private static RenderInstance Moon(Vector3 center, float radius) =>
-        RenderInstance.Create(new(Sphere), BallMaterial, center, Quaternion.Identity, new(radius), 0, HemisphereUp.Even,
-            RenderFlags.CastsShadow, 9_999, 0);
+        RenderInstance.Create(mesh: new(Sphere), material: BallMaterial, position: center, rotation: Quaternion.Identity, scale: new(radius), boundingRadius: 0, hemisphere: HemisphereUp.Even,
+            flags: RenderFlags.CastsShadow, entityIndex: 9_999, part: 0);
 
     [Fact]
     public void ProjectedHeightIsTheDiameterOfTheSpheresImageAtTheCenterOfTheScreen()
@@ -81,10 +81,10 @@ public sealed class ImpostorManagerTests
         var camera = new CameraView { Height = Height, TanHalfY = MathF.Tan(Gpu.Fov / 2) };
         float distance = 12f, radius = 2f;
         // The tangent cone's half angle, projected: the image's top and bottom edges are at ±tan(asin(r / d)).
-        float top = Gpu.Project(new(0, distance * MathF.Tan(MathF.Asin(radius / distance)), -distance), Width, Height)
+        float top = Gpu.Project(point: new(0, distance * MathF.Tan(MathF.Asin(radius / distance)), -distance), width: Width, height: Height)
             .Y;
-        float bottom = Gpu.Project(new(0, -distance * MathF.Tan(MathF.Asin(radius / distance)), -distance), Width,
-            Height).Y;
+        float bottom = Gpu.Project(point: new(0, -distance * MathF.Tan(MathF.Asin(radius / distance)), -distance), width: Width,
+            height: Height).Y;
         ImpostorManager.ProjectedHeight(distance, radius, camera).Should().BeApproximately(bottom - top, 0.01f);
         ImpostorManager.ProjectedHeight(1.5f, 2f, camera).Should()
             .Be(float.PositiveInfinity, "the eye is inside the sphere");
@@ -102,7 +102,7 @@ public sealed class ImpostorManagerTests
         foreach ((float h, bool expected) in steps)
         {
             RenderSnapshot snapshot = Snapshot();
-            snapshot.Instances.Add(Ball(1, new(0, 0, -DistanceFor(h))));
+            snapshot.Instances.Add(Ball(entity: 1, position: new(0, 0, -DistanceFor(h))));
             PreparedScene scene = harness.Run(snapshot);
             harness.Status(1).Impostor.Should().Be(expected, "at {0} px", h);
             // An impostor with a capture leaves the mesh batch; geometry stays in it.
@@ -116,10 +116,10 @@ public sealed class ImpostorManagerTests
     {
         var harness = new Harness();
         RenderSnapshot snapshot = Snapshot();
-        snapshot.Instances.Add(Ball(1, new(-30, 0, -200), flags: RenderFlags.NoImpostor));
-        snapshot.Instances.Add(Ball(2, new(-10, 0, -200), flags: RenderFlags.Celestial));
-        snapshot.Instances.Add(Ball(3, new(10, 0, -200), flags: RenderFlags.Transparent));
-        snapshot.Instances.Add(Ball(4, new(30, 0, -200)));
+        snapshot.Instances.Add(Ball(entity: 1, position: new(-30, 0, -200), flags: RenderFlags.NoImpostor));
+        snapshot.Instances.Add(Ball(entity: 2, position: new(-10, 0, -200), flags: RenderFlags.Celestial));
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), flags: RenderFlags.Transparent));
+        snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
         PreparedScene scene = harness.Run(snapshot);
         scene.VisibleCount.Should().Be(3);
         harness.Manager.Draws.Length.Should().Be(1);
@@ -135,8 +135,8 @@ public sealed class ImpostorManagerTests
         // The same entity and part twice, as a faulty snapshot could have it.
         var harness = new Harness();
         RenderSnapshot snapshot = Snapshot();
-        snapshot.Instances.Add(Ball(5, new(-5, 0, -100)));
-        snapshot.Instances.Add(Ball(5, new(5, 0, -100)));
+        snapshot.Instances.Add(Ball(entity: 5, position: new(-5, 0, -100)));
+        snapshot.Instances.Add(Ball(entity: 5, position: new(5, 0, -100)));
         PreparedScene scene = harness.Run(snapshot);
         harness.Manager.Draws.Length.Should().Be(1);
         scene.VisibleCount.Should().Be(1);
@@ -153,8 +153,8 @@ public sealed class ImpostorManagerTests
         RenderSnapshot Scene(float rightDistance, MaterialId? leftMaterial = null)
         {
             RenderSnapshot snapshot = Snapshot();
-            snapshot.Instances.Add(Ball(1, left * far, part: 0, material: leftMaterial));
-            snapshot.Instances.Add(Ball(1, right * rightDistance, part: 1));
+            snapshot.Instances.Add(Ball(entity: 1, position: left * far, part: 0, material: leftMaterial));
+            snapshot.Instances.Add(Ball(entity: 1, position: right * rightDistance, part: 1));
             return snapshot;
         }
 
@@ -198,7 +198,7 @@ public sealed class ImpostorManagerTests
         var harness = new Harness();
         float distance = DistanceFor(height);
         RenderSnapshot snapshot = Snapshot(sun);
-        snapshot.Instances.Add(Ball(1, new(0, 0, -distance), hemisphere: hemisphere));
+        snapshot.Instances.Add(Ball(entity: 1, position: new(0, 0, -distance), hemisphere: hemisphere));
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the first sight of an impostor is captured");
         return (harness, distance);
@@ -233,12 +233,12 @@ public sealed class ImpostorManagerTests
         Vector3 At(float angle) =>
             Vector3.Transform(new(0, 0, -distance), Quaternion.CreateFromAxisAngle(Vector3.UnitY, angle));
 
-        CapturesAfter(harness, Ball(1, At(0.5f * limit))).Should().Be(0);
-        CapturesAfter(harness, Ball(1, At(0.95f * limit))).Should().Be(0);
-        CapturesAfter(harness, Ball(1, At(1.05f * limit))).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: At(0.5f * limit))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: At(0.95f * limit))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: At(1.05f * limit))).Should().Be(1);
         // Measured from the new capture now.
-        CapturesAfter(harness, Ball(1, At(1.95f * limit))).Should().Be(0);
-        CapturesAfter(harness, Ball(1, At(2.1f * limit))).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: At(1.95f * limit))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: At(2.1f * limit))).Should().Be(1);
     }
 
     [Fact]
@@ -251,14 +251,14 @@ public sealed class ImpostorManagerTests
         Vector3 position = new(0, 0, -distance);
         float limit = 2f / height;
         static Quaternion Turn(float angle) => Quaternion.CreateFromAxisAngle(Vector3.UnitY, angle);
-        CapturesAfter(harness, Ball(1, position, Turn(0.9f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ)
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, rotation: Turn(0.9f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ)
             .Should().Be(0);
-        CapturesAfter(harness, Ball(1, position, Turn(1.1f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ)
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, rotation: Turn(1.1f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ)
             .Should().Be(1);
 
         // A large roll about the view axis: no recapture, and the billboard turns with the object.
         Quaternion roll = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) * Turn(1.1f * limit);
-        CapturesAfter(harness, Ball(1, position, roll, hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ).Should()
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, rotation: roll, hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ).Should()
             .Be(0);
         ImpostorDraw draw = harness.Manager.Draws[0];
         float angle = MathF.Atan2(draw.Right.Y, draw.Right.X);
@@ -270,7 +270,7 @@ public sealed class ImpostorManagerTests
     {
         (Harness harness, float distance) = Captured(120f);
         var turned = Quaternion.CreateFromYawPitchRoll(0.2f, 0.15f, 0.3f);
-        CapturesAfter(harness, Ball(1, new(0, 0, -distance)), camera: turned).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: new(0, 0, -distance)), camera: turned).Should().Be(0);
     }
 
     [Fact]
@@ -284,8 +284,8 @@ public sealed class ImpostorManagerTests
             Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(SunDirection, Vector3.UnitX)), angle));
 
         float limit = 2f / height;
-        CapturesAfter(harness, Ball(1, position), sun: Sun(0.9f * limit)).Should().Be(0);
-        CapturesAfter(harness, Ball(1, position), sun: Sun(1.1f * limit)).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position), sun: Sun(0.9f * limit)).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position), sun: Sun(1.1f * limit)).Should().Be(1);
     }
 
     [Fact]
@@ -298,8 +298,8 @@ public sealed class ImpostorManagerTests
 
         // Distances whose r / d differ from the capture's by 0.9 and 1.1 times 2 / h (h barely changes over this step).
         float Closer(float factor) => 1f / (parallax + factor * 2f / height);
-        CapturesAfter(harness, Ball(1, new(0, 0, -Closer(0.9f)))).Should().Be(0);
-        CapturesAfter(harness, Ball(1, new(0, 0, -Closer(1.1f)))).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: new(0, 0, -Closer(0.9f)))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: new(0, 0, -Closer(1.1f)))).Should().Be(1);
     }
 
     [Fact]
@@ -309,19 +309,19 @@ public sealed class ImpostorManagerTests
         (Harness harness, float distance) = Captured(height);
         var position = new Vector3(0, 0, -distance);
         // The ambient total is small next to the sun (3 × white), so 0.5% of the sun is below 2 / h of the total.
-        CapturesAfter(harness, Ball(1, position), intensity: 3f * 1.005f).Should().Be(0);
-        CapturesAfter(harness, Ball(1, position), intensity: 3f * 1.5f).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position), intensity: 3f * 1.005f).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position), intensity: 3f * 1.5f).Should().Be(1);
 
         // An eclipse: a moon slides in front of the sun as seen from the object.
         RenderSnapshot snapshot = Snapshot(intensity: 3f * 1.5f);
-        snapshot.Instances.Add(Ball(1, position));
+        snapshot.Instances.Add(Ball(entity: 1, position: position));
         snapshot.Instances.Add(Moon(position + SunDirection * 50_000f, 1_000f));
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse changes the light that reaches the object");
 
         // Turning the sun off (a zero or negative intensity) is a lighting change too: the capture bakes no sunlight.
         RenderSnapshot clear = Snapshot(intensity: 3f * 1.5f);
-        clear.Instances.Add(Ball(1, position));
+        clear.Instances.Add(Ball(entity: 1, position: position));
         harness.Run(clear);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse is over");
         clear.Sun.Intensity = -1f;
@@ -340,15 +340,15 @@ public sealed class ImpostorManagerTests
 
         RenderInstance Tilted(float angle)
         {
-            RenderInstance ball = Ball(1, position);
+            RenderInstance ball = Ball(entity: 1, position: position);
             ball.Hemisphere =
                 HemisphereUp.Along(Vector3.Transform(Vector3.UnitY,
                     Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle)));
             return ball;
         }
 
-        CapturesAfter(harness, Tilted(0.05f)).Should().Be(0);
-        CapturesAfter(harness, Tilted(MathF.PI / 2)).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Tilted(0.05f)).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Tilted(MathF.PI / 2)).Should().Be(1);
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public sealed class ImpostorManagerTests
         (Harness harness, float distance) = Captured(80f, sun: Vector3.UnitZ);
         var roll = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f);
 
-        CapturesAfter(harness, Ball(1, new(0, 0, -distance), roll), sun: Vector3.UnitZ).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: new(0, 0, -distance), rotation: roll), sun: Vector3.UnitZ).Should().Be(1);
     }
 
     [Fact]
@@ -370,11 +370,11 @@ public sealed class ImpostorManagerTests
         (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new(0, -100, 0)));
         var position = new Vector3(0, 0, -distance);
 
-        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new(0, -99, 0)))).Should()
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, hemisphere: HemisphereUp.AwayFrom(new(0, -99, 0)))).Should()
             .Be(0, "a center that stays below leaves up where it was");
-        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.Along(Vector3.UnitY))).Should()
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, hemisphere: HemisphereUp.Along(Vector3.UnitY))).Should()
             .Be(0, "up away from a center below is up along +Y");
-        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new(-100, 0, 0)))).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, hemisphere: HemisphereUp.AwayFrom(new(-100, 0, 0)))).Should().Be(1);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public sealed class ImpostorManagerTests
         (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new(0, -0.5f, 0)));
         var position = new Vector3(0, 0, -distance);
 
-        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new(0.5f, 0, 0)))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position, hemisphere: HemisphereUp.AwayFrom(new(0.5f, 0, 0)))).Should().Be(0);
     }
 
     [Fact]
@@ -398,7 +398,7 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             snapshot.Ambient = new() { SkyColor = new(0.1f), GroundColor = new(0.1f), Intensity = 1 };
-            snapshot.Instances.Add(Ball(1, position, hemisphere: HemisphereUp.Along(up)));
+            snapshot.Instances.Add(Ball(entity: 1, position: position, hemisphere: HemisphereUp.Along(up)));
             return snapshot;
         }
 
@@ -422,16 +422,16 @@ public sealed class ImpostorManagerTests
             float spotTurn = 0f)
         {
             RenderSnapshot snapshot = Snapshot();
-            snapshot.Instances.Add(Ball(1, position));
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
             Vector3 lightPosition = position + lightOffset;
             Vector3 color = new(1f, 0.8f, 0.6f);
             // A point light has no direction. Only the spot light is turned.
             Vector3 direction = Vector3.Transform(Vector3.Normalize(position - lightPosition),
                 Quaternion.CreateFromAxisAngle(Vector3.UnitZ, spotTurn));
             snapshot.Lights.Add(spot
-                ? new SpotRenderLight(lightPosition, direction, color, intensity, range, InnerConeAngle: 0.3f,
+                ? new SpotRenderLight(Position: lightPosition, Direction: direction, Color: color, Intensity: intensity, Range: range, InnerConeAngle: 0.3f,
                     OuterConeAngle: 0.5f)
-                : new PointRenderLight(lightPosition, color, intensity, range));
+                : new PointRenderLight(Position: lightPosition, Color: color, Intensity: intensity, Range: range));
             return snapshot;
         }
 
@@ -441,19 +441,19 @@ public sealed class ImpostorManagerTests
             return harness.Manager.Captures.Length;
         }
 
-        Captures(Scene(new(2.5f, 1f, 0))).Should().Be(1);
-        Captures(Scene(new(2.5f, 1f, 0))).Should().Be(0);
+        Captures(Scene(lightOffset: new(2.5f, 1f, 0))).Should().Be(1);
+        Captures(Scene(lightOffset: new(2.5f, 1f, 0))).Should().Be(0);
         // The light goes around the object at the same distance: same irradiance, other direction.
-        Captures(Scene(new(-2.5f, 1f, 0))).Should().Be(1);
+        Captures(Scene(lightOffset: new(-2.5f, 1f, 0))).Should().Be(1);
         // It brightens.
-        Captures(Scene(new(-2.5f, 1f, 0), intensity: 8f)).Should().Be(1);
+        Captures(Scene(lightOffset: new(-2.5f, 1f, 0), intensity: 8f)).Should().Be(1);
         // It moves out of reach: the object loses its light. Out there, it can move without effect.
-        Captures(Scene(new(-9f, 1f, 0), intensity: 8f)).Should().Be(1);
-        Captures(Scene(new(-12f, 3f, 0), intensity: 8f)).Should().Be(0);
+        Captures(Scene(lightOffset: new(-9f, 1f, 0), intensity: 8f)).Should().Be(1);
+        Captures(Scene(lightOffset: new(-12f, 3f, 0), intensity: 8f)).Should().Be(0);
         // A spot light aimed at the object, then turned away from it.
-        Captures(Scene(new(0, 3f, 0), spot: true)).Should().Be(1);
-        Captures(Scene(new(0, 3f, 0), spot: true)).Should().Be(0);
-        Captures(Scene(new(0, 3f, 0), spot: true, spotTurn: 0.8f)).Should().Be(1);
+        Captures(Scene(lightOffset: new(0, 3f, 0), spot: true)).Should().Be(1);
+        Captures(Scene(lightOffset: new(0, 3f, 0), spot: true)).Should().Be(0);
+        Captures(Scene(lightOffset: new(0, 3f, 0), spot: true, spotTurn: 0.8f)).Should().Be(1);
     }
 
     [Fact]
@@ -464,9 +464,9 @@ public sealed class ImpostorManagerTests
         var position = new Vector3(0, 0, -distance);
         float extent = harness.Manager.Draws[0].Right.Length();
         // Uniform: the bounding radius grows with it, so r / d changes; keep r / d by moving away by the same factor.
-        CapturesAfter(harness, Ball(1, position * 1.5f, scale: new Vector3(1.5f))).Should().Be(0);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position * 1.5f, scale: new Vector3(1.5f))).Should().Be(0);
         harness.Manager.Draws[0].Right.Length().Should().BeApproximately(1.5f * extent, 0.001f);
-        CapturesAfter(harness, Ball(1, position * 1.5f, scale: new Vector3(1.5f, 1.5f, 1.8f))).Should().Be(1);
+        CapturesAfter(harness: harness, instance: Ball(entity: 1, position: position * 1.5f, scale: new Vector3(1.5f, 1.5f, 1.8f))).Should().Be(1);
     }
 
     [Fact]
@@ -480,8 +480,8 @@ public sealed class ImpostorManagerTests
             float h = 40f + 3f * i;
             float angle = (i % 10 - 4.5f) * 0.08f;
             float distance = DistanceFor(h);
-            snapshot.Instances.Add(Ball(i,
-                Vector3.Transform(new(0, 0, -distance),
+            snapshot.Instances.Add(Ball(entity: i,
+                position: Vector3.Transform(new(0, 0, -distance),
                     Quaternion.CreateFromYawPitchRoll(angle, ((int)(i / 10) - 2) * 0.06f, 0))));
         }
 
@@ -523,8 +523,8 @@ public sealed class ImpostorManagerTests
             {
                 var position = new Vector3((i - 2.5f) * 2f, 0, -DistanceFor(heights[i]));
                 // Object i turns i + 1 times as far: its error × h grows with i.
-                snapshot.Instances.Add(Ball((uint)i, position,
-                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn * (i + 1))));
+                snapshot.Instances.Add(Ball(entity: (uint)i, position: position,
+                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn * (i + 1))));
             }
 
             return snapshot;
@@ -559,14 +559,14 @@ public sealed class ImpostorManagerTests
         RenderSnapshot Scene(Vector3 position, uint crowdStart)
         {
             RenderSnapshot snapshot = Snapshot();
-            snapshot.Instances.Add(Ball(1, position));
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
             for (uint i = 0; i < 4; i++)
-                snapshot.Instances.Add(Ball(crowdStart + i, new((i - 1.5f) * 1.5f, 3f, -DistanceFor(190f))));
+                snapshot.Instances.Add(Ball(entity: crowdStart + i, position: new((i - 1.5f) * 1.5f, 3f, -DistanceFor(190f))));
             return snapshot;
         }
 
         RenderSnapshot first = Snapshot();
-        first.Instances.Add(Ball(1, At(far, 0f)));
+        first.Instances.Add(Ball(entity: 1, position: At(far, 0f)));
         harness.Run(first);
         harness.Status(1).Tile.Should().Be(0);
         // The object turns a little while it stays an impostor: the crowd takes the budget, so it keeps its stale
@@ -590,7 +590,7 @@ public sealed class ImpostorManagerTests
         scene.VisibleSpan.ToArray().Should().Contain(v => v.EntityIndex == 1, "it draws as geometry meanwhile");
         // With the budget free again it is recaptured and drawn in the same frame.
         RenderSnapshot alone = Snapshot();
-        alone.Instances.Add(Ball(1, At(far, 0.6f)));
+        alone.Instances.Add(Ball(entity: 1, position: At(far, 0.6f)));
         harness.Run(alone);
         harness.Manager.Captures[0].Tile.Should().Be(0);
         harness.Manager.Draws[0].Tile.Should().Be(0);
@@ -606,7 +606,7 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             foreach ((uint entity, float distance) in objects)
-                snapshot.Instances.Add(Ball(entity, new((entity - 4f) * 0.5f * (distance / 10f), 0, -distance)));
+                snapshot.Instances.Add(Ball(entity: entity, position: new((entity - 4f) * 0.5f * (distance / 10f), 0, -distance)));
             return snapshot;
         }
 
@@ -648,8 +648,8 @@ public sealed class ImpostorManagerTests
         var harness = new Harness(tiles: 1);
         float far = DistanceFor(100f);
         RenderSnapshot both = Snapshot();
-        both.Instances.Add(Ball(1, new(-3, 0, -far)));
-        both.Instances.Add(Ball(2, new(3, 0, -far)));
+        both.Instances.Add(Ball(entity: 1, position: new(-3, 0, -far)));
+        both.Instances.Add(Ball(entity: 2, position: new(3, 0, -far)));
         harness.Run(both);
         // One tile: entity 1 (first in order at equal priority) has it, entity 2 waits.
         harness.Status(1).Tile.Should().Be(0);
@@ -664,7 +664,7 @@ public sealed class ImpostorManagerTests
         // The key with a tile is kept, so its capture can be reused.
         harness.Manager.TryGetStatus(Key(1), out _).Should().BeTrue("a key that holds a tile is kept");
         RenderSnapshot again = Snapshot();
-        again.Instances.Add(Ball(1, new(-3, 0, -far)));
+        again.Instances.Add(Ball(entity: 1, position: new(-3, 0, -far)));
         harness.Run(again);
         harness.Manager.Captures.Length.Should().Be(0);
         harness.Manager.Draws.Length.Should().Be(1);
@@ -676,9 +676,9 @@ public sealed class ImpostorManagerTests
         var harness = new Harness();
         RenderSnapshot snapshot = Snapshot();
         // Straddles 2 km with its center beyond it; one in the middle range; one in the near range.
-        snapshot.Instances.Add(Ball(1, new(0, 0, -2_050f), scale: new Vector3(300f)));
-        snapshot.Instances.Add(Ball(2, new(0, 0, -50_000f), scale: new Vector3(300f)));
-        snapshot.Instances.Add(Ball(3, new(0, 0, -200f)));
+        snapshot.Instances.Add(Ball(entity: 1, position: new(0, 0, -2_050f), scale: new Vector3(300f)));
+        snapshot.Instances.Add(Ball(entity: 2, position: new(0, 0, -50_000f), scale: new Vector3(300f)));
+        snapshot.Instances.Add(Ball(entity: 3, position: new(0, 0, -200f)));
         harness.Run(snapshot);
         ImpostorDraw[] draws = harness.Manager.Draws.ToArray();
         draws.Should().HaveCount(3);
@@ -697,7 +697,7 @@ public sealed class ImpostorManagerTests
         Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, toward));
         Vector3 up = Vector3.Cross(toward, right);
         float tan = radius / MathF.Sqrt(distance * distance - radius * radius);
-        Matrix4x4 m = ImpostorPass.CaptureProjection(right, up, toward, distance, radius, tan);
+        Matrix4x4 m = ImpostorPass.CaptureProjection(right: right, up: up, toward: toward, distance: distance, radius: radius, tanHalfAngle: tan);
         Vector4 Clip(Vector3 p) => Vector4.Transform(new Vector4(p, 1), m);
 
         // The center maps to the tile's center, at relative depth 1 (clip w).
@@ -723,18 +723,18 @@ public sealed class ImpostorManagerTests
     {
         Vector3 sun = Vector3.UnitY;
         float sunRadius = 0.00467f;
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, []).Should().Be(1f);
+        Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: []).Should().Be(1f);
         // A planet straight toward the sun hides it; one off to the side does not.
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new(0, 1e7f, 0, 6e6f)]).Should()
+        Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: [new(x: 0, y: 1e7f, z: 0, w: 6e6f)]).Should()
             .BeApproximately(0f, 1e-6f);
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new(1e7f, 0, 0, 6e6f)]).Should().Be(1f);
+        Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: [new(x: 1e7f, y: 0, z: 0, w: 6e6f)]).Should().Be(1f);
         // A moon of the sun's angular size centered on it hides it all. Offset by one radius, the two discs overlap
         // in a lens of r² (2π/3 − √3/2), which leaves 1 − (2π/3 − √3/2) / π ≈ 0.609 of the sun.
         float moonDistance = 1e6f, moonRadius = moonDistance * MathF.Sin(sunRadius);
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new(0, moonDistance, 0, moonRadius)]).Should()
+        Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: [new(x: 0, y: moonDistance, z: 0, w: moonRadius)]).Should()
             .BeApproximately(0f, 1e-3f);
-        float partial = Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius,
-            [new(moonDistance * MathF.Tan(sunRadius), moonDistance, 0, moonRadius)]);
+        float partial = Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius,
+            occluders: [new(x: moonDistance * MathF.Tan(sunRadius), y: moonDistance, z: 0, w: moonRadius)]);
         partial.Should().BeApproximately(1f - (2f * MathF.PI / 3f - MathF.Sqrt(3f) / 2f) / MathF.PI, 0.005f);
     }
 
@@ -745,8 +745,8 @@ public sealed class ImpostorManagerTests
         const float sunRadius = 0.00467f;
         // The sphere's center lies 5 m toward the sun from a point inside it: its own caster's surface, or the ground of a
         // planet, which faces away from the sun at night anyway.
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new(0, 5, 0, 10)]).Should().Be(1f);
-        Eclipse.SunVisibility(new(0, -20, 0), sun, sunRadius, [new(0, 0, 0, 10)]).Should().BeApproximately(0f, 1e-6f);
+        Eclipse.SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: [new(x: 0, y: 5, z: 0, w: 10)]).Should().Be(1f);
+        Eclipse.SunVisibility(position: new(0, -20, 0), sunDirection: sun, sunAngularRadius: sunRadius, occluders: [new(x: 0, y: 0, z: 0, w: 10)]).Should().BeApproximately(0f, 1e-6f);
     }
 
     [Fact]
@@ -755,7 +755,7 @@ public sealed class ImpostorManagerTests
         var harness = new Harness();
         // A ball of 100 m radius, about 3.1 km away and 40 px tall: an impostor, and a far-shadow caster itself.
         var position = new Vector3(0, 0, -DistanceFor(40f, 100f));
-        RenderInstance ball = Ball(1, position, flags: RenderFlags.CastsShadow, scale: new Vector3(100f));
+        RenderInstance ball = Ball(entity: 1, position: position, flags: RenderFlags.CastsShadow, scale: new Vector3(100f));
         RenderSnapshot lit = Snapshot();
         lit.Instances.Add(ball);
         harness.Run(lit);
@@ -766,9 +766,9 @@ public sealed class ImpostorManagerTests
         // A planet comes between the ball and the sun.
         RenderSnapshot dark = Snapshot();
         dark.Instances.Add(ball);
-        dark.Instances.Add(RenderInstance.Create(new(Sphere), BallMaterial, position + SunDirection * 1e7f,
-            Quaternion.Identity,
-            new(6e6f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 9_998, 0));
+        dark.Instances.Add(RenderInstance.Create(mesh: new(Sphere), material: BallMaterial, position: position + SunDirection * 1e7f,
+            rotation: Quaternion.Identity,
+            scale: new(6e6f), boundingRadius: 0, hemisphere: HemisphereUp.Even, flags: RenderFlags.CastsShadow, entityIndex: 9_998, part: 0));
         harness.Run(dark);
 
         harness.Manager.Captures.Length.Should().Be(1, "the planet's shadow changes the light that reaches the ball");
@@ -781,7 +781,7 @@ public sealed class ImpostorManagerTests
         RenderSnapshot snapshot = Snapshot();
         snapshot.Instances.Add(Moon(new(0, 1e7f, 0), 1e6f));
         for (uint i = 0; i < 40; i++)
-            snapshot.Instances.Add(Ball(i, new((i % 8 - 3.5f) * 4f, (i / 8 - 2f) * 4f, -DistanceFor(60f + i))));
+            snapshot.Instances.Add(Ball(entity: i, position: new((i % 8 - 3.5f) * 4f, (i / 8 - 2f) * 4f, -DistanceFor(60f + i))));
         for (int i = 0; i < 20; i++)
             harness.Run(snapshot);
         // 16 impostors drawn with current captures, 24 waiting with no tile to take.

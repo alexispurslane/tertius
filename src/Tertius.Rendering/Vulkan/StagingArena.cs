@@ -29,15 +29,15 @@ internal sealed unsafe class StagingArena(VulkanDevice device, DeviceAllocator a
         if (current == null || aligned + size > current.Size)
         {
             ulong capacity = Math.Max(MinimumSize, Math.Max(size, current == null ? 0 : current.Size * 2));
-            current = GpuBuffer.Create(device, allocator, capacity, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload,
-                $"{name} staging {buffers.Count}");
+            current = GpuBuffer.Create(device: device, allocator: allocator, size: capacity, usage: BufferUsageFlags.TransferSrcBit, memoryUsage: MemoryUsage.Upload,
+                name: $"{name} staging {buffers.Count}");
             buffers.Add(current);
             aligned = 0;
         }
 
         offset = aligned + size;
         Used += size;
-        return new(current, aligned, current.Mapped + aligned, size);
+        return new(buffer: current, offset: aligned, pointer: current.Mapped + aligned, size: size);
     }
 
     /// <summary>Starts over. The frame that used this arena must be complete.</summary>
@@ -53,8 +53,8 @@ internal sealed unsafe class StagingArena(VulkanDevice device, DeviceAllocator a
             }
 
             buffers.Clear();
-            buffers.Add(GpuBuffer.Create(device, allocator, total, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload,
-                $"{name} staging"));
+            buffers.Add(GpuBuffer.Create(device: device, allocator: allocator, size: total, usage: BufferUsageFlags.TransferSrcBit, memoryUsage: MemoryUsage.Upload,
+                name: $"{name} staging"));
         }
 
         offset = 0;

@@ -25,7 +25,7 @@ public class DynamicHullRecordTests
     private static readonly double OrbitSpeed = Math.Sqrt(EarthMu / OrbitRadius);
 
     /// <summary>A hull of 10 m and 10 t that nothing slows down.</summary>
-    private static readonly BodyDesc Hull = new(new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
+    private static readonly BodyDesc Hull = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f, LinearDamping: 0,
         AngularDamping: 0);
 
     /// <summary>The gravity of the station in its own axes, in m/s², which acts on what is inside it.</summary>
@@ -61,7 +61,7 @@ public class DynamicHullRecordTests
 
     /// <summary>A ship in low orbit, 400 km above Earth, which falls in a numeric frame of its own within its first ticks.</summary>
     private static Entity ShipInOrbit(World world, FrameHandle earth) =>
-        Ship(world, earth, new(OrbitRadius, 0, 0), new(0, 0, OrbitSpeed), Hull, 20);
+        Ship(world: world, frame: earth, start: new(OrbitRadius, 0, 0), velocity: new(0, 0, OrbitSpeed), hull: Hull, bubble: 20);
 
     /// <summary>
     /// A station of 10 m whose frame physics drives, with a bubble of 200 m and the gravity <paramref name="stationGravity"/>
@@ -73,14 +73,14 @@ public class DynamicHullRecordTests
         {
             Frame = frame,
             Pose = new(Double3.Zero, StationTurn),
-            Body = new(new BoxShapeDesc(new(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(200), GravityField.Uniform(stationGravity))
         }));
 
     /// <summary>The hull of a ship of 8 m by 4 m by 2 m and 1 t, with the linear damping <paramref name="damping"/> and the angular damping
     /// <paramref name="angularDamping"/>.</summary>
     private static BodyDesc ShipHull(float damping, float angularDamping) =>
-        new(new BoxShapeDesc(new(2, 1, 4)), Mass: 1000, LinearDamping: damping, AngularDamping: angularDamping);
+        new(Shape: new BoxShapeDesc(new(2, 1, 4)), Mass: 1000, LinearDamping: damping, AngularDamping: angularDamping);
 
     /// <summary>
     /// A <see cref="TurnedStation"/> in <paramref name="frame"/>, and a ship with a bubble of 10 m that starts 260 m out
@@ -95,18 +95,18 @@ public class DynamicHullRecordTests
         Vector3 stationGravity, float shipDamping = 0, float shipAngularDamping = 0, Vector3 shipSpin = default)
     {
         FrameHandle station = TurnedStation(world, frame, stationGravity);
-        Entity ship = Ship(world, frame, new(260, 0, 0), Approach, ShipHull(shipDamping, shipAngularDamping), 10,
-            shipSpin);
+        Entity ship = Ship(world: world, frame: frame, start: new(260, 0, 0), velocity: Approach, hull: ShipHull(shipDamping, shipAngularDamping), bubble: 10,
+            spin: shipSpin);
         return (station, ship, world.GetOwnedFrame(ship));
     }
 
     private static World NewWorldWithoutNumericFrames(out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults, configure: options => options.NumericFrames = WithoutNumericFrames);
+        NewWorldWithFaults(faults: out faults, configure: options => options.NumericFrames = WithoutNumericFrames);
 
     [Fact]
     public void AShipThatFallsInANumericFrameReadsTheInstantVelocityOfItsOrbitInEarth()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle earth = Earth(world);
         var start = new Double3(OrbitRadius, 0, 0);
         var startVelocity = new Double3(0, 0, OrbitSpeed);
@@ -145,8 +145,8 @@ public class DynamicHullRecordTests
     [Fact]
     public void AShipInANumericFrameThatPhysicsPlacesFromTheTreeKeepsToTheOrbitOfAShipLeftAlone()
     {
-        using World placed = NewWorld(out _);
-        using World alone = NewWorld(out _);
+        using World placed = NewWorld(backend: out _);
+        using World alone = NewWorld(backend: out _);
         FrameHandle placedEarth = Earth(placed), aloneEarth = Earth(alone);
         KeplerOrbit orbit = KeplerOrbit.Circular(OrbitRadius);
         Entity placedShip = placed.Spawn(new SpawnDesc
@@ -156,12 +156,12 @@ public class DynamicHullRecordTests
             AsFrame = new(FrameBounds.Sphere(20))
         }.OnKeplerOrbit(placed, orbit));
         (Double3 start, Double3 startVelocity) = orbit.StateAt(alone.Time, EarthMu);
-        Entity aloneShip = Ship(alone, aloneEarth, start, startVelocity, Hull, 20);
+        Entity aloneShip = Ship(world: alone, frame: aloneEarth, start: start, velocity: startVelocity, hull: Hull, bubble: 20);
         Tick(placed, 3);
         Tick(alone, 3);
         placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Following);
 
-        placed.SetMotionNextTick(placedShip, BodyMotion.Dynamic, remove: placed.GetComponent<KeplerMotion>(placedShip));
+        placed.SetMotionNextTick(owner: placedShip, motion: BodyMotion.Dynamic, remove: placed.GetComponent<KeplerMotion>(placedShip));
         Tick(placed, 60);
         Tick(alone, 60);
         InFallingFrame(placed, placedShip).Should().BeTrue();
@@ -178,7 +178,7 @@ public class DynamicHullRecordTests
         using World world = NewWorldWithoutNumericFrames(out _);
         FrameHandle ground = Ground(world, 9.81f);
         (FrameHandle station, Entity ship, FrameHandle shipFrame) =
-            ShipThatFliesIntoAStation(world, ground, StationGravity);
+            ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
 
         // Both fall alike in the ground, so the ship flies at the station with one velocity until the end of the step in which
         // it enters, and then it falls in the station's gravity. A hand-off that added half a step of the ground's gravity,
@@ -208,7 +208,7 @@ public class DynamicHullRecordTests
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const float damping = 0.1f;
         (FrameHandle station, Entity ship, FrameHandle shipFrame) =
-            ShipThatFliesIntoAStation(world, space, Vector3.Zero, damping);
+            ShipThatFliesIntoAStation(world: world, frame: space, stationGravity: Vector3.Zero, shipDamping: damping);
 
         // With no gravity in space or in the station, the station rests, and the damping slows the ship by 0.17 % a tick, the same in space and in the
         // station. So its velocity in the station changes smoothly, by 1.5e-4 m/s from one change to the next. A hand-off
@@ -236,7 +236,7 @@ public class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
-        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, ground, StationGravity);
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: ground, stationGravity: StationGravity);
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 70);
 
@@ -253,7 +253,7 @@ public class DynamicHullRecordTests
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, space, Vector3.Zero,
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world: world, frame: space, stationGravity: Vector3.Zero,
             shipAngularDamping: 0.1f, shipSpin: new(0.5f, 0, 0));
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 80);
@@ -281,8 +281,8 @@ public class DynamicHullRecordTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         FrameHandle station = TurnedStation(world, space, Vector3.Zero);
-        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world, station, new(150, 0, 0), new(60, 0, 0),
-            ShipHull(0, 0.1f), 10, new(0.5f, 0, 0)));
+        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world: world, frame: station, start: new(150, 0, 0), velocity: new(60, 0, 0),
+            hull: ShipHull(0, 0.1f), bubble: 10, spin: new(0.5f, 0, 0)));
 
         TickUntil(world, () => world.Frames.Parent(shipFrame) == space, 120);
 

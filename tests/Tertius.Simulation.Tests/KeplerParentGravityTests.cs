@@ -341,7 +341,7 @@ public class KeplerParentGravityTests
         {
             Frame = s.Planet,
             AsFrame = new(FrameBounds.Sphere(10)),
-            Components = spins ? [new SpinMotion { Spin = new(DQuaternion.Identity, 0.1) }] : []
+            Components = spins ? [new SpinMotion { Spin = new(Tilt: DQuaternion.Identity, Rate: 0.1) }] : []
         }));
 
         s.T.World.Destroy(s.PlanetOwner);
@@ -370,7 +370,7 @@ public class KeplerParentGravityTests
         });
         FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(t.World.GetOwnedFrame(innerOwner))));
         t.Run(1);
-        t.SpawnWith(SendOnce.Of(outerOwner, new Destroy()), SendOnce.Of(innerOwner, new Destroy()));
+        t.SpawnWith(SendOnce.Of(target: outerOwner, payload: new Destroy()), SendOnce.Of(target: innerOwner, payload: new Destroy()));
 
         t.Run(2);
 

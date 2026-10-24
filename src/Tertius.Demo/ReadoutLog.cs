@@ -91,9 +91,9 @@ public sealed class ReadoutLog : IPlayback
         // The station's axis is its +Y through its center. The part of the offset along the axis leaves the part across it.
         DPose stationPose = world.PoseIn(station, earth);
         Double3 offset = position - stationPose.Position, axis = stationPose.Rotation.Rotate(Double3.UnitY);
-        rows.Add(new(name, world.TickNumber, position, world.VelocityIn(person, earth).Length,
-            offset.Length, (offset - axis * Double3.Dot(offset, axis)).Length, felt.Length, ThrowOf(world, 0),
-            ThrowOf(world, 1)));
+        rows.Add(new(Frame: name, Tick: world.TickNumber, Position: position, Speed: world.VelocityIn(person, earth).Length,
+            ToStation: offset.Length, Axis: (offset - axis * Double3.Dot(offset, axis)).Length, Felt: felt.Length, FirstThrow: ThrowOf(world, 0),
+            SecondThrow: ThrowOf(world, 1)));
         return true;
     }
 
@@ -124,7 +124,7 @@ public sealed class ReadoutLog : IPlayback
             new JoltPhysicsBackend(JoltBackendOptions.Unpaced));
         SceneInstance instance = scene.Build(world, RenderResources.None);
         var log = new ReadoutLog(world, instance);
-        ScriptRunner.Run(script, world, instance, outputFolder: null, log);
+        ScriptRunner.Run(script: script, world: world, scene: instance, outputFolder: null, playback: log);
         return log.Rows;
     }
 
@@ -173,9 +173,9 @@ public sealed class ReadoutLog : IPlayback
             if (cells.Length != Cells)
                 throw new FormatException($"Line {i + 1} of the readout log has {cells.Length} cells, not {Cells}.");
             double Number(int cell) => double.Parse(cells[cell], NumberStyles.Float, CultureInfo.InvariantCulture);
-            rows.Add(new(cells[0], long.Parse(cells[1], CultureInfo.InvariantCulture),
-                new(Number(2), Number(3), Number(4)), Number(5), Number(6), Number(7), Number(8),
-                ReadThrow(cells, 9), ReadThrow(cells, 19)));
+            rows.Add(new(Frame: cells[0], Tick: long.Parse(cells[1], CultureInfo.InvariantCulture),
+                Position: new(Number(2), Number(3), Number(4)), Speed: Number(5), ToStation: Number(6), Axis: Number(7), Felt: Number(8),
+                FirstThrow: ReadThrow(cells, 9), SecondThrow: ReadThrow(cells, 19)));
         }
 
         return rows;

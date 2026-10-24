@@ -11,7 +11,7 @@ namespace Tertius.Rendering;
 internal readonly record struct ImpostorKey(uint EntityIndex, ushort Part, int Mesh, uint Material)
 {
     public static ImpostorKey Of(in PreparedInstance instance) =>
-        new(instance.EntityIndex, instance.Part, instance.Mesh, instance.Material);
+        new(EntityIndex: instance.EntityIndex, Part: instance.Part, Mesh: instance.Mesh, Material: instance.Material);
 }
 
 /// <summary>A capture that <see cref="ImpostorPass"/> renders this frame: one object alone, into one atlas tile.</summary>
@@ -213,7 +213,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         }
 
         ref State state = ref states[slot];
-        status = new(state.Impostor, state.Tile, state.CapturedFrame, state.Height);
+        status = new(Impostor: state.Impostor, Tile: state.Tile, CapturedFrame: state.CapturedFrame, ProjectedHeight: state.Height);
         return true;
     }
 
@@ -309,7 +309,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 available--;
             }
 
-            RecordCapture(slot, visible[index], light, camera);
+            RecordCapture(slot: slot, instance: visible[index], light: light, camera: camera);
         }
     }
 
@@ -613,7 +613,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         {
             Vector3 position = instance.Position;
             Vector3 sun = HasSun
-                ? sunRadiance * Eclipse.SunVisibility(position, SunDirection, sunAngularRadius, occluders)
+                ? sunRadiance * Eclipse.SunVisibility(position: position, sunDirection: SunDirection, sunAngularRadius: sunAngularRadius, occluders: occluders)
                 : Vector3.Zero;
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
             Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
@@ -659,7 +659,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 }
             }
 
-            return new(sun, sky, ground, upInObject, local, direction);
+            return new(Sun: sun, Sky: sky, Ground: ground, Up: upInObject, Local: local, LocalDirection: direction);
         }
 
         private static float SmoothStep(float edge0, float edge1, float x)

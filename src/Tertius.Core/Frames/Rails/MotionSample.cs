@@ -36,11 +36,11 @@ public readonly record struct MotionSample(
     {
         Double3 place = Pose.Position;
         return new(
-            end.PoseToParent(Pose),
-            new StepPoses(start.Pose, end.Pose).ChordToParent(place, ChordVelocity, step),
-            end.VelocityToParent(place, Velocity),
-            end.AccelerationToParent(place, Velocity, Acceleration),
-            end.AngularToParent(AngularVelocity),
-            end.AngularAccelerationToParent(AngularAcceleration, AngularVelocity));
+            Pose: end.PoseToParent(Pose),
+            ChordVelocity: new StepPoses(start.Pose, end.Pose).ChordToParent(place, ChordVelocity, step),
+            Velocity: end.VelocityToParent(place, Velocity),
+            Acceleration: end.AccelerationToParent(place, Velocity, Acceleration),
+            AngularVelocity: end.AngularToParent(AngularVelocity),
+            AngularAcceleration: end.AngularAccelerationToParent(AngularAcceleration, AngularVelocity));
     }
 }

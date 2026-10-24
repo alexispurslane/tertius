@@ -12,7 +12,7 @@ public class FrameMotionAccelerationTests
 {
     // The frame moves at (0, 5, 0) and accelerates at (1, 0, 0). It turns at 2 rad/s about +Z and spins up at 3 rad/s².
     private static readonly FrameMotion QuarterTurned = new(
-        new(new(10, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
+        Pose: new(new(10, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
         Velocity: new(0, 5, 0),
         AngularVelocity: new(0, 0, 2),
         Acceleration: new(1, 0, 0),
@@ -56,11 +56,11 @@ public class FrameMotionAccelerationTests
 
         Double3 InParent(double t) =>
             framePlace + frameVelocity * t + frameAcceleration * (0.5 * t * t) +
-            AxesAt(spin, spinUp, startAxes, t).Rotate(place + velocity * t + acceleration * (0.5 * t * t));
+            AxesAt(spin: spin, spinUp: spinUp, start: startAxes, t: t).Rotate(place + velocity * t + acceleration * (0.5 * t * t));
 
         const double h = 1e-3;
         Double3 expected = (InParent(h) - InParent(0) * 2 + InParent(-h)) / (h * h);
-        var motion = new FrameMotion(new(framePlace, startAxes), frameVelocity, spin, frameAcceleration, spinUp);
+        var motion = new FrameMotion(Pose: new(framePlace, startAxes), Velocity: frameVelocity, AngularVelocity: spin, Acceleration: frameAcceleration, AngularAcceleration: spinUp);
 
         ExpectNear(motion.AccelerationToParent(place, velocity, acceleration), expected, 1e-5);
     }
@@ -111,7 +111,7 @@ public class FrameMotionAccelerationTests
         DQuaternion startOrientation = DQuaternion.FromAxisAngle(new(2, 1, -1), 0.3);
 
         DQuaternion OrientationInParent(double t) =>
-            AxesAt(spin, spinUp, startAxes, t) * AxesAt(bodySpin, bodySpinUp, startOrientation, t);
+            AxesAt(spin: spin, spinUp: spinUp, start: startAxes, t: t) * AxesAt(spin: bodySpin, spinUp: bodySpinUp, start: startOrientation, t: t);
 
         const double k = 1e-4, h = 1e-3;
 
@@ -119,7 +119,7 @@ public class FrameMotionAccelerationTests
             OrientationInParent(t - k).AngularVelocityTo(OrientationInParent(t + k), 2 * k);
 
         Double3 expected = (AngularVelocityAt(h) - AngularVelocityAt(-h)) / (2 * h);
-        var motion = new FrameMotion(new(new(40, -12, 3), startAxes), new(2, -7, 0.5), spin, Double3.Zero, spinUp);
+        var motion = new FrameMotion(Pose: new(new(40, -12, 3), startAxes), Velocity: new(2, -7, 0.5), AngularVelocity: spin, Acceleration: Double3.Zero, AngularAcceleration: spinUp);
 
         ExpectNear(motion.AngularAccelerationToParent(bodySpinUp, bodySpin), expected, 1e-5);
     }
@@ -149,7 +149,7 @@ public class FrameMotionAccelerationTests
     }
 
     private static FrameMotion GeneralMotion() => new(
-        new(new(40, -12, 3), DQuaternion.FromAxisAngle(new(1, -2, 0.5), 0.9)),
+        Pose: new(new(40, -12, 3), DQuaternion.FromAxisAngle(new(1, -2, 0.5), 0.9)),
         Velocity: new(2, -7, 0.5),
         AngularVelocity: new(0.1, 0.31321, -0.05),
         Acceleration: new(-0.3, 0.8, 1.1),

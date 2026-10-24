@@ -85,7 +85,7 @@ public sealed class BoxMeshTests
     /// face is flat (0.001 rad allows for rounding), and a point 1 cm in front of its center is outside the solid.
     /// </summary>
     private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside) =>
-        MeshChecks.ExpectFacingOut(mesh, inside, probe: 0.01f, maxNormalAngle: 0.001f);
+        MeshChecks.ExpectFacingOut(mesh: mesh, inside: inside, probe: 0.01f, maxNormalAngle: 0.001f);
 
     private static bool Within(BoundingBox box, Vector3 point) => box.Contains(point);
 
@@ -114,12 +114,12 @@ public sealed class BoxMeshTests
         });
 
     /// <summary>True if the line along X through (<paramref name="y"/>, <paramref name="z"/>) crosses a triangle.</summary>
-    private static bool LineAlongXHits(MeshData mesh, float y, float z) => LineHits(mesh, Vector3.UnitX, y, z);
+    private static bool LineAlongXHits(MeshData mesh, float y, float z) => LineHits(mesh: mesh, axis: Vector3.UnitX, u: y, v: z);
 
     /// <summary>True if the line along Z through (<paramref name="x"/>, <paramref name="y"/>) crosses a triangle that
     /// <paramref name="keep"/> accepts.</summary>
     private static bool LineAlongZHits(MeshData mesh, float x, float y, Func<Vector3, bool>? keep = null) =>
-        LineHits(mesh, Vector3.UnitZ, x, y, keep);
+        LineHits(mesh: mesh, axis: Vector3.UnitZ, u: x, v: y, keep: keep);
 
     [Fact]
     public void ABoxIsClosedAndFacesOut()
@@ -196,9 +196,9 @@ public sealed class BoxMeshTests
     {
         MeshData slab = SlabAcrossZWithWindow();
 
-        LineAlongZHits(slab, 0, 0.7f).Should().BeFalse();
-        LineAlongZHits(slab, 0, -1).Should().BeTrue();
-        LineAlongZHits(slab, 2.5f, 0.7f).Should().BeTrue();
+        LineAlongZHits(mesh: slab, x: 0, y: 0.7f).Should().BeFalse();
+        LineAlongZHits(mesh: slab, x: 0, y: -1).Should().BeTrue();
+        LineAlongZHits(mesh: slab, x: 2.5f, y: 0.7f).Should().BeTrue();
     }
 
     private static MeshData LongSlabWithRow()
@@ -227,7 +227,7 @@ public sealed class BoxMeshTests
             LineAlongXHits(slab, opening.Bounds.Center.Y, opening.Bounds.Center.Z).Should()
                 .BeFalse($"the line through {opening.Bounds.Center} goes through the opening");
         // Between the openings, above the lower ones and below the higher one, and at the slab's ends.
-        foreach ((float y, float z) in new (float, float)[]
+        foreach ((float y, float z) in new (float Y, float Z)[]
                  {
                      (0, -3), (0, 0.5f), (0, 3.5f), (1.3f, -1), (1.3f, 2), (-1, 4.5f), (1.8f, -4), (-1.9f, 0),
                      (0, -5.5f), (0, 5.5f)
@@ -261,9 +261,9 @@ public sealed class BoxMeshTests
         // (0.1, 0.1) is inside the window in the -Z wall, and on neither diagonal of the faces of the +Z wall, which has
         // no window. A line along the edge of a triangle crosses none, so the middle of the room, (0, 0), would prove
         // nothing: it is on the diagonals of both walls.
-        LineAlongZHits(hull, 0.1f, 0.1f, center => center.Z < 0).Should()
+        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z < 0).Should()
             .BeFalse("a line along the room goes out through the window in the -Z wall");
-        LineAlongZHits(hull, 0.1f, 0.1f, center => center.Z > 0).Should()
+        LineAlongZHits(mesh: hull, x: 0.1f, y: 0.1f, keep: center => center.Z > 0).Should()
             .BeTrue("the +Z wall has no window, so the same line meets both of its faces");
     }
 

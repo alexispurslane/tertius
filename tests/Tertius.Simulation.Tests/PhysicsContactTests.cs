@@ -25,7 +25,7 @@ public class PhysicsContactTests
     {
         public Scene()
         {
-            Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
             Faults = faults;
             FirstLog = new(EventMask.Of<Collision>());
             SecondLog = new(EventMask.Of<Collision>());
@@ -130,7 +130,7 @@ public class PhysicsContactTests
     [Fact]
     public void ABodyInAnotherFrameHearsThePointAndNormalInItsOwnFrame()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         var shipPose = new DPose(new(100, 0, 0), PoseChecks.QuarterTurnAboutY);
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
@@ -141,12 +141,12 @@ public class PhysicsContactTests
         {
             Frame = test.Root,
             Pose = shipPose,
-            Body = new(new BoxShapeDesc(new(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
             AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
             Components = [ownerLog]
         });
         FrameHandle ship = test.World.GetOwnedFrame(owner);
-        var crateBody = new BodyDesc(new BoxShapeDesc(new(0.5f)), LinearDamping: 0, AngularDamping: 0);
+        var crateBody = new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), LinearDamping: 0, AngularDamping: 0);
         Entity crate = test.World.Spawn(new()
             { Frame = ship, Pose = TestWorld.At(0, 0, 0), Body = crateBody, Components = [crateLog] });
 
@@ -176,7 +176,7 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(scene.First, scene.Second, FrameHandle.Null, new(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: FrameHandle.Null, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -190,7 +190,7 @@ public class PhysicsContactTests
         FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
         scene.Test.World.Destroy(gone.Entity);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(scene.First, scene.Second, gone, new(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.Second, Frame: gone, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -205,7 +205,7 @@ public class PhysicsContactTests
             { Frame = scene.Test.Root, Pose = TestWorld.At(0, 50), Body = WorldTesting.Ball() });
         scene.Test.World.Destroy(gone);
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(gone, scene.Second, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(A: gone, B: scene.Second, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -218,7 +218,7 @@ public class PhysicsContactTests
         using var scene = new Scene();
         Entity bodiless = scene.Test.SpawnAt(new(3, 0, 0));
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(scene.First, bodiless, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(A: scene.First, B: bodiless, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -230,7 +230,7 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutput = output =>
-            output.Contacts.Add(new(scene.First, scene.First, scene.Test.Root, new(1, 2, 3), Vector3.UnitX, 5));
+            output.Contacts.Add(new(A: scene.First, B: scene.First, Frame: scene.Test.Root, Point: new(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
 
         Action tick = scene.Test.World.Tick;
 
@@ -242,7 +242,7 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutputOfTick(0, output =>
-            output.Contacts.Add(new ContactStarted(scene.Second, scene.First, FrameHandle.Null, new Double3(1, 2, 3), Vector3.UnitX, 5)));
+            output.Contacts.Add(new ContactStarted(A: scene.Second, B: scene.First, Frame: FrameHandle.Null, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5)));
 
         scene.Test.Run(2);
 
@@ -260,7 +260,7 @@ public class PhysicsContactTests
         FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
         scene.Test.World.Destroy(gone.Entity);
         scene.Faults.EditOutputOfTick(0, output =>
-            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, new Double3(1, 2, 3), Vector3.UnitX, 5)));
+            output.Contacts.Add(new ContactStarted(A: scene.First, B: scene.Second, Frame: gone, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5)));
 
         scene.Test.Run(1);
 
@@ -276,14 +276,14 @@ public class PhysicsContactTests
     [Fact]
     public void AContactWithAnEntityThatNoLongerExistsIsReportedOnceAndReachesNeitherBody()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         var log = new Recorder(EventMask.Of<Collision>());
         Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = WorldTesting.Ball() });
         Entity survivor = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(0, 5), Body =
  WorldTesting.Ball(), Components = [log] });
         test.World.Destroy(gone);
         faults.EditOutputOfTick(0, output =>
-            output.Contacts.Add(new ContactStarted(gone, survivor, test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5)));
+            output.Contacts.Add(new ContactStarted(A: gone, B: survivor, Frame: test.Root, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5)));
 
         test.Run(2);
 
@@ -298,7 +298,7 @@ public class PhysicsContactTests
         var log = new Recorder(EventMask.Of<Collision>());
         Entity bodiless = scene.Test.SpawnAt(new Double3(3, 0, 0), log);
         scene.Faults.EditOutputOfTick(0, output =>
-            output.Contacts.Add(new ContactStarted(scene.First, bodiless, scene.Test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5)));
+            output.Contacts.Add(new ContactStarted(A: scene.First, B: bodiless, Frame: scene.Test.Root, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5)));
 
         scene.Test.Run(2);
 
@@ -312,7 +312,7 @@ public class PhysicsContactTests
     {
         using var scene = new Scene();
         scene.Faults.EditOutputOfTick(1, output =>
-            output.Contacts.Add(new ContactStarted(scene.First, scene.First, scene.Test.Root, new Double3(1, 2, 3), Vector3.UnitX, 5)));
+            output.Contacts.Add(new ContactStarted(A: scene.First, B: scene.First, Frame: scene.Test.Root, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5)));
 
         scene.Test.Run(3);
 
@@ -329,9 +329,9 @@ public class PhysicsContactTests
         scene.Test.World.Destroy(gone.Entity);
         scene.Faults.EditOutputOfTick(0, output =>
         {
-            output.Bodies.Add(new BodyState(scene.First, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
-            output.Bodies.Add(new BodyState(scene.Second, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
-            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, new Double3(1, 2, 3), Vector3.UnitX, 5));
+            output.Bodies.Add(new BodyState(Entity: scene.First, Frame: gone, Pose: TestWorld.At(9), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+            output.Bodies.Add(new BodyState(Entity: scene.Second, Frame: gone, Pose: TestWorld.At(9), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+            output.Contacts.Add(new ContactStarted(A: scene.First, B: scene.Second, Frame: gone, Point: new Double3(1, 2, 3), Normal: Vector3.UnitX, Impulse: 5));
         });
 
         scene.Test.Run(2);
@@ -350,7 +350,7 @@ public class PhysicsContactTests
         scene.Test.World.Destroy(gone.Entity);
         // The contact that Jolt sent is sound, but the same report puts the first body in a frame that is gone.
         scene.Faults.EditOutputOfTick(0, output =>
-            output.Bodies.Add(new BodyState(scene.First, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero)));
+            output.Bodies.Add(new BodyState(Entity: scene.First, Frame: gone, Pose: TestWorld.At(9), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero)));
 
         scene.Test.Run(2);
 
@@ -364,7 +364,7 @@ public class PhysicsContactTests
     [Fact]
     public void ABodyThatDestroysItselfInTheTickOfTheContactDoesNotStopItsPartnerFromHearingIt()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         var log = new Recorder(EventMask.Of<Collision>());
         Entity doomed = test.World.Spawn(new()
         {

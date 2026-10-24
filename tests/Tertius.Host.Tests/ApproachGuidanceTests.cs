@@ -38,7 +38,7 @@ public sealed class ApproachGuidanceTests
     {
         Double3 difference = GravityDifference(HoldPoint);
 
-        Double3 push = Glide.Push(HoldPoint, Double3.Zero, HoldPoint, difference);
+        Double3 push = Glide.Push(position: HoldPoint, velocity: Double3.Zero, target: HoldPoint, free: difference);
 
         Double3.Distance(push, -difference).Should().BeLessThan(1e-18);
         push.Length.Should().BeApproximately(1.93e-4, 1e-6);
@@ -83,7 +83,7 @@ public sealed class ApproachGuidanceTests
         Double3 velocity = Glide.WantedVelocity(shuttle, HoldPoint) - Double3.UnitY * 0.1;
         Double3 difference = GravityDifference(shuttle);
 
-        Double3 push = Glide.Push(shuttle, velocity, HoldPoint, difference);
+        Double3 push = Glide.Push(position: shuttle, velocity: velocity, target: HoldPoint, free: difference);
 
         Double3.Distance(push, Double3.UnitY * (0.1 / Glide.VelocityTime) - difference).Should().BeLessThan(1e-12);
     }
@@ -102,9 +102,9 @@ public sealed class ApproachGuidanceTests
         Double3 shuttle = HoldPoint + Double3.UnitX * distance;
         Double3 velocity = Double3.UnitX * speedAway;
 
-        Brake.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should()
+        Brake.Push(position: shuttle, velocity: velocity, target: HoldPoint, free: Double3.Zero).Length.Should()
             .BeLessThanOrEqualTo(Brake.MaxAcceleration + 1e-12);
-        Glide.Push(shuttle, velocity, HoldPoint, Double3.Zero).Length.Should()
+        Glide.Push(position: shuttle, velocity: velocity, target: HoldPoint, free: Double3.Zero).Length.Should()
             .BeLessThanOrEqualTo(Glide.MaxAcceleration + 1e-12);
     }
 
@@ -117,9 +117,9 @@ public sealed class ApproachGuidanceTests
     public void AtRestOnACoRotatingPathThePushIsThePullTowardTheAxis()
     {
         var center = new Double3(-6.09, 3, -5);
-        Double3 free = ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, Double3.Zero);
+        Double3 free = ApproachGuidance.FreeAcceleration(rate: Spin, centerOfMass: center, velocity: Double3.Zero, gravityDifference: Double3.Zero);
 
-        Double3 push = MoveOut.Push(center, Double3.Zero, center, free);
+        Double3 push = MoveOut.Push(position: center, velocity: Double3.Zero, target: center, free: free);
 
         double rate = DemoScenes.SpinStation.Rate, fromTheAxis = Math.Sqrt(center.X * center.X + center.Z * center.Z);
         Double3.Distance(push, -new Double3(center.X, 0, center.Z) * (rate * rate)).Should()
@@ -140,9 +140,9 @@ public sealed class ApproachGuidanceTests
         var velocity = new Double3(-0.5, 0, 0);
         var target = new Double3(-6.1, 3, -5.1);
 
-        Double3 turning = MoveOut.Push(onTheAxis, velocity, target,
-            ApproachGuidance.FreeAcceleration(Spin, onTheAxis, velocity, Double3.Zero));
-        Double3 still = MoveOut.Push(onTheAxis, velocity, target, Double3.Zero);
+        Double3 turning = MoveOut.Push(position: onTheAxis, velocity: velocity, target: target,
+            free: ApproachGuidance.FreeAcceleration(rate: Spin, centerOfMass: onTheAxis, velocity: velocity, gravityDifference: Double3.Zero));
+        Double3 still = MoveOut.Push(position: onTheAxis, velocity: velocity, target: target, free: Double3.Zero);
 
         Double3.Distance(turning - still, 2 * Double3.Cross(Spin, velocity)).Should().BeLessThan(1e-12);
         (turning - still).Length.Should().BeApproximately(0.313, 0.001);
@@ -158,10 +158,10 @@ public sealed class ApproachGuidanceTests
     {
         var center = new Double3(0.1, 150, -0.05);
         Double3 difference = GravityDifference(HoldPoint);
-        Double3 spinOnly = ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, Double3.Zero);
+        Double3 spinOnly = ApproachGuidance.FreeAcceleration(rate: Spin, centerOfMass: center, velocity: Double3.Zero, gravityDifference: Double3.Zero);
 
-        Double3 push = Glide.Push(center, Double3.Zero, center,
-            ApproachGuidance.FreeAcceleration(Spin, center, Double3.Zero, difference));
+        Double3 push = Glide.Push(position: center, velocity: Double3.Zero, target: center,
+            free: ApproachGuidance.FreeAcceleration(rate: Spin, centerOfMass: center, velocity: Double3.Zero, gravityDifference: difference));
 
         Double3.Distance(push, -spinOnly - difference).Should().BeLessThan(1e-15);
         difference.Length.Should().BeGreaterThan(1e-4,
@@ -179,9 +179,9 @@ public sealed class ApproachGuidanceTests
     {
         var center = new Double3(-6, 3, -5);
         var velocity = new Double3(0.5, 0, 0.5);
-        Double3 free = ApproachGuidance.FreeAcceleration(Spin, center, velocity, Double3.Zero);
+        Double3 free = ApproachGuidance.FreeAcceleration(rate: Spin, centerOfMass: center, velocity: velocity, gravityDifference: Double3.Zero);
 
-        Double3 push = MoveOut.Push(center, velocity, new(-6.7, 3, -5.7), free);
+        Double3 push = MoveOut.Push(position: center, velocity: velocity, target: new(-6.7, 3, -5.7), free: free);
 
         push.Length.Should().BeGreaterThan(MoveOut.MaxAcceleration + 0.3, "the cancelled terms come on top of the cap");
         (push + free).Length.Should().BeApproximately(MoveOut.MaxAcceleration, 1e-12, "the correction is capped");

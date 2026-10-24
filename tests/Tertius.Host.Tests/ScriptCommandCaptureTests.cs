@@ -32,7 +32,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                                      "steps": [ { "do": "capture", "name": "front" }, { "do": "dump", "name": "state" } ] }
                                    """);
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error);
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene], output: output, error: error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         Png.Load(Path.Combine(Out, "front.png")).IsRed(80, 45).Should()
@@ -48,8 +48,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }""");
         var made = new List<VulkanRenderer>();
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error,
-            options =>
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene], output: output, error: error,
+            createRenderer: options =>
             {
                 made.Add(VulkanRenderer.CreateHeadless(options));
                 return made[^1];
@@ -71,7 +71,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             ScriptFile(
                 """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }""");
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error);
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene], output: output, error: error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         Png.Load(Path.Combine(Out, "box-000000.png")).IsRed(80, 45).Should()
@@ -86,8 +86,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     {
         string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""");
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error,
-            _ => throw new InvalidOperationException("no Vulkan driver"));
+        int code = ScriptCommand.Run(args: ["--script", script, "--headless", "--out", Out], scenes: [LitBoxScene], output: output, error: error,
+            createRenderer: _ => throw new InvalidOperationException("no Vulkan driver"));
 
         code.Should().Be(ScriptCommand.ToolError);
         error.ToString().Should().Contain(script).And.Contain("no Vulkan driver");
@@ -100,8 +100,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         string root = RepositoryRoot();
 
         int code = ScriptCommand.Run(
-            ["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out], DemoScenes.All,
-            output, error);
+            args: ["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out], scenes: DemoScenes.All,
+            output: output, error: error);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         using JsonDocument landed = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));

@@ -47,7 +47,7 @@ public class EventListTests
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
 
-        list.Add(Event.Create(new Topic(3), Other, new Heal { Amount = 1 }));
+        list.Add(Event.Create(target: new Topic(3), sender: Other, payload: new Heal { Amount = 1 }));
 
         list.Count.Should().Be(1);
         list[0].Target.TryGetValue(out Topic topic).Should().BeTrue();
@@ -62,7 +62,7 @@ public class EventListTests
         EventList list = buffer.Begin(Owner);
 
         list.Add(new Damage());
-        list.Add(Event.Create(Owner, Other, new Heal()));
+        list.Add(Event.Create(target: Owner, sender: Other, payload: new Heal()));
 
         list.Mask.Contains<Damage>().Should().BeTrue();
         list.Mask.Contains<Heal>().Should().BeTrue();

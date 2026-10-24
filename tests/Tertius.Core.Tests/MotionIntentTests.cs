@@ -20,7 +20,7 @@ public class MotionIntentTests
         DQuaternion.FromAxisAngle(new Double3(1, 2, -1).Normalized(), 0.9));
 
     private static readonly MotionSample Sample = new(
-        new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
+        Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
         ChordVelocity: new(1, 2, 3), Velocity: new(1.5, 2.5, 3.5), Acceleration: new(-0.1, 0.2, 0.3),
         AngularVelocity: new(0.01, 0.02, 0.03), AngularAcceleration: new(0.001, -0.002, 0.003));
 
@@ -29,14 +29,14 @@ public class MotionIntentTests
     // conversion moves, turns and adds the frame's motion. The two ends differ far more than one step would make them, so a
     // part that converts by the wrong end misses by much more than rounding.
     private static readonly FrameMotion StartMotion = new(
-        new(new(7e6, 2e5, -3e5), DQuaternion.FromAxisAngle(new Double3(0.2, 1, 0.4).Normalized(), 1.1)),
+        Pose: new(new(7e6, 2e5, -3e5), DQuaternion.FromAxisAngle(new Double3(0.2, 1, 0.4).Normalized(), 1.1)),
         Velocity: new(-120, 7600, 35),
         AngularVelocity: new(0.001, 0.02, -0.003),
         Acceleration: Double3.Zero,
         AngularAcceleration: Double3.Zero);
 
     private static readonly FrameMotion EndMotion = new(
-        new(new(7e6 - 2, 2e5 + 127, -3e5 + 0.5),
+        Pose: new(new(7e6 - 2, 2e5 + 127, -3e5 + 0.5),
             DQuaternion.FromAxisAngle(new Double3(0.25, 1, 0.3).Normalized(), 1.2)),
         Velocity: new(-121, 7601, 36),
         AngularVelocity: new(0.002, 0.03, -0.004),
@@ -197,11 +197,11 @@ public class MotionIntentTests
         var spin = new Double3(0, rate, 0);
         DQuaternion endAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7);
         DQuaternion startAxes = DQuaternion.FromAxisAngle(Double3.UnitY, 0.7 - rate * Step);
-        var start = new FrameMotion(new(Double3.Zero, startAxes), Double3.Zero, spin, Double3.Zero, Double3.Zero);
-        var end = new FrameMotion(new(Double3.Zero, endAxes), Double3.Zero, spin, Double3.Zero, Double3.Zero);
+        var start = new FrameMotion(Pose: new(Double3.Zero, startAxes), Velocity: Double3.Zero, AngularVelocity: spin, Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
+        var end = new FrameMotion(Pose: new(Double3.Zero, endAxes), Velocity: Double3.Zero, AngularVelocity: spin, Acceleration: Double3.Zero, AngularAcceleration: Double3.Zero);
         var place = new Double3(100, 0, 0);
-        var atRest = new MotionSample(new(place, DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero, Double3.Zero);
+        var atRest = new MotionSample(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero,
+            AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
         new MotionIntent(atRest).Converted(start, end, Step).TryGetValue(out MotionSample sample).Should().BeTrue();
 

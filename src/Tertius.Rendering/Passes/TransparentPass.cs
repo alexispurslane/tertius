@@ -98,17 +98,17 @@ internal sealed unsafe class TransparentPass : RenderPass
             List<TransparentRun> runs = scene.Transparent[range];
             if (runs.Count == 0)
                 continue;
-            GeometryPass.PushDraw(context, scene.RangeViewProjection[range]);
+            GeometryPass.PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
             foreach (TransparentRun run in runs)
                 switch (run)
                 {
                     case MeshCommands(var commands):
-                        Bind(vk, commandBuffer, ref bound, pipeline);
+                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: pipeline);
                         GeometryPass.DrawIndirect(context, commands);
                         break;
                     case PuffSprites(var first, var count):
-                        Bind(vk, commandBuffer, ref bound, puffPipeline);
-                        vk.CmdDraw(commandBuffer, 6, (uint)count, 0, (uint)first);
+                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: puffPipeline);
+                        vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count, firstVertex: 0, firstInstance: (uint)first);
                         break;
                     default:
                         throw new UnreachableException(

@@ -16,7 +16,7 @@ public sealed class OutlinePassTests
     private static PreparedScene Collect(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(snapshot, alpha, 1600, 900, NoMeshes, 1, scene);
+        new SceneBatcher().Prepare(snapshot: snapshot, alpha: alpha, width: 1600, height: 900, meshes: NoMeshes, materialCount: 1, scene: scene);
         OutlinePass.Collect(snapshot, scene);
         return scene;
     }
@@ -89,7 +89,7 @@ public sealed class OutlinePassTests
 
         GpuOutline ellipsoid = records[0];
         (ellipsoid.Flags & GpuOutline.SphereFlag).Should().Be(0u);
-        ellipsoid.Rotation.Should().Be(new Vector4(turned.X, turned.Y, turned.Z, turned.W),
+        ellipsoid.Rotation.Should().Be(new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
             "an ellipsoid's rings lie in the principal planes of its frame");
         ellipsoid.Radii.Should().Be(new Vector3(4, 5, 6));
         foreach (GpuOutline sphere in records[1..])
@@ -97,7 +97,7 @@ public sealed class OutlinePassTests
             (sphere.Flags & GpuOutline.SphereFlag).Should().Be(GpuOutline.SphereFlag);
             sphere.Radii.Should().Be(new Vector3(3));
             // A numeric frame's outline has no axes of its own, so its rings lie in the axes of the camera's frame.
-            sphere.Rotation.Should().Be(new Vector4(0, 0, 0, 1));
+            sphere.Rotation.Should().Be(new Vector4(x: 0, y: 0, z: 0, w: 1));
         }
     }
 
@@ -116,7 +116,7 @@ public sealed class OutlinePassTests
         GpuOutline sphere = records[0];
         (sphere.Flags & GpuOutline.SphereFlag).Should()
             .Be(GpuOutline.SphereFlag, "a sphere seen from outside also draws its rim");
-        sphere.Rotation.Should().Be(new Vector4(turned.X, turned.Y, turned.Z, turned.W),
+        sphere.Rotation.Should().Be(new Vector4(x: turned.X, y: turned.Y, z: turned.Z, w: turned.W),
             "a bubble's rings lie in the principal planes of its frame");
         sphere.Radii.Should().Be(new Vector3(5));
         (records[1].Flags & GpuOutline.SphereFlag).Should().Be(0u);
@@ -189,11 +189,11 @@ public sealed class OutlinePassTests
         shown.Outlines.Add(new RestingOutline(new(0, 0, -20), 2));
         var scene = new PreparedScene();
         var batcher = new SceneBatcher();
-        batcher.Prepare(shown, 1, 1600, 900, NoMeshes, 1, scene);
+        batcher.Prepare(snapshot: shown, alpha: 1, width: 1600, height: 900, meshes: NoMeshes, materialCount: 1, scene: scene);
         OutlinePass.Collect(shown, scene);
 
         RenderSnapshot hidden = Empty();
-        batcher.Prepare(hidden, 1, 1600, 900, NoMeshes, 1, scene);
+        batcher.Prepare(snapshot: hidden, alpha: 1, width: 1600, height: 900, meshes: NoMeshes, materialCount: 1, scene: scene);
         OutlinePass.Collect(hidden, scene);
 
         scene.OutlineCount.Should().Be(0);

@@ -188,7 +188,7 @@ public class CollisionGroupTests
     [Fact]
     public void ABodyStartsInSolidWithTheMaskInAnySolid()
     {
-        var desc = new BodyDesc(new SphereShapeDesc(1));
+        var desc = new BodyDesc(Shape: new SphereShapeDesc(1));
 
         desc.CollisionGroups.Should().Be(CollisionGroups.Of(CollisionGroup.Solid));
         desc.CollisionMask.Should().Be(CollisionMask.Empty.InAny(CollisionGroup.Solid));
@@ -199,7 +199,7 @@ public class CollisionGroupTests
     {
         (CollisionGroup a, CollisionGroup b, CollisionGroup c) = ThreeGroups();
 
-        var desc = new BodyDesc(new SphereShapeDesc(1))
+        var desc = new BodyDesc(Shape: new SphereShapeDesc(1))
         {
             CollisionGroups = CollisionGroups.Of(a).And(b),
             CollisionMask = CollisionMask.Empty.InAny(b).InAny(c)
@@ -214,7 +214,7 @@ public class CollisionGroupTests
     [InlineData(BodyRole.OwnsRootFrame)]
     public void ABodyWhoseMaskHasAnAllOfPartIsRefused(BodyRole role)
     {
-        var desc = new BodyDesc(new BoxShapeDesc(new(1)))
+        var desc = new BodyDesc(Shape: new BoxShapeDesc(new(1)))
             { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) };
 
         desc.Problem(role).Should().Contain("all-of");
@@ -226,7 +226,7 @@ public class CollisionGroupTests
     [InlineData(BodyRole.OwnsRootFrame)]
     public void ABodyWhoseMaskHasANoneOfPartIsRefused(BodyRole role)
     {
-        var desc = new BodyDesc(new BoxShapeDesc(new(1)))
+        var desc = new BodyDesc(Shape: new BoxShapeDesc(new(1)))
             { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) };
 
         desc.Problem(role).Should().Contain("none-of");

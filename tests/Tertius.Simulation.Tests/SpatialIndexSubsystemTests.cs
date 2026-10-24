@@ -49,13 +49,13 @@ public class SpatialIndexSubsystemTests
         }
 
         public FrameHandle NewFrame(FrameHandle parent) =>
-            Frames.Create(new(nextOwnerSlot++, 1), parent, DPose.Identity, FrameBounds.Sphere(1e12f));
+            Frames.Create(frameOwner: new(nextOwnerSlot++, 1), parent: parent, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e12f));
 
         /// <summary>Makes an entity live at a position. The index does not know about it until <see cref="Settle"/>.</summary>
         public Entity Add(FrameHandle frame, Double3 position)
         {
             Entity entity = Entities.Reserve();
-            Entities.Activate(entity, RowAt(frame, position), new(), [], [], null, Vector3.Zero, FrameHandle.Null);
+            Entities.Activate(entity: entity, row: RowAt(frame, position), render: new(), components: [], wants: [], body: null, bodyCenterOfMass: Vector3.Zero, ownedFrame: FrameHandle.Null);
             return entity;
         }
 
@@ -75,7 +75,7 @@ public class SpatialIndexSubsystemTests
         public List<Entity> Find(FrameHandle frame, Double3 center, double radius)
         {
             var found = new List<Entity>();
-            Spatial.QueryRadius(frame, center, radius, found);
+            Spatial.QueryRadius(frame: frame, center: center, radius: radius, results: found);
             return found;
         }
 
@@ -86,7 +86,7 @@ public class SpatialIndexSubsystemTests
         public Entity[] InCellOrder(FrameHandle frame, Double3 center, double radius)
         {
             var into = new Entity[4096];
-            return into[..Spatial.CollectNear(frame, center, radius, into)];
+            return into[..Spatial.CollectNear(frame: frame, center: center, radius: radius, into: into)];
         }
 
         private static TransformRow RowAt(FrameHandle frame, Double3 position) =>
@@ -160,8 +160,8 @@ public class SpatialIndexSubsystemTests
         Entity[][] oneAtATime = [.. centers.Select(center => scene.Find(scene.Root, center, 60).ToArray())];
 
         var together = new Entity[centers.Length][];
-        Parallel.For(0, centers.Length, new() { MaxDegreeOfParallelism = 8 },
-            i => together[i] = [.. scene.Find(scene.Root, centers[i], 60)]);
+        Parallel.For(fromInclusive: 0, toExclusive: centers.Length, parallelOptions: new() { MaxDegreeOfParallelism = 8 },
+            body: i => together[i] = [.. scene.Find(scene.Root, centers[i], 60)]);
 
         for (int i = 0; i < centers.Length; i++)
             together[i].Should().Equal(oneAtATime[i], $"query {i}");
@@ -192,10 +192,10 @@ public class SpatialIndexSubsystemTests
         Entity leftover = new(77, 1);
         var results = new List<Entity> { leftover };
 
-        scene.Spatial.QueryRadius(scene.Root, Double3.Zero, 10, results);
+        scene.Spatial.QueryRadius(frame: scene.Root, center: Double3.Zero, radius: 10, results: results);
         results.Should().Equal(near);
 
-        scene.Spatial.QueryRadius(scene.Root, new(900, 0, 0), 10, results);
+        scene.Spatial.QueryRadius(frame: scene.Root, center: new(900, 0, 0), radius: 10, results: results);
         results.Should().BeEmpty("nothing is near the second center, and the first answer must not stay in the list");
     }
 
@@ -778,7 +778,7 @@ public class SpatialIndexSubsystemTests
         var scene = new Scene();
         var results = new List<Entity>();
 
-        Action query = () => scene.Spatial.QueryRadius(scene.Root, Double3.Zero, radius, results);
+        Action query = () => scene.Spatial.QueryRadius(frame: scene.Root, center: Double3.Zero, radius: radius, results: results);
 
         query.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("radius");
     }
@@ -788,7 +788,7 @@ public class SpatialIndexSubsystemTests
     {
         var scene = new Scene();
 
-        Action query = () => scene.Spatial.QueryRadius(FrameHandle.Null, Double3.Zero, 1, []);
+        Action query = () => scene.Spatial.QueryRadius(frame: FrameHandle.Null, center: Double3.Zero, radius: 1, results: []);
 
         query.Should().Throw<InvalidOperationException>();
     }
@@ -812,7 +812,7 @@ public class SpatialIndexSubsystemTests
     {
         var scene = new Scene();
 
-        Action query = () => scene.Spatial.QueryRadius(scene.Root, Double3.Zero, 1, null!);
+        Action query = () => scene.Spatial.QueryRadius(frame: scene.Root, center: Double3.Zero, radius: 1, results: null!);
 
         query.Should().Throw<ArgumentNullException>();
     }

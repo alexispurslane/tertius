@@ -31,7 +31,7 @@ public sealed class PngCaptureSinkTests : IDisposable
     {
         string path = Path.Combine(folder, "image.png");
 
-        Write(path, Pixels(), 3, 2);
+        Write(path: path, rgba: Pixels(), width: 3, height: 2);
 
         ImageResult png = Decode(path);
         png.Width.Should().Be(3);
@@ -45,9 +45,9 @@ public sealed class PngCaptureSinkTests : IDisposable
     [Fact]
     public void TheSinkMakesTheFolderOfItsFileWhenTheFolderIsMissing()
     {
-        string path = Path.Combine(folder, "a", "b", "image.png");
+        string path = Path.Combine(path1: folder, path2: "a", path3: "b", path4: "image.png");
 
-        Write(path, Pixels(), 3, 2);
+        Write(path: path, rgba: Pixels(), width: 3, height: 2);
 
         File.Exists(path).Should().BeTrue();
     }
@@ -58,7 +58,7 @@ public sealed class PngCaptureSinkTests : IDisposable
         string path = Path.Combine(folder, "image.png");
         File.WriteAllBytes(path, new byte[100_000]);
 
-        Write(path, Pixels(), 3, 2);
+        Write(path: path, rgba: Pixels(), width: 3, height: 2);
 
         new FileInfo(path).Length.Should().BeLessThan(1000,
             "the new image replaces the old file, with none of the old bytes left after it");

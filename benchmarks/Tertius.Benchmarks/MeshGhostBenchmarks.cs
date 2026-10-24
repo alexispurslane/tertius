@@ -47,14 +47,14 @@ public class MeshGhostBenchmarks
         Entity station = world.Spawn(new()
         {
             Frame = space,
-            Body = new(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+            Body = new(Shape: hull, Motion: BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
             AsFrame = new(FrameBounds.Sphere(3))
         });
         Entity shipOwner = world.Spawn(new()
         {
             Frame = space,
             Pose = At(12, 20, 0),
-            Body = new(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new SphereShapeDesc(1)),
             AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
             Components = ShipShuttles ? [new Shuttle()] : []
@@ -64,7 +64,7 @@ public class MeshGhostBenchmarks
             world.Spawn(new()
             {
                 Frame = ship, Pose = At(i % 10 * 1.5 - 7, -19.5, i / 10 * 1.5 - 7),
-                Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10)
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10)
             });
         // Three seconds: the boxes settle, and on the still ghost they fall asleep.
         for (int i = 0; i < 180; i++)

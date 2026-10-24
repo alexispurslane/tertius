@@ -33,7 +33,7 @@ public class WorldSleepTests
     [InlineData(0.1f, 40f, false)]
     public void ABodyLetGoAtRestOnARampMovesDownIt(float g, float degrees, bool ball)
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         double theta = degrees * Math.PI / 180;
         DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, -theta);
@@ -43,7 +43,7 @@ public class WorldSleepTests
         {
             Frame = ground,
             Pose = new(Double3.Zero, tilt),
-            Body = new(new BoxShapeDesc(new(80, 0.5f, 5)), BodyMotion.Static, Friction: ball ? 0.5f : 0f)
+            Body = new(Shape: new BoxShapeDesc(new(80, 0.5f, 5)), Motion: BodyMotion.Static, Friction: ball ? 0.5f : 0f)
         });
         Double3 start = normal * 1.0 - downhill * 60.0;
         Entity body = world.Spawn(new()
@@ -51,8 +51,8 @@ public class WorldSleepTests
             Frame = ground,
             Pose = new(start, ball ? DQuaternion.Identity : tilt),
             Body = ball
-                ? new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
-                : new BodyDesc(new BoxShapeDesc(new(0.5f)), Mass: 1, Friction: 0, LinearDamping: 0, AngularDamping: 0)
+                ? new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0, AngularDamping: 0)
+                : new BodyDesc(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1, Friction: 0, LinearDamping: 0, AngularDamping: 0)
         });
         double a = (ball ? 5.0 / 7.0 : 1.0) * g * Math.Sin(theta);
         double seconds = Math.Min(20, Math.Sqrt(2 * 50 / a));
@@ -76,13 +76,13 @@ public class WorldSleepTests
     [InlineData(0.1f)]
     public void ABoxThatHangsOverALedgeTipsOffIt(float g)
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground, top: -10);
         world.Spawn(new()
-            { Frame = ground, Pose = At(0, -0.5), Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Static) });
+            { Frame = ground, Pose = At(0, -0.5), Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static) });
         Entity box = world.Spawn(new()
-            { Frame = ground, Pose = At(2.1, 0.5), Body = new(new BoxShapeDesc(new(0.5f)), Mass: 1) });
+            { Frame = ground, Pose = At(2.1, 0.5), Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 1) });
 
         Tick(world, 1800);
 
@@ -102,7 +102,7 @@ public class WorldSleepTests
     [InlineData(0.01f)]
     public void ABoxLetGoInVeryWeakGravityFallsToTheFloor(float g)
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground);
         Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Cube() });
@@ -125,7 +125,7 @@ public class WorldSleepTests
     [InlineData(1f, 0.8f)]
     public void CargoThatFrictionCannotQuiteHoldSlidesTowardTheStern(float g, float thrust)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
@@ -134,7 +134,7 @@ public class WorldSleepTests
         Entity owner = world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: deck),
             AsFrame = new(FrameBounds.Sphere(100), GravityField.Uniform(new(0, -g, 0))),
             Components = [pilot]
@@ -162,13 +162,13 @@ public class WorldSleepTests
     [Fact]
     public void ABoxThatDriftsSlowlyWithoutGravityKeepsDrifting()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity box = world.Spawn(new()
         {
             Frame = space,
             LinearVelocity = new Vector3(0.02f, 0, 0),
-            Body = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0)
         });
 
         Tick(world, 600);
@@ -187,7 +187,7 @@ public class WorldSleepTests
     [InlineData(0.01f)]
     public void AStackOfFiveBoxesOnTheFloorFallsAsleepWithinTwoSeconds(float g)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground);
         var boxes = new List<Entity>();

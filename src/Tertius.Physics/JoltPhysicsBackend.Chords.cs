@@ -158,8 +158,8 @@ public sealed partial class JoltPhysicsBackend
         if (!turns.Turns)
             return null;
         FrameHandle semantic = frames.SemanticOf(home);
-        return new TurningMoment(turns.Last, frames.HomeOffset(home, semantic), frames.HomeVelocity(home, semantic),
-            frames.HomeAcceleration(home, semantic));
+        return new TurningMoment(Turn: turns.Last, HomeOffset: frames.HomeOffset(home, semantic), HomeVelocity: frames.HomeVelocity(home, semantic),
+            HomeAcceleration: frames.HomeAcceleration(home, semantic));
     }
 
     /// <summary>
@@ -174,9 +174,9 @@ public sealed partial class JoltPhysicsBackend
         if (!turns.Turns)
             return null;
         FrameHandle semantic = frames.SemanticOf(home);
-        return new TurningMoment(turns.Step, frames.HomeOffsetAfter(home, semantic, stepDt),
-            frames.HomeVelocityAfter(home, semantic, stepDt),
-            frames.HomeAcceleration(home, semantic));
+        return new TurningMoment(Turn: turns.Step, HomeOffset: frames.HomeOffsetAfter(home, semantic, stepDt),
+            HomeVelocity: frames.HomeVelocityAfter(home, semantic, stepDt),
+            HomeAcceleration: frames.HomeAcceleration(home, semantic));
     }
 
     /// <summary>
@@ -194,9 +194,9 @@ public sealed partial class JoltPhysicsBackend
         Contract.Requires(stepDt > 0);
         // The local instant velocity: relative to the home's instant velocity where the step starts, past its frame velocity.
         Double3 local = velocity - HomeInstantVelocityOverChordAtStart(home);
-        Double3 chord = local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt);
+        Double3 chord = local - ChordAcceleration(record: record, home: home, center: center, local: local) * (0.5 * stepDt);
         if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
-            chord += moment.ChordBehindChange(center, velocity, frames.LinearGravity(home, center), stepDt);
+            chord += moment.ChordBehindChange(center: center, velocity: velocity, linear: frames.LinearGravity(home, center), dt: stepDt);
         return chord.ToVector3();
     }
 
@@ -218,7 +218,7 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>.
     /// </summary>
     private Vector3 LinearChordAtStart(BodyRecord record, Double3 center, Double3 velocity) =>
-        LinearChord(record, record.Frame, center, velocity, StepStart(record.Frame));
+        LinearChord(record: record, home: record.Frame, center: center, velocity: velocity, turning: StepStart(record.Frame));
 
     private static Double3 CenterOfMass(BodyInterface bodies, BodyID id)
     {
@@ -274,7 +274,7 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
-        Contract.Requires(stepDt > 0);
+        Contract.Requires(stepDt > 0 && record.HasPrimary);
         // A plain kinematic body that a motion intent aimed moves as its step record says (see TryAimedRecord).
         if (TryAimedRecord(record, out MotionSample aimed))
             return aimed.Velocity + Double3.Cross(aimed.AngularVelocity, s.CenterOfMass - s.Pose.Position)
@@ -293,7 +293,7 @@ public sealed partial class JoltPhysicsBackend
                 if (StepEnd(record.Frame) is { } turning)
                     walked += turning.InstantAtEndChange(s.CenterOfMass, chord, stepDt);
                 return walked;
-            case BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body):
+            case BodyMotion.Dynamic when record.World.Bodies.IsActive(record.Body):
                 Double3 instant =
                     chord + (record.FrameAcceleration.Field - record.Material.LinearDamping * chord) * half
                           + HomeSteppedVelocityOverPlan(record.Frame);
@@ -314,10 +314,10 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private Vector3 InstantAngularVelocity(BodyRecord record, in BodySnapshot s)
     {
-        Contract.Requires(stepDt > 0);
+        Contract.Requires(stepDt > 0 && record.HasPrimary);
         if (TryAimedRecord(record, out MotionSample aimed))
             return aimed.AngularVelocity.ToVector3();
-        if (record.Motion != BodyMotion.Dynamic || !record.World!.Bodies.IsActive(record.Body))
+        if (record.Motion != BodyMotion.Dynamic || !record.World.Bodies.IsActive(record.Body))
             return s.Angular;
         Vector3 relative = !record.IsCharacter && StepEnd(record.Frame) is { } moment
             ? moment.Turn.InstantAngularAtEnd(s.Angular, stepDt).ToVector3()
@@ -362,21 +362,21 @@ public sealed partial class JoltPhysicsBackend
                 return (linear.ToVector3(), Vector3.Zero, Double3.Zero);
             var chordAcceleration = (Double3)frames.LinearGravity(to, fieldPlace).ToVector3();
             if (StepEnd(to) is { } turn)
-                chordAcceleration -= turn.ChordBehindChange(center, linear + HomeInstantVelocityOverChord(to),
-                    frames.LinearGravity(to, fieldPlace),
-                    stepDt) / half;
+                chordAcceleration -= turn.ChordBehindChange(center: center, velocity: linear + HomeInstantVelocityOverChord(to),
+                    linear: frames.LinearGravity(to, fieldPlace),
+                    dt: stepDt) / half;
             return ((local - chordAcceleration * half).ToVector3(), Vector3.Zero, chordAcceleration);
         }
 
         // The chord plus half a step of the acceleration is the local velocity again (see TryHullRecord). In a turning frame
         // the turn's part of the chord acts on the body's place at the end of the step, where the moment stands, and on its
         // instant velocity relative to the home's frame velocity after the step.
-        Double3 acceleration = ChordAcceleration(record, to, fieldPlace, local);
+        Double3 acceleration = ChordAcceleration(record: record, home: to, center: fieldPlace, local: local);
         TurningMoment? turning = StepEnd(to);
         if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
-            acceleration -= moment.ChordBehindChange(center, linear + HomeInstantVelocityOverChord(to),
-                frames.LinearGravity(to, fieldPlace),
-                stepDt) / half;
+            acceleration -= moment.ChordBehindChange(center: center, velocity: linear + HomeInstantVelocityOverChord(to),
+                linear: frames.LinearGravity(to, fieldPlace),
+                dt: stepDt) / half;
         return ((local - acceleration * half).ToVector3(), AngularChord(record, angular.ToVector3(), turning),
             acceleration);
     }
@@ -395,12 +395,12 @@ public sealed partial class JoltPhysicsBackend
             // The body may be gone again, or its entity may have a new body that waits here on its own.
             if (Find(record.Entity) != record || !record.HasPrimary || record.Motion != BodyMotion.Dynamic)
                 continue;
-            BodyInterface bodies = record.World!.Bodies;
+            BodyInterface bodies = record.World.Bodies;
             BodyID id = record.Body;
             bodies.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
             TurningMoment? turning = StepStart(record.Frame);
             bodies.SetLinearAndAngularVelocity(id,
-                LinearChord(record, record.Frame, CenterOfMass(bodies, id), linear, turning),
+                LinearChord(record: record, home: record.Frame, center: CenterOfMass(bodies, id), velocity: linear, turning: turning),
                 AngularChord(record, angular, turning));
         }
 
@@ -427,7 +427,7 @@ public sealed partial class JoltPhysicsBackend
     private FrameMotion InstantMotionOf(FrameHandle frame)
     {
         MotionSample record = StepRecordOf(frame);
-        return new(record.Pose, record.Velocity, record.AngularVelocity, record.Acceleration,
-            record.AngularAcceleration);
+        return new(Pose: record.Pose, Velocity: record.Velocity, AngularVelocity: record.AngularVelocity, Acceleration: record.Acceleration,
+            AngularAcceleration: record.AngularAcceleration);
     }
 }

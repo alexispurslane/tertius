@@ -29,8 +29,8 @@ public class BlueprintInheritanceTests
     public void AComponentTypeThatBothListKeepsTheParentsPlaceEvenIfTheChildListsItLater()
     {
         Blueprints blueprints = Soldiers();
-        blueprints.Register(new("veteran",
-            [new(typeof(Weapon), Fields(("Damage", 9f))), new(typeof(Health))],
+        blueprints.Register(new(Name: "veteran",
+            Components: [new(typeof(Weapon), Fields(("Damage", 9f))), new(typeof(Health))],
             Parent: "soldier"));
 
         blueprints.Resolve("veteran").Components.Select(c => c.Type).Should().Equal(typeof(Health), typeof(Weapon));
@@ -89,8 +89,8 @@ public class BlueprintInheritanceTests
     public void AChildCanSetAnInheritedFieldToNull()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new("parent", [new(typeof(Labelled), Fields(("Label", "parent label")))]));
-        blueprints.Register(new("child", [new(typeof(Labelled), Fields(("Label", null)))], Parent: "parent"));
+        blueprints.Register(new(Name: "parent", Components: [new(typeof(Labelled), Fields(("Label", "parent label")))]));
+        blueprints.Register(new(Name: "child", Components: [new(typeof(Labelled), Fields(("Label", null)))], Parent: "parent"));
 
         ((Labelled)blueprints.Instantiate("child")[0]).Label.Should().BeNull();
     }
@@ -99,9 +99,9 @@ public class BlueprintInheritanceTests
     public void AGrandchildMergesWithTheWholeChainOfItsAncestors()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new("a", [new(typeof(Labelled), Fields(("Label", "a"), ("Level", 1)))]));
-        blueprints.Register(new("b", [new(typeof(Labelled), Fields(("Level", 2)))], Parent: "a"));
-        blueprints.Register(new("c", [new(typeof(Radio)), new(typeof(Labelled), Fields(("Marks", new[] { 7 })))],
+        blueprints.Register(new(Name: "a", Components: [new(typeof(Labelled), Fields(("Label", "a"), ("Level", 1)))]));
+        blueprints.Register(new(Name: "b", Components: [new(typeof(Labelled), Fields(("Level", 2)))], Parent: "a"));
+        blueprints.Register(new(Name: "c", Components: [new(typeof(Radio)), new(typeof(Labelled), Fields(("Marks", new[] { 7 })))],
             Parent: "b"));
 
         IComponent[] components = blueprints.Instantiate("c");
@@ -121,8 +121,8 @@ public class BlueprintInheritanceTests
     {
         var blueprints = new Blueprints();
         var render = new RenderData { Mesh = new(2) };
-        blueprints.Register(new("hull", [], TestWorld.Ball, render, Outpost));
-        blueprints.Register(new("ship", [new(typeof(Radio))], Parent: "hull"));
+        blueprints.Register(new(Name: "hull", Components: [], Body: TestWorld.Ball, Render: render, Frame: Outpost));
+        blueprints.Register(new(Name: "ship", Components: [new(typeof(Radio))], Parent: "hull"));
 
         Blueprint ship = blueprints.Resolve("ship");
 
@@ -135,9 +135,9 @@ public class BlueprintInheritanceTests
     public void AChildsOwnBodyReplacesItsParents()
     {
         var blueprints = new Blueprints();
-        var lighter = new BodyDesc(new SphereShapeDesc(0.25f), Mass: 0.1f);
-        blueprints.Register(new("parent", [], TestWorld.Ball));
-        blueprints.Register(new("child", [], lighter, Parent: "parent"));
+        var lighter = new BodyDesc(Shape: new SphereShapeDesc(0.25f), Mass: 0.1f);
+        blueprints.Register(new(Name: "parent", Components: [], Body: TestWorld.Ball));
+        blueprints.Register(new(Name: "child", Components: [], Body: lighter, Parent: "parent"));
 
         blueprints.Resolve("child").Body.Should().BeSameAs(lighter);
     }
@@ -146,8 +146,8 @@ public class BlueprintInheritanceTests
     public void AChildsOwnRenderRowReplacesItsParents()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new("parent", [], Render: new RenderData { Mesh = new(1) }));
-        blueprints.Register(new("child", [], Render: new RenderData { Mesh = new(9) }, Parent: "parent"));
+        blueprints.Register(new(Name: "parent", Components: [], Render: new RenderData { Mesh = new(1) }));
+        blueprints.Register(new(Name: "child", Components: [], Render: new RenderData { Mesh = new(9) }, Parent: "parent"));
 
         blueprints.Resolve("child").Render!.Value.Mesh.Should().Be(new MeshId(9));
     }
@@ -157,8 +157,8 @@ public class BlueprintInheritanceTests
     {
         var blueprints = new Blueprints();
         var bigger = new FrameSpec(FrameBounds.Sphere(300));
-        blueprints.Register(new("parent", [], Frame: Outpost));
-        blueprints.Register(new("child", [], Frame: bigger, Parent: "parent"));
+        blueprints.Register(new(Name: "parent", Components: [], Frame: Outpost));
+        blueprints.Register(new(Name: "child", Components: [], Frame: bigger, Parent: "parent"));
 
         blueprints.Resolve("child").Frame.Should().BeSameAs(bigger);
     }
@@ -167,8 +167,8 @@ public class BlueprintInheritanceTests
     public void AParentWithNoBodyRenderRowOrFrameGivesItsChildNone()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new("crate", []));
-        blueprints.Register(new("big crate", [], Parent: "crate"));
+        blueprints.Register(new(Name: "crate", Components: []));
+        blueprints.Register(new(Name: "big crate", Components: [], Parent: "crate"));
 
         Blueprint bigCrate = blueprints.Resolve("big crate");
 
@@ -181,7 +181,7 @@ public class BlueprintInheritanceTests
     public void AChildOfAChildInheritsTheBodyOfTheFirstAncestorThatHasOne()
     {
         Blueprints blueprints = Soldiers();
-        blueprints.Register(new("recruit", [], Parent: "officer"));
+        blueprints.Register(new(Name: "recruit", Components: [], Parent: "officer"));
 
         blueprints.Resolve("recruit").Body.Should().BeSameAs(TestWorld.Ball);
     }

@@ -52,8 +52,8 @@ public sealed class FlipTests
     public void GreenAgainstBlueScoresTheLargestError()
     {
         // FLIP scales its color error by the distance of pure green from pure blue, so that pair scores 1.
-        FlipMap map = Flip.Compare(TestImages.Uniform(Size, Size, 0, 255, 0),
-            TestImages.Uniform(Size, Size, 0, 0, 255));
+        FlipMap map = Flip.Compare(TestImages.Uniform(width: Size, height: Size, r: 0, g: 255, b: 0),
+            TestImages.Uniform(width: Size, height: Size, r: 0, g: 0, b: 255));
 
         map.Values.Should().AllSatisfy(value => value.Should().BeApproximately(1f, 1e-4f));
     }
@@ -134,7 +134,7 @@ public sealed class FlipTests
         // White against gray 128 has the color error 0.84455, which is the score where neither image has an edge.
         // At column 16 the step has edge strength 1 − 0.21586 = 0.78414, so f = (0.78414 / √2)^0.5 = 0.74463, and the
         // score is 0.84455^0.25537 = 0.95777. Where the colors agree the score is 0, whatever the edges.
-        Capture step = TestImages.GrayWith(Size, 16, 128, (x, _) => x >= 16, 255);
+        Capture step = TestImages.GrayWith(width: Size, height: 16, value: 128, changed: (x, _) => x >= 16, changedValue: 255);
 
         FlipMap map = Flip.Compare(TestImages.Gray(Size, 16, 128), step, CoarseView);
 
@@ -152,7 +152,7 @@ public sealed class FlipTests
         // A line of gray 128 (linear light 0.21586) in column 16 of a black image. Gray 128 against black has the
         // color error 0.93389. At its center the line has point strength 0.21586 and edge strength 0, so
         // f = (0.21586 / √2)^0.5 = 0.39069, and the score is 0.93389^0.60931 = 0.95918.
-        Capture line = TestImages.GrayWith(Size, 16, 0, (x, _) => x == 16, 128);
+        Capture line = TestImages.GrayWith(width: Size, height: 16, value: 0, changed: (x, _) => x == 16, changedValue: 128);
 
         FlipMap map = Flip.Compare(TestImages.Gray(Size, 16, 0), line, CoarseView);
 

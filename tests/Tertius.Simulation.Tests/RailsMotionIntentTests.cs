@@ -23,7 +23,7 @@ public class RailsMotionIntentTests
     private const double FarStartTime = 1e9 + 0.1;
 
     /// <summary>A kinematic box of 1 m, the hull of a frame on rails.</summary>
-    private static readonly BodyDesc KinematicHull = new(new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
+    private static readonly BodyDesc KinematicHull = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Kinematic);
     // ---- The life of a full sample ------------------------------------------------------------------------------
 
     [Theory]
@@ -31,7 +31,7 @@ public class RailsMotionIntentTests
     [InlineData(true)]
     public void AFullSampleWrittenInATickMovesItsFrameInTheNextStep(bool withHull)
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle frame = SpawnFrame(test, body: withHull ? KinematicHull : null, components: WritesTheTickNumber());
 
         test.Run(1);
@@ -85,7 +85,7 @@ public class RailsMotionIntentTests
         Entity entity = test.World.Spawn(new()
         {
             Frame = steers ? test.Root : FrameHandle.Null,
-            Body = steers ? TestWorld.Ball : new(new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
+            Body = steers ? TestWorld.Ball : new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
             AsFrame = steers ? null : new FrameSpec(FrameBounds.Sphere(10)),
             Components =
             [
@@ -170,7 +170,7 @@ public class RailsMotionIntentTests
             Frame = test.Root,
             AsFrame = new(FrameBounds.Sphere(1e5f))
         }.OnKeplerOrbit(test.World, orbit)));
-        var sample = new MotionSample(new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
+        var sample = new MotionSample(Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
             ChordVelocity: new(1, 2, 3), Velocity: new(1.5, 2.5, 3.5), Acceleration: new(-0.1, 0.2, 0.3),
             AngularVelocity: new(0.01, 0.02, 0.03), AngularAcceleration: new(0.001, -0.002, 0.003));
         FrameHandle child = SpawnFrame(test, parent,
@@ -224,14 +224,14 @@ public class RailsMotionIntentTests
     [Fact]
     public void EachStepGetsTheMotionIntentsThatItAppliesInItsIntents()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle frame = SpawnFrame(test, components: WritesTheTickNumber());
 
         test.Run(3);
 
         faults.Moves.Where(record => record.Entity == frame.Entity).Should().Equal(
-            new MoveRecord(1, frame.Entity, test.Root, new(SampleOfTick(0))),
-            new MoveRecord(2, frame.Entity, test.Root, new(SampleOfTick(1))));
+            new MoveRecord(Tick: 1, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(0))),
+            new MoveRecord(Tick: 2, Entity: frame.Entity, Frame: test.Root, Move: new(SampleOfTick(1))));
     }
 
     // ---- What a sample must hold --------------------------------------------------------------------------------
@@ -286,7 +286,7 @@ public class RailsMotionIntentTests
     {
         using var test = new TestWorld();
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5);
-        var twiceAsLong = new DQuaternion(2 * turn.X, 2 * turn.Y, 2 * turn.Z, 2 * turn.W);
+        var twiceAsLong = new DQuaternion(X: 2 * turn.X, Y: 2 * turn.Y, Z: 2 * turn.Z, W: 2 * turn.W);
         MotionSample sample = SampleOfTick(3) with { Pose = new(new(3, 0, 0), twiceAsLong) };
         FrameHandle frame = SpawnFrame(test,
             components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
@@ -384,7 +384,7 @@ public class RailsMotionIntentTests
     [Fact]
     public void WithoutAMotionIntentThePoseAtTheNextStepStartIsTheRunningStepsTeleportOrThePoseNow()
     {
-        using TestWorld test = TestWorld.OnJolt(out _);
+        using TestWorld test = TestWorld.OnJolt(faults: out _);
         var seen = new List<DPose>();
         test.World.Spawn(new()
         {
@@ -454,12 +454,12 @@ public class RailsMotionIntentTests
 
     /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     private static MotionSample SampleOfTick(long tick) =>
-        new(new(new(tick, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero);
+        new(Pose: new(new(tick, 0, 0), DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero,
+            AngularAcceleration: Double3.Zero);
 
     /// <summary>A sample of a frame that stands still at <paramref name="place"/>, unturned.</summary>
     private static MotionSample StillAt(Double3 place) =>
-        new(new(place, DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        new(Pose: new(place, DQuaternion.Identity), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
     /// <summary>
     /// <see cref="SampleOfTick"/> of tick 0 with a value that is not a finite number in <paramref name="field"/>. The fields
@@ -471,7 +471,7 @@ public class RailsMotionIntentTests
         return field switch
         {
             "place" => sample with { Pose = new(new(0, 0, double.NaN), DQuaternion.Identity) },
-            "rotation" => sample with { Pose = new(Double3.Zero, new(0, 0, 0, double.PositiveInfinity)) },
+            "rotation" => sample with { Pose = new(Double3.Zero, new(X: 0, Y: 0, Z: 0, W: double.PositiveInfinity)) },
             "chord velocity" => sample with { ChordVelocity = new(0, double.NaN, 0) },
             "velocity" => sample with { Velocity = new(double.NegativeInfinity, 0, 0) },
             "acceleration" => sample with { Acceleration = new(0, 0, double.NaN) },

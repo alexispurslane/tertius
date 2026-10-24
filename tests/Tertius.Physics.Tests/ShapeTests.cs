@@ -9,12 +9,12 @@ public class ShapeTests
     [Fact]
     public void EveryShapeKindBuildsInJolt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A mesh floor: two triangles, wound so that they face up.
         var meshFloor = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)],
             [0, 2, 1, 0, 3, 2]);
-        world.Spawn(new() { Frame = ground, Pose = DPose.Identity, Body = new(meshFloor, BodyMotion.Static) });
+        world.Spawn(new() { Frame = ground, Pose = DPose.Identity, Body = new(Shape: meshFloor, Motion: BodyMotion.Static) });
 
         var shapes = new ShapeDesc[]
         {
@@ -39,7 +39,7 @@ public class ShapeTests
             {
                 Frame = ground,
                 Pose = new(new(i * 3 - 6, 2, 0), rotation),
-                Body = new(shapes[i], Mass: 2)
+                Body = new(Shape: shapes[i], Mass: 2)
             }));
         }
 

@@ -25,10 +25,10 @@ public class NumericFrameThresholdTests
     /// <summary>How many quiet ticks at 60 Hz end the thrust of a body: the first count of ticks of 1/60 s that reaches 20 s.</summary>
     private const int WindowTicks = 1200;
 
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0,
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0,
         AngularDamping: 0);
 
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>A root frame without gravity, with a bubble of 1,000 km.</summary>
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
@@ -64,7 +64,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void ACrateThrownAt60MetersPerSecondThroughEmptySpaceStaysInItsSemanticFramesOwnSystem()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity crate = CrateAt60MetersPerSecond(world, space);
 
@@ -86,7 +86,7 @@ public class NumericFrameThresholdTests
         double speed, bool falls)
     {
         NumericMode expected = falls ? NumericMode.Falling : NumericMode.None;
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity crate = world.Spawn(new() { Frame = space, LinearVelocity = new(speed, 0, 0), Body = Crate });
 
@@ -107,7 +107,7 @@ public class NumericFrameThresholdTests
     public void
         ACrateThatDriftsAt60MetersPerSecondWithAGentleThrustGetsAFallingFrameAtTheTickWhereItsThrustTimeReachesHalfASecond()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity crate = CrateAt60MetersPerSecond(world, space, new Thruster(CrateMass));
 
@@ -129,7 +129,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void ACrateThatAGentleImpulseOnEveryTickPushesThrustsLikeOneThatAForcePushes()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         Entity crate = CrateAt60MetersPerSecond(world, space, pilot);
@@ -154,7 +154,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void ACrateWhoseGentleThrustStopsLeavesItsFallingFrameTwentySecondsAfterItsLastTickOfThrust()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         var thruster = new Thruster(CrateMass);
         Entity crate = CrateAt60MetersPerSecond(world, space, thruster);
@@ -179,7 +179,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void AKinematicCrateWithAThrusterNeverThrusts()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity crate = world.Spawn(KinematicDrift.Drifting(new()
         {
@@ -200,7 +200,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void AWeightlessCharacterThatDriftsAt60MetersPerSecondFallsInANumericFrameFromItsFirstTickOn()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Space(world);
         Entity person = world.Spawn(new() { Frame = space, LinearVelocity = new(60, 0, 0), Body = Person });
 
@@ -226,7 +226,7 @@ public class NumericFrameThresholdTests
         Entity floor = world.Spawn(new()
         {
             Frame = planet, Pose = At(distance, -0.5),
-            Body = new(new BoxShapeDesc(new(50, 0.5f, 50)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static)
         });
         Entity crate = world.Spawn(new() { Frame = planet, Pose = At(distance, 0.5), Body = Crate });
         return (floor, crate);
@@ -240,7 +240,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void ACrateAtRestOnAFloor6371KilometersOutStaysInItsSemanticFramesOwnSystem()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         (_, Entity crate) = CrateOnFloor(world, planet, 6_371e3);
 
@@ -259,7 +259,7 @@ public class NumericFrameThresholdTests
     [Fact]
     public void ACrateAtRestOnAFloor10000KilometersOutSharesARestingFrameWithTheFloorAndStaysAtRestOnIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle planet = Planet(world);
         (Entity floor, Entity crate) = CrateOnFloor(world, planet, 10_000e3);
 

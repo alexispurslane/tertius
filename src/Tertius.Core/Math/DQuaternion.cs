@@ -13,7 +13,7 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     /// </summary>
     public const double UnitTolerance = 1e-12;
 
-    public static DQuaternion Identity => new(0, 0, 0, 1);
+    public static DQuaternion Identity => new(X: 0, Y: 0, Z: 0, W: 1);
 
     public readonly double LengthSquared => X * X + Y * Y + Z * Z + W * W;
 
@@ -25,18 +25,18 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     public readonly bool IsUnit => Math.Abs(LengthSquared - 1) <= UnitTolerance;
 
     public static DQuaternion operator *(DQuaternion a, DQuaternion b) => new(
-        a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
-        a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
-        a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
-        a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z);
+        X: a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
+        Y: a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
+        Z: a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
+        W: a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z);
 
     /// <summary>The inverse of a unit quaternion.</summary>
-    public readonly DQuaternion Conjugate() => new(-X, -Y, -Z, W);
+    public readonly DQuaternion Conjugate() => new(X: -X, Y: -Y, Z: -Z, W: W);
 
     public readonly DQuaternion Normalized()
     {
         double length = Math.Sqrt(LengthSquared);
-        return length > 0 ? new(X / length, Y / length, Z / length, W / length) : Identity;
+        return length > 0 ? new(X: X / length, Y: Y / length, Z: Z / length, W: W / length) : Identity;
     }
 
     /// <summary>
@@ -78,12 +78,12 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
         Double3 n = axis.Normalized();
         double half = angle * 0.5;
         double s = Math.Sin(half);
-        return new(n.X * s, n.Y * s, n.Z * s, Math.Cos(half));
+        return new(X: n.X * s, Y: n.Y * s, Z: n.Z * s, W: Math.Cos(half));
     }
 
-    public static DQuaternion FromQuaternion(Quaternion q) => new(q.X, q.Y, q.Z, q.W);
+    public static DQuaternion FromQuaternion(Quaternion q) => new(X: q.X, Y: q.Y, Z: q.Z, W: q.W);
 
-    public readonly Quaternion ToQuaternion() => Quaternion.Normalize(new((float)X, (float)Y, (float)Z, (float)W));
+    public readonly Quaternion ToQuaternion() => Quaternion.Normalize(new(x: (float)X, y: (float)Y, z: (float)Z, w: (float)W));
 
     /// <summary>Normalized linear interpolation along the shorter arc.</summary>
     public static DQuaternion Nlerp(DQuaternion a, DQuaternion b, double t)
@@ -91,10 +91,10 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
         double dot = a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W;
         double sign = dot < 0 ? -1 : 1;
         return new DQuaternion(
-            a.X + (sign * b.X - a.X) * t,
-            a.Y + (sign * b.Y - a.Y) * t,
-            a.Z + (sign * b.Z - a.Z) * t,
-            a.W + (sign * b.W - a.W) * t).Normalized();
+            X: a.X + (sign * b.X - a.X) * t,
+            Y: a.Y + (sign * b.Y - a.Y) * t,
+            Z: a.Z + (sign * b.Z - a.Z) * t,
+            W: a.W + (sign * b.W - a.W) * t).Normalized();
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     {
         DQuaternion delta = (to * Conjugate()).Normalized();
         if (delta.W < 0)
-            delta = new(-delta.X, -delta.Y, -delta.Z, -delta.W);
+            delta = new(X: -delta.X, Y: -delta.Y, Z: -delta.Z, W: -delta.W);
         var axis = new Double3(delta.X, delta.Y, delta.Z);
         double sinHalf = axis.Length;
         if (sinHalf < 1e-15)

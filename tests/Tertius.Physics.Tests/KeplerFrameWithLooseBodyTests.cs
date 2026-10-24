@@ -92,7 +92,7 @@ public class KeplerFrameWithLooseBodyTests
     /// <summary>A planet with the G·M of Earth, and a frame on a circular orbit around it whose bubble is 50 m in radius.</summary>
     private static (World World, FrameHandle Planet, FrameHandle Ship) PlanetWithShip()
     {
-        World world = NewWorld(out _);
+        World world = NewWorld(backend: out _);
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e9f), GravityField.Point(PlanetMu)));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -123,7 +123,7 @@ public class KeplerFrameWithLooseBodyTests
                 Frame = ship,
                 Pose = At(30),
                 LinearVelocity = new Vector3(2, 0, 0),
-                Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
+                Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
             });
             TickUntil(world, () => world.GetFrame(ball) == planet, 2000);
             world.GetFrame(ball).Should().Be(planet, "the ball left the bubble of the frame");
@@ -160,7 +160,7 @@ public class KeplerFrameWithLooseBodyTests
                 Frame = planet,
                 Pose = new(ballStart, DQuaternion.Identity),
                 LinearVelocity = arc.Rotate(world.Frames.LinearVelocity(ship)).ToVector3(),
-                Body = new(new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
+                Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, LinearDamping: 0)
             });
 
             Tick(world, (int)(Seconds / Dt));

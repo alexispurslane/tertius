@@ -58,9 +58,9 @@ internal sealed record YardSample(
     {
         var numericFrames = new List<NumericFrameSample>();
         AddNumericFrames(world.Frames, world.GetOwnedFrame(scene["space"]), numericFrames);
-        return new(world.TickNumber, world.Time,
-            BodyIds.ToDictionary(id => id, id => DeepYardBody.Take(world, scene[id])),
-            numericFrames, [.. world.Errors]);
+        return new(Tick: world.TickNumber, Time: world.Time,
+            Bodies: BodyIds.ToDictionary(id => id, id => DeepYardBody.Take(world, scene[id])),
+            NumericFrames: numericFrames, Errors: [.. world.Errors]);
     }
 
     private static void AddNumericFrames(FrameTree tree, FrameHandle frame, List<NumericFrameSample> numericFrames)
@@ -70,8 +70,8 @@ internal sealed record YardSample(
         foreach (FrameHandle child in children)
         {
             if (tree.IsNumeric(child))
-                numericFrames.Add(new(child, tree.Numeric(child), tree.TreeParent(child),
-                    tree.TreeLocalPose(child).Position));
+                numericFrames.Add(new(Frame: child, Mode: tree.Numeric(child), TreeParent: tree.TreeParent(child),
+                    Place: tree.TreeLocalPose(child).Position));
             AddNumericFrames(tree, child, numericFrames);
         }
     }
@@ -115,11 +115,11 @@ internal sealed record DeepYardBody(
         FrameHandle frame = world.GetFrame(entity), home = world.PhysicsHomeOf(entity), nest = home;
         while (!nest.IsNull && world.Frames.Numeric(nest) != NumericMode.Nesting)
             nest = world.Frames.TreeParent(nest);
-        return new(world.PoseIn(entity, frame).Position, world.VelocityIn(entity, frame), home,
-            world.Frames.Numeric(home),
-            world.PoseIn(entity, home).Position, nest,
-            nest.IsNull ? Double3.Zero : world.Frames.TreeLocalPose(nest).Position,
-            nest.IsNull ? Double3.Zero : world.PoseIn(entity, nest).Position);
+        return new(Position: world.PoseIn(entity, frame).Position, Velocity: world.VelocityIn(entity, frame), Home: home,
+            HomeMode: world.Frames.Numeric(home),
+            InHome: world.PoseIn(entity, home).Position, Nest: nest,
+            NestPlace: nest.IsNull ? Double3.Zero : world.Frames.TreeLocalPose(nest).Position,
+            InNest: nest.IsNull ? Double3.Zero : world.PoseIn(entity, nest).Position);
     }
 }
 

@@ -13,7 +13,7 @@ public class ContactTests
 {
     /// <summary>A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down.</summary>
     private static BodyDesc BoxBody(float half, float mass = 1f) =>
-        new(new BoxShapeDesc(new(half)), Mass: mass, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(half)), Mass: mass, LinearDamping: 0, AngularDamping: 0);
 
     private static List<ContactStarted> ContactsSent(FaultInjectingBackend faults) =>
         [.. faults.Outputs.SelectMany(output => output.Contacts)];
@@ -21,14 +21,14 @@ public class ContactTests
     [Fact]
     public void ContactIsReportedOnceWhenItStartsWithEntitiesMapped()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         var floorLog = new CollisionLog();
         Entity floor = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(10, 0.5f, 10)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static),
             Components = [floorLog]
         });
         var boxLog = new CollisionLog();
@@ -62,7 +62,7 @@ public class ContactTests
     [Fact]
     public void ContactWithFrameInteriorNamesTheFrameOwner()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
@@ -72,7 +72,7 @@ public class ContactTests
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
             AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0))),
             Components = [shipLog]
         });
@@ -97,13 +97,13 @@ public class ContactTests
     [Fact]
     public void SeparateContactsAreEachReportedAndInDeterministicOrder()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         Entity floor = world.Spawn(new()
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(10, 0.5f, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static)
         });
         var boxes = new List<Entity>();
         for (int i = 0; i < 5; i++)
@@ -124,7 +124,7 @@ public class ContactTests
     [Fact]
     public void DestroyingTheBodyOfAFrameOwnerEndsTheContactsOfItsInterior()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(5, 0.25f, 5)), new(new(0, -2.25f, 0), Quaternion.Identity))
@@ -133,7 +133,7 @@ public class ContactTests
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new(new BoxShapeDesc(new(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            Body = new(Shape: new BoxShapeDesc(new(5, 3, 5)), Motion: BodyMotion.Static, InteriorShape: deck),
             AsFrame = new(FrameBounds.Sphere(30), GravityField.Uniform(new(0, -9.81f, 0)))
         });
         var crateLog = new CollisionLog();
@@ -161,7 +161,7 @@ public class ContactTests
     [Fact]
     public void AnEndedContactNamesItsEntitiesInEntityOrder()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);
         // The World gives a new entity the slot that was freed first. Freeing the higher slot first makes the floor, which
         // is spawned first, take the higher slot, and the box, which is spawned next, take the lower one.
@@ -174,7 +174,7 @@ public class ContactTests
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            Body = new(new BoxShapeDesc(new(10, 0.5f, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(10, 0.5f, 10)), Motion: BodyMotion.Static)
         });
         Entity box = world.Spawn(new()
             { Frame = ground, Pose = At(0, 0.5), Body = BoxBody(0.5f), Components = [boxLog] });

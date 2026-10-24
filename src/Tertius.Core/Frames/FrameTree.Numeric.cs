@@ -111,7 +111,7 @@ public sealed partial class FrameTree
     {
         int id = Node(following).Id;
         Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull && stepPlan[id].HasValue);
-        MotionSample plan = stepPlan[id]!.Value;
+        MotionSample plan = stepPlan[id].GetValueOrDefault();
         LocalForWrite(Node(following)) = new(plan.Pose.Position, DQuaternion.Identity);
         LinearVelocityForWrite(id) = plan.ChordVelocity;
     }
@@ -131,7 +131,7 @@ public sealed partial class FrameTree
     {
         int id = Node(following).Id;
         Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull && stepPlan[id].HasValue);
-        MotionSample landing = stepPlan[id]!.Value;
+        MotionSample landing = stepPlan[id].GetValueOrDefault();
         ref DPose local = ref LocalForWrite(Node(following));
         Double3 offset = landing.Pose.Position - local.Position, change = landing.ChordVelocity - linearVelocity[id];
         local = new(landing.Pose.Position, DQuaternion.Identity);
@@ -234,7 +234,7 @@ public sealed partial class FrameTree
         }
 
         Double3 chord = velocity - acceleration * (step / 2);
-        FrameHandle following = CreateNumeric(semantic, position, chord, NumericMode.Following);
+        FrameHandle following = CreateNumeric(parent: semantic, position: position, velocity: chord, mode: NumericMode.Following);
         anchor[following.Index] = body.Entity;
         if (!frame.IsNull)
         {
@@ -382,7 +382,7 @@ public sealed partial class FrameTree
         {
             (_, int start, int end) = semanticRanges[r];
             if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[start..end]))
-                UpdateSemanticFrame(start, end, dt, step, changes);
+                UpdateSemanticFrame(start: start, end: end, dt: dt, step: step, changes: changes);
         }
 
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
@@ -474,8 +474,8 @@ public sealed partial class FrameTree
             return false;
         thrustClocks.TryGetValue(body.Entity, out (double ThrustTime, double QuietTime) clock);
         (bool thrusts, double thrustTime, double quietTime) =
-            NumericFrameRules.ThrustClock(body.ThrustAcceleration, clock.ThrustTime, clock.QuietTime, dt,
-                NumericOptions);
+            NumericFrameRules.ThrustClock(acceleration: body.ThrustAcceleration, thrustTime: clock.ThrustTime, quietTime: clock.QuietTime, dt: dt,
+                options: NumericOptions);
         if (thrustTime > 0)
             nextThrustClocks[body.Entity] = (thrustTime, quietTime);
         return body.Character || thrusts;
@@ -547,7 +547,7 @@ public sealed partial class FrameTree
     private bool MayTouch(in NumericBody a, in NumericBody b)
     {
         Double3 between = a.Home == b.Home ? Double3.Zero : Relative(b.Home, a.Home).Position;
-        return NumericFrameRules.MayTouch(a, b, between + b.HomePosition - a.HomePosition, NumericOptions);
+        return NumericFrameRules.MayTouch(a: a, b: b, separation: between + b.HomePosition - a.HomePosition, options: NumericOptions);
     }
 
     /// <summary>
@@ -577,7 +577,7 @@ public sealed partial class FrameTree
             }
 
             int id = Node(frame).Id;
-            (bool hold, apartTime[id]) = NumericFrameRules.SplitClock(together, apartTime[id], dt, NumericOptions);
+            (bool hold, apartTime[id]) = NumericFrameRules.SplitClock(together: together, apart: apartTime[id], dt: dt, options: NumericOptions);
             if (!hold)
                 continue;
             for (int i = first + 1; i < end; i++)
@@ -665,7 +665,7 @@ public sealed partial class FrameTree
             FrameHandle frameParent = Parent(frame);
             if (frameParent == semantic)
             {
-                AddStickOutPlaces(frame, bodies[from..to], start, end);
+                AddStickOutPlaces(child: frame, members: bodies[from..to], start: start, end: end);
                 continue;
             }
 
@@ -713,9 +713,9 @@ public sealed partial class FrameTree
                 prepared = true;
             }
 
-            ghostPlaces.Add(new(home, pose.TransformPoint(body.Position),
-                VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull, body.Static,
-                body.Sensor, MeetsHulls: false));
+            ghostPlaces.Add(new(Home: home, HomePosition: pose.TransformPoint(body.Position),
+                Velocity: VelocityToParent(pose: pose, velocity: velocity, angular: spin, positionInFrame: body.Position, velocityInFrame: body.Velocity), Radius: body.Radius, Target: hull, OfStaticBody: body.Static,
+                Sensor: body.Sensor, MeetsHulls: false));
         }
     }
 
@@ -750,14 +750,14 @@ public sealed partial class FrameTree
             // The rounding scales with the distances of the body and the center from the semantic parent's origin. The body's is
             // at most the center's plus the distance between them.
             double distance = (body.Position - pose.Position).Length;
-            if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + reach,
-                    (body.Velocity - velocity).Length + spinRate * distance,
-                    2 * center + distance, NumericOptions))
+            if (!NumericFrameRules.MayReachBubble(distance: distance, reach: bubble.MaxRadius + reach,
+                    speedBound: (body.Velocity - velocity).Length + spinRate * distance,
+                    scale: 2 * center + distance, options: NumericOptions))
                 continue;
             Double3 position = pose.InverseTransformPoint(body.Position);
-            Double3 relative = VelocityFromParent(pose, velocity, spin, body.Position, body.Velocity);
-            if (NumericFrameRules.MayTouchBubble(bubble, position, relative, reach, NumericOptions))
-                ghostPlaces.Add(new(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
+            Double3 relative = VelocityFromParent(pose: pose, velocity: velocity, angular: spin, positionInParent: body.Position, velocityInParent: body.Velocity);
+            if (NumericFrameRules.MayTouchBubble(bubble: bubble, position: position, velocity: relative, reach: reach, options: NumericOptions))
+                ghostPlaces.Add(new(Home: semantic, HomePosition: position, Velocity: relative, Radius: body.Radius, Target: -1, OfStaticBody: body.Static, Sensor: body.Sensor,
                     MeetsHulls: body.GhostsMeetHulls));
         }
     }
@@ -792,8 +792,8 @@ public sealed partial class FrameTree
         double distance = (siblingPose.Position - pose.Position).Length;
         double speedBound = sibling.Fastest + siblingSpin.Length * sibling.Farthest +
                             (siblingVelocity - velocity).Length + spin.Length * distance;
-        if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + excess + sibling.Extent, speedBound,
-                siblingPose.Position.Length + pose.Position.Length + sibling.Farthest, NumericOptions))
+        if (!NumericFrameRules.MayReachBubble(distance: distance, reach: bubble.MaxRadius + excess + sibling.Extent, speedBound: speedBound,
+                scale: siblingPose.Position.Length + pose.Position.Length + sibling.Farthest, options: NumericOptions))
             return;
         foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[sibling.Start..sibling.End])
         {
@@ -801,12 +801,12 @@ public sealed partial class FrameTree
                 continue;
             Double3 inParent = siblingPose.TransformPoint(body.Position);
             Double3 velocityInParent =
-                VelocityToParent(siblingPose, siblingVelocity, siblingSpin, body.Position, body.Velocity);
+                VelocityToParent(pose: siblingPose, velocity: siblingVelocity, angular: siblingSpin, positionInFrame: body.Position, velocityInFrame: body.Velocity);
             Double3 position = pose.InverseTransformPoint(inParent);
-            Double3 relative = VelocityFromParent(pose, velocity, spin, inParent, velocityInParent);
-            if (NumericFrameRules.MayTouchBubble(bubble, position, relative,
-                    body.Radius + (body.GhostsReachContent ? excess : 0), NumericOptions))
-                ghostPlaces.Add(new(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
+            Double3 relative = VelocityFromParent(pose: pose, velocity: velocity, angular: spin, positionInParent: inParent, velocityInParent: velocityInParent);
+            if (NumericFrameRules.MayTouchBubble(bubble: bubble, position: position, velocity: relative,
+                    reach: body.Radius + (body.GhostsReachContent ? excess : 0), options: NumericOptions))
+                ghostPlaces.Add(new(Home: semantic, HomePosition: position, Velocity: relative, Radius: body.Radius, Target: -1, OfStaticBody: body.Static, Sensor: body.Sensor,
                     MeetsHulls: body.GhostsMeetHulls));
         }
     }
@@ -865,8 +865,8 @@ public sealed partial class FrameTree
     private bool MayTouch(in NumericBody body, in GhostPlace place)
     {
         Double3 between = body.Home == place.Home ? Double3.Zero : Relative(place.Home, body.Home).Position;
-        return NumericFrameRules.MayTouch(body, place, between + place.HomePosition - body.HomePosition,
-            NumericOptions);
+        return NumericFrameRules.MayTouch(body: body, place: place, separation: between + place.HomePosition - body.HomePosition,
+            options: NumericOptions);
     }
 
     /// <summary>
@@ -938,7 +938,7 @@ public sealed partial class FrameTree
             foreach (ref readonly NumericBody body in members)
                 if (!NumericFrameRules.IsAnchor(body, NumericOptions) &&
                     leaveClocks.TryGetValue(body.Entity, out double apart))
-                    hold |= NumericFrameRules.LeaveClock(wanted, group.Motion.Frame, apart, dt, NumericOptions).Hold;
+                    hold |= NumericFrameRules.LeaveClock(mode: wanted, frame: group.Motion.Frame, apart: apart, dt: dt, options: NumericOptions).Hold;
             if (hold)
                 group.Mode = NumericMode.None;
             if (group.Mode != NumericMode.None)
@@ -950,7 +950,7 @@ public sealed partial class FrameTree
                     continue;
                 leaveClocks.TryGetValue(body.Entity, out double apart);
                 nextLeaveClocks[body.Entity] = NumericFrameRules
-                    .LeaveClock(wanted, group.Motion.Frame, apart, dt, NumericOptions).Apart;
+                    .LeaveClock(mode: wanted, frame: group.Motion.Frame, apart: apart, dt: dt, options: NumericOptions).Apart;
             }
         }
     }
@@ -992,7 +992,7 @@ public sealed partial class FrameTree
         Double3 position = HomeOffset(frame, sortedBodies[group.Start].Semantic);
         Double3 velocity = linearVelocity[Node(frame).Id];
         Double3 newVelocity =
-            NumericFrameRules.DrainVelocity(mode, group.Mode, velocity, group.Motion.Velocity, NumericOptions);
+            NumericFrameRules.DrainVelocity(frameMode: mode, groupMode: group.Mode, frameVelocity: velocity, groupVelocity: group.Motion.Velocity, options: NumericOptions);
         Double3 newPosition = NumericFrameRules.Origin(position, group.Motion.Center, NumericOptions);
         if (group.Mode == NumericMode.Falling && mode == NumericMode.Resting)
             SetNumericMode(frame, NumericMode.Falling);
@@ -1037,7 +1037,7 @@ public sealed partial class FrameTree
             Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Velocity : Double3.Zero;
             home = group.Mode == NumericMode.Following
                 ? CreateFollowingFrame(members[group.Motion.Anchor], step)
-                : CreateNumeric(semantic, group.Motion.Center, velocity, group.Mode);
+                : CreateNumeric(parent: semantic, position: group.Motion.Center, velocity: velocity, mode: group.Mode);
             changes.FramesCreated.Add(home);
         }
 
@@ -1135,11 +1135,11 @@ public sealed partial class FrameTree
         foreach (FrameHandle child in frameChildren)
             if (child != parent && Numeric(child) == NumericMode.Nesting)
                 nestPlaces.Add((child, TreeLocalPose(child).Position));
-        FrameHandle nest = NumericFrameRules.NearestNest(CollectionsMarshal.AsSpan(nestPlaces), parentPlace, position,
-            NumericOptions);
+        FrameHandle nest = NumericFrameRules.NearestNest(nests: CollectionsMarshal.AsSpan(nestPlaces), parentPlace: parentPlace, position: position,
+            options: NumericOptions);
         if (nest.IsNull)
         {
-            nest = CreateNumeric(semantic, parentPlace + step, Double3.Zero, NumericMode.Nesting);
+            nest = CreateNumeric(parent: semantic, position: parentPlace + step, velocity: Double3.Zero, mode: NumericMode.Nesting);
             changes.FramesCreated.Add(nest);
         }
 
@@ -1231,8 +1231,8 @@ public sealed partial class FrameTree
         Contract.Requires(!IsNumeric(parent));
         Contract.Requires(mode != NumericMode.Nesting || NumericFrameRules.OnGrid(position, NumericOptions.NestGrid));
         Node(parent);
-        FrameHandle handle = AddFrame(Entity.Null, parent, new(position, DQuaternion.Identity), default,
-            GravityField.None, mode);
+        FrameHandle handle = AddFrame(frameOwner: Entity.Null, parent: parent, localPose: new(position, DQuaternion.Identity), frameBounds: default,
+            field: GravityField.None, mode: mode);
         LinearVelocityForWrite(handle.Index) = velocity;
         NumericCount++;
         Contract.Ensures(Numeric(handle) == mode && TreeParent(handle) == parent);
@@ -1387,11 +1387,11 @@ public sealed partial class FrameTree
         FrameHandle semantic = TreeParent(following);
         uint slot = anchorEntity.Index;
         if (byOwner.TryGetValue(anchorEntity, out FrameHandle frame))
-            return StepPlanOfIntent(slot, semantic, LocalPose(frame), stepIntents, step);
+            return StepPlanOfIntent(slot: slot, parent: semantic, standing: LocalPose(frame), stepIntents: stepIntents, step: step);
         DQuaternion rotation = slot < (uint)stepIntents.Length && stepIntents[(int)slot].Move.HasValue
             ? stepIntents[(int)slot].Move.AimPose.Rotation
             : DQuaternion.Identity;
-        return StepPlanOfIntent(slot, semantic, new(TreeLocalPose(following).Position, rotation), stepIntents, step);
+        return StepPlanOfIntent(slot: slot, parent: semantic, standing: new(TreeLocalPose(following).Position, rotation), stepIntents: stepIntents, step: step);
     }
 
     /// <summary>
@@ -1428,7 +1428,7 @@ public sealed partial class FrameTree
     /// </summary>
     internal bool StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step,
         out MotionSample record) =>
-        StepRecordOfIntent(frame.Entity.Index, Parent(frame), LocalPose(frame), stepIntents, step, out record);
+        StepRecordOfIntent(slot: frame.Entity.Index, parent: Parent(frame), standing: LocalPose(frame), stepIntents: stepIntents, step: step, record: out record);
 
     /// <summary>
     /// The rule of <see cref="StepRecordInStep"/>, for a frame whose owner has the slot <paramref name="slot"/>, whose

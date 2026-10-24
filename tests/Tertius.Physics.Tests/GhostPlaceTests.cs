@@ -43,26 +43,26 @@ public class GhostPlaceTests
     private const double Far = 1 << 24;
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
+    private static readonly BodyDesc ShipHull = new(Shape: new BoxShapeDesc(new(2)), Mass: 1000, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A static hull of 4 m by 4 m by 4 m, for a frame that physics does not drive.</summary>
-    private static readonly BodyDesc StaticHull = new(new BoxShapeDesc(new(2)), BodyMotion.Static);
+    private static readonly BodyDesc StaticHull = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static);
 
     /// <summary>A crate of 2 m by 2 m by 2 m and 2 kg that nothing slows down and that does not bounce.</summary>
-    private static readonly BodyDesc CrateBody = new(new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
+    private static readonly BodyDesc CrateBody = new(Shape: new BoxShapeDesc(new(1)), Mass: 2, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>
     /// A rock: a ball of radius 0.5 m and 1 kg that nothing slows down and that does not bounce. A ghost is kinematic, and
     /// Jolt makes no contact between a kinematic body and a static one, so the rock is dynamic.
     /// </summary>
-    private static readonly BodyDesc RockBody = new(new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
+    private static readonly BodyDesc RockBody = new(Shape: new SphereShapeDesc(0.5f), Mass: 1, Restitution: 0,
         LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults,
+        NewWorldWithFaults(faults: out faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>A root frame without gravity and with a bubble of radius 10,000 km.</summary>
@@ -120,8 +120,8 @@ public class GhostPlaceTests
         }
 
         world.Errors.Should().BeEmpty();
-        return new(hitTick, hitInExpectedHome, hitMode, world.PoseIn(mover, frame).Position,
-            world.VelocityIn(mover, frame), log.NewsOf(other));
+        return new(HitTick: hitTick, HitInExpectedHome: hitInExpectedHome, HitMode: hitMode, Position: world.PoseIn(mover, frame).Position,
+            Velocity: world.VelocityIn(mover, frame), News: log.NewsOf(other));
     }
 
     // ---- A body that sticks out of a semantic child ---------------------------------------------------------------------
@@ -161,7 +161,7 @@ public class GhostPlaceTests
         else
             start.Should().Be(space);
 
-        Outcome outcome = Watch(world, rock, rockLog, crate, () => space, space, 200);
+        Outcome outcome = Watch(world: world, mover: rock, log: rockLog, other: crate, expectedHome: () => space, frame: space, ticks: 200);
         world.GetFrame(rock).Should().Be(space, "the rock never touched the bubble");
         world.GetFrame(crate).Should().Be(bubble, "the crate never left the bubble");
         return outcome;
@@ -220,9 +220,9 @@ public class GhostPlaceTests
         if (numericFrames)
             world.Frames.Numeric(world.PhysicsHomeOf(ship)).Should()
                 .Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
-        afterOnset?.Invoke(world, faults, ship, crate, space);
+        afterOnset?.Invoke(arg1: world, arg2: faults, arg3: ship, arg4: crate, arg5: space);
 
-        Outcome outcome = Watch(world, rock, rockLog, crate, () => world.PhysicsHomeOf(ship), space, 200);
+        Outcome outcome = Watch(world: world, mover: rock, log: rockLog, other: crate, expectedHome: () => world.PhysicsHomeOf(ship), frame: space, ticks: 200);
         world.GetFrame(rock).Should().Be(space, "the rock never touched the bubble");
         world.GetFrame(crate).Should().Be(bubble, "the crate never left the bubble");
         return outcome;
@@ -369,7 +369,7 @@ public class GhostPlaceTests
             "the merge test links the rock to the crate's place, whose target is the ship's hull");
         world.PhysicsHomeOf(ship).Should().Be(space, "the hull thrusts only from its 30th tick of thrust");
 
-        Outcome outcome = Watch(world, rock, rockLog, crate, () => world.PhysicsHomeOf(ship), bubble, 31);
+        Outcome outcome = Watch(world: world, mover: rock, log: rockLog, other: crate, expectedHome: () => world.PhysicsHomeOf(ship), frame: bubble, ticks: 31);
         if (numericFrames)
             world.Frames.Numeric(world.PhysicsHomeOf(ship)).Should()
                 .Be(NumericMode.Falling, "the hull thrusts at 60 m/s");
@@ -501,8 +501,8 @@ public class GhostPlaceTests
 
         world.Errors.Should().BeEmpty();
         FrameHandle parent = world.Frames.TreeParent(roomFrame);
-        return new(parent, (world.PoseIn(room, space).Position - place).Length, faults.Jolt.HasGhostIn(crate, parent),
-            world.Frames.NumericCount);
+        return new(RoomParent: parent, Moved: (world.PoseIn(room, space).Position - place).Length, CratesGhostInRoomsParent: faults.Jolt.HasGhostIn(crate, parent),
+            NumericFrames: world.Frames.NumericCount);
     }
 
     /// <summary>
@@ -561,7 +561,7 @@ public class GhostPlaceTests
         else
             start.Should().Be(d);
 
-        Outcome outcome = Watch(world, crate, crateLog, e, () => d, d, 210);
+        Outcome outcome = Watch(world: world, mover: crate, log: crateLog, other: e, expectedHome: () => d, frame: d, ticks: 210);
         world.GetFrame(crate).Should().Be(d, "the crate never left D");
         world.GetFrame(e).Should().Be(space, "E does not fit in D");
         return outcome;
@@ -627,7 +627,7 @@ public class GhostPlaceTests
         Double3 cratePlace = world.Frames.PointToParent(station, new(0, 40, 0));
         Double3 up = world.Frames.PointToParent(station, new(0, 41, 0)) - cratePlace;
         Double3 velocity = world.Frames.LinearVelocity(station);
-        return new(space, owner, station, crate, cratePlace, up, velocity / velocity.Length, velocity);
+        return new(Space: space, Owner: owner, Station: station, Crate: crate, CratePlace: cratePlace, Up: up, Forward: velocity / velocity.Length, Velocity: velocity);
     }
 
     /// <summary>True when the last numeric update named a ghost of the anchor <paramref name="anchor"/> in
@@ -660,14 +660,14 @@ public class GhostPlaceTests
         {
             Frame = scene.Space, Pose = new(scene.CratePlace + scene.Up * 3, DQuaternion.Identity),
             LinearVelocity = scene.Velocity - scene.Up * 0.5,
-            Body = new(new SphereShapeDesc(1), Mass: 10, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new(Shape: new SphereShapeDesc(1), Mass: 10, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             Components = [podLog]
         });
         Entity rock = world.Spawn(new()
         {
             Frame = scene.Space,
             Pose = new(scene.CratePlace + scene.Up * 6.5 + scene.Forward * 4, DQuaternion.Identity),
-            Body = new(new SphereShapeDesc(1), BodyMotion.Static)
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
         });
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(rock);
@@ -686,7 +686,7 @@ public class GhostPlaceTests
             home.Should().Be(scene.Space);
         }
 
-        Outcome outcome = Watch(world, pod, podLog, scene.Crate, () => world.PhysicsHomeOf(rock), scene.Station, 180);
+        Outcome outcome = Watch(world: world, mover: pod, log: podLog, other: scene.Crate, expectedHome: () => world.PhysicsHomeOf(rock), frame: scene.Station, ticks: 180);
         world.GetFrame(pod).Should().Be(scene.Space, "the pod never touched the bubble");
         world.GetFrame(scene.Crate).Should().Be(scene.Station, "the crate never left the bubble");
         return outcome;
@@ -734,7 +734,7 @@ public class GhostPlaceTests
         {
             Frame = scene.Space,
             Pose = new(hullPlace + hullPlace / hullPlace.Length * 8 + scene.Forward * 4, DQuaternion.Identity),
-            Body = new(new SphereShapeDesc(1), BodyMotion.Static)
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
         });
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(rock);
@@ -783,7 +783,7 @@ public class GhostPlaceTests
         {
             Frame = scene.Space,
             Pose = new(hullPlace + hullPlace / hullPlace.Length * 8 + scene.Forward * 4, DQuaternion.Identity),
-            Body = new(new SphereShapeDesc(1), BodyMotion.Static)
+            Body = new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static)
         });
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(rock);

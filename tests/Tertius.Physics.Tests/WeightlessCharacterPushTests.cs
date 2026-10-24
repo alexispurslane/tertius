@@ -29,11 +29,11 @@ public class WeightlessCharacterPushTests
     private const double PersonRadius = 0.3, CrateHalf = 0.5;
 
     private static readonly BodyDesc Person =
-        new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: PersonMass, LinearDamping: 0,
+        new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: PersonMass, LinearDamping: 0,
             AngularDamping: 0);
 
     private static readonly BodyDesc Crate =
-        new(new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A character behind a crate in a frame without gravity, and the pilot that steers the character.</summary>
     private sealed class Pair : IDisposable
@@ -76,7 +76,7 @@ public class WeightlessCharacterPushTests
     /// </summary>
     private static Pair CharacterBehindCrate(double startGap, Double3 commonVelocity = default)
     {
-        World world = NewWorld(out _, configure: options => options.NumericFrames = WithoutNumericFrames);
+        World world = NewWorld(backend: out _, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         Entity person = world.Spawn(new()

@@ -14,5 +14,5 @@ public static class StepRecords
     public static FrameStepRecord Of(FrameHandle frame, in DPose pose, Double3 velocity = default,
         Vector3 angularVelocity = default,
         Vector3? measured = null) =>
-        new(frame, new(pose, velocity, velocity, Double3.Zero, angularVelocity, Double3.Zero), measured);
+        new(frame, new(Pose: pose, ChordVelocity: velocity, Velocity: velocity, Acceleration: Double3.Zero, AngularVelocity: angularVelocity, AngularAcceleration: Double3.Zero), measured);
 }

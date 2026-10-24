@@ -33,14 +33,14 @@ public sealed class StackCreepMeasurement
     /// Jolt keeps its spawn velocity.
     /// </summary>
     private static readonly BodyDesc PlatformBody =
-        new(new BoxShapeDesc(new((float)PlatformHalf)), BodyMotion.Kinematic);
+        new(Shape: new BoxShapeDesc(new((float)PlatformHalf)), Motion: BodyMotion.Kinematic);
 
     /// <summary>
     /// A cube with sides of 1 m and 10 kg, with the default friction (0.5), restitution (0) and angular damping (0.05). It
     /// has no linear damping, because Jolt damps the whole velocity relative to its system's origin, so a damping would
     /// slow a stack that moves at V by a real force, which is no rounding error.
     /// </summary>
-    private static readonly BodyDesc BoxBody = new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0);
+    private static readonly BodyDesc BoxBody = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0);
 
     /// <summary>What one box shows at one report time.</summary>
     /// <param name="Offset">Its position minus the platform's, in meters.</param>
@@ -120,13 +120,13 @@ public sealed class StackCreepMeasurement
             StackRun run = speed == 0
                 ? reference
                 : Run(speed, direction.Unit, direction.Unit * (-speed * totalTime / 2));
-            Write(csv, "speed", direction, speed, run, reference,
-                speed == 0 ? "V = 0: the stack can sleep, which freezes its creep and jitter" : "");
+            Write(csv: csv, kind: "speed", direction: direction, speed: speed, run: run, reference: reference,
+                note: speed == 0 ? "V = 0: the stack can sleep, which freezes its creep and jitter" : "");
             if (speed == 0)
                 continue;
             StackRun control = Run(0, direction.Unit, direction.Unit * run.LargestDistance);
-            Write(csv, "distance-control", direction, 0, control, reference,
-                $"V = 0, the scene placed at the largest distance of the run at {speed} m/s: the stack can sleep");
+            Write(csv: csv, kind: "distance-control", direction: direction, speed: 0, run: control, reference: reference,
+                note: $"V = 0, the scene placed at the largest distance of the run at {speed} m/s: the stack can sleep");
         }
 
         csv.Save("stack-creep");
@@ -188,7 +188,7 @@ public sealed class StackCreepMeasurement
             world.Tick();
             foreach (Entity body in bodies)
                 largest = Math.Max(largest, world.PoseIn(body, space).Position.Length);
-            Asleep(backend, space, bodies, asleep);
+            Asleep(backend: backend, space: space, bodies: bodies, asleep: asleep);
             for (int i = 0; i < bodies.Length; i++)
             {
                 slept[i] |= asleep[i];
@@ -202,7 +202,7 @@ public sealed class StackCreepMeasurement
         var settled = new Double3[BoxCount];
         var last = new Double3[BoxCount];
         for (int k = 0; k < BoxCount; k++)
-            settled[k] = last[k] = Offset(world, space, boxes[k], platform);
+            settled[k] = last[k] = Offset(world: world, space: space, box: boxes[k], platform: platform);
 
         double[] sumSquares = new double[BoxCount];
         double[] sumSquaresUp = new double[BoxCount];
@@ -216,7 +216,7 @@ public sealed class StackCreepMeasurement
             var offsets = new Double3[BoxCount];
             for (int k = 0; k < BoxCount; k++)
             {
-                offsets[k] = Offset(world, space, boxes[k], platform);
+                offsets[k] = Offset(world: world, space: space, box: boxes[k], platform: platform);
                 // The velocity relative to the platform over the step, from the positions: the motion itself. A read of
                 // an awake body's velocity adds half a step of gravity to it (the instant velocity at the end of the step).
                 Double3 relative = (offsets[k] - last[k]) / dt;
@@ -234,12 +234,12 @@ public sealed class StackCreepMeasurement
             for (int k = 0; k < BoxCount; k++)
             {
                 Double3 read = world.VelocityIn(boxes[k], space) - world.VelocityIn(platform, space);
-                boxReports[k] = new(offsets[k], offsets[k] - settled[k], read, Math.Sqrt(sumSquares[k] / tick),
-                    Math.Sqrt(sumSquaresUp[k] / tick), Math.Sqrt(sumSquaresAcross[k] / tick), max[k],
-                    AngleOf(world.PoseIn(boxes[k], space).Rotation), asleep[k + 1], slept[k + 1]);
+                boxReports[k] = new(Offset: offsets[k], Creep: offsets[k] - settled[k], ReadVelocity: read, JitterRms: Math.Sqrt(sumSquares[k] / tick),
+                    JitterRmsUp: Math.Sqrt(sumSquaresUp[k] / tick), JitterRmsAcross: Math.Sqrt(sumSquaresAcross[k] / tick), JitterMax: max[k],
+                    Tilt: AngleOf(world.PoseIn(boxes[k], space).Rotation), Asleep: asleep[k + 1], Slept: slept[k + 1]);
             }
 
-            reports.Add(new(boxReports, Stands(offsets), asleep[0], slept[0], firstSleep));
+            reports.Add(new(Boxes: boxReports, Stands: Stands(offsets), PlatformAsleep: asleep[0], PlatformSlept: slept[0], FirstSleepTick: firstSleep));
         }
 
         return new([.. reports], largest, warnings.Count + world.Errors.Count);

@@ -18,7 +18,7 @@ public class BallisticDriftMeasurement
     {
         private const float Gravity = 9.81f;
 
-        private static readonly BodyDesc Box = new(new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
+        private static readonly BodyDesc Box = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, Restitution: 0,
             LinearDamping: 0, AngularDamping: 0);
 
         public override string Measurement => "ballistic-drift";

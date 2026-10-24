@@ -49,7 +49,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             for (int number = 0; number < 3; number++)
-                Take(sink, Frame(number));
+                Take(sink: sink, rgba: Frame(number));
             sink.Finish();
         }
 
@@ -67,7 +67,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         string path = VideoPath();
         using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 24), Size))
         {
-            Take(sink, Frame(0));
+            Take(sink: sink, rgba: Frame(0));
             sink.Finish();
         }
 
@@ -81,13 +81,13 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         using (FfmpegVideoSink longer = FfmpegVideoSink.Start(new(path, 30), Size))
         {
             for (int number = 0; number < 3; number++)
-                Take(longer, Frame(number));
+                Take(sink: longer, rgba: Frame(number));
             longer.Finish();
         }
 
         using (FfmpegVideoSink shorter = FfmpegVideoSink.Start(new(path, 30), Size))
         {
-            Take(shorter, Frame(5));
+            Take(sink: shorter, rgba: Frame(5));
             shorter.Finish();
         }
 
@@ -97,10 +97,10 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     [Fact]
     public void AVideoMakesTheFolderOfItsFile()
     {
-        string path = Path.Combine(folder, "runs", "danube", "video.mkv");
+        string path = Path.Combine(path1: folder, path2: "runs", path3: "danube", path4: "video.mkv");
         using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
-            Take(sink, Frame(0));
+            Take(sink: sink, rgba: Frame(0));
             sink.Finish();
         }
 
@@ -124,8 +124,8 @@ public sealed class FfmpegVideoSinkTests : IDisposable
 
         using (FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size))
         {
-            Take(sink, Frame(0));
-            Take(sink, Frame(1));
+            Take(sink: sink, rgba: Frame(0));
+            Take(sink: sink, rgba: Frame(1));
         }
 
         CountFrames(path).Should().Be(2, "a run that fails at a step keeps the frames before it");
@@ -144,7 +144,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         Action film = () =>
         {
             for (; taken < 10_000; taken++)
-                Take(sink, Frame(taken % 7));
+                Take(sink: sink, rgba: Frame(taken % 7));
         };
 
         VideoStreamException failure = film.Should().Throw<VideoStreamException>().Which;
@@ -162,7 +162,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         Directory.CreateDirectory(path);
         using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(path, 30), Size);
         // One small frame fits in the pipe, so its write succeeds whatever ffmpeg does with it.
-        Take(sink, Frame(0));
+        Take(sink: sink, rgba: Frame(0));
 
         VideoStreamException failure = sink.Invoking(s => s.Finish()).Should().Throw<VideoStreamException>().Which;
 
@@ -196,12 +196,12 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(VideoPath(), 30), Size);
         // The first frames warm up the path of the write.
         for (int number = 0; number < 5; number++)
-            Take(sink, rgba);
+            Take(sink: sink, rgba: rgba);
 
         long allocated = Allocations.Fewest(() =>
         {
             for (int number = 0; number < 200; number++)
-                Take(sink, rgba);
+                Take(sink: sink, rgba: rgba);
         });
         sink.Finish();
 
@@ -214,7 +214,7 @@ public sealed class FfmpegVideoSinkTests : IDisposable
     {
         using FfmpegVideoSink sink = FfmpegVideoSink.Start(new(VideoPath(), 30), Size);
 
-        Action take = () => Take(sink, Frame(0, Width * 2, Height), Width * 2, Height);
+        Action take = () => Take(sink: sink, rgba: Frame(0, Width * 2, Height), width: Width * 2, height: Height);
 
         take.Should().Throw<ArgumentException>().WithMessage("*16x6*8x6*");
     }

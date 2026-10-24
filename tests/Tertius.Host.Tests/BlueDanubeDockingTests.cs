@@ -152,7 +152,7 @@ public sealed class BlueDanubeDockingTests(BlueDanubeRendezvousRun run)
             foreach (Double3 corner in hubCorners.Concat(shuttle))
                 Picture.Contains(Picture.Project(frame.ViewInStation, corner, frame.VerticalFov)).Should()
                     .BeTrue($"the corner {corner} lies in the picture of {frame.Name}");
-            Picture.Cover(frame.ViewInStation, frame.ShuttleInStation, Shuttle.Hull, frame.VerticalFov).Should()
+            Picture.Cover(view: frame.ViewInStation, body: frame.ShuttleInStation, half: Shuttle.Hull, verticalFov: frame.VerticalFov).Should()
                 .BeGreaterThan(0.01, $"the shuttle is no speck in {frame.Name}");
         }
     }

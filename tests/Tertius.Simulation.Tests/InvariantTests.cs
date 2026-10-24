@@ -28,7 +28,7 @@ public class InvariantTests(ITestOutputHelper output)
     [InlineData(31337)]
     public void EverySubsystemKeepsItsInvariantsAfterEveryTickOfAChaoticWorkload(int seed)
     {
-        using var workload = new ChaoticWorkload(seed);
+        using var workload = new ChaoticWorkload(seed: seed);
 
         workload.Run(150);
 
@@ -44,7 +44,7 @@ public class InvariantTests(ITestOutputHelper output)
     {
         // An audit that looks at empty sets agrees with anything. This test requires that the workload fills every set
         // and every kind of change happens many times, so that "no violations" means something.
-        using var workload = new ChaoticWorkload(FixedSeed);
+        using var workload = new ChaoticWorkload(seed: FixedSeed);
 
         workload.Run(150);
 
@@ -83,7 +83,7 @@ public class InvariantTests(ITestOutputHelper output)
     [Fact]
     public void ARunThatFindsAViolationNamesTheSeedAndTheTick()
     {
-        using var workload = new ChaoticWorkload(99);
+        using var workload = new ChaoticWorkload(seed: 99);
         workload.Run(5);
         // A frame destroyed behind the world's back: its owner and its contents point at a frame that is gone.
         workload.World.Frames.Destroy(workload.West);
@@ -112,7 +112,7 @@ public class InvariantTests(ITestOutputHelper output)
     {
         using var test = new TestWorld();
         bool mesh = why == "a kinematic motion for a mesh hull";
-        FrameHandle dock = StaticFrame(test, new(mesh ? Ramp : new BoxShapeDesc(new(2)), BodyMotion.Static, Mass: 0));
+        FrameHandle dock = StaticFrame(test, new(Shape: mesh ? Ramp : new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, Mass: 0));
         test.World.AssertInvariants();
 
         test.World.Frames.SetHullMotion(dock, why switch
@@ -146,7 +146,7 @@ public class InvariantTests(ITestOutputHelper output)
         // Destroying a frame behind the world's back leaves its owner and its contents pointing at a dead frame.
         static World Broken(bool debugChecks)
         {
-            World world = TestWorld.Create(out FrameHandle root, debugChecks: debugChecks);
+            World world = TestWorld.Create(root: out FrameHandle root, debugChecks: debugChecks);
             FrameHandle bay = world.SpawnStaticFrame(root, TestWorld.At(0), radius: 10);
             world.SpawnAt(bay, new(1, 0, 0));
             world.Tick();
@@ -163,7 +163,7 @@ public class InvariantTests(ITestOutputHelper output)
     public void WithDebugChecksOffTheSyncPointDoesNotRunTheChecks()
     {
         // The checks cost O(capacity) every tick, so the default leaves them off. The same damage then goes unnoticed by the tick.
-        World world = TestWorld.Create(out FrameHandle root, debugChecks: false);
+        World world = TestWorld.Create(root: out FrameHandle root, debugChecks: false);
         using (world)
         {
             FrameHandle bay = world.SpawnStaticFrame(root, TestWorld.At(0), radius: 10);
@@ -204,7 +204,7 @@ public class InvariantTests(ITestOutputHelper output)
 
     private static ChaoticWorkload WarmedUp(int ticks = 40)
     {
-        var workload = new ChaoticWorkload(FixedSeed);
+        var workload = new ChaoticWorkload(seed: FixedSeed);
         workload.Run(ticks);
         // One more tick with nothing changed after it, so that the inboxes match the sets they were routed from.
         workload.TickOnce();

@@ -21,7 +21,7 @@ public sealed class WalkerTests : IDisposable
 
     public WalkerTests()
     {
-        world = NewWorldWithFaults(out faults);
+        world = NewWorldWithFaults(faults: out faults);
     }
 
     public void Dispose() => world.Dispose();
@@ -30,7 +30,7 @@ public sealed class WalkerTests : IDisposable
     {
         Frame = frame,
         Pose = new(position, DQuaternion.Identity),
-        Body = new(Capsule, BodyMotion.Character, Mass: 70),
+        Body = new(Shape: Capsule, Motion: BodyMotion.Character, Mass: 70),
         Components = [new Walker(path)]
     });
 
@@ -185,10 +185,10 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle space = Ground(world, 9.81f);
         Entity turntable = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(100)) }
-            .Spinning(world, new(DQuaternion.Identity, 0.1)));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.1)));
         FrameHandle table = world.GetOwnedFrame(turntable);
         world.Spawn(new()
-            { Frame = table, Pose = At(30, -0.5), Body = new(new BoxShapeDesc(new(8, 0.5f, 8)), BodyMotion.Static) });
+            { Frame = table, Pose = At(30, -0.5), Body = new(Shape: new BoxShapeDesc(new(8, 0.5f, 8)), Motion: BodyMotion.Static) });
         Waypoint[] path = [new(table, new(34, 0.9, 0)), new(table, new(34, 0.9, -4)), new(table, new(30, 0.9, -4))];
         Entity person = Person(table, new(30, 0.95, 0), path);
         Double3 start = world.PoseIn(person, space).Position;
@@ -215,7 +215,7 @@ public sealed class WalkerTests : IDisposable
         Floor(world, ground);
         Entity marker = world.Spawn(new SpawnDesc
                 { Frame = ground, Pose = At(2, 5, -2), AsFrame = new(FrameBounds.Sphere(0.5f)) }
-            .Spinning(world, new(DQuaternion.Identity, 0.05, PhaseAtEpoch: Math.PI)));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: 0.05, PhaseAtEpoch: Math.PI)));
         FrameHandle turning = world.GetOwnedFrame(marker);
         // A half turn about +Y takes (x, y, z) in the marker's axes to (-x, y, -z) in the ground's.
         Waypoint[] path =
@@ -238,8 +238,8 @@ public sealed class WalkerTests : IDisposable
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
-        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, ground,
-            new(new(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))));
+        FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world: world, frame: ground,
+            pose: new(new(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))));
         // The shuttle's +X, the hatch's side, is the ground's -Z, and its +Z is the ground's +X.
         Entity person = Person(ground, new(Shuttle.Hatch.Center.Z, 0.95, -15),
             new Waypoint(cabin, Shuttle.OutsideHatch), new Waypoint(cabin, Shuttle.InsideHatch),

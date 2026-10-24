@@ -41,9 +41,9 @@ internal static class Flip
     /// <summary>The largest b of the three filters. It sets the radius of all three.</summary>
     private const double WidestSensitivity = 0.04;
 
-    private static readonly Sensitivity Achromatic = new(1, 0.0047, 0, 1e-5);
-    private static readonly Sensitivity RedGreen = new(1, 0.0053, 0, 1e-5);
-    private static readonly Sensitivity BlueYellow = new(34.1, 0.04, 13.5, 0.025);
+    private static readonly Sensitivity Achromatic = new(A1: 1, B1: 0.0047, A2: 0, B2: 1e-5);
+    private static readonly Sensitivity RedGreen = new(A1: 1, B1: 0.0053, A2: 0, B2: 1e-5);
+    private static readonly Sensitivity BlueYellow = new(A1: 34.1, B1: 0.04, A2: 13.5, B2: 0.025);
 
     /// <summary>sRGB primaries to CIE XYZ, for the D65 white.</summary>
     private static readonly double[,] RgbToXyz =
@@ -307,9 +307,9 @@ internal static class Flip
         }
 
         public Opponent Filtered(int radius, double pixelsPerDegree) => new(
-            FilterChannel(Lightness, Achromatic, radius, pixelsPerDegree),
-            FilterChannel(redGreen, RedGreen, radius, pixelsPerDegree),
-            FilterChannel(blueYellow, BlueYellow, radius, pixelsPerDegree));
+            FilterChannel(channel: Lightness, filter: Achromatic, radius: radius, pixelsPerDegree: pixelsPerDegree),
+            FilterChannel(channel: redGreen, filter: RedGreen, radius: radius, pixelsPerDegree: pixelsPerDegree),
+            FilterChannel(channel: blueYellow, filter: BlueYellow, radius: radius, pixelsPerDegree: pixelsPerDegree));
 
         public (double X, double Y, double Z) XyzAt(int i)
         {

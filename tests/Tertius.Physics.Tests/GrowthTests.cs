@@ -22,9 +22,9 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class GrowthTests
 {
-    private static readonly BodyDesc Crate = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static);
+    private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
 
-    private static readonly BodyDesc PersonDesc = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc PersonDesc = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     /// <summary>
     /// A world on the wrapper, whose systems start with room for <paramref name="maxBodiesPerFrame"/> bodies, with the
@@ -33,22 +33,22 @@ public class GrowthTests
     private static World NewWorldOfSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults,
         List<string>? warnings = null,
         bool numericFrames = true) =>
-        NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame, out faults, warnings,
+        NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame: maxBodiesPerFrame, faults: out faults, warnings: warnings,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>A dynamic ball with no damping and no bounce.</summary>
     private static BodyDesc BallDesc(float radius, float mass = 1f) =>
-        new(new SphereShapeDesc(radius), BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new SphereShapeDesc(radius), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
             AngularDamping: 0);
 
     /// <summary>A dynamic box with no damping and no bounce, with half sides of <paramref name="half"/> m.</summary>
     private static BodyDesc BoxDesc(float half, float mass = 1f) =>
-        new(new BoxShapeDesc(new(half)), BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
+        new(Shape: new BoxShapeDesc(new(half)), Motion: BodyMotion.Dynamic, Mass: mass, Restitution: 0, LinearDamping: 0,
             AngularDamping: 0);
 
     /// <summary>A static floor of 2 · <paramref name="halfSize"/> m by 2 · <paramref name="halfSize"/> m, 1 m thick.</summary>
     private static BodyDesc FloorDesc(float halfSize) =>
-        new(new BoxShapeDesc(new(halfSize, 0.5f, halfSize)), BodyMotion.Static);
+        new(Shape: new BoxShapeDesc(new(halfSize, 0.5f, halfSize)), Motion: BodyMotion.Static);
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of
     /// <paramref name="radius"/> m.</summary>
@@ -117,7 +117,7 @@ public class GrowthTests
     [InlineData(NewBody.Interior)]
     public void ABodyThatTheSimulationCreatesInAFullSystemGrowsTheSystemToTwiceItsSize(NewBody kind)
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle hold;
         BodyCreate? heldBack = null;
@@ -127,7 +127,7 @@ public class GrowthTests
             {
                 Frame = space,
                 Pose = At(500),
-                Body = new(new BoxShapeDesc(new(5)), BodyMotion.Static),
+                Body = new(Shape: new BoxShapeDesc(new(5)), Motion: BodyMotion.Static),
                 AsFrame = new(FrameBounds.Sphere(50))
             });
             hold = world.GetOwnedFrame(holdOwner);
@@ -139,7 +139,7 @@ public class GrowthTests
         }
         else
         {
-            hold = EmptyFrame(world, space, At(500), 50);
+            hold = EmptyFrame(world: world, parent: space, pose: At(500), radius: 50);
         }
 
         FrameHandle full = kind == NewBody.Interior ? hold : space;
@@ -211,9 +211,9 @@ public class GrowthTests
     public void AHandOffIntoAFullSystemGrowsTheSystemAndTheBodyFliesOnInIt(bool frameHull)
     {
         // Numeric frames off: the test checks that the hangar's own system holds the body after the hand-off.
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults, numericFrames: false);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults, numericFrames: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle hangar = EmptyFrame(world, space, At(1000), 30);
+        FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 30);
         AddCrates(world, hangar, 8);
         Entity flyer = frameHull
             ? world.Spawn(new()
@@ -264,9 +264,9 @@ public class GrowthTests
     [Fact]
     public void AStandingCharacterStillStandsInTheStepInWhichAHandOffGrowsItsSystem()
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
-        FrameHandle hangar = EmptyFrame(world, space, At(1000), 30, GravityField.Uniform(new(0, -9.81f, 0)));
+        FrameHandle hangar = EmptyFrame(world: world, parent: space, pose: At(1000), radius: 30, gravity: GravityField.Uniform(new(0, -9.81f, 0)));
         world.Spawn(new() { Frame = hangar, Pose = At(0, -0.5), Body = FloorDesc(10) });
         Entity person = world.Spawn(new() { Frame = hangar, Pose = At(0, 0.92), Body = PersonDesc });
         AddCrates(world, hangar, 6);
@@ -297,10 +297,10 @@ public class GrowthTests
     [Fact]
     public void AGhostThatAFullSystemNeedsGrowsTheSystemAndEveryStepKeepsItsOutput()
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         AddCrates(world, space, 8);
-        FrameHandle bubble = EmptyFrame(world, space, At(50), 20);
+        FrameHandle bubble = EmptyFrame(world: world, parent: space, pose: At(50), radius: 20);
         Entity ball = world.Spawn(new()
             { Frame = bubble, Pose = At(19.8), LinearVelocity = new Vector3(0, 1, 0), Body = BallDesc(0.5f) });
 
@@ -326,7 +326,7 @@ public class GrowthTests
     [Fact]
     public void AShipThatADestroyedStationRehomesIntoAFullParentGetsItsHullAndItsInterior()
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         AddCrates(world, space, 8);
         Entity stationOwner = world.Spawn(new()
@@ -366,13 +366,13 @@ public class GrowthTests
     {
         public FullGround()
         {
-            World = NewWorldOfSmallSystems(16, out FaultInjectingBackend faults);
+            World = NewWorldOfSmallSystems(maxBodiesPerFrame: 16, faults: out FaultInjectingBackend faults);
             Faults = faults;
             GravityField gravity =
                 GravityField.Uniform(new(0, -9.81f, 0), new BoundingBox(new(-60, -10, -60), new(60, 10, 60)));
             Ground = World.GetOwnedFrame(World.Spawn(new()
             {
-                Body = new(new BoxShapeDesc(new(0.5f)), BodyMotion.Static),
+                Body = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static),
                 AsFrame = new(FrameBounds.Sphere(1e6f), gravity)
             }));
             World.Spawn(new() { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
@@ -386,13 +386,13 @@ public class GrowthTests
             {
                 Frame = Ground,
                 Pose = At(-10, 3),
-                Body = new(new BoxShapeDesc(new(1, 0.1f, 1)), BodyMotion.Kinematic)
+                Body = new(Shape: new BoxShapeDesc(new(1, 0.1f, 1)), Motion: BodyMotion.Kinematic)
             }, World, new(0, 0, 1)));
             var lopsided = new CompoundShapeDesc([
                 new(new BoxShapeDesc(new(0.5f)), new(new(0.6f, 0, 0), Quaternion.Identity)),
                 new(new BoxShapeDesc(new(0.2f)), new(new(-0.3f, 0, 0), Quaternion.Identity))
             ]);
-            World.Spawn(new() { Frame = Ground, Pose = At(30, 0.6), Body = new(lopsided, Mass: 3) });
+            World.Spawn(new() { Frame = Ground, Pose = At(30, 0.6), Body = new(Shape: lopsided, Mass: 3) });
             World.Spawn(new()
             {
                 Frame = Ground,
@@ -400,9 +400,9 @@ public class GrowthTests
                 Body = BoxDesc(2, mass: 500),
                 AsFrame = new(FrameBounds.Sphere(5))
             });
-            FrameHandle nook = EmptyFrame(World, Ground, At(0, 40), 10);
+            FrameHandle nook = EmptyFrame(world: World, parent: Ground, pose: At(0, 40), radius: 10);
             World.Spawn(new()
-                { Frame = nook, Pose = At(10), Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic) });
+                { Frame = nook, Pose = At(10), Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic) });
             Person = World.Spawn(new()
                 { Frame = Ground, Pose = At(0, 0.95, 20), Body = PersonDesc, Components = [PersonPilot] });
             // Two seconds: the box falls asleep, the others settle.
@@ -547,7 +547,7 @@ public class GrowthTests
     {
         public Roller()
         {
-            World = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults, Warnings);
+            World = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults, warnings: Warnings);
             Faults = faults;
             Ground = Ground(World, 9.81f);
             World.Spawn(new() { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
@@ -624,9 +624,9 @@ public class GrowthTests
     [Fact]
     public void APairThatTouchesAcrossAGrowthDuringAStepAndAnotherAtTheNextSyncPointReportsNoNewContact()
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 8, faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        FrameHandle pit = EmptyFrame(world, space, At(0), 20, GravityField.Uniform(new(0, -9.81f, 0)));
+        FrameHandle pit = EmptyFrame(world: world, parent: space, pose: At(0), radius: 20, gravity: GravityField.Uniform(new(0, -9.81f, 0)));
         world.Spawn(new() { Frame = pit, Pose = At(0, -0.5), Body = FloorDesc(15) });
         Entity rolling = world.Spawn(new()
         {
@@ -666,11 +666,11 @@ public class GrowthTests
     private static (List<ulong> Hashes, List<(uint Ground, uint Pit)> Capacities, List<ulong> WorldHashes)
         RunWithGrowth()
     {
-        using World world = NewWorldOfSmallSystems(16, out FaultInjectingBackend faults);
+        using World world = NewWorldOfSmallSystems(maxBodiesPerFrame: 16, faults: out FaultInjectingBackend faults);
         GravityField gravity = GravityField.Uniform(new(0, -9.81f, 0));
         FrameHandle ground = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new() { Frame = ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
-        FrameHandle pit = EmptyFrame(world, ground, At(40), 10, gravity);
+        FrameHandle pit = EmptyFrame(world: world, parent: ground, pose: At(40), radius: 10, gravity: gravity);
         world.Spawn(new() { Frame = pit, Pose = At(0, -0.5), Body = FloorDesc(15) });
         AddCrates(world, pit, 14);
         for (int i = 0; i < 6; i++)
@@ -680,7 +680,7 @@ public class GrowthTests
             { Frame = ground, Pose = At(28, 0.5), LinearVelocity = new Vector3(6, 0, 0), Body = BallDesc(0.5f) });
 
         var hashes = new List<ulong>();
-        var capacities = new List<(uint, uint)>();
+        var capacities = new List<(uint Ground, uint Pit)>();
         var worldHashes = new List<ulong>();
         for (int tick = 0; tick < 90; tick++)
         {
@@ -781,7 +781,7 @@ public class GrowthTests
         var times = new List<double>();
         for (int run = 0; run < 3; run++)
         {
-            using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
+            using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults, debugChecks: false);
             FrameHandle hold = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             // Half static crates and half balls, 2 m apart, so that nothing touches.
             BodyDesc ball = BallDesc(0.4f);

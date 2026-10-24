@@ -56,7 +56,7 @@ public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSecon
                 int cycleTicks = Math.Max(1, (int)MathF.Round(cycleSeconds / self.DeltaTime));
                 outbox.Send(outerOpen ? outerDoor : innerDoor, new CloseDoor());
                 outerOpen = !outerOpen;
-                outbox.SendAfter(cycleTicks, outerOpen ? outerDoor : innerDoor, new OpenDoor());
+                outbox.SendAfter(ticks: cycleTicks, target: outerOpen ? outerDoor : innerDoor, payload: new OpenDoor());
                 cycleEnd = self.Tick + cycleTicks + 1;
             }
     }

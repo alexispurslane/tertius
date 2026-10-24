@@ -25,7 +25,7 @@ public class SpinStationRoomTests
     private const double RoomRadius = 50;
 
     private static readonly BodyDesc UndampedCrate =
-        new(new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>The station's rate as a vector in its axes, which are the axes of every room in it, in rad/s.</summary>
     private static readonly Double3 Omega = new(0, StationRate, 0);
@@ -36,13 +36,13 @@ public class SpinStationRoomTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
         world.Spawn(new()
         {
             Frame = frame,
             Pose = At(FloorRadius + 0.5),
-            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
         });
         return new(space, frame);
     }
@@ -75,10 +75,10 @@ public class SpinStationRoomTests
         // A new frame gives no proper acceleration in its first step, and the first step 2 after its spawn derives it from
         // its rest in the turning station: ω² R toward the axis. The room's own turns are the station's from its first step.
         const double r = 2;
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         Station station = SpawnStation(world);
         Tick(world, 3);
-        FrameHandle room = SpawnRoom(world, station.Frame, new(RoomRadius, 0, 0), 30);
+        FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 30);
         var probe = new GravityProbe(world, room, new(r, 0, 0));
         world.Spawn(new() { Frame = room, Components = [probe] });
 
@@ -105,10 +105,10 @@ public class SpinStationRoomTests
         // of the step, R_n g dt², which keeps a body in a field fixed in the frame's axes on its exact path: measured 1.2e-5 m
         // over the 90 steps. The design adds the linear gravity in the axes at the end of the step and accepts the cross term
         // ω |g| dt, which is ω³ R dt = 0.026 m/s² here, and the crate then leaves its line by 2.9 cm.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);
-        FrameHandle room = SpawnRoom(world, station.Frame, new(RoomRadius, 0, 0), 30);
+        FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 30);
         Entity crate = world.Spawn(new() { Frame = room, Pose = At(2), Body = UndampedCrate });
         world.Tick();
         Double3 first = world.PoseIn(crate, station.Space).Position;
@@ -155,10 +155,10 @@ public class SpinStationRoomTests
         // velocity and acceleration but not its jerk ω³ R, which leaves the chord off by ω³ R dt² / 6 = 7.11e-5 m/s, and the
         // crate drifts at that speed (measured 7.15e-5 m/s). The half step of g left in the axes now is off by a further
         // ω dt |g| dt / 2 = 2.1e-4 m/s, against the jerk's term: the crate then drifts at 1.4e-4 m/s.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);
-        FrameHandle room = SpawnRoom(world, station.Frame, new(RoomRadius, 0, 0), 30);
+        FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 30);
         Tick(world, 2);
         var place = new Double3(2, 0, 0);
         Entity crate = world.Spawn(new()
@@ -168,7 +168,7 @@ public class SpinStationRoomTests
         });
         Double3 start = world.PoseIn(crate, station.Space).Position;
 
-        List<Double3> places = PlacesInSpace(world, crate, station.Space, 90);
+        List<Double3> places = PlacesInSpace(world: world, crate: crate, space: station.Space, ticks: 90);
 
         double dt = 1.0 / 60;
         double drift = Double3.Distance(places[89], places[14]) / (75 * dt);
@@ -190,10 +190,10 @@ public class SpinStationRoomTests
         // end of the step from its chord, plus half a step of the room's field at that moment in the axes then, which is g
         // itself: g turned on by the step's turn is off by 2.1e-4 m/s again. The read takes the jerk's term back but for the
         // room's turn of 0.24 rad in between, so the crate keeps a drift of 8.8e-6 m/s in the station.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);
-        FrameHandle room = SpawnRoom(world, station.Frame, new(RoomRadius, 0, 0), 5);
+        FrameHandle room = SpawnRoom(world: world, parent: station.Frame, place: new(RoomRadius, 0, 0), radius: 5);
         Tick(world, 2);
         var place = new Double3(RoomRadius, 0, -8);
         Entity crate = world.Spawn(new()
@@ -232,18 +232,18 @@ public class SpinStationRoomTests
         // The ship is a frame whose hull physics keeps on the floor, so physics measures its proper acceleration, about ω² R
         // toward the axis. The room rests at the ship's origin, where the ship's rotation terms are zero, so the rule gives it
         // the ship's value as the step found it: the value of one sync point before.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Entity owner = world.Spawn(new()
         {
             Frame = station.Frame,
             Pose = At(FloorRadius - 1),
-            Body = new(new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(1, 2, 2)), Mass: 1000),
             // A bubble inside the hull, so that nothing hands into it.
             AsFrame = new(FrameBounds.Sphere(0.5f))
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        FrameHandle room = SpawnRoom(world, ship, Double3.Zero, 0.1f);
+        FrameHandle room = SpawnRoom(world: world, parent: ship, place: Double3.Zero, radius: 0.1f);
         Tick(world, 3);
 
         var shipReads = new List<Vector3>();

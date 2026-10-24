@@ -14,7 +14,7 @@ namespace Tertius.Core.Tests;
 public class FrameTreeUnitRotationTests
 {
     private static readonly DQuaternion Widened =
-        DQuaternion.FromQuaternion(new(0.18257418f, 0.36514837f, 0.5477226f, 0.73029685f));
+        DQuaternion.FromQuaternion(new(x: 0.18257418f, y: 0.36514837f, z: 0.5477226f, w: 0.73029685f));
 
     private static readonly Double3 InOrbit = new(4.2e6, -3.9e6, 3.6e6);
 
@@ -26,7 +26,7 @@ public class FrameTreeUnitRotationTests
         { "a rotation twice as long", Scaled(2) },
         { "a rotation just outside the tolerance", Scaled(1 + 5e-12) },
         { "the zero rotation", default },
-        { "a rotation that is not a number", new(double.NaN, 0, 0, 1) }
+        { "a rotation that is not a number", new(X: double.NaN, Y: 0, Z: 0, W: 1) }
     };
 
     public static TheoryData<string, DQuaternion> RotationsThatAreUnitLength => new()
@@ -39,7 +39,7 @@ public class FrameTreeUnitRotationTests
     };
 
     /// <summary>A rotation about +Z by a quarter turn, scaled so that its length is <paramref name="length"/>.</summary>
-    private static DQuaternion Scaled(double length) => new(0, 0, Math.Sqrt(0.5) * length, Math.Sqrt(0.5) * length);
+    private static DQuaternion Scaled(double length) => new(X: 0, Y: 0, Z: Math.Sqrt(0.5) * length, W: Math.Sqrt(0.5) * length);
 
     /// <summary>The root frame "earth" and the frame "ship" in it, at the place of a ship in a low orbit.</summary>
     private sealed class OrbitingShip
@@ -50,9 +50,9 @@ public class FrameTreeUnitRotationTests
 
         public OrbitingShip()
         {
-            Earth = Frames.Create(new(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
-            Ship = Frames.Create(new(2, 1), Earth, new(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)),
-                FrameBounds.Sphere(100));
+            Earth = Frames.Create(frameOwner: new(1, 1), parent: FrameHandle.Null, localPose: DPose.Identity, frameBounds: FrameBounds.Sphere(1e9f));
+            Ship = Frames.Create(frameOwner: new(2, 1), parent: Earth, localPose: new(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)),
+                frameBounds: FrameBounds.Sphere(100));
             Frames.Update();
         }
 
@@ -116,9 +116,9 @@ public class FrameTreeUnitRotationTests
     {
         // A move that keeps the world pose composes poses. Its result must be a unit rotation too.
         var test = new OrbitingShip();
-        FrameHandle station = test.Frames.Create(new(3, 1), test.Earth,
-            new(InOrbit + new Double3(500, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.1)),
-            FrameBounds.Sphere(300));
+        FrameHandle station = test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth,
+            localPose: new(InOrbit + new Double3(500, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.1)),
+            frameBounds: FrameBounds.Sphere(300));
         test.Frames.Update();
 
         test.Frames.Reparent(test.Ship, station);
@@ -148,7 +148,7 @@ public class FrameTreeUnitRotationTests
     {
         var test = new OrbitingShip();
 
-        Action create = () => test.Frames.Create(new(3, 1), test.Earth, new(InOrbit, rotation), FrameBounds.Sphere(10));
+        Action create = () => test.Frames.Create(frameOwner: new(3, 1), parent: test.Earth, localPose: new(InOrbit, rotation), frameBounds: FrameBounds.Sphere(10));
 
         create.Should().Throw<ContractException>(why).WithMessage("Precondition*");
     }

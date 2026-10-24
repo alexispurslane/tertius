@@ -48,7 +48,7 @@ public sealed record ScriptFilm(
                     outlines = outlinesStep.Show;
                     break;
                 case FilmStep film:
-                    films.Add(new(film.Name, camera, film.Every, film.Frames, frame, tick, outlines));
+                    films.Add(new(Name: film.Name, Camera: camera, Every: film.Every, Frames: film.Frames, FirstFrame: frame, FirstTick: tick, Outlines: outlines));
                     frame += film.Frames;
                     tick += (long)film.Frames * film.Every;
                     break;

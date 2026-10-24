@@ -32,7 +32,7 @@ public class SoakTests(ITestOutputHelper output)
         for (int i = 0; i < seeds; i++)
         {
             int seed = FirstSeed + i;
-            using var workload = new ChaoticWorkload(seed, chunkSize: ChunkSizes[i % ChunkSizes.Length],
+            using var workload = new ChaoticWorkload(seed: seed, chunkSize: ChunkSizes[i % ChunkSizes.Length],
                 maxDegreeOfParallelism: workers);
             try
             {

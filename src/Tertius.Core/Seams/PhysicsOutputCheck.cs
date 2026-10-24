@@ -153,8 +153,8 @@ public sealed class PhysicsOutputCheck
             BodyState state = output.Bodies[i];
             // The pose and velocities are relative to the reported frame, so they are useless in any other frame.
             if ((BodyFault(state.Entity, facts) ?? FrameFault(state.Frame, frames)) is { } fault)
-                Add(PhysicsOutputKind.BodyState, i, $"ignored the body state of {state.Entity}, because {fault}",
-                    state.Entity);
+                Add(kind: PhysicsOutputKind.BodyState, index: i, message: $"ignored the body state of {state.Entity}, because {fault}",
+                    entity: state.Entity);
         }
 
         for (int i = 0; i < output.HandOffs.Count; i++)
@@ -162,12 +162,12 @@ public sealed class PhysicsOutputCheck
             HandOff handOff = output.HandOffs[i];
             bool again = !handedOff.Add(handOff.Entity);
             if ((BodyFault(handOff.Entity, facts) ?? FrameFault(handOff.To, frames) ??
-                    MoveFault(handOff, frames, stepIntents, facts) ??
+                    MoveFault(handOff: handOff, frames: frames, stepIntents: stepIntents, facts: facts) ??
                     (again ? $"{handOff.Entity} has another hand-off in this step" : null)) is { } fault)
             {
                 brokenHandOffs.Add(i);
-                Add(PhysicsOutputKind.HandOff, i, $"ignored the hand-off of {handOff.Entity}, because {fault}",
-                    handOff.Entity);
+                Add(kind: PhysicsOutputKind.HandOff, index: i, message: $"ignored the hand-off of {handOff.Entity}, because {fault}",
+                    entity: handOff.Entity);
             }
         }
 
@@ -175,7 +175,7 @@ public sealed class PhysicsOutputCheck
         {
             FrameHandle frame = output.Frames[i].Frame;
             if (FrameRecordFault(frame, frames, facts) is { } fault)
-                Add(PhysicsOutputKind.FrameRecord, i, $"ignored the step record of {fault}", frame.Entity);
+                Add(kind: PhysicsOutputKind.FrameRecord, index: i, message: $"ignored the step record of {fault}", entity: frame.Entity);
         }
 
         for (int i = 0; i < output.Contacts.Count; i++)
@@ -185,17 +185,17 @@ public sealed class PhysicsOutputCheck
             if ((BodyFault(contact.A, facts) ?? BodyFault(contact.B, facts) ??
                     (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ??
                     FrameFault(contact.Frame, frames)) is { } fault)
-                Add(PhysicsOutputKind.Contact, i,
-                    $"ignored the contact of {contact.A} and {contact.B}, because {fault}", contact.A, contact.B);
+                Add(kind: PhysicsOutputKind.Contact, index: i,
+                    message: $"ignored the contact of {contact.A} and {contact.B}, because {fault}", entity: contact.A, other: contact.B);
         }
 
         for (int i = 0; i < output.ContactsEnded.Count; i++)
         {
             ContactEnded ended = output.ContactsEnded[i];
             if (ended.A == ended.B)
-                Add(PhysicsOutputKind.ContactEnd, i,
-                    $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself",
-                    ended.A);
+                Add(kind: PhysicsOutputKind.ContactEnd, index: i,
+                    message: $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself",
+                    entity: ended.A);
         }
 
         // Last, once every other skip is known, the hand-offs of frame owners in their order, each against the tree as
@@ -207,9 +207,9 @@ public sealed class PhysicsOutputCheck
                 continue;
             if (handOff.To == own || IsAncestorAfter(own, handOff.To, frames))
             {
-                Add(PhysicsOutputKind.HandOff, i,
-                    $"refused the hand-off of {handOff.Entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant",
-                    handOff.Entity);
+                Add(kind: PhysicsOutputKind.HandOff, index: i,
+                    message: $"refused the hand-off of {handOff.Entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant",
+                    entity: handOff.Entity);
                 continue;
             }
 

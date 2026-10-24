@@ -37,7 +37,7 @@ public class SpinStationCharacterTests
     /// <see cref="APersonWhoLeavesTheStationIntoAParentThatSpinsUpKeepsItsInertialLine"/>, in rad/s².</summary>
     private const double OuterSpinUp = 0.02;
 
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character,
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: PersonMass);
 
     private sealed record Station(FrameHandle Space, FrameHandle Frame)
@@ -50,13 +50,13 @@ public class SpinStationCharacterTests
     {
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }
-            .Spinning(world, new(DQuaternion.Identity, StationRate), firstMove: true));
+            .Spinning(world, new(Tilt: DQuaternion.Identity, Rate: StationRate), firstMove: true));
         FrameHandle frame = world.GetOwnedFrame(owner);
         world.Spawn(new()
         {
             Frame = frame,
             Pose = At(FloorRadius + 0.5),
-            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
         });
         return new(space, frame);
     }
@@ -73,7 +73,7 @@ public class SpinStationCharacterTests
     }
 
     private static Sample Take(World world, Station station, Entity person) =>
-        new(world.Time, station.Pose(world), world.PoseIn(person, station.Space).Position, world.IsStanding(person));
+        new(Time: world.Time, Station: station.Pose(world), Inertial: world.PoseIn(person, station.Space).Position, Standing: world.IsStanding(person));
 
     /// <summary>The station's angular velocity in inertial space, from the poses of two samples one step apart.</summary>
     private static Double3 AngularVelocity(Sample a, Sample b) =>
@@ -135,9 +135,9 @@ public class SpinStationCharacterTests
     {
         // The station has no field, so only the station's turn brings the person down: in inertial space it keeps the
         // velocity of its spawn place on the station, and the floor turns up under it. It then stands, and the ground holds it.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity person = SpawnPerson(world, station, new(StandingRadius - 0.03, 0, 0), new());
+        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.03, 0, 0), pilot: new());
         Tick(world, 60);
 
         int standing = 0;
@@ -169,10 +169,10 @@ public class SpinStationCharacterTests
     [Fact]
     public void APersonWhoStandsOnTheFloorOfTheStationWalksSpinwardAndAntispinwardAtItsAskedSpeedAndStandsInEveryStep()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, station, new(StandingRadius - 0.03, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.03, 0, 0), pilot: pilot);
         TickUntil(world, () => world.IsStanding(person), 60).Should()
             .BeLessThan(60, "the person lands and stands on the floor");
         Tick(world, 10);
@@ -222,10 +222,10 @@ public class SpinStationCharacterTests
         // inertial space the person then moves on the straight line through its place there with that velocity plus the
         // velocity of the floor under it, ω × x, until the floor's plane meets it again. The spike measured 7 µm, the design's
         // bound, and the person here lands within 4e-8 m of the place.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, station, new(StandingRadius - 0.01, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.01, 0, 0), pilot: pilot);
         Tick(world, 60);
         var samples = new List<Sample>();
         world.Tick();
@@ -247,14 +247,14 @@ public class SpinStationCharacterTests
         Double3 omega = AngularVelocity(samples[0], start);
         Double3 velocity = start.Station.Rotation.Rotate(up0 * 3) +
                            Double3.Cross(omega, start.Inertial - start.Station.Position);
-        (double time, Double3 place) = Landing(start, omega, start.Inertial, velocity, x0.X, 1e-3, 1);
+        (double time, Double3 place) = Landing(at: start, omega: omega, start: start.Inertial, velocity: velocity, planeX: x0.X, from: 1e-3, until: 1);
 
         int landed = FirstConstrainedStep(samples, 3);
         landed.Should().BeGreaterThan(3, "the person flew and landed");
         Sample last = samples[landed - 1], before = samples[landed - 2];
         double dt = world.DeltaTime;
-        (double measuredTime, Double3 measured) = Landing(last, omega, last.Inertial,
-            (last.Inertial - before.Inertial) / dt, x0.X, -dt, 3 * dt);
+        (double measuredTime, Double3 measured) = Landing(at: last, omega: omega, start: last.Inertial,
+            velocity: (last.Inertial - before.Inertial) / dt, planeX: x0.X, from: -dt, until: 3 * dt);
 
         Double3.Distance(measured, place).Should().BeLessThan(7e-6);
         (last.Time - start.Time + measuredTime).Should().BeApproximately(time, 1e-4);
@@ -268,10 +268,10 @@ public class SpinStationCharacterTests
         // The velocity that the game gives is an instant velocity relative to the station, where the step that applies it
         // starts. In inertial space the person then moves on the straight line through its place there with that velocity,
         // turned into inertial axes, plus the velocity of the station's point there, ω × x.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, station, new(50, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(50, 0, 0), pilot: pilot);
         Tick(world, 10);
         Sample before = Take(world, station, person);
         var velocity = new Double3(-2, 1, 3);
@@ -301,7 +301,7 @@ public class SpinStationCharacterTests
         // linear gravity is its push reversed, ω² R = 4.9 m/s² away from the axis, and it acts in the room's axes at the
         // start of each step, so the turn of the step carries it into the axes at its end, as the station's turn carries the
         // person's chord. Left unturned, it would push the person sideways by ω³ R dt = 0.026 m/s², 1.3 cm in a second.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new()
@@ -340,10 +340,10 @@ public class SpinStationCharacterTests
         // touches nothing. It moves on its inertial line. An impulse of 70 N s along the station's +Z changes its velocity
         // by 1 m/s along the station's +Z at the start of the step that applies it, in the axes of that moment, so after it
         // the person moves on the straight line through its place there with its old velocity plus that change.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, station, new(50, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(50, 0, 0), pilot: pilot);
         world.Tick();
         var before = new List<Sample>();
         for (int tick = 0; tick < 30; tick++)
@@ -404,25 +404,25 @@ public class SpinStationCharacterTests
     public void APersonWhoWalksOnAPlankInTheStationPressesItWithTheEffectiveGravityAndTheCoriolisTermAlongItsNormal(
         int side)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
         const double ridgeX = 95, ridgeRadius = 0.05, halfThickness = 0.25;
         world.Spawn(new()
         {
             Frame = station.Frame, Pose = At(ridgeX),
-            Body = new(new CapsuleShapeDesc(2, (float)ridgeRadius), BodyMotion.Static)
+            Body = new(Shape: new CapsuleShapeDesc(2, (float)ridgeRadius), Motion: BodyMotion.Static)
         });
         const double plankX = ridgeX - ridgeRadius - halfThickness;
         Entity plank = world.Spawn(new()
         {
             Frame = station.Frame,
             Pose = At(plankX),
-            Body = new(new BoxShapeDesc(new((float)halfThickness, 2, 5)), Mass: PlankMass, LinearDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new((float)halfThickness, 2, 5)), Mass: PlankMass, LinearDamping: 0,
                 AngularDamping: 0)
         });
         var pilot = new Pilot();
         // The person starts 1 cm above the plank's face toward the axis, and lands on it in about 20 ticks.
-        Entity person = SpawnPerson(world, station, new(plankX - halfThickness - 0.9 - 0.01, 0, 2 * side), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(plankX - halfThickness - 0.9 - 0.01, 0, 2 * side), pilot: pilot);
         TickUntil(world, () => world.IsStanding(person), 60).Should()
             .BeLessThan(60, "the person lands and stands on the plank");
 
@@ -508,7 +508,7 @@ public class SpinStationCharacterTests
         // where it lands (5e-5 rad when up turned at once in the air), 9e-6 rad from the predicted place, and stood from the
         // tick after it landed. The bound of 1e-3 rad on the tilt sits at the dead band of AlignUp, inside which the body's
         // rotation does not follow up, so the rotation can lag up by nearly that much.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         double half = Math.Atan(CrossingJump / (StationRate * StandingRadius));
         double landing = 2 * half - Math.Sin(2 * half);
@@ -518,10 +518,10 @@ public class SpinStationCharacterTests
         {
             Frame = station.Frame,
             Pose = new(far.Rotate(new Double3(FloorRadius + 0.5, 0, 0)), far),
-            Body = new(new BoxShapeDesc(new(0.5f, 10, 10)), BodyMotion.Static)
+            Body = new(Shape: new BoxShapeDesc(new(0.5f, 10, 10)), Motion: BodyMotion.Static)
         });
         var pilot = new Pilot();
-        Entity person = SpawnPerson(world, station, new(StandingRadius - 0.01, 0, 0), pilot);
+        Entity person = SpawnPerson(world: world, station: station, place: new(StandingRadius - 0.01, 0, 0), pilot: pilot);
         Tick(world, 60);
         world.IsStanding(person).Should().BeTrue("the person stands on the floor of its takeoff");
         Send(world, pilot, body => body.Jump((float)CrossingJump));
@@ -554,10 +554,10 @@ public class SpinStationCharacterTests
     {
         // The effective gravity of the station is ω² r away from its axis, 0.029 m/s² at 0.3 m, below the 0.05 m/s² under
         // which a character takes the rigid form, and 0.20 m/s² at 2 m, above twice that, from which a character walks.
-        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world);
-        Entity nearHub = SpawnPerson(world, station, new(0.3, 0, 0), new());
-        Entity farther = SpawnPerson(world, station, new(0, 0, 2), new());
+        Entity nearHub = SpawnPerson(world: world, station: station, place: new(0.3, 0, 0), pilot: new());
+        Entity farther = SpawnPerson(world: world, station: station, place: new(0, 0, 2), pilot: new());
         Tick(world, 3);
 
         backend.HasRigidForm(nearHub).Should().BeTrue("the centrifugal term near the hub is too weak to stand on");
@@ -610,13 +610,13 @@ public class SpinStationCharacterTests
         // the station's turning axes. The hand-off into space carries its instant velocity at the end of the step, which the
         // chord rule's inverse gives from that chord: the velocity of the line, 10 m/s outward. The chord itself, read as an
         // instant velocity, is off by about ω² r dt / 2, 0.1 m/s.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 30);
         double start = world.Time;
-        Entity person = SpawnOutwardPerson(world, station.Frame, station.Pose(world), new(0, StationRate, 0),
-            out Double3 place,
-            out Double3 velocity);
+        Entity person = SpawnOutwardPerson(world: world, frame: station.Frame, pose: station.Pose(world), frameSpin: new(0, StationRate, 0),
+            place: out Double3 place,
+            velocity: out Double3 velocity);
 
         double worstPlace = 0;
         int ticks = TickUntil(world, () =>
@@ -650,13 +650,13 @@ public class SpinStationCharacterTests
         // frame's turn of that step, which the person's next update carries on along the line. In the outer frame, 150 m
         // from its axis after 1 s or more of spin-up, the Euler term alone is α r = 3 m/s², so the person keeps its walking
         // form there.
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         double spinStart = world.Time;
         FrameHandle outer = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(
             new() { Frame = space, AsFrame = new(FrameBounds.Sphere(1e4f)) }, world, OuterSpinUp)));
         // The tilt takes the spin's pole, +Y, to +X.
-        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), StationRate);
+        var spin = new FrameSpin(Tilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Rate: StationRate);
         FrameHandle station = world.GetOwnedFrame(world.Spawn(
             new SpawnDesc { Frame = outer, AsFrame = new(FrameBounds.Sphere(150)) }
                 .Spinning(world, spin, firstMove: true)));
@@ -665,8 +665,8 @@ public class SpinStationCharacterTests
         Double3 inSpace = new Double3(0, OuterSpinUp * (world.Time - spinStart), 0) +
                           world.Frames.Relative(outer, space).Rotation.Rotate(spin.AngularVelocity);
         double start = world.Time;
-        Entity person = SpawnOutwardPerson(world, station, pose, pose.Rotation.Conjugate().Rotate(inSpace),
-            out Double3 place, out Double3 velocity);
+        Entity person = SpawnOutwardPerson(world: world, frame: station, pose: pose, frameSpin: pose.Rotation.Conjugate().Rotate(inSpace),
+            place: out Double3 place, velocity: out Double3 velocity);
 
         double worstPlace = 0;
         int ticks = TickUntil(world, () =>

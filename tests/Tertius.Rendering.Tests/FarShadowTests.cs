@@ -17,13 +17,13 @@ public sealed class FarShadowTests
     private static readonly MeshId Sphere = new(0);
 
     private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
-        RenderInstance.Create(Sphere, new(0), position, Quaternion.Identity, new(radius), 0, HemisphereUp.Even,
-            (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow, 0, 0);
+        RenderInstance.Create(mesh: Sphere, material: new(0), position: position, rotation: Quaternion.Identity, scale: new(radius), boundingRadius: 0, hemisphere: HemisphereUp.Even,
+            flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow, entityIndex: 0, part: 0);
 
     private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(snapshot, alpha, 1600, 900, Meshes, 8, scene);
+        new SceneBatcher().Prepare(snapshot: snapshot, alpha: alpha, width: 1600, height: 900, meshes: Meshes, materialCount: 8, scene: scene);
         return scene;
     }
 
@@ -40,7 +40,7 @@ public sealed class FarShadowTests
 
         PreparedScene scene = Prepare(snapshot);
 
-        FarShadows(scene).Should().Equal(new Vector4(0, 0, -3e7f, 6e6f));
+        FarShadows(scene).Should().Equal(new Vector4(x: 0, y: 0, z: -3e7f, w: 6e6f));
         scene.MappedOccluderCount.Should().Be(0);
         scene.Constants.OccluderCount.Should().Be(1u);
     }
@@ -52,7 +52,7 @@ public sealed class FarShadowTests
         // 40 m across at 5 km: 8e-3 rad, about six pixels.
         snapshot.Instances.Add(Caster(new(0, 0, -5_000), 20));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, 20));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(x: 0, y: 0, z: -5_000, w: 20));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class FarShadowTests
         // 40 m across at 25 km: 1.6e-3 rad, about 1.25 pixels.
         snapshot.Instances.Add(Caster(new(0, 0, -25_000), 20));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -25_000, 20));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(x: 0, y: 0, z: -25_000, w: 20));
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class FarShadowTests
         snapshot.Sun.AngularRadius = 4.85e-4f;
         snapshot.Instances.Add(Caster(new(0, 0, -1e9f), 4.5e5f));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -1e9f, 4.5e5f));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(x: 0, y: 0, z: -1e9f, w: 4.5e5f));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class FarShadowTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
         snapshot.Instances.Add(Caster(new(0, 0, -5_000), 1_000, visible: false));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, 1_000));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(x: 0, y: 0, z: -5_000, w: 1_000));
     }
 
     // ---- Casters in the shadow maps -----------------------------------------------------------------------------
@@ -120,7 +120,7 @@ public sealed class FarShadowTests
 
         PreparedScene scene = Prepare(snapshot);
 
-        FarShadows(scene).Should().Equal(new Vector4(0, 0, -500, 50));
+        FarShadows(scene).Should().Equal(new Vector4(x: 0, y: 0, z: -500, w: 50));
         scene.MappedOccluderCount.Should().Be(1);
         scene.Constants.MappedOccluderCount.Should().Be(1u);
     }
@@ -133,7 +133,7 @@ public sealed class FarShadowTests
 
         PreparedScene scene = Prepare(snapshot);
 
-        FarShadows(scene).Should().Equal(new Vector4(0, -6.371e6f - 2, 0, 6.371e6f));
+        FarShadows(scene).Should().Equal(new Vector4(x: 0, y: -6.371e6f - 2, z: 0, w: 6.371e6f));
         scene.MappedOccluderCount.Should().Be(1);
     }
 
@@ -160,7 +160,7 @@ public sealed class FarShadowTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
         // A star: drawn, but the light itself, so it casts no shadow.
         snapshot.Instances.Add(
-            Gpu.Instance(Sphere, new(0), new(1.5e11f, 0, 0), new(7e8f), flags: RenderFlags.Celestial));
+            Gpu.Instance(mesh: Sphere, material: new(0), position: new(1.5e11f, 0, 0), scale: new(7e8f), flags: RenderFlags.Celestial));
 
         FarShadows(Prepare(snapshot)).Should().BeEmpty();
     }
@@ -188,7 +188,7 @@ public sealed class FarShadowTests
         snapshot.Instances.Add(caster);
 
         // A quarter of the way, the caster is at (0, 1,500, -5,000) and the camera at (0, 0, 6).
-        FarShadows(Prepare(snapshot, alpha: 0.25f)).Should().Equal(new Vector4(0, 1_500, -5_006, 1_000));
+        FarShadows(Prepare(snapshot, alpha: 0.25f)).Should().Equal(new Vector4(x: 0, y: 1_500, z: -5_006, w: 1_000));
     }
 
     [Fact]

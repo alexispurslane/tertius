@@ -269,10 +269,10 @@ internal sealed class TopicSets
                 ? memberSets[slot] == 0
                 : IsLive(entry.Member) && memberSets[slot] == 1);
             List<Topic>? subscriptions = entry.Subscriptions;
-            int subscribed = subscriptions?.Count ?? 0;
-            Contract.Invariant(subscriberSets[slot] == subscribed);
-            for (int i = 0; i < subscribed; i++)
-                Contract.Invariant(subscriptions!.IndexOf(subscriptions[i]) == i);
+            Contract.Invariant(subscriberSets[slot] == (subscriptions?.Count ?? 0));
+            if (subscriptions is not null)
+                for (int i = 0; i < subscriptions.Count; i++)
+                    Contract.Invariant(subscriptions.IndexOf(subscriptions[i]) == i);
         }
     }
 

@@ -48,7 +48,8 @@ public sealed partial class World
         {
             if (!Attachments.ParentOf(entity).IsNull)
                 continue;
-            BodyDesc desc = Entities.Body(entity)!;
+            BodyDesc? desc = Entities.Body(entity);
+            Contract.Assert(desc is not null);
             FrameHandle own = Entities.OwnedFrame(entity);
             // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
             // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
@@ -70,7 +71,9 @@ public sealed partial class World
                 continue;
             // The body of a frame owner is its frame's hull here, because its frame has a parent. The update plans the next
             // step, so it reads the hull's motion in that step, which counts a change written in the tick that ends.
-            BodyMotion motion = own.IsNull ? desc.Motion : NextStepHullMotion(own)!.Value;
+            BodyMotion? hullMotion = own.IsNull ? null : NextStepHullMotion(own);
+            Contract.Assert(own.IsNull || hullMotion.HasValue);
+            BodyMotion motion = hullMotion ?? desc.Motion;
             double mass = desc.Mass > 0 ? desc.Mass : 1;
             numericBodies.Add(new()
             {
@@ -96,8 +99,8 @@ public sealed partial class World
         }
 
         Profile.Lap(23);
-        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, DeltaTime, physicsChanges,
-            applyNumericMoves ??= ApplyNumericMoves);
+        Frames.UpdateNumericFrames(bodies: CollectionsMarshal.AsSpan(numericBodies), dt: dt, step: DeltaTime, changes: physicsChanges,
+            applyMoves: applyNumericMoves ??= ApplyNumericMoves);
         Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();

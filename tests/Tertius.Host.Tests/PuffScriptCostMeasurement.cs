@@ -54,7 +54,7 @@ public sealed class PuffScriptCostMeasurement
                     SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, vulkan);
                     using var playback = new HeadlessPlayback(vulkan, script.Window, new PngFolder(folder));
                     long start = Stopwatch.GetTimestamp();
-                    ScriptRunner.Run(script, world, scene, outputFolder: null, playback);
+                    ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: null, playback: playback);
                     double elapsed = Stopwatch.GetElapsedTime(start).TotalSeconds;
                     if (round > 0)
                         seconds[capacity].Add(elapsed);

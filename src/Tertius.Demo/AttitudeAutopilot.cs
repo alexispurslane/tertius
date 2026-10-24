@@ -170,22 +170,22 @@ public sealed class AttitudeAutopilot(PrincipalInertia inertia) : IComponent
         if (trace > 0)
         {
             double s = 2 * Math.Sqrt(trace + 1);
-            return new DQuaternion((y.Z - z.Y) / s, (z.X - x.Z) / s, (x.Y - y.X) / s, s / 4).Normalized();
+            return new DQuaternion(X: (y.Z - z.Y) / s, Y: (z.X - x.Z) / s, Z: (x.Y - y.X) / s, W: s / 4).Normalized();
         }
 
         if (x.X > y.Y && x.X > z.Z)
         {
             double s = 2 * Math.Sqrt(1 + x.X - y.Y - z.Z);
-            return new DQuaternion(s / 4, (y.X + x.Y) / s, (z.X + x.Z) / s, (y.Z - z.Y) / s).Normalized();
+            return new DQuaternion(X: s / 4, Y: (y.X + x.Y) / s, Z: (z.X + x.Z) / s, W: (y.Z - z.Y) / s).Normalized();
         }
 
         if (y.Y > z.Z)
         {
             double s = 2 * Math.Sqrt(1 + y.Y - x.X - z.Z);
-            return new DQuaternion((y.X + x.Y) / s, s / 4, (z.Y + y.Z) / s, (z.X - x.Z) / s).Normalized();
+            return new DQuaternion(X: (y.X + x.Y) / s, Y: s / 4, Z: (z.Y + y.Z) / s, W: (z.X - x.Z) / s).Normalized();
         }
 
         double t = 2 * Math.Sqrt(1 + z.Z - x.X - y.Y);
-        return new DQuaternion((z.X + x.Z) / t, (z.Y + y.Z) / t, t / 4, (x.Y - y.X) / t).Normalized();
+        return new DQuaternion(X: (z.X + x.Z) / t, Y: (z.Y + y.Z) / t, Z: t / 4, W: (x.Y - y.X) / t).Normalized();
     }
 }

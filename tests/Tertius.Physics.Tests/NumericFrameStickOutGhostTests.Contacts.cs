@@ -43,7 +43,7 @@ public partial class NumericFrameStickOutGhostTests
         {
             Frame = space,
             Pose = At(FarOut),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(40))
         });
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -60,9 +60,9 @@ public partial class NumericFrameStickOutGhostTests
         NumericMode rockMode = world.Frames.Numeric(world.PhysicsHomeOf(rock));
         Tick(world, 130);
         world.Errors.Should().BeEmpty();
-        return new(rockLog.NewsOf(crate), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space),
-            world.GetFrame(crate),
-            world.PhysicsHomeOf(rock), rockMode);
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+            CrateFrame: world.GetFrame(crate),
+            RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public partial class NumericFrameStickOutGhostTests
         {
             Frame = space,
             Pose = At(FarOut),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(40))
         });
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -117,7 +117,7 @@ public partial class NumericFrameStickOutGhostTests
         {
             Frame = space,
             Pose = At(FarOut + 38, 20),
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Kinematic)
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Kinematic)
         }, world, new(-2, 0, 0)));
         Entity rock = world.Spawn(new()
         {
@@ -140,9 +140,9 @@ public partial class NumericFrameStickOutGhostTests
         world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner),
             "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
         world.Errors.Should().BeEmpty();
-        return new(rockLog.NewsOf(crate), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space),
-            world.GetFrame(crate),
-            world.PhysicsHomeOf(rock), rockMode);
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+            CrateFrame: world.GetFrame(crate),
+            RockHome: world.PhysicsHomeOf(rock), RockMode: rockMode);
     }
 
     [Fact]
@@ -215,9 +215,9 @@ public partial class NumericFrameStickOutGhostTests
         world.GetFrame(rock).Should().Be(space, "the rock never touches the bubble");
         world.GetFrame(crate).Should().Be(ship, "the crate stays in the ship");
         world.Errors.Should().BeEmpty();
-        return new(rockLog.NewsOf(crate), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space),
-            world.GetFrame(crate),
-            world.PhysicsHomeOf(rock), world.Frames.Numeric(world.PhysicsHomeOf(rock)));
+        return new(RockNews: rockLog.NewsOf(crate), RockPosition: world.PoseIn(rock, space).Position, RockVelocity: world.VelocityIn(rock, space),
+            CrateFrame: world.GetFrame(crate),
+            RockHome: world.PhysicsHomeOf(rock), RockMode: world.Frames.Numeric(world.PhysicsHomeOf(rock)));
     }
 
     [Fact]

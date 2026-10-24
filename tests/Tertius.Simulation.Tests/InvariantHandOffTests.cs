@@ -17,12 +17,12 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneBreaksAContract()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new() { Frame = test.Root, Body = TestWorld.Ball });
         faults.EditNextOutput =
-            output => output.Bodies.Add(new(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
+            output => output.Bodies.Add(new(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = world.Tick;
@@ -44,16 +44,16 @@ public class InvariantHandOffTests
         /// <param name="handOffTo">Chooses where physics hands the hull off at the first step. It gets the hull and the inner frame.</param>
         public HullWorld(Func<FrameHandle, FrameHandle, FrameHandle> handOffTo)
         {
-            Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
             // The edit runs on the physics thread during the first tick, after the constructor has set the fields it reads.
             faults.EditNextOutput = output =>
-                output.HandOffs.Add(new HandOff(HullOwner, Test.Root, handOffTo(Hull, Inner), TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+                output.HandOffs.Add(new HandOff(Entity: HullOwner, From: Test.Root, To: handOffTo(Hull, Inner), Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
             HullOwner = Test.World.Spawn(new SpawnDesc
             {
                 Frame = Test.Root,
                 Pose = TestWorld.At(100),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-                Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
                 LinearVelocity = new Vector3(1, 2, 3),
             });
             Hull = Test.World.GetOwnedFrame(HullOwner);
@@ -123,12 +123,12 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneDoesNotPutTheBodyInThatFrame()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
         faults.EditNextOutput =
- output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
+ output => output.Bodies.Add(new BodyState(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = () => world.Tick();
@@ -141,13 +141,13 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneIsReportedAndLeavesTheBodyWhereItWas()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
         Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity =
  new Vector3(1, 2, 3), Body = TestWorld.Ball });
         faults.EditNextOutput =
- output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)));
+ output => output.Bodies.Add(new BodyState(Entity: body, Frame: gone, Pose: TestWorld.At(3), LinearVelocity: new Vector3(4, 5, 6), AngularVelocity: new Vector3(0, 1, 0)));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         world.Tick();
@@ -162,7 +162,7 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneAlsoSkipsTheHandOffAndTheFrameStateOfItsEntity()
     {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using var test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         World world = test.World;
         FrameHandle station = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 100);
         FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(500), radius: 5);
@@ -171,7 +171,7 @@ public class InvariantHandOffTests
             Frame = test.Root,
             Pose = TestWorld.At(100),
             AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+            Body = new BodyDesc(Shape: new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
             LinearVelocity = new Vector3(1, 2, 3),
         });
         FrameHandle hull = world.GetOwnedFrame(owner);
@@ -179,8 +179,8 @@ public class InvariantHandOffTests
         // state and a legal hand-off next to it.
         faults.EditNextOutput = output =>
         {
-            output.Bodies.Add(new BodyState(owner, gone, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
-            output.HandOffs.Add(new HandOff(owner, test.Root, station, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+            output.Bodies.Add(new BodyState(Entity: owner, Frame: gone, Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
+            output.HandOffs.Add(new HandOff(Entity: owner, From: test.Root, To: station, Pose: TestWorld.At(1), LinearVelocity: Vector3.Zero, AngularVelocity: Vector3.Zero));
         };
         world.Destroy(gone.Entity).Should().BeTrue();
 

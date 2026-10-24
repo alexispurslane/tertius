@@ -91,7 +91,7 @@ public readonly struct EventQuery<T, TState> : IEventFilter where T : unmanaged,
     private readonly TState state;
     private readonly RefPredicate<T, TState>? predicate;
 
-    internal EventQuery(EventQuery<T> query, TState state, RefPredicate<T, TState> predicate)
+    internal EventQuery(EventQuery<T> query, TState state, RefPredicate<T, TState>? predicate)
     {
         this.query = query;
         this.state = state;
@@ -99,7 +99,7 @@ public readonly struct EventQuery<T, TState> : IEventFilter where T : unmanaged,
     }
 
     /// <summary>Keeps the events that <paramref name="sender"/> sent. <see cref="Entity.Null"/> keeps the events without a sender.</summary>
-    public EventQuery<T, TState> From(Entity sender) => new(query.From(sender), state, predicate!);
+    public EventQuery<T, TState> From(Entity sender) => new(query.From(sender), state, predicate);
 
     bool IEventFilter.MayMatch(in EventMask mask) => EventQuery<T>.MayMatch(mask);
 

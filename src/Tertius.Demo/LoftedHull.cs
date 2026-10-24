@@ -168,7 +168,7 @@ public sealed partial class LoftedHull
         this.wall = wall;
         this.ribs = ribs;
         straight = new bool[count];
-        inset = new (double, double)[count];
+        inset = new (double X, double Y)[count];
         for (int k = 0; k < count; k++)
         {
             (double nx1, double ny1) = InwardNormal(crossSections[0], (k + count - 1) % count);
@@ -313,7 +313,7 @@ public sealed partial class LoftedHull
                     nameof(door));
         }
 
-        return new(this, new(door, bay, fromCorner, toCorner, axis), pocket, surrounds, panes);
+        return new(from: this, door: new(Box: door, Bay: bay, FromCorner: fromCorner, ToCorner: toCorner, Axis: axis), pocket: pocket, surrounds: surrounds, panes: panes);
     }
 
     /// <summary>
@@ -345,7 +345,7 @@ public sealed partial class LoftedHull
                     $"The pocket's housing, {2 * outer} m square round ({center.X}, {center.Y}), reaches the hull's wall at z = {z}.",
                     nameof(housing));
 
-        return new(this, door, new(center.X, center.Y, half, depth, housing), surrounds, panes);
+        return new(from: this, door: door, pocket: new(X: center.X, Y: center.Y, Half: half, Depth: depth, Housing: housing), surrounds: surrounds, panes: panes);
     }
 
     /// <summary>
@@ -362,7 +362,7 @@ public sealed partial class LoftedHull
                      { (rib, nameof(rib)), (fold, nameof(fold)), (solid, nameof(solid)) })
             if (!(float.IsFinite(value) && value > 0))
                 throw new ArgumentOutOfRangeException(name, value, "The value must be finite and positive.");
-        return new(this, door, pocket, new(rib, fold, solid), panes);
+        return new(from: this, door: door, pocket: pocket, surrounds: new(rib, fold, solid), panes: panes);
     }
 
     /// <summary>
@@ -424,7 +424,7 @@ public sealed partial class LoftedHull
                 "Call Surrounds before the glass: the size of a pane's hole comes from them.");
         if (panes.Any(other => other.Id == pane.Id))
             throw new ArgumentException($"The scene id {pane.Id} belongs to another pane.", nameof(pane));
-        var hull = new LoftedHull(this, door, pocket, surrounds, [.. panes, pane]);
+        var hull = new LoftedHull(from: this, door: door, pocket: pocket, surrounds: surrounds, panes: [.. panes, pane]);
         foreach (PaneCut each in hull.panes)
             hull.HoleOf(each);
         return hull;
@@ -458,8 +458,8 @@ public sealed partial class LoftedHull
                 mesh.Polygon(outward, [front[i], front[next], back[next], back[i]]);
             }
 
-            return new HullPane(pane.Id, center.ToVector3(), [.. outer.Select(corner => corner.ToVector3())],
-                [.. inner.Select(corner => corner.ToVector3())], mesh.Build());
+            return new HullPane(Id: pane.Id, Center: center.ToVector3(), Outer: [.. outer.Select(corner => corner.ToVector3())],
+                Inner: [.. inner.Select(corner => corner.ToVector3())], Mesh: mesh.Build());
         })
     ];
 
@@ -471,7 +471,8 @@ public sealed partial class LoftedHull
     /// </summary>
     private (Double3[] Outer, Double3[] Inner, Double3 Normal) HoleOf(PaneCut pane)
     {
-        SurroundWidths widths = surrounds!;
+        SurroundWidths widths = surrounds ??
+                                throw new InvalidOperationException("A hull has its surrounds before any pane.");
         Double3[] outerPanel, innerPanel;
         double[] distances;
         Double3 normal;
@@ -488,7 +489,7 @@ public sealed partial class LoftedHull
                 innerPanel = [InnerAt(e, iz0), InnerAt(next, iz0), InnerAt(next, iz1), InnerAt(e, iz1)];
                 double FoldSide(int neighbor) => HasGlass(neighbor, cell.Bay) ? widths.Fold : widths.Solid;
                 distances = [widths.Rib, FoldSide(next), widths.Rib, FoldSide(before)];
-                normal = CellNormal(OuterPlace(e, z0), OuterPlace(next, z0), OuterPlace(e, z1), e);
+                normal = CellNormal(a: OuterPlace(e, z0), b: OuterPlace(next, z0), aNext: OuterPlace(e, z1), edge: e);
                 break;
             }
             case FrontPane front:
@@ -595,7 +596,7 @@ public sealed partial class LoftedHull
             if (door != null && door.Bay == bay && PanelCorners(door.FromCorner, door.ToCorner).SkipLast(1).Contains(e))
                 continue;
             int next = (e + 1) % n;
-            Vector3 normal = CellNormal(outer[bay - 1][e], outer[bay - 1][next], outer[bay][e], e);
+            Vector3 normal = CellNormal(a: outer[bay - 1][e], b: outer[bay - 1][next], aNext: outer[bay][e], edge: e);
             Vector3[] outerCell = [outer[bay - 1][e], outer[bay - 1][next], outer[bay][next], outer[bay][e]];
             Vector3[] innerCell = [inner[bay - 1][e], inner[bay - 1][next], inner[bay][next], inner[bay][e]];
             CellPane[] glass = [.. Cells().Where(cell => cell.Edge == e && cell.Bay == bay)];
@@ -606,12 +607,12 @@ public sealed partial class LoftedHull
             }
             else
             {
-                HoleThrough(mesh, glass[0], normal, outerCell, innerCell);
+                HoleThrough(mesh: mesh, pane: glass[0], normal: normal, outerPanel: outerCell, innerPanel: innerCell);
             }
         }
 
-        if (door != null)
-            DoorPanels(mesh, outer, inner);
+        if (door is { } doorCut)
+            DoorPanels(mesh: mesh, cut: doorCut, outer: outer, inner: inner);
 
         FrontPane[] fronts = [.. Fronts()];
         if (fronts.Length == 0)
@@ -629,8 +630,8 @@ public sealed partial class LoftedHull
                 upper = [.. PanelCorners(nose.FromCorner, nose.ToCorner)];
             mesh.Polygon(-Vector3.UnitZ, [.. lower.Select(k => outer[0][k])]);
             mesh.Polygon(Vector3.UnitZ, [.. lower.Select(k => inner[0][k])]);
-            HoleThrough(mesh, nose, -Vector3.UnitZ, [.. upper.Select(k => outer[0][k])],
-                [.. upper.Select(k => inner[0][k])]);
+            HoleThrough(mesh: mesh, pane: nose, normal: -Vector3.UnitZ, outerPanel: [.. upper.Select(k => outer[0][k])],
+                innerPanel: [.. upper.Select(k => inner[0][k])]);
         }
 
         if (pocket == null)
@@ -640,7 +641,7 @@ public sealed partial class LoftedHull
         }
         else
         {
-            TailWall(mesh, outer[Bays], inner[Bays], pocket);
+            TailWall(mesh: mesh, outer: outer[Bays], inner: inner[Bays], cut: pocket);
         }
 
         return mesh.Build();
@@ -676,14 +677,14 @@ public sealed partial class LoftedHull
             float z0 = MathF.Max(sections[j].Z, InnerLevel(0)), z1 = MathF.Min(sections[j + 1].Z, InnerLevel(Bays));
             foreach ((int from, int to) in faces)
             {
-                if (door != null && OuterLevel(door.Bay - 1) >= sections[j].Z &&
-                    OuterLevel(door.Bay) <= sections[j + 1].Z && FaceOf(door.FromCorner) == (from, to))
+                if (door is { } doorCut && OuterLevel(doorCut.Bay - 1) >= sections[j].Z &&
+                    OuterLevel(doorCut.Bay) <= sections[j + 1].Z && FaceOf(doorCut.FromCorner) == (from, to))
                 {
-                    pieces.AddRange(DoorPieces(from, to, z0, z1));
+                    pieces.AddRange(DoorPieces(cut: doorCut, from: from, to: to, z0: z0, z1: z1));
                     continue;
                 }
 
-                pieces.Add(WallPiece(from, to, z0, z1));
+                pieces.Add(WallPiece(from: from, to: to, z0: z0, z1: z1));
             }
         }
 
@@ -872,10 +873,10 @@ public sealed partial class LoftedHull
     {
         // System.Numerics turns row vectors, so row i of the matrix is the image of axis i, column i of the axes.
         var matrix = new Matrix4x4(
-            (float)axes[0, 0], (float)axes[1, 0], (float)axes[2, 0], 0,
-            (float)axes[0, 1], (float)axes[1, 1], (float)axes[2, 1], 0,
-            (float)axes[0, 2], (float)axes[1, 2], (float)axes[2, 2], 0,
-            0, 0, 0, 1);
+            m11: (float)axes[0, 0], m12: (float)axes[1, 0], m13: (float)axes[2, 0], m14: 0,
+            m21: (float)axes[0, 1], m22: (float)axes[1, 1], m23: (float)axes[2, 1], m24: 0,
+            m31: (float)axes[0, 2], m32: (float)axes[1, 2], m33: (float)axes[2, 2], m34: 0,
+            m41: 0, m42: 0, m43: 0, m44: 1);
         return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(matrix));
     }
 
@@ -905,9 +906,8 @@ public sealed partial class LoftedHull
     }
 
     /// <summary>The door's outer and inner panels with their holes, and the four sides of the hole.</summary>
-    private void DoorPanels(Builder mesh, Vector3[][] outer, Vector3[][] inner)
+    private void DoorPanels(Builder mesh, DoorCut cut, Vector3[][] outer, Vector3[][] inner)
     {
-        DoorCut cut = door!;
         int[] corners = [.. PanelCorners(cut.FromCorner, cut.ToCorner)];
         int axis = cut.Axis, along = 1 - axis;
         BoundingBox box = cut.Box;
@@ -926,8 +926,8 @@ public sealed partial class LoftedHull
         }
 
         Vector3[] outerPanel = Outline(outer), innerPanel = Outline(inner);
-        Vector3 normal = CellNormal(outer[cut.Bay - 1][cut.FromCorner],
-            outer[cut.Bay - 1][(cut.FromCorner + 1) % Corners], outer[cut.Bay][cut.FromCorner], cut.FromCorner);
+        Vector3 normal = CellNormal(a: outer[cut.Bay - 1][cut.FromCorner],
+            b: outer[cut.Bay - 1][(cut.FromCorner + 1) % Corners], aNext: outer[cut.Bay][cut.FromCorner], edge: cut.FromCorner);
         Vector3[] outerHole = Hole(Component(outerPanel[0], axis)), innerHole = Hole(Component(innerPanel[0], axis));
         mesh.Ring(normal, outerPanel, outerHole);
         mesh.Ring(-normal, innerPanel, innerHole);
@@ -988,12 +988,11 @@ public sealed partial class LoftedHull
     /// convex hulls: the whole piece ahead of the doorway and behind it, and beside it the piece from each of its two sides
     /// out to the face's mitre.
     /// </summary>
-    private IEnumerable<Vector3[]> DoorPieces(int from, int to, float z0, float z1)
+    private IEnumerable<Vector3[]> DoorPieces(DoorCut cut, int from, int to, float z0, float z1)
     {
-        DoorCut cut = door!;
         BoundingBox box = cut.Box;
-        yield return WallPiece(from, to, z0, box.Min.Z);
-        yield return WallPiece(from, to, box.Max.Z, z1);
+        yield return WallPiece(from: from, to: to, z0: z0, z1: box.Min.Z);
+        yield return WallPiece(from: from, to: to, z0: box.Max.Z, z1: z1);
         int axis = cut.Axis, along = 1 - axis;
         // The door's side nearer to each end of the face.
         bool fromIsLow = Component(OuterPlace(from, box.Min.Z), along) < Component(OuterPlace(to, box.Min.Z), along);
@@ -1185,13 +1184,13 @@ public sealed partial class LoftedHull
             if (bends)
             {
                 for (int i = 1; i + 1 < corners.Length; i++)
-                    Triangle(normal, tangent, corners[0], corners[i], corners[i + 1]);
+                    Triangle(normal: normal, tangent: tangent, a: corners[0], b: corners[i], c: corners[i + 1]);
                 return;
             }
 
             Vector3 middle = corners.Aggregate(Vector3.Zero, (sum, corner) => sum + corner) / corners.Length;
             for (int i = 0; i < corners.Length; i++)
-                Triangle(normal, tangent, middle, corners[i], corners[(i + 1) % corners.Length]);
+                Triangle(normal: normal, tangent: tangent, a: middle, b: corners[i], c: corners[(i + 1) % corners.Length]);
         }
 
         /// <summary>
@@ -1217,14 +1216,14 @@ public sealed partial class LoftedHull
                 Vector3 o = outer[a % outer.Length], h = inner[b % inner.Length];
                 if (b == inner.Length || (a < outer.Length && OuterAngle(a + 1) <= InnerAngle(b + 1)))
                 {
-                    Expect(normal, o, outer[(a + 1) % outer.Length], h);
-                    Triangle(normal, tangent, o, outer[(a + 1) % outer.Length], h);
+                    Expect(normal: normal, a: o, b: outer[(a + 1) % outer.Length], c: h);
+                    Triangle(normal: normal, tangent: tangent, a: o, b: outer[(a + 1) % outer.Length], c: h);
                     a++;
                 }
                 else
                 {
-                    Expect(normal, o, inner[(b + 1) % inner.Length], h);
-                    Triangle(normal, tangent, o, inner[(b + 1) % inner.Length], h);
+                    Expect(normal: normal, a: o, b: inner[(b + 1) % inner.Length], c: h);
+                    Triangle(normal: normal, tangent: tangent, a: o, b: inner[(b + 1) % inner.Length], c: h);
                     b++;
                 }
             }

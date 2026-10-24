@@ -18,72 +18,72 @@ public class WorldSpawnRefusalTests
     /// <summary>The bodies that physics cannot create, by the names that the theory uses, and a word that the refusal names.</summary>
     private static (BodyDesc Body, string Word) Refused(string why) => why switch
     {
-        "no shape" => (new(null!), "no shape"),
-        "a motion that BodyMotion does not define" => (new(new SphereShapeDesc(1), (BodyMotion)9), "BodyMotion"),
-        "a layer that BodyLayer does not define" => (new(new SphereShapeDesc(1), Layer: (BodyLayer)9), "BodyLayer"),
-        "a box with a negative half extent" => (new(new BoxShapeDesc(new(1, -1, 1))), "half extents"),
-        "a box with a negative convex radius" => (new(new BoxShapeDesc(new(1), -1)), "convex radius"),
+        "no shape" => (new(Shape: null!), "no shape"),
+        "a motion that BodyMotion does not define" => (new(Shape: new SphereShapeDesc(1), Motion: (BodyMotion)9), "BodyMotion"),
+        "a layer that BodyLayer does not define" => (new(Shape: new SphereShapeDesc(1), Layer: (BodyLayer)9), "BodyLayer"),
+        "a box with a negative half extent" => (new(Shape: new BoxShapeDesc(new(1, -1, 1))), "half extents"),
+        "a box with a negative convex radius" => (new(Shape: new BoxShapeDesc(new(1), -1)), "convex radius"),
         "a box with a half extent that is not a number" =>
-            (new(new BoxShapeDesc(new(1, float.NaN, 1))), "half extents"),
-        "a sphere without a radius" => (new(new SphereShapeDesc(0)), "radius"),
-        "a capsule with a negative half height" => (new(new CapsuleShapeDesc(-1, 0.5f)), "half height"),
-        "a capsule without a radius" => (new(new CapsuleShapeDesc(1, 0)), "radius"),
-        "a convex hull with three points" => (new(new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])),
+            (new(Shape: new BoxShapeDesc(new(1, float.NaN, 1))), "half extents"),
+        "a sphere without a radius" => (new(Shape: new SphereShapeDesc(0)), "radius"),
+        "a capsule with a negative half height" => (new(Shape: new CapsuleShapeDesc(-1, 0.5f)), "half height"),
+        "a capsule without a radius" => (new(Shape: new CapsuleShapeDesc(1, 0)), "radius"),
+        "a convex hull with three points" => (new(Shape: new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])),
             "4 points"),
         "a convex hull with a point that is not a number" => (
-            new(new ConvexHullShapeDesc([.. Tetrahedron[..3], new(0, 0, float.NaN)])), "not finite"),
+            new(Shape: new ConvexHullShapeDesc([.. Tetrahedron[..3], new(0, 0, float.NaN)])), "not finite"),
         "a convex hull with a convex radius that is not a number" => (
-            new(new ConvexHullShapeDesc(Tetrahedron, float.NaN)), "convex radius"),
+            new(Shape: new ConvexHullShapeDesc(Tetrahedron, float.NaN)), "convex radius"),
         "a convex hull whose points all coincide" => (
-            new(new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), "convex hull"),
-        "a mesh without triangles" => (new(new MeshShapeDesc([new(0, 0, 0)], []), BodyMotion.Static), "multiple of 3"),
+            new(Shape: new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), "convex hull"),
+        "a mesh without triangles" => (new(Shape: new MeshShapeDesc([new(0, 0, 0)], []), Motion: BodyMotion.Static), "multiple of 3"),
         "a mesh whose index count is not a multiple of 3" => (
-            new(new MeshShapeDesc(Triangle.Vertices, [0, 2]), BodyMotion.Static), "multiple of 3"),
+            new(Shape: new MeshShapeDesc(Triangle.Vertices, [0, 2]), Motion: BodyMotion.Static), "multiple of 3"),
         "a mesh with an index outside its vertices" => (
-            new(new MeshShapeDesc(Triangle.Vertices, [0, 2, 3]), BodyMotion.Static), "outside"),
+            new(Shape: new MeshShapeDesc(Triangle.Vertices, [0, 2, 3]), Motion: BodyMotion.Static), "outside"),
         "a mesh with a vertex that is not a number" => (
-            new(new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(float.NaN, 0, 1)], [0, 2, 1]), BodyMotion.Static),
+            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(float.NaN, 0, 1)], [0, 2, 1]), Motion: BodyMotion.Static),
             "not finite"),
         "a mesh whose triangles are all degenerate" => (
-            new(new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(2, 0, 0)], [0, 1, 2]), BodyMotion.Static), "mesh"),
-        "a compound without children" => (new(new CompoundShapeDesc([])), "child"),
+            new(Shape: new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(2, 0, 0)], [0, 1, 2]), Motion: BodyMotion.Static), "mesh"),
+        "a compound without children" => (new(Shape: new CompoundShapeDesc([])), "child"),
         "a compound with a child that is not valid" => (
-            new(new CompoundShapeDesc([
+            new(Shape: new CompoundShapeDesc([
                 new(new SphereShapeDesc(-1), Pose.Identity), new(new SphereShapeDesc(1), Pose.Identity)
             ])), "radius"),
         "a compound with a child whose rotation is zero" => (
-            new(new CompoundShapeDesc([new(new SphereShapeDesc(1), new(Vector3.Zero, default))])), "rotation"),
-        "a dynamic body with a mesh" => (new(Triangle), "mesh"),
+            new(Shape: new CompoundShapeDesc([new(new SphereShapeDesc(1), new(Vector3.Zero, default))])), "rotation"),
+        "a dynamic body with a mesh" => (new(Shape: Triangle), "mesh"),
         "a kinematic body with a compound that holds a mesh" => (
-            new(new CompoundShapeDesc([new(Triangle, Pose.Identity)]), BodyMotion.Kinematic), "mesh"),
-        "a character whose shape is not a capsule" => (new(new SphereShapeDesc(0.5f), BodyMotion.Character, Mass: 70),
+            new(Shape: new CompoundShapeDesc([new(Triangle, Pose.Identity)]), Motion: BodyMotion.Kinematic), "mesh"),
+        "a character whose shape is not a capsule" => (new(Shape: new SphereShapeDesc(0.5f), Motion: BodyMotion.Character, Mass: 70),
             "CapsuleShapeDesc"),
-        "a dynamic body without mass" => (new(new SphereShapeDesc(1), Mass: 0), "mass"),
-        "a dynamic body whose mass is not a number" => (new(new SphereShapeDesc(1), Mass: float.NaN), "mass"),
-        "a dynamic body whose mass is infinite" => (new(new SphereShapeDesc(1), Mass: float.PositiveInfinity), "mass"),
+        "a dynamic body without mass" => (new(Shape: new SphereShapeDesc(1), Mass: 0), "mass"),
+        "a dynamic body whose mass is not a number" => (new(Shape: new SphereShapeDesc(1), Mass: float.NaN), "mass"),
+        "a dynamic body whose mass is infinite" => (new(Shape: new SphereShapeDesc(1), Mass: float.PositiveInfinity), "mass"),
         "a dynamic body whose mass is too small for a float to hold its inverse" => (
-            new(new SphereShapeDesc(1), Mass: 1e-40f), "mass"),
+            new(Shape: new SphereShapeDesc(1), Mass: 1e-40f), "mass"),
         "a kinematic body whose mass is not a number" => (
-            new(new SphereShapeDesc(1), BodyMotion.Kinematic, Mass: float.NaN), "mass"),
-        "a static body with a negative mass" => (new(new SphereShapeDesc(1), BodyMotion.Static, Mass: -1), "mass"),
+            new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Kinematic, Mass: float.NaN), "mass"),
+        "a static body with a negative mass" => (new(Shape: new SphereShapeDesc(1), Motion: BodyMotion.Static, Mass: -1), "mass"),
         "a character whose mass is too small for a float to hold its inverse" => (
-            new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 1e-40f), "mass"),
-        "a body whose friction is not a number" => (new(new SphereShapeDesc(1), Friction: float.NaN), "friction"),
-        "a body whose restitution is infinite" => (new(new SphereShapeDesc(1), Restitution: float.PositiveInfinity),
+            new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 1e-40f), "mass"),
+        "a body whose friction is not a number" => (new(Shape: new SphereShapeDesc(1), Friction: float.NaN), "friction"),
+        "a body whose restitution is infinite" => (new(Shape: new SphereShapeDesc(1), Restitution: float.PositiveInfinity),
             "restitution"),
-        "a body whose linear damping is not a number" => (new(new SphereShapeDesc(1), LinearDamping: float.NaN),
+        "a body whose linear damping is not a number" => (new(Shape: new SphereShapeDesc(1), LinearDamping: float.NaN),
             "linear damping"),
         "a body whose angular damping is infinite" => (
-            new(new SphereShapeDesc(1), AngularDamping: float.NegativeInfinity), "angular damping"),
+            new(Shape: new SphereShapeDesc(1), AngularDamping: float.NegativeInfinity), "angular damping"),
         "a body whose collision mask has an all-of part" => (
-            new(new SphereShapeDesc(1))
+            new(Shape: new SphereShapeDesc(1))
                 { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) },
             "all-of"),
         "a body whose collision mask has a none-of part" => (
-            new(new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) },
+            new(Shape: new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) },
             "none-of"),
         "a character that is a sensor" => (
-            new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) { IsSensor = true },
+            new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70) { IsSensor = true },
             "sensor"),
         _ => throw new ArgumentOutOfRangeException(nameof(why), why, null)
     };
@@ -129,7 +129,7 @@ public class WorldSpawnRefusalTests
     [InlineData("a character that is a sensor")]
     public void SpawnRefusesABodyThatPhysicsCannotCreate(string why)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         int live = world.Stats.LiveEntities;
         (BodyDesc body, string word) = Refused(why);
@@ -153,7 +153,7 @@ public class WorldSpawnRefusalTests
     [InlineData(BodyMotion.Static, float.NaN)]
     public void SpawnRefusesAFrameWhoseHullHasAMassThatPhysicsCannotUse(BodyMotion motion, float mass)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         int live = world.Stats.LiveEntities;
 
@@ -161,7 +161,7 @@ public class WorldSpawnRefusalTests
         {
             Frame = space,
             Pose = At(100),
-            Body = new(new BoxShapeDesc(new(2)), motion, Mass: mass),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: mass),
             AsFrame = new(FrameBounds.Sphere(10))
         });
 
@@ -192,11 +192,11 @@ public class WorldSpawnRefusalTests
     [InlineData("a mesh in a compound", BodyMotion.Dynamic)]
     public void SpawnRefusesAMeshHullWhoseBodyIsNotStatic(string shape, BodyMotion motion)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         int live = world.Stats.LiveEntities;
 
-        Action spawn = SpawnHull(world, space, new(MeshOf(shape), motion, Mass: 1000));
+        Action spawn = SpawnHull(world, space, new(Shape: MeshOf(shape), Motion: motion, Mass: 1000));
 
         spawn.Should().Throw<ArgumentException>().WithMessage($"*{motion.ToString().ToLowerInvariant()}*mesh*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
@@ -210,11 +210,11 @@ public class WorldSpawnRefusalTests
     [Fact]
     public void SpawnRefusesADynamicHullWithoutMass()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         int live = world.Stats.LiveEntities;
 
-        Action spawn = SpawnHull(world, space, new(new BoxShapeDesc(new(2)), BodyMotion.Dynamic, Mass: 0));
+        Action spawn = SpawnHull(world, space, new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Dynamic, Mass: 0));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*dynamic*mass*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
@@ -227,10 +227,10 @@ public class WorldSpawnRefusalTests
     [InlineData(BodyMotion.Kinematic)]
     public void SpawnAcceptsAHullWithoutMassThatIsNotDynamic(BodyMotion motion)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
-        SpawnHull(world, space, new(new BoxShapeDesc(new(2)), motion, Mass: 0))();
+        SpawnHull(world, space, new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: 0))();
         world.Tick();
 
         world.Stats.Frames.Should().Be(2);
@@ -243,10 +243,10 @@ public class WorldSpawnRefusalTests
     [InlineData("a mesh in a compound")]
     public void SpawnAcceptsAStaticMeshHull(string shape)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
-        SpawnHull(world, space, new(MeshOf(shape), BodyMotion.Static))();
+        SpawnHull(world, space, new(Shape: MeshOf(shape), Motion: BodyMotion.Static))();
         world.Tick();
 
         world.Stats.Frames.Should().Be(2);
@@ -269,11 +269,11 @@ public class WorldSpawnRefusalTests
     [InlineData("an infinite angular velocity", false)]
     public void SpawnRefusesAPoseOrVelocityThatIsNotFinite(string why, bool withBody)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         Entity ball = world.Spawn(new()
-            { Frame = ground, Pose = At(0.3, 3), Body = new(new SphereShapeDesc(0.5f), Mass: 1) });
+            { Frame = ground, Pose = At(0.3, 3), Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1) });
         int live = world.Stats.LiveEntities;
         DPose pose = At(0, 1);
         Vector3 linear = Vector3.Zero, angular = Vector3.Zero;
@@ -283,7 +283,7 @@ public class WorldSpawnRefusalTests
             case "a position that is not a number": pose = pose with { Position = new(double.NaN, 1, 0) }; break;
             case "an infinite position": pose = pose with { Position = new(0, double.PositiveInfinity, 0) }; break;
             case "the zero rotation of a default pose": pose = default; break;
-            case "a rotation that is not a number": pose = pose with { Rotation = new(double.NaN, 0, 0, 1) }; break;
+            case "a rotation that is not a number": pose = pose with { Rotation = new(X: double.NaN, Y: 0, Z: 0, W: 1) }; break;
             case "a linear velocity that is not a number":
                 linear = new(float.NaN, 0, 0);
                 word = "linear velocity";
@@ -336,7 +336,7 @@ public class WorldSpawnRefusalTests
     [InlineData("a static hull", "angular velocity", "static")]
     public void SpawnRefusesAVelocityOnAnEntityThatPhysicsDoesNotIntegrate(string kind, string word, string reason)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         Entity parent = world.Spawn(new() { Frame = ground, Pose = At(0, 1) });
         int live = world.Stats.LiveEntities;
@@ -392,7 +392,7 @@ public class WorldSpawnRefusalTests
     [InlineData("a dynamic hull")]
     public void ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity(string kind)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle space = Ground(world, 0);
         var linear = new Double3(1, 0, 0);
         Vector3 angular = kind == "a character" ? Vector3.Zero : new(0, 0.5f, 0);
@@ -403,7 +403,7 @@ public class WorldSpawnRefusalTests
             "a character" => new()
             {
                 Frame = space, Pose = At(0, 1), LinearVelocity = linear,
-                Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+                Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
             },
             "a dynamic hull" => new()
             {
@@ -428,7 +428,7 @@ public class WorldSpawnRefusalTests
     [Fact]
     public void AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
 
         FrameHandle frame = world.GetOwnedFrame(world.Spawn(new()
@@ -451,14 +451,14 @@ public class WorldSpawnRefusalTests
     [InlineData("a convex hull whose points all coincide")]
     public void SpawnRefusesAFrameWhoseInteriorPhysicsCannotBuild(string why)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         ShapeDesc interior = Refused(why).Body.Shape;
 
         Action spawn = () => world.Spawn(new()
         {
             Frame = ground,
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Static, InteriorShape: interior),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Static, InteriorShape: interior),
             AsFrame = new(FrameBounds.Sphere(10))
         });
 
@@ -472,7 +472,7 @@ public class WorldSpawnRefusalTests
     [Fact]
     public void SpawnRefusesAFrameOwnerWithACharacterBodyAndTheNextSpawnGetsItsBody()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         world.Tick();
@@ -482,11 +482,11 @@ public class WorldSpawnRefusalTests
             Frame = ground,
             Pose = At(10, 2),
             AsFrame = new(FrameBounds.Sphere(5)),
-            Body = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+            Body = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70)
         });
         spawn.Should().Throw<ArgumentException>().WithMessage("*character*");
         Entity ball = world.Spawn(new()
-            { Frame = ground, Pose = At(0, 5), Body = new(new SphereShapeDesc(0.5f), Mass: 1) });
+            { Frame = ground, Pose = At(0, 5), Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1) });
         Tick(world, 120);
 
         backend.TryGetBodyFrame(ball, out _).Should().BeTrue();
@@ -500,7 +500,7 @@ public class WorldSpawnRefusalTests
     [InlineData(BodyMotion.Dynamic)]
     public void SpawnRefusesAFrameOwnerWhoseBodyIsASensor(BodyMotion motion)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         int live = world.Stats.LiveEntities;
 
@@ -509,7 +509,7 @@ public class WorldSpawnRefusalTests
             Frame = ground,
             Pose = At(0, 5),
             AsFrame = new(FrameBounds.Sphere(5)),
-            Body = new(new BoxShapeDesc(new(1)), motion, Mass: 10) { IsSensor = true }
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: motion, Mass: 10) { IsSensor = true }
         });
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*sensor*");
@@ -520,14 +520,14 @@ public class WorldSpawnRefusalTests
     [Fact]
     public void AStaticFrameMayHaveAMeshInterior()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
         Entity hangar = world.Spawn(new()
         {
             Frame = space,
             Pose = At(100),
-            Body = new(new BoxShapeDesc(new(10)), BodyMotion.Static, InteriorShape: Triangle),
+            Body = new(Shape: new BoxShapeDesc(new(10)), Motion: BodyMotion.Static, InteriorShape: Triangle),
             AsFrame = new(FrameBounds.Sphere(50))
         });
         world.Tick();
@@ -545,10 +545,10 @@ public class WorldSpawnRefusalTests
     [InlineData("a box without mass")]
     public void ARootFrameMayHaveABodyThatCouldNotBeAHull(string body)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         BodyDesc interior = body == "a mesh"
-            ? new(Triangle, BodyMotion.Static)
-            : new BodyDesc(new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0);
+            ? new(Shape: Triangle, Motion: BodyMotion.Static)
+            : new BodyDesc(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Mass: 0);
         double top = body == "a mesh" ? 0 : 0.5;
 
         Entity owner = world.Spawn(new()
@@ -558,7 +558,7 @@ public class WorldSpawnRefusalTests
         });
         FrameHandle root = world.GetOwnedFrame(owner);
         Entity ball = world.Spawn(new()
-            { Frame = root, Pose = At(0, 3), Body = new(new SphereShapeDesc(0.5f), Mass: 1) });
+            { Frame = root, Pose = At(0, 3), Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1) });
         Tick(world, 130);
 
         world.PoseInOwnFrame(ball).Position.Y.Should()

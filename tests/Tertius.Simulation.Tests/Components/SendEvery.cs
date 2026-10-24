@@ -34,7 +34,7 @@ public sealed class SendEvery : IComponent
     /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
     public static SendEvery Of<T>(Target target, T payload, int every = 1, long from = 0, int priority = 0)
         where T : unmanaged, IEventPayload =>
-        new((scoped ref outbox, _) => outbox.Send(target, payload), every, from, priority);
+        new(send: (scoped ref outbox, _) => outbox.Send(target, payload), every: every, from: from, priority: priority);
 
     /// <summary>A component that sends the message that <paramref name="payloadAt"/> makes for the running tick, again and again.</summary>
     /// <param name="target">The recipient: an entity, a topic or <see cref="Broadcast"/>.</param>
@@ -44,7 +44,7 @@ public sealed class SendEvery : IComponent
     /// <param name="priority">Its place in the entity's pipeline. Lower runs first.</param>
     public static SendEvery Of<T>(Target target, Func<long, T> payloadAt, int every = 1, long from = 0,
         int priority = 0) where T : unmanaged, IEventPayload =>
-        new((scoped ref outbox, tick) => outbox.Send(target, payloadAt(tick)), every, from, priority);
+        new(send: (scoped ref outbox, tick) => outbox.Send(target, payloadAt(tick)), every: every, from: from, priority: priority);
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {

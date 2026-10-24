@@ -20,7 +20,7 @@ public class SleepTests
 {
     /// <summary>A cube of 1 m with no damping and no bounce, so that only gravity and the floor move it.</summary>
     private static BodyDesc Box(float mass) =>
-        new(new BoxShapeDesc(new(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(Shape: new BoxShapeDesc(new(0.5f)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     /// <summary>A frame with uniform gravity of <paramref name="g"/> m/s² along -Y, and a floor whose top is at y = 0.</summary>
     private static FrameHandle GroundWithFloor(World world, float g)
@@ -42,7 +42,7 @@ public class SleepTests
     [InlineData(1.0f)]
     public void ABoxLetGoAtRestInWeakGravityFallsToTheFloor(float g)
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, g);
         Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
 
@@ -59,7 +59,7 @@ public class SleepTests
     [Fact]
     public void AStackOfTwoBoxesLetGoInWeakGravityFallsToTheFloor()
     {
-        using World world = NewWorld(out _, debugChecks: false);
+        using World world = NewWorld(backend: out _, debugChecks: false);
         FrameHandle ground = GroundWithFloor(world, 0.1f);
         Entity bottom = world.Spawn(new() { Frame = ground, Pose = At(0, 1.5), Body = Box(mass: 10) });
         Entity top = world.Spawn(new() { Frame = ground, Pose = At(0, 2.5), Body = Box(mass: 10) });
@@ -79,7 +79,7 @@ public class SleepTests
     [InlineData(9.81f)]
     public void ABoxThatLandsOnAFloorFallsAsleepThereWithinTwoSeconds(float g)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = GroundWithFloor(world, g);
         Entity box = world.Spawn(new() { Frame = ground, Pose = At(0, 0.6), Body = Box(mass: 10) });
 
@@ -107,12 +107,12 @@ public class SleepTests
     [InlineData(6000f)]
     public void CargoAsleepOnADeckSlidesTowardTheSternWhenTheShipsThrustGrows(float newtonsPerTick)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([
             new(new BoxShapeDesc(new(10, 0.25f, 30)), new(new(0, -2.25f, 0), Quaternion.Identity))
         ]);
-        var hull = new BodyDesc(new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
+        var hull = new BodyDesc(Shape: new BoxShapeDesc(new(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0,
             InteriorShape: deck);
         // The ship's engine pushes with this force along +Z in every tick. A pilot writes it in one tick and Jolt applies
         // it in the step of the next one.

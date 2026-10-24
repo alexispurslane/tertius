@@ -48,7 +48,7 @@ public abstract class CheckedInRun : IDisposable
 
             if (beforeEachTick != null)
                 playback = new WatchedPlayback(playback, Watch);
-            Result = ScriptRunner.Run(Script, World, Scene, Folder, playback);
+            Result = ScriptRunner.Run(script: Script, world: World, scene: Scene, outputFolder: Folder, playback: playback);
             if (beforeEachTick != null)
                 Watch();
         }

@@ -132,8 +132,8 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
 
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
     {
-        Steps.Add(new(context.Tick, context.Time, Environment.CurrentManagedThreadId,
-            Thread.CurrentThread.IsThreadPoolThread));
+        Steps.Add(new(Tick: context.Tick, Time: context.Time, ThreadId: Environment.CurrentManagedThreadId,
+            OnPoolThread: Thread.CurrentThread.IsThreadPoolThread));
         PhysicsStepContext step = EditNextIntents is { } editIntents ? EditIntents(context, editIntents) : context;
         ReadOnlySpan<PhysicsIntent> intents = step.Intents.Span;
         foreach (Entity entity in step.IntentEntities.Span)
@@ -141,7 +141,7 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
             Intents.Add(new(step.Tick, entity, intent));
             if (intent.Move.HasValue)
-                Moves.Add(new(step.Tick, entity, intent.Frame, intent.Move));
+                Moves.Add(new(Tick: step.Tick, Entity: entity, Frame: intent.Frame, Move: intent.Move));
         }
 
         if (ThrowFromStep is { } fault)
@@ -179,22 +179,22 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             entities[i] = edited[i].Entity;
         }
 
-        return new(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities);
+        return new(tick: context.Tick, deltaTime: context.DeltaTime, time: context.Time, frames: context.Frames, intents: table, intentEntities: entities);
     }
 
     public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end,
         IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits) =>
-        Jolt.CastRay(frame, origin, direction, start, end, filter, kind, hits);
+        Jolt.CastRay(frame: frame, origin: origin, direction: direction, start: start, end: end, filter: filter, kind: kind, hits: hits);
 
     public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction,
         double startDistance, double endDistance,
         IPhysicsQueryFilter filter, List<ShapeCastHit> hits) =>
-        Jolt.CastShape(frame, shape, start, direction, startDistance, endDistance, filter, hits);
+        Jolt.CastShape(frame: frame, shape: shape, start: start, direction: direction, startDistance: startDistance, endDistance: endDistance, filter: filter, hits: hits);
 
     public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter,
         List<Entity> entities) =>
-        Jolt.Overlap(frame, shape, pose, filter, entities);
+        Jolt.Overlap(frame: frame, shape: shape, pose: pose, filter: filter, entities: entities);
 
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);
 

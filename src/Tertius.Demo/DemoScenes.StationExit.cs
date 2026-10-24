@@ -122,9 +122,9 @@ public static partial class DemoScenes
             float middle = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall,
                 side = (DemoStation.HalfWidth - middle) / 2;
             yield return ("station-ceiling",
-                RevolvedSolid.Ring(inner, outer, middle, DemoStation.Segments).LeavingOut(CeilingGap),
+                RevolvedSolid.Ring(innerRadius: inner, outerRadius: outer, halfWidth: middle, segments: DemoStation.Segments).LeavingOut(CeilingGap),
                 new(Double3.Zero, CeilingTurn));
-            RevolvedSolid band = RevolvedSolid.Ring(inner, outer, side, DemoStation.Segments);
+            RevolvedSolid band = RevolvedSolid.Ring(innerRadius: inner, outerRadius: outer, halfWidth: side, segments: DemoStation.Segments);
             yield return ("station-ceiling-slot", band, new(new(0, middle + side, 0), CeilingTurn));
             yield return ("station-ceiling-far", band, new(new(0, -(middle + side), 0), CeilingTurn));
         }
@@ -181,7 +181,7 @@ public static partial class DemoScenes
         /// <see cref="WalkSpeed"/>, <see cref="StepInSpeed"/> and <see cref="PersonRadius"/>.
         /// </summary>
         public static Disembark Disembark(FrameHandle cabin, FrameHandle station) =>
-            new(station, Chute, WayOut(cabin, station), Stroll(station), WalkSpeed, StepInSpeed, PersonRadius);
+            new(station: station, chute: Chute, wayOut: WayOut(cabin, station), stroll: Stroll(station), walkSpeed: WalkSpeed, stepInSpeed: StepInSpeed, radius: PersonRadius);
 
         private static DPose WheelCameraPose()
         {
@@ -205,7 +205,7 @@ public static partial class DemoScenes
             AttachTo = person,
             AttachOffset = new(SlideCameraOffset.ToVector3(), Quaternion.Identity),
             Render = new RenderData(),
-            Components = [new FrameFollowCamera(station, SlideCameraOffset, SlideCameraLook, Double3.UnitZ)]
+            Components = [new FrameFollowCamera(reference: station, offset: SlideCameraOffset, forward: SlideCameraLook, up: Double3.UnitZ)]
         });
 
         /// <summary>
@@ -229,8 +229,8 @@ public static partial class DemoScenes
             {
                 Frame = station,
                 Pose = DPose.Identity,
-                Body = new(shape, BodyMotion.Static),
-                Render = Drawn(resources, upper.Build(), new(0.85f, 0.7f, 0.15f, 1), reach) with
+                Body = new(Shape: shape, Motion: BodyMotion.Static),
+                Render = Drawn(resources: resources, mesh: upper.Build(), color: new(x: 0.85f, y: 0.7f, z: 0.15f, w: 1), boundingRadius: reach) with
                 {
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor
                 }
@@ -239,21 +239,21 @@ public static partial class DemoScenes
             {
                 Frame = station,
                 Pose = DPose.Identity,
-                Render = Drawn(resources, lower.Build(), new(0.7f, 0.3f, 0.08f, 1), reach) with
+                Render = Drawn(resources: resources, mesh: lower.Build(), color: new(x: 0.7f, y: 0.3f, z: 0.08f, w: 1), boundingRadius: reach) with
                 {
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor
                 }
             }));
 
             MaterialId lampMaterial =
-                resources.CreateMaterial(new(new(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
+                resources.CreateMaterial(new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f)));
             MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
             MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new(0.05f, 0.6f, 0.6f)));
             // The spoke lamps, on the spoke's spinward wall, each with its light 0.3 m in front of it.
             float wall = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall;
             foreach (int x in new[] { -14, -26, -38, -50, -62, -74, -86 })
-                world.Spawn(Lamp(station, new(new(x, 0, wall - 0.05), DQuaternion.Identity), wallPanel, lampMaterial,
-                    new(new(new(0, 0, -0.3f), Quaternion.Identity), new(1, 0.9f, 0.75f), Intensity: 60, Range: 14)));
+                world.Spawn(Lamp(frame: station, pose: new(new(x, 0, wall - 0.05), DQuaternion.Identity), mesh: wallPanel, material: lampMaterial,
+                    light: new(Offset: new(new(0, 0, -0.3f), Quaternion.Identity), Color: new(1, 0.9f, 0.75f), Intensity: 60, Range: 14)));
             // The wheel lamps, flat under the ceiling's face toward the floor, each turned so that its local +X points away
             // from the axis, with its light 0.3 m below it.
             double under = DemoStation.CeilingRadius + DemoStation.CeilingThickness + 0.06;
@@ -262,9 +262,9 @@ public static partial class DemoScenes
             {
                 var at = new Double3(-Math.Sqrt(under * under - z * z), y, z);
                 double theta = Math.Atan2(-at.Z, at.X);
-                world.Spawn(Lamp(station, new(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)), ceilingPanel,
-                    lampMaterial,
-                    new(new(new(0.3f, 0, 0), Quaternion.Identity), new(1, 0.9f, 0.75f), Intensity: 100, Range: 20)));
+                world.Spawn(Lamp(frame: station, pose: new(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)), mesh: ceilingPanel,
+                    material: lampMaterial,
+                    light: new(Offset: new(new(0.3f, 0, 0), Quaternion.Identity), Color: new(1, 0.9f, 0.75f), Intensity: 100, Range: 20)));
             }
 
             scene.Add("deck-camera",

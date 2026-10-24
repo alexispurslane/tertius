@@ -60,7 +60,7 @@ public class RenderSnapshotRootTests
         {
             Frame = test.Root,
             AsFrame = new(FrameBounds.Sphere(100))
-        }.Spinning(test.World, new(DQuaternion.Identity, 1))));
+        }.Spinning(test.World, new(Tilt: DQuaternion.Identity, Rate: 1))));
         test.World.Camera = test.SpawnCamera(turning, DPose.Identity);
         test.Run(1);
         Quaternion before = test.World.Latest().RootRotation;

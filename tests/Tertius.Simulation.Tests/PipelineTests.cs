@@ -20,8 +20,8 @@ public class PipelineTests
         using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log, "3", 3, tick), Named(log, "-2", -2, tick), Named(log, "1", 1, tick),
-            Named(log, "0", 0, tick));
+        t.SpawnWith(Named(log: log, name: "3", priority: 3, wants: tick), Named(log: log, name: "-2", priority: -2, wants: tick), Named(log: log, name: "1", priority: 1, wants: tick),
+            Named(log: log, name: "0", priority: 0, wants: tick));
 
         t.World.Tick();
 
@@ -35,12 +35,12 @@ public class PipelineTests
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
         t.SpawnWith(
-            Named(log, "5a", 5, tick),
-            Named(log, "1a", 1, tick),
-            Named(log, "5b", 5, tick),
-            Named(log, "1b", 1, tick),
-            Named(log, "3", 3, tick),
-            Named(log, "-2", -2, tick));
+            Named(log: log, name: "5a", priority: 5, wants: tick),
+            Named(log: log, name: "1a", priority: 1, wants: tick),
+            Named(log: log, name: "5b", priority: 5, wants: tick),
+            Named(log: log, name: "1b", priority: 1, wants: tick),
+            Named(log: log, name: "3", priority: 3, wants: tick),
+            Named(log: log, name: "-2", priority: -2, wants: tick));
 
         t.World.Tick();
 
@@ -53,7 +53,7 @@ public class PipelineTests
         using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        t.SpawnWith(Named(log, "late", 1, tick), Named(log, "early", 0, tick));
+        t.SpawnWith(Named(log: log, name: "late", priority: 1, wants: tick), Named(log: log, name: "early", priority: 0, wants: tick));
 
         t.Run(3);
 
@@ -69,7 +69,7 @@ public class PipelineTests
         var pings = new Recorder(EventMask.Of<Ping>());
         var heals = new Recorder(EventMask.Of<Heal>());
         Entity target = t.SpawnWith(pings, heals);
-        t.SpawnWith(SendOnce.Of(target, new Ping { Value = 1 }));
+        t.SpawnWith(SendOnce.Of(target: target, payload: new Ping { Value = 1 }));
 
         t.Run(2);
 
@@ -84,7 +84,7 @@ public class PipelineTests
         var ticker = new Recorder(EventMask.Of<Tick>());
         var pings = new Recorder(EventMask.Of<Ping>());
         Entity target = t.SpawnWith(ticker, pings);
-        t.World.Post(Event.Create(target, Entity.Null, new Ping { Value = 1 }));
+        t.World.Post(Event.Create(target: target, sender: Entity.Null, payload: new Ping { Value = 1 }));
 
         t.Run(2);
 
@@ -112,7 +112,7 @@ public class PipelineTests
         using var t = new TestWorld();
         var inbox = new Recorder(EventMask.Of<Ping>());
         Entity target = t.SpawnWith(inbox);
-        t.SpawnWith(SendEvery.Of(target, new Ping { Value = 1 }, every: 3));
+        t.SpawnWith(SendEvery.Of(target: target, payload: new Ping { Value = 1 }, every: 3));
 
         t.Run(9);
 
@@ -139,7 +139,7 @@ public class PipelineTests
         var idle = new Recorder(EventMask.Of<Ping>());
         Entity e = t.SpawnWith(idle);
 
-        t.World.Post(Event.Create(e, Entity.Null, new Heal()));
+        t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Heal()));
         t.Run(2);
 
         idle.Runs.Should().Be(0);
@@ -154,7 +154,7 @@ public class PipelineTests
         Entity e = t.SpawnWith(idle);
         t.Run(5);
 
-        t.World.Post(Event.Create(e, Entity.Null, new Ping { Value = 3 }));
+        t.World.Post(Event.Create(target: e, sender: Entity.Null, payload: new Ping { Value = 3 }));
         t.Run(2);
 
         idle.Pings().Should().Equal((6L, 3));

@@ -73,10 +73,10 @@ public class RenderSnapshotOriginTests
     [Fact]
     public void TheOriginFrameIdFollowsTheCameraWhenPhysicsHandsItToAnotherFrame()
     {
-        using TestWorld test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        using TestWorld test = TestWorld.OnJolt(faults: out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         // The camera is a ball that flies from the root into the station. Jolt hands it off in the step of tick 1.
-        Scenes.Approach approach = Scenes.ApproachToBubble(test.World, station, tick: 1);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world: test.World, into: station, tick: 1);
         Entity camera = test.World.Spawn(new()
         {
             Frame = test.Root,

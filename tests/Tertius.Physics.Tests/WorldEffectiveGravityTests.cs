@@ -16,10 +16,10 @@ namespace Tertius.Physics.Tests;
 public class WorldEffectiveGravityTests
 {
     private const double StationRate = 0.31321;
-    private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
+    private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);
     private static readonly FrameSpec Station = new(FrameBounds.Sphere(150));
     private static readonly Double3 Rim = new(100, 0, 0);
-    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+    private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
 
     private static FrameHandle Space(World world) => world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
 
@@ -30,7 +30,7 @@ public class WorldEffectiveGravityTests
         // world's time, when the station turns at α t. A body at the rim feels ω² r outward along +X and α r = 50 m/s²
         // against the turn along +Z.
         const double spinUp = 0.5;
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         double start = world.Time;
         FrameHandle station =
             world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new() { Frame = Space(world), AsFrame = Station }, world,
@@ -50,7 +50,7 @@ public class WorldEffectiveGravityTests
     {
         // The station holds no field, so only the centrifugal term pulls the person, outward along +X: its up at its creation
         // is against that, toward the axis.
-        using World world = NewWorld(out _);
+        using World world = NewWorld(backend: out _);
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = Space(world), AsFrame = Station }
             .Spinning(world, StationSpin, firstMove: true)));
         Tick(world, 3);

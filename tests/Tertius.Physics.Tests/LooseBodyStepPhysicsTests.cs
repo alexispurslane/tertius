@@ -47,7 +47,7 @@ public class LooseBodyStepPhysicsTests
     [Fact]
     public void TheLinearGravityOfTheLastStepIsTheGravityThatPhysicsReadInThatStepInAFrameThatHoldsStillInAField()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, G);
         // The cabin's own field holds only inside its box, so the field's part shows at some places and not at others.
         GravityField cabinField = GravityField.Uniform(new(0.5f, 0, -0.25f), new BoundingBox(new(-2), new(2)));
@@ -55,11 +55,11 @@ public class LooseBodyStepPhysicsTests
         {
             Frame = ground,
             Pose = At(0, 100),
-            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Static),
             AsFrame = new(FrameBounds.Sphere(10), cabinField)
         }));
 
-        int changes = CheckTicks(world, faults, cabin, ticks: 5);
+        int changes = CheckTicks(world: world, faults: faults, frame: cabin, ticks: 5);
 
         changes.Should().Be(1,
             "the first step 2 gives the new cabin the ground's gravity reversed, which its first step did not find");
@@ -68,14 +68,14 @@ public class LooseBodyStepPhysicsTests
     [Fact]
     public void TheLinearGravityOfTheLastStepIsTheGravityThatPhysicsReadInThatStepInAHullsFrameUnderThrust()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const float mass = 500;
         var pilot = new Pilot();
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new()
         {
             Frame = space,
-            Body = new(new BoxShapeDesc(new(2, 0.5f, 2)), BodyMotion.Dynamic, Mass: mass, LinearDamping: 0,
+            Body = new(Shape: new BoxShapeDesc(new(2, 0.5f, 2)), Motion: BodyMotion.Dynamic, Mass: mass, LinearDamping: 0,
                 AngularDamping: 0),
             AsFrame = new(FrameBounds.Sphere(10), GravityField.Uniform(new(0, -1, 0))),
             Components = [pilot]
@@ -83,7 +83,7 @@ public class LooseBodyStepPhysicsTests
         Tick(world, 3);
 
         // The engine burns from tick 2 of the check to tick 5, and its force acts in the steps of ticks 3 to 6.
-        int changes = CheckTicks(world, faults, ship, ticks: 9, beforeTick: tick =>
+        int changes = CheckTicks(world: world, faults: faults, frame: ship, ticks: 9, beforeTick: tick =>
             pilot.EveryTick = tick is >= 2 and <= 5 ? hull => hull.AddForce(new(0, mass * 1.5f, 0)) : null);
 
         changes.Should().BeGreaterThanOrEqualTo(2,

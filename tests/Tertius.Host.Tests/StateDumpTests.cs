@@ -16,8 +16,8 @@ public class StateDumpTests
     private const string DumpNow = """{ "do": "dump", "name": "now" }""";
 
     private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
-        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world,
-            scene);
+        ScriptRunner.Run(script: Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world: world,
+            scene: scene);
 
     [Fact]
     public void ADumpHoldsAnEntitysPoseInItsOwnFrame()
@@ -169,7 +169,7 @@ public class StateDumpTests
     {
         using World world = NewJoltWorld();
         (SceneInstance scene, Entity owner) = ShipInSpace(world, BodyMotion.Dynamic);
-        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Static);
 
         RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "parked" }""",
             """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
@@ -187,7 +187,7 @@ public class StateDumpTests
     {
         using World world = NewJoltWorld();
         (SceneInstance scene, Entity owner) = ShipInSpace(world, BodyMotion.Kinematic);
-        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
+        world.SetMotionNextTick(owner: owner, motion: BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
 
         RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "changed" }""",
             """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
@@ -213,12 +213,12 @@ public class StateDumpTests
         static DPose At(long tick) => new(new(tick, 0, 0), DQuaternion.Identity);
 
         static MotionSample Still(long tick) =>
-            new(At(tick), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+            new(Pose: At(tick), ChordVelocity: Double3.Zero, Velocity: Double3.Zero, Acceleration: Double3.Zero, AngularVelocity: Double3.Zero, AngularAcceleration: Double3.Zero);
 
         scene.Add("yard", world.Spawn(new()
         {
             AsFrame = new(FrameBounds.Sphere(100)),
-            Body = new(new BoxShapeDesc(new(1)), BodyMotion.Static),
+            Body = new(Shape: new BoxShapeDesc(new(1)), Motion: BodyMotion.Static),
             Components = [new EachTick(self => self.MoveKinematic(At(self.Tick)))]
         }));
         scene.Add("moon", world.Spawn(new()
@@ -244,7 +244,7 @@ public class StateDumpTests
         {
             Frame = space,
             Pose = new(new(500, 0, 0), DQuaternion.Identity),
-            Body = new(new BoxShapeDesc(new(2)), BodyMotion.Dynamic, Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: BodyMotion.Dynamic, Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(10))
         }));
 
@@ -290,7 +290,7 @@ public class StateDumpTests
             Frame = space,
             Pose = new(position, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new(new BoxShapeDesc(new(2)), motion, Mass: 1000),
+            Body = new(Shape: new BoxShapeDesc(new(2)), Motion: motion, Mass: 1000),
             AsFrame = new(FrameBounds.Sphere(10))
         };
         Entity owner = world.Spawn(motion == BodyMotion.Kinematic ? desc.OnKeplerOrbit(world, orbit) : desc);
@@ -377,7 +377,7 @@ public class StateDumpTests
         string folder = NewFolder();
         try
         {
-            RunResult result = ScriptRunner.Run(Script.Parse("""
+            RunResult result = ScriptRunner.Run(script: Script.Parse("""
                                                              { "scene": "test", "steps": [
                                                                { "do": "camera", "entity": "probe" },
                                                                { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
@@ -386,7 +386,7 @@ public class StateDumpTests
                                                                { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
                                                                { "do": "film", "name": "climb", "frames": 2, "every": 2 },
                                                                { "do": "dump", "name": "second" } ] }
-                                                             """), world, scene, folder, new DrawsNothing());
+                                                             """), world: world, scene: scene, outputFolder: folder, playback: new DrawsNothing());
 
             result.Dump("first").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(1);
             // Posted after 2 ticks, so the sync point of the film's first tick routes it.
@@ -422,7 +422,7 @@ public class StateDumpTests
             try
             {
                 long before = GC.GetAllocatedBytesForCurrentThread();
-                ScriptRunner.Run(script, world, scene, folder, new DrawsNothing());
+                ScriptRunner.Run(script: script, world: world, scene: scene, outputFolder: folder, playback: new DrawsNothing());
                 bytes = GC.GetAllocatedBytesForCurrentThread() - before;
                 world.Stats.RoutedEvents.Should()
                     .Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");
@@ -565,7 +565,7 @@ public class StateDumpTests
     {
         SceneInstance scene = BoxOnFloor(world);
         FrameHandle ground = world.GetOwnedFrame(scene["ground"]);
-        var person = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+        var person = new BodyDesc(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character, Mass: 70);
         scene.Add("person", world.Spawn(new() { Frame = ground, Pose = At(3, 0.92), Body = person }));
         scene.Add("faller", world.Spawn(new() { Frame = ground, Pose = At(-3, 30), Body = person }));
         return scene;

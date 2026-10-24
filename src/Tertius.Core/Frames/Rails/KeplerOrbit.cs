@@ -109,11 +109,11 @@ public record struct KeplerOrbit(
         Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
 
     /// <summary>The spin of the attitude <see cref="KeplerAttitude.Spin"/>: the axial tilt, then the spin about +Y.</summary>
-    private readonly FrameSpin Spin => new(AxialTilt, SpinRate, SpinPhaseAtEpoch, Epoch);
+    private readonly FrameSpin Spin => new(Tilt: AxialTilt, Rate: SpinRate, PhaseAtEpoch: SpinPhaseAtEpoch, Epoch: Epoch);
 
     /// <summary>A circular orbit in the reference plane.</summary>
     public static KeplerOrbit Circular(double radius, double phase = 0, double spinRate = 0) =>
-        new(radius, 0, 0, 0, 0, phase, 0, DQuaternion.Identity, spinRate, 0);
+        new(SemiMajorAxis: radius, Eccentricity: 0, Inclination: 0, LongitudeOfAscendingNode: 0, ArgumentOfPeriapsis: 0, MeanAnomalyAtEpoch: phase, Epoch: 0, AxialTilt: DQuaternion.Identity, SpinRate: spinRate, SpinPhaseAtEpoch: 0);
 
     /// <summary>
     /// The G·M that a Kepler orbit takes from <paramref name="parentGravity"/>, the gravity of its parent frame, in m³/s²:
@@ -223,10 +223,10 @@ public record struct KeplerOrbit(
         DQuaternion rotation = faces ? FacingParentAtAnomaly(eccentric, turns) : Spin.RotationAt(stepEnd);
         Double3 angularVelocity = faces ? FacingAngularVelocity(position, velocity) : Spin.AngularVelocity;
         // At the parent's origin, the chord and the pull would divide zero by zero.
-        Double3 chord = orbits ? Chord(position, velocity, mu, step) : Double3.Zero;
+        Double3 chord = orbits ? Chord(position: position, velocity: velocity, mu: mu, step: step) : Double3.Zero;
         Double3 acceleration = orbits ? Acceleration(position - chord * step, mu) : Double3.Zero;
-        return new(new(position, rotation), chord, velocity, acceleration, angularVelocity,
-            (angularVelocity - AngularVelocityAt(stepEnd - step, mu)) / step);
+        return new(Pose: new(position, rotation), ChordVelocity: chord, Velocity: velocity, Acceleration: acceleration, AngularVelocity: angularVelocity,
+            AngularAcceleration: (angularVelocity - AngularVelocityAt(stepEnd - step, mu)) / step);
     }
 
     /// <summary>
@@ -405,14 +405,14 @@ public record struct KeplerOrbit(
         for (int i = 0; i < LambertBisections && high - low > LambertZTolerance; i++)
         {
             double middle = (low + high) / 2;
-            if (LambertTime(middle, r1, r2, a, sqrtMu, out _) < timeOfFlight)
+            if (LambertTime(z: middle, r1: r1, r2: r2, a: a, sqrtMu: sqrtMu, y: out _) < timeOfFlight)
                 low = middle;
             else
                 high = middle;
         }
 
         double z = (low + high) / 2;
-        double time = LambertTime(z, r1, r2, a, sqrtMu, out double y);
+        double time = LambertTime(z: z, r1: r1, r2: r2, a: a, sqrtMu: sqrtMu, y: out double y);
         if (!(Math.Abs(time - timeOfFlight) <= LambertTimeTolerance * timeOfFlight))
             throw new ArgumentOutOfRangeException(nameof(timeOfFlight), timeOfFlight,
                 "The path that takes this time between these points is faster than the search covers: a hyperbola whose anomaly turns by more than 2π.");
