@@ -94,8 +94,8 @@ internal sealed class SpatialGrid
         spareLists.Push(list);
     }
 
-    public bool TryGetCell(CellKey key, [MaybeNullWhen(false)] out List<Entity> entities) =>
-        Cells.TryGetValue(key, out entities);
+    /// <summary>The entities in the cell <paramref name="key"/>. Null if the cell is empty.</summary>
+    public List<Entity>? CellAt(CellKey key) => Cells.GetValueOrDefault(key);
 
     /// <summary>Takes an entity out of a cell's list by moving the last entry into its place. False if the list does not hold it.</summary>
     private static bool TakeOut(List<Entity> list, Entity entity)

@@ -74,36 +74,22 @@ internal readonly partial struct QueryFilter
     }
 
     /// <summary>
-    /// The frame and position of a Near filter's center in the snapshot. False when the center is not in a frame: the
+    /// The frame and position of a Near filter's center in the snapshot. Null when the center is not in a frame: the
     /// asker or the other entity is not live or owns a root frame, or the fixed point's frame is gone. Such a filter
-    /// matches nothing. Also false for a filter that is not a Near filter, which has no center.
+    /// matches nothing. Also null for a filter that is not a Near filter, which has no center.
     /// </summary>
-    public bool TryCenter(in Snapshot snapshot, out FrameHandle frame, out Double3 point)
+    public (FrameHandle Frame, Double3 Point)? Center(in Snapshot snapshot)
     {
         switch (this)
         {
             case NearAsker:
-                return TryCenterOfEntity(
-                    snapshot: snapshot,
-                    center: snapshot.Asker,
-                    centerFrame: out frame,
-                    centerPoint: out point
-                );
+                return CenterOfEntity(snapshot: snapshot, center: snapshot.Asker);
             case NearEntity { Other: var center }:
-                return TryCenterOfEntity(
-                    snapshot: snapshot,
-                    center: center,
-                    centerFrame: out frame,
-                    centerPoint: out point
-                );
+                return CenterOfEntity(snapshot: snapshot, center: center);
             case NearPoint { Frame: var pointFrame, Point: var center }:
-                frame = pointFrame;
-                point = center;
-                return snapshot.World.Frames.IsAlive(frame);
+                return snapshot.World.Frames.IsAlive(pointFrame) ? (pointFrame, center) : null;
             case InFilter or WhereFilter or null:
-                frame = default;
-                point = default;
-                return false;
+                return null;
             default:
                 throw new UnreachableException($"The query filter {this} has a case that has no center here.");
         }
@@ -150,35 +136,21 @@ internal readonly partial struct QueryFilter
         in TransformRow row,
         double distance
     ) =>
-        TryCenterOfEntity(
-            snapshot: snapshot,
-            center: center,
-            centerFrame: out FrameHandle centerFrame,
-            centerPoint: out Double3 centerPoint
-        ) && IsWithin(row: row, centerFrame: centerFrame, centerPoint: centerPoint, distance: distance);
+        CenterOfEntity(snapshot: snapshot, center: center) is (var centerFrame, var centerPoint)
+        && IsWithin(row: row, centerFrame: centerFrame, centerPoint: centerPoint, distance: distance);
 
     private static bool IsWithin(in TransformRow row, FrameHandle centerFrame, Double3 centerPoint, double distance) =>
         row.Frame == centerFrame && (row.Pose.Position - centerPoint).LengthSquared <= distance * distance;
 
-    private static bool TryCenterOfEntity(
-        in Snapshot snapshot,
-        Entity center,
-        out FrameHandle centerFrame,
-        out Double3 centerPoint
-    )
+    /// <summary>The front frame and position of the live entity <paramref name="center"/>. Null if it is not live or owns a root frame.</summary>
+    private static (FrameHandle Frame, Double3 Point)? CenterOfEntity(in Snapshot snapshot, Entity center)
     {
         EntityTable entities = snapshot.World.Entities;
         if (!entities.IsAlive(center))
-        {
-            centerFrame = default;
-            centerPoint = default;
-            return false;
-        }
+            return null;
 
         ref readonly TransformRow row = ref entities.FrontRow(center);
-        centerFrame = row.Frame;
-        centerPoint = row.Pose.Position;
-        return !centerFrame.IsNull;
+        return row.Frame.IsNull ? null : (row.Frame, row.Pose.Position);
     }
 
     private static double CheckRadius(double radius) =>

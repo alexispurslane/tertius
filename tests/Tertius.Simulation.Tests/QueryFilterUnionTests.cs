@@ -520,10 +520,10 @@ public sealed class QueryFilterUnionTests
         PassesOf(t: t, filter: QueryFilter.Where(Never), entity: entity).Should().BeFalse();
     }
 
-    // ---- TryCenter -----------------------------------------------------------------------------------------------
+    // ---- Center --------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TryCenterGivesTheFrameAndPositionOfTheCenterOfEachNearCase()
+    public void CenterGivesTheFrameAndPositionOfTheCenterOfEachNearCase()
     {
         using var t = new TestWorld();
         FrameHandle ship = t.SpawnStaticFrame(TestWorld.At(100));
@@ -531,25 +531,21 @@ public sealed class QueryFilterUnionTests
         Entity center = t.SpawnAt(new(4, 5, 6));
         var snapshot = new Snapshot(t.World, asker);
 
-        QueryFilter.Near(5).TryCenter(snapshot, out FrameHandle askerFrame, out Double3 askerPoint).Should().BeTrue();
+        QueryFilter.Near(5).Center(snapshot).Should().Be((ship, new Double3(1, 2, 3)), "the asker's own frame and position");
         QueryFilter
             .Near(center, 5)
-            .TryCenter(snapshot, out FrameHandle entityFrame, out Double3 entityPoint)
+            .Center(snapshot)
             .Should()
-            .BeTrue();
+            .Be((t.Root, new Double3(4, 5, 6)), "the other entity's frame and position");
         QueryFilter
             .Near(ship, new(7, 8, 9), 5)
-            .TryCenter(snapshot, out FrameHandle pointFrame, out Double3 pointPoint)
+            .Center(snapshot)
             .Should()
-            .BeTrue();
-
-        (askerFrame, askerPoint).Should().Be((ship, new(1, 2, 3)), "the asker's own frame and position");
-        (entityFrame, entityPoint).Should().Be((t.Root, new(4, 5, 6)), "the other entity's frame and position");
-        (pointFrame, pointPoint).Should().Be((ship, new(7, 8, 9)), "the frame and point of the filter");
+            .Be((ship, new Double3(7, 8, 9)), "the frame and point of the filter");
     }
 
     [Fact]
-    public void TryCenterIsFalseForACenterThatIsInNoFrameAndForAFilterThatIsNotANearFilter()
+    public void CenterIsNullForACenterThatIsInNoFrameAndForAFilterThatIsNotANearFilter()
     {
         using var t = new TestWorld();
         Entity asker = t.SpawnAt(new(1, 0, 0));
@@ -560,22 +556,18 @@ public sealed class QueryFilterUnionTests
 
         QueryFilter
             .Near(t.Root.Entity, 5)
-            .TryCenter(snapshot, out _, out _)
+            .Center(snapshot)
             .Should()
-            .BeFalse("the owner of a root frame is in no frame");
-        QueryFilter
-            .Near(gone, default, 5)
-            .TryCenter(snapshot, out _, out _)
-            .Should()
-            .BeFalse("the frame of the point is gone");
+            .BeNull("the owner of a root frame is in no frame");
+        QueryFilter.Near(gone, default, 5).Center(snapshot).Should().BeNull("the frame of the point is gone");
         QueryFilter
             .Near(5)
-            .TryCenter(t.World.Snapshot, out _, out _)
+            .Center(t.World.Snapshot)
             .Should()
-            .BeFalse("a snapshot without an asker has no center for Near(radius)");
-        QueryFilter.In(t.Root).TryCenter(snapshot, out _, out _).Should().BeFalse();
-        QueryFilter.Where(Always).TryCenter(snapshot, out _, out _).Should().BeFalse();
-        default(QueryFilter).TryCenter(snapshot, out _, out _).Should().BeFalse();
+            .BeNull("a snapshot without an asker has no center for Near(radius)");
+        QueryFilter.In(t.Root).Center(snapshot).Should().BeNull();
+        QueryFilter.Where(Always).Center(snapshot).Should().BeNull();
+        default(QueryFilter).Center(snapshot).Should().BeNull();
     }
 
     private static bool PassesOf(TestWorld t, QueryFilter filter, Entity entity, Entity asker = default)

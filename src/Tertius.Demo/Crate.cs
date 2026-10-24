@@ -147,7 +147,7 @@ public sealed class Crate(CrateSpec spec) : IComponent
         // Nothing reaches this return. The crate wants only Use and CrateTaken, and a CrateTaken returned above, so the
         // events always hold a Use. The guard stays so that a change of what the crate wants cannot offer to nobody.
         // Stryker disable once Statement : the crate wants only Use and CrateTaken, so no call without a Use gets here.
-        if (!events.Of<Use>().TryFirst(out Use firstUse))
+        if (events.Of<Use>().First() is not { } firstUse)
             return;
         outbox.Send(firstUse.User, new CrateOffer { Crate = spec });
         offeredOn = self.Tick;

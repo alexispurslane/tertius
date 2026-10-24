@@ -8,7 +8,7 @@ namespace Tertius.Simulation;
 /// The entities of the front snapshot that a query matches, in entity index order. <see cref="Snapshot.Find"/> binds a
 /// stored <see cref="EntityQuery"/> to the snapshot, and <see cref="Snapshot.Entities"/> starts the shorthand chain,
 /// whose words build the same query. An ending runs it: <c>foreach</c>, <see cref="Count"/>, <see cref="Any"/>,
-/// <see cref="TryFirst"/> or <see cref="CopyTo"/>.
+/// <see cref="First"/> or <see cref="CopyTo"/>.
 /// </summary>
 /// <remarks>
 /// The chain allocates nothing. Its first <c>In</c>, <c>Near</c> and <c>Where</c> go into the query's inline parts; it
@@ -96,17 +96,15 @@ public readonly ref struct FoundEntities
     }
 
     /// <summary>True if an entity matches.</summary>
-    public bool Any() => TryFirst(out _);
+    public bool Any() => First().HasValue;
 
-    /// <summary>The matching entity with the lowest index. False, with the null handle, if none matches.</summary>
-    public bool TryFirst(out Entity entity)
+    /// <summary>The matching entity with the lowest index. Null if none matches.</summary>
+    public Entity? First()
     {
         Enumerator run = GetEnumerator();
         try
         {
-            bool found = run.MoveNext();
-            entity = found ? run.Current : Entity.Null;
-            return found;
+            return run.MoveNext() ? run.Current : null;
         }
         finally
         {

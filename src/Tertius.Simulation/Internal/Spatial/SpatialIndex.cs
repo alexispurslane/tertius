@@ -154,7 +154,7 @@ internal sealed partial class SpatialIndex
             for (long x = box.X0; x <= box.X1; x++)
             for (long y = box.Y0; y <= box.Y1; y++)
             for (long z = box.Z0; z <= box.Z1; z++)
-                if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+                if (grid.CellAt(new(x, y, z)) is { } cell)
                     CollectWithin(cell: cell, center: center, r2: radius * radius, results: results);
         results.Sort();
     }
@@ -176,7 +176,7 @@ internal sealed partial class SpatialIndex
         for (long x = box.X0; x <= box.X1; x++)
         for (long y = box.Y0; y <= box.Y1; y++)
         for (long z = box.Z0; z <= box.Z1; z++)
-            if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+            if (grid.CellAt(new(x, y, z)) is { } cell)
                 count += cell.Count;
         return count;
     }
@@ -197,7 +197,7 @@ internal sealed partial class SpatialIndex
         for (long x = box.X0; x <= box.X1; x++)
         for (long y = box.Y0; y <= box.Y1; y++)
         for (long z = box.Z0; z <= box.Z1; z++)
-            if (grid.TryGetCell(new(x, y, z), out List<Entity>? cell))
+            if (grid.CellAt(new(x, y, z)) is { } cell)
                 foreach (Entity entity in cell)
                     if ((entities.FrontRow(entity).Pose.Position - center).LengthSquared <= r2)
                         into[count++] = entity;
@@ -218,7 +218,7 @@ internal sealed partial class SpatialIndex
             placed++;
             Contract.Invariant(at.Frame == row.Frame.Index && at.Cell == SpatialGrid.CellOf(row.Pose.Position));
             Contract.Invariant(
-                grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) && cell.Contains(entity)
+                grids[at.Frame] is { } grid && grid.CellAt(at.Cell) is { } cell && cell.Contains(entity)
             );
         }
 

@@ -60,23 +60,21 @@ public sealed class EventBuffer(int capacity = 32)
         return -1;
     }
 
-    /// <summary>Copies the payload of the first event that <paramref name="filter"/> matches. False, with a default payload, if none matches.</summary>
-    internal bool TryFirst<TFilter, T>(TFilter filter, out T payload)
+    /// <summary>A copy of the payload of the first event that <paramref name="filter"/> matches. Null if none matches.</summary>
+    internal T? First<TFilter, T>(TFilter filter)
         where TFilter : struct, IEventFilter
         where T : unmanaged, IEventPayload
     {
         int index = FirstMatch(filter);
-        payload = index >= 0 ? Unsafe.As<PayloadBytes, T>(ref Items[index].Payload) : default;
-        return index >= 0;
+        return index >= 0 ? Unsafe.As<PayloadBytes, T>(ref Items[index].Payload) : null;
     }
 
-    /// <summary>Copies the first event that <paramref name="filter"/> matches. False, with a default event, if none matches.</summary>
-    internal bool TryFirst<TFilter>(TFilter filter, out Event e)
+    /// <summary>A copy of the first event that <paramref name="filter"/> matches. Null if none matches.</summary>
+    internal Event? First<TFilter>(TFilter filter)
         where TFilter : struct, IEventFilter
     {
         int index = FirstMatch(filter);
-        e = index >= 0 ? Items[index] : default;
-        return index >= 0;
+        return index >= 0 ? Items[index] : null;
     }
 
     /// <summary>The number of events that <paramref name="filter"/> matches.</summary>

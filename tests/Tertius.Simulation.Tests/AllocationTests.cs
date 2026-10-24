@@ -30,7 +30,7 @@ public sealed class AllocationTests
             foreach (ref Ping ping in events.Of<Ping>())
                 Total += ping.Value;
             Total += events.Of<Ping>().From(Neighbor).Count() + events.From(Entity.Null).Count();
-            if (events.Of<Ping>().Where(2, static (ref p, value) => p.Value == value).TryFirst(out Ping fromTopic))
+            if (events.Of<Ping>().Where(2, static (ref p, value) => p.Value == value).First() is { } fromTopic)
                 Total += fromTopic.Value;
             if (events.Find(Delayed).Any())
                 Total += 3;
@@ -175,7 +175,7 @@ public sealed class AllocationTests
             while (run.MoveNext())
                 Total += run.Current.Index;
             run.Dispose();
-            if (self.Snapshot.Entities.With<Metal>().TryFirst(out Entity metal))
+            if (self.Snapshot.Entities.With<Metal>().First() is { } metal)
                 Total += metal.Index;
             if (self.Snapshot.HasComponent<Flammable>(self.Entity))
                 Total++;

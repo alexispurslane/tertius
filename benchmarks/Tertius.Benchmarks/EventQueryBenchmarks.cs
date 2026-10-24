@@ -139,7 +139,7 @@ public class EventQueryBenchmarks
     {
         float sum = 0;
         foreach (Event e in events)
-            if (e.TryGet(out Damage d))
+            if (e.PayloadOf<Damage>() is { } d)
                 sum += d.Amount;
         return sum;
     }
