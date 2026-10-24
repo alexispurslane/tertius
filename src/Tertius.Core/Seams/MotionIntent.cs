@@ -125,25 +125,25 @@ public readonly partial struct MotionIntent
     /// <param name="ownsRootFrame">True when the entity owns a root frame.</param>
     internal MotionIntentRefusal RefusalFor(BodyMotion? motion, bool attached, bool ownsRootFrame)
     {
-        return !HasValue
-            ? MotionIntentRefusal.None
-            : attached
-                ? MotionIntentRefusal.Attached
-                : motion == BodyMotion.Character
-                    ? MotionIntentRefusal.Character
-                    : this is not SteerTarget
-                        ? motion is null or BodyMotion.Kinematic || ownsRootFrame
-                            ? MotionIntentRefusal.None
-                            : MotionIntentRefusal.NeedsKinematicBody
-                        : ownsRootFrame
-                            ? MotionIntentRefusal.SteerOfRootFrame
-                            : motion switch
-                            {
-                                BodyMotion.Dynamic => MotionIntentRefusal.None,
-                                null => MotionIntentRefusal.SteerWithoutBody,
-                                BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
-                                    MotionIntentRefusal.NeedsDynamicBody
-                            };
+        if (!HasValue)
+            return MotionIntentRefusal.None;
+        if (attached)
+            return MotionIntentRefusal.Attached;
+        return motion == BodyMotion.Character
+            ? MotionIntentRefusal.Character
+            : this is not SteerTarget
+                ? motion is null or BodyMotion.Kinematic || ownsRootFrame
+                    ? MotionIntentRefusal.None
+                    : MotionIntentRefusal.NeedsKinematicBody
+                : ownsRootFrame
+                    ? MotionIntentRefusal.SteerOfRootFrame
+                    : motion switch
+                    {
+                        BodyMotion.Dynamic => MotionIntentRefusal.None,
+                        null => MotionIntentRefusal.SteerWithoutBody,
+                        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
+                            MotionIntentRefusal.NeedsDynamicBody
+                    };
     }
 
     /// <summary>
