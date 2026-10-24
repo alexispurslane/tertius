@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using DemoStation = Tertius.Demo.DemoScenes.DemoStation;
@@ -42,124 +41,12 @@ public readonly record struct Docked;
 /// <see cref="SpinUp"/>, <see cref="Entry"/>, <see cref="MoveOut"/> and <see cref="Docked"/>, or <see cref="Halted"/>
 /// from any of them before <see cref="Docked"/>. It reuses the payload-less cases <see cref="Standby"/> and
 /// <see cref="Halted"/> of <see cref="RendezvousState"/>. Each case holds the data that it needs: only the spin-up needs its
-/// start time. The default value is <see cref="Standby"/>. This is a custom C# 15 union, like
+/// start time. The default value is <see cref="Standby"/>. It is a generated union, like
 /// <see cref="RendezvousState"/>.
 /// </summary>
-[Union]
-public readonly struct DockingState : IEquatable<DockingState>
-{
-    private const byte KindStandby = 0,
-        KindWaiting = 1,
-        KindSpinUp = 2,
-        KindEntry = 3,
-        KindMoveOut = 4,
-        KindDocked = 5,
-        KindHalted = 6;
-
-    // Only the spin-up fills its start time. Every other field is zero, so equality compares every field.
-    private readonly double startTime;
-    private readonly byte kind;
-
-    public DockingState(Standby standby)
-    {
-        kind = KindStandby;
-    }
-
-    public DockingState(Waiting waiting)
-    {
-        kind = KindWaiting;
-    }
-
-    public DockingState(SpinUp spinUp)
-    {
-        kind = KindSpinUp;
-        startTime = spinUp.StartTime;
-    }
-
-    public DockingState(Entry entry)
-    {
-        kind = KindEntry;
-    }
-
-    public DockingState(MoveOut moveOut)
-    {
-        kind = KindMoveOut;
-    }
-
-    public DockingState(Docked docked)
-    {
-        kind = KindDocked;
-    }
-
-    public DockingState(Halted halted)
-    {
-        kind = KindHalted;
-    }
-
-    /// <summary>Always true: every value is a state, and the default value is <see cref="Standby"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindWaiting => new Waiting(),
-        KindSpinUp => new SpinUp(startTime),
-        KindEntry => new Entry(),
-        KindMoveOut => new MoveOut(),
-        KindDocked => new Docked(),
-        KindHalted => new Halted(),
-        _ => new Standby()
-    };
-
-    public bool TryGetValue(out Standby value)
-    {
-        value = default;
-        return kind == KindStandby;
-    }
-
-    public bool TryGetValue(out Waiting value)
-    {
-        value = default;
-        return kind == KindWaiting;
-    }
-
-    public bool TryGetValue(out SpinUp value)
-    {
-        value = new(startTime);
-        return kind == KindSpinUp;
-    }
-
-    public bool TryGetValue(out Entry value)
-    {
-        value = default;
-        return kind == KindEntry;
-    }
-
-    public bool TryGetValue(out MoveOut value)
-    {
-        value = default;
-        return kind == KindMoveOut;
-    }
-
-    public bool TryGetValue(out Docked value)
-    {
-        value = default;
-        return kind == KindDocked;
-    }
-
-    public bool TryGetValue(out Halted value)
-    {
-        value = default;
-        return kind == KindHalted;
-    }
-
-    public bool Equals(DockingState other) => kind == other.kind && startTime.Equals(other.startTime);
-    public override bool Equals(object? obj) => obj is DockingState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, startTime);
-    public static bool operator ==(DockingState a, DockingState b) => a.Equals(b);
-    public static bool operator !=(DockingState a, DockingState b) => !a.Equals(b);
-
-    public override string ToString() => $"DockingState({Value})";
-}
+[GeneratedUnion(typeof(Standby), typeof(Waiting), typeof(SpinUp), typeof(Entry), typeof(MoveOut), typeof(Docked),
+    typeof(Halted), ZeroCase = typeof(Standby))]
+public readonly partial struct DockingState;
 
 /// <summary>
 /// A <see cref="DockingAutopilot"/>'s report: the shuttle is within the hold's tolerances and the roll angle lies in its
@@ -191,114 +78,12 @@ public readonly record struct Lost(string Reason);
 /// <summary>
 /// An event of a <see cref="DockingAutopilot"/>'s machine (see <see cref="DockingAutopilot.Next"/>): the script's order
 /// <see cref="Dock"/>, or a report of the case that flew the tick, <see cref="AtRollWindow"/>, <see cref="SpunUp"/>,
-/// <see cref="EntryEnded"/>, <see cref="Landed"/> or <see cref="Lost"/>. This is a custom C# 15 union, like
+/// <see cref="EntryEnded"/>, <see cref="Landed"/> or <see cref="Lost"/>. It is a generated union, like
 /// <see cref="DockingState"/>. The default value is <see cref="Dock"/>.
 /// </summary>
-[Union]
-public readonly struct DockingEvent : IEquatable<DockingEvent>
-{
-    private const byte KindDock = 0,
-        KindAtRollWindow = 1,
-        KindSpunUp = 2,
-        KindEntryEnded = 3,
-        KindLanded = 4,
-        KindLost = 5;
-
-    // Only the roll window fills its time, and only a loss its reason. Every other field is zero or null, so equality
-    // compares every field.
-    private readonly double time;
-    private readonly string? reason;
-    private readonly byte kind;
-
-    public DockingEvent(Dock dock)
-    {
-        kind = KindDock;
-    }
-
-    public DockingEvent(AtRollWindow atRollWindow)
-    {
-        kind = KindAtRollWindow;
-        time = atRollWindow.Time;
-    }
-
-    public DockingEvent(SpunUp spunUp)
-    {
-        kind = KindSpunUp;
-    }
-
-    public DockingEvent(EntryEnded entryEnded)
-    {
-        kind = KindEntryEnded;
-    }
-
-    public DockingEvent(Landed landed)
-    {
-        kind = KindLanded;
-    }
-
-    public DockingEvent(Lost lost)
-    {
-        kind = KindLost;
-        reason = lost.Reason;
-    }
-
-    /// <summary>Always true: every value is an event, and the default value is <see cref="Dock"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindAtRollWindow => new AtRollWindow(time),
-        KindSpunUp => new SpunUp(),
-        KindEntryEnded => new EntryEnded(),
-        KindLanded => new Landed(),
-        KindLost => new Lost(reason ?? ""),
-        _ => new Dock()
-    };
-
-    public bool TryGetValue(out Dock value)
-    {
-        value = default;
-        return kind == KindDock;
-    }
-
-    public bool TryGetValue(out AtRollWindow value)
-    {
-        value = new(time);
-        return kind == KindAtRollWindow;
-    }
-
-    public bool TryGetValue(out SpunUp value)
-    {
-        value = default;
-        return kind == KindSpunUp;
-    }
-
-    public bool TryGetValue(out EntryEnded value)
-    {
-        value = default;
-        return kind == KindEntryEnded;
-    }
-
-    public bool TryGetValue(out Landed value)
-    {
-        value = default;
-        return kind == KindLanded;
-    }
-
-    public bool TryGetValue(out Lost value)
-    {
-        value = new(reason ?? "");
-        return kind == KindLost;
-    }
-
-    public bool Equals(DockingEvent other) => kind == other.kind && time.Equals(other.time) && reason == other.reason;
-    public override bool Equals(object? obj) => obj is DockingEvent other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, time, reason);
-    public static bool operator ==(DockingEvent a, DockingEvent b) => a.Equals(b);
-    public static bool operator !=(DockingEvent a, DockingEvent b) => !a.Equals(b);
-
-    public override string ToString() => $"DockingEvent({Value})";
-}
+[GeneratedUnion(typeof(Dock), typeof(AtRollWindow), typeof(SpunUp), typeof(EntryEnded), typeof(Landed), typeof(Lost),
+    ZeroCase = typeof(Dock))]
+public readonly partial struct DockingEvent;
 
 /// <summary>
 /// The third layer of the shuttle's flight program: it docks the shuttle in its <paramref name="station"/> from the hold

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
 
@@ -38,88 +37,10 @@ public readonly record struct Orbit;
 /// What an <see cref="AscentAutopilot"/> does, in the order of a flight: <see cref="Parked"/>, <see cref="Ramp"/>,
 /// <see cref="Climb"/> and <see cref="Orbit"/>. Each case holds the data that it needs, so no state reads a value that
 /// only another state sets. The default value is <see cref="Parked"/>.
-/// This is a custom C# 15 union, like <see cref="MotionIntent"/>: <see cref="HasValue"/> and the <c>TryGetValue</c>
-/// methods let the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+/// It is a generated union (see <see cref="GeneratedUnionAttribute"/>): the union generator writes its members.
 /// </summary>
-[Union]
-public readonly struct AscentState : IEquatable<AscentState>
-{
-    private const byte KindParked = 0, KindRamp = 1, KindClimb = 2, KindOrbit = 3;
-
-    // The ramp and the climb fill the guidance, and only the ramp fills the launch radius. Every other field is zero, so
-    // equality compares every field.
-    private readonly AscentGuidance guidance;
-    private readonly double launchRadius;
-    private readonly byte kind;
-
-    public AscentState(Parked parked)
-    {
-        kind = KindParked;
-    }
-
-    public AscentState(Ramp ramp)
-    {
-        kind = KindRamp;
-        guidance = ramp.Guidance;
-        launchRadius = ramp.LaunchRadius;
-    }
-
-    public AscentState(Climb climb)
-    {
-        kind = KindClimb;
-        guidance = climb.Guidance;
-    }
-
-    public AscentState(Orbit orbit)
-    {
-        kind = KindOrbit;
-    }
-
-    /// <summary>Always true: every value is a state, and the default value is <see cref="Parked"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindRamp => new Ramp(guidance, launchRadius),
-        KindClimb => new Climb(guidance),
-        KindOrbit => new Orbit(),
-        _ => new Parked()
-    };
-
-    public bool TryGetValue(out Parked value)
-    {
-        value = default;
-        return kind == KindParked;
-    }
-
-    public bool TryGetValue(out Ramp value)
-    {
-        value = new(guidance, launchRadius);
-        return kind == KindRamp;
-    }
-
-    public bool TryGetValue(out Climb value)
-    {
-        value = new(guidance);
-        return kind == KindClimb;
-    }
-
-    public bool TryGetValue(out Orbit value)
-    {
-        value = default;
-        return kind == KindOrbit;
-    }
-
-    public bool Equals(AscentState other) =>
-        kind == other.kind && guidance == other.guidance && launchRadius.Equals(other.launchRadius);
-
-    public override bool Equals(object? obj) => obj is AscentState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, guidance, launchRadius);
-    public static bool operator ==(AscentState a, AscentState b) => a.Equals(b);
-    public static bool operator !=(AscentState a, AscentState b) => !a.Equals(b);
-
-    public override string ToString() => $"AscentState({Value})";
-}
+[GeneratedUnion(typeof(Parked), typeof(Ramp), typeof(Climb), typeof(Orbit), ZeroCase = typeof(Parked))]
+public readonly partial struct AscentState;
 
 /// <summary>
 /// Flies a parked shuttle up its ramp and to a circular orbit of radius <paramref name="orbitRadius"/>, round the point
@@ -241,7 +162,7 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
                     MaxTurnRate = AttitudeAutopilot.MaxTurnRate
                 });
                 break;
-            case Parked or Orbit or null:
+            case Parked or Orbit:
                 break;
             default:
                 throw new UnreachableException($"The ascent state {State} has a case that the autopilot does not fly.");

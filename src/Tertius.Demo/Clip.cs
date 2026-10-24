@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -13,50 +12,10 @@ public readonly record struct Released;
 
 /// <summary>
 /// What a <see cref="Clip"/> does: <see cref="Clipped"/>, from the start, or <see cref="Released"/>. The default value is
-/// <see cref="Clipped"/> with no weightless tick. This is a custom C# 15 union, like <see cref="AscentState"/>.
+/// <see cref="Clipped"/> with no weightless tick. It is a generated union, like <see cref="AscentState"/>.
 /// </summary>
-[Union]
-public readonly struct ClipState : IEquatable<ClipState>
-{
-    // True for the released case. A clipped state fills the weightless ticks, and a released one leaves them zero.
-    private readonly bool released;
-    private readonly int weightlessTicks;
-
-    public ClipState(Clipped clipped)
-    {
-        weightlessTicks = clipped.WeightlessTicks;
-    }
-
-    public ClipState(Released released)
-    {
-        this.released = true;
-    }
-
-    /// <summary>Always true: every value is a state.</summary>
-    public bool HasValue => true;
-
-    public object Value => released ? new Released() : new Clipped(weightlessTicks);
-
-    public bool TryGetValue(out Clipped value)
-    {
-        value = new(weightlessTicks);
-        return !released;
-    }
-
-    public bool TryGetValue(out Released value)
-    {
-        value = default;
-        return released;
-    }
-
-    public bool Equals(ClipState other) => released == other.released && weightlessTicks == other.weightlessTicks;
-    public override bool Equals(object? obj) => obj is ClipState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(released, weightlessTicks);
-    public static bool operator ==(ClipState a, ClipState b) => a.Equals(b);
-    public static bool operator !=(ClipState a, ClipState b) => !a.Equals(b);
-
-    public override string ToString() => $"ClipState({Value})";
-}
+[GeneratedUnion(typeof(Clipped), typeof(Released), ZeroCase = typeof(Clipped))]
+public readonly partial struct ClipState;
 
 /// <summary>
 /// A clip that holds its entity, a small dynamic body such as the demo's pen, at <paramref name="place"/> in the

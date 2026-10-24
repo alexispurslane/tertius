@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Tertius.Demo;
 
 /// <summary>A <see cref="Disembark"/> waits aboard for <see cref="LeaveShip"/>.</summary>
@@ -38,112 +36,13 @@ public readonly record struct StationGone;
 /// <summary>
 /// What a <see cref="Disembark"/> does, in the order of the exit: <see cref="Aboard"/>, <see cref="Walking"/>,
 /// <see cref="Sliding"/>, <see cref="Strolling"/> and <see cref="Arrived"/>, or <see cref="Halted"/> once the station's frame
-/// is gone. The default value is <see cref="Aboard"/>. This is a custom C# 15 union, like <see cref="PassengerState"/>, and
+/// is gone. The default value is <see cref="Aboard"/>. It is a generated union (see <see cref="GeneratedUnionAttribute"/>), and
 /// <see cref="Next"/> is the whole table of its changes (docs/plans/blue-danube-demo.md, "The exit component").
 /// </summary>
-[Union]
-public readonly struct DisembarkState : IEquatable<DisembarkState>
+[GeneratedUnion(typeof(Aboard), typeof(Walking), typeof(Sliding), typeof(Strolling), typeof(Arrived), typeof(Halted),
+    ZeroCase = typeof(Aboard))]
+public readonly partial struct DisembarkState
 {
-    private const byte KindAboard = 0,
-        KindWalking = 1,
-        KindSliding = 2,
-        KindStrolling = 3,
-        KindArrived = 4,
-        KindHalted = 5;
-
-    // A walking or strolling state fills its walk. Every other state leaves it at the default, so equality compares every
-    // field.
-    private readonly WalkProgress walk;
-    private readonly byte kind;
-
-    public DisembarkState(Aboard aboard)
-    {
-        kind = KindAboard;
-    }
-
-    public DisembarkState(Walking walking)
-    {
-        kind = KindWalking;
-        walk = walking.Walk;
-    }
-
-    public DisembarkState(Sliding sliding)
-    {
-        kind = KindSliding;
-    }
-
-    public DisembarkState(Strolling strolling)
-    {
-        kind = KindStrolling;
-        walk = strolling.Walk;
-    }
-
-    public DisembarkState(Arrived arrived)
-    {
-        kind = KindArrived;
-    }
-
-    public DisembarkState(Halted halted)
-    {
-        kind = KindHalted;
-    }
-
-    /// <summary>Always true: every value is a state, and the default value is <see cref="Aboard"/>.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindWalking => new Walking(walk),
-        KindSliding => new Sliding(),
-        KindStrolling => new Strolling(walk),
-        KindArrived => new Arrived(),
-        KindHalted => new Halted(),
-        _ => new Aboard()
-    };
-
-    public static implicit operator DisembarkState(Aboard value) => new(value);
-    public static implicit operator DisembarkState(Walking value) => new(value);
-    public static implicit operator DisembarkState(Sliding value) => new(value);
-    public static implicit operator DisembarkState(Strolling value) => new(value);
-    public static implicit operator DisembarkState(Arrived value) => new(value);
-    public static implicit operator DisembarkState(Halted value) => new(value);
-
-    public bool TryGetValue(out Aboard value)
-    {
-        value = default;
-        return kind == KindAboard;
-    }
-
-    public bool TryGetValue(out Walking value)
-    {
-        value = new(walk);
-        return kind == KindWalking;
-    }
-
-    public bool TryGetValue(out Sliding value)
-    {
-        value = default;
-        return kind == KindSliding;
-    }
-
-    public bool TryGetValue(out Strolling value)
-    {
-        value = new(walk);
-        return kind == KindStrolling;
-    }
-
-    public bool TryGetValue(out Arrived value)
-    {
-        value = default;
-        return kind == KindArrived;
-    }
-
-    public bool TryGetValue(out Halted value)
-    {
-        value = default;
-        return kind == KindHalted;
-    }
-
     /// <summary>
     /// The state that <paramref name="change"/> leads to from <paramref name="state"/>, or null when the pair has no row.
     /// It reads nothing but its two arguments.
@@ -157,105 +56,13 @@ public readonly struct DisembarkState : IEquatable<DisembarkState>
         (Walking or Sliding or Strolling, StationGone) => new Halted(),
         _ => null
     };
-
-    public bool Equals(DisembarkState other) => kind == other.kind && walk == other.walk;
-    public override bool Equals(object? obj) => obj is DisembarkState other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(kind, walk);
-    public static bool operator ==(DisembarkState a, DisembarkState b) => a.Equals(b);
-    public static bool operator !=(DisembarkState a, DisembarkState b) => !a.Equals(b);
-
-    public override string ToString() => $"DisembarkState({Value})";
 }
 
 /// <summary>
 /// An event of <see cref="Disembark"/>'s machine: the message <see cref="LeaveShip"/>, or a report of a delegate,
-/// <see cref="Dropped"/>, <see cref="Landed"/>, <see cref="WalkDone"/> or <see cref="StationGone"/>. A custom C# 15 union.
+/// <see cref="Dropped"/>, <see cref="Landed"/>, <see cref="WalkDone"/> or <see cref="StationGone"/>. It is a generated union, and
+/// the all-zero value is <see cref="LeaveShip"/>.
 /// </summary>
-[Union]
-public readonly struct DisembarkEvent : IEquatable<DisembarkEvent>
-{
-    private const byte KindLeaveShip = 0, KindDropped = 1, KindLanded = 2, KindWalkDone = 3, KindStationGone = 4;
-
-    private readonly byte kind;
-
-    public DisembarkEvent(LeaveShip leave)
-    {
-        kind = KindLeaveShip;
-    }
-
-    public DisembarkEvent(Dropped dropped)
-    {
-        kind = KindDropped;
-    }
-
-    public DisembarkEvent(Landed landed)
-    {
-        kind = KindLanded;
-    }
-
-    public DisembarkEvent(WalkDone done)
-    {
-        kind = KindWalkDone;
-    }
-
-    public DisembarkEvent(StationGone gone)
-    {
-        kind = KindStationGone;
-    }
-
-    /// <summary>Always true: every value is an event.</summary>
-    public bool HasValue => true;
-
-    public object Value => kind switch
-    {
-        KindDropped => new Dropped(),
-        KindLanded => new Landed(),
-        KindWalkDone => new WalkDone(),
-        KindStationGone => new StationGone(),
-        _ => new LeaveShip()
-    };
-
-    public static implicit operator DisembarkEvent(LeaveShip value) => new(value);
-    public static implicit operator DisembarkEvent(Dropped value) => new(value);
-    public static implicit operator DisembarkEvent(Landed value) => new(value);
-    public static implicit operator DisembarkEvent(WalkDone value) => new(value);
-    public static implicit operator DisembarkEvent(StationGone value) => new(value);
-
-    public bool TryGetValue(out LeaveShip value)
-    {
-        value = default;
-        return kind == KindLeaveShip;
-    }
-
-    public bool TryGetValue(out Dropped value)
-    {
-        value = default;
-        return kind == KindDropped;
-    }
-
-    public bool TryGetValue(out Landed value)
-    {
-        value = default;
-        return kind == KindLanded;
-    }
-
-    public bool TryGetValue(out WalkDone value)
-    {
-        value = default;
-        return kind == KindWalkDone;
-    }
-
-    public bool TryGetValue(out StationGone value)
-    {
-        value = default;
-        return kind == KindStationGone;
-    }
-
-    public bool Equals(DisembarkEvent other) => kind == other.kind;
-    public override bool Equals(object? obj) => obj is DisembarkEvent other && Equals(other);
-    public override int GetHashCode() => kind;
-    public static bool operator ==(DisembarkEvent a, DisembarkEvent b) => a.Equals(b);
-    public static bool operator !=(DisembarkEvent a, DisembarkEvent b) => !a.Equals(b);
-
-    public override string ToString() => $"DisembarkEvent({Value})";
-}
+[GeneratedUnion(typeof(LeaveShip), typeof(Dropped), typeof(Landed), typeof(WalkDone), typeof(StationGone),
+    ZeroCase = typeof(LeaveShip))]
+public readonly partial struct DisembarkEvent;
