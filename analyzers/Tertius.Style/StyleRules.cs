@@ -111,4 +111,12 @@ internal static class StyleRules
         "'{0}' is a static class of helpers with no extension member. Move each function into the type that it " +
         "belongs to (STYLE.md, \"Put a function into the type that it belongs to\").",
         category: Category, defaultSeverity: DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor UnnamedCase = new(id: "TS0015",
+        title: "A switch statement over a closed set names every case",
+        messageFormat:
+        "This switch statement over '{0}' {1}. A switch statement over a closed set names each case in a label " +
+        "without a guard, and its default section only throws UnreachableException, so that a new case fails the " +
+        "build (STYLE.md, \"Switches\").",
+        category: Category, defaultSeverity: DiagnosticSeverity.Warning, isEnabledByDefault: true);
 }

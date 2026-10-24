@@ -11,11 +11,11 @@ namespace Tertius.Style.Tests;
 public sealed class StyleRulesTests
 {
     [Fact]
-    public void TheAnalyzerHasFourteenRulesThatAreWarningsOnByDefault()
+    public void TheAnalyzerHasFifteenRulesThatAreWarningsOnByDefault()
     {
         ImmutableArray<DiagnosticDescriptor> rules = new StyleAnalyzer().SupportedDiagnostics;
 
-        rules.Select(rule => rule.Id).Should().Equal(Enumerable.Range(1, 14).Select(number => $"TS{number:D4}"));
+        rules.Select(rule => rule.Id).Should().Equal(Enumerable.Range(1, 15).Select(number => $"TS{number:D4}"));
         rules.Should().OnlyContain(
             rule => rule.DefaultSeverity == DiagnosticSeverity.Warning && rule.IsEnabledByDefault,
             "a rule is a warning, as a compiler warning is, and TreatWarningsAsErrors makes it an error");
