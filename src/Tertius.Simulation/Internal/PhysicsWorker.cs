@@ -10,7 +10,9 @@ internal sealed class PhysicsWorker : IDisposable
 {
     private readonly IPhysicsBackend backend;
     private readonly PhysicsStepOutput output;
+
     private readonly Thread thread;
+
     // Both events block at once, with no spin. A spin and its yields before each block cost CPU and gave no speed: on
     // 2026-10-24 the Blue Danube generator wrote the same script in the same wall time with 8 to 15 percent less CPU, and
     // the Physics tests, which run many worlds at once, spent about 6 CPU-seconds in the yields.

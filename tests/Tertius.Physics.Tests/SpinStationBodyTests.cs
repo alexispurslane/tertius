@@ -128,7 +128,7 @@ public sealed class SpinStationBodyTests
         {
             Double3 chord = DQuaternion.Identity.AngularVelocityTo(end.Conjugate() * turn * start, dt) * factor;
             DQuaternion inStation =
-                DQuaternion.FromAxisAngle(chord, chord.Length * dt) * (start.Conjugate() * Rotation);
+                DQuaternion.FromAxisAngle(chord, chord.Length * dt) * start.Conjugate() * Rotation;
             DQuaternion next = end * inStation;
             turn = next * Rotation.Conjugate();
             Rotation = next;

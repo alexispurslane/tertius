@@ -9,6 +9,34 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public sealed class EntityTableInvariantTests
 {
+    [Fact]
+    public void TheInvariantCheckLeavesASlotThatWasNeverUsedToItsFirstUse()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        table.SpawnLive();
+
+        numbers.AsSpan()[table.Capacity - 1] = 7;
+
+        Action check = table.AssertInvariants;
+        check.Should().NotThrow("a scan of every slot that was never used made the check cost O(capacity) per tick");
+    }
+
+    [Fact]
+    public void AColumnEntryInAReleasedSlotFailsTheCheck()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        Entity gone = table.SpawnLive();
+        table.SpawnLive();
+        table.Release(gone);
+        table.AssertInvariants();
+
+        numbers.AsSpan()[(int)gone.Index] = 7;
+
+        Action check = table.AssertInvariants;
+        check.Should().Throw<ContractException>();
+    }
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AColumnEntryInASlotThatWasNeverUsedFailsAContractWhenTheTableTakesTheSlot()
@@ -51,33 +79,4 @@ public sealed class EntityTableInvariantTests
         end.Should().Throw<ContractException>().WithMessage("Precondition*");
     }
 #endif
-
-    [Fact]
-    public void TheInvariantCheckLeavesASlotThatWasNeverUsedToItsFirstUse()
-    {
-        EntityTable table = TableSupport.NewTable();
-        EntityTable.Column<int> numbers = table.AddColumn<int>();
-        table.SpawnLive();
-
-        numbers.AsSpan()[table.Capacity - 1] = 7;
-
-        Action check = table.AssertInvariants;
-        check.Should().NotThrow("a scan of every slot that was never used made the check cost O(capacity) per tick");
-    }
-
-    [Fact]
-    public void AColumnEntryInAReleasedSlotFailsTheCheck()
-    {
-        EntityTable table = TableSupport.NewTable();
-        EntityTable.Column<int> numbers = table.AddColumn<int>();
-        Entity gone = table.SpawnLive();
-        table.SpawnLive();
-        table.Release(gone);
-        table.AssertInvariants();
-
-        numbers.AsSpan()[(int)gone.Index] = 7;
-
-        Action check = table.AssertInvariants;
-        check.Should().Throw<ContractException>();
-    }
 }
