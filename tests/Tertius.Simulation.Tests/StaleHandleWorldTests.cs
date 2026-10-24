@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>What the world's public members do with a stale handle.</summary>
-public class StaleHandleWorldTests
+public sealed class StaleHandleWorldTests
 {
     private static readonly Topic Squad = Topics.Get("tests.stale.world");
 

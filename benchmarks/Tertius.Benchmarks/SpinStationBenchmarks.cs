@@ -166,7 +166,7 @@ public class SpinStationCharacterBenchmarks
             {
                 Frame = space,
                 AsFrame = new(FrameBounds.Sphere(150)),
-                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
                 Components = [new SpinMotion { Spin = spin }]
             }
             : new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150), field) }));
@@ -252,7 +252,7 @@ public class BeginStepBenchmarks
         intents = new PhysicsIntent[next];
         if (Turning)
             foreach ((uint slot, FrameHandle parent) in moves)
-                intents[slot] = new() { Frame = parent, Move = new(spin.Sample(new(10, 0, 0), Step, Step)) };
+                intents[slot] = new() { Frame = parent, Move = new(spin.Sample(new(10, 0, 0), Step)) };
         frames.Update();
         BeginStep();
         BeginStep();

@@ -14,7 +14,7 @@ namespace Tertius.Core.Tests;
 /// out, so the scenes of resting frames lie near <see cref="Far"/>.
 /// </para>
 /// </summary>
-public class FrameTreeNumericUpdateTests
+public sealed class FrameTreeNumericUpdateTests
 {
     private const double Grid = 1 << 20;
     private const double LightYear = 9.4607e15;

@@ -6,11 +6,11 @@ namespace Tertius.Style.Tests;
 /// The code fix of TS0002 names every argument that binds to a parameter by its position, with the name of that
 /// parameter, and keeps the order of the arguments, their modifiers and their layout.
 /// </summary>
-public class NameArgumentsFixTests
+public sealed class NameArgumentsFixTests
 {
     [Fact]
     public async Task EveryPositionalArgumentGetsTheNameOfItsParameter() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Call(int a, int b, int c, int d) { }
@@ -26,7 +26,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task ANamedArgumentKeepsItsNameAndItsPlace() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Call(int a, int b, int c, int d) { }
@@ -42,7 +42,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task OutRefAndInArgumentsKeepTheirModifiersAfterTheName() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Call(out int a, ref int b, in int c, int d) => a = b + c + d;
@@ -58,7 +58,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task AParameterNamedWithAKeywordIsEscaped() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Call(int @object, int @in, int value, int d) { }
@@ -74,7 +74,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task ArgumentsOfTheParamsListStayPositional() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Sum(int a, int b, int c, int d, params int[] rest) { }
@@ -90,7 +90,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task ArgumentsOnTheirOwnLinesKeepTheirIndentation() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public static class C
                            {
                                public static void Call(int a, int b, int c, int d) { }
@@ -116,7 +116,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task AConstructorInitializerIsFixed() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public class C
                            {
                                public C(int a, int b, int c, int d) { }
@@ -132,7 +132,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task APrimaryConstructorBaseCallIsFixed() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public class B(int a, int b, int c, int d);
                            public class C() : B(1, 2, 3, 4);
                            """)).Should().Be("""
@@ -142,7 +142,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task AnAttributeIsFixedAndKeepsItsProperties() =>
-        (await Fixes.First("""
+        (await Fixes.NameArguments.First("""
                            public sealed class MarkAttribute(int a, int b, int c, int d) : System.Attribute
                            {
                                public string Note { get; set; } = "";
@@ -160,7 +160,7 @@ public class NameArgumentsFixTests
 
     [Fact]
     public async Task FixingEveryCallAtOnceNamesTheArgumentsOfNestedCalls() =>
-        (await Fixes.All("""
+        (await Fixes.NameArguments.All("""
                          public static class C
                          {
                              public static int Get(int a, int b, int c, int d) => a;

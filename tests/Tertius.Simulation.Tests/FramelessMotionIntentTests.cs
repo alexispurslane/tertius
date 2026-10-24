@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// over the motion intent of the step beside that tick, and leaves the entity at rest. Every test reads the front snapshot
 /// between ticks, so after the sync point of tick N it sees the record of step N.
 /// </summary>
-public class FramelessMotionIntentTests
+public sealed class FramelessMotionIntentTests
 {
     private const double EarthMu = 3.986004418e14;
 

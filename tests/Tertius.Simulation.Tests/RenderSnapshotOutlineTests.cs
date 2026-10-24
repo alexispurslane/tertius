@@ -13,7 +13,7 @@ namespace Tertius.Simulation.Tests;
 /// outline sphere of each frame that hangs in it. Every center is the frame's origin relative to the render origin, in the
 /// axes of the camera's frame. The tests of numeric frames run the real World on the real Jolt backend.
 /// </summary>
-public class RenderSnapshotOutlineTests
+public sealed class RenderSnapshotOutlineTests
 {
     /// <summary>
     /// A speed in m/s at which a group of free bodies falls in a numeric frame: twice the 1,000 m/s of
@@ -66,23 +66,12 @@ public class RenderSnapshotOutlineTests
     /// <summary>The kind of frame that an outline shows, and its center.</summary>
     private static (string Kind, Vector3 Center) KindAndCenter(FrameOutline outline) => outline switch
     {
-        SemanticOutline(var center, _, _) => ("semantic", center),
-        FallingOutline(var center, _) => ("falling", center),
-        RestingOutline(var center, _) => ("resting", center),
-        NestingOutline(var center, _) => ("nesting", center),
-        FollowingOutline(var center, _) => ("following", center),
+        SemanticOutline { Center: var center } => ("semantic", center),
+        FallingOutline { Center: var center } => ("falling", center),
+        RestingOutline { Center: var center } => ("resting", center),
+        NestingOutline { Center: var center } => ("nesting", center),
+        FollowingOutline { Center: var center } => ("following", center),
         null => ("none", default)
-    };
-
-    /// <summary>The radius of an outline's outline sphere: the largest radius of a bubble, or the radius of a contents sphere.</summary>
-    private static float SphereRadius(FrameOutline outline) => outline switch
-    {
-        SemanticOutline(_, _, var radii) => MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z)),
-        FallingOutline(_, var radius) => radius,
-        RestingOutline(_, var radius) => radius,
-        NestingOutline(_, var radius) => radius,
-        FollowingOutline(_, var radius) => radius,
-        null => float.NaN
     };
 
     private static string KindOf(World world, FrameHandle frame) => world.Frames.Numeric(frame) switch

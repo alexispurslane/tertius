@@ -226,8 +226,9 @@ public sealed partial class World
         {
             bool ownsFrame = desc.AsFrame is not null;
             // The body of a frame owner is the frame's hull when the frame has a parent. A root frame has no hull.
-            BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame :
-                desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
+            BodyRole role = BodyRole.OwnsNoFrame;
+            if (ownsFrame)
+                role = desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
             if (body.Problem(role) is { } problem)
                 throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
             // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
@@ -307,26 +308,34 @@ public sealed partial class World
     {
         if (desc.LinearVelocity == Double3.Zero && desc.AngularVelocity == Vector3.Zero)
             return null;
-        bool ownsFrame = desc.AsFrame is not null;
-        string? mover = !desc.AttachTo.IsNull
-            ? "An attached entity moves with its parent"
-            : desc.Body is not { } body
-                ? "An entity without a body moves only by its motion intents and transform writes"
-                : ownsFrame && desc.Frame.IsNull
-                    ? "The owner of a root frame has no hull, so only its motion intents move it"
-                    : body.Motion switch
-                    {
-                        BodyMotion.Static => "A static body moves only by its teleports",
-                        BodyMotion.Kinematic when !ownsFrame =>
-                            "A kinematic body that owns no frame moves only by its motion intents and teleports",
-                        BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => null
-                    };
-        if (mover is null)
+        if (OnlyMover(desc) is not { } mover)
             return null;
         string velocity = desc.LinearVelocity != Double3.Zero
             ? $"the linear velocity {desc.LinearVelocity}"
             : $"the angular velocity {desc.AngularVelocity}";
         return $"{mover}, so it cannot spawn with {velocity}.";
+    }
+
+    /// <summary>
+    /// What alone moves an entity of <paramref name="desc"/>, as the start of a sentence, or null when physics carries a
+    /// spawn velocity on (see <see cref="SpawnVelocityProblem"/>).
+    /// </summary>
+    private static string? OnlyMover(SpawnDesc desc)
+    {
+        bool ownsFrame = desc.AsFrame is not null;
+        if (!desc.AttachTo.IsNull)
+            return "An attached entity moves with its parent";
+        if (desc.Body is not { } body)
+            return "An entity without a body moves only by its motion intents and transform writes";
+        if (ownsFrame && desc.Frame.IsNull)
+            return "The owner of a root frame has no hull, so only its motion intents move it";
+        return body.Motion switch
+        {
+            BodyMotion.Static => "A static body moves only by its teleports",
+            BodyMotion.Kinematic when !ownsFrame =>
+                "A kinematic body that owns no frame moves only by its motion intents and teleports",
+            BodyMotion.Kinematic or BodyMotion.Dynamic or BodyMotion.Character => null
+        };
     }
 
     /// <summary>

@@ -17,7 +17,7 @@ public struct Heal : IEventPayload
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 public struct TooBig : IEventPayload;
 
-public class MessagingTests
+public sealed class MessagingTests
 {
     [Fact]
     public void TargetMatchesEachCaseWithoutDefaultArm()

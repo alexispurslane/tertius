@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// light and the spheres that cast eclipses. Positions are relative to the render origin and in the axes of the camera's
 /// frame. A quarter turn about +Y maps (x, y, z) to (z, y, -x).
 /// </summary>
-public class RenderSnapshotLightingTests
+public sealed class RenderSnapshotLightingTests
 {
     private static readonly Pose LampOffset = new(new(0, 1, 0), Quaternion.Identity);
     private static readonly Vector3 LampColor = new(1, 0.5f, 0.25f);

@@ -210,7 +210,11 @@ public sealed class ShuttleJets
     private JetPair Translation(string name, Double3 first, Double3 second, Double3 push, double center)
     {
         Double3 span = second - first;
-        int axis = Math.Abs(span.X) > 0 ? 0 : Math.Abs(span.Y) > 0 ? 1 : 2;
+        int axis = 2;
+        if (Math.Abs(span.X) > 0)
+            axis = 0;
+        else if (Math.Abs(span.Y) > 0)
+            axis = 1;
         double firstShare = (Along(second, axis) - center) / Along(span, axis);
         return new(name,
             new(Id: $"jet-{name}-first", Place: first, Push: push, MaxThrust: firstShare * translationThrust),

@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The convex radius that a box description and a convex hull description carry: the largest rounding, in m, that physics
 /// may give the edges of the shape. These tests check the rules that need no physics backend.
 /// </summary>
-public class ShapeDescConvexRadiusTests
+public sealed class ShapeDescConvexRadiusTests
 {
     private static readonly Vector3[] Tetrahedron = [new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)];
 

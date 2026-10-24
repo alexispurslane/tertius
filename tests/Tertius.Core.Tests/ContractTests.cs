@@ -1,6 +1,6 @@
 namespace Tertius.Core.Tests;
 
-public class ContractTests
+public sealed class ContractTests
 {
 #if TERTIUS_CONTRACTS
     [Fact]

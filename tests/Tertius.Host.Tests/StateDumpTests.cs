@@ -11,7 +11,7 @@ namespace Tertius.Host.Tests;
 /// The state dumps of a scripted run, in memory: poses in two frames, the frame tree, the events since the previous dump
 /// and the world's errors. See docs/plans/host-and-scripted-runs.md, "State dumps".
 /// </summary>
-public class StateDumpTests
+public sealed class StateDumpTests
 {
     private const string DumpNow = """{ "do": "dump", "name": "now" }""";
 

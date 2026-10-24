@@ -384,7 +384,7 @@ public sealed class FlightControlTests : IDisposable
         {
             Frame = planet,
             Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
             AsFrame = new(FrameBounds.Sphere(1e8f),
                 withEarthsPull ? GravityField.Point(DemoScenes.EarthMu) : GravityField.None),
             Components = [new SpinMotion { Spin = spin }]

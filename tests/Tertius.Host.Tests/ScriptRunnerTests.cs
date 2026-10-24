@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 /// ScriptRunner.Run: steps in file order, ticks in lock-step with the run steps, and posts that reach the entities that
 /// their targets name. Each test builds its scene in a world with no physics.
 /// </summary>
-public class ScriptRunnerTests
+public sealed class ScriptRunnerTests
 {
     private const string NudgeProbe =
         """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1.5 } }""";

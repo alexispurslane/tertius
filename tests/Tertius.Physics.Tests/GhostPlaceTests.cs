@@ -18,7 +18,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="Thruster"/>), from 0.5 s before their falling frames matter. A slow group rests in a numeric frame from
 /// 2^23 m (8,389 km) from its semantic frame's origin, so the scenes whose bodies must rest lie 2^24 m out.
 /// </summary>
-public class GhostPlaceTests
+public sealed class GhostPlaceTests
 {
     /// <summary>
     /// The 30 ticks of 1/60 s, 0.5 s, of thrust after which a body with a <see cref="Thruster"/> thrusts (see

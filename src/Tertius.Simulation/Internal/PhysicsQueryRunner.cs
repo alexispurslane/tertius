@@ -310,7 +310,7 @@ internal sealed class PhysicsQueryRunner(
         DQuaternion back = toFrame.Rotation.Conjugate();
         switch (request.Question)
         {
-            case RayQuestion(var origin, var direction, _, var kind):
+            case RayQuestion { Origin: var origin, Direction: var direction, Kind: var kind }:
                 rayHits.Clear();
                 backend.CastRay(frame: frame, origin: toFrame.TransformPoint(origin),
                     direction: toFrame.Rotation.Rotate(direction), start: start, end: end,
@@ -319,7 +319,7 @@ internal sealed class PhysicsQueryRunner(
                     Keep(new(Entity: found.Entity, Distance: found.Distance, Point: origin + direction * found.Distance,
                         Normal: back.Rotate(found.Normal)));
                 break;
-            case ShapeCastQuestion(var shape, var startPose, var direction, _):
+            case ShapeCastQuestion { Shape: var shape, Start: var startPose, Direction: var direction }:
                 shapeHits.Clear();
                 backend.CastShape(frame: frame, shape: shape, start: DPose.Compose(toFrame, startPose),
                     direction: toFrame.Rotation.Rotate(direction),
@@ -329,7 +329,7 @@ internal sealed class PhysicsQueryRunner(
                         Point: toFrame.InverseTransformPoint(found.Point),
                         Normal: back.Rotate(found.Normal)));
                 break;
-            case OverlapQuestion(var shape, var pose):
+            case OverlapQuestion { Shape: var shape, Pose: var pose }:
                 overlapped.Clear();
                 backend.Overlap(frame: frame, shape: shape, pose: DPose.Compose(toFrame, pose), filter: filter,
                     entities: overlapped);
@@ -410,7 +410,9 @@ internal sealed class PhysicsQueryRunner(
         if (count > 0)
             return;
         Double3 end = question.Origin + question.Direction * question.Length;
-        Double3 missPoint = !frameAlive ? default : convert ? toAsker.TransformPoint(end) : end;
+        Double3 missPoint = default;
+        if (frameAlive)
+            missPoint = convert ? toAsker.TransformPoint(end) : end;
         router.AddEngineEvent(question switch
         {
             RayQuestion => AnswerTo(request.Asker,

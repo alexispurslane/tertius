@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// blueprint and the member, and never in the middle of a tick. A rejected blueprint registers nothing. The lookup
 /// methods fail with <see cref="KeyNotFoundException"/> for a name that nobody registered.
 /// </summary>
-public class BlueprintValidationTests
+public sealed class BlueprintValidationTests
 {
     private static readonly string[] Problems =
     [

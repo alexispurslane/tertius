@@ -119,12 +119,12 @@ internal sealed class SceneBatcher
     {
         bool hasCurrent = current.LengthSquared() > 1e-12f;
         bool hasPrevious = previous.LengthSquared() > 1e-12f;
-        return !hasCurrent
-            ? hasPrevious ? Quaternion.Normalize(previous) : Quaternion.Identity
-            : !hasPrevious || alpha >= 1f
-                ? Quaternion.Normalize(current)
-                : Quaternion.Normalize(Quaternion.Slerp(Quaternion.Normalize(previous), Quaternion.Normalize(current),
-                    alpha));
+        if (!hasCurrent)
+            return hasPrevious ? Quaternion.Normalize(previous) : Quaternion.Identity;
+        if (!hasPrevious || alpha >= 1f)
+            return Quaternion.Normalize(current);
+        return Quaternion.Normalize(Quaternion.Slerp(Quaternion.Normalize(previous), Quaternion.Normalize(current),
+            alpha));
     }
 
     private static void CollectVisible(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes,
@@ -368,7 +368,10 @@ internal sealed class SceneBatcher
             // a visible surface (see Reaches).
             switch (light)
             {
-                case PointRenderLight(var worldPosition, var color, var intensity, var range):
+                case PointRenderLight
+                {
+                    Position: var worldPosition, Color: var color, Intensity: var intensity, Range: var range
+                }:
                 {
                     if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
                             position: out Vector3 position))
@@ -382,8 +385,11 @@ internal sealed class SceneBatcher
                     });
                     break;
                 }
-                case SpotRenderLight(var worldPosition, var axis, var color, var intensity, var range, var
-                    innerConeAngle, var outerConeAngle):
+                case SpotRenderLight
+                {
+                    Position: var worldPosition, Direction: var axis, Color: var color, Intensity: var intensity,
+                    Range: var range, InnerConeAngle: var innerConeAngle, OuterConeAngle: var outerConeAngle
+                }:
                 {
                     if (!Reaches(camera: camera, worldPosition: worldPosition, intensity: intensity, range: range,
                             position: out Vector3 position))

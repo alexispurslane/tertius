@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// hull's last record, the rate of that record plus its angular acceleration times the step. So the contents of a hull that
 /// spins up feel the Euler force one step late, the same lag as the hull's proper acceleration.
 /// </summary>
-public class SpinningShipBodyTests
+public sealed class SpinningShipBodyTests
 {
     /// <summary>Pushes its entity's body with a steady torque on every tick from <paramref name="fromTick"/> on.</summary>
     private sealed class SteadyTorque(Vector3 torque, long fromTick) : IComponent

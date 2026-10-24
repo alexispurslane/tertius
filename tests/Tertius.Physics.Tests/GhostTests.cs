@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="FaultInjectingBackend.Jolt"/>,
 /// after a tick.
 /// </summary>
-public class GhostTests
+public sealed class GhostTests
 {
     /// <summary>A ball that nothing slows down and that does not bounce.</summary>
     private static BodyDesc BallBody(float radius) =>

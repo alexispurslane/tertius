@@ -49,7 +49,7 @@ public static class RailsSpawn
         With(desc: desc, pose: new(desc.Pose.Position, spin.RotationAt(world.Time)), velocity: Double3.Zero,
             angularVelocity: spin.AngularVelocity.ToVector3(),
             firstMove: firstMove
-                ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world), world.DeltaTime))
+                ? new MotionIntent(spin.Sample(desc.Pose.Position, FirstStepEnd(world)))
                 : default,
             rails: new SpinMotion { Spin = spin });
 

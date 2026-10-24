@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// frame state, so a test reads the hull that Jolt reported in the outputs that <see cref="FaultInjectingBackend"/>
 /// records.
 /// </summary>
-public class FrameHullTests
+public sealed class FrameHullTests
 {
     private const double EarthMu = Scenes.EarthMu;
 

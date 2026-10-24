@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// straight line at 2 km/s with end poses, in a frame without gravity, so the line is the anchor's true path. The world runs
 /// on the real backend.
 /// </summary>
-public class FollowingFrameTests
+public sealed class FollowingFrameTests
 {
     /// <summary>The radius of the hull's bubble, in meters.</summary>
     private const float BubbleRadius = 16;
@@ -127,8 +127,13 @@ public class FollowingFrameTests
                 world.Tick();
                 FrameHandle home = world.PhysicsHomeOf(crate);
                 FrameHandle hullHome = world.PhysicsHomeOf(owner);
-                string kind = home == frame ? "hull's frame" :
-                    home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
+                string kind;
+                if (home == frame)
+                    kind = "hull's frame";
+                else if (home == hullHome)
+                    kind = "following frame";
+                else
+                    kind = world.Frames.Numeric(home).ToString();
                 if (homes.Count == 0 || homes[^1] != kind)
                     homes.Add(kind);
                 if (home == hullHome)

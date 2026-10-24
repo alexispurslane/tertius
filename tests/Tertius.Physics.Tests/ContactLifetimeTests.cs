@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// each one that its new motion can make (rule 6 of docs/plans/complete-ghosts.md). The tests run the World on the real backend and count the contacts in the step
 /// outputs that Jolt really sent, which <see cref="FaultInjectingBackend"/> records.
 /// </summary>
-public class ContactLifetimeTests
+public sealed class ContactLifetimeTests
 {
     /// <summary>A cube of 1 m with no damping and no bounce, so that it touches the floor once when it lands.</summary>
     private static BodyDesc BoxDesc(float mass) =>

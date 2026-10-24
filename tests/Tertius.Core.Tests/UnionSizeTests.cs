@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// holds one grows. The unions whose own test files pin their size (HemisphereUp, PuffShading, RenderLight and
 /// FrameOutline) are not repeated here.
 /// </summary>
-public class UnionSizeTests
+public sealed class UnionSizeTests
 {
     [Fact]
     public void ATargetTakesSixteenBytesBecauseEveryEventCarriesOne()

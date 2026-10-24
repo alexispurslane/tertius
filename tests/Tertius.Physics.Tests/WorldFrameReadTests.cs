@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// Every read of a position or a velocity names the frame that it wants the answer in. A velocity read gives a
 /// <see cref="Double3"/>. Writes stay relative to the entity's own frame. These tests run the real World on real Jolt.
 /// </summary>
-public class WorldFrameReadTests
+public sealed class WorldFrameReadTests
 {
     /// <summary>A ball without damping, so that it keeps its velocity in a weightless frame.</summary>
     private static readonly BodyDesc

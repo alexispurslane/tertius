@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// at the end of the previous tick. A component that is added or removed shows in the next tick, whether a component
 /// changed it during a tick or the game changed it between ticks.
 /// </summary>
-public class ComponentFlagsWorldTests
+public sealed class ComponentFlagsWorldTests
 {
     /// <summary>A component that records, on each tick, whether <paramref name="target"/> had a <typeparamref name="T"/> in the snapshot.</summary>
     private static Lambda Watches<T>(Func<Entity> target, List<bool> seen) where T : IComponent =>

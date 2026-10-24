@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// tests compare the world with it. A test of an output that Jolt never produces (two states for one body, a state
 /// for a body that is gone) edits the output of one step.
 /// </summary>
-public class PhysicsBodyStateTests
+public sealed class PhysicsBodyStateTests
 {
     /// <summary>How far the edits below push the pose of a state that they add, in meters along +X.</summary>
     private const double Shift = 100;

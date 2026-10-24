@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// Numeric frames must not change which bodies a body meets, how it moves, or what gameplay hears, so each scene with
 /// numeric frames runs beside the same scene without them.
 /// </summary>
-public class MeshGhostTests
+public sealed class MeshGhostTests
 {
     /// <summary>The step at whose start the body of <see cref="FlyAtAMeshWall"/> is its gap from the wall.</summary>
     private const int ContactStep = 40;

@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// or leaves for a system where the other entity has no body. Each entity of a contact hears one Collision at the start
 /// and one CollisionEnded at the end. Sleep, wake, a growth of the system and moves between numeric frames end nothing.
 /// </summary>
-public class WorldContactEndTests
+public sealed class WorldContactEndTests
 {
     private static readonly BodyDesc Person = new(Shape: new CapsuleShapeDesc(0.6f, 0.3f), Motion: BodyMotion.Character,
         Mass: 70);

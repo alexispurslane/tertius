@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// ship's own axes, the accelerometer of a ship, and what a sleeping body feels. The tests read the World's state, and the
 /// outputs that Jolt really sent when a test needs to know what Jolt reported.
 /// </summary>
-public class GravityTests
+public sealed class GravityTests
 {
     private const double EarthRadius = 6_371_000;
     private const double EarthMu = Scenes.EarthMu;

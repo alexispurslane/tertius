@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// A Kepler frame that faces its parent, on the World and the real Jolt backend: the frame keeps its belly toward the
 /// planet over many ticks, its owner's row follows it, and its hull in the planet's system turns with it.
 /// </summary>
-public class WorldFacingFrameTests
+public sealed class WorldFacingFrameTests
 {
     // A station 5 km from a planet's center that goes round in about 31 s, so 10 s of ticks turn it by 2 radians.
     private const double PlanetMu = 5e9;

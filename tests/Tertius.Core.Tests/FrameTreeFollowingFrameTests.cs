@@ -19,7 +19,7 @@ namespace Tertius.Core.Tests;
 /// never thrusts, so it gets a following frame from 1,000 m/s or 8,389 km. The lookahead is 2 s and the split margin 10 m.
 /// After every update the tree keeps its invariants.
 /// </summary>
-public class FrameTreeFollowingFrameTests
+public sealed class FrameTreeFollowingFrameTests
 {
     private const double EarthMu = 3.986004418e14;
     private const double Step = 1.0 / 60;
@@ -627,7 +627,7 @@ public class FrameTreeFollowingFrameTests
                     Velocity: Double3.Zero,
                     Acceleration: Double3.Zero, AngularVelocity: new(0, 0.5 * t, 0),
                     AngularAcceleration: new(0, 0.5, 0))
-                : spin.Sample(Double3.Zero, t, Step);
+                : spin.Sample(Double3.Zero, t);
             intents[spinning.Entity.Index] = new() { Frame = space, Move = new(turning) };
             intents[station.Entity.Index] = new()
             {

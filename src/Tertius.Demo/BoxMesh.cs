@@ -175,7 +175,11 @@ public sealed class BoxMesh
     {
         Vector3 normal = inward ? -side : side;
         bool acrossX = side.X != 0;
-        float plane = acrossX ? side.X > 0 ? box.Max.X : box.Min.X : side.Z > 0 ? box.Max.Z : box.Min.Z;
+        float plane;
+        if (acrossX)
+            plane = side.X > 0 ? box.Max.X : box.Min.X;
+        else
+            plane = side.Z > 0 ? box.Max.Z : box.Min.Z;
         Vector3 At(float h, float y) => acrossX ? new(plane, y, h) : new Vector3(h, y, plane);
 
         float bottom = holes.Min(hole => hole.Min.Y), top = holes.Max(hole => hole.Max.Y);

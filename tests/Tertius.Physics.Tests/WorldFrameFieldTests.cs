@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// the component cannot follow, and a game changes it by a swap of components. Before, a hyperbolic or NaN orbit made the
 /// frame, its hull and everything inside it NaN, with no error.
 /// </summary>
-public class WorldFrameFieldTests
+public sealed class WorldFrameFieldTests
 {
     private const double PlanetMu = 5e5;
 

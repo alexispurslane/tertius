@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>What the router does with a stale handle.</summary>
-public class StaleHandleRouterTests
+public sealed class StaleHandleRouterTests
 {
     private static (EntityTable Table, Router Router, Entity Stale, Entity Successor) Routed()
     {
@@ -44,7 +44,7 @@ public class StaleHandleRouterTests
 }
 
 /// <summary>What the topic sets do with a stale handle.</summary>
-public class StaleHandleTopicSetsTests
+public sealed class StaleHandleTopicSetsTests
 {
     private static readonly Topic Squad = Topics.Get("tests.stale.squad");
 
@@ -143,7 +143,7 @@ public class StaleHandleTopicSetsTests
 }
 
 /// <summary>What the attachment chains do with a stale handle.</summary>
-public class StaleHandleAttachmentsTests
+public sealed class StaleHandleAttachmentsTests
 {
     private static readonly Pose Offset = new(new(1, 0, 0), Quaternion.Identity);
 

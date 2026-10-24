@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// The orbit runs counterclockwise seen from +Y, from the parent's +X toward its -Z. An orbit has no G·M of its own: the
 /// root frame has a point gravity, and the Kepler frames in it take their G·M from that field.
 /// </summary>
-public class KeplerFrameTests
+public sealed class KeplerFrameTests
 {
     private const double PeriodSeconds = 4;
     private const int TicksPerQuarterPeriod = 64;

@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// under which a kinematic body gets a following frame from 1,000 m/s or 2^23 m and keeps it down to 400 m/s or 2^22 m.
 /// The lookahead of the merge test is 2 s. After every update the tree keeps its invariants.
 /// </summary>
-public class FrameTreePlainAnchorTests
+public sealed class FrameTreePlainAnchorTests
 {
     private const double EarthMu = 3.986004418e14;
     private const double Step = 1.0 / 60;

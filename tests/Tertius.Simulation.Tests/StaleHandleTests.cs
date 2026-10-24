@@ -26,7 +26,7 @@ internal static class StaleTables
 }
 
 /// <summary>What the entity table does with a stale handle, member by member.</summary>
-public class StaleHandleTests
+public sealed class StaleHandleTests
 {
     // ---- Every kind of handle, every kind of member ---------------------------------------------------------------
     // A handle names no live entity in six ways. The table has to give the documented answer to all of them, for every

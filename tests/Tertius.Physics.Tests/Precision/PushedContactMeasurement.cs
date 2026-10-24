@@ -37,7 +37,7 @@ namespace Tertius.Physics.Tests.Precision;
 /// measure the limit, not precision.
 /// </para>
 /// </remarks>
-public class PushedContactMeasurement
+public sealed class PushedContactMeasurement
 {
     /// <summary>How many ticks each run lasts: 60 s at 60 Hz.</summary>
     private const int RunTicks = 3600;

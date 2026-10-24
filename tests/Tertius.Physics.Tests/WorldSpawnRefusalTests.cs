@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// comes only from a bug. Spawn refuses nothing that physics can create: the owner of a root frame has no hull, so its
 /// body only needs to be a valid static interior, whatever the motion of its description.
 /// </summary>
-public class WorldSpawnRefusalTests
+public sealed class WorldSpawnRefusalTests
 {
     private static readonly Vector3[] Tetrahedron = [new(0, 0, 0), new(1, 0, 0), new(0, 1, 0), new(0, 0, 1)];
     private static readonly MeshShapeDesc Triangle = new([new(-50, 0, -50), new(50, 0, -50), new(0, 0, 50)], [0, 2, 1]);

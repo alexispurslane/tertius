@@ -11,16 +11,18 @@ namespace Tertius.Unions.Tests;
 /// a declaration that it reports and a near miss that it does not. Each test runs the generator first, as a build does,
 /// and then the analyzer on the compilation with the generated files.
 /// </summary>
-public class UnionAnalyzerTests
+public sealed class UnionAnalyzerTests
 {
     [Fact]
-    public void TheAnalyzerHasFourRulesThatAreAllErrors()
+    public void TheAnalyzerHasFourRulesThatAreWarningsOnByDefault()
     {
         ImmutableArray<DiagnosticDescriptor> rules = new UnionAnalyzer().SupportedDiagnostics;
 
         rules.Select(rule => rule.Id).Should().Equal(["TU0001", "TU0002", "TU0004", "TU0005"],
             "the generator's TU1002 is the one report of a class case, so TU0003 is not a rule");
-        rules.Should().OnlyContain(rule => rule.DefaultSeverity == DiagnosticSeverity.Error && rule.IsEnabledByDefault);
+        rules.Should().OnlyContain(
+            rule => rule.DefaultSeverity == DiagnosticSeverity.Warning && rule.IsEnabledByDefault,
+            "a rule is a warning, as a compiler warning is, and TreatWarningsAsErrors makes it an error");
     }
 
     // TU0001

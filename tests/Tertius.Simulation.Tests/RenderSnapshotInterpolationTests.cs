@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// interpolates only when the same camera was in the same frame at the previous snapshot. Otherwise the previous pose is
 /// the current pose. An object that is new has no previous pose either.
 /// </summary>
-public class RenderSnapshotInterpolationTests
+public sealed class RenderSnapshotInterpolationTests
 {
     [Fact]
     public void TheFirstSnapshotHasNothingToInterpolateFrom()

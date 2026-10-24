@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// frame without one. The scene is a ground of 9.81 m/s² along −Y with a floor, a box that falls onto it while it slides,
 /// and a character that walks. The medium is thick air with a strong drag, which a reader of the medium could not miss.
 /// </summary>
-public class FrameMediumPhysicsTests
+public sealed class FrameMediumPhysicsTests
 {
     private static readonly MediumField ThickAir = MediumField.Uniform(5, 8);
 

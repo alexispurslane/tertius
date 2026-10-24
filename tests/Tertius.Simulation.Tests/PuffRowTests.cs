@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// (<see cref="PuffRange"/>) names the frame of a span of rows, and a view (<see cref="PuffView"/>) hands the rows, the
 /// ranges and the looks to the render snapshot.
 /// </summary>
-public class PuffRowTests
+public sealed class PuffRowTests
 {
     [Fact]
     public void APuffRowIs56Bytes()

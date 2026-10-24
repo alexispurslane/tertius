@@ -14,7 +14,7 @@ namespace Tertius.Physics.Tests;
 /// These tests run for up to 60 s of simulated time, 33,000 ticks in all. So they leave the world's checks of its
 /// invariants at the end of every tick off, which would take 15 s in a Debug build. The other World tests keep them on.
 /// </remarks>
-public class WorldSleepTests
+public sealed class WorldSleepTests
 {
     /// <summary>
     /// The reviewer's probe S10. A ball (or a box without friction) is let go at rest on a long ramp. A ball rolls with

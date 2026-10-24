@@ -15,7 +15,7 @@ namespace Tertius.Physics.Tests;
 /// collision rows, so it changes at step 4 of the sync point after step 2. These tests run the World on the real backend,
 /// and the owner writes each change with <see cref="MotionChanges.SetMotionNextTick"/>.
 /// </summary>
-public class MotionChangeTests
+public sealed class MotionChangeTests
 {
     private const double EarthMu = Scenes.EarthMu;
 

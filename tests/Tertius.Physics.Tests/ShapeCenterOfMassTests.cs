@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="IPhysicsBackend.ShapeCenterOfMass"/>: the center of mass of a shape, in the axes of the body that the shape
 /// describes. The lever of a part is measured from it, so it must be the center that Jolt gives the body.
 /// </summary>
-public class ShapeCenterOfMassTests
+public sealed class ShapeCenterOfMassTests
 {
     public static TheoryData<string> OffCenterShapes => ["offset box", "two children", "lopsided hull"];
 

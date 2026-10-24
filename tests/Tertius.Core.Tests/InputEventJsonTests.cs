@@ -11,7 +11,7 @@ namespace Tertius.Core.Tests;
 /// a mouse button, and <c>{"kind":"mouseMove","delta":[3,-4]}</c> for a move or a scroll. The form belongs to the type, so
 /// it does not depend on the options that serialize it.
 /// </summary>
-public class InputEventJsonTests
+public sealed class InputEventJsonTests
 {
     // The options of scripts, as far as they could change a payload: camelCase, public fields, and an error for a member that
     // the type does not know.

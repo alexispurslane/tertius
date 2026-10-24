@@ -37,9 +37,12 @@ public static class OwnFrameReads
     private static FrameHandle OwnFrame(World world, Entity entity) =>
         world.GetFrame(entity) is { IsNull: false } frame ? frame : world.GetOwnedFrame(entity);
 
-    private static FrameHandle OwnFrame(Snapshot snapshot, Entity entity) =>
-        snapshot.FrameOf(entity) is { IsNull: false } frame ? frame :
-        snapshot.Frames.TryGetFrame(entity, out FrameHandle own) ? own : FrameHandle.Null;
+    private static FrameHandle OwnFrame(Snapshot snapshot, Entity entity)
+    {
+        if (snapshot.FrameOf(entity) is { IsNull: false } frame)
+            return frame;
+        return snapshot.Frames.TryGetFrame(entity, out FrameHandle own) ? own : FrameHandle.Null;
+    }
 
     public static DPose PoseInOwnFrame(this Self self) => self.PoseIn(self.Frame);
 

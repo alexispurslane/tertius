@@ -14,7 +14,7 @@ namespace Tertius.Physics.Tests;
 /// frames change nothing that gameplay sees. Before ter-zsku, such a frame fell by its semantic frame's field, and its
 /// anchor fell with it. The world runs on the real backend.
 /// </summary>
-public class StillFollowingFrameTests
+public sealed class StillFollowingFrameTests
 {
     /// <summary>The distance from the origin of its frame, in meters, past which a kinematic body anchors a following frame of its own: 2^23 m, about 8,389 km.</summary>
     private const double FollowDistance = 8_388_608;

@@ -17,7 +17,7 @@ namespace Tertius.Physics.Tests;
 /// kinematic, and a frame without a body follows its samples with no hull.
 /// </para>
 /// </summary>
-public class RailsFollowTests
+public sealed class RailsFollowTests
 {
     /// <summary>Ten minutes of ticks at 60 Hz.</summary>
     private const int TenMinutes = 36_000;

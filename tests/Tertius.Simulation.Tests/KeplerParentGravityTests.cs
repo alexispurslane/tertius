@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="KeplerMotion"/> added later and a new gravity field for the parent never throw, and a new G·M of the parent moves the frame from the next sample
 /// on. A frame whose parent dies moves up into the grandparent, and orbits the grandparent's G·M, or holds still there.
 /// </summary>
-public class KeplerParentGravityTests
+public sealed class KeplerParentGravityTests
 {
     private const double Mu = 1e9;
 

@@ -85,7 +85,7 @@ public class PuffTableBenchmarks
             Frame = parent,
             Pose = new(Double3.Zero, spin.RotationAt(world.Time)),
             AsFrame = spec,
-            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            FirstMove = new(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1))),
             Components = [new SpinMotion { Spin = spin }]
         }));
 

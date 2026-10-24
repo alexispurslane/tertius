@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the motion intent of the next step and what each
 /// step received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
 /// </summary>
-public class RailsHullTests
+public sealed class RailsHullTests
 {
     /// <summary>A sample at (1, 2, 3) with no motion.</summary>
     private static readonly MotionSample Parked =

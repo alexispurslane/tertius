@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// World.Post, the way for code outside the simulation (the host, input) to send a message: when it joins a routing,
 /// where it stands in the inbox, and that it is safe to call from many threads.
 /// </summary>
-public class MessagingPostTests
+public sealed class MessagingPostTests
 {
     private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
         Event.Create(target: target, sender: Entity.Null, payload: payload);

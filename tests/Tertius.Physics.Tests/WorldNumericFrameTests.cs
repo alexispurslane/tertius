@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// them, so a test that needs one builds a scene that is fast or far enough for the default membership rules
 /// (<see cref="NumericFrameOptions"/>), or uses one of the rule sets of <see cref="NumericFrameTesting"/> on purpose.
 /// </summary>
-public class WorldNumericFrameTests
+public sealed class WorldNumericFrameTests
 {
     /// <summary>Earth's G·M, in m³/s², as in the demo scenes.</summary>
     private const double EarthMu = 3.986004418e14;

@@ -236,14 +236,17 @@ internal static class NumericFrameRules
         double createSpeed = thrusts ? options.ThrustCreateSpeed : options.CreateSpeed;
         double leaveSpeed = thrusts ? options.ThrustLeaveSpeed : options.LeaveSpeed;
         bool fast = !anchored && speed >= createSpeed;
-        return current switch
+        bool keepsFalling = current is NumericMode.Falling or NumericMode.Following && !anchored &&
+                            speed >= leaveSpeed;
+        if (fast || keepsFalling)
+            return NumericMode.Falling;
+        // A group in a numeric frame keeps it out to the lower distance, and a group without one needs the higher.
+        double restDistance = current switch
         {
-            NumericMode.Falling or NumericMode.Following when !anchored && speed >= leaveSpeed => NumericMode.Falling,
-            NumericMode.Falling or NumericMode.Resting or NumericMode.Following =>
-                fast ? NumericMode.Falling : distance >= options.LeaveDistance ? NumericMode.Resting : NumericMode.None,
-            NumericMode.None or NumericMode.Nesting => fast ? NumericMode.Falling :
-                distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None
+            NumericMode.Falling or NumericMode.Resting or NumericMode.Following => options.LeaveDistance,
+            NumericMode.None or NumericMode.Nesting => options.CreateDistance
         };
+        return distance >= restDistance ? NumericMode.Resting : NumericMode.None;
     }
 
     /// <summary>
@@ -591,10 +594,14 @@ internal static class NumericFrameRules
         // A frame without a static body is not the home of an anchored group, however much of its mass is there.
         if (anchored && !double.IsPositiveInfinity(frameMass))
             (frame, frameMass) = (FrameHandle.Null, 0);
-        Double3 velocity = anchored || movingMass == 0 ? Double3.Zero :
-            kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
-        Double3 center = anchored ? staticMoment / staticMass :
-            kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
+        Double3 velocity = Double3.Zero;
+        if (!anchored && movingMass != 0)
+            velocity = kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
+        Double3 center;
+        if (anchored)
+            center = staticMoment / staticMass;
+        else
+            center = kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
         return new(Velocity: velocity, Center: center, Anchored: anchored, Fixed: isFixed, Frame: frame,
             FrameMass: frameMass, Anchor: anchor, Thrusts: thrusts);
     }
@@ -607,12 +614,14 @@ internal static class NumericFrameRules
     /// </summary>
     internal static Double3 DrainVelocity(NumericMode frameMode, NumericMode groupMode, Double3 frameVelocity,
         Double3 groupVelocity,
-        NumericFrameOptions options) =>
-        groupMode == NumericMode.Resting
-            ? Double3.Zero
-            : frameMode == NumericMode.Resting || (groupVelocity - frameVelocity).Length > options.DrainSpeed
-                ? groupVelocity
-                : frameVelocity;
+        NumericFrameOptions options)
+    {
+        if (groupMode == NumericMode.Resting)
+            return Double3.Zero;
+        if (frameMode == NumericMode.Resting || (groupVelocity - frameVelocity).Length > options.DrainSpeed)
+            return groupVelocity;
+        return frameVelocity;
+    }
 
     /// <summary>
     /// The origin that a kept frame at <paramref name="framePosition"/> takes: the group's center of mass when it is

@@ -4,7 +4,7 @@ using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
-public class BackendTests
+public sealed class BackendTests
 {
     private const float Dt = 1f / 60f;
 

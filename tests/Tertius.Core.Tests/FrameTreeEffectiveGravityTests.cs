@@ -18,7 +18,7 @@ namespace Tertius.Core.Tests;
 /// −α × r = (0, 0, α r), against the turn: a frame that turns about +Y carries +X toward −Z.
 /// </para>
 /// </summary>
-public class FrameTreeEffectiveGravityTests
+public sealed class FrameTreeEffectiveGravityTests
 {
     private const double Step = 1.0 / 60;
     private const double StationRate = 0.31321;
@@ -63,7 +63,7 @@ public class FrameTreeEffectiveGravityTests
     /// <summary>The time at the end of step <paramref name="k"/>, the first step being 1, from a start at time 0.</summary>
     private static double End(int k) => k * Step;
 
-    private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd, Step));
+    private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd));
 
     /// <summary>The full sample of the step that ends at <paramref name="stepEnd"/> of a frame that spins up about +Y from rest at time 0, at
     /// <see cref="SpinUpRate"/>.</summary>

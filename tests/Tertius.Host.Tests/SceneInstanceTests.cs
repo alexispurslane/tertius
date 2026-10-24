@@ -1,7 +1,7 @@
 namespace Tertius.Host.Tests;
 
 /// <summary>SceneInstance: the map between scene ids and entities that scripts and dumps use to name entities.</summary>
-public class SceneInstanceTests
+public sealed class SceneInstanceTests
 {
     private static readonly Entity Box = new(3, 1);
     private static readonly Entity Floor = new(4, 2);

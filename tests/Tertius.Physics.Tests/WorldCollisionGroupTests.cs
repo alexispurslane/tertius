@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// entity's groups and mask: its own body, the inner body and the movement of a character, the interior of a frame that
 /// it owns, and its ghosts. A frame's hull is the exception: it meets static bodies and other hulls, whatever their groups.
 /// </summary>
-public class WorldCollisionGroupTests
+public sealed class WorldCollisionGroupTests
 {
     private static readonly CollisionMask InAnySolid = CollisionMask.Empty.InAny(CollisionGroup.Solid);
     private readonly CollisionGroupRegistry registry = new();

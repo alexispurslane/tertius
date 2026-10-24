@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="Snapshot.TryGetBody"/>: the body's motion, mass, shape kind and bounding radius, its collision groups and
 /// mask, and whether it is a sensor. Every test runs the real world on the real Jolt backend.
 /// </summary>
-public class BodyFactsTests
+public sealed class BodyFactsTests
 {
     /// <summary>The G·M of the point gravity of <see cref="NewWorld"/>'s space, in m³/s², which a Kepler ship orbits.</summary>
     private const double SpaceMu = 5e5;

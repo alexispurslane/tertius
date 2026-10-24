@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// <see cref="World.Errors"/>. Each test that reads what the backend reported does so through the
 /// <see cref="FaultInjectingBackend"/>, which records every step output that the World received.
 /// </summary>
-public class WorldPhysicsTests
+public sealed class WorldPhysicsTests
 {
     /// <summary>The contacts, in the order of the steps, that Jolt reported between <paramref name="a"/> and
     /// <paramref name="b"/>, with the index of the step that reported each.</summary>

@@ -16,7 +16,7 @@ namespace Tertius.Core.Tests;
 /// same fields. A <c>switch</c> over the outline takes the arm of the case that it holds. The render snapshot tests in the
 /// simulation module pin which outline the builder gives each frame.
 /// </summary>
-public class FrameOutlineUnionTests
+public sealed class FrameOutlineUnionTests
 {
     private static readonly Vector3 Here = new(1, 2, 3);
     private static readonly Quaternion Turned = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f);
@@ -73,11 +73,11 @@ public class FrameOutlineUnionTests
 
     private static string ArmOf(FrameOutline outline) => outline switch
     {
-        SemanticOutline(_, _, var radii) => $"semantic {radii.Z}",
-        FallingOutline(_, var radius) => $"falling {radius}",
-        RestingOutline(_, var radius) => $"resting {radius}",
-        NestingOutline(_, var radius) => $"nesting {radius}",
-        FollowingOutline(_, var radius) => $"following {radius}",
+        SemanticOutline { Radii: var radii } => $"semantic {radii.Z}",
+        FallingOutline { Radius: var radius } => $"falling {radius}",
+        RestingOutline { Radius: var radius } => $"resting {radius}",
+        NestingOutline { Radius: var radius } => $"nesting {radius}",
+        FollowingOutline { Radius: var radius } => $"following {radius}",
         null => "none"
     };
 
@@ -193,11 +193,11 @@ public class FrameOutlineUnionTests
     {
         return outline switch
         {
-            SemanticOutline(_, _, var radii) => MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z)),
-            FallingOutline(_, var radius) => radius,
-            RestingOutline(_, var radius) => radius,
-            NestingOutline(_, var radius) => radius,
-            FollowingOutline(_, var radius) => radius,
+            SemanticOutline { Radii: var radii } => MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z)),
+            FallingOutline { Radius: var radius } => radius,
+            RestingOutline { Radius: var radius } => radius,
+            NestingOutline { Radius: var radius } => radius,
+            FollowingOutline { Radius: var radius } => radius,
             null => 0
         };
     }

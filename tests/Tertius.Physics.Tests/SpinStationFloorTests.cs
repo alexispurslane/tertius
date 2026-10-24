@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// bodies spawned at rest on its floor turn with it from their first step. Its floor is a static slab whose face toward
 /// the axis lies at 100 m along the station's +X, so the effective gravity on a body at rest there points along +X.
 /// </summary>
-public class SpinStationFloorTests
+public sealed class SpinStationFloorTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

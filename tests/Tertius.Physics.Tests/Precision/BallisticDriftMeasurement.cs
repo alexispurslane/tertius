@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests.Precision;
 /// How far a body that falls in a uniform field drifts from its exact parabola at each common speed (ticket ter-kugq).
 /// It writes ballistic-drift.csv; see <see cref="MotionDrift"/> for the method and the columns.
 /// </summary>
-public class BallisticDriftMeasurement
+public sealed class BallisticDriftMeasurement
 {
     /// <summary>
     /// A dynamic box of 1 m by 1 m by 1 m and 10 kg, with no damping, in a uniform field of 9.81 m/s² along −y. The engine

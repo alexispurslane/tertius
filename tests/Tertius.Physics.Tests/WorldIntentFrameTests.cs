@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// move relative to each other, or move at a steady velocity, so that a component converts a path into its own frame
 /// exactly, and the frames' relation at any moment is the right one for the conversion.
 /// </summary>
-public class WorldIntentFrameTests
+public sealed class WorldIntentFrameTests
 {
     /// <summary>A turn that moves every axis: 90 degrees about Z, then 90 degrees about the new X.</summary>
     private static DQuaternion Turned => DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) *

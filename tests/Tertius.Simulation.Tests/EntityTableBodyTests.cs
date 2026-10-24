@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// body's shapes, which the update reads instead of asking physics about the shape every tick. A body is fixed from the
 /// spawn to the release, so both follow the spawns and the releases, also when a slot is reused.
 /// </summary>
-public class EntityTableBodyTests
+public sealed class EntityTableBodyTests
 {
     private static readonly BodyDesc Ball = TestWorld.Ball;
 

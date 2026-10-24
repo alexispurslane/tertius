@@ -15,7 +15,7 @@ namespace Tertius.Core.Tests;
 /// World runs it: the tree updates, fixes the turns of the step, and takes its step records, which is step 2.
 /// </para>
 /// </summary>
-public class LooseBodyStepTests
+public sealed class LooseBodyStepTests
 {
     private const double Step = 1.0 / 60;
     private const double StationRate = 0.31321;
@@ -69,7 +69,7 @@ public class LooseBodyStepTests
 
     private static double End(int k) => k * Step;
 
-    private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd, Step));
+    private static MotionIntent Spin(double stepEnd) => new(StationSpin.Sample(Double3.Zero, stepEnd));
 
     private static MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
         Pose: new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * SpinUpRate * stepEnd * stepEnd)),

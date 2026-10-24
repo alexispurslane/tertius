@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 /// that may touch the ghost only while the body may touch it. Physics keeps the ghost of a body that sticks out of a bubble
 /// in the bubble's tree parent alone, so the backend keeps its invariants while a body comes near the ghost and goes away.
 /// </summary>
-public partial class NumericFrameStickOutGhostTests
+public sealed partial class NumericFrameStickOutGhostTests
 {
     /// <summary>
     /// The rock of <see cref="Layout.StationAndFastRock"/> passes 2 m higher, so it misses the crate. When the test starts,

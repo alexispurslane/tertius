@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// square root. <see cref="DPose.Compose"/> uses it to move the position of a child by the normalized rotation of its parent,
 /// in the hot loop of the render snapshot. These tests compare it with the plain way: normalize, then rotate.
 /// </summary>
-public class RotateNormalizingTests
+public sealed class RotateNormalizingTests
 {
     // A vector 6.77E6 m long, as the offset of a ship in a low orbit round Earth. A relative error of 1E-16 is 1E-9 m.
     private static readonly Double3 Far = new(4.2e6, -3.9e6, 3.6e6);

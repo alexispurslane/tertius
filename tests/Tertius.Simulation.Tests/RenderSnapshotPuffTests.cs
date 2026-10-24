@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// was of the tick before. The tests make a builder over an entity table and a frame tree, as
 /// <see cref="RenderSnapshotParallelBuildTests"/> does, and hand it views of rows that the test writes.
 /// </summary>
-public class RenderSnapshotPuffTests
+public sealed class RenderSnapshotPuffTests
 {
     /// <summary>The length of the step that the rows describe, in s.</summary>
     private const double Step = 1.0 / 60;

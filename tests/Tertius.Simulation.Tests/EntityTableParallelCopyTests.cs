@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="EntityTableDirtyRowTests"/> again on a table whose threshold is at its lowest, one row, and compares the two
 /// copies over a few ticks of writes in many chunks.
 /// </summary>
-public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
+public sealed class EntityTableParallelCopyTests : EntityTableDirtyRowTests
 {
     private const int ChunkSize = 4;
 

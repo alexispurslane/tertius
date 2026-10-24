@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// after 0.5 s of ticks of at least 1 mm/s per minute within a window of 20 s, lookahead 2 s, split margin 10 m, split
 /// cooldown 1 s, drain speed 1 m/s, recenter distance 1 km, nest distance 1e9 m.
 /// </summary>
-public class NumericFrameRulesTests
+public sealed class NumericFrameRulesTests
 {
     // ---- ThrustClock ---------------------------------------------------------------------------------------------
 

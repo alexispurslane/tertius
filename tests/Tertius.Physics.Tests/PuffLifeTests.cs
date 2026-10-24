@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// event in a puff's life"): which step an emitter's puffs start and stop in, what a hand-off, a reparent, a new medium
 /// and the death of a frame do to a puff, the end of its life, the cap and its switch, and determinism.
 /// </summary>
-public class PuffLifeTests
+public sealed class PuffLifeTests
 {
     /// <summary>The hash of the puffs of <see cref="BusyScene"/> after 300 ticks.</summary>
     private const ulong PinnedHash = 7840000220236764960;

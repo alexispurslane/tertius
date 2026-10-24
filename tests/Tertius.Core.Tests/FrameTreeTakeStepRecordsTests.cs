@@ -13,7 +13,7 @@ namespace Tertius.Core.Tests;
 /// frame whose update the step skipped keeps its state: a frame with a hull after a step that failed, and a frame whose
 /// owner's update the check of the physics output skipped.
 /// </summary>
-public class FrameTreeTakeStepRecordsTests
+public sealed class FrameTreeTakeStepRecordsTests
 {
     private const double Step = 1.0 / 60;
     private const float G = 9.81f;

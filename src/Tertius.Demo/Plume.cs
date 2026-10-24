@@ -50,11 +50,11 @@ public readonly record struct Plume(PuffLook Look, float FullRate, float Speed, 
     public static DQuaternion PushedBodyRotation(Self self)
     {
         Entity parent = self.AttachedTo;
-        return parent.IsNull
-            ? self.PoseIn(self.Frame).Rotation
-            : !self.Snapshot.TryGetPoseIn(parent, self.Frame, out DPose pose)
-                ? throw new InvalidOperationException($"The part {self.Entity} has no live parent to push.")
-                : pose.Rotation;
+        if (parent.IsNull)
+            return self.PoseIn(self.Frame).Rotation;
+        if (!self.Snapshot.TryGetPoseIn(parent, self.Frame, out DPose pose))
+            throw new InvalidOperationException($"The part {self.Entity} has no live parent to push.");
+        return pose.Rotation;
     }
 
     /// <summary>The offset of a part at <paramref name="place"/>, in meters in its parent's axes, whose puffs leave along

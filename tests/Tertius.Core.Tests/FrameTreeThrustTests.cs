@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// body thrusts after 0.5 s of updates whose force and impulse ask for at least 1 mm/s per minute, and keeps thrusting for
 /// 20 s after the last of them. After every update the tree keeps its invariants.
 /// </summary>
-public class FrameTreeThrustTests
+public sealed class FrameTreeThrustTests
 {
     /// <summary>One tick of the engine at 60 Hz: a float, a little longer than a sixtieth of a second.</summary>
     private const double Tick = 1f / 60;

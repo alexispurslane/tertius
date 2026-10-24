@@ -1061,12 +1061,18 @@ internal sealed class FrameWorld : IDisposable
     {
         BodyKind.Ghost => GhostContactMotion(new(JoltNative.BodyId(body))),
         BodyKind.CharacterInner => MotionType.Dynamic,
-        BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltNative.BodyIsDynamic(body) != 0
-            ? MotionType.Dynamic
-            : JoltNative.BodyIsKinematic(body) != 0
-                ? MotionType.Kinematic
-                : MotionType.Static
+        BodyKind.Primary or BodyKind.Interior or BodyKind.None => JoltMotion(body)
     };
+
+    /// <summary>The motion that Jolt gives <paramref name="body"/>.</summary>
+    private static MotionType JoltMotion(nint body)
+    {
+        if (JoltNative.BodyIsDynamic(body) != 0)
+            return MotionType.Dynamic;
+        if (JoltNative.BodyIsKinematic(body) != 0)
+            return MotionType.Kinematic;
+        return MotionType.Static;
+    }
 
     /// <summary>
     /// True when Jolt makes a contact between two bodies of these motions whose layers meet: when one of them is dynamic,

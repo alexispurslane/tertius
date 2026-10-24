@@ -46,11 +46,11 @@ public sealed class PassengerTests : IDisposable
         Double3 personVelocity = default,
         Burn? burn = null)
     {
-        IComponent[] engine = thrust
-            ? [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
-            : burn != null
-                ? [new Unpark(), burn, new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)]
-                : [];
+        IComponent[] engine = [];
+        if (thrust)
+            engine = [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)];
+        else if (burn != null)
+            engine = [new Unpark(), burn, new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)];
         Entity shuttle = Shuttle.Park(world: world, frame: frame, pose: WorldTesting.At(0, belly + Shuttle.Hull.Y),
             components: engine);
         cabin = world.GetOwnedFrame(shuttle);

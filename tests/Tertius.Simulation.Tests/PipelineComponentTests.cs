@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The components of an entity as a list that changes, and as code that fails: adding and removing a component
 /// from inside a run or from outside a tick, and what the world does when a component throws or declares its wants wrongly.
 /// </summary>
-public class PipelineComponentTests
+public sealed class PipelineComponentTests
 {
     private sealed class BrokenWants : IComponent
     {

@@ -24,7 +24,7 @@ public sealed class RouterTopicTestsOnWorkers : RouterTopicTests
 /// A routing on the workers: from how many messages on the router uses them, and that it then builds the same routed
 /// events and the same inboxes as a routing on the sync thread, whatever the number of work items.
 /// </summary>
-public class RouterOnWorkersTests
+public sealed class RouterOnWorkersTests
 {
     private static readonly Topic Squad = Topics.Get("tests.routeronworkers.squad");
 
@@ -338,8 +338,12 @@ public class RouterOnWorkersTests
 
     private static List<string> Describe(List<Event> events) => [.. events.Select(Describe)];
 
-    private static string Describe(Event e) =>
-        e.Is<Ping>() ? $"{e.Target} ping {e.As<Ping>().Value}"
-        : e.Is<Heal>() ? $"{e.Target} heal {e.As<Heal>().Amount}"
-        : $"{e.Target} {EventTypeRegistry.NameOf(e.Type)}";
+    private static string Describe(Event e)
+    {
+        if (e.Is<Ping>())
+            return $"{e.Target} ping {e.As<Ping>().Value}";
+        if (e.Is<Heal>())
+            return $"{e.Target} heal {e.As<Heal>().Amount}";
+        return $"{e.Target} {EventTypeRegistry.NameOf(e.Type)}";
+    }
 }

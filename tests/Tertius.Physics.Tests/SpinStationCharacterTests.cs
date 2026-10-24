@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// Every expected value comes from the person's straight line in inertial space and the station's poses, never from the
 /// turns that the engine derives.
 /// </summary>
-public class SpinStationCharacterTests
+public sealed class SpinStationCharacterTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

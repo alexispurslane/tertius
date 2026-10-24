@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// even. The renderer reads it in the axes of the camera's frame, so it does not depend on the frame that the camera
 /// rides in.
 /// </summary>
-public class RenderSnapshotHemisphereTests
+public sealed class RenderSnapshotHemisphereTests
 {
     private static readonly DQuaternion QuarterTurnAboutX = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
 

@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// answer as a search through every entity, whatever the grid does to narrow it; entities must be found where they
 /// are now and not where they were; and a released entity must be gone.
 /// </summary>
-public class SpatialIndexSubsystemTests
+public sealed class SpatialIndexSubsystemTests
 {
     /// <summary>
     /// The pieces of the sync point that the index depends on: live entities with front rows, and the step that brings

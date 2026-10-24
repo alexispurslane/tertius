@@ -14,7 +14,7 @@ namespace Tertius.Physics.Tests;
 /// a hull that physics places from the tree again takes the velocity that it had. A hull that hands off in a step has its
 /// record in the frame that it entered, in that frame's axes.
 /// </summary>
-public class DynamicHullRecordTests
+public sealed class DynamicHullRecordTests
 {
     /// <summary>Earth's G·M, in m³/s², as in the demo scenes.</summary>
     private const double EarthMu = 3.986004418e14;

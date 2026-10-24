@@ -24,7 +24,7 @@ namespace Tertius.Physics.Tests;
 /// Jolt sweeps it against the real floor there. These tests pin that.
 /// </para>
 /// </summary>
-public class SpinStationLandingTests
+public sealed class SpinStationLandingTests
 {
     private const double StationRate = 0.31321;
     private const double FloorRadius = 100;

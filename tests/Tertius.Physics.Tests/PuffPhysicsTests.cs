@@ -81,7 +81,7 @@ internal static class PuffTesting
 /// and its medium move. The expected values come from the free body's straight line in inertial space, from the motion of
 /// the frame, or from a real body that physics moves beside the puff.
 /// </summary>
-public class PuffPhysicsTests
+public sealed class PuffPhysicsTests
 {
     private const double StationRate = 0.31321;
 

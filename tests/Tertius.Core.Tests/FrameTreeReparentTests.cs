@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="FrameTree.Reparent"/> moves a frame under a new parent. A frame cannot go under itself or under one of
 /// its descendants, and such a move must leave the frame exactly as it was: its parent, its pose and its velocities.
 /// </summary>
-public class FrameTreeReparentTests
+public sealed class FrameTreeReparentTests
 {
     private static readonly Double3 HullVelocity = new(1, 2, 3);
     private static readonly Vector3 HullSpin = new(0, 0.5f, 0);

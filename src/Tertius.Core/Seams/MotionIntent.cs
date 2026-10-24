@@ -130,21 +130,20 @@ public readonly partial struct MotionIntent
             return MotionIntentRefusal.None;
         if (attached)
             return MotionIntentRefusal.Attached;
-        return motion == BodyMotion.Character
-            ? MotionIntentRefusal.Character
-            : this is not SteerTarget
-                ? motion is null or BodyMotion.Kinematic || ownsRootFrame
-                    ? MotionIntentRefusal.None
-                    : MotionIntentRefusal.NeedsKinematicBody
-                : ownsRootFrame
-                    ? MotionIntentRefusal.SteerOfRootFrame
-                    : motion switch
-                    {
-                        BodyMotion.Dynamic => MotionIntentRefusal.None,
-                        null => MotionIntentRefusal.SteerWithoutBody,
-                        BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character =>
-                            MotionIntentRefusal.NeedsDynamicBody
-                    };
+        if (motion == BodyMotion.Character)
+            return MotionIntentRefusal.Character;
+        if (this is not SteerTarget)
+            return motion is null or BodyMotion.Kinematic || ownsRootFrame
+                ? MotionIntentRefusal.None
+                : MotionIntentRefusal.NeedsKinematicBody;
+        if (ownsRootFrame)
+            return MotionIntentRefusal.SteerOfRootFrame;
+        return motion switch
+        {
+            BodyMotion.Dynamic => MotionIntentRefusal.None,
+            null => MotionIntentRefusal.SteerWithoutBody,
+            BodyMotion.Static or BodyMotion.Kinematic or BodyMotion.Character => MotionIntentRefusal.NeedsDynamicBody
+        };
     }
 
     /// <summary>

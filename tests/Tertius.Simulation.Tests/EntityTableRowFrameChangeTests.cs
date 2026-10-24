@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// the sync point converts the intents of the entities that the sync point moved, and while the count has not changed
 /// since its last pass, no entity is in another frame than the one that its intent names, so the World skips the pass.
 /// </summary>
-public class EntityTableRowFrameChangeTests
+public sealed class EntityTableRowFrameChangeTests
 {
     private static readonly FrameHandle Here = new(new(100, 1), 1, 1), There = new(new(101, 1), 2, 1);
 

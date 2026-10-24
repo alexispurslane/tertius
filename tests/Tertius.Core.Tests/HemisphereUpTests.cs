@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// from one center (<see cref="UpAwayFrom"/>), or neither, which mixes the sky and the ground color evenly. The value
 /// holds only the vector of its own case, so a direction and a center can never be confused.
 /// </summary>
-public class HemisphereUpTests
+public sealed class HemisphereUpTests
 {
     private static readonly Vector3 Sideways = new(1, 0, 0);
     private static readonly Vector3 Below = new(0, -50, 0);

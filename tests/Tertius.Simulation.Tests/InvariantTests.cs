@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// it is there to find. The workload and the audit are in <see cref="ChaoticWorkload"/> and
 /// <see cref="InvariantCrossChecks"/>.
 /// </summary>
-public class InvariantTests(ITestOutputHelper output)
+public sealed class InvariantTests(ITestOutputHelper output)
 {
     private const int FixedSeed = 20261010;
 

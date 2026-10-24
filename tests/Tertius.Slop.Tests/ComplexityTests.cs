@@ -6,7 +6,7 @@ namespace Tertius.Slop.Tests;
 /// The syntactic cyclomatic complexity of a function (docs/plans/code-quality-tooling.md, decision 16): 1, plus 1 for
 /// each construct that branches, and 1 for a whole switch.
 /// </summary>
-public class ComplexityTests
+public sealed class ComplexityTests
 {
     [Fact]
     public void AFunctionWithNoBranchesHasComplexityOne() =>

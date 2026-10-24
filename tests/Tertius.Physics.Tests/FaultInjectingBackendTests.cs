@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// The fault-injecting backend is real Jolt plus edits that a test asks for. With no edit, it must not change anything
 /// that the World sees. These tests lock in that promise, and the behavior of each edit and each recording.
 /// </summary>
-public class FaultInjectingBackendTests
+public sealed class FaultInjectingBackendTests
 {
     /// <summary>
     /// A ship in space with a deck and two balls inside it, run for 6 s. One ball is shot down onto the deck, so it makes a

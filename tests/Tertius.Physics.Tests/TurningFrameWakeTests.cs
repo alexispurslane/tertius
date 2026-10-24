@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// any place of the system's bodies, added to the change of the frame's push, passes
 /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>.
 /// </summary>
-public class TurningFrameWakeTests
+public sealed class TurningFrameWakeTests
 {
     // A push and a spin-up that each change what the crate 50 m from the axis feels by 0.013 m/s², below the threshold of
     // 0.02 m/s². The reach of the system is the crate's distance plus its bounding sphere, 50.87 m.

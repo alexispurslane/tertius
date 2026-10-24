@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// which a plain body cannot make, a static sensor beside the real hull in the frame's tree parent (
 /// <see cref="Place.Parent"/>).
 /// </summary>
-public class SensorFrameOwnerTests
+public sealed class SensorFrameOwnerTests
 {
     /// <summary>The half side of the ship's hull, a box, in meters. Its face toward +X lies at x = 2 m.</summary>
     private const float HullHalf = 2;

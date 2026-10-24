@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 /// reader refuses a bad step or target. They pin the format, so that the way the code reads and writes steps and targets
 /// can change without changing a script, a recording or a dump. See docs/plans/host-and-scripted-runs.md, "Script format".
 /// </summary>
-public class ScriptJsonFormatTests
+public sealed class ScriptJsonFormatTests
 {
     private const string NotValid = "The script is not valid JSON of a script: ";
 

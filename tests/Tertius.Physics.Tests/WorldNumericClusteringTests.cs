@@ -9,7 +9,7 @@ namespace Tertius.Physics.Tests;
 /// engine puts fast or far bodies into numeric frames, merges frames before their members can touch, splits groups that
 /// stay apart, drains common velocity into the frame and collects empty frames.
 /// </summary>
-public class WorldNumericClusteringTests
+public sealed class WorldNumericClusteringTests
 {
     /// <summary>Earth's G·M, in m³/s², as in the demo scenes.</summary>
     private const double EarthMu = 3.986004418e14;

@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// breaks the invariants of its record. The tests of <c>Passes</c> pin
 /// what each case keeps; the query tests in <see cref="EntityQueryRunTests"/> pin the same through whole queries.
 /// </summary>
-public class QueryFilterUnionTests
+public sealed class QueryFilterUnionTests
 {
     private static readonly FrameHandle Ship = new(new(1, 1), 0, 1);
     private static readonly FrameHandle Station = new(new(2, 1), 1, 1);
@@ -57,8 +57,9 @@ public class QueryFilterUnionTests
     {
         InFilter(var frame) => $"in {frame.Index}",
         NearAsker(var radius) => $"asker {radius}",
-        NearEntity(var other, var radius) => $"entity {other.Index} {radius}",
-        NearPoint(var frame, var point, var radius) => $"point {frame.Index} {point.Z} {radius}",
+        NearEntity { Other: var other, Radius: var radius } => $"entity {other.Index} {radius}",
+        NearPoint { Frame: var frame, Point: var point, Radius: var radius } =>
+            $"point {frame.Index} {point.Z} {radius}",
         WhereFilter(var predicate) => $"where {predicate(default, default)}",
         null => "none"
     };

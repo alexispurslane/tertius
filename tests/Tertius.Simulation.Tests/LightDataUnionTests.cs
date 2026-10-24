@@ -13,7 +13,7 @@ namespace Tertius.Simulation.Tests;
 /// <c>switch</c> over the light takes the arm of the case that it holds. The snapshot tests in
 /// <see cref="RenderSnapshotLightingTests"/> pin what the snapshot builder makes of each case.
 /// </summary>
-public class LightDataUnionTests
+public sealed class LightDataUnionTests
 {
     private static readonly Pose Above = new(new(0, 1, 0), Quaternion.Identity);
     private static readonly Pose Turned = new(new(0, 1, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f));
@@ -46,8 +46,8 @@ public class LightDataUnionTests
 
     private static string ArmOf(LightData light) => light switch
     {
-        PointLightData(_, _, var intensity, var range) => $"point {intensity} {range}",
-        SpotLightData(_, _, _, _, var inner, var outer) => $"spot {inner} {outer}",
+        PointLightData { Intensity: var intensity, Range: var range } => $"point {intensity} {range}",
+        SpotLightData { InnerConeAngle: var inner, OuterConeAngle: var outer } => $"spot {inner} {outer}",
         null => "none"
     };
 
@@ -191,8 +191,8 @@ public class LightDataUnionTests
     {
         return light switch
         {
-            PointLightData(_, _, _, var range) => range,
-            SpotLightData(_, _, _, var range, _, _) => range,
+            PointLightData { Range: var range } => range,
+            SpotLightData { Range: var range } => range,
             null => 0
         };
     }

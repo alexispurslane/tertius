@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// starts, along which line, how far, and how far from that line it reaches. The tests of the real queries, on the real
 /// World and Jolt, are in <c>WorldRayCastTests</c> and <c>WorldShapeQueryTests</c> of the Physics tests.
 /// </summary>
-public class PhysicsQuestionUnionTests
+public sealed class PhysicsQuestionUnionTests
 {
     private static readonly Double3 Start = new(1, 2, 3);
     private static readonly Double3 Along = new(0, 0.6, 0.8);
@@ -46,9 +46,9 @@ public class PhysicsQuestionUnionTests
 
     private static string ArmOf(PhysicsQuestion question) => question switch
     {
-        RayQuestion(_, _, var length, var kind) => $"ray {kind} {length}",
-        ShapeCastQuestion(var shape, _, _, var length) => $"shape cast {shape.BoundingRadius} {length}",
-        OverlapQuestion(var shape, var pose) => $"overlap {shape.BoundingRadius} {pose.Position.X}",
+        RayQuestion { Length: var length, Kind: var kind } => $"ray {kind} {length}",
+        ShapeCastQuestion { Shape: var shape, Length: var length } => $"shape cast {shape.BoundingRadius} {length}",
+        OverlapQuestion { Shape: var shape, Pose: var pose } => $"overlap {shape.BoundingRadius} {pose.Position.X}",
         null => "none"
     };
 

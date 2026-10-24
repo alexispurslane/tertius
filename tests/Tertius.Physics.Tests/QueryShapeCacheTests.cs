@@ -7,7 +7,7 @@ namespace Tertius.Physics.Tests;
 /// The backend's native shapes for queries: one for each shape value that a query asks with, and never more than the
 /// cache's capacity, so that a component that asks with ever new sizes cannot grow it without bound.
 /// </summary>
-public class QueryShapeCacheTests
+public sealed class QueryShapeCacheTests
 {
     [Fact]
     public void TheSameShapeValueGivesTheSameNativeShape()

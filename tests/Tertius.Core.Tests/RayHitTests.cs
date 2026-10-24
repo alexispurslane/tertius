@@ -7,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The answer to a ray cast fits one event payload: the entity, the point, the distance, the tag and the normal. The
 /// normal is the part that the payload stores in a smaller form, so these tests check that it comes back as it went in.
 /// </summary>
-public class RayHitTests
+public sealed class RayHitTests
 {
     [Fact]
     public void ARayHitFitsInOnePayload()

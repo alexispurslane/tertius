@@ -14,7 +14,7 @@ namespace Tertius.Host.Tests;
 /// step, an event target, the capture target of a run, and the runner's step after its checks. See
 /// docs/plans/blue-danube-demo.md, "Engine changes for the demo", and docs/plans/union-tooling.md, decision 1.
 /// </summary>
-public class ScriptUnionTests
+public sealed class ScriptUnionTests
 {
     private const string NotValid = "The script is not valid JSON of a script: ";
     private const string KindsOfStep = "The kinds of step are run, post, dump, capture, camera, film and outlines.";

@@ -12,7 +12,7 @@ namespace Tertius.Core.Tests;
 /// (<see cref="FrameTree.TakeStepRecords"/>), in which every frame takes its step record, or holds still without one. The
 /// scenes on the real World are in Tertius.Physics.Tests.
 /// </summary>
-public class FrameProperAccelerationTests
+public sealed class FrameProperAccelerationTests
 {
     private const double EarthMu = 3.986004418e14;
     private const double OrbitRadius = 6.771e6;
@@ -196,7 +196,7 @@ public class FrameProperAccelerationTests
     /// <summary>The spin sample of a station that turns at <see cref="StationRate"/> about its +Y, in the step that ends at
     /// <paramref name="stepEnd"/>.</summary>
     private static MotionIntent Spinning(double stepEnd) =>
-        new(new FrameSpin(Tilt: DQuaternion.Identity, Rate: StationRate).Sample(Double3.Zero, stepEnd, Dt));
+        new(new FrameSpin(Tilt: DQuaternion.Identity, Rate: StationRate).Sample(Double3.Zero, stepEnd));
 
     /// <summary>One step: the tree updates, fixes the turns of the step that applies <paramref name="intents"/>, and takes the records of the step.</summary>
     private void RunStep(PhysicsIntent[] intents)

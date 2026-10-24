@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// replace the parent's when it has them. The tests use the "soldier" and "officer" blueprints of
 /// <see cref="BlueprintSamples.Soldiers"/>.
 /// </summary>
-public class BlueprintInheritanceTests
+public sealed class BlueprintInheritanceTests
 {
     private static readonly FrameSpec Outpost = new(FrameBounds.Sphere(30));
 

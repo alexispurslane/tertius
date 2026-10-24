@@ -15,8 +15,10 @@
       Switches over closed sets (docs/plans/code-quality-tooling.md, decision 14). CS8524 reports an enum switch expression
       that names every member but not unnamed values such as (E)7. Off, so such a switch needs no discard arm, and the
       compiler reports a missing member with CS8509. An unnamed value throws SwitchExpressionException. The build runs the
-      IDE analyzers for IDE0010 only. AnalysisModeStyle=None turns off the style rules that latest-recommended turns on,
-      and .editorconfig sets every other IDE rule to suggestion, which a build does not report.
+      IDE analyzers for IDE0010, IDE0063 (a using block that can be a using declaration), and IDE0051, IDE0052 and
+      IDE0060 (unused private members and unused parameters) only.
+      AnalysisModeStyle=None turns off the style rules that latest-recommended turns on, and .editorconfig sets every
+      other IDE rule to suggestion, which a build does not report.
     -->
     <NoWarn>$(NoWarn);CS8524</NoWarn>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

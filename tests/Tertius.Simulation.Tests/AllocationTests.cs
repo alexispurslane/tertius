@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// counts the bytes that the ticking thread allocates over many ticks. The worlds run with one worker (so that all the
 /// work is on the counted thread) and with <see cref="WorldOptions.DebugChecks"/> off (its checks allocate).
 /// </summary>
-public class AllocationTests
+public sealed class AllocationTests
 {
     private const int Churners = 200;
 

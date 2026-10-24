@@ -71,12 +71,14 @@ internal sealed unsafe class GpuBuffer : IDisposable
     }
 
     /// <summary>The mapped contents as <paramref name="count"/> elements of <typeparamref name="T"/>.</summary>
-    public Span<T> AsSpan<T>(int count) where T : unmanaged =>
-        memory.Mapped == null
-            ? throw new InvalidOperationException($"{Name} is not host-visible.")
-            : (ulong)count * (ulong)sizeof(T) > Size
-                ? throw new ArgumentOutOfRangeException(nameof(count))
-                : new(memory.Mapped, count);
+    public Span<T> AsSpan<T>(int count) where T : unmanaged
+    {
+        if (memory.Mapped == null)
+            throw new InvalidOperationException($"{Name} is not host-visible.");
+        if ((ulong)count * (ulong)sizeof(T) > Size)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        return new(memory.Mapped, count);
+    }
 
     /// <summary>Copies <paramref name="data"/> into the mapped buffer at <paramref name="byteOffset"/>.</summary>
     public void Write<T>(ReadOnlySpan<T> data, ulong byteOffset = 0) where T : unmanaged

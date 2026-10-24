@@ -481,7 +481,7 @@ public static partial class DemoScenes
         {
             Frame = earth,
             Pose = new(Double3.Zero, turning.RotationAt(world.Time)),
-            FirstMove = new(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
+            FirstMove = new(turning.Sample(Double3.Zero, firstStepEnd)),
             // The bubble ends at the stratopause, so that a shuttle that climbs out of it leaves it below its parking orbit.
             AsFrame = new(FrameBounds.Sphere((float)(EarthRadius + GroundBubbleTop)), GravityField.Point(EarthMu),
                 Air.Earth),

@@ -92,24 +92,24 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             return InputEvent.KeyUp(CodeOf(kind, code, delta));
         if (Is(kind, MouseDown))
             return InputEvent.MouseDown(CodeOf(kind, code, delta));
-        return Is(kind, MouseUp)
-            ? InputEvent.MouseUp(CodeOf(kind, code, delta))
-            : Is(kind, MouseMove)
-                ? InputEvent.MouseMove(DeltaOf(kind, code, delta))
-                : Is(kind, Scroll)
-                    ? InputEvent.Scroll(DeltaOf(kind, code, delta))
-                    : throw new JsonException(
-                        $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
+        if (Is(kind, MouseUp))
+            return InputEvent.MouseUp(CodeOf(kind, code, delta));
+        if (Is(kind, MouseMove))
+            return InputEvent.MouseMove(DeltaOf(kind, code, delta));
+        if (Is(kind, Scroll))
+            return InputEvent.Scroll(DeltaOf(kind, code, delta));
+        throw new JsonException(
+            $"'{kind}' is not an input event kind. The kinds are {KeyDown}, {KeyUp}, {MouseDown}, {MouseUp}, {MouseMove} and {Scroll}.");
     }
 
     public override void Write(Utf8JsonWriter writer, InputEvent value, JsonSerializerOptions options)
     {
         switch (value)
         {
-            case KeyChanged(var code, var isDown):
+            case KeyChanged { Code: var code, IsDown: var isDown }:
                 WriteCode(writer, isDown ? KeyDown : KeyUp, code);
                 break;
-            case MouseButtonChanged(var code, var isDown):
+            case MouseButtonChanged { Code: var code, IsDown: var isDown }:
                 WriteCode(writer, isDown ? MouseDown : MouseUp, code);
                 break;
             case MouseMoved(var delta):

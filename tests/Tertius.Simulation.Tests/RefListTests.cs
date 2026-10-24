@@ -3,7 +3,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary><see cref="RefList{T}.SetCount"/>: the count changes, the items the list keeps stay, and dropped references go.</summary>
-public class RefListTests
+public sealed class RefListTests
 {
     [Fact]
     public void GrowingTheCountKeepsTheItemsBelowTheOldCount()

@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// the camera's frame. The renderer fixes the star field to the root's axes with it, so the stars do not turn with the
 /// frame that the camera rides in.
 /// </summary>
-public class RenderSnapshotRootTests
+public sealed class RenderSnapshotRootTests
 {
     private static readonly DQuaternion QuarterTurnAboutY = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
     private static readonly DQuaternion TiltAboutX = DQuaternion.FromAxisAngle(Double3.UnitX, 0.4);

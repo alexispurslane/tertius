@@ -7,7 +7,7 @@ using Tertius.Simulation;
 namespace Tertius.Host.Tests;
 
 /// <summary>TickPacer: the wall-clock pace of the ticks in the window, and the interpolation alpha.</summary>
-public class TickPacerTests
+public sealed class TickPacerTests
 {
     [Theory]
     [InlineData(1, 0.02)]
@@ -59,7 +59,7 @@ public class TickPacerTests
 }
 
 /// <summary>FlyCamera: the debug camera that F1 switches to.</summary>
-public class FlyCameraTests
+public sealed class FlyCameraTests
 {
     private static Vector3 Moved(FlyCamera camera, FlyKey key, float seconds = 1)
     {
@@ -167,7 +167,7 @@ public class FlyCameraTests
 }
 
 /// <summary>More FlyCamera behavior: every key, other frame times, combined turns, restarts and frame changes.</summary>
-public class FlyCameraMotionTests
+public sealed class FlyCameraMotionTests
 {
     private static void ExpectNear(Vector3 actual, Vector3 expected) =>
         Vector3.Distance(actual, expected).Should().BeLessThan(1e-3f, $"{actual} is not {expected}");
@@ -275,7 +275,7 @@ public class FlyCameraMotionTests
 }
 
 /// <summary>MouseTracker: mouse movements from the positions that the window reports.</summary>
-public class MouseTrackerTests
+public sealed class MouseTrackerTests
 {
     [Fact]
     public void TheFirstPositionMovesNothingAndEachLaterOneMovesByTheDifference()
@@ -299,7 +299,7 @@ public class MouseTrackerTests
 }
 
 /// <summary>CaptureMailbox: the handover of a capture from the simulation thread to the render thread.</summary>
-public class CaptureMailboxTests
+public sealed class CaptureMailboxTests
 {
     /// <summary>How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the run.</summary>
     internal static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
@@ -400,7 +400,7 @@ public class CaptureMailboxTests
 }
 
 /// <summary>WindowPlayback: the pace of a script in the window, on a clock that the test controls.</summary>
-public class WindowPlaybackTests
+public sealed class WindowPlaybackTests
 {
     [Fact]
     public void TheFirstTickRunsAtOnce()
@@ -603,7 +603,7 @@ public class WindowPlaybackTests
     }
 }
 
-public class ViewSwitchTests
+public sealed class ViewSwitchTests
 {
     private static (World World, SceneInstance Scene) Orbit()
     {

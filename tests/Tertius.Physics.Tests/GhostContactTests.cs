@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// the systems that hold their contact as started, so each pair hears one Collision when the first system starts it
 /// and one CollisionEnded when the last system drops it.
 /// </summary>
-public class GhostContactTests
+public sealed class GhostContactTests
 {
     /// <summary>The speed of the kinematic ball of <see cref="FlyThroughAStaticBox"/>, in m/s: 20 m per step.</summary>
     private const double KinematicBallSpeed = 1_200;

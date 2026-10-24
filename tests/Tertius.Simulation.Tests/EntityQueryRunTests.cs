@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// Runs of entity queries on the snapshot: what each filter keeps, the endings, the shorthand chain, and the index that
 /// a run starts from. The world here has no bodies; the collision filters are in <see cref="EntityQueryCollisionTests"/>.
 /// </summary>
-public class EntityQueryRunTests
+public sealed class EntityQueryRunTests
 {
     private static readonly EntityQuery NearbyFlammable = EntityQuery.With<Flammable>().Near(3);
 

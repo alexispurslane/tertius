@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// torque of its lever about the center of mass. The lever is the place in the body less the center of mass, turned by
 /// the root's rotation. The sum of a root runs in doubles and narrows to floats once. No World runs here.
 /// </summary>
-public class PushTests
+public sealed class PushTests
 {
     private static Push ForceOnly(Vector3 force) => Push.Of(new() { Force = force });
 

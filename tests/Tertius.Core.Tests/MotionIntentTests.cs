@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// <see cref="PhysicsIntent"/> that use it, <see cref="PhysicsIntent.StepRecord"/> and <see cref="PhysicsIntent.IsEmpty"/>
 /// .
 /// </summary>
-public class MotionIntentTests
+public sealed class MotionIntentTests
 {
     private const double Step = 1.0 / 60;
 

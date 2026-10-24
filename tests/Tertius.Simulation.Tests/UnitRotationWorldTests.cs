@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// transform. The world normalizes it where it takes it, and does not refuse it. A rotation that physics reports is unit
 /// length too. The tests run on the real world and the real Jolt backend.
 /// </summary>
-public class UnitRotationWorldTests
+public sealed class UnitRotationWorldTests
 {
     public static TheoryData<string, DQuaternion> RotationsThatAreNotUnitLength => new()
     {

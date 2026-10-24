@@ -385,7 +385,8 @@ public sealed class PlumeTests : IDisposable
     [InlineData(true)]
     public void ABackJetThatHadPushedClearsItsEmitterWhenTheForceStopsOrIsNotFinite(bool notFinite)
     {
-        var person = new JetForceBy(tick => tick < 6 ? new(0, 0, -50) : notFinite ? new(float.NaN, 0, 0) : Vector3.Zero,
+        Vector3 afterPush = notFinite ? new(float.NaN, 0, 0) : Vector3.Zero;
+        var person = new JetForceBy(tick => tick < 6 ? new(0, 0, -50) : afterPush,
             silentAfter: notFinite ? int.MaxValue : 6);
         world.Spawn(new()
         {

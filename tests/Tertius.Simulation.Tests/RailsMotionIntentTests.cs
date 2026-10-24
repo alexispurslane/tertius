@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="Self.TimeAt"/>, <see cref="Self.OwnedFrame"/> and <see cref="Self.PoseAtNextStepStartIn"/>. RailsFollowTests
 /// (Physics.Tests) checks how frames follow the samples in physics.
 /// </summary>
-public class RailsMotionIntentTests
+public sealed class RailsMotionIntentTests
 {
     // ---- Helpers ------------------------------------------------------------------------------------------------
 

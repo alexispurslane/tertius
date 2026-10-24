@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// registered; these tests check what <see cref="Blueprints.Instantiate"/> and the world's spawn methods do with the
 /// result. Inheritance and invalid input have their own files.
 /// </summary>
-public class BlueprintTests
+public sealed class BlueprintTests
 {
     // ---- Instantiate ------------------------------------------------------------------------------------------
 

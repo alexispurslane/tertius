@@ -6,7 +6,7 @@ namespace Tertius.Host.Tests;
 /// The frame names of a film: <see cref="FilmStep.FrameName"/> names only frames that the film has, so every name that it
 /// returns is one that <see cref="FilmStep.HasFrameNamed"/> accepts. See docs/plans/blue-danube-demo.md, change 2.
 /// </summary>
-public class FilmFrameNameTests
+public sealed class FilmFrameNameTests
 {
     [Fact]
     public void EveryFrameNameOfAFilmIsTheFilmsNameADashAndTheFrameNumberInSixDigitsAndTheFilmRecognizesIt()

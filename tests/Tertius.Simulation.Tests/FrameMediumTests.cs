@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// gone, and keeps the old medium. A frame keeps its medium when it hands off or is reparented, so the air of a cabin goes
 /// with the ship. A numeric frame has none, by an invariant of the frame tree. The worlds run on real Jolt.
 /// </summary>
-public class FrameMediumTests
+public sealed class FrameMediumTests
 {
     private static readonly MediumField CabinAir = MediumField.Uniform(1.225f, 2, new BoundingBox(new(-3), new(3)));
 

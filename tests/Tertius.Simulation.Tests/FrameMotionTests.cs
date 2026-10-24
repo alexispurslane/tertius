@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// A frame moves when its owner moves. For a static frame the owner is a bodiless entity whose gameplay writes the
 /// frame's pose, and every entity in the frame, and every frame below it, goes along without any write of its own.
 /// </summary>
-public class FrameMotionTests
+public sealed class FrameMotionTests
 {
     [Fact]
     public void AStaticFrameMovesWhenItsOwnerWritesItsTransform()

@@ -9,7 +9,7 @@ namespace Tertius.Unions.Tests;
 /// The members that the generator writes for a <see cref="GeneratedUnionAttribute"/> struct: each case goes in and comes
 /// back out unchanged, the empty value holds no case, and equality and <c>ToString</c> look at the held case only.
 /// </summary>
-public class GeneratedUnionTests
+public sealed class GeneratedUnionTests
 {
     private static readonly Vector3 Sideways = new(1, 0, 0);
 

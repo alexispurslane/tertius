@@ -17,7 +17,7 @@ namespace Tertius.Physics.Tests;
 /// that a component writes during a tick acts in the physics step of the next tick, and a change of a frame's gravity
 /// between two ticks acts from the step of the next tick on.
 /// </summary>
-public class CharacterFormTests
+public sealed class CharacterFormTests
 {
     private const float PersonMass = 70;
     private const float CrateMass = 20;

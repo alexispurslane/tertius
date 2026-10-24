@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// step of tick 1. Forces, torques and impulses add up. Every other ask keeps the last value written. The tests run the
 /// world on real Jolt, and the wrapper <see cref="FaultInjectingBackend"/> records the intent that each step receives.
 /// </summary>
-public class PhysicsIntentTests
+public sealed class PhysicsIntentTests
 {
     private delegate void WriteIntent(BodyHandle body);
 

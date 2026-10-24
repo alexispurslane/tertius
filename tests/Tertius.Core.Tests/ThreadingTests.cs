@@ -1,6 +1,6 @@
 namespace Tertius.Core.Tests;
 
-public class ThreadingTests
+public sealed class ThreadingTests
 {
     private sealed class Box
     {

@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// vector that can be checked by hand. Its axes turn by +90° about +Z, so the coordinates of a direction that is fixed in
 /// the parent turn by −90° in the frame: (x, y, z) becomes (y, −x, z).
 /// </summary>
-public class StepPosesTests
+public sealed class StepPosesTests
 {
     private static readonly DQuaternion Quarter = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2);
 

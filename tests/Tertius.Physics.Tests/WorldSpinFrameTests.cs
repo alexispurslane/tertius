@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests;
 /// A frame that turns in place with a <see cref="SpinMotion"/>, on the World and the real Jolt backend: its hull in the parent's system is kinematic and
 /// turns with it, so it carries what rests on it, and a body that leaves it keeps the velocity of the ground under it.
 /// </summary>
-public class WorldSpinFrameTests
+public sealed class WorldSpinFrameTests
 {
     private const double Rate = 0.5;
     private static readonly FrameSpin Turning = new(Tilt: DQuaternion.Identity, Rate: Rate);

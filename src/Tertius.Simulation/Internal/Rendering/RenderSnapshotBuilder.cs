@@ -220,13 +220,15 @@ internal sealed partial class RenderSnapshotBuilder
 
         // The previous pose from the previous home, which stays exact near the camera. When a numeric update collected
         // that home, the camera's semantic frame, which is the same, places it, rounded only far from that frame's origin.
-        DPose previousCamera = !interpolate
-            ? cameraPose
-            : lastCameraHome == cameraHome
-                ? lastCameraPose
-                : FrameSeen(lastCameraHome)
-                    ? DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose)
-                    : DPose.ComposeUnitParent(relPrevious[denseOfFrame[cameraFrame.Index]], lastCameraInFrame);
+        DPose previousCamera;
+        if (!interpolate)
+            previousCamera = cameraPose;
+        else if (lastCameraHome == cameraHome)
+            previousCamera = lastCameraPose;
+        else if (FrameSeen(lastCameraHome))
+            previousCamera = DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose);
+        else
+            previousCamera = DPose.ComposeUnitParent(relPrevious[denseOfFrame[cameraFrame.Index]], lastCameraInFrame);
         snapshot.Camera = new()
         {
             Position = Vector3.Zero,
@@ -421,7 +423,10 @@ internal sealed partial class RenderSnapshotBuilder
             // The default light holds no case, so the entity adds no light.
             switch (render.Light)
             {
-                case PointLightData(var offset, var color, var intensity, var range):
+                case PointLightData
+                {
+                    Offset: var offset, Color: var color, Intensity: var intensity, Range: var range
+                }:
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() =
@@ -429,8 +434,11 @@ internal sealed partial class RenderSnapshotBuilder
                             Intensity: intensity, Range: range);
                     break;
                 }
-                case SpotLightData(var offset, var color, var intensity, var range, var innerConeAngle, var
-                    outerConeAngle):
+                case SpotLightData
+                {
+                    Offset: var offset, Color: var color, Intensity: var intensity, Range: var range,
+                    InnerConeAngle: var innerConeAngle, OuterConeAngle: var outerConeAngle
+                }:
                 {
                     DPose pose = LightPose(current, offset);
                     lights.AddRef() = new SpotRenderLight(
@@ -550,11 +558,11 @@ internal sealed partial class RenderSnapshotBuilder
     private HemisphereUp HemisphereOf(int dense, Vector3 place, Double3 position)
     {
         ref readonly FrameHemisphere frame = ref frameHemisphere[dense];
-        return frame.Up is UpAwayFrom
-            ? HemisphereUp.AwayFrom((relCurrent[dense].Position - position).ToVector3())
-            : frame.HasRegion && !frame.Region.Contains(place)
-                ? HemisphereUp.Even
-                : frame.Up;
+        if (frame.Up is UpAwayFrom)
+            return HemisphereUp.AwayFrom((relCurrent[dense].Position - position).ToVector3());
+        if (frame.HasRegion && !frame.Region.Contains(place))
+            return HemisphereUp.Even;
+        return frame.Up;
     }
 
     /// <summary>The root frame of the tree that <paramref name="frame"/> is in.</summary>

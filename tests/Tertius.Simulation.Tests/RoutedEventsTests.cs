@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// World.RoutedEvents, the events that the last sync point routed. The scripted runs of the host read it after each tick
 /// to fill the events of a state dump.
 /// </summary>
-public class RoutedEventsTests
+public sealed class RoutedEventsTests
 {
     private static Event Message<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
         Event.Create(target: target, sender: Entity.Null, payload: payload);

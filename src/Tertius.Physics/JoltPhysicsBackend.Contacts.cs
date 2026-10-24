@@ -374,13 +374,13 @@ public sealed partial class JoltPhysicsBackend
     private static MotionType GhostContactMotion(BodyRecord record) => ToMotionType(record.Motion);
 
     /// <summary>The two entities of a contact, in canonical order, or null when the contact is not reported.</summary>
-    private (Entity A, Entity B)? EntityPair(in RawEnd raw) =>
-        ContactEntity(raw.UserData1, out _) is not { } a || ContactEntity(raw.UserData2, out _) is not { } b ||
-        a == b
-            ? null
-            : b.CompareTo(a) < 0
-                ? (b, a)
-                : (a, b);
+    private (Entity A, Entity B)? EntityPair(in RawEnd raw)
+    {
+        if (ContactEntity(raw.UserData1, out _) is not { } a || ContactEntity(raw.UserData2, out _) is not { } b ||
+            a == b)
+            return null;
+        return b.CompareTo(a) < 0 ? (b, a) : (a, b);
+    }
 
     /// <summary>
     /// The entity behind a body in a contact, and the inverse mass to use for the impulse estimate. A ghost stands for its

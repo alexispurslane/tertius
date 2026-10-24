@@ -62,7 +62,7 @@ internal static class SurfaceYardReport
             + "`surface-yard` (`src/Tertius.Demo/DemoScenes.SurfaceYard.cs`), in a world on the real Jolt backend in double precision, "
             + $"at 60 ticks a second (one tick is {m.TickSeconds:F9} s). The run has {m.EndTick} ticks, {m.EndTime:F3} s.");
         Line(text);
-        Scene(text, m);
+        Scene(text);
         Samples(text, m);
         Fall(text, m);
         NumericFrames(text, m);
@@ -88,7 +88,7 @@ internal static class SurfaceYardReport
 
     private static string Tick(long? tick) => tick?.ToString(CultureInfo.InvariantCulture) ?? "never";
 
-    private static void Scene(StringBuilder text, YardMeasurements m)
+    private static void Scene(StringBuilder text)
     {
         Line(text, "## The scene");
         Line(text);

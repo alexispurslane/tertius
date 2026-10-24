@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// <see cref="ArgumentException"/>. Inside a tick the component that asked gets it, and if the component lets it
 /// escape, the scheduler reports it in <see cref="World.Errors"/>.
 /// </summary>
-public class SpawnValidationTests
+public sealed class SpawnValidationTests
 {
     private static readonly FrameSpec SmallFrame = new(FrameBounds.Sphere(10));
 

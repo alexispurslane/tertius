@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// events they share is in <see cref="PipelineEventsTests"/>, and how an entity's components change, and fail, is in
 /// <see cref="PipelineComponentTests"/>.
 /// </summary>
-public class PipelineTests
+public sealed class PipelineTests
 {
     private static Lambda Named(List<string> log, string name, int priority, EventMask wants) =>
         new(wants, (self, scoped ref events, scoped ref outbox) => log.Add(name), priority);

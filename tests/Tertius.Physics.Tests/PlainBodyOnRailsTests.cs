@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 /// velocity, which step 2 writes into the transform row. A hand-off carries the record's instant velocity. The world runs on
 /// the real backend.
 /// </summary>
-public class PlainBodyOnRailsTests
+public sealed class PlainBodyOnRailsTests
 {
     /// <summary>
     /// A circular orbit of 50 km around the asteroid, which moves at 632 m/s, too slow and too near for a numeric frame, so

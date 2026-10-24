@@ -132,7 +132,7 @@ public sealed class PersonControl(Vector3 eye) : IComponent
         // The person reads the keys and the mouse movement. A mouse button, a scroll and the empty event mean nothing to it.
         switch (input)
         {
-            case KeyChanged(var code, var isDown):
+            case KeyChanged { Code: var code, IsDown: var isDown }:
                 Hold((Key)code, isDown);
                 break;
             case MouseMoved(var delta):

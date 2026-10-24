@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// owner view again whenever the frame tree changed since its first pass, and every owner's row ends the tick on its
 /// frame's place to the bit.
 /// </summary>
-public class WorldFrameOwnerRowTests
+public sealed class WorldFrameOwnerRowTests
 {
     /// <summary>
     /// How fast the ships fly along X, in m/s: 2^19, as in WorldNumericNestingTests, so that they pass the nest distance of

@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// sent. A test of a state that only a bug produces adds it to the output of one step, through
 /// <see cref="FaultInjectingBackend"/>.
 /// </summary>
-public class PhysicsFrameStateTests
+public sealed class PhysicsFrameStateTests
 {
     /// <summary>
     /// A ship: a physics frame, whose owner has a hull body in the parent frame. Nothing slows the hull down, so it moves

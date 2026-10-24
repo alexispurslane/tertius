@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Formats and modernizes C# files in two passes:
-#   1. dotnet format style applies Roslyn's modernization fixes: the IDE rules that .editorconfig sets to suggestion.
+#   1. dotnet format style applies Roslyn's modernization fixes: the IDE rules that .editorconfig sets to suggestion, and
+#      the ones that it sets to warning (IDE0063, and the rules against unused code, IDE0051, IDE0052 and IDE0060). The
+#      build fails at a hit of a warning rule, so on code that builds those rules find nothing to fix.
 #   2. jb cleanupcode runs ReSharper's cleanup with the Tertius profile (Tertius.slnx.DotSettings): syntax style,
 #      redundancies, member layout and formatting. It runs last, so its formatting wins.
 #
@@ -30,7 +32,7 @@ if ! $all && [[ ${#files[@]} -eq 0 ]]; then
     exit 0
 fi
 
-ids=$(grep -oE '^dotnet_diagnostic\.IDE[0-9]+\.severity = suggestion' .editorconfig | sed -E 's/^dotnet_diagnostic\.(IDE[0-9]+).*/\1/')
+ids=$(grep -oE '^dotnet_diagnostic\.IDE[0-9]+\.severity = (suggestion|warning)' .editorconfig | sed -E 's/^dotnet_diagnostic\.(IDE[0-9]+).*/\1/')
 
 project_of() {
     local dir

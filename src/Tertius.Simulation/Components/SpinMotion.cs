@@ -54,7 +54,7 @@ public sealed class SpinMotion : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         Double3 place = PlaceAtStepStart(self);
-        MotionSample sample = spin.Sample(place, self.TimeAt(self.Tick + 2), self.DeltaTime);
+        MotionSample sample = spin.Sample(place, self.TimeAt(self.Tick + 2));
         var move = new MotionIntent(sample);
         if (!self.TakesMotionIntent(move))
         {

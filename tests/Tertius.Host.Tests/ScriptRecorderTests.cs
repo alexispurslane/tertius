@@ -6,7 +6,7 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>ScriptRecorder: the steps of a script that replays a session, and the JSON that a recorded script is written as.</summary>
-public class ScriptRecorderTests
+public sealed class ScriptRecorderTests
 {
     private static readonly ScriptWindow Size = new(1280, 720);
 
@@ -26,8 +26,8 @@ public class ScriptRecorderTests
     // An input event as a script names its kind, then its code or its delta: a key that went down is "keyDown 87".
     private static string Describe(InputEvent e) => e switch
     {
-        KeyChanged(var code, var isDown) => $"{(isDown ? "keyDown" : "keyUp")} {code}",
-        MouseButtonChanged(var code, var isDown) => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
+        KeyChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "keyDown" : "keyUp")} {code}",
+        MouseButtonChanged { Code: var code, IsDown: var isDown } => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
         MouseMoved(var delta) => $"mouseMove {delta}",
         Scrolled(var delta) => $"scroll {delta}",
         null => throw new InvalidOperationException("The test does not describe the empty input event.")

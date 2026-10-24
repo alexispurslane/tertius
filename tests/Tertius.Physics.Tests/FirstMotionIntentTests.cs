@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// would have written in the spawn's tick, and the step after the spawn applies it, so that a frame on rails stands on its
 /// rails from its first step. A spawn refuses a case that its entity would refuse.
 /// </summary>
-public class FirstMotionIntentTests
+public sealed class FirstMotionIntentTests
 {
     private const double StationRadius = 6.771e6;
     private static readonly FrameSpec SmallBubble = new(FrameBounds.Sphere(0.01f));

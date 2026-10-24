@@ -9,7 +9,7 @@ namespace Tertius.Core.Tests;
 /// acceleration of an orbit, and the G·M that an orbit takes from the gravity of its parent (
 /// <see cref="KeplerOrbit.MuFrom"/>).
 /// </summary>
-public class KeplerOrbitFreeFunctionTests
+public sealed class KeplerOrbitFreeFunctionTests
 {
     private const double Mu = 3.986004418e14;
     private const double TightMu = 1e6;

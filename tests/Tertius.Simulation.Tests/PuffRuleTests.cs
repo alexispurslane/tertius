@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// puff, the newborn's state, and which emitters make puffs. The steps of the tests are built by hand. A turning step is
 /// the step of a station that spins about its +Y at 0.31321 rad/s, the rate that gives 9.81 m/s² at 100 m.
 /// </summary>
-public class PuffRuleTests
+public sealed class PuffRuleTests
 {
     /// <summary>The World's step: the float 1/60 widened to a double, 0.01666666753590107 s.</summary>
     private const float Dt = 1f / 60;

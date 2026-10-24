@@ -109,8 +109,9 @@ public sealed partial class JoltPhysicsBackend
                         throw new ArgumentException($"The BodyCreate for {entity} has no body description.");
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
         // A root frame has no parent, so its owner has no hull, and its body is only the frame's static interior.
-        BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame :
-            ParentOf(owned).IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
+        BodyRole role = BodyRole.OwnsNoFrame;
+        if (ownsFrame)
+            role = ParentOf(owned).IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
         BodyMotion motion = role == BodyRole.OwnsRootFrame ? BodyMotion.Static : desc.Motion;
         if (desc.Problem(role) is { } problem)
             throw new ArgumentException($"{entity} cannot get a body: it {problem}.");

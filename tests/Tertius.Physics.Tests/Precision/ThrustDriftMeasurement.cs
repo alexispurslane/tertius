@@ -6,7 +6,7 @@ namespace Tertius.Physics.Tests.Precision;
 /// How far a thrusting character drifts from its exact path at each common speed (ticket ter-kugq). It writes
 /// thrust-drift.csv; see <see cref="MotionDrift"/> for the method and the columns.
 /// </summary>
-public class ThrustDriftMeasurement
+public sealed class ThrustDriftMeasurement
 {
     /// <summary>
     /// A character of 70 kg (a capsule with a half height of 0.6 m and a radius of 0.3 m) in zero gravity. A pilot pushes

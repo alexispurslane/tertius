@@ -219,12 +219,12 @@ internal static class UnionReader
                 // Not a primitive: a struct, aligned as its most aligned field.
                 _ => 0
             };
-            return primitive > 0
-                ? primitive
-                : depth > 8
-                    ? 8
-                    : type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
-                        .Select(field => Alignment(field.Type, depth + 1)).DefaultIfEmpty(1).Max();
+            if (primitive > 0)
+                return primitive;
+            if (depth > 8)
+                return 8;
+            return type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsConst)
+                .Select(field => Alignment(field.Type, depth + 1)).DefaultIfEmpty(1).Max();
         }
     }
 }

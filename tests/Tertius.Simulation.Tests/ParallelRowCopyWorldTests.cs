@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// die, and read their neighbors from the spatial grid, which takes the moved entities in the order of the copy, so a
 /// change of that order or of any copied row shows in the hash.
 /// </summary>
-public class ParallelRowCopyWorldTests
+public sealed class ParallelRowCopyWorldTests
 {
     /// <summary>A seeded entity that writes every row that gameplay can write, and folds what it reads into its hash.</summary>
     private sealed class Wanderer : IComponent

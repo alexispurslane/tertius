@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 /// no numeric frame, which would be the frame that Jolt names, comes into play under any membership rules. The comment at
 /// the start of such a test says so.
 /// </summary>
-public class HandOffTests
+public sealed class HandOffTests
 {
     private const float Dt = 1f / 60f;
 

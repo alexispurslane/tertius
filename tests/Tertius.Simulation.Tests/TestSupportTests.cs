@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 // They also show how each helper is used.
 
 /// <summary>The components in the Components folder: what each one does to the entity it is on.</summary>
-public class SharedComponentTests
+public sealed class SharedComponentTests
 {
     private static Event Message<T>(Entity target, T payload) where T : unmanaged, IEventPayload =>
         Event.Create(target: target, sender: Entity.Null, payload: payload);
@@ -249,7 +249,7 @@ public class SharedComponentTests
 }
 
 /// <summary><see cref="TestWorld"/>: the settings it promises and the spawn helpers.</summary>
-public class TestWorldTests
+public sealed class TestWorldTests
 {
     [Fact]
     public void ATestWorldRunsOnOneThreadWithDebugChecksAndNoPhysics()

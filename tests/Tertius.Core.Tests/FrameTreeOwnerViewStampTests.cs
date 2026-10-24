@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// the first, so a write that leaves the stamp as it is would leave an owner's row behind its frame. Reads leave the stamp
 /// as it is, so that the pass is skipped when nothing changed.
 /// </summary>
-public class FrameTreeOwnerViewStampTests
+public sealed class FrameTreeOwnerViewStampTests
 {
     private readonly FrameTree frames = new();
     private readonly FrameHandle ground;

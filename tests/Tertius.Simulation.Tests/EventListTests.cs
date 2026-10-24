@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The list of events that the components of one entity share during a run, on its own: adding, editing and removing
 /// events, the mask that tells the scheduler what the list holds, and the rule that the list does not allocate.
 /// </summary>
-public class EventListTests
+public sealed class EventListTests
 {
     private static readonly Entity Owner = new(7, 3);
     private static readonly Entity Other = new(9, 1);

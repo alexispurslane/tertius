@@ -6,7 +6,7 @@ namespace Tertius.Simulation.Tests;
 /// The component flags in the entity table: a back copy that component changes write, a front copy that the dirty-row
 /// copy brings up to date, and the index of the entities by each type of their front flags.
 /// </summary>
-public class EntityTableComponentFlagsTests
+public sealed class EntityTableComponentFlagsTests
 {
     private static int Id<T>() where T : IComponent => ComponentTypes.IdOf(typeof(T));
 

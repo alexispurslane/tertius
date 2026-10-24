@@ -56,9 +56,11 @@ internal sealed unsafe class ValidationLog
         {
             string id = data->PMessageIdName != null ? Marshal.PtrToStringUTF8((nint)data->PMessageIdName) ?? "" : "";
             string text = data->PMessage != null ? Marshal.PtrToStringUTF8((nint)data->PMessage) ?? "" : "";
-            string level = (severity & DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt) != 0 ? "error"
-                : (severity & DebugUtilsMessageSeverityFlagsEXT.WarningBitExt) != 0 ? "warning"
-                : "info";
+            string level = "info";
+            if ((severity & DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt) != 0)
+                level = "error";
+            else if ((severity & DebugUtilsMessageSeverityFlagsEXT.WarningBitExt) != 0)
+                level = "warning";
             log.Add($"[{level}, {types}] {id}: {text}");
         }
 

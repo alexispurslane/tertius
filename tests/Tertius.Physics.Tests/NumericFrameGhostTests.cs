@@ -24,7 +24,7 @@ namespace Tertius.Physics.Tests;
 /// gentle thruster (see <see cref="WarmUpTicks"/>), and a ship that rests lies just beyond 2^23 m from the origin of space
 /// (see <see cref="RestDistance"/>).
 /// </summary>
-public class NumericFrameGhostTests
+public sealed class NumericFrameGhostTests
 {
     private const float Dt = 1f / 60f;
 

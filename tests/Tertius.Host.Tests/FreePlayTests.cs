@@ -132,8 +132,8 @@ public sealed class FreePlayTests : IDisposable
     /// <summary>The code of a key event or of a mouse button event. Every input that these tests post is one of the two.</summary>
     private static int CodeOf(InputEvent e) => e switch
     {
-        KeyChanged(var code, _) => code,
-        MouseButtonChanged(var code, _) => code,
+        KeyChanged { Code: var code } => code,
+        MouseButtonChanged { Code: var code } => code,
         _ => throw new InvalidOperationException($"{e} is not a key or mouse button event.")
     };
 

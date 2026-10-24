@@ -248,16 +248,24 @@ public sealed class PhysicsOutputCheck
     }
 
     /// <summary>Why physics cannot name <paramref name="entity"/> in its output, or null when it can.</summary>
-    private static string? BodyFault<TFacts>(Entity entity, TFacts facts) where TFacts : IPhysicsOutputFacts =>
-        !facts.IsAlive(entity) ? $"{entity} no longer exists" :
-        !facts.HasBody(entity) ? $"{entity} has no body" :
-        null;
+    private static string? BodyFault<TFacts>(Entity entity, TFacts facts) where TFacts : IPhysicsOutputFacts
+    {
+        if (!facts.IsAlive(entity))
+            return $"{entity} no longer exists";
+        if (!facts.HasBody(entity))
+            return $"{entity} has no body";
+        return null;
+    }
 
     /// <summary>Why physics cannot report a state relative to <paramref name="frame"/>, or null when it can.</summary>
-    private static string? FrameFault(FrameHandle frame, FrameTree frames) =>
-        frame.IsNull ? "it names no frame" :
-        !frames.IsAlive(frame) ? $"it names the stale frame {frame}" :
-        null;
+    private static string? FrameFault(FrameHandle frame, FrameTree frames)
+    {
+        if (frame.IsNull)
+            return "it names no frame";
+        if (!frames.IsAlive(frame))
+            return $"it names the stale frame {frame}";
+        return null;
+    }
 
     /// <summary>
     /// Why the hand-off of a live entity with a body, into a live frame, is not a move that physics makes, or null when
@@ -270,15 +278,16 @@ public sealed class PhysicsOutputCheck
         Entity entity = handOff.Entity;
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
         FrameHandle current = ownsFrame ? frames.TreeParent(own) : facts.FrameOf(entity);
-        return current.IsNull
-            ? $"{entity} is in no frame, so it leaves none"
-            : ownsFrame && frames.HullMotionInStep(own, stepIntents) is var motion && motion != BodyMotion.Dynamic
-                ? $"the hull of {own}, the frame that {entity} owns, has the motion {motion?.ToString() ?? "none"} in the step, and only a dynamic hull hands off"
-                : handOff.From != current
-                    ? $"{entity} is in {current}, not in {handOff.From}"
-                    : handOff.To == current
-                        ? $"it moves {entity} into {current}, which it is in already"
-                        : null;
+        if (current.IsNull)
+            return $"{entity} is in no frame, so it leaves none";
+        if (ownsFrame && frames.HullMotionInStep(own, stepIntents) is var motion && motion != BodyMotion.Dynamic)
+            return
+                $"the hull of {own}, the frame that {entity} owns, has the motion {motion?.ToString() ?? "none"} in the step, and only a dynamic hull hands off";
+        if (handOff.From != current)
+            return $"{entity} is in {current}, not in {handOff.From}";
+        if (handOff.To == current)
+            return $"it moves {entity} into {current}, which it is in already";
+        return null;
     }
 
     /// <summary>
@@ -288,11 +297,16 @@ public sealed class PhysicsOutputCheck
     /// stale frame has no owner to blame.
     /// </summary>
     private static string? FrameRecordFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts)
-        where TFacts : IPhysicsOutputFacts =>
-        !frames.IsAlive(frame) ? $"the stale frame {frame}" :
-        frames.TreeParent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
-        BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :
-        null;
+        where TFacts : IPhysicsOutputFacts
+    {
+        if (!frames.IsAlive(frame))
+            return $"the stale frame {frame}";
+        if (frames.TreeParent(frame).IsNull)
+            return $"{frame}, because it is a root frame, so its owner has no hull";
+        if (BodyFault(frame.Entity, facts) is { } fault)
+            return $"{frame}, because {fault}";
+        return null;
+    }
 
     /// <summary>True when <paramref name="ancestor"/> is above <paramref name="frame"/> once the earlier hand-offs are applied.</summary>
     private bool IsAncestorAfter(FrameHandle ancestor, FrameHandle frame, FrameTree frames)

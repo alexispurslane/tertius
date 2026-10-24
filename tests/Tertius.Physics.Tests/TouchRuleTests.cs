@@ -5,7 +5,7 @@ namespace Tertius.Physics.Tests;
 /// approach fast enough to close the gap within the step, so that the solver pushes them apart. A penetration depth below
 /// zero is a gap, and a normal velocity below zero is an approach.
 /// </summary>
-public class TouchRuleTests
+public sealed class TouchRuleTests
 {
     private const float Step = 1f / 60;
 

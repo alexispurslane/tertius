@@ -10,7 +10,7 @@ namespace Tertius.Core.Tests;
 /// length. These tests compare it with <see cref="DPose.Compose"/>, and check that a build with contracts refuses a parent
 /// that is not unit length.
 /// </summary>
-public class ComposeUnitParentTests
+public sealed class ComposeUnitParentTests
 {
     /// <summary>A rotation that came out of a float quaternion, as Jolt gives it: not unit length. Its square is 1.7E-7 over 1.</summary>
     private static readonly DQuaternion Widened =

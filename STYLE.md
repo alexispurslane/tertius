@@ -1,6 +1,6 @@
 # C# style for Tertius
 
-This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0003` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0014` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `.editorconfig` and `tools/cleanup.sh` own formatting, member layout, `using` order and the modern syntax fixes.
 
 When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
 
@@ -21,7 +21,7 @@ Example: a switch over the 184-byte `MotionIntent` copies the whole union first.
 
 Prefer pattern matching and destructuring over every other way to read data: over property chains, casts, `TryGetValue` chains and `is` tests with a body. A pattern states the shape that the code expects, and the compiler makes sure that a switch covers every case.
 
-Use a positional pattern, such as `EndPose(var pose)`, only for a type with one field. For a type with two or more fields, use a property pattern, such as `Taking { Throw: var index }`. A positional pattern binds by parameter order: a new field or a reordered one breaks every such pattern, or silently swaps two values of one type.
+Use a positional pattern, such as `EndPose(var pose)`, only for a type with one field. For a type with two or more fields, use a property pattern, such as `Taking { Throw: var index }`, and read its fields by name, not with a deconstruction such as `var (a, b) = range`. A positional pattern binds by parameter order: a new field or a reordered one breaks every such pattern, or silently swaps two values of one type. A tuple stays positional, and so does a framework type such as `KeyValuePair`, whose fields never change (tool: TS0004, with a code fix that writes the property pattern).
 
 ```csharp
 internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => this switch
@@ -87,11 +87,11 @@ Write a range as a start and a count, never as a prefix-sum array read at `[i]` 
 
 ### Put a function into the type that it belongs to
 
-A function of an orbit is an instance method of `KeplerOrbit`. Math about two bodies that takes no orbit is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. Never write a static helper class such as `KeplerMath`. This holds for demo code too: if the function belongs to an engine type, it goes into the engine.
+A function of an orbit is an instance method of `KeplerOrbit`. Math about two bodies that takes no orbit is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. Never write a static helper class such as `KeplerMath`. The tool finds such a class by its name: a static class named `*Helper`, `*Helpers`, `*Util`, `*Utils` or `*Extensions` with no extension member (tool: TS0014). This holds for demo code too: if the function belongs to an engine type, it goes into the engine.
 
 ### Seal types, and keep them internal
 
-- Every class is `sealed`, unless it is the base of a hierarchy that this guide allows.
+- Every class is `sealed`, unless it is the base of a hierarchy that this guide allows (tool: TS0006, with a code fix that seals the class). A benchmark class stays open, because BenchmarkDotNet derives from it.
 - Every type and member is `internal` or `private`, unless another module needs it. A member becomes `public` only when it is part of the engine's API for game code or mods.
 
 ## Nulls
@@ -134,7 +134,7 @@ Watch the type of a switch expression. In `Case c => c.Moved(...), null => defau
 
 ### Guards
 
-Write a list of early returns, not a chain of nested conditional expressions. A conditional expression is for one simple choice.
+Write a list of early returns, not a chain of nested conditional expressions. A conditional expression is for one simple choice, so neither of its branches is another conditional expression (tool: TS0011). Inside a method, the early returns can choose a value for a local with `if` and `else if`. A choice among the cases of a closed set is a switch expression.
 
 ```csharp
 if (!f.MultiDrawIndirect) return "multiDrawIndirect";
@@ -246,8 +246,8 @@ internal ref struct EventCursor<TFilter> where TFilter : struct, IEventFilter
 
 Two rules keep this form free of cost:
 
-- Hold the struct in a field that is not `readonly`, and pass it on as `ref`. A call on a `readonly` field or an `in` parameter of a generic struct type copies the struct first, because the compiler cannot know that the struct is `readonly`.
-- Never convert the struct to its interface type, such as by passing it to a parameter of type `IEventFilter`. That conversion boxes it, and every call becomes a virtual call again.
+- Hold the struct in a field that is not `readonly`, and pass it on as `ref`. A call on a `readonly` field or an `in` parameter of a generic struct type copies the struct first, because the compiler cannot know that the struct is `readonly` (tool: TS0012 reports the call). A field or an `in` parameter that the code only copies, such as an event payload, costs nothing more.
+- Never convert the struct to its interface type, such as by passing it to a parameter of type `IEventFilter`. That conversion boxes it, and every call becomes a virtual call again (tool: TS0013).
 
 ### Composition
 
@@ -272,11 +272,11 @@ internal interface IEventFilter
 }
 ```
 
-A default method called on a struct through a type parameter boxes the struct, because the method body sees `this` as the interface. The JIT removes the box when it inlines the method. So an interface that a struct-constrained type parameter uses marks every default method with `[MethodImpl(MethodImplOptions.AggressiveInlining)]`. Then a hot path can call those methods. A measurement on .NET 11 RC 1 found no allocation per call after warm-up, even for a default method with a loop.
+A default method called on a struct through a type parameter boxes the struct, because the method body sees `this` as the interface. The JIT removes the box when it inlines the method. So an interface that a struct-constrained type parameter uses marks every default method with `[MethodImpl(MethodImplOptions.AggressiveInlining)]` (tool: TS0005, with a code fix that adds the attribute). Then a hot path can call those methods. A measurement on .NET 11 RC 1 found no allocation per call after warm-up, even for a default method with a loop.
 
 - A type holds a part when the part is data that the type owns, not to borrow the part's behavior.
 - A primary constructor keeps the parts short to declare, such as `public sealed class Carry(CapsuleShapeDesc body) : IComponent`.
-- Never build an inheritance hierarchy more than 2 levels deep below `object`.
+- Never build an inheritance hierarchy more than 2 levels deep below `object`. A framework base that the code must derive from, such as `JsonConverter<T>`, counts as the root, as `object` does (tool: TS0007).
 - Use a static abstract member of an interface for a factory or a constant per type, such as `T.Zero`.
 - Extension members, such as a C# 14 `extension` block, are allowed for behavior that a type does not own. A default interface method fits most such needs better, so expect to use few of them.
 - An abstract base with abstract or virtual members is an open set. A switch never chooses among its subtypes.
@@ -298,7 +298,7 @@ A default method called on a struct through a type parameter boxes the struct, b
 
 ### Expected failures
 
-A failure that can happen in correct code, such as a file that does not open or text that does not parse, is not a bug and not an argument error. A method that can fail this way is a `Try` method: it returns `bool` and gives its result in an `out` parameter, with `[NotNullWhen(true)]` or `[MaybeNullWhen(false)]` where the result is a reference. Do not write a result union for this.
+A failure that can happen in correct code, such as a file that does not open or text that does not parse, is not a bug and not an argument error. A method that can fail this way is a `Try` method: it returns `bool` and gives its result in an `out` parameter, with `[NotNullWhen(true)]` or `[MaybeNullWhen(false)]` where the result is a reference. Do not write a result union for this. A method named `Try` and an upper-case letter has this shape (tool: TS0009).
 
 ```csharp
 public readonly bool TryGet<T>(out T payload) where T : unmanaged, IEventPayload
@@ -310,10 +310,10 @@ If the caller needs the reason for a failure, the method gives it in a second `o
 
 Release every resource that the stack and the garbage collector do not release, as early and as visibly as the scope allows: native memory, GPU objects, files, processes and physics backends.
 
-- Hold every `IDisposable` local in a `using` declaration. Use a `using` block only when the resource must go before the scope ends.
+- Hold every `IDisposable` local in a `using` declaration. Use a `using` block only when the resource must go before the scope ends (tool: TS0010 for a local that the scope makes with `new` and keeps, and IDE0063 for a `using` block that can be a declaration).
 - The type that creates a resource owns it, and its `Dispose` releases it, in the reverse order of creation.
 - Ownership never passes in silence. A hand-over is in the name of the member or in an explicit option, such as `WorldOptions.DisposePhysics`, which makes the World dispose the physics backend that it receives.
-- A type that owns a resource implements `IDisposable` and is `sealed`. It has no finalizer: a resource that escapes disposal is a bug for a test to find, not for the garbage collector to clean up.
+- A type that owns a resource implements `IDisposable` and is `sealed`. It has no finalizer: a resource that escapes disposal is a bug for a test to find, not for the garbage collector to clean up (tool: TS0008).
 
 ```csharp
 using var world = new World(new() { DisposePhysics = true },
@@ -331,6 +331,10 @@ using var world = new World(new() { DisposePhysics = true },
 - A doc comment says what a member means, in plain English. It points to the design doc section that gives the reason, such as `(docs/plans/rails-components.md, "The follow kind")`.
 - A comment gives the reason for the code, never a description of the code under it.
 - Every ordering rule has a comment that gives its reason.
+
+## Unused code
+
+Delete code that nothing uses: a private member that nothing reads, and a parameter that its method never reads (tool: IDE0051, IDE0052, IDE0060). A parameter whose method must match a delegate type stays, with the name `_`. A member that only one branch of `#if TERTIUS_CONTRACTS` uses goes into that branch.
 
 ## Dependencies
 

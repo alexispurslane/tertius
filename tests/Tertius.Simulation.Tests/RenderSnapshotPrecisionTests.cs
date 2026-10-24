@@ -11,7 +11,7 @@ namespace Tertius.Simulation.Tests;
 /// objects that are close to each other but far from the origin are as close in the snapshot as they are in the world.
 /// A single-precision number has 24 bits, so near 1e11 m its spacing is 8192 m.
 /// </summary>
-public class RenderSnapshotPrecisionTests
+public sealed class RenderSnapshotPrecisionTests
 {
     [Fact]
     public void AnObjectNextToTheCameraIsExactEvenWhenBothAreFarFromTheOriginOfTheirFrame()

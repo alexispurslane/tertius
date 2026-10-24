@@ -9,7 +9,7 @@ namespace Tertius.Simulation.Tests;
 /// component can refuse by removing the event (the "veto"), and a message that arrives on tick N+1 was sent on tick N.
 /// Frames have their own tests in <see cref="LifecycleFrameTests"/>.
 /// </summary>
-public class LifecycleTests
+public sealed class LifecycleTests
 {
     // ---- An entity ends itself ------------------------------------------------------------------------------------
 

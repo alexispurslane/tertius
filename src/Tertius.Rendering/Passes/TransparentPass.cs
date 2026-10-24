@@ -106,7 +106,7 @@ internal sealed unsafe class TransparentPass : RenderPass
                         Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: pipeline);
                         GeometryPass.DrawIndirect(context, commands);
                         break;
-                    case PuffSprites(var first, var count):
+                    case PuffSprites { First: var first, Count: var count }:
                         Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: puffPipeline);
                         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 6, instanceCount: (uint)count,
                             firstVertex: 0, firstInstance: (uint)first);

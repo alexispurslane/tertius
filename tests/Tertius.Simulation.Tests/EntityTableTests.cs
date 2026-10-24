@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// dirty tracking and the intent swap. Each test checks the table's invariants along the way. The spawn pools, the
 /// growth of the tables, the dirty-row copy and the handling of stale handles have their own files.
 /// </summary>
-public class EntityTableTests
+public sealed class EntityTableTests
 {
     [Fact]
     public void AReservedSlotIsNotLiveUntilItIsActivated()

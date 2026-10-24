@@ -103,23 +103,23 @@ internal sealed class OutlinePass : RenderPass
         foreach (ref readonly FrameOutline outline in CollectionsMarshal.AsSpan(snapshot.Outlines))
             switch (outline)
             {
-                case SemanticOutline(var center, var rotation, var radii):
+                case SemanticOutline { Center: var center, Rotation: var rotation, Radii: var radii }:
                     // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
                     Add(scene: scene, center: center,
                         rotation: new(x: rotation.X, y: rotation.Y, z: rotation.Z, w: rotation.W), radii: radii,
                         color: OutlineColors.Semantic,
                         flags: new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
                     break;
-                case FallingOutline(var center, var radius):
+                case FallingOutline { Center: var center, Radius: var radius }:
                     AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Falling);
                     break;
-                case RestingOutline(var center, var radius):
+                case RestingOutline { Center: var center, Radius: var radius }:
                     AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Resting);
                     break;
-                case NestingOutline(var center, var radius):
+                case NestingOutline { Center: var center, Radius: var radius }:
                     AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Nesting);
                     break;
-                case FollowingOutline(var center, var radius):
+                case FollowingOutline { Center: var center, Radius: var radius }:
                     AddSphere(scene: scene, center: center, radius: radius, color: OutlineColors.Following);
                     break;
                 case null:

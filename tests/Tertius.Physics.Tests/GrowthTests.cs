@@ -20,7 +20,7 @@ namespace Tertius.Physics.Tests;
 /// The other tests tick, and the comment of the test says so when it matters.
 /// </para>
 /// </summary>
-public class GrowthTests
+public sealed class GrowthTests
 {
     private static readonly BodyDesc Crate = new(Shape: new BoxShapeDesc(new(0.5f)), Motion: BodyMotion.Static);
 

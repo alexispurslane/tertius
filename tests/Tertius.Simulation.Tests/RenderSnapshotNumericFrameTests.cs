@@ -7,7 +7,7 @@ namespace Tertius.Simulation.Tests;
 /// The render snapshot when numeric frames come and go under the camera (docs/plans/numeric-frames.md, "What gameplay
 /// never sees"): the camera's motion between two builds stays smooth.
 /// </summary>
-public class RenderSnapshotNumericFrameTests
+public sealed class RenderSnapshotNumericFrameTests
 {
     private const float HeavyMass = 1_000;
 
