@@ -87,6 +87,13 @@ internal sealed unsafe class TransparentPass : RenderPass
             PColorAttachments = &color
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
+        DrawRuns(context: context, scene: scene, vk: vk, commandBuffer: commandBuffer);
+        vk.CmdEndRendering(commandBuffer);
+    }
+
+    /// <summary>Draws the transparent runs of each depth range, from far to near, in the order of the scene.</summary>
+    private void DrawRuns(FrameContext context, PreparedScene scene, Vk vk, CommandBuffer commandBuffer)
+    {
         // Both pipelines have the scene layout, so the sets and the push constants stay bound when the pipeline changes.
         Pipeline bound = pipeline;
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, bound);
@@ -118,8 +125,6 @@ internal sealed unsafe class TransparentPass : RenderPass
                         throw new UnreachableException();
                 }
         }
-
-        vk.CmdEndRendering(commandBuffer);
     }
 
     private static void Bind(Vk vk, CommandBuffer commandBuffer, ref Pipeline bound, Pipeline wanted)
