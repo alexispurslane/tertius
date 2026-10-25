@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Maps the HDR image to the output with exposure and a <see cref="ToneCurve"/>. With a <see cref="Bloom"/>, it first adds
+/// Maps the pre-exposed HDR image to the output with a <see cref="ToneCurve"/>. With a <see cref="Bloom"/>, it first adds
 /// the summed bloom levels by their strength. An sRGB output format applies the sRGB curve in hardware; for a UNORM output
 /// the shader applies it.
 /// </summary>
@@ -94,7 +94,6 @@ internal sealed unsafe class ToneMapPass : RenderPass
         context.SetFullViewport();
         var push = new ToneMapPushConstants
         {
-            Exposure = context.Exposure,
             EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
             ToneCurve = (uint)curve,
             GlowStrength = glow?.Strength ?? 0,

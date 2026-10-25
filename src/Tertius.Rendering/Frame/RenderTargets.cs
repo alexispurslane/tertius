@@ -64,6 +64,7 @@ internal sealed class RenderTargets : IDisposable
         CheckFormats(device);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
+        MeterSet = layouts.AllocateMeterSet();
         Glow = new GpuImage[glowLevels];
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
@@ -85,6 +86,9 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
+
+    /// <summary>The HDR image and the distance, for the exposure's meter.</summary>
+    public DescriptorSet MeterSet { get; }
 
     /// <summary>The G-buffer color targets in attachment order.</summary>
     public GpuImage[] GBuffer { get; private set; } = [];
@@ -138,6 +142,8 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
         CreateGlow(extent);
     }
 

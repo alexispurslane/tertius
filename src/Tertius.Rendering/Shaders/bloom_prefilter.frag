@@ -13,12 +13,12 @@
 const float halfMax = 65504.0;
 
 // Unity's quadratic soft threshold (PostProcessing v2, QuadraticThreshold in Colors.hlsl): the brightness is the
-// largest channel after the exposure. Below threshold - knee width nothing glows, above threshold + knee width the light
+// largest channel of the HDR image, which the shading passes pre-exposed. Below threshold - knee width nothing glows, above threshold + knee width the light
 // above the threshold glows, and between them a quadratic joins the two, so the glow fades in.
 vec3 thresholded(vec3 color)
 {
     color = clamp(color, 0.0, halfMax);
-    float brightness = max(color.r, max(color.g, color.b)) * bloom.exposure;
+    float brightness = max(color.r, max(color.g, color.b));
     float width = bloom.threshold * bloom.knee;
     float soft = clamp(brightness - bloom.threshold + width, 0.0, 2.0 * width);
     soft = soft * soft / (4.0 * width + 1e-5);

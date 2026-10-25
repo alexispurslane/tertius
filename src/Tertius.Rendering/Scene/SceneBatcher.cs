@@ -801,7 +801,7 @@ internal sealed class SceneBatcher
                 z: 1f / Math.Max(camera.Width, 1),
                 w: 1f / Math.Max(camera.Height, 1)
             ),
-            Params = new(x: 1f, y: (float)snapshot.Time, z: camera.PixelAngle, w: 0f),
+            Params = new(x: 0f, y: (float)snapshot.Time, z: camera.PixelAngle, w: 0f),
             LightCount = (uint)scene.LightCount,
             OccluderCount = (uint)scene.OccluderCount,
             // The shadow pass fills in the cascades when it draws them.

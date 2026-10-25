@@ -10,7 +10,6 @@ layout(set = 0, binding = 2) uniform sampler linearClamp;
 
 layout(push_constant, std430) uniform TonemapPush
 {
-    float exposure;
     uint encodeSrgb;   // 1 when the output format is UNORM and the shader must apply the sRGB curve itself
     uint toneCurve;    // the ToneCurve enum: 0 ACES fitted, 1 Hable
     float glowStrength; // the bloom's strength; unread without bloom
@@ -63,10 +62,11 @@ void main()
 {
     vec3 light = texelFetch(hdrImage, ivec2(gl_FragCoord.xy), 0).rgb;
 #ifdef BLOOM
-    // The glow joins the light before the exposure and the tone curve, so the curve shapes both alike.
+    // The glow joins the light before the tone curve, so the curve shapes both alike.
     light += tonemap.glowStrength * tent(glowImage, linearClamp);
 #endif
-    vec3 hdr = max(light * tonemap.exposure, vec3(0.0));
+    // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+    vec3 hdr = max(light, vec3(0.0));
     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
     if (tonemap.encodeSrgb != 0u)
         ldr = linearToSrgb(ldr);

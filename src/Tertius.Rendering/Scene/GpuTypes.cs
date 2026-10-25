@@ -241,7 +241,6 @@ internal struct DrawPushConstants
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants
 {
-    public float Exposure;
     public uint EncodeSrgb;
 
     /// <summary>The renderer's <see cref="Rendering.ToneCurve"/> as its number.</summary>
@@ -255,17 +254,31 @@ internal struct ToneMapPushConstants
 [StructLayout(LayoutKind.Sequential)]
 internal struct BloomPushConstants
 {
-    /// <summary><see cref="Bloom.Threshold"/>, in the light after the exposure.</summary>
+    /// <summary><see cref="Bloom.Threshold"/>, in the pre-exposed light of the HDR image.</summary>
     public float Threshold;
 
     /// <summary><see cref="Bloom.Knee"/>, a fraction of the threshold.</summary>
     public float Knee;
 
-    /// <summary>The factor from the HDR image's values to the light after the exposure, which the threshold applies to.</summary>
-    public float Exposure;
-
     /// <summary><see cref="Bloom.Levels"/>, which the prefilter divides the light by, so that the sum of the levels stays finite.</summary>
     public uint Levels;
+}
+
+/// <summary>The push constants of exposure_adapt.comp: the setting and the two approach factors of this draw, padded to 32 bytes.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 32)]
+internal struct ExposureAdaptPushConstants
+{
+    public float DarkShare;
+    public float BrightShare;
+    public float MinStops;
+    public float MaxStops;
+    public float CompensationStops;
+
+    /// <summary>f(Δt, IntoDarkSeconds): the share of the gap to the target that the exposure closes when it rises.</summary>
+    public float IntoDarkFactor;
+
+    /// <summary>f(Δt, IntoLightSeconds): the share when it falls.</summary>
+    public float IntoLightFactor;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

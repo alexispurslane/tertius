@@ -1,0 +1,72 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "meter.glsl"
+
+// The exposure's adapt step (docs/plans/auto-exposure.md, "The math"): the trimmed mean of the histogram, the target,
+// and the approach of the exposure toward it. Dispatched as one workgroup.
+
+layout(local_size_x = 256) in;
+
+layout(set = 1, binding = 0, std430) readonly buffer HistogramBlock { uint bins[HistogramBins]; };
+layout(set = 1, binding = 1, std430) buffer ExposureBlock { float exposureStops; };
+
+layout(push_constant, std430) uniform AdaptPush
+{
+    float darkShare;
+    float brightShare;
+    float minStops;
+    float maxStops;
+    float compensationStops;
+    float intoDarkFactor;     // f(dt, IntoDarkSeconds): the share of the gap that S closes when it rises
+    float intoLightFactor;    // f(dt, IntoLightSeconds): the share when it falls
+} adapt;
+
+shared uint cumulative[HistogramBins];
+shared float weighted[HistogramBins];
+shared float weights[HistogramBins];
+
+void main()
+{
+    uint i = gl_LocalInvocationIndex;
+    uint count = bins[i];
+    cumulative[i] = count;
+    barrier();
+    // An inclusive scan (Hillis and Steele): after the step with offset d, cumulative[i] sums up to 2d bins ending at i.
+    for (uint offset = 1u; offset < HistogramBins; offset <<= 1u)
+    {
+        uint before = i >= offset ? cumulative[i - offset] : 0u;
+        barrier();
+        cumulative[i] += before;
+        barrier();
+    }
+    float total = float(cumulative[HistogramBins - 1u]);
+    float low = adapt.darkShare * total;
+    float high = (1.0 - adapt.brightShare) * total;
+    float end = float(cumulative[i]);
+    float inside = max(min(end, high) - max(end - float(count), low), 0.0);
+    weighted[i] = inside * binCenterStops(i);
+    weights[i] = inside;
+    barrier();
+    // A fixed tree, so the sums round the same way on every run.
+    for (uint stride = HistogramBins / 2u; stride > 0u; stride >>= 1u)
+    {
+        if (i < stride)
+        {
+            weighted[i] += weighted[i + stride];
+            weights[i] += weights[i + stride];
+        }
+        barrier();
+    }
+    if (i == 0u)
+    {
+        float used = exposureStops;
+        float target = used;
+        if (total > 0.0)
+        {
+            float mean = weighted[0] / weights[0];
+            target = clamp(log2(MiddleGray) - (mean - used) + adapt.compensationStops, adapt.minStops, adapt.maxStops);
+        }
+        float factor = target > used ? adapt.intoDarkFactor : adapt.intoLightFactor;
+        exposureStops = used + (target - used) * factor;
+    }
+}

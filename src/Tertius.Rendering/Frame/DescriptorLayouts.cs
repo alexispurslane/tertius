@@ -7,8 +7,8 @@ namespace Tertius.Rendering;
 /// The descriptor set layouts, pipeline layouts and pools shared by all passes.
 /// <list type="table">
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
-/// frame outlines, puffs, and the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable). One per frame
-/// in flight.</description></item>
+/// frame outlines, puffs, the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable), and the exposure
+/// buffer (binding 11), which every frame's set shares. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -22,6 +22,10 @@ namespace Tertius.Rendering;
 /// linear clamp sampler (binding 2, immutable), which only the tone map with bloom reads. One, rewritten on resize.</description></item>
 /// <item><term>glow source</term><description>the image that one draw of the bloom pass reads, with the linear clamp
 /// sampler (binding 1, immutable): one for the HDR image and one per bloom level. Rewritten on resize.</description></item>
+/// <item><term>meter</term><description>the HDR image and the G-buffer distance for the exposure's meter. One, rewritten on
+/// resize.</description></item>
+/// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
+/// written once.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
@@ -45,6 +49,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
         AtlasSampler = CreateAtlasSampler();
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
+        (MeterSet, ExposureSet) = CreateExposureSetLayouts();
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -71,6 +76,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
             name: "bloom layout"
         );
+        DescriptorSetLayout* exposureSets = stackalloc[] { MeterSet, ExposureSet };
+        ExposureLayout = CreatePipelineLayout(
+            sets: exposureSets,
+            count: 2,
+            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ExposureAdaptPushConstants>()),
+            name: "exposure layout"
+        );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
@@ -82,6 +94,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The one image that a draw of the bloom pass reads, with the linear clamp sampler.</summary>
     public DescriptorSetLayout GlowSourceSet { get; }
+
+    /// <summary>Set 0 of <see cref="ExposureLayout"/>: the HDR image and the G-buffer distance, for the compute stage.</summary>
+    public DescriptorSetLayout MeterSet { get; }
+
+    /// <summary>Set 1 of <see cref="ExposureLayout"/>: the histogram and the exposure buffer, for the compute stage.</summary>
+    public DescriptorSetLayout ExposureSet { get; }
 
     /// <summary>
     /// The shadow map sampler: hardware PCF (linear filtering of GREATER_OR_EQUAL comparisons, so a receiver at least
@@ -123,6 +141,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The glow source set plus <see cref="BloomPushConstants"/>.</summary>
     public PipelineLayout BloomLayout { get; }
 
+    /// <summary>The meter set and the exposure set plus <see cref="ExposureAdaptPushConstants"/>, for both compute pipelines.</summary>
+    public PipelineLayout ExposureLayout { get; }
+
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
     public DescriptorSet AllocateGBufferSet() => Allocate(pool, GBufferSet, null);
@@ -132,6 +153,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateGlowSourceSet() => Allocate(pool, GlowSourceSet, null);
 
     public DescriptorSet AllocateAtlasSet() => Allocate(pool, AtlasSet, null);
+
+    public DescriptorSet AllocateMeterSet() => Allocate(pool, MeterSet, null);
+
+    public DescriptorSet AllocateExposureSet() => Allocate(pool, ExposureSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -307,15 +332,19 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            new(DescriptorType.StorageBuffer, 6 * frames),
+            // Seven per frame set, and the two of the exposure set.
+            new(DescriptorType.StorageBuffer, 7 * frames + 2),
             // Two per frame set (the material sampler and the immutable linear clamp sampler), the immutable samplers
             // of the G-buffer, atlas and post sets, and one per glow source set.
             new(DescriptorType.Sampler, 2 * frames + 3 + glowSourceSets),
-            new(DescriptorType.SampledImage, 17 + 2 * frames + glowSourceSets),
+            // 17 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, and
+            // two for the meter set.
+            new(DescriptorType.SampledImage, 17 + 2 * frames + glowSourceSets + 2),
         ];
+        // The frame sets, the G-buffer, post, atlas, meter and exposure sets, and the glow source sets.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: frames + 3 + glowSourceSets,
+            maxSets: frames + 5 + glowSourceSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -327,6 +356,35 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "texture descriptor pool"
         );
         return (shared, textures);
+    }
+
+    /// <summary>The layouts of the meter set and the exposure set, each with two bindings that the compute stage reads.</summary>
+    private (DescriptorSetLayout Meter, DescriptorSetLayout Exposure) CreateExposureSetLayouts()
+    {
+        Span<DescriptorSetLayoutBinding> meter =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
+        ];
+        Span<DescriptorSetLayoutBinding> exposure =
+        [
+            new(
+                binding: 0,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+            new(
+                binding: 1,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+        ];
+        return (
+            CreateLayout(bindings: meter, name: "meter set"),
+            CreateLayout(bindings: exposure, name: "exposure set")
+        );
     }
 
     private Sampler CreateShadowSampler()
@@ -391,6 +449,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 stageFlags: ShaderStageFlags.FragmentBit,
                 pImmutableSamplers: &linearClamp
             ),
+            new(binding: 11, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
         ];
         return CreateLayout(bindings: frame, name: "frame set");
     }
@@ -559,12 +618,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, PostLayout, null);
         vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
         vk.DestroyPipelineLayout(device.Device, BloomLayout, null);
+        vk.DestroyPipelineLayout(device.Device, ExposureLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, PostSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GlowSourceSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, MeterSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, ExposureSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);

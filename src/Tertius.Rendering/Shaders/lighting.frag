@@ -47,10 +47,11 @@ void main()
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     if (distanceToEye <= 0.0)
     {
-        outColor = vec4(starField(direction), 1.0);
+        outColor = vec4(preExposed(starField(direction)), 1.0);
         return;
     }
 
+    // The G-buffer pass pre-exposed the emission.
     vec4 emissiveSky = texelFetch(gbufferEmissive, pixel, 0);
     vec3 emissive = emissiveSky.rgb;
     vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
@@ -76,5 +77,5 @@ void main()
     s.lobeSkyFraction = specular.a;
     s.skyFraction = emissiveSky.a;
 
-    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true), 1.0);
+    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true, exposureScale()), 1.0);
 }

@@ -41,6 +41,12 @@ public sealed class RendererOptions
     /// </summary>
     public int ImpostorTiles { get; set; } = ImpostorAtlas.DefaultTiles;
 
+    /// <summary>
+    /// How the renderer chooses the exposure: <see cref="AutoExposure"/> follows the surfaces in view over time, and
+    /// <see cref="FixedExposure"/> never moves, for tests. The default is <see cref="AutoExposure.Default"/>.
+    /// </summary>
+    public ExposureSetting Exposure { get; set; } = AutoExposure.Default;
+
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 

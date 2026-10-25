@@ -185,13 +185,23 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         passes
             .Select(pass => pass.GetProperty("pass").GetString())
             .Should()
-            .Equal("shadow maps", "G-buffer", "lighting", "transparent", "bloom", "tone map", "outlines", "capture");
+            .Equal(
+                "shadow maps",
+                "G-buffer",
+                "lighting",
+                "transparent",
+                "exposure",
+                "bloom",
+                "tone map",
+                "outlines",
+                "capture"
+            );
         passes
             .Select(pass => pass.GetProperty("frames").GetInt32())
             .Should()
             .AllBeEquivalentTo(
-                4,
-                "the renderer reads a frame when it reuses its slot, so the last 2 frames in flight are never read"
+                5,
+                "the first frame adds a metering draw, and the renderer reads a frame when it reuses its slot, so the last 2 frames in flight are never read"
             );
         passes
             .Should()
@@ -238,6 +248,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 "GPU G-buffer",
                 "GPU lighting",
                 "GPU transparent",
+                "GPU exposure",
                 "GPU bloom",
                 "GPU tone map",
                 "GPU outlines",

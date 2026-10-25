@@ -1434,7 +1434,8 @@ public sealed class BatcherTests
             scene: Prepare(snapshot: snapshot),
             impostors: null,
             indirectDrawCalls: 0,
-            gpuTimings: null
+            gpuTimings: null,
+            exposure: null
         );
 
         stats.Puffs.Should().Be(2);

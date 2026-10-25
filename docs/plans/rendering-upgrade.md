@@ -11,7 +11,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | Ticket | Feature | Waits for | Design |
 |---|---|---|---|
 | `ter-ptft` | A PBR BRDF: GGX with metallic-roughness materials | Nothing | [pbr-brdf.md](pbr-brdf.md) |
-| `ter-zzyr` | Automatic exposure | PBR | Two designs, in the ticket |
+| `ter-zzyr` | Automatic exposure | PBR | [auto-exposure.md](auto-exposure.md) |
 | `ter-2t5o` | The Hable tone curve | PBR | Two designs, in the ticket |
 | `ter-63wr` | Bloom | PBR | Two designs, in the ticket |
 | `ter-gcm3` | Anti-aliasing with SMAA 1x | PBR | In the ticket |

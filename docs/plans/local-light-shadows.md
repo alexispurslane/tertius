@@ -73,7 +73,7 @@ The reach of a light is the distance at which its irradiance falls to the cutoff
 reach = sqrt(I / E_cut)
 ```
 
-- `E_cut` is one constant of the renderer. A white matte surface at the brightest allowed exposure turns it into 1/256 of output white. So a light below `E_cut` changes the output by less than one 8-bit step at any exposure. The lower clamp of the automatic exposure (`ter-zzyr`) sets its value.
+- `E_cut` is one constant of the renderer. A white matte surface at the brightest allowed exposure turns it into 1/256 of output white. So a light below `E_cut` changes the output by less than one 8-bit step at any exposure. The highest exposure that a frame can use sets its value: `AutoExposure.MaxStops`, or `FixedExposure.Stops` (`ter-zzyr`, [auto-exposure.md](auto-exposure.md), "The setting"). The doc once said "the lower clamp". It is the upper clamp, because +1 stop here makes the image brighter, the opposite of a photographer's EV.
 - The renderer computes the reach of each light in each rendered frame. It culls lights by the reach, and the smooth window of Karis 2013 takes the reach as its range. No second value can disagree with the power.
 - A light so far away that `d²` overflows a float, beyond about 1.8 × 10^19 m, gets an infinite `d²`. That is beyond any reach, so the renderer culls the light with no special rule.
 
@@ -140,6 +140,7 @@ The HDR target and the emissive target of the G-buffer are half floats, with a l
 - Every pass that writes the HDR image or the emissive target writes pre-exposed radiance: the radiance times the exposure of the previous rendered frame, clamped to 65,504.
 - Tone mapping then multiplies by no exposure.
 - The automatic exposure (`ter-zzyr`) owns the exposure value, and it gives the value to those passes.
+- That ticket built it. Every writer pre-exposes with the exposure that the frame before decided, which one GPU buffer holds, and the tone map multiplies by none. [auto-exposure.md](auto-exposure.md), "Pre-exposure", lists every writer.
 - Bloom (`ter-63wr`) works on the pre-exposed values.
 
 ### The shaders
@@ -174,7 +175,7 @@ Today the signature of a capture keeps the sun apart from one sum over the local
 | Shadow slot | `SceneBatcher` | Each rendered frame | `ShadowPass`, the atlas pass, `GpuLight`, the shaders |
 | Occluder ranges | `SceneBatcher` | Each rendered frame | The shaders, and `Eclipse.Visibility` in the impostor signature |
 | Cascade sets | `ShadowPass` | Each rendered frame | The lighting pass, the transparent pass, the lit puffs |
-| Exposure of the previous frame | Automatic exposure | Each rendered frame | Every pass that writes the HDR image or the emissive target |
+| Exposure of the previous frame | The exposure buffer (`ExposureResources`). Its writers are the seed in the first drawn frame and the adapt step of the exposure pass in each drawn frame. | Each rendered frame | Every pass that writes the HDR image or the emissive target (`gbuffer.frag`, `impostor.frag`, `lighting.frag`, `transparent.frag`, `puff.vert`), the adapt step, and the readback copy |
 
 ### The flow of each kind of light
 
@@ -209,5 +210,5 @@ Built from scratch around "a light is a property of an entity, in physical units
 2. Add the atlas, the shadow pass for local lights and the sampling in the lighting pass.
 3. Add demo scenes: a spot light over a box, and a point light in a room. Review them by eye in headless screenshots. The snapshot tests epic (`ter-rtxu`) comes after this epic and turns them into reference images.
 4. Measure the cost with GPU timestamps for 4, 16 and 64 shadowed lights. Report the numbers. Keep the feature switchable.
-5. Lights instead of one sun (`ter-bpvl`), after automatic exposure (`ter-zzyr`) is merged. Write its tests first: `IsFar`, the reach, the ranking of far lights, the shadow slots, the occluder lists, the interpolation of lights and the impostor signature. Then replace the special-cased sun, and move the scenes to SI units.
+5. Lights instead of one sun (`ter-bpvl`), after automatic exposure (`ter-zzyr`) is merged. Write its tests first: `IsFar`, the reach, the ranking of far lights, the shadow slots, the occluder lists, the interpolation of lights and the impostor signature. Then replace the special-cased sun, and move the scenes to SI units. The move retunes the clamp of `AutoExposure.Default`, which suits today's units, and checks the impostor atlas's precision if `MaxStops` passes +12 ([auto-exposure.md](auto-exposure.md), "The impostor atlas").
 6. Measure the cost of one, two and four far lights, with and without cascade sets. Report the numbers.
