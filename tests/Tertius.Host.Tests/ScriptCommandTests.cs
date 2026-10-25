@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Tertius.Demo;
+using Tertius.Host.Scripting;
 using Tertius.Rendering;
 using static Tertius.Host.Tests.HostTesting;
 
@@ -265,6 +266,13 @@ public sealed class ScriptCommandTests : IDisposable
         "--fps",
         "fast"
     )]
+    [InlineData("--size needs a value", "--script", "script.json", "--headless", "--out", "out", "--size")]
+    [InlineData("--size applies to a script", "--scene", "no-such-scene", "--size", "1920x1080")]
+    [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "big")]
+    [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "1920x")]
+    [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "0x1080")]
+    [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "1920x16385")]
+    [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "-5x10")]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(
         string rule,
         params string[] args
@@ -290,6 +298,18 @@ public sealed class ScriptCommandTests : IDisposable
         played
             .Should()
             .Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: false, Speed: 1));
+    }
+
+    [Fact]
+    public void TheSizeOptionCarriesTheWidthAndTheHeight()
+    {
+        ScriptCommand.Options? sized = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--size", "1920x1080"],
+            out string? problem
+        );
+
+        sized.Should().NotBeNull(problem);
+        sized!.Size.Should().Be(new ScriptWindow(1920, 1080));
     }
 
     [Fact]

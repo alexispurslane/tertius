@@ -72,6 +72,13 @@ public readonly record struct RenderStats
     /// </summary>
     public int Puffs { get; init; }
 
+    /// <summary>
+    /// The GPU time of each pass of the last frame whose GPU work finished, which is a few frames before this one, or
+    /// null before one has, or on a device that writes no timestamps. A later frame rewrites the passes in place, so a
+    /// reader copies what it keeps.
+    /// </summary>
+    public GpuTimings? GpuTimings { get; init; }
+
     /// <summary>False when the frame was skipped, for example because the swapchain was out of date.</summary>
     public bool Rendered { get; init; }
 

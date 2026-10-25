@@ -30,11 +30,35 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 ## Rules for every member
 
-- A `RendererOptions` switch for the feature, and its cost measured at 1080p.
+- A `RendererOptions` switch for the feature, and its cost measured at 1080p, as "Measuring the cost of a feature" below says.
 - Red-green TDD for the C# parts and the math that CPU tests can reach.
 - The look is reviewed by eye in headless screenshots of the demo scenes. No member adds reference images. The snapshot tests epic adds them after this epic.
 - A temporal effect stays off under the deterministic switch that the snapshot tests epic adds. Until that switch exists, the feature's own switch turns it off.
 - The last step of each member updates ARCHITECTURE.md to match the code.
+
+### Measuring the cost of a feature
+
+The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. A video keeps the run short, because the PNG encode of each frame takes far longer than its draw, and the GPU times do not depend on the target.
+
+1. In the checkout of the branch, run the script at 1080p:
+
+   ```sh
+   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video captures/gpu-branch/run.mkv
+   ```
+
+   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`.
+
+2. Make a checkout of the base, the commit of main that the branch starts from, beside the repository, and run the same script there into its own folder:
+
+   ```sh
+   git worktree add ../tertius-base "$(git merge-base main HEAD)"
+   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video "$OLDPWD/captures/gpu-base/run.mkv")
+   git worktree remove ../tertius-base
+   ```
+
+3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+
+Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 
 ## Out of scope
 
