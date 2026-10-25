@@ -47,7 +47,7 @@ void main()
     SurfaceLobes lobes = lobesOf(shading, V);
     lobes.diffuseColor *= opacity;
     // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E · c), per channel.
-    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
+    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - specularWeight(lobes)), 0.0, 1.0);
     // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that it plus a target of at most
     // MaxRadiance times T stays a finite half float: past it, a device may store infinity, which the tone curve turns
     // into NaN.

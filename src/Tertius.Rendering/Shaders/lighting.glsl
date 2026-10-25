@@ -7,8 +7,9 @@
 // The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
 // color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
 // share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
-// (docs/plans/ambient-occlusion.md, "The lighting pass"). lobesRadiance pre-exposes the sum and clamps it to the
-// largest finite half float.
+// (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient light reads it through
+// ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
+// lobesRadiance pre-exposes the sum and clamps it to the largest finite half float.
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -165,15 +166,16 @@ float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
     return attenuation;
 }
 
-// The compensated specular albedo E · c: the share of a uniform light that the specular part reflects toward the eye.
-// It weights the ambient specular term, and a pane of glass lets through what it leaves (transparent.frag).
-vec3 compensatedSpecularAlbedo(SurfaceLobes lobes)
+// W = E · c, the compensated specular albedo: the weight of the light that arrives along the specular lobe in the light
+// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the
+// reflection trace weight specular light by it, and a pane of glass lets through what it leaves (transparent.frag).
+vec3 specularWeight(SurfaceLobes lobes)
 {
     return lobes.specularAlbedo * lobes.energyCompensation;
 }
 
 // The ambient light that a surface point sends toward the eye, before ambient occlusion, in two terms: the diffuse
-// color times the incoming diffuse light, and the compensated specular albedo times the incoming specular light.
+// color times the incoming diffuse light, and the specular weight times the incoming specular light.
 struct AmbientTerms
 {
     vec3 diffuse;
@@ -187,7 +189,7 @@ AmbientTerms hemisphereAmbient(ShadingInput s, SurfaceLobes lobes)
     vec3 sky = frame.ambientSky.rgb;
     AmbientTerms terms;
     terms.diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
-    terms.specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
+    terms.specular = specularWeight(lobes) * mix(ground, sky, s.lobeSkyFraction);
     return terms;
 }
 
@@ -209,10 +211,18 @@ AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lo
     return occluded;
 }
 
-vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
+// The ambient light of a surface point in its two terms, from the ambient source and occluded
+// (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light"). ambientLight and the
+// reflection trace read the ambient light only through this function. V points from the surface to the eye.
+AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
-    AmbientTerms occluded = occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
-    return occluded.diffuse + occluded.specular;
+    return occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
+}
+
+vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
+{
+    AmbientTerms terms = ambientTerms(s, lobes, V);
+    return terms.diffuse + terms.specular;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.
@@ -253,7 +263,7 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
+    vec3 reflected = ambientLight(s, lobes, V) + sunLight(s, lobes, position, V, shadowMaps)
         + localLights(s, lobes, position, V);
     return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
 }

@@ -1,9 +1,7 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #include "frame.glsl"
-#include "gbuffer_inputs.glsl"
-#include "octahedral.glsl"
-#include "lighting.glsl"
+#include "gbuffer_surface.glsl"
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
@@ -52,11 +50,9 @@ void main()
     }
 
     // The G-buffer pass pre-exposed the emission.
-    vec4 emissiveSky = texelFetch(gbufferEmissive, pixel, 0);
-    vec3 emissive = emissiveSky.rgb;
-    vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
+    vec3 emissive = texelFetch(gbufferEmissive, pixel, 0).rgb;
     // Base color alpha 0 marks an unlit pixel: an impostor, whose lighting is baked into its emission.
-    if (baseColor.a == 0.0)
+    if (texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
     {
         outColor = vec4(emissive, 1.0);
         return;
@@ -65,18 +61,5 @@ void main()
     // The position comes from the ray and the stored distance, so it does not depend on the projection of the
     // depth range that drew the pixel.
     vec3 position = direction * distanceToEye;
-    ShadingInput s;
-    s.baseColor = baseColor.rgb;
-    vec4 normals = texelFetch(gbufferNormal, pixel, 0);
-    s.normal = octDecode(normals.rg);
-    s.geometricNormal = octDecode(normals.ba);
-    vec4 specular = texelFetch(gbufferSpecular, pixel, 0);
-    s.metallic = specular.r;
-    s.roughness = specular.g;
-    s.reflectance = specular.b;
-    s.lobeSkyFraction = specular.a;
-    s.skyFraction = emissiveSky.a;
-    s.occlusion = texelFetch(gbufferOcclusion, pixel, 0).r;
-
-    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true, exposureScale()), 1.0);
+    outColor = vec4(surfaceRadiance(surfaceAt(pixel), emissive, position, -direction, true, exposureScale()), 1.0);
 }
