@@ -100,6 +100,9 @@ internal struct GpuInstance
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
+    /// <summary>The <see cref="NormalMap"/> of a material without a normal map, which shades with its vertex normal.</summary>
+    public const uint NoMap = uint.MaxValue;
+
     public Vector4 BaseColor;
     public Vector3 Emissive;
     public float Metallic;
@@ -108,9 +111,16 @@ internal struct GpuMaterial
     public float Roughness;
     public float Reflectance;
 
-    /// <summary>Bindless indices, already resolved to the default textures.</summary>
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint BaseColorMap;
+
+    /// <summary>
+    /// Bindless index, or <see cref="NoMap"/> for a material without a normal map. No default texture stands in for
+    /// none, because no 8-bit UNORM texel decodes to +Z.
+    /// </summary>
     public uint NormalMap;
+
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint MetallicRoughnessMap;
 }
 

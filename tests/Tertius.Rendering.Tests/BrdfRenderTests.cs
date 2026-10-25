@@ -339,7 +339,7 @@ public sealed class BrdfRenderTests
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         // The sun stands 0.6 rad above the view axis, so the half vector leans θ = 0.3 rad from the normal. There D is
         // about α² / (π θ⁴), which scales with the floor's fourth power. Near the peak, the rounding of 32-bit floats
-        // and the 0.3° tilt of the flat normal map (128 of 255 is not one half) swamp D. Here they move it a few percent.
+        // swamps D. Here it moves it a few percent.
         var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
         var mirror = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
         Double3 reflected = mirror.Reflected(
@@ -437,12 +437,11 @@ public sealed class BrdfRenderTests
         }
 
         shown.Should().Be(Vector3.One, "the clamp keeps the value finite, and the tone curve turns it white");
-        // 4 of 255, not 2: the mirror's peak at the pixel lies below the C# one, which the curve's shoulder nearly hides
-        // (measured 3 of 255). The clamp before the exposure would show the cap, 32,256, times the dimming, far darker.
+        // The clamp before the exposure would show the cap, 32,256, times the dimming, far darker.
         LargestChannelDifference(dimmed, expected)
             .Should()
             .BeLessThanOrEqualTo(
-                4f / 255,
+                2f / 255,
                 "the exposure multiplies the highlight of {0} before the clamp, so it shows as {1}, not {2}",
                 reflected,
                 expected,

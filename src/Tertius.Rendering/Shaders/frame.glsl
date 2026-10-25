@@ -24,6 +24,9 @@ struct GpuInstance
     vec4 hemisphere;
 };
 
+// GpuMaterial.NoMap: the map index of a material that has no such map.
+const uint NoMap = 0xFFFFFFFFu;
+
 struct GpuMaterial
 {
     vec4 baseColor;               // linear RGB, alpha for transparent objects
@@ -32,7 +35,7 @@ struct GpuMaterial
     float roughness;              // r₀, before the floor
     float reflectance;
     uint baseColorMap;            // bindless indices, already resolved to the default textures
-    uint normalMap;
+    uint normalMap;               // NoMap: none, so the shading normal is the vertex normal
     uint metallicRoughnessMap;    // glTF layout: roughness in G, metallic in B
 };                                // std430: 52 bytes of members, a stride of 64
 
