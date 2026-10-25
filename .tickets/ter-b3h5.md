@@ -1,7 +1,7 @@
 ---
 id: ter-b3h5
-status: open
-deps: [ter-ptft]
+status: in_progress
+deps: [ter-ptft, ter-zzyr]
 links: []
 created: 2026-10-11T20:51:00Z
 type: feature
@@ -30,3 +30,7 @@ With SSAO on, creases, inner corners and the ground under objects get darker amb
 **2026-10-22T00:22:07Z**
 
 2026-10-21: the user put the snapshot tests epic (ter-rtxu) after the features that change the look. This ticket reviews its look by eye in headless screenshots, and ter-rtxu turns them into reference images later. The acceptance line about snapshot tests moves to ter-rtxu.
+
+**2026-10-25T13:13:15Z**
+
+Design decisions (user, 2026-10-25): GTAO (Jimenez 2016), the cosine-weighted visibility integral, at half resolution with an edge-aware upsample to full resolution. Compute passes, so the build waits for the compute pipelines of ter-zzyr. The reference is Intel's XeGTAO (MIT), whose download the user allowed. Shared by both offered designs and settled: it scales only the ambient light, the diffuse by the occlusion and the ambient specular by a specular occlusion derived from it (Lagarde 2014); it reads the distance target and the normals, so one pass serves all three depth ranges, and a radius of about 1 m fades out where it covers less than a pixel; fixed spatial noise and an edge-aware blur, no accumulation over frames; no multi-bounce brightening, because SSGI adds real bounced light; a union switch NoAmbientOcclusion or GroundTruthOcclusion(RadiusMeters, Slices, StepsPerSide) in RendererOptions, on by default, off in the test fixtures; GPU pixel tests (an inner corner darker than an open floor, an open floor unchanged, no dark halo beside a near silhouette); cost measured at 1080p; the default radius chosen from captures that the user sees.
