@@ -48,7 +48,7 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 
 ## Decisions
 
-The user made the decisions marked (User): decisions 1 to 11 in the ticket's note of 2026-10-25, and decisions 12 to 14 in the answers to this doc's open points on the same day. The orchestrator settled decision 15 for every setting of the epic. This design settled the others by the project's rules. Each has its reason.
+The user made the decisions marked (User): decisions 1 to 11 in the ticket's note of 2026-10-25, decisions 12 to 14 in the answers to this doc's open points on the same day, and decision 34 as a rule for the whole project. The orchestrator settled decision 15 for every setting of the epic. This design settled the others by the project's rules. Each has its reason.
 
 1. The map holds the whole scene seen from the camera: all three depth ranges, lit by the sun, and the sky. (User) Decision 13 says how the stars come in: through the reflections, not through the map's color.
 2. Each face has 128 texels on a side. (User)
@@ -85,6 +85,7 @@ Settled by this design:
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
 33. The reflection's footprint f comes from the screen derivatives of d in each fragment shader, at least p. A compute caller, such as SSR, passes its own. A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
 
@@ -299,7 +300,7 @@ Why spherical harmonics and not an irradiance cube of 16 texels:
 - The average error is about 1 % for real environments (Ramamoorthi and Hanrahan).
 - The cost is ringing around one small bright source. For light from one direction alone, band 2 gives 6 % too much toward it, a dip to −4 % at 122° from it, which the clamp holds at 0, and 6 % on the far side, where the true value is 0.
 
-The projection is one dispatch of one workgroup of 256 invocations. Invocation j sums the texels j, j + 256, j + 512 and so on of the six faces, in layer, row and column order. A tree of shared memory then sums the 256 partial sums in a fixed order, and invocation 0 writes the nine E_lm. So the irradiance is the same bits on every run on one GPU. At W = 128 each invocation reads 384 texels.
+The projection is one dispatch of one workgroup of 128 invocations, the largest workgroup that the Vulkan specification guarantees. Invocation j sums the texels j, j + 128, j + 256 and so on of the six faces, in layer, row and column order. A tree of shared memory then sums the 128 partial sums in a fixed order, and invocation 0 writes the nine E_lm. The shared memory holds 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B, so it stores each coefficient as three floats, not as a `vec4`. So the irradiance is the same bits on every run on one GPU. At W = 128 each invocation reads 768 texels.
 
 ### When they run
 
@@ -624,6 +625,28 @@ A face count of 6 makes the map draw every face from the frame that reads it, so
 | A readback buffer per frame slot | 144 B, `Readback` | 144 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
 
 The images take about 2.1 MB at W = 128 and about 134 MB at W = 1024.
+
+### Portable Vulkan
+
+The map uses only what the Vulkan specification guarantees, or what the renderer already requires, so it runs on NVIDIA, RADV, ANV and lavapipe as on MoltenVK (decision 34):
+
+| Requirement | Why every driver has it |
+|---|---|
+| `R16G16B16A16_SFLOAT` as a sampled image with linear filtering, a color attachment, a blit source and destination, and a storage image | The specification's table of mandatory format support for 16-bit formats requires all of them. The storage images declare `rgba16f` in the shader, which needs no `shaderStorageImageExtendedFormats` and no `shaderStorageImageWriteWithoutFormat`. |
+| `D32_SFLOAT` as a depth attachment | The renderer's other depth targets already use it. |
+| A cube-compatible image of 6 layers, one cube view, a 2D view of each layer and a 2D-array view of each level | Core Vulkan. One cube, no cube array, so `imageCubeArray` is not needed. Vulkan filters every cube map across its faces, with no switch. |
+| `FaceSize` up to 1024 | The specification's least `maxImageDimensionCube` is 4096. `CheckOptions` still reads the device's limit. |
+| Partially bound descriptors in the frame set | `descriptorBindingPartiallyBound`, which the bindless texture set already requires |
+| A workgroup of 128 invocations and 13,824 B of shared memory for the irradiance | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B |
+| Specialization constants, `dFdx` and `dFdy` in fragment shaders, storage buffers read in the vertex stage | Core Vulkan. Reading a storage buffer in the vertex stage needs no `vertexPipelineStoresAndAtomics`, which only writes need. |
+
+No pass of the map blends into a half-float target, so no result depends on a blend that stops at 65,504, which Metal does and other GPUs do not. No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SPIR-V leaves undefined. Instead, no step of the map makes a NaN or an infinity:
+
+- The face shader clamps `directRadiance` to 65,504 with `min`, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
+- The prefilter's first Hammersley point is (0, 0), whose half vector is n, so l = n and the weight sum is at least 1. Its division never divides by 0.
+- The reflected stars compute k(w) only where t < 1. There a ≥ 0.25, where the closed form is finite and loses under 10⁻⁵ to cancellation. Where t = 1, the shader adds M alone and never multiplies an unused k by 0.
+- The width w is at least p > 0, so a = c² / w² and the star Gaussians are finite.
+
 
 The descriptors:
 
@@ -952,7 +975,7 @@ If the atmosphere dims the stars, by its transmittance or by its own brightness,
 | Doc | Change |
 |---|---|
 | ARCHITECTURE.md, "The order of a rendered frame" | Steps 3a and 3b: the environment faces and the prefilter, with the reasons of their order. Step 2: `FacesFor` before batching, and the faces' views. |
-| ARCHITECTURE.md, a new section "The environment map", after "Shading" | The map, its faces and their axes, what a face draws and how it is lit, the cascade rule of the faces, the light list, the face order and the refresh, the prefilter and the irradiance with their sources, the open-sky share, the readers and `ambientTerms`, the reflected stars with their width, window and fade, exposure, the setting, the images, the barriers, determinism, and the costs from Part 6. |
+| ARCHITECTURE.md, a new section "The environment map", after "Shading" | The map, its faces and their axes, what a face draws and how it is lit, the cascade rule of the faces, the light list, the face order and the refresh, the prefilter and the irradiance with their sources, the open-sky share, the readers and `ambientTerms`, the reflected stars with their width, window and fade, exposure, the setting, what it requires of Vulkan, the images, the barriers, determinism, and the costs from Part 6. |
 | ARCHITECTURE.md, "Shading" | The ambient light: the ambient terms from the map or from the hemisphere, through `ambientTerms`. The hemisphere paragraphs say that they describe the light of a renderer with the map off. The frame set gains bindings 12 to 14. `starField` moves to `sky.glsl` as `starRadiance`, beside `skyRadiance` and the reflected stars, with the derivation of their width and their fade. |
 | ARCHITECTURE.md, "Shadows" | The faces' cascade rule. |
 | ARCHITECTURE.md, "Impostors" | A capture bakes the map's light, and the signature counts the irradiance reading. |
@@ -1223,7 +1246,7 @@ internal sealed class EnvironmentMap : IDisposable
 
   and `FrameContext.Environment`, the barrier states after the prefilter pass (the specular map in `SampledFragment`, the irradiance buffer in `ShaderRead`), and the frame set bindings 12 to 14 as "Images and buffers" gives them.
 - Takes: the exposure branch (`ComputePipelineDesc`, `SampledCompute`, `ComputeWrite`, the compute queue, `FrameClock`, `MeteringStepSeconds`, the draw step), Part 1, Part 2's setting, Part 3's `EnvironmentDraw`, `EnvironmentFaces` and `AmbientSource`, and Part 5's `directRadiance` and `SunShadows*` constants, which the face shader calls.
-- Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations.
+- Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The review goes through "Portable Vulkan" line by line.
 
 ### Part 5: the readers
 
@@ -1264,7 +1287,7 @@ internal sealed class EnvironmentMap : IDisposable
 
   `L` comes from `textureQueryLevels` of the specular map, so no other store holds it.
 - Takes: Part 4's `spherical_harmonics.glsl`, `sky.glsl`, `shadows.glsl` functions, bindings and `ShaderConstants`, the exposure branch's `exposure.glsl`, and the occlusion branch's `AmbientTerms`, `hemisphereAmbient` and `occludedAmbient` when it merged first ("The one source of the ambient light").
-- Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The orchestrator runs coverage of the changed lines of Parts 1 to 5.
+- Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The review goes through "Portable Vulkan" line by line. The orchestrator runs coverage of the changed lines of Parts 1 to 5.
 
 ### Part 6: the cost, the captures and the docs
 
