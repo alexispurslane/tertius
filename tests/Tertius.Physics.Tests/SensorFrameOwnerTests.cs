@@ -97,7 +97,10 @@ public sealed class SensorFrameOwnerTests
         {
             Place.Parent => (space, SensorX),
             Place.Frame => (world.GetOwnedFrame(owner), SensorX),
-            Place.Sibling => (Bubble(world: world, parent: space, x: SiblingX, radius: SiblingRadius), SensorX - SiblingX),
+            Place.Sibling => (
+                Bubble(world: world, parent: space, x: SiblingX, radius: SiblingRadius),
+                SensorX - SiblingX
+            ),
         };
         var sensorLog = new CollisionLog();
         Entity sensorEntity = world.Spawn(

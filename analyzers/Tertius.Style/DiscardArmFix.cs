@@ -72,16 +72,17 @@ public sealed class DiscardArmFix : CodeFixProvider
     /// The document with the arm at each of <paramref name="spans"/> deleted, for the arms that only throw
     /// <c>UnreachableException</c>.
     /// </summary>
-    private static async Task<Document> Deleted(Document document, IEnumerable<TextSpan> spans, CancellationToken cancel)
+    private static async Task<Document> Deleted(
+        Document document,
+        IEnumerable<TextSpan> spans,
+        CancellationToken cancel
+    )
     {
         if (await document.GetSyntaxRootAsync(cancel).ConfigureAwait(false) is not { } root)
             return document;
         List<SwitchExpressionArmSyntax> arms = [];
         foreach (TextSpan span in spans)
-            if (
-                ArmAt(root, span) is { } arm
-                && await IsDeletable(document, arm, cancel).ConfigureAwait(false)
-            )
+            if (ArmAt(root, span) is { } arm && await IsDeletable(document, arm, cancel).ConfigureAwait(false))
                 arms.Add(arm);
         // Each deletion changes the tree, so the arms are tracked through the changes that come before them.
         SyntaxNode current = root.TrackNodes(arms);
@@ -114,7 +115,10 @@ public sealed class DiscardArmFix : CodeFixProvider
     }
 
     /// <summary><paramref name="switchExpression"/> without <paramref name="arm"/>, which is one of its arms.</summary>
-    private static SwitchExpressionSyntax Without(SwitchExpressionSyntax switchExpression, SwitchExpressionArmSyntax arm)
+    private static SwitchExpressionSyntax Without(
+        SwitchExpressionSyntax switchExpression,
+        SwitchExpressionArmSyntax arm
+    )
     {
         List<SyntaxNodeOrToken> items = [.. switchExpression.Arms.GetWithSeparators()];
         int index = items.FindIndex(item => item.IsNode && item.AsNode() == arm);
@@ -125,7 +129,9 @@ public sealed class DiscardArmFix : CodeFixProvider
             SyntaxToken before = items[index - 1].AsToken();
             items.RemoveRange(index - 1, 2);
             SyntaxNode previous = items[index - 2].AsNode()!;
-            items[index - 2] = previous.WithTrailingTrivia(previous.GetTrailingTrivia().AddRange(before.TrailingTrivia));
+            items[index - 2] = previous.WithTrailingTrivia(
+                previous.GetTrailingTrivia().AddRange(before.TrailingTrivia)
+            );
         }
         else
             // The arm and the comma after it go. When the arm was last, the comma before it is the trailing comma now.

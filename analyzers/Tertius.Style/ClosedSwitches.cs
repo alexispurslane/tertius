@@ -113,7 +113,8 @@ internal sealed class ClosedSwitches
 
     /// <summary>True for an arm without a guard whose pattern, <c>_</c> or <c>var x</c>, matches every value.</summary>
     private static bool IsDiscardArm(ISwitchExpressionArmOperation arm) =>
-        arm.Guard == null && arm.Pattern is IDiscardPatternOperation or IDeclarationPatternOperation { MatchesNull: true };
+        arm.Guard == null
+        && arm.Pattern is IDiscardPatternOperation or IDeclarationPatternOperation { MatchesNull: true };
 
     /// <summary>The closed set that <paramref name="type"/> is, or null for a type that is no closed set.</summary>
     private ClosedSet? SetOf(INamedTypeSymbol type, OperationAnalysisContext context)

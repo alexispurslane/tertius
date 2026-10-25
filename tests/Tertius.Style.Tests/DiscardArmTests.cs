@@ -495,8 +495,7 @@ public sealed class DiscardArmTests
             );
 
     [Fact]
-    public async Task TheFixOffersNothingForADiscardArmThatReturnsAValue() =>
-        (
+    public async Task TheFixOffersNothingForADiscardArmThatReturnsAValue() => (
             await Fixes.DiscardArm.Offered(
                 """
                 public enum Side { Left, Right }
@@ -511,13 +510,10 @@ public sealed class DiscardArmTests
                 }
                 """
             )
-        )
-            .Should()
-            .Be(0);
+        ).Should().Be(0);
 
     [Fact]
-    public async Task TheFixOffersNothingForADiscardArmThatThrowsAnotherException() =>
-        (
+    public async Task TheFixOffersNothingForADiscardArmThatThrowsAnotherException() => (
             await Fixes.DiscardArm.Offered(
                 """
                 using System;
@@ -533,13 +529,10 @@ public sealed class DiscardArmTests
                 }
                 """
             )
-        )
-            .Should()
-            .Be(0);
+        ).Should().Be(0);
 
     [Fact]
-    public async Task TheFixOffersNothingForTheOnlyArm() =>
-        (
+    public async Task TheFixOffersNothingForTheOnlyArm() => (
             await Fixes.DiscardArm.Offered(
                 """
                 using System.Diagnostics;
@@ -554,9 +547,7 @@ public sealed class DiscardArmTests
                 }
                 """
             )
-        )
-            .Should()
-            .Be(0, "a switch expression with no arm does not compile");
+        ).Should().Be(0, "a switch expression with no arm does not compile");
 
     [Fact]
     public async Task TheFixAllDeletesEveryArmOfADocumentIncludingANestedOne() =>
