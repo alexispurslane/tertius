@@ -404,6 +404,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
             materialCount: materials.Count,
+            environment: default,
             scene: LastScene
         );
 

@@ -23,6 +23,7 @@ public sealed class OutlinePassTests
             height: 900,
             meshes: NoMeshes,
             materialCount: 1,
+            environment: default,
             scene: scene
         );
         OutlinePass.Collect(snapshot, scene);
@@ -227,6 +228,7 @@ public sealed class OutlinePassTests
             height: 900,
             meshes: NoMeshes,
             materialCount: 1,
+            environment: default,
             scene: scene
         );
         OutlinePass.Collect(shown, scene);
@@ -239,6 +241,7 @@ public sealed class OutlinePassTests
             height: 900,
             meshes: NoMeshes,
             materialCount: 1,
+            environment: default,
             scene: scene
         );
         OutlinePass.Collect(hidden, scene);

@@ -36,7 +36,7 @@ public sealed class ImpostorManagerTests
             Batcher.Processors.Add(Manager);
         }
 
-        public PreparedScene Run(RenderSnapshot snapshot)
+        public PreparedScene Run(RenderSnapshot snapshot, EnvironmentDraw environment = default)
         {
             Batcher.Prepare(
                 snapshot: snapshot,
@@ -45,6 +45,7 @@ public sealed class ImpostorManagerTests
                 height: Height,
                 meshes: Meshes,
                 materialCount: 8,
+                environment: environment,
                 scene: Scene
             );
             return Scene;
@@ -546,6 +547,128 @@ public sealed class ImpostorManagerTests
         harness.Run(Scene(Vector3.UnitX));
 
         harness.Manager.Captures.Length.Should().Be(0, "every side gets the same ambient light whichever way is up");
+    }
+
+    // The ambient part of the signature. The sun, 3 × (1, 0.96, 0.9), sends about 4.8 of light to the ball, so at 100 px
+    // a capture goes stale when the light changes by 2 / 100 of a total of about 5 to 9.
+
+    /// <summary>
+    /// A reading of a map whose irradiance holds <paramref name="band0"/> in every channel of its first coefficient and
+    /// <paramref name="band2"/> in its fifth, the first of band 2.
+    /// </summary>
+    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default)
+    {
+        var coefficients = new Vector3[Irradiance.Coefficients];
+        coefficients[0] = new(band0);
+        coefficients[4] = band2;
+        return new WithMap(
+            Faces: FaceMask.None,
+            Irradiance: new IrradianceReading(Frame: 0, Irradiance: new(coefficients))
+        );
+    }
+
+    [Fact]
+    public void AChangeOfTheMapsIrradianceMakesACaptureStale()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(EnvironmentDraw map)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(MapReading(2f)).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(MapReading(2.05f)).Should().Be(0, "0.09 of 8.3 is below 2 / h");
+        CapturesUnder(MapReading(2.4f)).Should().Be(1, "0.69 of 9 is above 2 / h");
+        CapturesUnder(MapReading(2.4f, band2: new(0.5f, 0, 0)))
+            .Should()
+            .Be(1, "every coefficient counts, and 0.5 of 9.5 is above 2 / h");
+    }
+
+    [Fact]
+    public void TheFirstReadingOfTheMapRecapturesWhatWasCapturedBeforeIt()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(EnvironmentDraw map)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        var unread = new WithMap(Faces: FaceMask.All, Irradiance: null);
+        CapturesUnder(unread).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(unread).Should().Be(0, "nothing changed");
+        CapturesUnder(MapReading(1f)).Should().Be(1, "before the first reading the map's irradiance counts as zero");
+    }
+
+    [Fact]
+    public void UnderTheMapTheHemisphereLeavesACaptureFresh()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(Vector3 sky, Vector3 up)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Ambient = new()
+            {
+                SkyColor = sky,
+                GroundColor = new(0.05f),
+                Intensity = 1,
+            };
+            snapshot.Instances.Add(Ball(entity: 1, position: position, hemisphere: HemisphereUp.Along(up)));
+            harness.Run(snapshot, MapReading(2f));
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(sky: new(0.1f), up: Vector3.UnitY).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(sky: new(3f), up: Vector3.UnitX).Should().Be(0, "the map, not the hemisphere, lights the ball");
+    }
+
+    [Fact]
+    public void UnderTheHemisphereTheSignatureIsTheColorsAndTheUp()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(Vector3 sky, Vector3 ground, HemisphereUp up)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Ambient = new()
+            {
+                SkyColor = sky,
+                GroundColor = ground,
+                Intensity = 1,
+            };
+            snapshot.Instances.Add(Ball(entity: 1, position: position, hemisphere: up));
+            harness.Run(snapshot, new WithoutMap());
+            return harness.Manager.Captures.Length;
+        }
+
+        // A center inside the ball gives it no one up, so the first steps change the colors alone.
+        var noUp = HemisphereUp.AwayFrom(new(0, -0.5f, 0));
+        Vector3 sky = new(0.09f, 0.11f, 0.15f),
+            ground = new(0.05f, 0.045f, 0.04f);
+        CapturesUnder(sky: sky, ground: ground, up: noUp).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(sky: sky * 3, ground: ground, up: noUp).Should().Be(1, "the sky changed by 0.41 of 5.5");
+        CapturesUnder(sky: sky * 3, ground: ground * 5, up: noUp).Should().Be(1, "the ground changed by 0.31 of 5.8");
+        CapturesUnder(sky: sky * 3, ground: ground * 5, up: HemisphereUp.Along(Vector3.UnitY))
+            .Should()
+            .Be(1, "an up of 0.27, the difference of the two colors, appeared: 0.27 of 5.8");
+        CapturesUnder(sky: sky * 3, ground: ground * 5, up: HemisphereUp.Along(Vector3.UnitX))
+            .Should()
+            .Be(1, "a quarter turn of the up moves the sky-lit side by 0.38 of 5.8");
+        CapturesUnder(sky: sky * 3, ground: ground * 5, up: HemisphereUp.Along(Vector3.UnitX))
+            .Should()
+            .Be(0, "nothing changed");
     }
 
     [Fact]
