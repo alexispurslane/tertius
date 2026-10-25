@@ -1,0 +1,57 @@
+#version 460
+// The occlusion upsample pass (docs/plans/ambient-occlusion.md, "The upsample"): a joint bilateral upsample of term A
+// to the full-resolution occlusion target, whose range weight is the distance from the pixel's tangent plane.
+// OcclusionUpsample in Shading/ is its C# copy. Engine glue: XeGTAO's README suggests the method but has no code for it.
+#extension GL_GOOGLE_include_directive : require
+#include "gtao.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 full = fullSize();
+    if (any(greaterThanEqual(pixel, full)))
+        return;
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    // Sky: the lighting pass reads no occlusion there.
+    if (distanceToEye == 0.0)
+    {
+        imageStore(occlusionTarget, pixel, vec4(1.0));
+        return;
+    }
+    vec3 position = distanceToEye * normalize(gtaoViewPosition(pixelScreenPosition(pixel), 1.0));
+    vec3 geometricNormal = geometricNormalAt(pixel);
+    float footprint = texelWidth(position.z);
+    ivec2 base = pixel / 2;
+    // The bilinear weights of texels base and base + 1 along each axis: an even pixel is its texel's representative.
+    vec2 weightsX = (pixel.x & 1) == 0 ? vec2(1.0, 0.0) : vec2(0.5);
+    vec2 weightsY = (pixel.y & 1) == 0 ? vec2(1.0, 0.0) : vec2(0.5);
+    float sum = 0.0;
+    float weights = 0.0;
+    float nearestOffPlane = 3.402823466e38;
+    float nearestOcclusion = 1.0;
+    for (int b = 0; b < 2; b++)
+    {
+        for (int a = 0; a < 2; a++)
+        {
+            float bilinear = weightsX[a] * weightsY[b];
+            ivec2 texel = base + ivec2(a, b);
+            // A texel beyond the edge of the half-resolution image gets no weight.
+            if (bilinear == 0.0 || !insideHalf(texel))
+                continue;
+            float offPlane = abs(dot(geometricNormal, gtaoTexelPosition(texel) - position));
+            float weight = bilinear * max(0.0, 1.0 - offPlane / footprint);
+            float term = imageLoad(occlusionTermA, texel).r;
+            sum += weight * term;
+            weights += weight;
+            if (offPlane < nearestOffPlane)
+            {
+                nearestOffPlane = offPlane;
+                nearestOcclusion = term;
+            }
+        }
+    }
+    float visibility = weights > 0.0 ? sum / weights : nearestOcclusion;
+    imageStore(occlusionTarget, pixel, vec4(clamp(visibility, 0.0, 1.0)));
+}
