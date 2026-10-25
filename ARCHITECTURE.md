@@ -21,6 +21,7 @@ These features are out of scope. Do not design for them.
 | Graphics | Vulkan 1.3 through Silk.NET 2.23.0, MoltenVK on macOS |
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
+| Anti-aliasing | The SMAA reference files of iryoku/smaa, commit `71c806a`, under the MIT license: the shader header `SMAA.hlsl` and the two tables, in `src/Tertius.Rendering/ThirdParty/Smaa` with their `LICENSE.txt` and `README.md` (see "Anti-aliasing") |
 | Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. Every test project also loads the extension in `tools/Tertius.TestRecord`, which records a passed full run for the pre-commit hook (tools/README.md, "The test record"). |
 | Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp, and write the approved reference images and the failure files of snapshot tests with StbImageWriteSharp. |
 | Video | ffmpeg 9.0.1 (`ffmpeg-headless` in the dev shell), a separate process that encodes the frames of a headless run with `--video`. `FfmpegVideoSink` finds it on the search path. The Host tests read the videos with its `ffmpeg` and `ffprobe`. |
@@ -829,16 +830,17 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
-1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading").
+1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading") and, with SMAA on, the SMAA tables (see "Anti-aliasing").
 2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
 3. The shadow maps of the sun.
 4. Impostor captures.
 5. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
 6. The lighting pass, into the HDR target.
 7. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
-8. Tone mapping: an exposure scale, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding.
-9. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
-10. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
+8. Tone mapping: an exposure scale, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding. With SMAA on, it writes the SMAA tone-mapped image, and otherwise the output.
+9. Anti-aliasing, with SMAA on: edge detection, blending weights and neighborhood blending, three full-screen passes that write the output (see "Anti-aliasing" below).
+10. The overlay: the frame outlines of the snapshot, blended over the anti-aliased image (see "The overlay pass" below).
+11. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
 
 ### Tone mapping
 
@@ -858,6 +860,34 @@ A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors
 - An `IInstanceProcessor`, which gets the culled instances before batching.
 
 A capture is a one-shot request. `IRenderer.CaptureNextFrame(sink)` takes an `ICaptureSink`, and any thread can call it. The next `Render` call that draws a frame waits for that frame on the GPU. Then it calls the sink's `Take` with a `CapturedImage`, on the thread that called `Render`, before it returns. The image holds width × height × 4 bytes, rows from the top, each pixel red, green, blue with sRGB encoding, then a fourth byte with no defined value. The bytes are in the renderer's readback buffer, so they are valid only during the call. A BGRA output, such as a window swapchain, swaps red and blue in place in that buffer first, so every sink gets one pixel order. A window whose swapchain images do not allow transfer reads, or whose surface offers none of the four 8-bit RGBA and BGRA formats, refuses a capture: `CaptureNextFrame` throws `NotSupportedException`. A frame that the output skips, such as one of a minimized window, keeps the request for the next frame that draws. The renderer knows nothing about files. `PngCaptureSink`, in Rendering, copies the pixels, makes every pixel opaque, and writes a PNG file before `Take` returns. `FfmpegVideoSink`, in Host, writes the pixels straight into the input of an ffmpeg process as the next frame of a video (see "Host and scripted runs").
+
+### Anti-aliasing
+
+`RendererOptions.AntiAliasing` chooses `None` or `Smaa`, an enum with no data per case, as `ToneCurve` is. The default is `Smaa`: SMAA 1x, subpixel morphological anti-aliasing with one sample per pixel, chosen by the user over FXAA on the condition that it stays cheap. The design and its decisions are in `docs/plans/anti-aliasing.md`.
+
+SMAA runs after the tone map and before the overlay, as the three passes of the stage `AntiAliasing` of the `FrameGraph`, one `SmaaPass` for each `SmaaStep`. The GPU timer times each under its own name: `SMAA edges`, `SMAA weights` and `SMAA blending`.
+
+1. Edge detection (`Shaders/smaa_edges.*`) compares the Rec. 709 luma of each pixel with its left and top neighbors and writes an edge image. It reads display-encoded values, as the reference requires.
+2. The blending-weight pass (`Shaders/smaa_weights.*`) follows each edge in the edge image, reads the area table and the search table, and writes a weight image. SMAA 1x passes zero subsample indices.
+3. Neighborhood blending (`Shaders/smaa_blending.*`) mixes each pixel with the neighbor that its weights name, through bilinear filtering, and writes the output. It reads linear values, so it blends linear light. On an output that stores linear values, the shader applies the sRGB curve, as the tone map does.
+
+The stage files are thin GLSL 4.60 files around the unchanged reference header, which `Shaders/smaa.glsl` includes with `SMAA_GLSL_4`, `SMAA_PRESET_HIGH` and `SMAA_RT_METRICS` from a push constant. The high preset is fixed: a threshold of 0.1, 16 search steps, 8 diagonal search steps and corner rounding of 25 %. The edge detection uses luma and no predication.
+
+`SmaaTargets`, which `RenderTargets` owns when SMAA is on, holds the screen-sized images, and `RenderTargets.Resize` makes them again at the new size:
+
+| Image | Format | Use |
+|---|---|---|
+| tone-mapped | R8G8B8A8_SRGB, mutable format | The tone map writes it through its sRGB view. The edge pass reads it through a second, R8G8B8A8_UNORM view, which gives the stored display-encoded values. The blending pass reads it through the sRGB view, which gives linear values. |
+| edges | R8G8_UNORM | An edge on the left side of the pixel in r, on the top side in g. |
+| weights | R8G8B8A8_UNORM | The blending weights of the pixel's four sides. |
+
+The edge and weight passes clear their image to zero first, because their shaders write only the pixels with an edge. The three images take 10 bytes per output pixel: about 21 MB at 1920 × 1080 and 83 MB at 3840 × 2160. `SmaaTables` uploads the two tables from the embedded reference files in the first frame, as `BrdfTableImages` does: the area table, R8G8_UNORM, 160 × 560 texels, and the search table, R8_UNORM, 64 × 16 texels, each in memory order, top row first, as Vulkan's top-left texture origin reads them.
+
+The SMAA descriptor set holds six combined image samplers with immutable samplers. The edge pass reads its color with point sampling, where the header's `SMAASamplePoint` asks for it. Every other input uses the linear, clamp-to-edge `TableSampler`. With SMAA off, the tone map writes the output, and the graph holds no SMAA pass, image or table.
+
+At 1920 × 1080 on the development Mac, the three passes take about 0.29 ms per frame together, and the tone map pass takes 0.035 ms less when it writes the SMAA image than when it writes the output. At 3840 × 2160 they take about 0.91 ms (`scripts/demo-exit.json`, 2026-10-25, `docs/plans/anti-aliasing.md`, "Measured cost").
+
+The test fixtures turn SMAA off, because the deterministic switch of the snapshot tests does not exist yet, so the pixel tests keep their values. `AntiAliasingTests` check SMAA on the GPU with a hard diagonal edge and no reference image.
 
 ### GPU timings
 
@@ -1046,7 +1076,7 @@ The demo's scene `puff-yard` (`src/Tertius.Demo/DemoScenes.Puffs.cs`) and its sc
 
 ### The overlay pass
 
-The overlay pass, `OutlinePass`, draws the frame outlines of the snapshot. It is the one pass of the stage `Overlay` of the `FrameGraph`, after tone mapping and before the readback. The renderer always builds it. With no outline in the snapshot, it writes no record and records no command.
+The overlay pass, `OutlinePass`, draws the frame outlines of the snapshot. It is the one pass of the stage `Overlay` of the `FrameGraph`, after tone mapping and anti-aliasing and before the readback, so SMAA never blends the outlines. The renderer always builds it. With no outline in the snapshot, it writes no record and records no command.
 
 On the CPU, in its `Prepare`, the pass switches on the case of each `FrameOutline`, as `SceneBatcher` does for each `RenderLight`. It writes one `GpuOutline` of 48 bytes for the case: the center relative to the interpolated eye, the rotation, the radii, the color of the kind of frame, and a flag for a sphere. A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame. The pass leaves out an outline whose outline sphere has a radius of 0 or less, or is outside the view frustum. The frustum starts at the near plane, 5 cm ahead, so an outline round the camera stays, unless all of it ahead of the eye is nearer than that. The records keep the order of the snapshot. They go into a storage buffer of the frame set, which grows on demand, as the instance buffer does.
 
@@ -1263,6 +1293,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `Impostors` | On | Draws small objects as impostors. |
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
 | `ToneCurve` | `AcesFitted` | The curve of the tone map pass: ACES fitted or Hable's (see "Tone mapping"). |
+| `AntiAliasing` | `Smaa` | SMAA 1x after the tone map, or `None`. SMAA takes 10 bytes per output pixel and three full-screen passes (see "Anti-aliasing"). |
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
 
@@ -1309,7 +1340,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 
 | Run | Command line | What it does |
 |---|---|---|
-| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
+| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--anti-aliasing off\|smaa]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
 | Script in the window | `--script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]` | The same script in a window. The simulation thread paces the ticks by the wall clock, times the speed factor. |
 | Free play | `--scene <name> [--speed <factor>] [--record <file>]` | The scene in a window, until the window closes. With `--record`, the host writes the session to the file as a script that replays it. |
 
@@ -1321,6 +1352,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A `capture` step renders the current state at the size of the window of the script, and gives the image to the run's capture target by the name of the step.
 - `--size <width>x<height>`, such as `--size 1920x1080`, replaces the size of the script's window in either run of a script, so any script can render at the size of a measurement. Each side is a whole number from 1 to 16,384. The command refuses `--size` in free play.
 - `--tone-curve aces|hable` sets `RendererOptions.ToneCurve` of the headless renderer, so a headless run can capture either curve. Without it the renderer keeps its default. The command refuses it without `--headless`.
+- `--anti-aliasing off|smaa` sets `RendererOptions.AntiAliasing` of the headless renderer, so a headless run can capture with and without SMAA. Without it the renderer keeps its default, SMAA. The command refuses it without `--headless`.
 - A headless run whose renderer times its passes (see "GPU timings") collects `RenderStats.GpuTimings` after each capture, once per finished frame, and writes `gpu-timings.json` into the output folder after its last step (`ScriptCommand.WriteGpuTimings`). The file names the device and the size of the frames, and gives for each pass the frames that timed it and the mean, median and 95th percentile (by nearest rank) of its times in milliseconds. The command then writes the file's path and one line for each pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`. A headless run never turns on the validation layers, so its times are those of the renderer alone.
 - A run has one capture target for its whole life. `CaptureTarget` is a built-in C# 15 union with two cases, built as `ScriptStep` is, and the headless playback refuses its default value. `PngFolder` writes the capture named `name` into `<folder>/<name>.png` (`PngFolder.PathOf`). `VideoFile` makes each capture the next frame of one video, in the order taken, and drops the names. The playback holds the target, and the runner gives it only the name of each capture (`IPlayback.Capture(world, name)`). So the runner builds no paths, and `RunResult.Captures` lists the names, in the order taken. A capture needs a live camera and a playback before the first tick. It needs no check for its folder, because a `PngFolder` cannot exist without one. The command writes the path of each dump, then the path of each PNG file, or the path of the video.
 - A `film` step, `{ "do": "film", "name": "climb", "frames": 18000, "every": 2 }`, captures every Nth tick. It is defined as its expansion: `frames` repetitions of a `run` step of `every` ticks followed by a `capture`. So it runs frames × every ticks, its first capture comes after its first `every` ticks, and two films in a row with the same `every` give evenly spaced frames. Frame k, counted from 0, is the capture `<name>-<k>` with k in six digits (`FilmStep.FrameName`), such as `climb-000000`, which fits ffmpeg's `%06d` pattern. The runner's arm for it calls the same code as the arms of `run` and `capture`, so its images are byte-identical to those of its expansion.
@@ -1333,7 +1365,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A `post` step reads its payload into the fields of the payload type by their camelCase names. `InputEvent` is the exception, because it is a union: it has its own JSON form, in scripts, in recordings and in dumps. A key or a mouse button is `{"kind":"keyDown","code":87}`, and a move or a scroll is `{"kind":"mouseMove","delta":[3,-4]}`. The kinds are `keyDown`, `keyUp`, `mouseDown`, `mouseUp`, `mouseMove` and `scroll`. Reading refuses a kind that is missing or unknown, a member that its kind needs and lacks, and a member that its kind does not have (`delta` on a key, `code` on a move). The one exception is that member with its zero value (`"delta":[0, 0]` on a key, `"code":0` on a move), which reading ignores: the recorder wrote it into every input post before `InputEvent` was a union, so recordings from then still play. A delta reads and writes in the form of every other vector of a script or a dump, because the converter of `InputEvent` and the vector converters of the host call the same methods (`JsonVectors`).
 - During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard.
 - In free play, the main thread decides where each input event goes (`InputRouter`). Esc closes the window, F1 switches the debug fly camera on and off, and V makes the next view of the scene the camera. The game sees none of these keys. The window host queues every other event. The simulation thread posts the queued events to the `input` topic before its next tick. So each event joins a known tick, and a recording replays it exactly.
-- The command returns an exit code (`ScriptCommand`). 0 is success, 1 a wrong command line, 2 a file problem, 3 a script problem and 4 a bug. 5 (`ToolError`) means that a tool that the run needs cannot start: the renderer, the window or ffmpeg. The command refuses, with code 1, `--size` without `--script` or with a side outside 1 to 16,384, `--video` without `--headless`, `--fps` without `--video` or outside 1 to 240, a `--video` file whose name does not end in `.mkv`, `--video` for a script with no capture or film step, and `--tone-curve` without `--headless` or with a name other than `aces` or `hable`.
+- The command returns an exit code (`ScriptCommand`). 0 is success, 1 a wrong command line, 2 a file problem, 3 a script problem and 4 a bug. 5 (`ToolError`) means that a tool that the run needs cannot start: the renderer, the window or ffmpeg. The command refuses, with code 1, `--size` without `--script` or with a side outside 1 to 16,384, `--video` without `--headless`, `--fps` without `--video` or outside 1 to 240, a `--video` file whose name does not end in `.mkv`, `--video` for a script with no capture or film step, `--tone-curve` without `--headless` or with a name other than `aces` or `hable`, and `--anti-aliasing` without `--headless` or with a name other than `off` or `smaa`.
 
 ## Rules for references
 

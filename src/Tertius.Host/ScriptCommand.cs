@@ -21,6 +21,8 @@ namespace Tertius.Host;
 /// in either run.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
+/// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
+/// option.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -56,7 +58,7 @@ public static class ScriptCommand
     public const string GpuTimingsFile = "gpu-timings.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -76,6 +78,7 @@ public static class ScriptCommand
         "--fps",
         "--size",
         "--tone-curve",
+        "--anti-aliasing",
     ];
 
     /// <summary>
@@ -289,6 +292,8 @@ public static class ScriptCommand
         };
         if (options.ToneCurve is { } curve)
             rendererOptions.ToneCurve = curve;
+        if (options.AntiAliasing is { } antiAliasing)
+            rendererOptions.AntiAliasing = antiAliasing;
         try
         {
             return createRenderer(rendererOptions);
@@ -420,6 +425,7 @@ public static class ScriptCommand
     /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -429,7 +435,8 @@ public static class ScriptCommand
         string? Record = null,
         VideoFile? Video = null,
         ScriptWindow? Size = null,
-        ToneCurve? ToneCurve = null
+        ToneCurve? ToneCurve = null,
+        AntiAliasing? AntiAliasing = null
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -452,7 +459,8 @@ public static class ScriptCommand
                 ? null
                 : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
             Size: SizeOf(given.Value("--size")),
-            ToneCurve: ToneCurveOf(given.Value("--tone-curve"))
+            ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
+            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing"))
         );
     }
 
@@ -513,7 +521,11 @@ public static class ScriptCommand
 
     /// <summary>The problem with the value of an option, or with an option that another option needs, or null.</summary>
     private static string? ValueProblem(GivenOptions given) =>
-        SpeedProblem(given) ?? VideoProblem(given) ?? SizeProblem(given) ?? ToneCurveProblem(given);
+        SpeedProblem(given)
+        ?? VideoProblem(given)
+        ?? SizeProblem(given)
+        ?? ToneCurveProblem(given)
+        ?? AntiAliasingProblem(given);
 
     private static string? SpeedProblem(GivenOptions given)
     {
@@ -563,6 +575,17 @@ public static class ScriptCommand
         return null;
     }
 
+    private static string? AntiAliasingProblem(GivenOptions given)
+    {
+        if (given.Value("--anti-aliasing") is not { } antiAliasing)
+            return null;
+        if (!given.Headless)
+            return "--anti-aliasing applies to a headless run, so add --headless.";
+        if (AntiAliasingOf(antiAliasing) is null)
+            return $"--anti-aliasing needs off or smaa, not '{antiAliasing}'.";
+        return null;
+    }
+
     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
     private static double? SpeedOf(string? text)
     {
@@ -593,6 +616,15 @@ public static class ScriptCommand
         {
             "aces" => ToneCurve.AcesFitted,
             "hable" => ToneCurve.Hable,
+            _ => null,
+        };
+
+    /// <summary>The anti-aliasing that the text names, or null for no text or a name that is not off or smaa.</summary>
+    private static AntiAliasing? AntiAliasingOf(string? text) =>
+        text switch
+        {
+            "off" => AntiAliasing.None,
+            "smaa" => AntiAliasing.Smaa,
             _ => null,
         };
 

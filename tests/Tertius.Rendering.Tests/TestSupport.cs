@@ -40,14 +40,16 @@ internal static class Gpu
 
     /// <summary>
     /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow
-    /// tests see every object as geometry; the impostor tests turn them on with a small atlas.
+    /// tests see every object as geometry; the impostor tests turn them on with a small atlas. Anti-aliasing is off unless
+    /// asked for, so that the pixel tests keep their values (docs/plans/anti-aliasing.md, "Decisions").
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
         int height = 360,
         int framesInFlight = 2,
         bool impostors = false,
-        int impostorTiles = 16
+        int impostorTiles = 16,
+        AntiAliasing antiAliasing = AntiAliasing.None
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -58,6 +60,7 @@ internal static class Gpu
                 FramesInFlight = framesInFlight,
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
+                AntiAliasing = antiAliasing,
             }
         );
 

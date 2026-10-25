@@ -15,6 +15,7 @@ public sealed class HeadlessTargetTests
                 Width = 64,
                 Height = 32,
                 Impostors = false,
+                AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

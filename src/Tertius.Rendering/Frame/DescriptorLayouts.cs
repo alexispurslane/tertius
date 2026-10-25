@@ -19,12 +19,19 @@ namespace Tertius.Rendering;
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping. One, rewritten on resize.</description></item>
+/// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
+/// is on, its screen-sized images rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
+    /// <summary>The bindings of <see cref="SmaaSet"/>.</summary>
+    private const uint SmaaBindings = 6;
+
+    private const ShaderStageFlags GraphicsStages = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
+
     private readonly VulkanDevice device;
     private readonly DescriptorPool pool;
     private readonly DescriptorPool texturePool;
@@ -32,87 +39,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorLayouts(VulkanDevice device, int framesInFlight)
     {
         this.device = device;
-        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-
-        TableSampler = CreateTableSampler();
-        FrameSet = CreateFrameSetLayout(TableSampler);
-
-        // Textures live in their own set because only update-after-bind layouts may hold more than
-        // maxPerStageDescriptorSampledImages (256 on MoltenVK) descriptors.
-        Span<DescriptorSetLayoutBinding> textures =
-        [
-            new(
-                binding: 0,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: TextureStore.Capacity,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-        ];
-        DescriptorBindingFlags textureFlags =
-            DescriptorBindingFlags.PartiallyBoundBit
-            | DescriptorBindingFlags.VariableDescriptorCountBit
-            | DescriptorBindingFlags.UpdateAfterBindBit;
-        var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
-        {
-            SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
-            BindingCount = 1,
-            PBindingFlags = &textureFlags,
-        };
-        TextureSet = CreateLayout(
-            bindings: textures,
-            name: "texture set",
-            next: &bindingFlags,
-            flags: DescriptorSetLayoutCreateFlags.UpdateAfterBindPoolBit
-        );
-
+        TableSampler = CreateLevelZeroSampler(Filter.Linear, "table sampler");
+        PointSampler = CreateLevelZeroSampler(Filter.Nearest, "point sampler");
         ShadowSampler = CreateShadowSampler();
-        // The comparison sampler is immutable: portability implementations may not allow updating comparison
-        // sampler descriptors (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
-        Sampler shadowSampler = ShadowSampler;
-        Span<DescriptorSetLayoutBinding> gbuffer =
-        [
-            new(
-                binding: 0,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 1,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 2,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 3,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 4,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
-            new(binding: 5, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: graphics),
-            new(
-                binding: 6,
-                descriptorType: DescriptorType.Sampler,
-                descriptorCount: 1,
-                stageFlags: graphics,
-                pImmutableSamplers: &shadowSampler
-            ),
-        ];
-        GBufferSet = CreateLayout(bindings: gbuffer, name: "g-buffer set");
-
+        AtlasSampler = CreateAtlasSampler();
+        FrameSet = CreateFrameSetLayout(TableSampler);
+        TextureSet = CreateTextureSetLayout();
+        GBufferSet = CreateGBufferSetLayout();
         Span<DescriptorSetLayoutBinding> post =
         [
             new(
@@ -123,34 +56,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ),
         ];
         PostSet = CreateLayout(bindings: post, name: "post set");
+        AtlasSet = CreateAtlasSetLayout();
+        SmaaSet = CreateSmaaSetLayout();
 
-        AtlasSampler = CreateAtlasSampler();
-        Sampler atlasSampler = AtlasSampler;
-        Span<DescriptorSetLayoutBinding> atlas =
-        [
-            new(
-                binding: 0,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 1,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit
-            ),
-            new(
-                binding: 2,
-                descriptorType: DescriptorType.Sampler,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit,
-                pImmutableSamplers: &atlasSampler
-            ),
-        ];
-        AtlasSet = CreateLayout(bindings: atlas, name: "impostor atlas set");
-
-        var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+        var drawPush = new PushConstantRange(GraphicsStages, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
         DescriptorSetLayout* sceneSets = stackalloc[] { FrameSet, TextureSet, GBufferSet, AtlasSet };
         SceneLayout = CreatePipelineLayout(sets: sceneSets, count: 3, push: drawPush, name: "scene layout");
         ImpostorLayout = CreatePipelineLayout(sets: sceneSets, count: 4, push: drawPush, name: "impostor layout");
@@ -168,24 +77,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "post layout"
         );
 
-        uint frames = (uint)framesInFlight;
-        Span<DescriptorPoolSize> sizes =
-        [
-            new(DescriptorType.UniformBuffer, frames),
-            new(DescriptorType.StorageBuffer, 6 * frames),
-            // Two per frame set (the material sampler and the immutable table sampler), and the immutable samplers of
-            // the G-buffer and atlas sets.
-            new(DescriptorType.Sampler, 2 * frames + 2),
-            new(DescriptorType.SampledImage, 16 + 2 * frames),
-        ];
-        pool = CreatePool(sizes: sizes, maxSets: frames + 3, flags: 0, name: "descriptor pool");
-        Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * TextureStore.Capacity)];
-        texturePool = CreatePool(
-            sizes: textureSizes,
-            maxSets: frames,
-            flags: DescriptorPoolCreateFlags.UpdateAfterBindBit,
-            name: "texture descriptor pool"
+        DescriptorSetLayout* smaaSets = stackalloc[] { SmaaSet };
+        SmaaLayout = CreatePipelineLayout(
+            sets: smaaSets,
+            count: 1,
+            push: new(GraphicsStages, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
+            name: "smaa layout"
         );
+
+        (pool, texturePool) = CreatePools(framesInFlight);
     }
 
     public DescriptorSetLayout FrameSet { get; }
@@ -199,8 +99,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public Sampler ShadowSampler { get; }
 
-    /// <summary>Linear filtering, clamped to the edge, one level and no anisotropy, for the BRDF tables.</summary>
+    /// <summary>
+    /// Linear filtering, clamped to the edge, one level and no anisotropy, for the BRDF tables and every SMAA input but
+    /// the edge pass's color.
+    /// </summary>
     public Sampler TableSampler { get; }
+
+    /// <summary>Point sampling, clamped to the edge, one level, for the color that the SMAA edge pass reads.</summary>
+    public Sampler PointSampler { get; }
+
+    /// <summary>
+    /// The inputs of the SMAA passes, combined image samplers for the fragment stage: 0 the tone-mapped image as sRGB-encoded
+    /// values (point), 1 the edges, 2 the area table, 3 the search table, 4 the tone-mapped image as linear values, 5 the
+    /// weights.
+    /// </summary>
+    public DescriptorSetLayout SmaaSet { get; }
+
+    /// <summary>The SMAA set plus <see cref="SmaaPushConstants"/> for the vertex and fragment stages.</summary>
+    public PipelineLayout SmaaLayout { get; }
 
     /// <summary>The impostor atlas: color and depth offset (2D arrays) and <see cref="AtlasSampler"/>.</summary>
     public DescriptorSetLayout AtlasSet { get; }
@@ -234,6 +150,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocatePostSet() => Allocate(pool, PostSet, null);
 
     public DescriptorSet AllocateAtlasSet() => Allocate(pool, AtlasSet, null);
+
+    public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -312,6 +230,169 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
+    /// <summary>Writes the view of a combined image sampler whose sampler is immutable, read in <see cref="ImageLayout.ShaderReadOnlyOptimal"/>.</summary>
+    public void WriteSampledView(DescriptorSet set, uint binding, ImageView view)
+    {
+        var info = new DescriptorImageInfo(default, view, ImageLayout.ShaderReadOnlyOptimal);
+        var write = new WriteDescriptorSet
+        {
+            SType = StructureType.WriteDescriptorSet,
+            DstSet = set,
+            DstBinding = binding,
+            DescriptorCount = 1,
+            DescriptorType = DescriptorType.CombinedImageSampler,
+            PImageInfo = &info,
+        };
+        device.Vk.UpdateDescriptorSets(
+            device: device.Device,
+            descriptorWriteCount: 1,
+            pDescriptorWrites: &write,
+            descriptorCopyCount: 0,
+            pDescriptorCopies: null
+        );
+    }
+
+    private DescriptorSetLayout CreateTextureSetLayout()
+    {
+        // Textures live in their own set because only update-after-bind layouts may hold more than
+        // maxPerStageDescriptorSampledImages (256 on MoltenVK) descriptors.
+        Span<DescriptorSetLayoutBinding> textures =
+        [
+            new(
+                binding: 0,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: TextureStore.Capacity,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+        ];
+        DescriptorBindingFlags textureFlags =
+            DescriptorBindingFlags.PartiallyBoundBit
+            | DescriptorBindingFlags.VariableDescriptorCountBit
+            | DescriptorBindingFlags.UpdateAfterBindBit;
+        var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
+        {
+            SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
+            BindingCount = 1,
+            PBindingFlags = &textureFlags,
+        };
+        return CreateLayout(
+            bindings: textures,
+            name: "texture set",
+            next: &bindingFlags,
+            flags: DescriptorSetLayoutCreateFlags.UpdateAfterBindPoolBit
+        );
+    }
+
+    /// <summary>The layout of set 2, whose binding 6 holds <see cref="ShadowSampler"/> as its immutable sampler.</summary>
+    private DescriptorSetLayout CreateGBufferSetLayout()
+    {
+        // The comparison sampler is immutable: portability implementations may not allow updating comparison
+        // sampler descriptors (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
+        Sampler shadowSampler = ShadowSampler;
+        Span<DescriptorSetLayoutBinding> gbuffer =
+        [
+            new(
+                binding: 0,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 1,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 2,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 3,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 4,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
+            new(
+                binding: 5,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: GraphicsStages
+            ),
+            new(
+                binding: 6,
+                descriptorType: DescriptorType.Sampler,
+                descriptorCount: 1,
+                stageFlags: GraphicsStages,
+                pImmutableSamplers: &shadowSampler
+            ),
+        ];
+        return CreateLayout(bindings: gbuffer, name: "g-buffer set");
+    }
+
+    /// <summary>The layout of set 3, whose binding 2 holds <see cref="AtlasSampler"/> as its immutable sampler.</summary>
+    private DescriptorSetLayout CreateAtlasSetLayout()
+    {
+        Sampler atlasSampler = AtlasSampler;
+        Span<DescriptorSetLayoutBinding> atlas =
+        [
+            new(
+                binding: 0,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 1,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 2,
+                descriptorType: DescriptorType.Sampler,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit,
+                pImmutableSamplers: &atlasSampler
+            ),
+        ];
+        return CreateLayout(bindings: atlas, name: "impostor atlas set");
+    }
+
+    /// <summary>The pool of every set but the textures, and the update-after-bind pool of the texture sets.</summary>
+    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(int framesInFlight)
+    {
+        uint frames = (uint)framesInFlight;
+        Span<DescriptorPoolSize> sizes =
+        [
+            new(DescriptorType.UniformBuffer, frames),
+            new(DescriptorType.StorageBuffer, 6 * frames),
+            // Two per frame set (the material sampler and the immutable table sampler), and the immutable samplers of
+            // the G-buffer and atlas sets.
+            new(DescriptorType.Sampler, 2 * frames + 2),
+            new(DescriptorType.SampledImage, 16 + 2 * frames),
+            new(DescriptorType.CombinedImageSampler, SmaaBindings),
+        ];
+        DescriptorPool shared = CreatePool(sizes: sizes, maxSets: frames + 4, flags: 0, name: "descriptor pool");
+        Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * TextureStore.Capacity)];
+        DescriptorPool forTextures = CreatePool(
+            sizes: textureSizes,
+            maxSets: frames,
+            flags: DescriptorPoolCreateFlags.UpdateAfterBindBit,
+            name: "texture descriptor pool"
+        );
+        return (shared, forTextures);
+    }
+
     private Sampler CreateShadowSampler()
     {
         var info = new SamplerCreateInfo
@@ -378,13 +459,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: frame, name: "frame set");
     }
 
-    private Sampler CreateTableSampler()
+    /// <summary>A sampler of level 0 only, clamped to the edge, with no anisotropy.</summary>
+    private Sampler CreateLevelZeroSampler(Filter filter, string name)
     {
         var info = new SamplerCreateInfo
         {
             SType = StructureType.SamplerCreateInfo,
-            MagFilter = Filter.Linear,
-            MinFilter = Filter.Linear,
+            MagFilter = filter,
+            MinFilter = filter,
             MipmapMode = SamplerMipmapMode.Nearest,
             AddressModeU = SamplerAddressMode.ClampToEdge,
             AddressModeV = SamplerAddressMode.ClampToEdge,
@@ -400,8 +482,31 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 pSampler: out Sampler sampler
             )
             .Check("vkCreateSampler");
-        device.SetName(ObjectType.Sampler, sampler.Handle, "brdf table sampler");
+        device.SetName(ObjectType.Sampler, sampler.Handle, name);
         return sampler;
+    }
+
+    /// <summary>
+    /// The layout of the SMAA set (<see cref="SmaaSet"/>). Every binding has an immutable sampler: point for binding 0, as
+    /// the header's SMAASamplePoint asks, and linear for the others.
+    /// </summary>
+    private DescriptorSetLayout CreateSmaaSetLayout()
+    {
+        Sampler* samplers = stackalloc Sampler[(int)SmaaBindings];
+        Span<DescriptorSetLayoutBinding> bindings = stackalloc DescriptorSetLayoutBinding[(int)SmaaBindings];
+        for (uint binding = 0; binding < SmaaBindings; binding++)
+        {
+            samplers[binding] = binding == 0 ? PointSampler : TableSampler;
+            bindings[(int)binding] = new(
+                binding: binding,
+                descriptorType: DescriptorType.CombinedImageSampler,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit,
+                pImmutableSamplers: &samplers[binding]
+            );
+        }
+
+        return CreateLayout(bindings: bindings, name: "smaa set");
     }
 
     private Sampler CreateAtlasSampler()
@@ -541,13 +646,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, ImpostorLayout, null);
         vk.DestroyPipelineLayout(device.Device, PostLayout, null);
         vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
+        vk.DestroyPipelineLayout(device.Device, SmaaLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, PostSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, SmaaSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, TableSampler, null);
+        vk.DestroySampler(device.Device, PointSampler, null);
     }
 }

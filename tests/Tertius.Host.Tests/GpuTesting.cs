@@ -84,6 +84,7 @@ public static class GpuTesting
                 Width = width,
                 Height = height,
                 Impostors = false,
+                AntiAliasing = AntiAliasing.None,
             }
         );
 

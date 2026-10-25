@@ -24,6 +24,7 @@ public sealed class CaptureSinkTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) =>
                 made = new(device: device, allocator: allocator, extent: extent, bgra: bgra) { CanCapture = canCapture }

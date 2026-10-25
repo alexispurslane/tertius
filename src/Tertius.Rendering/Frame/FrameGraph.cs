@@ -50,6 +50,50 @@ internal sealed class FrameContext
         );
     }
 
+    /// <summary>
+    /// Begins rendering into <paramref name="target"/> alone, which a clear sets to zero, binds a full-screen
+    /// <paramref name="pipeline"/> with its one descriptor set, and sets the full viewport.
+    /// </summary>
+    public unsafe void BeginFullScreen(
+        GpuImage target,
+        AttachmentLoadOp loadOp,
+        Pipeline pipeline,
+        PipelineLayout layout,
+        DescriptorSet set
+    )
+    {
+        var color = new RenderingAttachmentInfo
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = target.View,
+            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+            LoadOp = loadOp,
+            StoreOp = AttachmentStoreOp.Store,
+            ClearValue = default,
+        };
+        var rendering = new RenderingInfo
+        {
+            SType = StructureType.RenderingInfo,
+            RenderArea = new(new Offset2D(0, 0), target.Extent),
+            LayerCount = 1,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &color,
+        };
+        Vk.CmdBeginRendering(CommandBuffer, &rendering);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        SetFullViewport();
+    }
+
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
     public unsafe void SetFullViewport()
     {
@@ -103,7 +147,8 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the overlay included (<see cref="OutlinePass"/>). Draws
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, SMAA (<see cref="SmaaPass"/>, when it is on) and the
+/// overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -121,6 +166,12 @@ internal sealed class FrameGraph : IDisposable
         Lighting,
         Transparent,
         ToneMap,
+
+        /// <summary>
+        /// The three SMAA passes, when SMAA is on. They follow the tone map, because SMAA finds edges in the display-encoded
+        /// image, and precede the overlay, so that they never blend its outlines.
+        /// </summary>
+        AntiAliasing,
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,

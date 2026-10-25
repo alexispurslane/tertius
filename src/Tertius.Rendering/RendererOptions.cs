@@ -43,4 +43,10 @@ public sealed class RendererOptions
 
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
+
+    /// <summary>
+    /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
+    /// (about 21 MB at 1920 × 1080) and three full-screen passes.
+    /// </summary>
+    public AntiAliasing AntiAliasing { get; set; } = AntiAliasing.Smaa;
 }

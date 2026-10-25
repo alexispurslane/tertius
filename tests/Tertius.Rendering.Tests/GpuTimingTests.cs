@@ -165,6 +165,7 @@ public sealed class GpuTimingTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

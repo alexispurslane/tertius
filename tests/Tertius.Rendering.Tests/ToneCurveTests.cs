@@ -29,6 +29,7 @@ public sealed class ToneCurveTests
                 Height = 360,
                 Impostors = false,
                 ToneCurve = curve,
+                AntiAliasing = AntiAliasing.None,
             }
         );
 
@@ -128,6 +129,7 @@ public sealed class ToneCurveTests
                 Width = 640,
                 Height = 360,
                 Impostors = false,
+                AntiAliasing = AntiAliasing.None,
             }
         );
         try
@@ -209,6 +211,7 @@ public sealed class ToneCurveTests
                         Width = 64,
                         Height = 64,
                         ToneCurve = (ToneCurve)2,
+                        AntiAliasing = AntiAliasing.None,
                     }
                 )
             )

@@ -185,7 +185,18 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         passes
             .Select(pass => pass.GetProperty("pass").GetString())
             .Should()
-            .Equal("shadow maps", "G-buffer", "lighting", "transparent", "tone map", "outlines", "capture");
+            .Equal(
+                "shadow maps",
+                "G-buffer",
+                "lighting",
+                "transparent",
+                "tone map",
+                "SMAA edges",
+                "SMAA weights",
+                "SMAA blending",
+                "outlines",
+                "capture"
+            );
         passes
             .Select(pass => pass.GetProperty("frames").GetInt32())
             .Should()
@@ -239,6 +250,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 "GPU lighting",
                 "GPU transparent",
                 "GPU tone map",
+                "GPU SMAA edges",
+                "GPU SMAA weights",
+                "GPU SMAA blending",
                 "GPU outlines",
                 "GPU capture"
             );
@@ -290,5 +304,34 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         curves.Should().Equal(expected);
+    }
+
+    [Theory]
+    [InlineData(new string[0], AntiAliasing.Smaa)]
+    [InlineData(new[] { "--anti-aliasing", "off" }, AntiAliasing.None)]
+    public void TheAntiAliasingOptionChoosesTheAntiAliasingOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(
+        string[] antiAliasing,
+        AntiAliasing expected
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<AntiAliasing>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. antiAliasing],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add(options.AntiAliasing);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        chosen.Should().Equal(expected);
     }
 }
