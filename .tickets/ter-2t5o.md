@@ -1,6 +1,6 @@
 ---
 id: ter-2t5o
-status: open
+status: in_progress
 deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:49:05Z

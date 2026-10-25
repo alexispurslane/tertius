@@ -1,12 +1,13 @@
 ---
 id: ter-6vhj
 status: open
-deps: [ter-hro7, ter-sglu]
+deps: [ter-hro7]
 links: []
 created: 2026-10-25T12:01:26Z
 type: feature
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, frames]
 ---
 # Atmosphere color per semantic frame: the sky backdrop, and a tint over the view where the atmosphere calls for it
