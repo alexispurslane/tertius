@@ -55,6 +55,7 @@ internal sealed class RenderTargets : IDisposable
         CheckFormats(device);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
+        MeterSet = layouts.AllocateMeterSet();
         Create(extent);
     }
 
@@ -72,6 +73,9 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
+
+    /// <summary>The HDR image and the distance, for the exposure's meter.</summary>
+    public DescriptorSet MeterSet { get; }
 
     /// <summary>The G-buffer color targets in attachment order.</summary>
     public GpuImage[] GBuffer { get; private set; } = [];
@@ -96,53 +100,12 @@ internal sealed class RenderTargets : IDisposable
     )]
     private void Create(Extent2D extent)
     {
-        const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        BaseColor = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: BaseColorFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer base color"
-        );
-        Normal = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: NormalFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer normal"
-        );
-        Specular = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: SpecularFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer specular"
-        );
-        Emissive = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: EmissiveFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer emissive"
-        );
-        Distance = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: DistanceFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer distance"
-        );
+        BaseColor = CreateTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
+        Normal = CreateTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
+        Specular = CreateTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
+        Emissive = CreateTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
+        Distance = CreateTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance");
         Depth = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -152,20 +115,26 @@ internal sealed class RenderTargets : IDisposable
             mipLevels: 1,
             name: "depth"
         );
-        Hdr = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: HdrFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "hdr"
-        );
+        Hdr = CreateTarget(extent: extent, format: HdrFormat, name: "hdr");
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
     }
+
+    /// <summary>A color target that a pass draws into and a later pass samples, with one mip level.</summary>
+    private GpuImage CreateTarget(Extent2D extent, Format format, string name) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: format,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
+            mipLevels: 1,
+            name: name
+        );
 
     private static void CheckFormats(VulkanDevice device)
     {

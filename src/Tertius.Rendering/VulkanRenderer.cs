@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Maths;
@@ -24,11 +25,15 @@ namespace Tertius.Rendering;
 /// the impostor billboards in that range.</item>
 /// <item>Lighting: one fullscreen pass into the HDR target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
+/// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
+/// which writes the exposure of the next frame.</item>
 /// <item>Tone mapping into the swapchain image or the offscreen output.</item>
 /// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
+/// <para>A headless frame under <see cref="AutoExposure"/> whose step is at least <see cref="MeteringStepSeconds"/> is
+/// drawn twice: a metering draw, then the shown draw (docs/plans/auto-exposure.md, "The metering draw").</para>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
@@ -38,6 +43,12 @@ namespace Tertius.Rendering;
 /// </remarks>
 public sealed unsafe class VulkanRenderer : IRenderer
 {
+    /// <summary>
+    /// The shortest step, in s, after which a headless renderer under <see cref="AutoExposure"/> draws a metering draw
+    /// before the shown draw (docs/plans/auto-exposure.md, "A headless still after a long step").
+    /// </summary>
+    internal const float MeteringStepSeconds = 0.1f;
+
     private readonly VulkanDevice device;
     private readonly ValidationLog log;
     private readonly bool headless;
@@ -56,7 +67,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureResources exposure;
-    private readonly float initialStops;
+    private readonly ExposureSetting exposureSetting;
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -64,6 +75,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private ICaptureSink? pendingCapture;
     private long pendingResize = -1;
     private long frameNumber;
+    private FrameClock clock;
     private bool disposed;
 
     private VulkanRenderer(
@@ -75,6 +87,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         this.device = device;
         this.headless = headless;
+        clock = headless ? FrameClock.Film : FrameClock.Window;
+        exposureSetting = options.Exposure;
         log = device.Log;
         try
         {
@@ -91,14 +105,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
             targets = Own(new RenderTargets(device: device, allocator: Allocator, layouts: layouts, extent: extent));
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
-            exposure = Own(new ExposureResources(device, Allocator, options.FramesInFlight));
-            initialStops = options.Exposure.InitialStops;
+            exposure = Own(
+                new ExposureResources(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    framesInFlight: options.FramesInFlight
+                )
+            );
             // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
             layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
-            AddPassesAfterGeometry(shaders, options.ToneCurve);
+            AddPassesAfterGeometry(shaders, options);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
 
@@ -337,6 +357,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ObjectDisposedException.ThrowIf(disposed, this);
         ApplyPendingResize();
 
+        (FrameClock next, float step) = clock.Step(
+            snapshotTime: snapshot.Time,
+            wallSeconds: Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency
+        );
+        // A headless still can follow a long step, and would show the exposure of the view before it
+        // (docs/plans/auto-exposure.md, "A headless still after a long step"). A window's steps are frame times.
+        bool metering = exposureSetting is AutoExposure && headless && step >= MeteringStepSeconds;
+        if (metering)
+        {
+            if (!DrawFrame(snapshot: snapshot, alpha: alpha, exposureStep: step, takeCapture: false))
+                return;
+            // The metering draw moved the exposure by the whole step, so the shown draw moves it by none.
+            clock = next;
+            step = 0;
+        }
+
+        if (DrawFrame(snapshot: snapshot, alpha: alpha, exposureStep: step, takeCapture: true))
+            clock = next;
+    }
+
+    /// <summary>
+    /// Draws one frame: waits for its slot, records and submits it, and hands over the capture when
+    /// <paramref name="takeCapture"/> and one is asked for. Returns false when the output skipped the frame.
+    /// </summary>
+    private bool DrawFrame(RenderSnapshot snapshot, float alpha, float exposureStep, bool takeCapture)
+    {
         FrameResources frame = frames[frameNumber % frames.Length];
         Fence fence = frame.Fence;
         FinishSlot(frame);
@@ -351,7 +397,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 Exposure = exposure.Latest,
                 Rendered = false,
             };
-            return;
+            return false;
         }
 
         if (image.Extent.Width != targets.Extent.Width || image.Extent.Height != targets.Extent.Height)
@@ -361,9 +407,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Resize(image.Extent);
         }
 
-        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
+        ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
         GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
-        RecordFrame(frame: frame, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
+        RecordFrame(
+            frame: frame,
+            snapshot: snapshot,
+            alpha: alpha,
+            exposureStep: exposureStep,
+            image: image,
+            capture: capture
+        );
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
@@ -383,6 +436,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             WaitFor(fence);
             HandOver(sink, capture, image.Extent);
         }
+
+        return true;
     }
 
     /// <summary>
@@ -404,6 +459,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         FrameResources frame,
         RenderSnapshot snapshot,
         float alpha,
+        float exposureStep,
         GpuImage image,
         GpuBuffer? capture
     )
@@ -420,7 +476,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materialCount: materials.Count,
             scene: LastScene
         );
-        SetContext(frame: frame, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
+        SetContext(
+            frame: frame,
+            snapshot: snapshot,
+            alpha: alpha,
+            exposureStep: exposureStep,
+            image: image,
+            capture: capture
+        );
         Graph.Prepare(context);
         frame.Write(LastScene);
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
@@ -461,6 +524,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         FrameResources frame,
         RenderSnapshot snapshot,
         float alpha,
+        float exposureStep,
         GpuImage image,
         GpuBuffer? capture
     )
@@ -468,6 +532,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.Frame = frame;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
+        context.ExposureStep = exposureStep;
         context.Scene = LastScene;
         context.Output = image;
         context.Number = frameNumber;
@@ -509,7 +574,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
-                exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers, stops: initialStops);
+                exposure.RecordSeed(
+                    commandBuffer: commandBuffer,
+                    barriers: barriers,
+                    stops: exposureSetting.InitialStops
+                );
             device.EndLabel(commandBuffer);
         }
     }
@@ -577,24 +646,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         GpuImage image = ShadowMap.Image;
         int size = ShadowMap.Size;
         int texelBytes = ShadowMap.Format == Format.D32Sfloat ? 4 : 2;
-        device.WaitIdle();
-        Vk vk = device.Vk;
-        var poolInfo = new CommandPoolCreateInfo
-        {
-            SType = StructureType.CommandPoolCreateInfo,
-            Flags = CommandPoolCreateFlags.TransientBit,
-            QueueFamilyIndex = device.QueueFamily,
-        };
-        vk.CreateCommandPool(
-                device: device.Device,
-                pCreateInfo: &poolInfo,
-                pAllocator: null,
-                pCommandPool: out CommandPool pool
-            )
-            .Check("vkCreateCommandPool");
-        var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
-        vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence)
-            .Check("vkCreateFence");
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -603,107 +654,66 @@ public sealed unsafe class VulkanRenderer : IRenderer
             memoryUsage: MemoryUsage.Readback,
             name: "shadow readback"
         );
-        try
-        {
-            var allocate = new CommandBufferAllocateInfo
-            {
-                SType = StructureType.CommandBufferAllocateInfo,
-                CommandPool = pool,
-                Level = CommandBufferLevel.Primary,
-                CommandBufferCount = 1,
-            };
-            vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer)
-                .Check("vkAllocateCommandBuffers");
-            var begin = new CommandBufferBeginInfo
-            {
-                SType = StructureType.CommandBufferBeginInfo,
-                Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
-            };
-            vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
-            // The renderer's own barriers continue from the tracked state afterwards, so leave the image as it was.
-            ResourceState state = image.State;
-            var local = new BarrierBatch();
-            local.Image(image, ImageUse.TransferSource);
-            local.Buffer(buffer, BufferUse.TransferDestination);
-            local.Flush(vk, commandBuffer);
-            var region = new BufferImageCopy
-            {
-                ImageSubresource = new(
-                    aspectMask: ImageAspectFlags.DepthBit,
-                    mipLevel: 0,
-                    baseArrayLayer: (uint)cascade,
-                    layerCount: 1
-                ),
-                ImageExtent = new((uint)size, (uint)size, 1),
-            };
-            vk.CmdCopyImageToBuffer(
+        SubmitAndWait(commandBuffer =>
+            CopyLayer(
                 commandBuffer: commandBuffer,
-                srcImage: image.Handle,
-                srcImageLayout: ImageLayout.TransferSrcOptimal,
+                image: image,
+                aspect: ImageAspectFlags.DepthBit,
+                layer: cascade,
+                size: size,
+                buffer: buffer
+            )
+        );
+
+        float[] depths = new float[size * size];
+        if (texelBytes == 4)
+        {
+            new ReadOnlySpan<float>(buffer.Mapped, depths.Length).CopyTo(depths);
+        }
+        else
+        {
+            var texels = new ReadOnlySpan<ushort>(buffer.Mapped, depths.Length);
+            for (int i = 0; i < depths.Length; i++)
+                depths[i] = texels[i] / 65535f;
+        }
+
+        return depths;
+    }
+
+    /// <summary>
+    /// The 256 counts of the exposure's histogram of the last metered frame, by bin. A test hook: it waits for the device
+    /// to be idle and submits its own copy.
+    /// </summary>
+    internal uint[] ReadExposureHistogram()
+    {
+        GpuBuffer histogram = exposure.Histogram;
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: histogram.Size,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "histogram readback"
+        );
+        SubmitAndWait(commandBuffer =>
+        {
+            // The renderer's barriers continue from the histogram's tracked use, which this copy updates.
+            var local = new BarrierBatch();
+            local.Buffer(histogram, BufferUse.TransferSource);
+            local.Buffer(buffer, BufferUse.TransferDestination);
+            local.Flush(device.Vk, commandBuffer);
+            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: histogram.Size);
+            device.Vk.CmdCopyBuffer(
+                commandBuffer: commandBuffer,
+                srcBuffer: histogram.Handle,
                 dstBuffer: buffer.Handle,
                 regionCount: 1,
                 pRegions: &region
             );
             local.Buffer(buffer, BufferUse.HostRead);
-            if (state.Layout != ImageLayout.Undefined)
-            {
-                local.ImageLevels(
-                    image: image,
-                    baseMip: 0,
-                    mipCount: 1,
-                    oldLayout: ImageLayout.TransferSrcOptimal,
-                    newLayout: state.Layout,
-                    srcStages: PipelineStageFlags2.AllTransferBit,
-                    srcAccess: AccessFlags2.None,
-                    dstStages: PipelineStageFlags2.AllCommandsBit,
-                    dstAccess: AccessFlags2.None
-                );
-                image.State = state;
-            }
-
-            local.Flush(vk, commandBuffer);
-            vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
-            var submitBuffer = new CommandBufferSubmitInfo
-            {
-                SType = StructureType.CommandBufferSubmitInfo,
-                CommandBuffer = commandBuffer,
-            };
-            var submit = new SubmitInfo2
-            {
-                SType = StructureType.SubmitInfo2,
-                CommandBufferInfoCount = 1,
-                PCommandBufferInfos = &submitBuffer,
-            };
-            vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: fence)
-                .Check("vkQueueSubmit2");
-            vk.WaitForFences(
-                    device: device.Device,
-                    fenceCount: 1,
-                    pFences: &fence,
-                    waitAll: true,
-                    timeout: ulong.MaxValue
-                )
-                .Check("vkWaitForFences");
-
-            float[] depths = new float[size * size];
-            if (texelBytes == 4)
-            {
-                new ReadOnlySpan<float>(buffer.Mapped, depths.Length).CopyTo(depths);
-            }
-            else
-            {
-                var texels = new ReadOnlySpan<ushort>(buffer.Mapped, depths.Length);
-                for (int i = 0; i < depths.Length; i++)
-                    depths[i] = texels[i] / 65535f;
-            }
-
-            return depths;
-        }
-        finally
-        {
-            vk.DestroyFence(device.Device, fence, null);
-            vk.DestroyCommandPool(device.Device, pool, null);
-        }
+            local.Flush(device.Vk, commandBuffer);
+        });
+        return new ReadOnlySpan<uint>(buffer.Mapped, ExposureMeter.Bins).ToArray();
     }
 
     /// <summary>
@@ -724,6 +734,91 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>Copies level 0 of one layer of a 16-bit float color image to the CPU.</summary>
     private float[] ReadLayer(GpuImage image, int layer, int size, int channels)
     {
+        int count = size * size * channels;
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: (ulong)(count * 2),
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "impostor readback"
+        );
+        SubmitAndWait(commandBuffer =>
+            CopyLayer(
+                commandBuffer: commandBuffer,
+                image: image,
+                aspect: ImageAspectFlags.ColorBit,
+                layer: layer,
+                size: size,
+                buffer: buffer
+            )
+        );
+
+        float[] values = new float[count];
+        var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
+        for (int i = 0; i < count; i++)
+            values[i] = (float)halves[i];
+        return values;
+    }
+
+    /// <summary>
+    /// Records the copy of level 0 of one layer of <paramref name="image"/> into <paramref name="buffer"/>, and leaves
+    /// the image in the state that the renderer's own barriers continue from.
+    /// </summary>
+    private void CopyLayer(
+        CommandBuffer commandBuffer,
+        GpuImage image,
+        ImageAspectFlags aspect,
+        int layer,
+        int size,
+        GpuBuffer buffer
+    )
+    {
+        Vk vk = device.Vk;
+        ResourceState state = image.State;
+        var local = new BarrierBatch();
+        local.Image(image, ImageUse.TransferSource);
+        local.Buffer(buffer, BufferUse.TransferDestination);
+        local.Flush(vk, commandBuffer);
+        var region = new BufferImageCopy
+        {
+            ImageSubresource = new(aspectMask: aspect, mipLevel: 0, baseArrayLayer: (uint)layer, layerCount: 1),
+            ImageExtent = new((uint)size, (uint)size, 1),
+        };
+        vk.CmdCopyImageToBuffer(
+            commandBuffer: commandBuffer,
+            srcImage: image.Handle,
+            srcImageLayout: ImageLayout.TransferSrcOptimal,
+            dstBuffer: buffer.Handle,
+            regionCount: 1,
+            pRegions: &region
+        );
+        local.Buffer(buffer, BufferUse.HostRead);
+        if (state.Layout != ImageLayout.Undefined)
+        {
+            local.ImageLevels(
+                image: image,
+                baseMip: 0,
+                mipCount: image.MipLevels,
+                oldLayout: ImageLayout.TransferSrcOptimal,
+                newLayout: state.Layout,
+                srcStages: PipelineStageFlags2.AllTransferBit,
+                srcAccess: AccessFlags2.None,
+                dstStages: PipelineStageFlags2.AllCommandsBit,
+                dstAccess: AccessFlags2.None
+            );
+            image.State = state;
+        }
+
+        local.Flush(vk, commandBuffer);
+    }
+
+    /// <summary>
+    /// Waits for the device to be idle, records <paramref name="record"/> into a command buffer of its own, submits it
+    /// and waits for it. The read hooks use it.
+    /// </summary>
+    private void SubmitAndWait(Action<CommandBuffer> record)
+    {
         device.WaitIdle();
         Vk vk = device.Vk;
         var poolInfo = new CommandPoolCreateInfo
@@ -742,15 +837,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
         vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence)
             .Check("vkCreateFence");
-        int count = size * size * channels;
-        using var buffer = GpuBuffer.Create(
-            device: device,
-            allocator: Allocator,
-            size: (ulong)(count * 2),
-            usage: BufferUsageFlags.TransferDstBit,
-            memoryUsage: MemoryUsage.Readback,
-            name: "impostor readback"
-        );
         try
         {
             var allocate = new CommandBufferAllocateInfo
@@ -768,48 +854,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
             };
             vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
-            // Leave the image in the state the renderer's own barriers continue from.
-            ResourceState state = image.State;
-            var local = new BarrierBatch();
-            local.Image(image, ImageUse.TransferSource);
-            local.Buffer(buffer, BufferUse.TransferDestination);
-            local.Flush(vk, commandBuffer);
-            var region = new BufferImageCopy
-            {
-                ImageSubresource = new(
-                    aspectMask: ImageAspectFlags.ColorBit,
-                    mipLevel: 0,
-                    baseArrayLayer: (uint)layer,
-                    layerCount: 1
-                ),
-                ImageExtent = new((uint)size, (uint)size, 1),
-            };
-            vk.CmdCopyImageToBuffer(
-                commandBuffer: commandBuffer,
-                srcImage: image.Handle,
-                srcImageLayout: ImageLayout.TransferSrcOptimal,
-                dstBuffer: buffer.Handle,
-                regionCount: 1,
-                pRegions: &region
-            );
-            local.Buffer(buffer, BufferUse.HostRead);
-            if (state.Layout != ImageLayout.Undefined)
-            {
-                local.ImageLevels(
-                    image: image,
-                    baseMip: 0,
-                    mipCount: image.MipLevels,
-                    oldLayout: ImageLayout.TransferSrcOptimal,
-                    newLayout: state.Layout,
-                    srcStages: PipelineStageFlags2.AllTransferBit,
-                    srcAccess: AccessFlags2.None,
-                    dstStages: PipelineStageFlags2.AllCommandsBit,
-                    dstAccess: AccessFlags2.None
-                );
-                image.State = state;
-            }
-
-            local.Flush(vk, commandBuffer);
+            record(commandBuffer);
             vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
             var submitBuffer = new CommandBufferSubmitInfo
             {
@@ -824,20 +869,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             };
             vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: fence)
                 .Check("vkQueueSubmit2");
-            vk.WaitForFences(
-                    device: device.Device,
-                    fenceCount: 1,
-                    pFences: &fence,
-                    waitAll: true,
-                    timeout: ulong.MaxValue
-                )
-                .Check("vkWaitForFences");
-
-            float[] values = new float[count];
-            var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
-            for (int i = 0; i < count; i++)
-                values[i] = (float)halves[i];
-            return values;
+            WaitFor(fence);
         }
         finally
         {
@@ -948,11 +980,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return (atlas, manager);
     }
 
-    /// <summary>Adds the passes from lighting to the readback to the graph, each in its own stage.</summary>
-    private void AddPassesAfterGeometry(ShaderLibrary shaders, ToneCurve curve)
+    /// <summary>
+    /// Adds the passes from lighting to the readback to the graph, each in its own stage, the exposure pass only under
+    /// <see cref="AutoExposure"/>.
+    /// </summary>
+    private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
         Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
         Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
+        if (options.Exposure is AutoExposure auto)
+            Graph.Add(
+                FrameGraph.Stage.Exposure,
+                new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto)
+            );
         Graph.Add(
             FrameGraph.Stage.ToneMap,
             new ToneMapPass(
@@ -960,7 +1000,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 outputFormat: output.Format,
-                curve: curve
+                curve: options.ToneCurve
             )
         );
         Graph.Add(

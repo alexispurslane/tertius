@@ -165,6 +165,8 @@ public sealed class GpuTimingTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                // A fixed exposure draws no metering draw, so each Render draws one frame.
+                Exposure = new FixedExposure(0),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

@@ -9,7 +9,7 @@ using Silk.NET.Vulkan.Extensions.KHR;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The Vulkan instance, the chosen physical device, the logical device and its one graphics queue. Optionally a
+/// The Vulkan instance, the chosen physical device, the logical device and its one graphics and compute queue. Optionally a
 /// validation messenger and a window surface. Requires Vulkan 1.3 with dynamic rendering, synchronization2,
 /// descriptor indexing, multi-draw indirect and depth clamp.
 /// </summary>
@@ -292,7 +292,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
             QueueFamilyProperties[] families = QueueFamilies(vk, candidate);
             for (uint i = 0; i < families.Length; i++)
             {
-                if ((families[i].QueueFlags & QueueFlags.GraphicsBit) == 0)
+                // One queue runs the graphics passes and the exposure's compute pass, in one command buffer.
+                const QueueFlags needed = QueueFlags.GraphicsBit | QueueFlags.ComputeBit;
+                if ((families[i].QueueFlags & needed) != needed)
                     continue;
                 if (surfaceApi != null)
                 {
@@ -311,7 +313,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 return (candidate, i);
             }
 
-            reasons.Append($"{name}: no graphics queue that can present. ");
+            reasons.Append($"{name}: no graphics and compute queue that can present. ");
         }
 
         throw new NotSupportedException($"No usable Vulkan device. {reasons}");

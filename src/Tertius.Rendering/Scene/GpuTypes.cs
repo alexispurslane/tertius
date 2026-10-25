@@ -247,6 +247,23 @@ internal struct ToneMapPushConstants
     public uint ToneCurve;
 }
 
+/// <summary>The push constants of exposure_adapt.comp: the setting and the two approach factors of this draw, padded to 32 bytes.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 32)]
+internal struct ExposureAdaptPushConstants
+{
+    public float DarkShare;
+    public float BrightShare;
+    public float MinStops;
+    public float MaxStops;
+    public float CompensationStops;
+
+    /// <summary>f(Δt, IntoDarkSeconds): the share of the gap to the target that the exposure closes when it rises.</summary>
+    public float IntoDarkFactor;
+
+    /// <summary>f(Δt, IntoLightSeconds): the share when it falls.</summary>
+    public float IntoLightFactor;
+}
+
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OutlinePushConstants

@@ -73,6 +73,9 @@ internal sealed class FrameContext
     /// <summary>The interpolation factor of this frame.</summary>
     public float Alpha { get; set; }
 
+    /// <summary>The step, in s, by which this draw's adapt step moves the exposure (docs/plans/auto-exposure.md, "The clock").</summary>
+    public float ExposureStep { get; set; }
+
     public PreparedScene Scene { get; set; } = null!;
 
     /// <summary>The final image: a swapchain image or the headless output.</summary>
@@ -105,7 +108,8 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the overlay included (<see cref="OutlinePass"/>). Draws
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the exposure pass (<see cref="ExposurePass"/>, under
+/// <see cref="AutoExposure"/>) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -122,6 +126,9 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
         Lighting,
         Transparent,
+
+        /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>
+        Exposure,
         ToneMap,
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
