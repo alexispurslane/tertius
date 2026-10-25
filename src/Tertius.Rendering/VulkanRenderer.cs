@@ -24,7 +24,9 @@ namespace Tertius.Rendering;
 /// the impostor billboards in that range.</item>
 /// <item>Lighting: one fullscreen pass into the HDR target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
-/// <item>Tone mapping into the swapchain image or the offscreen output.</item>
+/// <item>Bloom (<see cref="BloomPass"/>), when <see cref="RendererOptions.Bloom"/> is on: the glow of the bright light
+/// in the bloom levels.</item>
+/// <item>Tone mapping into the swapchain image or the offscreen output, with the glow added before the tone curve.</item>
 /// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
@@ -79,7 +81,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device));
-            layouts = Own(new DescriptorLayouts(device, options.FramesInFlight));
+            int glowLevels = options.Bloom.Value is Bloom bloom ? bloom.Levels : 0;
+            layouts = Own(
+                new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
+            );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
             textures = Own(new TextureStore(device, Allocator));
@@ -87,7 +92,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             brdfTables = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
             Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
-            targets = Own(new RenderTargets(device: device, allocator: Allocator, layouts: layouts, extent: extent));
+            targets = Own(
+                new RenderTargets(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    extent: extent,
+                    glowLevels: glowLevels
+                )
+            );
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
             layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
@@ -106,21 +119,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     tiles: options.ImpostorTiles
                 );
 
-            AddPassesAfterGeometry(shaders, options.ToneCurve);
+            AddPassesAfterGeometry(shaders: shaders, curve: options.ToneCurve, bloom: options.Bloom);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
-
-            context = new()
-            {
-                Device = device,
-                Layouts = layouts,
-                Targets = targets,
-                Geometry = geometry,
-                Materials = materials,
-                Barriers = barriers,
-                Shadows = ShadowMap,
-                Timer = timer,
-            };
+            context = CreateContext();
         }
         catch
         {
@@ -275,6 +277,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
+        if (options.Bloom.Value is null)
+            throw new ArgumentException("Bloom must hold NoBloom or a Bloom.", nameof(options));
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
@@ -864,6 +868,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
         sink.Take(new(pixels, width, height));
     }
 
+    /// <summary>The one context of the renderer's life, which holds what every frame shares (see <see cref="SetContext"/>).</summary>
+    private FrameContext CreateContext() =>
+        new()
+        {
+            Device = device,
+            Layouts = layouts,
+            Targets = targets,
+            Geometry = geometry,
+            Materials = materials,
+            Barriers = barriers,
+            Shadows = ShadowMap,
+            Timer = timer,
+        };
+
     /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
     private FrameResources[] CreateFrames(int framesInFlight)
     {
@@ -910,10 +928,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>Adds the passes from lighting to the readback to the graph, each in its own stage.</summary>
-    private void AddPassesAfterGeometry(ShaderLibrary shaders, ToneCurve curve)
+    private void AddPassesAfterGeometry(ShaderLibrary shaders, ToneCurve curve, BloomSetting bloom)
     {
         Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
         Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
+        if (bloom.Value is Bloom on)
+            Graph.Add(
+                FrameGraph.Stage.Bloom,
+                new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
+            );
         Graph.Add(
             FrameGraph.Stage.ToneMap,
             new ToneMapPass(
@@ -921,7 +944,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 outputFormat: output.Format,
-                curve: curve
+                curve: curve,
+                bloom: bloom
             )
         );
         Graph.Add(

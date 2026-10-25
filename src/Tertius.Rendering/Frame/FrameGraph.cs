@@ -120,6 +120,9 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
         Lighting,
         Transparent,
+
+        /// <summary>After every pass that writes the HDR image, so that all bright light glows, and before the tone map, which adds the glow.</summary>
+        Bloom,
         ToneMap,
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>

@@ -3,8 +3,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Maps the HDR image to the output with exposure and a <see cref="ToneCurve"/>. An sRGB output format applies
-/// the sRGB curve in hardware; for a UNORM output the shader applies it.
+/// Maps the HDR image to the output with exposure and a <see cref="ToneCurve"/>. With a <see cref="Bloom"/>, it first adds
+/// the summed bloom levels by their strength. An sRGB output format applies the sRGB curve in hardware; for a UNORM output
+/// the shader applies it.
 /// </summary>
 internal sealed unsafe class ToneMapPass : RenderPass
 {
@@ -13,22 +14,33 @@ internal sealed unsafe class ToneMapPass : RenderPass
     private readonly Pipeline pipeline;
     private readonly ToneCurve curve;
 
+    // The factor of the summed bloom levels: the strength shared out over the levels, so that it is the glow's share of
+    // the light above the threshold, whatever the levels. 0 without bloom, whose shader reads no glow.
+    private readonly float glowStrength;
+
     public ToneMapPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         Format outputFormat,
-        ToneCurve curve
+        ToneCurve curve,
+        BloomSetting bloom
     )
     {
         this.device = device;
         this.layouts = layouts;
         this.curve = curve;
+        (string shader, glowStrength) = bloom switch
+        {
+            Bloom on => ("tonemap_bloom.frag", on.Strength / on.Levels),
+            NoBloom => ("tonemap.frag", 0f),
+            null => throw new ArgumentException("A bloom setting holds NoBloom or a Bloom.", nameof(bloom)),
+        };
         pipeline = new GraphicsPipelineDesc
         {
             Name = "tone map",
             VertexShader = "fullscreen.vert",
-            FragmentShader = "tonemap.frag",
+            FragmentShader = shader,
             Layout = layouts.PostLayout,
             ColorFormats = [outputFormat],
             CullMode = CullModeFlags.None,
@@ -46,6 +58,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         barriers.Image(context.Targets.Hdr, ImageUse.SampledFragment);
+        if (context.Targets.Glow is [var summed, ..])
+            barriers.Image(summed, ImageUse.SampledFragment);
         barriers.Image(context.Output, ImageUse.ColorAttachment, discard: true);
         barriers.Flush(vk, commandBuffer);
 
@@ -84,6 +98,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             Exposure = context.Exposure,
             EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
             ToneCurve = (uint)curve,
+            GlowStrength = glowStrength,
         };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

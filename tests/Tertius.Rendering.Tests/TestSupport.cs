@@ -58,6 +58,7 @@ internal static class Gpu
                 FramesInFlight = framesInFlight,
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
+                Bloom = new NoBloom(),
             }
         );
 
