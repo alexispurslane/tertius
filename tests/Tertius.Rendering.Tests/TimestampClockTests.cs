@@ -53,6 +53,29 @@ public sealed class TimestampClockTests
     }
 
     [Fact]
+    public void TheGpuSpanOfAFrameIsTheTimeFromTheStampBeforeItsFirstPassToTheStampAfterItsLastPass()
+    {
+        var clock = new TimestampClock(ValidBits: 64, Period: 1f);
+        // Pairs of a timestamp in ticks and its availability: before the first pass, after each of three passes.
+        ulong[] results = [1_000_000, 1, 1_250_000, 1, 1_250_000, 1, 4_250_000, 1];
+
+        clock.SpanMilliseconds(results).Should().Be(3.25);
+    }
+
+    [Fact]
+    public void TheGpuSpanOfAFrameWrapsAtTheValidBitsAsTheCounterDoes()
+    {
+        var clock = new TimestampClock(ValidBits: 36, Period: 1f);
+        ulong last = (1UL << 36) - 500;
+        ulong[] results = [last, 1, last + 250, 1, 1_500, 1];
+
+        clock
+            .SpanMilliseconds(results)
+            .Should()
+            .BeApproximately(2_000 / 1e6, 1e-12, "the counter counts 500 ticks to its wrap and 1,500 after it");
+    }
+
+    [Fact]
     public void AFrameWithAQueryWhoseResultIsNotAvailableHasNoTimingsAndLeavesTheTimingsAsTheyWere()
     {
         var clock = new TimestampClock(ValidBits: 64, Period: 1f);

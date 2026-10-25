@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -221,6 +221,33 @@ nix develop --command dotnet run -c Release --project benchmarks/Tertius.Benchma
 ```
 
 The filter matches the full name of the method, with wildcards. A filter that names only the class runs every method of the class with every parameter value.
+
+## GPU trace
+
+`tools/gpu-trace.sh` records a Metal System Trace of a headless demo run, and writes a table of each pass's GPU time and limiters. It runs only on macOS, with Xcode's `xctrace` (27.0 on the development Mac). No engine code depends on it: the GPU timings of a headless run (ARCHITECTURE.md, "GPU timings") work on every Vulkan driver, and this script adds why a pass takes its time.
+
+```bash
+nix develop --command bash -c 'bash tools/gpu-trace.sh --start 399 --frames 120 scripts/demo-exit.json'
+```
+
+The script builds the demo in Release, and traces the built binary, so the trace holds no build. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
+
+- `run.trace`: the trace. Open it in Instruments to see the timeline and the counters.
+- `run/`: the run's captures, `gpu-timings.json` and its printed lines in `run.log`.
+- `passes.md`: the table, which the script also prints. `passes.json` holds every counter of every pass.
+
+The table has one row per pass, a row for the encoders before the first pass (the uploads and the exposure's readback copy), a row for those after the last pass, and the frame's span. For each, it gives the frames, the mean, median and 95th percentile of the GPU time in milliseconds, the two highest limiters, and the read and write bandwidth in GB/s. A limiter is the share of the time in which one GPU unit was busy or stalled, such as the ALU, texture sampling or the last-level cache. The highest limiter is the unit that bounds the pass. The first line of `passes.md` gives the load averages at the start. Measure on a quiet machine: the counters sample the whole GPU, not one process.
+
+How the script reads the trace:
+
+- The renderer runs on MoltenVK, so each Vulkan pass shows as one or more Metal encoders. MoltenVK names the encoders after the Vulkan command, such as "vkCmdBeginRendering RenderEncoder", not after the pass. A headless run turns on no validation, so the renderer sets no debug labels.
+- MoltenVK writes each timestamp of the renderer's GPU timer as an encoder of its own, "Record GPU Counter Sample BlitEncoder". The timer writes one before the first pass and one after each pass. So in a command buffer with one more such encoder than passes, the encoders between two of them belong to one pass. The pass names come from the run's `gpu-timings.json`, in recording order. A command buffer with another number of stamps, such as an upload at the start, is left out, and the table's first line counts them.
+- A pass's GPU time is the union of its encoders' intervals (table `metal-gpu-intervals`), so the overlap of its own vertex and fragment work counts once. The frame span row is the time from the start of the first pass's first encoder to the end of the last pass's last encoder, and it agrees with the GPU timer's span to about 1 %. The pass times do not agree with the timer's. The Apple GPU starts an encoder before the one before it ends, so the encoders of two passes can overlap, and the sum of the passes' times can be more than the span. The timer charges each overlap to the pass whose stamp ends it, so a pass's time in `gpu-timings.json` can be a fraction of its trace time or several times it. On 120 frames of demo-exit's deck, the occlusion depth pass took 0.271 ms by the timer and 0.030 ms in the trace. The trace's times say which pass does the work.
+- The counters come from the instrument "Metal GPU Counters", which records the counter set "Performance Limiters" headless (tables `gpu-counter-info` and `gpu-counter-value`). The script averages each counter over the samples that fall inside a pass's intervals. A sample comes about every 10 µs, so a pass of 0.05 ms has a few samples per frame, and its limiters are rough.
+- The counter instrument also records Instruments' shader timeline, and both slow the GPU a little. Take the times from `gpu-timings.json` of a run without the trace, and the limiters from the trace. `--no-counters` records a smaller trace with times only.
+- The exported counters of 120 frames take more than a gigabyte of XML. A trace of 120 frames at 1080p takes about two minutes in all, and about 80 MB. The script deletes the exported tables after the report, unless `--keep-exports` is given.
+
+What the trace does not give headless: the counters per draw or per dispatch, and the shader costs per line. In Instruments, open `run.trace`, select a frame's encoder on the GPU track, and read the counters and the shader timeline in the detail pane below it.
 
 ## Git hooks
 

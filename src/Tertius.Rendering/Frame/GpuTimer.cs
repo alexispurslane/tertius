@@ -110,7 +110,11 @@ internal sealed unsafe class GpuTimer : IDisposable
 
         if (!device.Timestamps.Fill(results: data, passes: queries.PassNames.AsSpan(0, passes), timings: timings))
             return;
-        Latest = new GpuTimings(frame, timings.AsMemory(0, passes));
+        Latest = new GpuTimings(
+            Frame: frame,
+            Passes: timings.AsMemory(0, passes),
+            SpanMilliseconds: device.Timestamps.SpanMilliseconds(data)
+        );
     }
 
     /// <summary>Resets the queries of <paramref name="slot"/> and writes the stamp before the first pass.</summary>
