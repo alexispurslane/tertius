@@ -1,6 +1,6 @@
 ---
 id: ter-is7n
-status: open
+status: in_progress
 deps: [ter-zzyr]
 links: []
 created: 2026-10-25T15:56:12Z
