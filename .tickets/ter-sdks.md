@@ -1,7 +1,7 @@
 ---
 id: ter-sdks
 status: open
-deps: [ter-b3h5]
+deps: [ter-b3h5, ter-zi4i]
 links: []
 created: 2026-10-25T18:34:36Z
 type: feature
@@ -18,3 +18,9 @@ The user chose XeGTAO's tuned set over the physical constants on 2026-10-25 (ope
 
 The shader and the C# copy use XeGTAO's tuned constants, the tests pin the tuned values, the default radius is the orchestrator's pick from captures, and ARCHITECTURE.md and the design doc match the code.
 
+
+## Notes
+
+**2026-10-25T19:06:16Z**
+
+2026-10-25: held for the bounce light design (ter-zi4i). The user chose sector masks inside the crease shadowing's slices for the bounce light, which replace the horizon angles that XeGTAO's tuned set works on, and the tuned set's final power of 2.2 darkens the sky light more than the blocked sectors give back, which loses light. The design doc says which tuned constants carry into sector masks; the user then decides.
