@@ -21,6 +21,7 @@ namespace Tertius.Host;
 /// in either run.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
+/// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -56,7 +57,7 @@ public static class ScriptCommand
     public const string GpuTimingsFile = "gpu-timings.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--bloom on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -76,6 +77,7 @@ public static class ScriptCommand
         "--fps",
         "--size",
         "--tone-curve",
+        "--bloom",
     ];
 
     /// <summary>
@@ -289,6 +291,8 @@ public static class ScriptCommand
         };
         if (options.ToneCurve is { } curve)
             rendererOptions.ToneCurve = curve;
+        if (options.BloomOff)
+            rendererOptions.Bloom = new NoBloom();
         try
         {
             return createRenderer(rendererOptions);
@@ -420,6 +424,7 @@ public static class ScriptCommand
     /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -429,7 +434,8 @@ public static class ScriptCommand
         string? Record = null,
         VideoFile? Video = null,
         ScriptWindow? Size = null,
-        ToneCurve? ToneCurve = null
+        ToneCurve? ToneCurve = null,
+        bool BloomOff = false
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -452,7 +458,8 @@ public static class ScriptCommand
                 ? null
                 : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
             Size: SizeOf(given.Value("--size")),
-            ToneCurve: ToneCurveOf(given.Value("--tone-curve"))
+            ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
+            BloomOff: given.Value("--bloom") == "off"
         );
     }
 
@@ -513,7 +520,11 @@ public static class ScriptCommand
 
     /// <summary>The problem with the value of an option, or with an option that another option needs, or null.</summary>
     private static string? ValueProblem(GivenOptions given) =>
-        SpeedProblem(given) ?? VideoProblem(given) ?? SizeProblem(given) ?? ToneCurveProblem(given);
+        SpeedProblem(given)
+        ?? VideoProblem(given)
+        ?? SizeProblem(given)
+        ?? ToneCurveProblem(given)
+        ?? BloomProblem(given);
 
     private static string? SpeedProblem(GivenOptions given)
     {
@@ -560,6 +571,17 @@ public static class ScriptCommand
             return "--tone-curve applies to a headless run, so add --headless.";
         if (ToneCurveOf(curve) is null)
             return $"--tone-curve needs aces or hable, not '{curve}'.";
+        return null;
+    }
+
+    private static string? BloomProblem(GivenOptions given)
+    {
+        if (given.Value("--bloom") is not { } bloom)
+            return null;
+        if (!given.Headless)
+            return "--bloom applies to a headless run, so add --headless.";
+        if (bloom is not ("on" or "off"))
+            return $"--bloom needs on or off, not '{bloom}'.";
         return null;
     }
 

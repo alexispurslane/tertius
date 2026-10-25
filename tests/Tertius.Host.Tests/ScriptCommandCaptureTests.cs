@@ -185,7 +185,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         passes
             .Select(pass => pass.GetProperty("pass").GetString())
             .Should()
-            .Equal("shadow maps", "G-buffer", "lighting", "transparent", "tone map", "outlines", "capture");
+            .Equal("shadow maps", "G-buffer", "lighting", "transparent", "bloom", "tone map", "outlines", "capture");
         passes
             .Select(pass => pass.GetProperty("frames").GetInt32())
             .Should()
@@ -238,6 +238,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 "GPU G-buffer",
                 "GPU lighting",
                 "GPU transparent",
+                "GPU bloom",
                 "GPU tone map",
                 "GPU outlines",
                 "GPU capture"
@@ -290,5 +291,33 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         curves.Should().Equal(expected);
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--bloom", "on" }, false)]
+    [InlineData(new[] { "--bloom", "off" }, true)]
+    public void TheBloomOptionTurnsTheHeadlessRenderersBloomOffAndOnKeepsTheRenderersDefault(string[] bloom, bool off)
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<object?>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. bloom],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.Bloom.Value);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        object expected = off ? new NoBloom() : new RendererOptions().Bloom.Value!;
+        settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 }
