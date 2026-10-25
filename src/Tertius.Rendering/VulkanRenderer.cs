@@ -45,9 +45,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
 {
     /// <summary>
     /// The shortest step, in s, after which a headless renderer under <see cref="AutoExposure"/> draws a metering draw
-    /// before the shown draw (docs/plans/auto-exposure.md, "A headless still after a long step").
+    /// before the shown draw (docs/plans/auto-exposure.md, "A headless still after a long step"). It is 5.4 ticks at
+    /// 60 Hz, so that no step of whole ticks lies on it.
     /// </summary>
-    internal const float MeteringStepSeconds = 0.1f;
+    internal const float MeteringStepSeconds = 0.09f;
 
     private readonly VulkanDevice device;
     private readonly ValidationLog log;

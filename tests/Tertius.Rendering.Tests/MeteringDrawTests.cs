@@ -5,7 +5,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The metering draw (docs/plans/auto-exposure.md, "The metering draw (option B)"): a headless frame under
 /// <see cref="AutoExposure"/> whose step is at least <see cref="VulkanRenderer.MeteringStepSeconds"/> is drawn twice, so
-/// that the shown draw uses the exposure that the first draw metered on its own view. A film's frames draw once.
+/// that the shown draw uses the exposure that the first draw metered on its own view. A real-time film's frames draw
+/// once.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class MeteringDrawTests
@@ -21,33 +22,6 @@ public sealed class MeteringDrawTests
 
     private static void Turn(RenderSnapshot snapshot) =>
         snapshot.Camera = snapshot.Camera with { Rotation = TurnedAround, PreviousRotation = TurnedAround };
-
-    [Fact]
-    public void TheFirstFrameShowsTheSettledExposure()
-    {
-        VulkanRenderer renderer = Renderer(AutoExposure.Default);
-        try
-        {
-            RenderSnapshot snapshot = Sunlit();
-            snapshot.Sun.Intensity = 0;
-            AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
-            // 226 frames at 15 frames per second, so that the last one has adapted for 15 s.
-            FilmFrame[] film = Film(
-                renderer: renderer,
-                snapshot: snapshot,
-                start: 0,
-                frameSeconds: 1.0 / 15,
-                frames: 226
-            );
-
-            film[^1].Stops.Should().BeGreaterThan(0, "the dark view wants more than the seed's 0 stops");
-            film[0].Luma.Should().BeApproximately(film[^1].Luma, 2f / 255);
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
 
     [Fact]
     public void AHeadlessFrameAfterALongStepShowsTheExposureOfItsOwnView()
@@ -132,6 +106,71 @@ public sealed class MeteringDrawTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ATimeLapseFrameOfSixTicksDrawsAMeteringDrawWhateverTheRoundingOfItsStep()
+    {
+        VulkanRenderer renderer = Renderer(AutoExposure.Default);
+        try
+        {
+            RenderSnapshot snapshot = Sunlit();
+            AddGraySquare(renderer, snapshot);
+            // Steps of 4 and 6 ticks at 60 Hz, and one of 6 ticks that the subtraction of two snapshot times
+            // rounds a hair short.
+            double[] steps = [4.0 / 60, 6.0 / 60, MathF.BitDecrement(6f / 60)];
+            var advances = new List<long>();
+            renderer.Render(snapshot, 1f);
+            long last = renderer.LastFrameStats.Exposure?.Frame ?? -1;
+            foreach (double step in steps)
+            {
+                snapshot.Time += step;
+                renderer.Render(snapshot, 1f);
+                long reported = renderer.LastFrameStats.Exposure!.Value.Frame;
+                advances.Add(reported - last);
+                last = reported;
+            }
+
+            advances.Should().Equal([1, 2, 2], "no step of whole ticks lies on the threshold of the metering draw");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The film of the first frame's settled exposure, 15 s of snapshot time (tests/STYLE.md, "Long tests").
+    /// </summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class FirstFrame
+    {
+        [Fact]
+        public void TheFirstFrameShowsTheSettledExposure()
+        {
+            VulkanRenderer renderer = Renderer(AutoExposure.Default);
+            try
+            {
+                RenderSnapshot snapshot = Sunlit();
+                snapshot.Sun.Intensity = 0;
+                AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
+                // 226 frames at 15 frames per second, so that the last one has adapted for 15 s.
+                FilmFrame[] film = Film(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    start: 0,
+                    frameSeconds: 1.0 / 15,
+                    frames: 226
+                );
+
+                film[^1].Stops.Should().BeGreaterThan(0, "the dark view wants more than the seed's 0 stops");
+                film[0].Luma.Should().BeApproximately(film[^1].Luma, 2f / 255);
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
         }
     }
 }
