@@ -9,15 +9,13 @@
 // weight for each of the 6x6 texels under its 13 taps: the sum of a quarter of the weight of each tap that holds the
 // texel. The draw sums the 36 weighted texels itself, so no draw has to write the thresholded image.
 
-// The largest finite half float. A blend that overflows writes infinity, which would spread NaN through every level.
-const float halfMax = 65504.0;
-
 // Unity's quadratic soft threshold (PostProcessing v2, QuadraticThreshold in Colors.hlsl): the brightness is the
 // largest channel of the HDR image, which the shading passes pre-exposed. Below threshold - knee width nothing glows, above threshold + knee width the light
 // above the threshold glows, and between them a quadratic joins the two, so the glow fades in.
+// The HDR image holds finite light from 0 to 64,512, MaxRadiance for the surfaces and as much again for the rounded sum
+// of the puffs (exposure.glsl), so the color needs no clamp.
 vec3 thresholded(vec3 color)
 {
-    color = clamp(color, 0.0, halfMax);
     float brightness = max(color.r, max(color.g, color.b));
     float width = bloom.threshold * bloom.knee;
     float soft = clamp(brightness - bloom.threshold + width, 0.0, 2.0 * width);
@@ -46,6 +44,7 @@ void main()
             vec3 texel = texelFetch(source, clamp(first + ivec2(x, y), ivec2(0), last), 0).rgb;
             sum += texelWeights[y * 6 + x] * thresholded(texel);
         }
-    // Each level holds at most the largest half float over the levels, so their sum in level 0 stays finite.
+    // Each level holds at most 64,512 over the levels, so their sum in level 0 stays at most 64,512, with the rounding
+    // of each level's half floats inside the room that it leaves below 65,504.
     outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
 }

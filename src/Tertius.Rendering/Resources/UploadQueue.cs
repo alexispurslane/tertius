@@ -29,6 +29,9 @@ internal sealed class UploadQueue(int maxTextureSize)
             throw new ArgumentException("A mesh needs at least one vertex and one index.", nameof(mesh));
         if (mesh.Indices.Length % 3 != 0)
             throw new ArgumentException("A triangle list needs a multiple of three indices.", nameof(mesh));
+        foreach (ref readonly Vertex vertex in mesh.Vertices.AsSpan())
+            if (!IsFinite(vertex))
+                throw new ArgumentException($"The vertex {vertex} holds a number that is not finite.", nameof(mesh));
         uint vertexCount = (uint)mesh.Vertices.Length;
         foreach (uint index in mesh.Indices)
             if (index >= vertexCount)
@@ -40,6 +43,15 @@ internal sealed class UploadQueue(int maxTextureSize)
             return id;
         }
     }
+
+    /// <summary>Whether every number of <paramref name="vertex"/> is finite. The shaders read no NaN or infinity (ShaderInput).</summary>
+    private static bool IsFinite(in Vertex vertex) =>
+        ShaderInput.IsFinite(vertex.Position)
+        && ShaderInput.IsFinite(vertex.Normal)
+        && ShaderInput.IsFinite(new(vertex.Tangent.X, vertex.Tangent.Y, vertex.Tangent.Z))
+        && float.IsFinite(vertex.Tangent.W)
+        && float.IsFinite(vertex.TexCoord.X)
+        && float.IsFinite(vertex.TexCoord.Y);
 
     public TextureId AddTexture(TextureData texture)
     {

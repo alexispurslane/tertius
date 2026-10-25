@@ -73,30 +73,7 @@ internal sealed unsafe class GeometryStore : IDisposable
         int vertexSize = Unsafe.SizeOf<Vertex>();
         StagingSlice vertexStage = staging.Allocate(newVertices * (ulong)vertexSize);
         StagingSlice indexStage = staging.Allocate(newIndices * sizeof(uint));
-        ulong vertexCursor = 0,
-            indexCursor = 0;
-        foreach ((MeshId id, MeshData data) in pending)
-        {
-            // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
-            // slot. If that broke, an instance would draw another mesh.
-            Contract.Assert(id.Value == meshes.Count);
-            MemoryMarshal
-                .AsBytes(data.Vertices.AsSpan())
-                .CopyTo(new(vertexStage.Pointer + vertexCursor * (ulong)vertexSize, data.Vertices.Length * vertexSize));
-            MemoryMarshal
-                .AsBytes(data.Indices.AsSpan())
-                .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
-            meshes.Add(
-                new(
-                    FirstIndex: (uint)(IndexCount + indexCursor),
-                    IndexCount: (uint)data.Indices.Length,
-                    VertexOffset: checked((int)(VertexCount + vertexCursor)),
-                    Radius: Radius(data.Vertices)
-                )
-            );
-            vertexCursor += (ulong)data.Vertices.Length;
-            indexCursor += (ulong)data.Indices.Length;
-        }
+        Stage(pending: pending, vertexStage: vertexStage, indexStage: indexStage);
 
         barriers.Buffer(VertexBuffer, BufferUse.TransferDestination);
         barriers.Buffer(IndexBuffer, BufferUse.TransferDestination);
@@ -119,6 +96,38 @@ internal sealed unsafe class GeometryStore : IDisposable
         );
         VertexCount += newVertices;
         IndexCount += newIndices;
+    }
+
+    /// <summary>
+    /// Writes the vertices and indices of <paramref name="pending"/> into the staging slices, one mesh after another, and
+    /// adds each mesh's range in the buffers to the mesh table.
+    /// </summary>
+    private void Stage(List<(MeshId Id, MeshData Data)> pending, StagingSlice vertexStage, StagingSlice indexStage)
+    {
+        ulong vertexCursor = 0,
+            indexCursor = 0;
+        foreach ((MeshId id, MeshData data) in pending)
+        {
+            // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
+            // slot. If that broke, an instance would draw another mesh.
+            Contract.Assert(id.Value == meshes.Count);
+            var staged = new Span<Vertex>((Vertex*)vertexStage.Pointer + vertexCursor, data.Vertices.Length);
+            for (int i = 0; i < staged.Length; i++)
+                staged[i] = Staged(data.Vertices[i]);
+            MemoryMarshal
+                .AsBytes(data.Indices.AsSpan())
+                .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
+            meshes.Add(
+                new(
+                    FirstIndex: (uint)(IndexCount + indexCursor),
+                    IndexCount: (uint)data.Indices.Length,
+                    VertexOffset: checked((int)(VertexCount + vertexCursor)),
+                    Radius: Radius(data.Vertices)
+                )
+            );
+            vertexCursor += (ulong)data.Vertices.Length;
+            indexCursor += (ulong)data.Indices.Length;
+        }
     }
 
     private void Grow(
@@ -218,6 +227,25 @@ internal sealed unsafe class GeometryStore : IDisposable
     {
         VertexBuffer.Dispose();
         IndexBuffer.Dispose();
+    }
+
+    /// <summary>
+    /// <paramref name="vertex"/> as the GPU gets it: its normal and the direction of its tangent at unit length, or zero
+    /// when they have no direction. The shaders then never square a long normal past the float range, and give a zero
+    /// normal a direction themselves (Shaders/vectors.glsl). The upload queue has refused a vertex with a number that is
+    /// not finite.
+    /// </summary>
+    internal static Vertex Staged(in Vertex vertex)
+    {
+        Vector3 tangent = UnitOrZero(new(vertex.Tangent.X, vertex.Tangent.Y, vertex.Tangent.Z));
+        return vertex with { Normal = UnitOrZero(vertex.Normal), Tangent = new(tangent, vertex.Tangent.W) };
+    }
+
+    /// <summary>The direction of <paramref name="v"/>, computed in doubles, so that no square of a part overflows or underflows.</summary>
+    private static Vector3 UnitOrZero(Vector3 v)
+    {
+        double length = Math.Sqrt((double)v.X * v.X + (double)v.Y * v.Y + (double)v.Z * v.Z);
+        return length > 0 ? new((float)(v.X / length), (float)(v.Y / length), (float)(v.Z / length)) : Vector3.Zero;
     }
 
     /// <summary>The bounding radius of a mesh around its origin.</summary>
