@@ -1,10 +1,11 @@
 namespace Tertius.Rendering;
 
-/// <summary>One half-resolution texel that the upsample reads: its view position and its occlusion.</summary>
-internal readonly record struct UpsampleTexel(Double3 Position, double Occlusion);
+/// <summary>One half-resolution texel that the upsample reads: its view position and its estimate.</summary>
+internal readonly record struct UpsampleTexel(Double3 Position, AmbientEstimate Estimate);
 
 /// <summary>
-/// The joint bilateral upsample of the occlusion from half to full resolution (docs/plans/ambient-occlusion.md, "The
+/// The joint bilateral upsample of the estimate, the bounce and the occlusion, from half to full resolution
+/// (docs/plans/ambient-occlusion.md, "The upsample", and docs/plans/screen-space-illumination.md, "The denoise and the
 /// upsample"). occlusion_upsample.comp computes the same.
 /// </summary>
 internal static class OcclusionUpsample
@@ -14,14 +15,14 @@ internal static class OcclusionUpsample
         fullResolutionCoordinate % 2 == 0 ? (1, 0) : (0.5, 0.5);
 
     /// <summary>
-    /// The occlusion of the full-resolution <paramref name="pixel"/> at the view <paramref name="position"/>, clamped
-    /// to [0, 1]: the bilinear weights of its 2 × 2 block of texels cut by each texel's distance from the pixel's
-    /// tangent plane, or the texel nearest the plane when none lies on it.
+    /// The estimate of the full-resolution <paramref name="pixel"/> at the view <paramref name="position"/>, with its
+    /// occlusion clamped to [0, 1]: the bilinear weights of its 2 × 2 block of texels cut by each texel's distance from
+    /// the pixel's tangent plane, or the texel nearest the plane when none lies on it. The bounce takes the same weights.
     /// </summary>
     /// <param name="texelWidth">p(z) at the pixel: a texel this far from the plane gets no weight.</param>
     /// <param name="halfSize">The size of the half-resolution image, in texels.</param>
     /// <param name="texelAt">Reads a texel of the image: only one inside it, of a bilinear weight above 0.</param>
-    public static double Occlusion(
+    public static AmbientEstimate Estimate(
         (int X, int Y) pixel,
         Double3 position,
         Double3 geometricNormal,
@@ -32,10 +33,11 @@ internal static class OcclusionUpsample
     {
         (double low, double high) = AxisWeights(pixel.X);
         (double top, double bottom) = AxisWeights(pixel.Y);
-        double sum = 0;
+        Double3 bounceSum = Double3.Zero;
+        double occlusionSum = 0;
         double weights = 0;
         double nearestOffPlane = double.PositiveInfinity;
-        double nearestOcclusion = 1;
+        AmbientEstimate nearest = AmbientEstimate.Open;
         for (int b = 0; b < 2; b++)
         for (int a = 0; a < 2; a++)
         {
@@ -48,15 +50,18 @@ internal static class OcclusionUpsample
             UpsampleTexel texel = texelAt(coordinates);
             double offPlane = Math.Abs(Double3.Dot(geometricNormal, texel.Position - position));
             double weight = bilinear * Math.Max(0, 1 - offPlane / texelWidth);
-            sum += weight * texel.Occlusion;
+            bounceSum += texel.Estimate.Bounce * weight;
+            occlusionSum += weight * texel.Estimate.Occlusion;
             weights += weight;
             if (offPlane < nearestOffPlane)
             {
                 nearestOffPlane = offPlane;
-                nearestOcclusion = texel.Occlusion;
+                nearest = texel.Estimate;
             }
         }
-        double occlusion = weights > 0 ? sum / weights : nearestOcclusion;
-        return Math.Clamp(occlusion, 0, 1);
+        AmbientEstimate estimate =
+            weights > 0 ? new(Bounce: bounceSum / weights, Occlusion: occlusionSum / weights) : nearest;
+        // The bounce needs no clamp: a mean of non-negative light with non-negative weights.
+        return estimate with { Occlusion = Math.Clamp(estimate.Occlusion, 0, 1) };
     }
 }

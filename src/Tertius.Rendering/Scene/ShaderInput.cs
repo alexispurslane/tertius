@@ -51,6 +51,13 @@ internal static class ShaderInput
     /// </summary>
     public static float PuffRadianceCap(int puffCount) => PuffBudget / Math.Max(puffCount, 1);
 
+    /// <summary>
+    /// The C# copy of `exposed` in Shaders/exposure.glsl: <paramref name="radiance"/> times <paramref name="exposure"/>,
+    /// at most <see cref="MaxRadiance"/> per channel. The cap applies before the product, which stays in the float range.
+    /// </summary>
+    public static Vector3 Exposed(Vector3 radiance, float exposure) =>
+        Vector3.Min(radiance, new(MaxRadiance / exposure)) * exposure;
+
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>
         float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);

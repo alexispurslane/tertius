@@ -15,8 +15,10 @@ internal readonly record struct HorizonSlice
     /// </summary>
     public HorizonSlice(Double3 toEye, Double3 normal, double angle)
     {
+        ToEye = toEye;
         Direction = new(Math.Cos(angle), Math.Sin(angle), 0);
         Double3 ortho = Direction - toEye * Double3.Dot(Direction, toEye);
+        TowardPlusSide = ortho.Normalized();
         Double3 axis = Double3.Cross(ortho, toEye).Normalized();
         Double3 projected = normal - axis * Double3.Dot(normal, axis);
         ProjectedNormalLength = projected.Length;
@@ -27,6 +29,12 @@ internal readonly record struct HorizonSlice
         );
         NormalAngle = Math.Sign(Double3.Dot(ortho, projected)) * Math.Acos(cosNormal);
     }
+
+    /// <summary>V̂, the unit vector from the center toward the eye.</summary>
+    public Double3 ToEye { get; }
+
+    /// <summary>ô, the unit vector in the slice plane at right angles to V̂, toward the plus side.</summary>
+    public Double3 TowardPlusSide { get; }
 
     /// <summary>The direction of the slice in view space, (cos φ, sin φ, 0).</summary>
     public Double3 Direction { get; }

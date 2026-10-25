@@ -135,6 +135,7 @@ public sealed class AmbientOcclusionShaderTests
                 normalSkyShare: normalSky,
                 lobeSkyShare: lobeSky,
                 occlusion: occlusion,
+                bounce: Double3.Zero,
                 tables: BrdfTables.Shared
             )
             .ToVector3();
