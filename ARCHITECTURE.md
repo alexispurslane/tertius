@@ -21,7 +21,7 @@ These features are out of scope. Do not design for them.
 | Graphics | Vulkan 1.3 through Silk.NET 2.23.0, MoltenVK on macOS |
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
-| Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. |
+| Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. Every test project also loads the extension in `tools/Tertius.TestRecord`, which records a passed full run for the pre-commit hook (tools/README.md, "The test record"). |
 | Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp, and write the approved reference images and the failure files of snapshot tests with StbImageWriteSharp. |
 | Video | ffmpeg 9.0.1 (`ffmpeg-headless` in the dev shell), a separate process that encodes the frames of a headless run with `--video`. `FfmpegVideoSink` finds it on the search path. The Host tests read the videos with its `ffmpeg` and `ffprobe`. |
 | Benchmarks | BenchmarkDotNet 0.15.8 |
