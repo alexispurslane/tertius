@@ -27,3 +27,12 @@ Design to decide (two designs, then the user chooses): a RendererOptions choice 
 
 A RendererOptions setting selects Hable's curve. A CPU test checks the curve against the formula at a few points, including f(W) / f(W) = 1 at the white point. Captures of the orbit scene and the test scene with each curve are reviewed by eye, and the user picks the default.
 
+
+## Design decisions (user, 2026-10-25)
+
+Settled together with automatic exposure (ter-zzyr), which shares the tone map stage:
+
+- The tone curve is a renderer setting with two cases: ACES fitted, as today, and Hable's Uncharted 2 curve.
+- Hable's constants are fixed, as published, so the setting has no data per case. His exposure bias of 2 is part of his curve, so the curve looks as he published it.
+- The default stays ACES until the user picks one from captures of both curves.
+- After ter-zzyr, the tone map pass multiplies by no exposure: the shading passes write pre-exposed light. Whichever of the two tickets merges second resolves the overlap in tonemap.frag.
