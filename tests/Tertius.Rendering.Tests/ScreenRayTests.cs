@@ -244,7 +244,6 @@ public sealed class ScreenRayTests
         DepthPyramid pyramid = ScreenTesting.Pyramid(camera, scene);
         var random = new Random(20_261_025);
         int hits = 0;
-        int grazingRays = 0;
         var disagreements = new List<string>();
 
         for (int index = 0; index < 10_000; index++)
@@ -255,7 +254,7 @@ public sealed class ScreenRayTests
             var ray = ScreenRay.Of(origin, RandomDirection(random), camera);
 
             RayTrace traced = ray.Trace(pyramid, maxSteps: 1_000_000);
-            Marched marched = March(ray, pyramid);
+            (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
 
             if (traced.TryGetValue(out RayHit hit))
             {
@@ -268,50 +267,65 @@ public sealed class ScreenRayTests
                 if (!insideItsPixel)
                     disagreements.Add($"ray {index}: the hit {hit} lies outside its pixel");
             }
-            if (marched.Grazed.Count > 0)
-                grazingRays++;
             if (!Agrees(traced, marched))
-                disagreements.Add($"ray {index}: trace {traced}, march {marched.Met}, grazed {marched.Grazed.Count}");
+                disagreements.Add($"ray {index}: trace {traced}, march {marched}");
         }
 
         hits.Should().BeGreaterThan(2_000, "most random rays meet a surface of the scene");
         disagreements.Should().BeEmpty();
-        grazingRays
-            .Should()
-            .BeLessThan(100, "a ray rarely meets a slab only within the crossing nudge of a pixel's edge");
     }
 
-    /// <summary>
-    /// What the march finds: the first pixel whose slab the ray meets before the last crossing nudge of the pixel,
-    /// with its entry share, and before it the pixels whose slab the ray meets only within that sliver.
-    /// </summary>
-    private readonly record struct Marched(List<(int X, int Y)> Grazed, (int X, int Y, float EntryShare)? Met);
+    [Fact]
+    public void ASlabEntryThatRoundsOntoItsCellsFarEdgeFindsThePixelThatTheMarchFinds()
+    {
+        CameraView camera = ScreenTesting.Camera(width: 128, height: 96, pitchDown: 0.35f);
+        SceneRectangle[] scene =
+        [
+            new(new(0, -1.5f, -15), new(10, 0, 0), new(0, 0, 15)),
+            new(new(0, 1, -30), new(10, 0, 0), new(0, 2.5f, 0)),
+            new(new(-10, 0.5f, -15), new(0, 2, 0), new(0, 0, 15)),
+            .. ScreenTesting.Box(new(-2, -1, -8), new(0.5f, 0.5f, 0.5f)),
+            .. ScreenTesting.Box(new(3, -0.5f, -12), new(1, 1, 1)),
+            .. ScreenTesting.Box(new(0.5f, -1.2f, -5), new(0.3f, 0.3f, 0.3f)),
+            .. ScreenTesting.Box(new(-1, 1.5f, -14), new(1, 0.3f, 0.6f)),
+        ];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, scene);
+        // Five of 2,000,000 random rays, as float bits: in each, a descent solves a slab entry inside a cell, and its
+        // position rounds onto that cell's far edge. The march counts that point in the cell, and so must the trace.
+        int[][] rays =
+        [
+            [-1107579262, -1083542741, -1081599487, 1023203020, -1089825740, -1084810634],
+            [1042386941, -1082180277, -1080927508, -1089588367, -1116458374, -1084992710],
+            [1058390290, -1088727974, -1088419092, -1100666412, -1088763477, -1086082921],
+            [1057664682, -1088110134, -1080204555, -1095920684, -1083203284, -1111431943],
+            [1074026297, -1084203234, -1069695833, -1088311125, 1034606339, -1085975904],
+        ];
+        var disagreements = new List<string>();
 
-    /// <summary>
-    /// The trace and the march hit one pixel with one entry share, or miss together. The one exception is a pixel that
-    /// the ray meets only within the crossing nudge of the pixel's far edge: a descent can solve the slab entry into
-    /// that sliver, and the nudge gives it to the pixel ahead, so the trace can hit the grazed pixel, its neighbor
-    /// across the sliver, or the march's next pixel.
-    /// </summary>
-    private static bool Agrees(RayTrace traced, Marched marched) =>
+        foreach (int[] bits in rays)
+        {
+            float[] values = [.. bits.Select(BitConverter.Int32BitsToSingle)];
+            var ray = ScreenRay.Of(new(values[0], values[1], values[2]), new(values[3], values[4], values[5]), camera);
+            RayTrace traced = ray.Trace(pyramid, MaxSteps);
+            (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
+            if (!Agrees(traced, marched))
+                disagreements.Add($"trace {traced}, march {marched}");
+        }
+
+        disagreements.Should().BeEmpty();
+    }
+
+    /// <summary>The trace and the march hit one pixel with one entry share, or miss together.</summary>
+    private static bool Agrees(RayTrace traced, (int X, int Y, float EntryShare)? marched) =>
         traced switch
         {
-            RayHit hit when marched.Met is { } met && hit.Pixel == (met.X, met.Y) => MathF.Abs(
-                hit.EntryShare - met.EntryShare
-            ) < 1e-3f,
-            RayHit hit => marched.Grazed.Any(grazed => hit.Pixel == grazed || WithinNudgeOf(hit.Position, grazed)),
-            RayLeftTheSegment => marched.Met is null,
+            RayHit hit => marched is { } met
+                && hit.Pixel == (met.X, met.Y)
+                && MathF.Abs(hit.EntryShare - met.EntryShare) < 1e-3f,
+            RayLeftTheSegment => marched is null,
             RayOutOfSteps => false,
             null => false,
         };
-
-    private static bool WithinNudgeOf(Vector2 position, (int X, int Y) pixel)
-    {
-        const float nudge = ScreenRay.CrossingNudge;
-        bool across = position.X >= pixel.X - nudge && position.X <= pixel.X + 1 + nudge;
-        bool down = position.Y >= pixel.Y - nudge && position.Y <= pixel.Y + 1 + nudge;
-        return across && down;
-    }
 
     private static Vector3 RandomDirection(Random random)
     {
@@ -333,10 +347,9 @@ public sealed class ScreenRayTests
     /// the exit of the origin pixel, with no level above 0. The entry share reads the inverse depth where the image
     /// enters the pixel.
     /// </summary>
-    private static Marched March(ScreenRay ray, DepthPyramid pyramid)
+    private static (int X, int Y, float EntryShare)? March(ScreenRay ray, DepthPyramid pyramid)
     {
         var travel = new Vector2(MathF.Sign(ray.Step.X), MathF.Sign(ray.Step.Y));
-        var grazed = new List<(int X, int Y)>();
         float s = PixelExit(ray, Floor(ray.Start), travel);
         for (int pixels = 0; s < ray.End; pixels++)
         {
@@ -344,33 +357,16 @@ public sealed class ScreenRayTests
             Vector2 pixel = Floor(ray.Start + ray.Step * s + travel * ScreenRay.CrossingNudge);
             float exit = PixelExit(ray, pixel, travel);
             (float low, float high) = pyramid.Bounds(0, (int)pixel.X, (int)pixel.Y).Slab(ScreenRay.ThicknessShare);
-            float beforeSliver = MathF.Max(s, MathF.Min(SliverStart(ray, pixel, travel), exit));
-            if (MeetsSlab(ray: ray, from: s, to: beforeSliver, low: low, high: high))
+            float inW = ray.StartInverseDepth + ray.StepInverseDepth * s;
+            float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
+            if (MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high))
             {
                 float edgeW = ray.StartInverseDepth + ray.StepInverseDepth * PixelEntry(ray, pixel, travel);
-                return new(grazed, ((int)pixel.X, (int)pixel.Y, MarchedEntryShare(edgeW, low, high)));
+                return ((int)pixel.X, (int)pixel.Y, MarchedEntryShare(edgeW, low, high));
             }
-            if (MeetsSlab(ray: ray, from: s, to: exit, low: low, high: high))
-                grazed.Add(((int)pixel.X, (int)pixel.Y));
             s = exit;
         }
-        return new(grazed, null);
-    }
-
-    private static bool MeetsSlab(ScreenRay ray, float from, float to, float low, float high)
-    {
-        float inW = ray.StartInverseDepth + ray.StepInverseDepth * from;
-        float outW = ray.StartInverseDepth + ray.StepInverseDepth * to;
-        return MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high);
-    }
-
-    /// <summary>Where the image comes within the crossing nudge of the pixel's far edge across or down.</summary>
-    private static float SliverStart(ScreenRay ray, Vector2 pixel, Vector2 travel)
-    {
-        Vector2 edge = pixel + Vector2.Max(travel, Vector2.Zero) - travel * ScreenRay.CrossingNudge;
-        float startX = travel.X != 0 ? (edge.X - ray.Start.X) / ray.Step.X : float.MaxValue;
-        float startY = travel.Y != 0 ? (edge.Y - ray.Start.Y) / ray.Step.Y : float.MaxValue;
-        return MathF.Min(startX, startY);
+        return null;
     }
 
     private static float PixelExit(ScreenRay ray, Vector2 pixel, Vector2 travel)

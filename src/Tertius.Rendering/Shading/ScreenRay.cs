@@ -114,11 +114,14 @@ internal readonly record struct ScreenRay(
         var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
         float s = CellExit(level: 0, cell: Floor(Start), travel: travel);
         int level = 0;
+        // Whether s stands on a cell's edge, where the crossing nudge gives it to the cell ahead. A slab entry that a
+        // descent solves strictly inside a cell is not on an edge, and takes no nudge.
+        bool onEdge = true;
         for (int steps = 0; steps < maxSteps; steps++)
         {
             if (s >= End)
                 return new RayLeftTheSegment(EndsAt, steps);
-            Vector2 cell = Floor((Start + Step * s + travel * CrossingNudge) / (1 << level));
+            Vector2 cell = CellAt(s: s, level: level, travel: travel, onEdge: onEdge);
             float exit = CellExit(level, cell, travel);
             (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(ThicknessShare);
             float inW = InverseDepthAt(s);
@@ -126,7 +129,10 @@ internal readonly record struct ScreenRay(
             bool meetsSlab = MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high);
             if (!meetsSlab)
             {
-                s = exit;
+                // Never back: an entry solved inside a cell can round past the cell's exit. Then the next descent finds
+                // the entry at s, keeps it on an edge, and the nudge moves the walk on.
+                s = MathF.Max(s, exit);
+                onEdge = true;
                 level = Math.Min(level + 1, pyramid.TopLevel);
                 continue;
             }
@@ -144,6 +150,8 @@ internal readonly record struct ScreenRay(
                     Steps: steps + 1
                 );
             }
+            bool entryInsideCell = entry > s && entry < exit;
+            onEdge = !entryInsideCell && (onEdge || entry >= exit);
             s = entry;
             level--;
         }
@@ -185,6 +193,13 @@ internal readonly record struct ScreenRay(
         if (inW < low)
             return (low - StartInverseDepth) / StepInverseDepth;
         return s;
+    }
+
+    /// <summary>The cell of a level that holds the image at s. On a cell's edge, the cell ahead holds it.</summary>
+    private Vector2 CellAt(float s, int level, Vector2 travel, bool onEdge)
+    {
+        Vector2 nudge = onEdge ? travel * CrossingNudge : Vector2.Zero;
+        return Floor((Start + Step * s + nudge) / (1 << level));
     }
 
     /// <summary>The parameter where the image enters a pixel, on its near edge across or down.</summary>

@@ -65,7 +65,7 @@ The user made the decisions marked (User). This design settled the others by the
 
 13. The depth pyramid holds inverse depth w = 1/z, not the distance. Along the image of a straight ray, w is an affine function of the screen position, and z and D are not (McGuire and Mara 2014). So the trace can test a whole cell against a ray exactly, with no march inside it. A 32-bit float keeps the same relative precision at 5 cm and at 10,000 km, so one pyramid serves all three depth ranges. Sky and infinity are both w = 0.
 14. Level 0 of the depth pyramid is the distance target, read through one function that converts D to w. The pyramid image holds only levels 1 and up. A copy of level 0 is a second store of the distance.
-15. A cell's bounds cover its surface pixels only, and a cell with no surface has the empty bounds (0, 10^30). Sky is not a surface: a ray never hits it, and it ends at the segment's end. The empty bound is a large finite number, not infinity, because MoltenVK can compile shaders with Metal's fast math, which assumes that no value is infinite.
+15. A cell's bounds cover its surface pixels only, and a cell with no surface has the empty bounds (0, 10^30). Sky is not a surface: a ray never hits it, and it ends at the segment's end. The empty bound is a large finite number, not infinity, because a shader compiler's fast math may assume that no value is infinite, on any Vulkan driver and on MoltenVK alike. A cell outside its level, beside the screen, has the empty bounds too.
 16. The thickness is a share of the view depth: a surface at depth z fills z to z (1 + κ), with κ = 0.1. In inverse depth the slab is [w / (1 + κ), w], so one constant serves every range: 0.5 m behind a crate 5 m away, 50 m behind a ship 500 m away. The captures of Part 6 check the value.
 17. The ray follows the specular dominant direction d of Lagarde and de Rousiers 2014, not the mirror direction. The ambient specular term gathers along d: the lobe's sky share reads d today, and an environment map samples along d. So a hit and a miss read the same direction of the lobe, and the fade between them changes no direction. For a smooth surface, d is the mirror direction.
 18. The origin moves off the surface along the geometric normal by 2 z θ_px, two pixel footprints. A ray that starts on the surface hits its own neighbor pixels by rounding. The geometric normal is the surface that the depth sees.
@@ -224,15 +224,18 @@ stateDiagram-v2
 For each step, at level k and parameter s:
 
 ```
-cell    = floor((S(s) + ε · sign(ΔS)) / 2^k)                ε = 0.01 px, so a position on an edge belongs to the cell ahead
+cell    = floor((S(s) + ε · sign(ΔS)) / 2^k)    when s stands on an edge   ε = 0.01 px, so it belongs to the cell ahead
+cell    = floor(S(s) / 2^k)                     when s is a slab entry solved strictly inside a cell
 s_exit  = min(s at the cell's far edge on x, s at its far edge on y, s_end)
-(n, f)  = bounds(k, cell)
+(n, f)  = bounds(k, cell)                       the empty bounds for a cell outside its level
 high    = n;   low = f / (1 + κ)                            the slab
 w_in    = w(s);   w_out = w(s_exit)
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
 ```
 
-- No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = s_exit, and the level rises by one, up to L, for a longer step next time.
+- The nudge ε is for a position on a cell's edge only: the start at the exit of the origin pixel, every crossing, and a descent that leaves s where it was or moves it to s_exit. A slab entry that a descent solves strictly between s and s_exit lies inside a cell, and takes no nudge. With the nudge, an entry within ε of a far edge would go to the cell ahead, and the trace would skip the sliver of the cell where the ray meets its slab: in a test of 10,000 random rays, 27 such grazing contacts moved the hit to a surface up to 8 px further along the ray. Without it, the trace finds the pixel that a pixel-by-pixel march finds.
+- No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = max(s, s_exit), and the level rises by one, up to L, for a longer step next time. s never moves back: an entry solved inside a cell can round past that cell's exit, and the next descent then finds the entry at s, keeps s on an edge, and the nudge moves the walk on.
+- A cell outside its level, which a ray reaches when its origin lies up to about two pixels beside the screen or when the nudge pushes it past an edge, has the empty bounds: no surface lies beyond the screen's edges. The cap of the level at L matters only for such a ray, which crosses top-level cells beside the screen.
 - An overlap at a level above 0: the ray can meet a surface inside the cell. The trace moves s to where the ray enters the slab, and looks at the finer level:
 
   ```
@@ -242,12 +245,12 @@ overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
   s = clamp(s_entry, s, s_exit);  level − 1
   ```
 
-- An overlap at level 0 is a hit in that pixel. The entry share comes from where the ray stands at the pixel's edge:
+- An overlap at level 0 is a hit in that pixel. The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), where s_pixel is the later of the ray's crossings of the pixel's two near edges. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
 
   ```
-  q = 0                                when w_in > high: the ray enters through the front of the surface
-  q = (high − w_in) / (high − low)     when it is inside the slab at the pixel's edge
-  q = 1                                when w_in < low: the ray enters from behind, so it meets the back of the object
+  q = 0                                    when w_edge > high: the ray enters through the front of the surface
+  q = (high − w_edge) / (high − low)       when it is inside the slab at the pixel's edge
+  q = 1                                    when w_edge < low: the ray enters from behind, so it meets the back of the object
   ```
 
   The hit position is S(s_entry), clamped into the pixel.
@@ -794,7 +797,7 @@ Part 4 writes `viewRayThrough`, and Part 5 adds `pixelOf`.
 #include "gbuffer_inputs.glsl"
 #include "screen.glsl"
 
-// Far above any surface's inverse depth, which is at most 1 / 0.05 m. Not infinity: Metal's fast math may assume none.
+// Far above any surface's inverse depth, which is at most 1 / 0.05 m. Not infinity: fast math may assume none.
 const float EmptyFar = 1e30;
 
 vec2 pixelBounds(ivec2 pixel)
@@ -810,8 +813,14 @@ vec2 mergedBounds(vec2 a, vec2 b)
     return vec2(max(a.x, b.x), min(a.y, b.y));
 }
 
+// A cell outside its level holds no surface: no surface lies beyond the screen's edges. The test also keeps every
+// texelFetch inside its image, because the Vulkan spec leaves a fetch out of range undefined without the robustness
+// features.
 vec2 cellBounds(texture2D pyramid, uint level, ivec2 cell)
 {
+    ivec2 size = level == 0u ? textureSize(gbufferDistance, 0) : textureSize(pyramid, int(level) - 1);
+    if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, size)))
+        return vec2(0.0, EmptyFar);
     return level == 0u ? pixelBounds(cell) : texelFetch(pyramid, cell, int(level) - 1).rg;
 }
 
@@ -904,6 +913,16 @@ float cellExit(ScreenRay ray, uint level, ivec2 cell, vec2 travel)
     return min(min(exits.x, exits.y), ray.end);
 }
 
+// The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
+float pixelEntry(ScreenRay ray, ivec2 pixel, vec2 travel)
+{
+    vec2 edge = vec2(pixel) + max(-travel, 0.0);
+    vec2 entries = vec2(
+        travel.x != 0.0 ? (edge.x - ray.start.x) / ray.step.x : -NoEnd,
+        travel.y != 0.0 ? (edge.y - ray.start.y) / ray.step.y : -NoEnd);
+    return max(entries.x, entries.y);
+}
+
 // Walks the ray's image through the depth pyramid (Uludag 2014, with min-max cells and the slab of McGuire and Mara
 // 2014). On a hit, gives the hit's position in pixels, its pixel and the entry share q.
 bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out ivec2 hitPixel, out float entryShare)
@@ -912,10 +931,13 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     vec2 travel = sign(ray.step);
     float s = cellExit(ray, 0u, ivec2(floor(ray.start)), travel);
     uint level = 0u;
+    // Whether s stands on a cell's edge, where the crossing nudge gives it to the cell ahead. A slab entry that a
+    // descent solves strictly inside a cell is not on an edge, and takes no nudge.
+    bool onEdge = true;
     for (uint step = 0u; step < maxSteps && s < ray.end; step++)
     {
-        vec2 at = ray.start + ray.step * s;
-        ivec2 cell = ivec2(floor((at + travel * CrossingNudge) / float(1u << level)));
+        vec2 nudge = onEdge ? travel * CrossingNudge : vec2(0.0);
+        ivec2 cell = ivec2(floor((ray.start + ray.step * s + nudge) / float(1u << level)));
         float exit = cellExit(ray, level, cell, travel);
         vec2 bounds = cellBounds(pyramid, level, cell);
         float high = bounds.x;
@@ -924,19 +946,29 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         float outW = ray.startW + ray.stepW * exit;
         if (max(min(inW, outW), low) > min(max(inW, outW), high))
         {
-            s = exit;
+            // Never back: an entry solved inside a cell can round past the cell's exit. The next descent then finds
+            // the entry at s, keeps s on an edge, and the nudge moves the walk on.
+            s = max(s, exit);
+            onEdge = true;
             level = min(level + 1u, topLevel);
             continue;
         }
         float entry = inW > high ? (high - ray.startW) / ray.stepW : inW < low ? (low - ray.startW) / ray.stepW : s;
-        entry = clamp(entry, s, exit);
+        // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes
+        // its maximum.
+        entry = min(max(entry, s), exit);
         if (level == 0u)
         {
             hit = clamp(ray.start + ray.step * entry, vec2(cell), vec2(cell) + 1.0);
             hitPixel = cell;
-            entryShare = inW > high ? 0.0 : inW < low ? 1.0 : (high - inW) / (high - low);
+            // From the inverse depth where the image enters the pixel, never at a solved s, which keeps a far
+            // surface's thin slab exact ("Precision and determinism").
+            float edgeW = ray.startW + ray.stepW * pixelEntry(ray, cell, travel);
+            entryShare = edgeW > high ? 0.0 : edgeW < low ? 1.0 : (high - edgeW) / (high - low);
             return true;
         }
+        bool entryInsideCell = entry > s && entry < exit;
+        onEdge = !entryInsideCell && (onEdge || entry >= exit);
         s = entry;
         level--;
     }
@@ -1123,6 +1155,7 @@ internal sealed class DepthPyramid
     public int Width { get; }
     public int Height { get; }
     public int TopLevel { get; }
+    /// <summary>The bounds of a cell, or the empty bounds for a cell outside its level.</summary>
     public CellBounds Bounds(int level, int x, int y);
 }
 
@@ -1158,10 +1191,10 @@ internal readonly record struct ScreenRay(
     public const float SurfaceFadeCosine = 0.05f;
 
     /// <summary>The image of the ray from origin along the unit direction, both in the camera-relative axes.</summary>
-    public static ScreenRay Of(Vector3 origin, Vector3 direction, CameraView camera);
+    public static ScreenRay Of(Vector3 origin, Vector3 direction, in CameraView camera);
 
     /// <summary>The image of the reflected ray of a surface point: its origin off the surface by OriginOffsetPixels footprints.</summary>
-    public static ScreenRay FromSurface(Vector3 point, Vector3 geometricNormal, Vector3 direction, CameraView camera);
+    public static ScreenRay FromSurface(Vector3 point, Vector3 geometricNormal, Vector3 direction, in CameraView camera);
 
     /// <summary>The fade of a ray that points into its own geometric surface.</summary>
     public static float SurfaceFade(Vector3 direction, Vector3 geometricNormal);
@@ -1219,6 +1252,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `InverseDepthIsAffineAlongTheImageOfAStraightRay`: three points of a ray, their pixels and inverse depths lie on one line within float rounding.
 - `TheEdgeFadeIsZeroOnTheEdgeAndOneABandInside`.
 - `TheEdgeFadeHasTheSameBandOnEveryEdge`.
+- `TheEdgeFadeIsASmoothstepAcrossTheBand`: a quarter of the way in, 5/32. A linear fade also gives one half in the middle of the band.
 
 `DepthPyramidTests`:
 
@@ -1227,6 +1261,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ACellHoldsTheNearestAndTheFarthestInverseDepthOfItsSurfacePixels`.
 - `SkyAddsNoSurfaceToACell`.
 - `ACellOfOnlySkyHasEmptyBoundsAndAnEmptySlab`.
+- `ACellOutsideItsLevelHoldsNoSurface`.
 - `TheLastCellOfAnOddLevelCoversTheRemainingPixels`.
 - `TheTopCellBoundsEveryPixel`.
 - `AThicknessShareOfOneTenthFillsATenthOfTheDepthBehindASurface`: the slab of a surface at 5 m reaches 5.5 m.
@@ -1244,7 +1279,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 `ScreenRayTests` (synthetic pyramids from `FromInverseDepths` and a `CameraView` built by hand, as `ImpostorManagerTests` builds one):
 
 - `ARayRisingFromAFlatFloorDoesNotHitTheFloor`: from every pixel of a floor seen at 10° to 60°, rays at 5° to 80° above it.
-- `ARayHitsTheFrontOfAWallInThePixelWhereItMeetsIt`, with an entry share of 0.
+- `ARayHitsTheFrontOfAWallInThePixelWhereItMeetsIt`, with an entry share of 0 and the hit position where it meets the wall.
+- `ARayThatStartsBesideTheScreenCrossesIntoItAndHitsAWall`: the origin two screen widths left of an 8 px screen, so the trace climbs to the top level in cells outside the screen.
 - `ARayThatPassesFarBehindAWallMissesIt`.
 - `ARayThatEntersAWallsSlabFromBehindHasAnEntryShareOfOne`.
 - `ARayThatEntersASlabHalfwayInHasAnEntryShareOfOneHalf`, within 10⁻³.
@@ -1252,7 +1288,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ARayTowardTheEyeEndsAtTheNearPlane`.
 - `ARayAwayFromTheEyeWhoseVanishingPointIsOnTheScreenEndsThere`.
 - `ARayFromANearFloorHitsAPlanetAtItsVanishingPoint`: a floor 2 m away and a planet surface 10⁷ m away that covers the vanishing point. The hit is the vanishing point's pixel with an entry share of 0.
-- `TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds`: over 10,000 rays from a fixed seed in a scene of floor, walls, boxes and sky, against a march in the test that applies the same slab rule at every pixel of the segment.
+- `TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds`: over 10,000 rays from a fixed seed in a scene of floor, walls, boxes and sky, against a march in the test that applies the same slab rule at every pixel of the segment. Every ray gives the same pixel and an entry share within 10⁻³, or a miss in both, and every hit position lies inside its pixel.
+- `ASlabEntryThatRoundsOntoItsCellsFarEdgeFindsThePixelThatTheMarchFinds`: five rays out of 2,000,000, kept as float bits, whose slab entry, solved inside a cell, rounds onto that cell's far edge.
 - `OverEmptySpaceATraceTakesFewerStepsThanThePixelsItCrosses`: a ray across a 1,024 px screen of sky takes fewer than 40 steps.
 - `ATraceThatUsesAllItsStepsMisses`.
 - `AFlatSurfacesOriginLiesTwoPixelFootprintsAboveIt`.
@@ -1309,7 +1346,10 @@ Each builder breaks the line that each new test protects, watches the test fail,
 - Swap `max` and `min` in `mergedBounds`.
 - Drop `/ (1.0 + ThicknessShare)`.
 - Return an `entryShare` of 0 always.
+- Take `entryShare` from `inW` instead of the pixel's entry edge.
 - Drop the crossing nudge.
+- Nudge a slab entry solved inside a cell.
+- Return a cell outside its level from `texelFetch` instead of the empty bounds.
 - Use the mirror direction for d.
 - Take `coneLevel` from the diameter.
 - Drop `traced.a` from the delta.
