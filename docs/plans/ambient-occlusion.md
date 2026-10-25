@@ -1,6 +1,6 @@
 # Ambient occlusion
 
-Ticket: `ter-b3h5`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's last note. This doc fills in the details. Three points are open, see "Open forks".
+Ticket: `ter-b3h5`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's last note. This doc fills in the details. The user settled its three open points after the captures, see "Settled forks".
 
 ## Goal
 
@@ -63,7 +63,7 @@ Settled by this design:
 
 15. The passes work in view space with XeGTAO's axes, and the depth pass turns each distance into a view depth. So the port follows XeGTAO line by line, and a reviewer can compare the two.
 16. The representative pixel of each block is its top-left pixel. Its depth and its normal come from one pixel, so they describe one surface point. An average or a minimum of four depths describes a point that no normal belongs to.
-17. The view depth image has one level, and every step reads the exact depth of its texel. XeGTAO's chain of coarser levels is option B of open fork 2. The physical value comes first (decision 13).
+17. The view depth image has one level, and every step reads the exact depth of its texel. XeGTAO's chain of coarser levels is option B of fork 2. The physical value comes first (decision 13).
 18. The depth pass writes a view depth of 10¹⁸ m for sky, `SkyDepth`. The sky then hides nothing, because no radius reaches it. The value is far beyond the Sun (1.5 × 10¹¹ m), and three squared coordinates of that size stay finite in a 32-bit float (3 × 10³⁶ < 3.4 × 10³⁸). An infinite depth gives NaN in the directions, and GLSL's `max` with NaN is undefined.
 19. The view depth image is R32F, and the center bias is XeGTAO's value for 32-bit depths, 0.99999. The middle and the far ranges hold depths beyond the largest half float, 65,504 m.
 20. The integral uses the shading normal, and the upsample uses the geometric normal. V scales the ambient diffuse term, which every ambient source computes around the shading normal, so both integrals share one normal. The upsample asks which samples lie on the pixel's surface, which the geometric normal describes.
@@ -74,7 +74,7 @@ Settled by this design:
 25. The denoise computes one pixel per invocation. XeGTAO computes two horizontal pixels per invocation for speed. The weights are the same.
 26. The upsample is its own pass into a full-resolution target. The lighting pass then reads one value per pixel, the GPU timer times the upsample alone, and SSGI can use the same function later.
 27. The occlusion target exists in both cases of the setting, at full size. The renderer clears it to 1 in the first frame after it creates the target, and under `GroundTruthOcclusion` the upsample writes it in every frame. So the lighting shader has one path. The analogue is the exposure buffer under `FixedExposure`: the first frame seeds it, nothing writes it again, and the shaders take one path (auto-exposure.md, "Writers and readers").
-28. Four passes, one per step, so that the GPU timers report each step's cost. Open fork 2 is decided by the cost of the horizons pass alone.
+28. Four passes, one per step, so that the GPU timers report each step's cost. Fork 2 is decided by the cost of each pass.
 29. Push constants carry the camera and the setting. A compute pipeline cannot bind the frame set, whose layout is for the graphics stages. The analogue is `DrawPushConstants`, which carries each range's camera.
 30. The fade runs from ρ = 1 to ρ = 2 half-resolution texels, 2 to 4 full-resolution pixels. Below 1.3 texels, the nearest step already lies beyond the radius, so the method holds no information there (XeGTAO's `pixelTooCloseThreshold`).
 31. The estimate stays unclamped in the half-resolution terms, and the upsample clamps it to [0, 1]. One slice of an open tilted surface can exceed 1, and the mean over slices and texels comes back to 1. XeGTAO packs the same overshoot with a scale of 1.5 into 8 bits. R16F needs no scale.
@@ -82,7 +82,7 @@ Settled by this design:
 33. The transparent pass and the impostor capture pass V = 1. Transparent objects are not in the G-buffer, and a capture has no screen around it.
 34. The headless host gains `--ambient-occlusion off|<meters>`, as it has `--tone-curve`, for the captures and the cost runs.
 35. The device must support `shaderStorageImageExtendedFormats`, because the shaders write R8 and R16F storage images. MoltenVK supports it.
-36. Impostors keep their captured light, which holds no occlusion. That is option A of open fork 3.
+36. Impostors keep their captured light, which holds no occlusion. That is option A of fork 3.
 
 ## The method
 
@@ -332,7 +332,7 @@ where T_d is the ambient diffuse term and T_s the ambient specular term of the s
 
 ## XeGTAO's heuristics
 
-Each of XeGTAO's settings and fixed values that moves its estimate away from the integral V, with XeGTAO's default and the value of this design. A setting at its physical constant changes nothing, so the port leaves it out, and the last column says how a build restores it. Decision 13: the orchestrator shows the user captures before any of them moves (open fork 1).
+Each of XeGTAO's settings and fixed values that moves its estimate away from the integral V, with XeGTAO's default and the value of this design. A setting at its physical constant changes nothing, so the port leaves it out, and the last column says how a build restores it. Decision 13: the orchestrator shows the user captures before any of them moves (fork 1).
 
 | Setting | Where in XeGTAO | What it does | XeGTAO's default | Physical constant | This design |
 |---|---|---|---|---|---|
@@ -341,7 +341,7 @@ Each of XeGTAO's settings and fixed values that moves its estimate away from the
 | `SampleDistributionPower` | h line 109, hlsli line 427 | Steps at s^p bunch near the pixel | 2 | 1: the even steps of the paper's Algorithm 1 | 1. Neither spacing changes the integral: both search for the same horizon. Power 2 finds narrow creases more often. To restore it: `s = pow(s, p)` before `sMin`. |
 | `ThinOccluderCompensation` | h line 110, hlsli lines 489 to 497 | Counts samples behind the pixel as thinner | 0 | 0: the height field, every depth infinitely thick | 0, as XeGTAO. The paper's thickness heuristic (equation 9) is not in XeGTAO's default either. |
 | `FinalValuePower` | h line 111, hlsli line 557 | V^p | 2.2 | 1 | 1. XeGTAO's README says it has "no basis in physical light transfer". To restore it: the power after the division by the slices. |
-| `DepthMIPSamplingOffset` | h line 112, hlsli line 438 | Steps far from the pixel read a coarser level of the depth chain | 3.30 (the README names 3.15, below which no tested GPU got faster) | No coarser level: every step reads the exact depth of its texel | No chain. Option B of open fork 2. |
+| `DepthMIPSamplingOffset` | h line 112, hlsli line 438 | Steps far from the pixel read a coarser level of the depth chain | 3.30 (the README names 3.15, below which no tested GPU got faster) | No coarser level: every step reads the exact depth of its texel | No chain. Option B of fork 2. |
 | The small-radius term | hlsli line 343 | Adds up to 0.05 to the sum before the division by the slices, where ρ < 10 texels | On | None | Replaced by the user's fade below one pixel. |
 | The slope fudge | hlsli line 532 | Lerps the projected normal length 5 % toward 1, against an unexplained darkening on steep slopes | 0.05 | 0 | None. |
 | The floor | hlsli line 558 | V ≥ 0.03 | 0.03 | 0 | None. A visible pixel always sees its own view direction, so the true V is above 0, and the estimate needs no floor. |
@@ -545,7 +545,7 @@ Under `NoAmbientOcclusion`, the renderer makes no `OcclusionImages` and adds no 
 | An opaque mesh in the middle range, or beyond 468 m | The fade writes 1 and skips the slices | Beyond R of every near point, so it hides nothing | Multiplies by 1 |
 | A far planet, the far range | As the middle range: 1 | As the middle range: nothing | Multiplies by 1 |
 | An emissive lamp or the Sun's sphere | As an opaque mesh. Its base color is black, so its ambient light is near 0 | As an opaque mesh | Emission is not ambient light, so it keeps it |
-| An impostor billboard | The pass computes an estimate from the billboard's distance, which has the object's real shape, and its normal toward the capture's eye | Its distance hides the ground around it as the object's geometry does | Passes the billboard's emission through, because its base color alpha is 0. The captured light has no occlusion (open fork 3). |
+| An impostor billboard | The pass computes an estimate from the billboard's distance, which has the object's real shape, and its normal toward the capture's eye | Its distance hides the ground around it as the object's geometry does | Passes the billboard's emission through, because its base color alpha is 0. The captured light has no occlusion (fork 3). |
 | Sky, distance 0 | The depth pass writes `SkyDepth`, and the horizons pass writes 1 | 10¹⁸ m away, beyond every radius | Draws the star field, and reads no occlusion |
 | A transparent object, glass | None: it is not in the G-buffer. The surface behind it is, and that surface takes its own V | None | The transparent pass, after the lighting pass, shades it with V = 1 |
 | A puff, glow or lit | None | None | The transparent pass adds it as before. `scatteredLight` is unchanged |
@@ -580,7 +580,7 @@ A deferred renderer built from scratch around GTAO has a half-resolution depth p
 | A material occlusion map (glTF's `occlusionTexture`) combined with the screen's occlusion | None | The asset pipeline drops `occlusionTexture`, because the G-buffer has no free channel (asset-pipeline.md). |
 | A multi-bounce fit (the paper, section 5) | None | (User) SSGI adds the bounced light. |
 | When off, a white texture bound in place of the occlusion | A full-size target cleared to 1 | One image, one shader path and one barrier for both cases, for 2 MB of memory. |
-| A depth chain shared by SSAO, SSR and SSGI | One level, named for reuse | Open fork 2. SSR and SSGI can read the view depth image when they come. |
+| A depth chain shared by SSAO, SSR and SSGI | One level, named for reuse | Fork 2. SSR and SSGI can read the view depth image when they come. |
 
 ## Tests
 
@@ -700,7 +700,7 @@ To measure in Part 6, by [rendering-upgrade.md](rendering-upgrade.md), "Measurin
 - The four occlusion passes: their means, medians and 95th percentiles. They appear only in the branch.
 - The lighting pass: one R8 read and one `pow` per lit pixel, expected within the spread between runs.
 - In the branch alone, with `--ambient-occlusion`: off, 0.5 m, 1 m and 2 m, each twice. A larger radius spreads the steps over more texels and costs more cache misses, so the user sees each radius's cost with its captures.
-- If the four passes take more than 1 ms together on the mean, the report says so, and option B of open fork 2 is measured too.
+- If the four passes take more than 1 ms together on the mean, the report says so, and option B of fork 2 is measured too.
 
 Memory traffic per frame at 1080p, by arithmetic, to compare with the times:
 
@@ -749,27 +749,23 @@ What this design gives the other members of the epic, and what it asks of them:
 | SSGI (`ter-a24f`) | The view depth image, the noise, the upsample | SSGI can read the view depth image, reuse `spatialNoise` and the upsample function. Its own design decides how its bounced light joins the ambient terms and whether it takes V. |
 | Bloom (`ter-63wr`) | The setting's form | The same rules give its union the name `BloomSetting`, `NoBloom` as its zero case and a static `Bloom.Default` (see "The setting"). |
 
-## Open forks
+## Settled forks
 
-Three choices that the decisions do not settle and that change what the user gets. The doc builds the first option of each, and each fork needs captures or a measurement before the user decides.
+The user saw the captures of Part 6 on 2026-10-25 and settled the forks. The ticket's last note has the user's words.
 
-### Open fork 1: the physical constants or XeGTAO's tuned set
+### Fork 1: the physical constants or XeGTAO's tuned set
 
-- A, the physical constants (built). A radius factor of 1, a hard edge at R, even steps, no final power, no small-radius term, no slope fudge and no floor. The user gets the cosine-weighted integral of what the screen shows: a floor point at the foot of a wall keeps exactly half its ambient diffuse term, and the wall test pins it. The costs: GTAO under-occludes where the screen does not show the occluder. With 3 even steps, only the nearest step finds a crease narrower than about a third of the radius. An object that hovers less than R above the ground casts a hard ring where its nearest point leaves the radius.
-- B, XeGTAO's defaults: the radius × 1.457, the weight falling over the outer 61.5 % of it, steps bunched by a power of 2, the result raised to 2.2, the small-radius term, the slope fudge and the floor. The user gets darker creases and a soft edge at the radius, and in Intel's scenes a closer least-squares match to ray-traced occlusion. The costs: no constant has a physical meaning, the power alone turns a visibility of 0.5 into 0.22, and the wall test fails.
-- The captures: the same frames under A and B, at the default radius. B is a scratch change of the lines named in "XeGTAO's heuristics" and is not committed.
+The user chose B, XeGTAO's tuned set. This ticket merges with A, as built. Ticket `ter-sdks` builds B as the one set of constants, by "XeGTAO's heuristics", and rewrites the wall test to the tuned value.
 
-### Open fork 2: the depth chain
+The default radius stays 1 m in this ticket. The user could not tell the radii apart on a phone and asked the orchestrator to choose the most dramatic radius that is not too much. So `ter-sdks` captures the tuned set at several radii, and the orchestrator picks the default from them (decision 12).
 
-- A, one exact level (built). Every step reads the depth of its own texel. Thin occluders far from the pixel keep their occlusion, and the image is stable. The cost: steps far from the pixel miss the cache, most of all near the eye, where the radius spans hundreds of texels.
-- B, XeGTAO's five levels: the depth pass becomes `XeGTAO_PrefilterDepths16x16` with its far-weighted filter, and a step reads the level clamp(log2(offset) − 3.3, 0, 4). The user gets less memory traffic. The costs: thin occluders more than about 10 texels from the pixel fade, XeGTAO says the stability under motion suffers first, the view depth image grows by a third, and the horizons pass needs a sampled view of it with a nearest sampler.
-- The measurement: the horizons pass's time under A at the radii of the captures. B is measured only if A costs more than 1 ms in all (see "Cost").
+### Fork 2: the depth chain
 
-### Open fork 3: impostors
+The four passes take about 1.7 ms together at 1080p, more than the 1 ms limit of "Cost". The upsample takes 0.78 ms and the horizons pass 0.70 ms, and the depth chain of option B speeds up only the horizons pass. The user chose to merge and then profile. Ticket `ter-izsu` profiles the four passes, the upsample first, and measures option B if the horizons pass stays the largest.
 
-- A, no occlusion on impostors (built). A billboard shows its captured light, which bakes no occlusion, as it bakes no shadow-map shadows (ARCHITECTURE.md, "Impostors"). Its distance still darkens the ground around it. The cost: an object loses its own crease darkening when it becomes an impostor, below 200 px. With the default radius of 1 m, that darkening covers much of an object of a few meters at that size.
-- B, a later ticket bakes occlusion into each capture: the capture pass needs its own occlusion of the object's surface, from the tile's depth or from rays against its mesh. The user gets no change at the switch. The cost: a second occlusion method, and a capture that goes stale when a neighbor moves.
-- The captures: an object in `scripts/demo-surface.json` just above and just below 200 px. The scripted runs turn impostors off today (`ScriptCommand`), so the capture needs a run with impostors on.
+### Fork 3: impostors
+
+A, no occlusion on impostors, as built. The orchestrator settled it by the rule to leave out a feature that is not needed yet: an impostor bakes no occlusion, as it bakes no shadow-map shadows. The scripted runs turn impostors off, so Part 6 took no captures of this fork.
 
 ## Order of the work
 
@@ -1023,6 +1019,6 @@ internal sealed unsafe class OcclusionDepthPass(VulkanDevice device, ShaderLibra
 ### Part 6: the cost, the captures and the docs
 
 - The cost first, on a quiet machine, by "Cost". The report gives the tables with the load of the machine.
-- Captures, headless with the real renderer, each looked at by the builder with a one-line caption: `demo-surface` (the cabin and the apron), `demo-exit` and `pbr-spheres`, each with the setting off and at 0.5 m, 1 m and 2 m. Also the captures of open forks 1 and 3. The orchestrator shows them to the user, who picks the default radius (decision 12) and decides the forks.
+- Captures, headless with the real renderer, each looked at by the builder with a one-line caption: `demo-surface` (the cabin and the apron), `demo-exit` and `pbr-spheres`, each with the setting off and at 0.5 m, 1 m and 2 m. Also the captures of forks 1 and 3. The orchestrator shows them to the user, who picks the default radius (decision 12) and decides the forks.
 - Files: the docs of "Doc changes", and `GroundTruthOcclusion.Default` if the user picks another radius.
 - Done: ARCHITECTURE.md matches the code, with the numbers of the cost. The ticket closes after the merge into main.
