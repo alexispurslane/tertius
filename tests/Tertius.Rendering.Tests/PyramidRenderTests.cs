@@ -30,7 +30,7 @@ public sealed class PyramidRenderTests
         try
         {
             renderer.Render(Scene(renderer), 1f);
-            DepthPyramid expected = PyramidOf(renderer);
+            DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(level);
 
             (int levelWidth, int levelHeight) = DepthPyramid.LevelSize(Width, Height, level);
@@ -72,7 +72,7 @@ public sealed class PyramidRenderTests
         try
         {
             renderer.Render(Scene(renderer), 1f);
-            DepthPyramid expected = PyramidOf(renderer);
+            DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
             (float[] bounds, _, _) = renderer.ReadDepthPyramidLevel(3);
 
             // The top row of level 3 covers the 8 top rows of the screen, which look at the sky over the floor.
@@ -225,7 +225,7 @@ public sealed class PyramidRenderTests
             renderer.Render(snapshot, 1f);
             renderer.Resize(newWidth, newHeight);
             renderer.Render(snapshot, 1f);
-            DepthPyramid expected = PyramidOf(renderer);
+            DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
             (_, int radianceWidth, int radianceHeight) = renderer.ReadRadiancePyramidLevel(0);
 
@@ -326,23 +326,6 @@ public sealed class PyramidRenderTests
 
     private static RenderInstance Block(MeshId box, MaterialId material, Vector3 center, Vector3 size) =>
         Gpu.Instance(mesh: box, material: material, position: center, scale: size, radius: size.Length() / 2);
-
-    /// <summary>The C# depth pyramid of the last frame: the inverse depth of each pixel from the distance target.</summary>
-    private static DepthPyramid PyramidOf(VulkanRenderer renderer)
-    {
-        CameraView camera = renderer.LastScene.Camera;
-        float[] distance = renderer.ReadDistance();
-        float[] inverseDepths = new float[distance.Length];
-        for (int y = 0; y < camera.Height; y++)
-        for (int x = 0; x < camera.Width; x++)
-        {
-            int pixel = y * camera.Width + x;
-            float ray = camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length();
-            inverseDepths[pixel] = distance[pixel] > 0 ? ray / distance[pixel] : 0;
-        }
-
-        return DepthPyramid.FromInverseDepths(inverseDepths, camera.Width, camera.Height);
-    }
 
     /// <summary>
     /// Jimenez's 13-tap downsample of an RGBA level around the texel corner (<paramref name="cornerX"/>,

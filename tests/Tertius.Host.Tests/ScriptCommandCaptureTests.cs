@@ -24,6 +24,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "occlusion upsample",
         "lighting",
         "radiance pyramid",
+        "reflections",
         "transparent",
         "exposure",
         "bloom",

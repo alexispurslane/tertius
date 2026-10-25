@@ -228,6 +228,46 @@ public sealed class ScreenRayTests
     }
 
     [Fact]
+    public void EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet()
+    {
+        // The rounding of the ray's inverse depth near its vanishing point is larger than the slab of a surface
+        // 10,000 km away, so the trace must not judge the slab by the inverse depth at a solved entry
+        // (docs/plans/screen-space-reflections.md, "Precision and determinism").
+        CameraView camera = ScreenTesting.Camera(width: 640, height: 360, pitchDown: 0.1f);
+        SceneRectangle[] scene =
+        [
+            new(new(0, -1.5f, -25), new(30, 0, 0), new(0, 0, 25)),
+            new(new(0, 0, -1e7f), new(1e8f, 0, 0), new(0, 1e8f, 0)),
+        ];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, scene);
+        var misses = new List<string>();
+        int rays = 0;
+
+        for (int y = 0; y < camera.Height; y += 3)
+        for (int x = 0; x < camera.Width; x += 7)
+        {
+            Vector3 viewRay = camera.ViewRayThrough(new(x + 0.5f, y + 0.5f));
+            if (ScreenTesting.DepthAlong(viewRay, scene) is not { } depth || depth > 100)
+                continue;
+            Vector3 point = viewRay * (float)depth;
+            var direction = Vector3.Reflect(Vector3.Normalize(point), FloorNormal);
+            Vector2 vanishingPoint = camera.PixelOf(direction);
+            bool onScreen = vanishingPoint.X is > 1 and < 639 && vanishingPoint.Y is > 1 and < 359;
+            if (!onScreen)
+                continue;
+            RayTrace trace = ScreenRay
+                .FromSurface(point: point, geometricNormal: FloorNormal, direction: direction, camera: camera)
+                .Trace(pyramid, ConeTracedReflections.MaxStepsLimit);
+            rays++;
+            if (trace is not RayHit { EntryShare: 0 })
+                misses.Add($"({x}, {y}): {trace}");
+        }
+
+        rays.Should().BeGreaterThan(1000);
+        misses.Should().BeEmpty("the planet covers the vanishing point of each of {0} rays", rays);
+    }
+
+    [Fact]
     public void TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds()
     {
         CameraView camera = ScreenTesting.Camera(width: 128, height: 96, pitchDown: 0.35f);

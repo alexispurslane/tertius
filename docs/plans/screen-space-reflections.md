@@ -229,7 +229,7 @@ cell    = floor(S(s) / 2^k)                     when s is a slab entry solved st
 s_exit  = min(s at the cell's far edge on x, s at its far edge on y, s_end)
 (n, f)  = bounds(k, cell)                       the empty bounds for a cell outside its level
 high    = n;   low = f / (1 + κ)                            the slab
-w_in    = w(s);   w_out = w(s_exit)
+w_in    = w(s) after a crossing, the slab bound after a descent;   w_out = w(s_exit)
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
 ```
 
@@ -242,7 +242,7 @@ overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
   s_entry = s                          when low ≤ w_in ≤ high: the ray is already inside the slab
   s_entry = (high − w₀) / Δw           when w_in > high: the ray is in front and comes toward the slab's front
   s_entry = (low − w₀) / Δw            when w_in < low: the ray is behind and comes toward the slab's back
-  s = clamp(s_entry, s, s_exit);  level − 1
+  s = clamp(s_entry, s, s_exit);  w_in = clamp(w_in, low, high);  level − 1
   ```
 
 - An overlap at level 0 is a hit in that pixel. The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), where s_pixel is the later of the ray's crossings of the pixel's two near edges. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
@@ -355,7 +355,7 @@ The clamp keeps the stored value finite: a mirror that reflects a pixel of 65,50
 
 ### Precision and determinism
 
-- The ray's inverse depth w(s) = w₀ + s Δw carries an absolute error of about |Δw| · 6 · 10⁻⁸. A far object's slab is narrower than that when seen from a near origin: a planet 10⁷ m away has a slab 9 · 10⁻⁹ /m thick, against an error of 3 · 10⁻⁸ /m for a floor 2 m away. The trace still hits it right: a ray toward the planet reaches such a small w only within a pixel of its vanishing point, and at every other pixel its w is far above the planet's slab. In the pixel of the vanishing point, w spans from 0 to about 5 · 10⁻⁴, which overlaps the slab, and the ray stands in front of the planet at the pixel's edge, so q = 0. So a mirror shows the far planet that lies at the vanishing point of its ray, which is what a ray to infinity sees. The entry share depends on w only at the pixel's edges, never on a solved s, for this reason.
+- The ray's inverse depth w(s) = w₀ + s Δw carries an absolute error of about |Δw| · 6 · 10⁻⁸. A far object's slab is narrower than that when seen from a near origin: a planet 10⁷ m away has a slab 9 · 10⁻⁹ /m thick, against an error of 3 · 10⁻⁸ /m for a floor 2 m away. The trace still hits it right: a ray toward the planet reaches such a small w only within a pixel of its vanishing point, and at every other pixel its w is far above the planet's slab. In the pixel of the vanishing point, w spans from 0 to about 5 · 10⁻⁴, which overlaps the slab, and the ray stands in front of the planet at the pixel's edge, so q = 0. So a mirror shows the far planet that lies at the vanishing point of its ray, which is what a ray to infinity sees. The entry share depends on w only at the pixel's edges, never on a solved s, for this reason. For the same reason the overlap test never recomputes w at a solved s: after a descent, the ray's inverse depth at s is the slab bound that s was solved for (w_in clamped to the slab), and only a crossing recomputes w(s). Near the vanishing point the rounding of w₀ + s Δw at a solved entry is larger than the planet's slab, so a recomputed w_in can fall behind the slab of the finer cell, which the descent's own bound says it cannot be. Part 5's GPU test of the far planet missed in that way at 20° above the horizon, and a C# sweep of 3,613 floor rays found the same miss in the C# copy before the change.
 - Each invocation reads only images that no invocation of its dispatch writes, and writes only its own pixel of the HDR image. The trace has no noise and no history. So the same frame gives the same bits on every run on one GPU.
 
 ## The ambient specular term
@@ -769,7 +769,8 @@ vec3 viewRayThrough(vec2 pixel)
     return frame.cameraForward.xyz + ndc.x * frame.cameraRight.xyz - ndc.y * frame.cameraUp.xyz;
 }
 
-// The position on the screen of a point in front of the eye, in pixels from the top left.
+// The position on the screen of a point in front of the eye, in pixels from the top left. cameraRight and cameraUp
+// carry the tangents of the half angles, so a dot over their squared length is the coordinate over that tangent.
 vec2 pixelOf(vec3 point)
 {
     float depth = dot(point, frame.cameraForward.xyz);
@@ -867,6 +868,7 @@ const float CrossingNudge = 0.01;         // ScreenRay.CrossingNudge, in pixels
 const float OriginOffsetPixels = 2.0;     // ScreenRay.OriginOffsetPixels
 const float SurfaceFadeCosine = 0.05;     // ScreenRay.SurfaceFadeCosine
 const float NearPlane = 0.05;             // DepthRanges.NearPlane
+// The parameter of a segment that no limit ends. Not infinity: fast math may assume none.
 const float NoEnd = 1e30;
 
 // The ray's image: S(s) = start + s · step in pixels, w(s) = startW + s · stepW in 1/m, for s from 0 to end.
@@ -879,9 +881,17 @@ struct ScreenRay
     float end;
 };
 
+// The parameter at which a coordinate that moves by step per unit has moved by offset, or otherwise when it stands
+// still. The divisor is never 0: the Vulkan spec leaves a division by 0 undefined, even in a lane that a select drops.
+float parameterAt(float offset, float step, float otherwise)
+{
+    return step != 0.0 ? offset / (step != 0.0 ? step : 1.0) : otherwise;
+}
+
+// Where a coordinate that moves by step per unit reaches 0 or limit, or NoEnd when it stands still.
 float segmentEnd(float position, float step, float limit)
 {
-    return step > 0.0 ? (limit - position) / step : step < 0.0 ? -position / step : NoEnd;
+    return parameterAt(step > 0.0 ? limit - position : -position, step, NoEnd);
 }
 
 ScreenRay screenRayOf(vec3 origin, vec3 direction)
@@ -889,7 +899,8 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction)
     vec3 forward = frame.cameraForward.xyz;
     float originDepth = dot(origin, forward);
     float towardDepth = dot(direction, forward);
-    // A second point in front of the eye: one view depth along the ray, or halfway to the eye's plane.
+    // A second point in front of the eye, so that both projections are finite: one view depth along the ray, or
+    // halfway to the eye's plane.
     float along = towardDepth >= 0.0 ? originDepth : 0.5 * originDepth / -towardDepth;
     vec3 second = origin + direction * along;
     ScreenRay ray;
@@ -904,23 +915,43 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction)
     return ray;
 }
 
+// The parameter where the image leaves a cell of a level, on its far edge across or down, or the segment's end.
 float cellExit(ScreenRay ray, uint level, ivec2 cell, vec2 travel)
 {
     vec2 edge = (vec2(cell) + max(travel, 0.0)) * float(1u << level);
-    vec2 exits = vec2(
-        travel.x != 0.0 ? (edge.x - ray.start.x) / ray.step.x : NoEnd,
-        travel.y != 0.0 ? (edge.y - ray.start.y) / ray.step.y : NoEnd);
-    return min(min(exits.x, exits.y), ray.end);
+    float exitX = parameterAt(edge.x - ray.start.x, ray.step.x, NoEnd);
+    float exitY = parameterAt(edge.y - ray.start.y, ray.step.y, NoEnd);
+    return min(min(exitX, exitY), ray.end);
 }
 
 // The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
 float pixelEntry(ScreenRay ray, ivec2 pixel, vec2 travel)
 {
     vec2 edge = vec2(pixel) + max(-travel, 0.0);
-    vec2 entries = vec2(
-        travel.x != 0.0 ? (edge.x - ray.start.x) / ray.step.x : -NoEnd,
-        travel.y != 0.0 ? (edge.y - ray.start.y) / ray.step.y : -NoEnd);
-    return max(entries.x, entries.y);
+    float entryX = parameterAt(edge.x - ray.start.x, ray.step.x, -NoEnd);
+    float entryY = parameterAt(edge.y - ray.start.y, ray.step.y, -NoEnd);
+    return max(entryX, entryY);
+}
+
+// q: 0 when the ray stands in front of the slab [low, high] where it enters the pixel, 1 behind it, and between inside.
+float entryShareOf(float edgeW, float low, float high)
+{
+    if (edgeW > high)
+        return 0.0;
+    if (edgeW < low)
+        return 1.0;
+    return (high - edgeW) / (high - low);
+}
+
+// The parameter where the ray enters a slab that it meets: its front from in front, its back from behind, or s when it
+// is already inside.
+float slabEntry(ScreenRay ray, float s, float inW, float low, float high)
+{
+    if (inW > high)
+        return parameterAt(high - ray.startW, ray.stepW, s);
+    if (inW < low)
+        return parameterAt(low - ray.startW, ray.stepW, s);
+    return s;
 }
 
 // Walks the ray's image through the depth pyramid (Uludag 2014, with min-max cells and the slab of McGuire and Mara
@@ -930,6 +961,9 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     uint topLevel = uint(textureQueryLevels(pyramid));
     vec2 travel = sign(ray.step);
     float s = cellExit(ray, 0u, ivec2(floor(ray.start)), travel);
+    // The inverse depth at s. After a descent it is the slab bound that s was solved for, not w(s): near the vanishing
+    // point the rounding of that sum is larger than a far surface's slab.
+    float inW = ray.startW + ray.stepW * s;
     uint level = 0u;
     // Whether s stands on a cell's edge, where the crossing nudge gives it to the cell ahead. A slab entry that a
     // descent solves strictly inside a cell is not on an edge, and takes no nudge.
@@ -942,40 +976,41 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         vec2 bounds = cellBounds(pyramid, level, cell);
         float high = bounds.x;
         float low = bounds.y / (1.0 + ThicknessShare);
-        float inW = ray.startW + ray.stepW * s;
         float outW = ray.startW + ray.stepW * exit;
         if (max(min(inW, outW), low) > min(max(inW, outW), high))
         {
             // Never back: an entry solved inside a cell can round past the cell's exit. The next descent then finds
             // the entry at s, keeps s on an edge, and the nudge moves the walk on.
             s = max(s, exit);
+            inW = ray.startW + ray.stepW * s;
             onEdge = true;
             level = min(level + 1u, topLevel);
             continue;
         }
-        float entry = inW > high ? (high - ray.startW) / ray.stepW : inW < low ? (low - ray.startW) / ray.stepW : s;
-        // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes
-        // its maximum.
-        entry = min(max(entry, s), exit);
+        // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes its
+        // maximum.
+        float entry = min(max(slabEntry(ray, s, inW, low, high), s), exit);
         if (level == 0u)
         {
             hit = clamp(ray.start + ray.step * entry, vec2(cell), vec2(cell) + 1.0);
             hitPixel = cell;
             // From the inverse depth where the image enters the pixel, never at a solved s, which keeps a far
             // surface's thin slab exact ("Precision and determinism").
-            float edgeW = ray.startW + ray.stepW * pixelEntry(ray, cell, travel);
-            entryShare = edgeW > high ? 0.0 : edgeW < low ? 1.0 : (high - edgeW) / (high - low);
+            entryShare = entryShareOf(ray.startW + ray.stepW * pixelEntry(ray, cell, travel), low, high);
             return true;
         }
         bool entryInsideCell = entry > s && entry < exit;
         onEdge = !entryInsideCell && (onEdge || entry >= exit);
         s = entry;
+        // The overlap above keeps low at most high, so this clamp is defined.
+        inW = clamp(inW, low, high);
         level--;
     }
     return false;
 }
 
-// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014).
+// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The floor keeps log2
+// finite for a hit at the origin; any level below 0 reads level 0.
 float coneLevel(float alpha, float rayLength, float hitDistance, float topLevel)
 {
     float radiusPixels = rayLength * ConeTangentPerAlpha * alpha / (hitDistance * frame.params.z);
@@ -1000,9 +1035,12 @@ float edgeFade(vec2 pixel)
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
+// The screen-space reflections (docs/plans/screen-space-reflections.md, "The method"): one ray per pixel through the
+// depth pyramid, one trilinear read of the radiance pyramid at the hit, and the reflection delta
+// f · (W · C − a · k · T_s) added to the lit HDR image, which already holds k · T_s.
 #include "frame.glsl"
 #include "exposure.glsl"
-#include "lighting.glsl"
+// gbuffer_surface.glsl includes lighting.glsl after the G-buffer's bindings, which its shadows read.
 #include "gbuffer_surface.glsl"
 #include "reflection.glsl"
 
@@ -1022,7 +1060,7 @@ layout(push_constant, std430) uniform ReflectionPush
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(pixel, ivec2(frame.viewport.xy))))
+    if (any(greaterThanEqual(pixel, imageSize(hdrImage))))
         return;
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     // Sky starts no ray, and neither does an impostor, whose light the atlas holds.
@@ -1061,7 +1099,7 @@ void main()
     SurfaceLobes lobes = lobesOf(s, V);
     float fade = roughnessFade * surfaceFade * edgeFade(hit) * (1.0 - entryShare);
     // The ambient specular term as the lighting pass wrote it, pre-exposed (the one place: ambientTerms).
-    vec3 ambientSpecular = exposureScale() * ambientTerms(s, lobes, V).specular;
+    vec3 ambientSpecular = preExposed(ambientTerms(s, lobes, V).specular);
     vec3 delta = fade * (specularWeight(lobes) * traced.rgb - traced.a * ambientSpecular);
     vec4 lit = imageLoad(hdrImage, pixel);
     imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
@@ -1333,11 +1371,13 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `AnImpostorKeepsItsBakedLightAndShowsInReflections`: with impostors on, a glossy object's billboard holds the same values with and without reflections, and its image shows in a mirror floor.
 - `AFarPlanetShowsInANearMirror`: a mirror floor whose rays reach a planet in the far range. The pixels show the planet.
 - `TwoRendersGiveTheSameBits`: two renderers draw the same snapshot, and `ReadHdr` gives the same bits.
+- Added by Part 5, for the hand mutations that the list above let survive: `AMirrorGivesNoWeightToASurfaceThatItsRayMeetsFromBehind` (a mirror wall whose rays come back toward the eye and enter a box's slab from behind), `ARayThatPointsIntoItsOwnSurfaceAddsNothing` (a normal map that leans every mirror ray into the floor), `AReflectionOnAFloorAtTheLargestRadianceStaysAtTheLargestHalfFloat`, and `TheTraceRunsAfterTheRadiancePyramidAndBeforeTheTransparentPass`. `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight` runs at 0 and 2 stops, so that it sees the pre-exposure of T_s, and `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt` puts the plate 6 m ahead, between the ray's origin and its hit. The edge fade test renders at 1280 × 720: at 640 × 360 the band is 36 px, and the smoothstep's steepest step is 4.2 % of the peak, above the 3 % of the test.
+- `ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet` (Part 5): 3,613 floor rays toward a planet 10⁷ m away, which pins the carried slab bound of "Precision and determinism".
 
-`ReflectionShaderTests` pins the shader to the C# copy:
+`ReflectionShaderTests` pins the shader to the C# copy. Its floors take a normal map of the flat texel (128, 128, 255), whose lean of about 0.3° (`ter-v0yz`) the C# trace takes too, so that both start from the normal the G-buffer holds:
 
 - `TheGpuTraceReflectsThePixelThatTheCSharpTraceHits`: a mirror floor of the roughness floor below a wall of 16 × 8 emissive tiles, each of its own color. For a grid of floor pixels, the test traces the C# `ScreenRay` over `DepthPyramid.FromInverseDepths` of the frame's distance, with the `CameraView` of the test's camera. Where the C# trace hits with f = 1, the floor's HDR value equals W times the `NoReflections` frame's value at the C# hit pixel, within 2 %. A wrong cell, axis or sign hits another tile.
-- `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: a floor of roughness 0.3 reflecting a wall striped at the period of one level of the pyramid. The reflected contrast matches a C# sample of the read-back pyramid at `ReflectionCone.Level`.
+- `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: floors of roughness 0.3 and 0.5 reflecting a wall checkered at the period of one level of the pyramid, under a gray ambient light. Each floor pixel matches its lit value plus the C# delta from a trilinear sample of the read-back pyramid at `ReflectionCone.Level`, with its coverage, within 3 % of the bright squares' reflection. The checks make the read depend on the level and on the height of the hit, which the dominant direction decides.
 
 ### Hand mutations
 

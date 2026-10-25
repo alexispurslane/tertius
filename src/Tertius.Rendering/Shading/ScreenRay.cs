@@ -113,6 +113,9 @@ internal readonly record struct ScreenRay(
     {
         var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
         float s = CellExit(level: 0, cell: Floor(Start), travel: travel);
+        // The inverse depth at s. After a descent it is the slab bound that s was solved for, not InverseDepthAt(s):
+        // near the vanishing point the rounding of that sum is larger than a far surface's slab.
+        float inW = InverseDepthAt(s);
         int level = 0;
         // Whether s stands on a cell's edge, where the crossing nudge gives it to the cell ahead. A slab entry that a
         // descent solves strictly inside a cell is not on an edge, and takes no nudge.
@@ -124,7 +127,6 @@ internal readonly record struct ScreenRay(
             Vector2 cell = CellAt(s: s, level: level, travel: travel, onEdge: onEdge);
             float exit = CellExit(level, cell, travel);
             (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(ThicknessShare);
-            float inW = InverseDepthAt(s);
             float outW = InverseDepthAt(exit);
             bool meetsSlab = MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high);
             if (!meetsSlab)
@@ -132,6 +134,7 @@ internal readonly record struct ScreenRay(
                 // Never back: an entry solved inside a cell can round past the cell's exit. Then the next descent finds
                 // the entry at s, keeps it on an edge, and the nudge moves the walk on.
                 s = MathF.Max(s, exit);
+                inW = InverseDepthAt(s);
                 onEdge = true;
                 level = Math.Min(level + 1, pyramid.TopLevel);
                 continue;
@@ -153,6 +156,7 @@ internal readonly record struct ScreenRay(
             bool entryInsideCell = entry > s && entry < exit;
             onEdge = !entryInsideCell && (onEdge || entry >= exit);
             s = entry;
+            inW = Math.Clamp(inW, low, high);
             level--;
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);

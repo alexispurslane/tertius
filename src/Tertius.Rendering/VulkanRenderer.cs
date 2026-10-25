@@ -30,6 +30,8 @@ namespace Tertius.Rendering;
 /// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
+/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: one ray per pixel
+/// through the depth pyramid, whose hit adds its reflection to the lit image.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
@@ -139,7 +141,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
             occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
-            AddReflectionPasses(shaders);
+            AddReflectionPasses(shaders, options.Reflections);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
             context = CreateContext();
@@ -1219,12 +1221,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Adds the two pyramid passes over the targets' pyramids, which the targets make only under
-    /// <see cref="ConeTracedReflections"/>: the depth pyramid after the G-buffer, the radiance pyramid after the lighting.
+    /// Adds the passes of <see cref="ConeTracedReflections"/> over the targets' pyramids, which the targets make only
+    /// under that setting: the depth pyramid after the G-buffer, then the radiance pyramid and the trace after the
+    /// lighting.
     /// </summary>
-    private void AddReflectionPasses(ShaderLibrary shaders)
+    private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
     {
-        if (targets.Reflections is not { } pyramids)
+        if (targets.Reflections is not { } pyramids || reflections is not ConeTracedReflections setting)
             return;
         Graph.Add(
             FrameGraph.Stage.DepthPyramid,
@@ -1233,6 +1236,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Graph.Add(
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
+        );
+        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and writes the
+        // image that the pyramid read.
+        Graph.Add(
+            FrameGraph.Stage.Reflections,
+            new ReflectionPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids, setting: setting)
         );
     }
 
