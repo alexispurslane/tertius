@@ -41,7 +41,7 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 | M(ω) | The mean star radiance near direction ω: the stars' light there, spread evenly. About 6 · 10⁻⁴ at 1080p. |
 | Drawn frame | One recording and submission of the frame graph, as in [auto-exposure.md](auto-exposure.md). A metering draw is a drawn frame. |
 | The draw step | The time, in s, that a drawn frame advances the renderer's clock: the step for a single draw or a metering draw, 0 for the shown draw after a metering draw. Today `DrawFrame`'s `exposureStep`. |
-| A long step | A headless draw whose draw step is at least `MeteringStepSeconds`, 0.1 s. The same condition as the exposure's metering draw, without its `AutoExposure` part. |
+| A long step | A headless draw whose clock step in `Render` is 0, a still at the tick of the frame before, or at least `MeteringStepSeconds`, 0.09 s. The same condition as the exposure's metering draw, without its `AutoExposure` part. It refreshes the map under `FixedExposure` and `AutoExposure` alike. Under `AutoExposure` the metering draw has it, and the shown draw after it does not. |
 | A refresh | A drawn frame that draws all six faces. |
 | The map's frame | The `RenderSnapshot.OriginFrameId` of the camera's frame whose axes the faces were drawn in. |
 | Plain radiance | Radiance that is not multiplied by the exposure, as the impostor atlas stores it. |
@@ -212,7 +212,7 @@ where
 - `InTurn` = the faces (frame · F + k) mod 6 for k from 0 to F − 1 (decision 22).
 - `mapFrameId` = `EnvironmentMap.FrameId`, the map's frame: null before the first drawn frame.
 - `originFrameId` = `RenderSnapshot.OriginFrameId` of the snapshot that this frame draws.
-- `longStep` = true for a headless draw whose draw step is at least `MeteringStepSeconds`, 0.1 s.
+- `longStep` = true for a headless draw with a long step: a clock step in `Render` of 0 or of at least `MeteringStepSeconds`, 0.09 s. The shown draw after a metering draw passes false.
 - `FaceMask` = a set of faces, bit i for layer i.
 
 The cases:
@@ -223,7 +223,8 @@ The cases:
 | A draw whose camera has changed frame | All six | The faces are in the old frame's axes. A hand-off from one frame to another changes `OriginFrameId` too, at the cost of one refresh. |
 | A headless still after a long step, under `FixedExposure` | All six | One draw with the long step (User: a still refreshes all six first) |
 | The same under `AutoExposure` | All six in the metering draw, then F in the shown draw | The metering draw has the long step, so its meter measures the scene lit by a fresh map. The shown draw has a draw step of 0 and draws the same snapshot, so its F faces repeat what the metering draw drew. |
-| A frame of a film, 1 or 2 ticks apart | F | The step is below 0.1 s. |
+| A headless still at the tick of the frame before | All six, as after a long step | The clock step is 0, and the still can follow a camera cut that keeps the frame. |
+| A frame of a film, 1 or 2 ticks apart | F | The step is above 0 and below 0.09 s. |
 | A frame in a window | F | A window never refreshes for a step, because a refresh makes a slow frame slower still. |
 | A window camera that cuts within one frame | F | The renderer cannot see a cut that keeps the frame. The old faces stay for up to ⌈6 / F⌉ − 1 frames, 83 ms at 60 Hz. A rule for it waits for a snapshot field that says "cut", which no one needs yet. |
 

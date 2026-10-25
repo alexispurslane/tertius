@@ -34,8 +34,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             """
         );
 
+        // The lit box shows its color by the hemisphere's light, which the environment map replaces.
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out],
+            args: ["--script", script, "--headless", "--out", Out, "--environment-map", "off"],
             scenes: [LitBoxScene],
             output: output,
             error: error
@@ -85,8 +86,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }"""
         );
 
+        // The lit box shows its color by the hemisphere's light, which the environment map replaces.
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out],
+            args: ["--script", script, "--headless", "--out", Out, "--environment-map", "off"],
             scenes: [LitBoxScene],
             output: output,
             error: error
@@ -187,6 +189,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Should()
             .Equal(
                 "shadow maps",
+                "environment faces",
+                "environment prefilter",
                 "G-buffer",
                 "lighting",
                 "transparent",
@@ -245,6 +249,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Should()
             .Equal(
                 "GPU shadow maps",
+                "GPU environment faces",
+                "GPU environment prefilter",
                 "GPU G-buffer",
                 "GPU lighting",
                 "GPU transparent",

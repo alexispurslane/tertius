@@ -3,8 +3,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// A 2D image, or a 2D array image, with one view over all its mip levels and layers (a 2D array view when it has
-/// more than one layer). Swapchain images are wrapped without owning memory.
+/// A 2D image, a 2D array image or a cube image, with one view over all its mip levels and layers (a 2D array view when
+/// it has more than one layer, a cube view for a cube). Swapchain images are wrapped without owning memory.
 /// </summary>
 internal sealed unsafe class GpuImage : IDisposable
 {
@@ -57,8 +57,10 @@ internal sealed unsafe class GpuImage : IDisposable
 
     /// <summary>
     /// Creates an image with its own memory. Its view is a 2D array view when it has more than one layer or when
-    /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too.
+    /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too. With
+    /// <paramref name="cube"/>, the image is cube-compatible with six square layers, and its view is a cube.
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="cube"/> is set for an image that is not six square layers.</exception>
     public static GpuImage Create(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -68,16 +70,23 @@ internal sealed unsafe class GpuImage : IDisposable
         uint mipLevels,
         string name,
         uint arrayLayers = 1,
-        bool arrayView = false
+        bool arrayView = false,
+        bool cube = false
     )
     {
         if (extent.Width == 0 || extent.Height == 0)
             throw new ArgumentOutOfRangeException(nameof(extent), "Images must be at least 1x1.");
         ArgumentOutOfRangeException.ThrowIfZero(arrayLayers);
+        bool cubeShaped = arrayLayers == 6 && extent.Width == extent.Height;
+        if (cube && !cubeShaped)
+            throw new ArgumentException(
+                $"A cube has six square layers, not {arrayLayers} of {extent.Width}×{extent.Height}."
+            );
         ImageAspectFlags aspect = IsDepth(format) ? ImageAspectFlags.DepthBit : ImageAspectFlags.ColorBit;
         var info = new ImageCreateInfo
         {
             SType = StructureType.ImageCreateInfo,
+            Flags = cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0,
             ImageType = ImageType.Type2D,
             Format = format,
             Extent = new(extent.Width, extent.Height, 1),
@@ -112,7 +121,7 @@ internal sealed unsafe class GpuImage : IDisposable
                     memoryOffset: memory.Offset
                 )
                 .Check("vkBindImageMemory");
-            ImageViewType viewType = arrayLayers > 1 || arrayView ? ImageViewType.Type2DArray : ImageViewType.Type2D;
+            ImageViewType viewType = ViewTypeOf(cube: cube, arrayed: arrayLayers > 1 || arrayView);
             ImageView view = CreateView(
                 device: device,
                 image: image,
@@ -200,6 +209,36 @@ internal sealed unsafe class GpuImage : IDisposable
         );
         device.SetName(ObjectType.ImageView, view.Handle, $"{Name} layer {layer}");
         return view;
+    }
+
+    /// <summary>
+    /// A 2D array view of every layer at one mip level, for example to write one level of a cube as a storage image. The
+    /// caller destroys it before the image.
+    /// </summary>
+    public ImageView CreateLevelView(uint mipLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(mipLevel, MipLevels);
+        ImageView view = CreateView(
+            device: device,
+            image: Handle,
+            format: Format,
+            aspect: Aspect,
+            type: ImageViewType.Type2DArray,
+            baseMip: mipLevel,
+            mipLevels: 1,
+            baseLayer: 0,
+            layers: ArrayLayers
+        );
+        device.SetName(ObjectType.ImageView, view.Handle, $"{Name} level {mipLevel}");
+        return view;
+    }
+
+    /// <summary>The type of an image's own view: a cube, a 2D array, or a plain 2D view.</summary>
+    private static ImageViewType ViewTypeOf(bool cube, bool arrayed)
+    {
+        if (cube)
+            return ImageViewType.TypeCube;
+        return arrayed ? ImageViewType.Type2DArray : ImageViewType.Type2D;
     }
 
     public static bool IsDepth(Format format) =>

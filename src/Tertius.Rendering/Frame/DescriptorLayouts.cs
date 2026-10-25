@@ -8,7 +8,9 @@ namespace Tertius.Rendering;
 /// <list type="table">
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
 /// frame outlines, puffs, the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable), and the exposure
-/// buffer (binding 11), which every frame's set shares. One per frame in flight.</description></item>
+/// buffer (binding 11), which every frame's set shares, and the environment map's specular map (binding 12, partially
+/// bound), its sampler (binding 13, immutable) and its irradiance (binding 14, partially bound), which stay empty with the
+/// map off. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -26,12 +28,21 @@ namespace Tertius.Rendering;
 /// resize.</description></item>
 /// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
 /// written once.</description></item>
+/// <item><term>environment prefilter</term><description>the environment map's radiance map with its sampler, the specular
+/// map's levels as storage images and the irradiance buffer, for the prefilter's compute stage. One, written once, with the
+/// map on.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
+    /// <summary>
+    /// The storage image slots of the prefilter set, one per specular level: more than the 9 levels of the largest map,
+    /// <see cref="EnvironmentMapSetting.MaxFaceSize"/>.
+    /// </summary>
+    public const uint EnvironmentPrefilterLevelSlots = 16;
+
     private readonly VulkanDevice device;
     private readonly DescriptorPool pool;
     private readonly DescriptorPool texturePool;
@@ -41,7 +52,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         this.device = device;
         LinearClampSampler = CreateLinearClampSampler();
-        FrameSet = CreateFrameSetLayout(LinearClampSampler);
+        EnvironmentSampler = CreateEnvironmentSampler();
+        FrameSet = CreateFrameSetLayout(LinearClampSampler, EnvironmentSampler);
         TextureSet = CreateTextureSetLayout();
         ShadowSampler = CreateShadowSampler();
         GBufferSet = CreateGBufferSetLayout(ShadowSampler);
@@ -50,6 +62,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         AtlasSampler = CreateAtlasSampler();
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
+        EnvironmentPrefilterSet = CreateEnvironmentPrefilterSetLayout(EnvironmentSampler);
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -83,6 +96,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ExposureAdaptPushConstants>()),
             name: "exposure layout"
         );
+        DescriptorSetLayout* prefilterSets = stackalloc[] { EnvironmentPrefilterSet };
+        EnvironmentPrefilterLayout = CreatePipelineLayout(
+            sets: prefilterSets,
+            count: 1,
+            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<EnvironmentPrefilterPushConstants>()),
+            name: "environment prefilter layout"
+        );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
@@ -100,6 +120,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>Set 1 of <see cref="ExposureLayout"/>: the histogram and the exposure buffer, for the compute stage.</summary>
     public DescriptorSetLayout ExposureSet { get; }
+
+    /// <summary>
+    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, the specular map's levels as
+    /// storage images, and the irradiance buffer (docs/plans/environment-map.md, "Images and buffers").
+    /// </summary>
+    public DescriptorSetLayout EnvironmentPrefilterSet { get; }
+
+    /// <summary>
+    /// Trilinear filtering over every level, clamped to the edge: the immutable sampler of the environment map's cubes,
+    /// in the frame set (binding 13) and the prefilter set (binding 1). Vulkan filters a cube across its faces.
+    /// </summary>
+    public Sampler EnvironmentSampler { get; }
 
     /// <summary>
     /// The shadow map sampler: hardware PCF (linear filtering of GREATER_OR_EQUAL comparisons, so a receiver at least
@@ -144,6 +176,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The meter set and the exposure set plus <see cref="ExposureAdaptPushConstants"/>, for both compute pipelines.</summary>
     public PipelineLayout ExposureLayout { get; }
 
+    /// <summary>The prefilter set plus <see cref="EnvironmentPrefilterPushConstants"/>, for the prefilter and the irradiance.</summary>
+    public PipelineLayout EnvironmentPrefilterLayout { get; }
+
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
     public DescriptorSet AllocateGBufferSet() => Allocate(pool, GBufferSet, null);
@@ -157,6 +192,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateMeterSet() => Allocate(pool, MeterSet, null);
 
     public DescriptorSet AllocateExposureSet() => Allocate(pool, ExposureSet, null);
+
+    public DescriptorSet AllocateEnvironmentPrefilterSet() => Allocate(pool, EnvironmentPrefilterSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -213,9 +250,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>Writes a sampled image that shaders read in <see cref="ImageLayout.ShaderReadOnlyOptimal"/>.</summary>
-    public void WriteImage(DescriptorSet set, uint binding, uint arrayElement, GpuImage image)
+    public void WriteImage(DescriptorSet set, uint binding, uint arrayElement, GpuImage image) =>
+        WriteView(
+            set: set,
+            binding: binding,
+            arrayElement: arrayElement,
+            view: image.View,
+            type: DescriptorType.SampledImage
+        );
+
+    /// <summary>
+    /// Writes one view as a sampled image, read in <see cref="ImageLayout.ShaderReadOnlyOptimal"/>, or as a storage image,
+    /// used in <see cref="ImageLayout.General"/>.
+    /// </summary>
+    public void WriteView(DescriptorSet set, uint binding, uint arrayElement, ImageView view, DescriptorType type)
     {
-        var info = new DescriptorImageInfo(default, image.View, ImageLayout.ShaderReadOnlyOptimal);
+        ImageLayout layout =
+            type == DescriptorType.StorageImage ? ImageLayout.General : ImageLayout.ShaderReadOnlyOptimal;
+        var info = new DescriptorImageInfo(default, view, layout);
         var write = new WriteDescriptorSet
         {
             SType = StructureType.WriteDescriptorSet,
@@ -223,7 +275,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DstBinding = binding,
             DstArrayElement = arrayElement,
             DescriptorCount = 1,
-            DescriptorType = DescriptorType.SampledImage,
+            DescriptorType = type,
             PImageInfo = &info,
         };
         device.Vk.UpdateDescriptorSets(
@@ -332,19 +384,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            // Seven per frame set, and the two of the exposure set.
-            new(DescriptorType.StorageBuffer, 7 * frames + 2),
-            // Two per frame set (the material sampler and the immutable linear clamp sampler), the immutable samplers
-            // of the G-buffer, atlas and post sets, and one per glow source set.
-            new(DescriptorType.Sampler, 2 * frames + 3 + glowSourceSets),
-            // 17 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, and
-            // two for the meter set.
-            new(DescriptorType.SampledImage, 17 + 2 * frames + glowSourceSets + 2),
+            // Eight per frame set, the two of the exposure set and the one of the prefilter set.
+            new(DescriptorType.StorageBuffer, 8 * frames + 3),
+            // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
+            // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+            new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
+            // 17 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
+            // glow source set, two for the meter set and one for the prefilter set.
+            new(DescriptorType.SampledImage, 17 + 3 * frames + glowSourceSets + 3),
+            // The specular levels of the prefilter set.
+            new(DescriptorType.StorageImage, EnvironmentPrefilterLevelSlots),
         ];
-        // The frame sets, the G-buffer, post, atlas, meter and exposure sets, and the glow source sets.
+        // The frame sets, the G-buffer, post, atlas, meter, exposure and prefilter sets, and the glow source sets.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: frames + 5 + glowSourceSets,
+            maxSets: frames + 6 + glowSourceSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -387,6 +441,43 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
+    /// <summary>
+    /// The layout of the prefilter set: the radiance map, <paramref name="environmentSampler"/> as its immutable sampler,
+    /// the specular levels as storage images, partially bound because a map has fewer levels than slots, and the
+    /// irradiance buffer.
+    /// </summary>
+    private DescriptorSetLayout CreateEnvironmentPrefilterSetLayout(Sampler environmentSampler)
+    {
+        Span<DescriptorSetLayoutBinding> prefilter =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            ImmutableSampler(binding: 1, stages: ShaderStageFlags.ComputeBit, sampler: &environmentSampler),
+            new(
+                binding: 2,
+                descriptorType: DescriptorType.StorageImage,
+                descriptorCount: EnvironmentPrefilterLevelSlots,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+            new(
+                binding: 3,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+        ];
+        Span<DescriptorBindingFlags> flags = [0, 0, DescriptorBindingFlags.PartiallyBoundBit, 0];
+        fixed (DescriptorBindingFlags* p = flags)
+        {
+            var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
+            {
+                SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
+                BindingCount = (uint)flags.Length,
+                PBindingFlags = p,
+            };
+            return CreateLayout(bindings: prefilter, name: "environment prefilter set", next: &bindingFlags);
+        }
+    }
+
     private Sampler CreateShadowSampler()
     {
         var info = new SamplerCreateInfo
@@ -415,9 +506,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return sampler;
     }
 
-    /// <summary>The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> as its immutable sampler.</summary>
-    private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp)
+    /// <summary>
+    /// The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> and binding 13
+    /// <paramref name="environment"/> as their immutable samplers. Bindings 12 and 14 are partially bound: they stay
+    /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29).
+    /// </summary>
+    private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
+        const ShaderStageFlags readers = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         Span<DescriptorSetLayoutBinding> frame =
         [
@@ -450,8 +546,56 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 pImmutableSamplers: &linearClamp
             ),
             new(binding: 11, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 12, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: readers),
+            ImmutableSampler(binding: 13, stages: readers, sampler: &environment),
+            // The lit puffs evaluate the irradiance's mean in the vertex stage.
+            new(
+                binding: 14,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: graphics | ShaderStageFlags.ComputeBit
+            ),
         ];
-        return CreateLayout(bindings: frame, name: "frame set");
+        Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
+        flags[12] = DescriptorBindingFlags.PartiallyBoundBit;
+        flags[14] = DescriptorBindingFlags.PartiallyBoundBit;
+        fixed (DescriptorBindingFlags* p = flags)
+        {
+            var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
+            {
+                SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
+                BindingCount = (uint)flags.Length,
+                PBindingFlags = p,
+            };
+            return CreateLayout(bindings: frame, name: "frame set", next: &bindingFlags);
+        }
+    }
+
+    /// <summary>Trilinear, clamped to the edge, over every level: the sampler of the environment map's cubes.</summary>
+    private Sampler CreateEnvironmentSampler()
+    {
+        var info = new SamplerCreateInfo
+        {
+            SType = StructureType.SamplerCreateInfo,
+            MagFilter = Filter.Linear,
+            MinFilter = Filter.Linear,
+            MipmapMode = SamplerMipmapMode.Linear,
+            AddressModeU = SamplerAddressMode.ClampToEdge,
+            AddressModeV = SamplerAddressMode.ClampToEdge,
+            AddressModeW = SamplerAddressMode.ClampToEdge,
+            MinLod = 0f,
+            MaxLod = Vk.LodClampNone,
+        };
+        device
+            .Vk.CreateSampler(
+                device: device.Device,
+                pCreateInfo: &info,
+                pAllocator: null,
+                pSampler: out Sampler sampler
+            )
+            .Check("vkCreateSampler");
+        device.SetName(ObjectType.Sampler, sampler.Handle, "environment sampler");
+        return sampler;
     }
 
     private Sampler CreateLinearClampSampler()
@@ -619,6 +763,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
         vk.DestroyPipelineLayout(device.Device, BloomLayout, null);
         vk.DestroyPipelineLayout(device.Device, ExposureLayout, null);
+        vk.DestroyPipelineLayout(device.Device, EnvironmentPrefilterLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
@@ -627,8 +772,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, MeterSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ExposureSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, EnvironmentPrefilterSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);
+        vk.DestroySampler(device.Device, EnvironmentSampler, null);
     }
 }

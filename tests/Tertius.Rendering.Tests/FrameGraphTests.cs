@@ -1,6 +1,9 @@
 namespace Tertius.Rendering.Tests;
 
-/// <summary>The bound on the passes of a frame graph: each pass needs a query of the frame's timestamp pool.</summary>
+/// <summary>
+/// The frame graph: the order of its stages, and the bound on its passes, each of which needs a query of the frame's
+/// timestamp pool.
+/// </summary>
 public sealed class FrameGraphTests
 {
     [Fact]
@@ -17,9 +20,27 @@ public sealed class FrameGraphTests
             .Throw<InvalidOperationException>("the stamp after one more pass would fall past the end of the pool");
     }
 
-    private sealed class EmptyPass : RenderPass
+    [Fact]
+    public void TheEnvironmentMapsStagesRecordAfterTheShadowMapsAndBeforeTheImpostorCaptures()
     {
-        public override string Name => "empty";
+        using var graph = new FrameGraph();
+        graph.Add(FrameGraph.Stage.ImpostorCaptures, new EmptyPass("impostor captures"));
+        graph.Add(FrameGraph.Stage.EnvironmentPrefilter, new EmptyPass("environment prefilter"));
+        graph.Add(FrameGraph.Stage.EnvironmentFaces, new EmptyPass("environment faces"));
+        graph.Add(FrameGraph.Stage.ShadowMaps, new EmptyPass("shadow maps"));
+
+        graph
+            .Passes.Select(pass => pass.Name)
+            .Should()
+            .Equal(
+                ["shadow maps", "environment faces", "environment prefilter", "impostor captures"],
+                "a face samples this frame's cascades, the prefilter reads this frame's faces, and a capture bakes the map's light"
+            );
+    }
+
+    private sealed class EmptyPass(string name = "empty") : RenderPass
+    {
+        public override string Name => name;
 
         public override void Record(FrameContext context) { }
     }

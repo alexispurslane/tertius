@@ -288,3 +288,32 @@ internal struct OutlinePushConstants
     /// <summary>1 when the output format stores linear values and the shader must apply the sRGB curve, as the tone mapper does.</summary>
     public uint EncodeSrgb;
 }
+
+/// <summary>
+/// The push constants of the environment sky pass (Shaders/environment_sky.frag): the basis of the face it draws, each
+/// axis a <see cref="Vector4"/> with w 0. 48 bytes, inside the scene layout's 80-byte range.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct SkyFacePushConstants
+{
+    public Vector4 Forward;
+    public Vector4 Right;
+    public Vector4 Up;
+}
+
+/// <summary>The push constants of environment_prefilter.comp. 16 bytes. environment_irradiance.comp reads none.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct EnvironmentPrefilterPushConstants
+{
+    /// <summary>The level of the specular map that the dispatch writes, k.</summary>
+    public uint Level;
+
+    /// <summary>W_k = W / 2^k: the texels along one side of each face of that level.</summary>
+    public uint LevelSize;
+
+    /// <summary>r_k = k / (L − 1): the roughness that the level holds.</summary>
+    public float Roughness;
+
+    /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
+    public uint Samples;
+}
