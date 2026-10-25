@@ -79,12 +79,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             pDynamicOffsets: null
         );
         context.SetFullViewport();
-        var push = new ToneMapPushConstants
-        {
-            Exposure = context.Exposure,
-            EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
-            ToneCurve = (uint)curve,
-        };
+        var push = new ToneMapPushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u, ToneCurve = (uint)curve };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.PostLayout,

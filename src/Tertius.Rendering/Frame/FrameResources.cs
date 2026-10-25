@@ -24,58 +24,16 @@ internal sealed unsafe class FrameResources : IDisposable
         DescriptorLayouts layouts,
         TextureStore textures,
         BrdfTableImages tables,
+        GpuBuffer exposure,
         int index
     )
     {
         this.device = device;
         this.layouts = layouts;
         Index = index;
-        Vk vk = device.Vk;
-
-        var poolInfo = new CommandPoolCreateInfo
-        {
-            SType = StructureType.CommandPoolCreateInfo,
-            Flags = CommandPoolCreateFlags.TransientBit,
-            QueueFamilyIndex = device.QueueFamily,
-        };
-        vk.CreateCommandPool(
-                device: device.Device,
-                pCreateInfo: &poolInfo,
-                pAllocator: null,
-                pCommandPool: out CommandPool pool
-            )
-            .Check("vkCreateCommandPool");
-        CommandPool = pool;
-        var allocateInfo = new CommandBufferAllocateInfo
-        {
-            SType = StructureType.CommandBufferAllocateInfo,
-            CommandPool = pool,
-            Level = CommandBufferLevel.Primary,
-            CommandBufferCount = 1,
-        };
-        vk.AllocateCommandBuffers(device.Device, &allocateInfo, out CommandBuffer commandBuffer)
-            .Check("vkAllocateCommandBuffers");
-        CommandBuffer = commandBuffer;
-        device.SetName(ObjectType.CommandBuffer, (ulong)commandBuffer.Handle, $"frame {index} commands");
-
-        var fenceInfo = new FenceCreateInfo
-        {
-            SType = StructureType.FenceCreateInfo,
-            Flags = FenceCreateFlags.SignaledBit,
-        };
-        vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence)
-            .Check("vkCreateFence");
-        Fence = fence;
-        var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
-        vk.CreateSemaphore(
-                device: device.Device,
-                pCreateInfo: &semaphoreInfo,
-                pAllocator: null,
-                pSemaphore: out Semaphore acquired
-            )
-            .Check("vkCreateSemaphore");
-        ImageAvailable = acquired;
-        device.SetName(ObjectType.Semaphore, acquired.Handle, $"frame {index} image available");
+        (CommandPool, CommandBuffer) = CreateCommands(index);
+        Fence = CreateSignaledFence();
+        ImageAvailable = CreateAcquireSemaphore(index);
 
         Constants = GpuBuffer.Create(
             device: device,
@@ -85,13 +43,7 @@ internal sealed unsafe class FrameResources : IDisposable
             memoryUsage: MemoryUsage.Upload,
             name: $"frame {index} constants"
         );
-        Instances = new(
-            device: device,
-            allocator: allocator,
-            usage: BufferUsageFlags.StorageBufferBit,
-            name: $"frame {index} instances",
-            capacity: 1024
-        );
+        Instances = StorageArray<GpuInstance>(allocator, "instances", 1024);
         Commands = new(
             device: device,
             allocator: allocator,
@@ -99,39 +51,15 @@ internal sealed unsafe class FrameResources : IDisposable
             name: $"frame {index} indirect",
             capacity: 256
         );
-        Lights = new(
-            device: device,
-            allocator: allocator,
-            usage: BufferUsageFlags.StorageBufferBit,
-            name: $"frame {index} lights",
-            capacity: 64
-        );
-        Occluders = new(
-            device: device,
-            allocator: allocator,
-            usage: BufferUsageFlags.StorageBufferBit,
-            name: $"frame {index} occluders",
-            capacity: 16
-        );
-        Outlines = new(
-            device: device,
-            allocator: allocator,
-            usage: BufferUsageFlags.StorageBufferBit,
-            name: $"frame {index} outlines",
-            capacity: 16
-        );
-        Puffs = new(
-            device: device,
-            allocator: allocator,
-            usage: BufferUsageFlags.StorageBufferBit,
-            name: $"frame {index} puffs",
-            capacity: 256
-        );
+        Lights = StorageArray<GpuLight>(allocator, "lights", 64);
+        Occluders = StorageArray<Vector4>(allocator, "occluders", 16);
+        Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
+        Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
         Staging = new(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
-        WriteFrameSet(textures, tables);
+        WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
     }
 
     public int Index { get; }
@@ -159,11 +87,9 @@ internal sealed unsafe class FrameResources : IDisposable
     public long Number { get; set; } = -1;
 
     /// <summary>Copies the prepared scene into this frame's buffers. Host writes before vkQueueSubmit need no barrier.</summary>
-    public void Write(PreparedScene scene, float exposure)
+    public void Write(PreparedScene scene)
     {
-        GpuFrameConstants constants = scene.Constants;
-        constants.Params.X = exposure;
-        Constants.Write(new ReadOnlySpan<GpuFrameConstants>(in constants));
+        Constants.Write(new ReadOnlySpan<GpuFrameConstants>(in scene.Constants));
         if (Instances.Write(scene.Instances.AsSpan(0, scene.InstanceCount)))
             layouts.WriteBuffer(
                 set: FrameSet,
@@ -187,8 +113,78 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
     }
 
+    /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
+    private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
+        where T : unmanaged =>
+        new(
+            device: device,
+            allocator: allocator,
+            usage: BufferUsageFlags.StorageBufferBit,
+            name: $"frame {Index} {contents}",
+            capacity: capacity
+        );
+
+    /// <summary>The frame's command pool and its one primary command buffer.</summary>
+    private (CommandPool Pool, CommandBuffer Buffer) CreateCommands(int index)
+    {
+        Vk vk = device.Vk;
+        var poolInfo = new CommandPoolCreateInfo
+        {
+            SType = StructureType.CommandPoolCreateInfo,
+            Flags = CommandPoolCreateFlags.TransientBit,
+            QueueFamilyIndex = device.QueueFamily,
+        };
+        vk.CreateCommandPool(
+                device: device.Device,
+                pCreateInfo: &poolInfo,
+                pAllocator: null,
+                pCommandPool: out CommandPool pool
+            )
+            .Check("vkCreateCommandPool");
+        var allocateInfo = new CommandBufferAllocateInfo
+        {
+            SType = StructureType.CommandBufferAllocateInfo,
+            CommandPool = pool,
+            Level = CommandBufferLevel.Primary,
+            CommandBufferCount = 1,
+        };
+        vk.AllocateCommandBuffers(device.Device, &allocateInfo, out CommandBuffer commandBuffer)
+            .Check("vkAllocateCommandBuffers");
+        device.SetName(ObjectType.CommandBuffer, (ulong)commandBuffer.Handle, $"frame {index} commands");
+        return (pool, commandBuffer);
+    }
+
+    // Signaled at creation, so the first wait on a slot that has submitted nothing returns at once.
+    private Fence CreateSignaledFence()
+    {
+        var fenceInfo = new FenceCreateInfo
+        {
+            SType = StructureType.FenceCreateInfo,
+            Flags = FenceCreateFlags.SignaledBit,
+        };
+        device
+            .Vk.CreateFence(device: device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out Fence fence)
+            .Check("vkCreateFence");
+        return fence;
+    }
+
+    private Semaphore CreateAcquireSemaphore(int index)
+    {
+        var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
+        device
+            .Vk.CreateSemaphore(
+                device: device.Device,
+                pCreateInfo: &semaphoreInfo,
+                pAllocator: null,
+                pSemaphore: out Semaphore acquired
+            )
+            .Check("vkCreateSemaphore");
+        device.SetName(ObjectType.Semaphore, acquired.Handle, $"frame {index} image available");
+        return acquired;
+    }
+
     /// <summary>Writes every binding of the frame set but the materials, which <see cref="UpdateSharedDescriptors"/> writes.</summary>
-    private void WriteFrameSet(TextureStore textures, BrdfTableImages tables)
+    private void WriteFrameSet(TextureStore textures, BrdfTableImages tables, GpuBuffer exposure)
     {
         layouts.WriteBuffer(set: FrameSet, binding: 0, type: DescriptorType.UniformBuffer, buffer: Constants);
         layouts.WriteBuffer(set: FrameSet, binding: 1, type: DescriptorType.StorageBuffer, buffer: Instances.Buffer);
@@ -200,6 +196,8 @@ internal sealed unsafe class FrameResources : IDisposable
         // The tables never change, so their bindings are written once.
         layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
         layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
+        // The renderer has one exposure buffer for its life, which every frame passes on to the next.
+        layouts.WriteBuffer(set: FrameSet, binding: 11, type: DescriptorType.StorageBuffer, buffer: exposure);
     }
 
     /// <summary>Points this frame's sets at the current material buffer and writes textures added since its last frame.</summary>

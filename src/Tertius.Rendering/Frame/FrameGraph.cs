@@ -18,8 +18,10 @@ internal sealed class FrameContext
     /// <summary>The timestamps around the passes. Only <see cref="FrameGraph.Record"/> writes them.</summary>
     public required GpuTimer Timer { get; init; }
 
+    /// <summary>The exposure buffer, which the passes that write the HDR image or the emissive target read.</summary>
+    public required ExposureResources Exposure { get; init; }
+
     public long Number { get; set; }
-    public float Exposure { get; set; } = 1f;
 
     /// <summary>The output format stores linear values and the tone mapper must apply the sRGB curve.</summary>
     public bool EncodeSrgb { get; set; }

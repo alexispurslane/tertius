@@ -55,6 +55,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
+    private readonly ExposureResources exposure;
+    private readonly float initialStops;
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -89,23 +91,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
             targets = Own(new RenderTargets(device: device, allocator: Allocator, layouts: layouts, extent: extent));
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
+            exposure = Own(new ExposureResources(device, Allocator, options.FramesInFlight));
+            initialStops = options.Exposure.InitialStops;
             // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
             layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
             frames = CreateFrames(options.FramesInFlight);
 
-            Graph.Add(
-                FrameGraph.Stage.ShadowMaps,
-                new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)
-            );
-            var geometryPass = new GeometryPass(device, shaders, layouts);
-            Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
-            if (options.Impostors)
-                (impostorAtlas, Impostors) = AddImpostors(
-                    shaders: shaders,
-                    geometryPass: geometryPass,
-                    tiles: options.ImpostorTiles
-                );
-
+            (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
             AddPassesAfterGeometry(shaders, options.ToneCurve);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -120,6 +112,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 Barriers = barriers,
                 Shadows = ShadowMap,
                 Timer = timer,
+                Exposure = exposure,
             };
         }
         catch
@@ -135,9 +128,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The physical device in use.</summary>
     public string DeviceName => device.DeviceName;
-
-    /// <summary>Linear scale applied to the HDR image before tone mapping.</summary>
-    public float Exposure { get; set; } = 1f;
 
     /// <summary>Statistics of the last <see cref="Render"/> call.</summary>
     public RenderStats LastFrameStats { get; private set; }
@@ -275,6 +265,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
+        if (options.Exposure.Problem is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(options), problem);
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
@@ -345,14 +337,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ObjectDisposedException.ThrowIf(disposed, this);
         ApplyPendingResize();
 
-        Vk vk = device.Vk;
         FrameResources frame = frames[frameNumber % frames.Length];
         Fence fence = frame.Fence;
-        WaitFor(fence);
-        // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
-        releases.Collect(frame.Number);
-        timer.Collect(frame.Index, frame.Number);
-        frame.Staging.Reset();
+        FinishSlot(frame);
 
         GpuImage? image = output.Acquire(frame);
         if (image == null)
@@ -361,6 +348,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             {
                 SubmittedInstances = snapshot.Instances.Count,
                 GpuTimings = timer.Latest,
+                Exposure = exposure.Latest,
                 Rendered = false,
             };
             return;
@@ -373,10 +361,56 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Resize(image.Extent);
         }
 
+        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
+        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
+        RecordFrame(frame: frame, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
+        // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
+        device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
+        output.SubmitAndPresent(frame);
+        frame.Number = frameNumber;
+        frameNumber++;
+
+        LastFrameStats = StatsOf(
+            scene: LastScene,
+            impostors: Impostors,
+            indirectDrawCalls: context.IndirectDrawCalls,
+            gpuTimings: timer.Latest,
+            exposure: exposure.Latest
+        );
+
+        if (sink != null && capture != null)
+        {
+            WaitFor(fence);
+            HandOver(sink, capture, image.Extent);
+        }
+    }
+
+    /// <summary>
+    /// Waits for the last frame that <paramref name="frame"/>'s slot submitted, and collects what it left behind: the
+    /// releases it waited for, its GPU timings and its exposure.
+    /// </summary>
+    private void FinishSlot(FrameResources frame)
+    {
+        WaitFor(frame.Fence);
+        // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
+        releases.Collect(frame.Number);
+        timer.Collect(frame.Index, frame.Number);
+        exposure.Collect(frame.Index, frame.Number);
+        frame.Staging.Reset();
+    }
+
+    /// <summary>Records the command buffer of a frame: the uploads, the batch, the exposure's readback copy and the passes.</summary>
+    private void RecordFrame(
+        FrameResources frame,
+        RenderSnapshot snapshot,
+        float alpha,
+        GpuImage image,
+        GpuBuffer? capture
+    )
+    {
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
         frame.UpdateSharedDescriptors(materials, textures);
-
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
@@ -386,34 +420,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materialCount: materials.Count,
             scene: LastScene
         );
-
-        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
-        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
-
         SetContext(frame: frame, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
         Graph.Prepare(context);
-        frame.Write(LastScene, Exposure);
+        frame.Write(LastScene);
+        // Before every pass, so the reading is the exposure that all of this frame's passes use.
+        exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
-        vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
-        // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
-        vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
-        output.SubmitAndPresent(frame);
-        frame.Number = frameNumber;
-        frameNumber++;
-
-        LastFrameStats = StatsOf(
-            scene: LastScene,
-            impostors: Impostors,
-            indirectDrawCalls: context.IndirectDrawCalls,
-            gpuTimings: timer.Latest
-        );
-
-        if (sink != null && capture != null)
-        {
-            WaitFor(fence);
-            HandOver(sink, capture, image.Extent);
-        }
+        device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
     }
 
     private void WaitFor(Fence fence) =>
@@ -457,7 +471,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.Scene = LastScene;
         context.Output = image;
         context.Number = frameNumber;
-        context.Exposure = Exposure;
         context.EncodeSrgb = output.EncodeSrgbInShader;
         context.CaptureBuffer = capture;
         context.IndirectDrawCalls = 0;
@@ -494,19 +507,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
+            if (frameNumber == 0)
+                exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers, stops: initialStops);
             device.EndLabel(commandBuffer);
         }
     }
 
     /// <summary>
     /// What a frame drew, from its prepared scene, its impostors and the indirect draws that its passes recorded, with the
-    /// GPU timings of the last frame that finished.
+    /// GPU timings and the exposure of the last frame that finished.
     /// </summary>
     internal static RenderStats StatsOf(
         PreparedScene scene,
         ImpostorManager? impostors,
         int indirectDrawCalls,
-        GpuTimings? gpuTimings
+        GpuTimings? gpuTimings,
+        ExposureReading? exposure
     ) =>
         new()
         {
@@ -534,6 +551,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Outlines = scene.OutlineCount,
             Puffs = scene.PuffCount,
             GpuTimings = gpuTimings,
+            Exposure = exposure,
             Rendered = true,
         };
 
@@ -876,10 +894,31 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     layouts: layouts,
                     textures: textures,
                     tables: brdfTables,
+                    exposure: exposure.Buffer,
                     index: i
                 )
             );
         return made;
+    }
+
+    /// <summary>
+    /// Adds the shadow and G-buffer passes to the graph, and the impostors when <paramref name="options"/> turn them on.
+    /// Returns the impostor atlas and manager, or nulls when impostors are off.
+    /// </summary>
+    private (ImpostorAtlas? Atlas, ImpostorManager? Manager) AddPassesThroughGeometry(
+        ShaderLibrary shaders,
+        RendererOptions options
+    )
+    {
+        Graph.Add(
+            FrameGraph.Stage.ShadowMaps,
+            new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)
+        );
+        var geometryPass = new GeometryPass(device, shaders, layouts);
+        Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
+        if (!options.Impostors)
+            return (null, null);
+        return AddImpostors(shaders: shaders, geometryPass: geometryPass, tiles: options.ImpostorTiles);
     }
 
     /// <summary>

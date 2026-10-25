@@ -241,7 +241,6 @@ internal struct DrawPushConstants
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants
 {
-    public float Exposure;
     public uint EncodeSrgb;
 
     /// <summary>The renderer's <see cref="Rendering.ToneCurve"/> as its number.</summary>

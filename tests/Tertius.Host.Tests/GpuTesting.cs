@@ -75,7 +75,10 @@ public static class GpuTesting
 
     public static readonly Scene LitDropScene = new("lit-drop", LitDrop);
 
-    /// <summary>A validating headless renderer with no impostors, as a scripted run makes one.</summary>
+    /// <summary>
+    /// A validating headless renderer with no impostors, as a scripted run makes one, and a fixed exposure of 0 stops,
+    /// so that a pixel does not depend on the frames before it.
+    /// </summary>
     public static VulkanRenderer Headless(int width, int height) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -84,6 +87,7 @@ public static class GpuTesting
                 Width = width,
                 Height = height,
                 Impostors = false,
+                Exposure = new FixedExposure(0),
             }
         );
 
