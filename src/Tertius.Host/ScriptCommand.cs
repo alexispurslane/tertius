@@ -359,12 +359,18 @@ public static class ScriptCommand
         // search path or cannot start.
         catch (Win32Exception ex) when (options.Video is { } file)
         {
-            return new PlaybackFailure(ToolError, $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}");
+            return new PlaybackFailure(
+                ToolError,
+                $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}"
+            );
         }
         // The folder of the video cannot be made: a file problem, as for a dump or an image.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
         {
-            return new PlaybackFailure(FileError, $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
+            return new PlaybackFailure(
+                FileError,
+                $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}"
+            );
         }
     }
 
@@ -533,7 +539,9 @@ public static class ScriptCommand
         Directory.CreateDirectory(outputFolder);
         ShownExposure[] frames =
         [
-            .. captures.Select((capture, frame) => new ShownExposure(Frame: frame, Capture: capture, Stops: stops[frame])),
+            .. captures.Select(
+                (capture, frame) => new ShownExposure(Frame: frame, Capture: capture, Stops: stops[frame])
+            ),
         ];
         File.WriteAllText(path, JsonSerializer.Serialize(frames, ReportJson));
         output.WriteLine(path);

@@ -30,7 +30,8 @@ public sealed class ScriptCommandExposureTests : IDisposable
         using var file = JsonDocument.Parse(File.ReadAllText(Path.Combine(outFolder, ScriptCommand.ExposureFile)));
         return
         [
-            .. file.RootElement.EnumerateArray()
+            .. file
+                .RootElement.EnumerateArray()
                 .Select(entry =>
                     (
                         entry.GetProperty("frame").GetInt32(),
@@ -114,9 +115,7 @@ public sealed class ScriptCommandExposureTests : IDisposable
         );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        Readings(outFolder)
-            .Should()
-            .Equal([(0, "box-000000", 1.5f), (1, "box-000001", 1.5f), (2, "box-000002", 1.5f)]);
+        Readings(outFolder).Should().Equal([(0, "box-000000", 1.5f), (1, "box-000001", 1.5f), (2, "box-000002", 1.5f)]);
         output.ToString().Should().Contain(Path.Combine(outFolder, ScriptCommand.ExposureFile));
     }
 }

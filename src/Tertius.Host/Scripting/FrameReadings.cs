@@ -22,7 +22,8 @@ internal sealed class FrameReadings
     {
         Timings.Add(stats.GpuTimings);
         exposures.Add(
-            stats.Exposure?.Stops ?? throw new UnreachableException("A captured frame has finished, so it has its exposure.")
+            stats.Exposure?.Stops
+                ?? throw new UnreachableException("A captured frame has finished, so it has its exposure.")
         );
     }
 }

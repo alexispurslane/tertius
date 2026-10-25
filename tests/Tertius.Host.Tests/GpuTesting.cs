@@ -172,7 +172,17 @@ public static class GpuTesting
             MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), roughness: 0.38f)
         );
         scene.Add("dark-box", world.Spawn(new() { Frame = space, Render = Drawn(box, black) }));
-        scene.Add("bright-box", world.Spawn(new() { Frame = space, Pose = At(0, 0, 8), Render = Drawn(box, white) }));
+        scene.Add(
+            "bright-box",
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = At(0, 0, 8),
+                    Render = Drawn(box, white),
+                }
+            )
+        );
         Entity dark = Camera(world, space, At(0, 0, 4));
         scene.Add("dark", dark);
         scene.Add("bright", Camera(world, space, new(new(0, 0, 4), TurnAboutY(180))));
