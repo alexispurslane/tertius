@@ -13,6 +13,13 @@ internal enum SegmentEnd
 
     /// <summary>The ray goes away to infinity and reaches its vanishing point, where the inverse depth is 0.</summary>
     VanishingPoint,
+
+    /// <summary>
+    /// The ray has no segment: the depth of its origin or of its second point, as the floats compute it, lies far below
+    /// the surface's view depth. The rounding of a view ray longer than about 10^7 passes its forward part of 1, so the
+    /// computed depth of a point on it can be 0 or below, where no projection is defined.
+    /// </summary>
+    NoSegment,
 }
 
 /// <summary>
@@ -39,6 +46,13 @@ internal readonly record struct ScreenRay(
     /// <summary>How far the origin lies off the surface, in pixel footprints at the surface's view depth.</summary>
     public const float OriginOffsetPixels = 2;
 
+    /// <summary>
+    /// The most that the origin lies off the surface, as a share of the surface's view depth. A pixel footprint can pass
+    /// half the view depth, in a window a few pixels tall or at a field of view near a half turn, and then two of them
+    /// along the normal of a surface that faces the eye would put the origin on or behind the eye's plane.
+    /// </summary>
+    public const float MostOriginOffsetShare = 0.5f;
+
     /// <summary>The cosine between the ray and the geometric normal below which a ray fades out.</summary>
     public const float SurfaceFadeCosine = 0.05f;
 
@@ -46,7 +60,12 @@ internal readonly record struct ScreenRay(
     private const float NoEnd = 1e30f;
 
     /// <summary>The image of the ray from origin along the unit direction, both in the camera-relative axes.</summary>
-    public static ScreenRay Of(Vector3 origin, Vector3 direction, in CameraView camera)
+    /// <param name="origin">The ray's origin, camera-relative.</param>
+    /// <param name="direction">The ray's unit direction.</param>
+    /// <param name="viewDepth">The view depth of the surface point that the ray leaves, from the pixel's distance, or
+    /// of a bare origin its own: the depth that the origin's computed depth must not fall far below.</param>
+    /// <param name="camera">The camera of the frame.</param>
+    public static ScreenRay Of(Vector3 origin, Vector3 direction, float viewDepth, in CameraView camera)
     {
         float originDepth = Vector3.Dot(origin, camera.Forward);
         float towardDepth = Vector3.Dot(direction, camera.Forward);
@@ -55,6 +74,17 @@ internal readonly record struct ScreenRay(
         // that comes toward it faster than half its length. Either way the second point lies at least half as deep.
         float along = towardDepth >= -0.5f ? originDepth : 0.5f * originDepth / -towardDepth;
         Vector3 second = origin + direction * along;
+        // The origin lies at least half as deep as its surface, and the second point half as deep again. A computed
+        // depth far below those comes from the rounding of a view ray longer than about 10^7, and can be 0 or below.
+        if (originDepth < viewDepth / 4 || Vector3.Dot(second, camera.Forward) < viewDepth / 8)
+            return new(
+                Start: Vector2.Zero,
+                Step: Vector2.Zero,
+                StartInverseDepth: 0,
+                StepInverseDepth: 0,
+                End: -1,
+                EndsAt: SegmentEnd.NoSegment
+            );
         Vector2 start = camera.PixelOf(origin);
         Vector2 step = camera.PixelOf(second) - start;
         float startInverseDepth = camera.InverseDepthOf(origin);
@@ -86,17 +116,30 @@ internal readonly record struct ScreenRay(
         );
     }
 
-    /// <summary>The image of the reflected ray of a surface point: its origin off the surface by OriginOffsetPixels
-    /// footprints.</summary>
+    /// <summary>How far the origin lies off a surface at <paramref name="viewDepth"/>: <see cref="OriginOffsetPixels"/>
+    /// footprints of <paramref name="pixelAngle"/>, and at most <see cref="MostOriginOffsetShare"/> of the view depth, so
+    /// that the origin lies at least half as deep as the surface.</summary>
+    public static float OriginOffset(float viewDepth, float pixelAngle) =>
+        MathF.Min(OriginOffsetPixels * pixelAngle, MostOriginOffsetShare) * viewDepth;
+
+    /// <summary>The image of the reflected ray of a surface point: its origin off the surface by
+    /// <see cref="OriginOffset"/>.</summary>
     /// <param name="point">The surface point, camera-relative.</param>
+    /// <param name="viewDepth">The surface point's view depth from the pixel's distance, as the shader computes it:
+    /// the distance over the length of the pixel's view ray.</param>
     /// <param name="geometricNormal">The unit normal of the surface that the depth sees.</param>
     /// <param name="direction">The unit direction of the reflected ray.</param>
     /// <param name="camera">The camera of the frame.</param>
-    public static ScreenRay FromSurface(Vector3 point, Vector3 geometricNormal, Vector3 direction, in CameraView camera)
+    public static ScreenRay FromSurface(
+        Vector3 point,
+        float viewDepth,
+        Vector3 geometricNormal,
+        Vector3 direction,
+        in CameraView camera
+    )
     {
-        float footprint = Vector3.Dot(point, camera.Forward) * camera.PixelAngle;
-        Vector3 origin = point + geometricNormal * (OriginOffsetPixels * footprint);
-        return Of(origin, direction, camera);
+        Vector3 origin = point + geometricNormal * OriginOffset(viewDepth, camera.PixelAngle);
+        return Of(origin: origin, direction: direction, viewDepth: viewDepth, camera: camera);
     }
 
     /// <summary>The fade of a ray that points into its own geometric surface: 0 below it, 1 from a cosine of

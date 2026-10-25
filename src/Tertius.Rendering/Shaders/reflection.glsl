@@ -11,6 +11,7 @@ const float ConeTangentPerAlpha = 1.7602; // ReflectionCone.TangentPerAlpha: sqr
 const float EdgeFadeShare = 0.1;          // CameraView.EdgeFadeShare
 const float CrossingNudge = 0.01;         // ScreenRay.CrossingNudge, in pixels
 const float OriginOffsetPixels = 2.0;     // ScreenRay.OriginOffsetPixels
+const float MostOriginOffsetShare = 0.5;  // ScreenRay.MostOriginOffsetShare
 const float SurfaceFadeCosine = 0.05;     // ScreenRay.SurfaceFadeCosine
 const float NearPlane = 0.05;             // DepthRanges.NearPlane
 // The parameter of a segment that no limit ends. Not infinity: fast math may assume none.
@@ -39,7 +40,15 @@ float segmentEnd(float position, float step, float limit)
     return parameterAt(step > 0.0 ? limit - position : -position, step, NoEnd);
 }
 
-ScreenRay screenRayOf(vec3 origin, vec3 direction)
+// How far the origin lies off a surface at viewDepth (ScreenRay.OriginOffset): two pixel footprints, and at most half
+// the view depth, so that the origin of a surface that faces the eye stays at least half as deep as the surface. In a
+// window a few pixels tall, or at a field of view near a half turn, two footprints pass the view depth.
+float originOffset(float viewDepth)
+{
+    return min(OriginOffsetPixels * frame.params.z, MostOriginOffsetShare) * viewDepth;
+}
+
+ScreenRay screenRayOf(vec3 origin, vec3 direction, float viewDepth)
 {
     vec3 forward = frame.cameraForward.xyz;
     float originDepth = dot(origin, forward);
@@ -49,11 +58,25 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction)
     // that comes toward it faster than half its length. Either way the second point lies at least half as deep.
     float along = towardDepth >= -0.5 ? originDepth : 0.5 * originDepth / -towardDepth;
     vec3 second = origin + direction * along;
+    float secondDepth = dot(second, forward);
     ScreenRay ray;
+    // The origin lies at least half as deep as its surface (originOffset), and the second point half as deep again. A
+    // computed depth far below those comes from the rounding of a view ray longer than about 10^7, whose error passes
+    // its forward part of 1, and can be 0 or below. Such a ray gets an empty segment before any reciprocal
+    // (ScreenRay's NoSegment).
+    if (originDepth < 0.25 * viewDepth || secondDepth < 0.125 * viewDepth)
+    {
+        ray.start = vec2(0.0);
+        ray.step = vec2(0.0);
+        ray.startW = 0.0;
+        ray.stepW = 0.0;
+        ray.end = -1.0;
+        return ray;
+    }
     ray.start = pixelOf(origin);
     ray.step = pixelOf(second) - ray.start;
     ray.startW = 1.0 / originDepth;
-    ray.stepW = 1.0 / dot(second, forward) - ray.startW;
+    ray.stepW = 1.0 / secondDepth - ray.startW;
     float end = min(segmentEnd(ray.start.x, ray.step.x, frame.viewport.x),
         segmentEnd(ray.start.y, ray.step.y, frame.viewport.y));
     // The near plane for a ray toward the eye, the vanishing point for a ray away from it.

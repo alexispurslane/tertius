@@ -184,13 +184,16 @@ internal static class ReflectionTesting
         int maxSteps
     )
     {
-        var toSurface = Vector3.Normalize(camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f)));
-        Vector3 point = toSurface * distance[pixel.Y * camera.Width + pixel.X];
+        Vector3 viewRay = camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f));
+        var toSurface = Vector3.Normalize(viewRay);
+        float distanceToEye = distance[pixel.Y * camera.Width + pixel.X];
+        Vector3 point = toSurface * distanceToEye;
         var direction = new GgxLobe(roughness)
             .DominantDirection(normal: normal, mirror: Vector3.Reflect(toSurface, normal))
             .ToVector3();
         var ray = ScreenRay.FromSurface(
             point: point,
+            viewDepth: distanceToEye / viewRay.Length(),
             geometricNormal: Vector3.UnitY,
             direction: direction,
             camera: camera

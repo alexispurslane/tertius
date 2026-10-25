@@ -47,12 +47,13 @@ void main()
     if (surfaceFade <= 0.0)
         return;
     float viewDepth = distanceToEye / length(ray);
-    vec3 origin = toSurface * distanceToEye + s.geometricNormal * (OriginOffsetPixels * viewDepth * frame.params.z);
+    vec3 origin = toSurface * distanceToEye + s.geometricNormal * originOffset(viewDepth);
 
     vec2 hit;
     ivec2 hitPixel;
     float entryShare;
-    if (!traceRay(depthPyramid, screenRayOf(origin, direction), reflection.maxSteps, hit, hitPixel, entryShare))
+    ScreenRay screenRay = screenRayOf(origin, direction, viewDepth);
+    if (!traceRay(depthPyramid, screenRay, reflection.maxSteps, hit, hitPixel, entryShare))
         return;
 
     // The hit's surface point from its own distance, not from the ray's inverse depth, which is coarse far away.

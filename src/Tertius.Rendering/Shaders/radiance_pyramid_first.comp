@@ -16,7 +16,8 @@ void main()
     if (any(greaterThanEqual(pixel, imageSize(destination))))
         return;
     float coverage = texelFetch(gbufferDistance, pixel, 0).r > 0.0 ? 1.0 : 0.0;
-    // A select, not a product: a sky pixel times 0 would turn an infinite value into NaN.
+    // The select keeps sky's light out of the cones exactly. It guards against no infinity: the HDR image holds none,
+    // because every writer caps its light at MaxRadiance, sky's star field too (ARCHITECTURE.md, "Portable Vulkan").
     vec3 radiance = coverage > 0.0 ? texelFetch(source, pixel, 0).rgb : vec3(0.0);
     imageStore(destination, pixel, vec4(radiance, coverage));
 }

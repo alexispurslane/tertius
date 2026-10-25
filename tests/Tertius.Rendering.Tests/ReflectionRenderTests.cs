@@ -365,6 +365,43 @@ public sealed class ReflectionRenderTests
         ShouldMatch(with, without, "a ray into its own surface fades out before it starts");
     }
 
+    [Theory]
+    // A pixel footprint of half the view depth in a window 4 px tall at 90°, and of 0.64 view depths at 179° in
+    // 640 × 360: two footprints along the normal of a surface that faces the eye reach the eye's plane or pass it.
+    [InlineData(640, 4, 90f)]
+    [InlineData(640, 360, 179f)]
+    public void AMirrorThatFacesTheEyeReflectsNothingWhenTwoPixelFootprintsReachTheEye(
+        int width,
+        int height,
+        float fovDegrees
+    )
+    {
+        // A gray metal mirror 3 m ahead that fills the screen: no ray from a flat mirror meets the mirror again.
+        RenderSnapshot Scene(VulkanRenderer renderer)
+        {
+            RenderSnapshot snapshot = Gray(0.2f);
+            snapshot.Camera.VerticalFov = fovDegrees * MathF.PI / 180;
+            var mirror = new MaterialDesc(BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), Roughness: 0, Metallic: 1);
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Plane(1)),
+                    material: renderer.CreateMaterial(mirror),
+                    position: new(0, 0, -3),
+                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                    scale: new(1_000, 1, 1_000),
+                    radius: 1_500
+                )
+            );
+            return snapshot;
+        }
+
+        var view = new TestView(Width: width, Height: height);
+        float[] with = RenderHdr(reflections: Reflections, scene: Scene, view: view).Hdr;
+        float[] without = RenderHdr(reflections: new NoReflections(), scene: Scene, view: view).Hdr;
+
+        ShouldMatch(with, without, "every origin stays in front of the eye, and no ray meets its own flat mirror");
+    }
+
     [Fact]
     public void AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt()
     {

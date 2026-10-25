@@ -15,21 +15,22 @@ internal readonly record struct SceneRectangle(Vector3 Center, Vector3 HalfSide,
 internal static class ScreenTesting
 {
     /// <summary>A camera at the origin that looks along −Z after a turn of <paramref name="yaw"/> about +Y and a tilt
-    /// of <paramref name="pitchDown"/> below the horizon, both in radians, with <see cref="Gpu.Fov"/>.</summary>
-    public static CameraView Camera(int width, int height, float yaw = 0, float pitchDown = 0)
+    /// of <paramref name="pitchDown"/> below the horizon, both in radians, with a vertical field of view of
+    /// <paramref name="fov"/> radians, <see cref="Gpu.Fov"/> when it is not given.</summary>
+    public static CameraView Camera(int width, int height, float yaw = 0, float pitchDown = 0, float fov = Gpu.Fov)
     {
         Quaternion rotation =
             Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw)
             * Quaternion.CreateFromAxisAngle(Vector3.UnitX, -pitchDown);
         float aspect = (float)width / height;
-        float tanY = MathF.Tan(Gpu.Fov / 2);
+        float tanY = MathF.Tan(fov * 0.5f);
         return new()
         {
             Rotation = rotation,
             Right = Vector3.Transform(Vector3.UnitX, rotation),
             Up = Vector3.Transform(Vector3.UnitY, rotation),
             Forward = Vector3.Transform(-Vector3.UnitZ, rotation),
-            VerticalFov = Gpu.Fov,
+            VerticalFov = fov,
             Aspect = aspect,
             TanHalfY = tanY,
             TanHalfX = tanY * aspect,

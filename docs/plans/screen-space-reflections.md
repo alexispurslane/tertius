@@ -68,7 +68,7 @@ The user made the decisions marked (User). This design settled the others by the
 15. A cell's bounds cover its surface pixels only, and a cell with no surface has the empty bounds (0, 10^30). Sky is not a surface: a ray never hits it, and it ends at the segment's end. The empty bound is a large finite number, not infinity, because a shader compiler's fast math may assume that no value is infinite, on any Vulkan driver and on MoltenVK alike. A cell outside its level, beside the screen, has the empty bounds too.
 16. The thickness is a share of the view depth: a surface at depth z fills z to z (1 + κ), with κ = 0.1. In inverse depth the slab is [w / (1 + κ), w], so one constant serves every range: 0.5 m behind a crate 5 m away, 50 m behind a ship 500 m away. The captures of Part 6 check the value.
 17. The ray follows the specular dominant direction d of Lagarde and de Rousiers 2014, not the mirror direction. The ambient specular term gathers along d: the lobe's sky share reads d today, and an environment map samples along d. So a hit and a miss read the same direction of the lobe, and the fade between them changes no direction. For a smooth surface, d is the mirror direction.
-18. The origin moves off the surface along the geometric normal by 2 z θ_px, two pixel footprints. A ray that starts on the surface hits its own neighbor pixels by rounding. The geometric normal is the surface that the depth sees.
+18. The origin moves off the surface along the geometric normal by 2 z θ_px, two pixel footprints, and at most z / 2. A ray that starts on the surface hits its own neighbor pixels by rounding. The geometric normal is the surface that the depth sees. The cap (the portable float audit, 2026-10-25) keeps the origin at least half as deep as the surface, because θ_px passes 1/2 in a window a few pixels tall or at a field of view near a half turn, where two footprints along the normal of a surface that faces the eye reach the eye's plane.
 19. The cone's half angle comes from Uludag's rule, translated to GGX: tan θ_c = α √((1 − ξ) / ξ) with ξ = 0.244, about 1.7602 α. The cone level is log₂ of the cone's radius at the hit, in pixels (Uludag 2014). See "The cone".
 20. One trilinear sample of the radiance pyramid at the hit gives the traced radiance. This is open fork 1. The doc is written for it.
 21. The radiance pyramid is premultiplied by the surface coverage, so a cone whose footprint covers sky gives a coverage below 1, and that share of the cone keeps the ambient specular term. This applies decision 5 to the inside of a cone: sky in a footprint counts as a miss, as a ray that reaches the sky does. It also keeps the black star field of space out of blurred reflections. With an environment map, the stars come back through the map.
@@ -160,7 +160,7 @@ u = normalize(r(p));  P = u · D;  V = −u             the surface point and th
 d = specularDominantDirection(n, reflect(−V, n), α)  Lagarde and de Rousiers 2014, as brdf.glsl computes it
 f_surface = clamp(d · n_g / 0.05, 0, 1);  stop when it is 0
 z = D / |r(p)|
-O = P + n_g · 2 z θ_px                                the origin, two pixel footprints off the surface
+O = P + n_g · min(2 θ_px, 1/2) z                      the origin, two pixel footprints off the surface, at most z / 2
 ```
 
 where n is the shading normal and n_g the geometric normal of the G-buffer.

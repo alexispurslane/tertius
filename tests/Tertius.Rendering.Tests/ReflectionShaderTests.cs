@@ -248,9 +248,7 @@ public sealed class ReflectionShaderTests
             float hitDistance = Distance[hit.Pixel.Y * Width + hit.Pixel.X];
             Vector3 hitPoint = Vector3.Normalize(Camera.ViewRayThrough(hit.Position)) * hitDistance;
             Vector3 origin =
-                point
-                + Vector3.UnitY
-                    * (ScreenRay.OriginOffsetPixels * Vector3.Dot(point, Camera.Forward) * Camera.PixelAngle);
+                point + Vector3.UnitY * ScreenRay.OriginOffset(Vector3.Dot(point, Camera.Forward), Camera.PixelAngle);
             float level = ReflectionCone
                 .OfRoughness(roughness)
                 .Level(
