@@ -109,6 +109,7 @@ public static partial class DemoScenes
         new("earth-system", EarthSystem.Build),
         new("demo-exit", DemoExit.Build),
         new("puff-yard", PuffYard),
+        new("pbr-spheres", PbrSpheres),
     ];
 
     /// <summary>
