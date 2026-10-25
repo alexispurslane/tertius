@@ -62,7 +62,7 @@ internal readonly record struct GgxLobe
     /// </summary>
     internal static Double3 DominantDirection(Double3 normal, Double3 mirror, double towardMirror)
     {
-        Double3 mix = Double3.Lerp(normal, mirror, towardMirror);
+        var mix = Double3.Lerp(normal, mirror, towardMirror);
         return mix.LengthSquared >= ShaderInput.SmallestNormal ? mix.Normalized() : normal;
     }
 

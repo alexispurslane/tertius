@@ -59,11 +59,10 @@ internal static class ShaderInput
     /// Whether every point within <paramref name="extent"/> of the camera-relative <paramref name="position"/> lies within
     /// <see cref="PositionLimit"/> of the eye. A number that is not finite fails too.
     /// </summary>
-    public static bool InPositionRange(Vector3 position, float extent)
-    {
+    public static bool InPositionRange(Vector3 position, float extent) =>
         // A NaN fails the comparison, and the length of a position with a huge part is infinite.
-        return position.Length() + extent <= PositionLimit;
-    }
+        position.Length() + extent
+        <= PositionLimit;
 
     /// <summary>A finite light range above 0 as the shaders read it: at most <see cref="RangeLimit"/>.</summary>
     public static float Range(float range) => MathF.Min(range, RangeLimit);
