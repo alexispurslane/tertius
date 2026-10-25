@@ -19,7 +19,8 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
 | `ter-jxv9` | Screen-space reflections | PBR | Two designs, in the ticket |
 | `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
-| `ter-mgze` | Glass keeps its highlight at full strength, or not | PBR | The user chooses |
+| `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
+| `ter-nl5u` | A prefiltered environment map of the sky backdrop for the ambient specular light and SSR's fallback | PBR | Two designs, in the ticket |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light | Every member above | Two designs, in the ticket |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | The per-frame colors | Two designs, in the ticket |
 
