@@ -5,6 +5,7 @@
 #include "gbuffer_inputs.glsl"
 #include "material.glsl"
 #include "lighting.glsl"
+#include "reflection_footprint.glsl"
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -19,26 +20,29 @@ layout(location = 0, index = 1) out vec4 outTransmittance;
 
 void main()
 {
-    // Sample before the discard below, so implicit derivatives stay defined for the whole quad.
+    // Sample and take the footprint before the discard below, so implicit derivatives stay defined for the whole quad.
     SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    float distanceToEye = length(inPosition - draw.eye.xyz);
+    vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
+    ShadingInput shading;
+    shading.normal = s.normal;
+    shading.roughness = s.roughness;
+    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.
     float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
-    float distanceToEye = length(inPosition - draw.eye.xyz);
     if (opaqueDistance > 0.0 && distanceToEye > opaqueDistance)
         discard;
 
-    ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
-    shading.normal = s.normal;
     shading.geometricNormal = normalize(inNormal);
     shading.metallic = s.metallic;
-    shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
-    shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
-    vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
-    shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    // Only the hemisphere reads the sky shares.
+    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
+    shading.lobeSkyFraction =
+        environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // Transparent objects are not in the G-buffer, so the occlusion passes give them no V.
     shading.occlusion = 1.0;
     // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
@@ -52,7 +56,8 @@ void main()
     // MaxRadiance times T stays a finite half float: past it, a device may store infinity, which the tone curve turns
     // into NaN.
     float exposure = exposureScale();
-    vec3 radiance = min(lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, true, exposure),
+    vec3 radiance = min(
+        lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, SunShadowsMainView, exposure),
         MaxRadiance * (1.0 - transmittance));
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha

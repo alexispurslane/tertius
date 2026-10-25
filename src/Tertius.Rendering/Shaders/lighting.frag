@@ -4,50 +4,31 @@
 #include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
 #include "lighting.glsl"
+#include "reflection_footprint.glsl"
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
 
-// Hash without sine (Dave Hoskins), stable for the integer cell coordinates used below.
-vec3 hash33(vec3 p)
-{
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yxz + 33.33);
-    return fract((p.xxy + p.yxx) * p.zyx);
-}
-
-// A cheap procedural star field fixed to the root frame's axes. Directions are split into cells of a 3D grid (about
-// 0.4 degrees across); one cell in fifty holds a star at a hashed position, which gives roughly 450 stars per
-// steradian, most of them dim. Each star is a Gaussian about one pixel wide, so its size does not depend on the
-// resolution.
-vec3 starField(vec3 direction)
-{
-    // Into the root frame's axes: the inverse of rootRotation, by the quaternion sandwich with the conjugate.
-    vec3 u = -frame.rootRotation.xyz;
-    direction += 2.0 * cross(u, cross(u, direction) + frame.rootRotation.w * direction);
-    const float cells = 150.0;
-    vec3 cell = floor(direction * cells);
-    vec3 h = hash33(cell);
-    if (h.x > 0.02)
-        return vec3(0.0);
-    vec3 jitter = hash33(cell + 17.0);
-    vec3 star = normalize(cell + jitter);
-    vec3 offset = direction - star;
-    float pixel = max(frame.params.z, 1e-5);
-    float falloff = exp(-dot(offset, offset) / (pixel * pixel));
-    float brightness = 0.05 + 3.0 * pow(h.y, 8.0);
-    vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.82, 1.0), h.z);
-    return tint * brightness * falloff;
-}
-
 void main()
 {
-    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    // A helper invocation of a 2 × 2 quad can lie past the image's last column or row when the size is odd, and a fetch
+    // there is undefined, so the reads before the sky test, whose values feed derivatives, stay inside the image.
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
     vec3 direction = normalize(inRay);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    // The footprint takes the derivatives of d, which are defined only in uniform control flow, so every pixel reads its
+    // normal and roughness before the test for sky pixels. A sky pixel's d is its view ray, which keeps the derivatives
+    // of its lit neighbors finite.
+    ShadingInput s;
+    vec4 normals = texelFetch(gbufferNormal, pixel, 0);
+    s.normal = octDecode(normals.rg);
+    vec4 specular = texelFetch(gbufferSpecular, pixel, 0);
+    s.roughness = specular.g;
+    vec3 dominant = distanceToEye > 0.0 ? ambientSpecularDirection(s, -direction) : direction;
+    s.reflectionFootprint = reflectionFootprint(dominant);
     if (distanceToEye <= 0.0)
     {
-        outColor = vec4(preExposed(starField(direction)), 1.0);
+        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
         return;
     }
 
@@ -65,18 +46,13 @@ void main()
     // The position comes from the ray and the stored distance, so it does not depend on the projection of the
     // depth range that drew the pixel.
     vec3 position = direction * distanceToEye;
-    ShadingInput s;
     s.baseColor = baseColor.rgb;
-    vec4 normals = texelFetch(gbufferNormal, pixel, 0);
-    s.normal = octDecode(normals.rg);
     s.geometricNormal = octDecode(normals.ba);
-    vec4 specular = texelFetch(gbufferSpecular, pixel, 0);
     s.metallic = specular.r;
-    s.roughness = specular.g;
     s.reflectance = specular.b;
     s.lobeSkyFraction = specular.a;
     s.skyFraction = emissiveSky.a;
     s.occlusion = texelFetch(gbufferOcclusion, pixel, 0).r;
 
-    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true, exposureScale()), 1.0);
+    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, SunShadowsMainView, exposureScale()), 1.0);
 }

@@ -29,7 +29,10 @@ internal enum ImageUse
     /// <summary>Sampled or fetched in a compute shader, as the exposure's meter reads the HDR image.</summary>
     SampledCompute,
 
-    /// <summary>Read and written as a storage image in a compute shader, as the occlusion passes use their images.</summary>
+    /// <summary>
+    /// Read and written as a storage image in a compute shader, as the occlusion passes use their images and the
+    /// environment prefilter writes the specular map.
+    /// </summary>
     StorageCompute,
     TransferSource,
     TransferDestination,

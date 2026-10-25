@@ -77,8 +77,8 @@ public static class GpuTesting
 
     /// <summary>
     /// A validating headless renderer with no impostors, as a scripted run makes one, with no ambient occlusion, so that
-    /// the tests see the ambient light in full, and with a fixed exposure of 0 stops, so that a pixel does not depend on
-    /// the frames before it. Local shadows are off, as the impostors are.
+    /// the tests see the ambient light in full, no environment map, and a fixed exposure of 0 stops, so that a pixel does
+    /// not depend on the frames before it. Local shadows are off, as the impostors are.
     /// </summary>
     public static VulkanRenderer Headless(int width, int height) =>
         VulkanRenderer.CreateHeadless(
@@ -93,6 +93,7 @@ public static class GpuTesting
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,
                 LocalShadows = new NoLocalShadows(),
+                EnvironmentMap = new NoEnvironmentMap(),
             }
         );
 

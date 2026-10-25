@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -116,7 +117,7 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// <para>States of keys that were not seen for <see cref="StateLifetime"/> frames are dropped, unless they hold a
 /// tile; those live until the tile is evicted, so that an object coming back into view can reuse its capture.</para>
 /// </remarks>
-internal sealed class ImpostorManager : IInstanceProcessor
+internal sealed partial class ImpostorManager : IInstanceProcessor
 {
     /// <summary>Below this projected height, in pixels, an object becomes an impostor.</summary>
     public const float EnterHeight = 200f;
@@ -573,32 +574,83 @@ internal sealed class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The light a capture bakes in, at the object: what reaches it from the sun, the two ambient colors, the up of the
-    /// hemisphere ambient light at its center in object space, weighted by how much the sky and the ground differ, and
-    /// the irradiance from the point and spot lights, with that irradiance's direction in object space.
+    /// The light a capture bakes in, at the object: what reaches it from the sun, the ambient light, and the irradiance
+    /// from the point and spot lights, with that irradiance's direction in object space.
     /// </summary>
     private readonly record struct LightSignature(
         Vector3 Sun,
-        Vector3 Sky,
-        Vector3 Ground,
-        Vector3 Up,
+        AmbientSignature Ambient,
         Vector3 Local,
         Vector3 LocalDirection
     )
     {
-        private float Total => Sun.Length() + Sky.Length() + Ground.Length() + Local.Length();
+        private float Total => Sun.Length() + Ambient.Total + Local.Length();
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
             float difference =
                 (a.Sun - b.Sun).Length()
-                + (a.Sky - b.Sky).Length()
-                + (a.Ground - b.Ground).Length()
-                + (a.Up - b.Up).Length()
+                + AmbientSignature.Difference(a.Ambient, b.Ambient)
                 + (a.Local - b.Local).Length()
                 + (a.LocalDirection - b.LocalDirection).Length();
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
+        }
+    }
+
+    /// <summary>
+    /// The hemisphere's two colors, and its up at the object's center in object space, weighted by how much the sky and
+    /// the ground differ.
+    /// </summary>
+    private readonly record struct HemisphereSignature(Vector3 Sky, Vector3 Ground, Vector3 Up);
+
+    /// <summary>The map's irradiance from its latest reading, zero before the first.</summary>
+    private readonly record struct MapSignature(Irradiance Irradiance);
+
+    /// <summary>
+    /// The ambient part of a <see cref="LightSignature"/>, after the frame's <see cref="AmbientSource"/>
+    /// (docs/plans/environment-map.md, "Impostors"). This is a generated union (docs/plans/union-tooling.md).
+    /// </summary>
+    [GeneratedUnion(typeof(HemisphereSignature), typeof(MapSignature))]
+    private readonly partial struct AmbientSignature
+    {
+        /// <summary>The ambient light in all: the lengths of the two colors, or of the nine coefficients.</summary>
+        public float Total =>
+            this switch
+            {
+                HemisphereSignature { Sky: var sky, Ground: var ground } => sky.Length() + ground.Length(),
+                MapSignature(var irradiance) => CoefficientLengths(irradiance),
+                null => 0f,
+            };
+
+        /// <summary>
+        /// The summed lengths of the changes of each part from <paramref name="a"/> to <paramref name="b"/>. A change
+        /// of the source changes all the light of both.
+        /// </summary>
+        public static float Difference(in AmbientSignature a, in AmbientSignature b) =>
+            (a, b) switch
+            {
+                (HemisphereSignature x, HemisphereSignature y) => (x.Sky - y.Sky).Length()
+                    + (x.Ground - y.Ground).Length()
+                    + (x.Up - y.Up).Length(),
+                (MapSignature(var x), MapSignature(var y)) => CoefficientChanges(x, y),
+                _ => a.Total + b.Total,
+            };
+
+        private static float CoefficientLengths(in Irradiance irradiance)
+        {
+            float total = 0;
+            for (int index = 0; index < Irradiance.Coefficients; index++)
+                total += irradiance[index].Length();
+            return total;
+        }
+
+        private static float CoefficientChanges(in Irradiance a, in Irradiance b)
+        {
+            float difference = 0;
+            for (int index = 0; index < Irradiance.Coefficients; index++)
+                difference += (a[index] - b[index]).Length();
+            return difference;
         }
     }
 
@@ -608,8 +660,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         private readonly ReadOnlySpan<Vector4> occluders;
         private readonly ReadOnlySpan<GpuLight> lights;
         private readonly Vector3 sunRadiance;
-        private readonly Vector3 sky;
-        private readonly Vector3 ground;
+        private readonly AmbientSource ambient;
         private readonly float sunAngularRadius;
 
         public SceneLight(PreparedScene scene)
@@ -619,8 +670,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             SunDirection = HasSun ? Vector3.Normalize(sun.Direction) : Vector3.Zero;
             sunRadiance = HasSun ? sun.Color * sun.Intensity : Vector3.Zero;
             sunAngularRadius = MathF.Max(sun.AngularRadius, 0f);
-            sky = scene.Ambient.SkyColor * scene.Ambient.Intensity;
-            ground = scene.Ambient.GroundColor * scene.Ambient.Intensity;
+            ambient = scene.Ambient;
             occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
             lights = scene.Lights.AsSpan(0, scene.LightCount);
         }
@@ -643,16 +693,14 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Vector3 local = Vector3.Zero,
                 direction = Vector3.Zero;
             var inverse = Quaternion.Conjugate(instance.Rotation);
-            HemisphereUp hemisphere = instance.Hemisphere;
-            // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
-            // compare.
-            Vector3 up = hemisphere switch
+            AmbientSignature ambientPart = ambient switch
             {
-                UpAlong along => along.Direction,
-                UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
-                UpAwayFrom or null => Vector3.Zero,
+                HemisphereAmbient(var light) => Hemisphere(light: light, instance: instance, inverse: inverse),
+                MapAmbient(var reading) => new MapSignature(reading?.Irradiance ?? default),
+                null => throw new UnreachableException(
+                    "The batcher sets the ambient source before the processors run."
+                ),
             };
-            Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)
             {
                 float radius = instance.Radius;
@@ -687,7 +735,26 @@ internal sealed class ImpostorManager : IInstanceProcessor
                 }
             }
 
-            return new(Sun: sun, Sky: sky, Ground: ground, Up: upInObject, Local: local, LocalDirection: direction);
+            return new(Sun: sun, Ambient: ambientPart, Local: local, LocalDirection: direction);
+        }
+
+        private static HemisphereSignature Hemisphere(
+            in AmbientLight light,
+            in PreparedInstance instance,
+            Quaternion inverse
+        )
+        {
+            Vector3 sky = light.SkyColor * light.Intensity;
+            Vector3 ground = light.GroundColor * light.Intensity;
+            // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
+            // compare.
+            Vector3 up = instance.Hemisphere switch
+            {
+                UpAlong along => along.Direction,
+                UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
+                UpAwayFrom or null => Vector3.Zero,
+            };
+            return new(Sky: sky, Ground: ground, Up: Vector3.Transform(up, inverse) * (sky - ground).Length());
         }
 
         private static float SmoothStep(float edge0, float edge1, float x)

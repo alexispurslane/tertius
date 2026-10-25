@@ -64,6 +64,15 @@ internal sealed class GraphicsPipelineDesc
     public CullModeFlags CullMode { get; init; } = CullModeFlags.BackBit;
 
     /// <summary>
+    /// The winding of a front face on screen. Counterclockwise for every view whose axes are right-handed; an environment
+    /// face is a mirror image, so it is clockwise (docs/plans/environment-map.md, "The faces and their axes").
+    /// </summary>
+    public FrontFace FrontFace { get; init; } = FrontFace.CounterClockwise;
+
+    /// <summary>The specialization constants of both stages, or null for a pipeline whose shaders declare none.</summary>
+    public ShaderConstants? Constants { get; init; }
+
+    /// <summary>
     /// The rasterizer's slope-scaled depth bias: this many times the primitive's largest depth change per pixel is
     /// added to its depth. 0 disables depth bias.
     /// </summary>
@@ -122,6 +131,17 @@ internal sealed class GraphicsPipelineDesc
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
+        // A VkBool32, the type of a bool specialization constant.
+        uint environmentMap = Constants is { EnvironmentMap: true } ? 1u : 0u;
+        var entries = new SpecializationMapEntry(ShaderConstants.EnvironmentMapId, 0, sizeof(uint));
+        var specialization = new SpecializationInfo
+        {
+            MapEntryCount = 1,
+            PMapEntries = &entries,
+            DataSize = sizeof(uint),
+            PData = &environmentMap,
+        };
+        SpecializationInfo* constants = Constants.HasValue ? &specialization : null;
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
         stages[0] = new()
         {
@@ -129,6 +149,7 @@ internal sealed class GraphicsPipelineDesc
             Stage = ShaderStageFlags.VertexBit,
             Module = shaders.Get(VertexShader),
             PName = entry,
+            PSpecializationInfo = constants,
         };
         uint stageCount = 1;
         if (FragmentShader != null)
@@ -138,6 +159,7 @@ internal sealed class GraphicsPipelineDesc
                 Stage = ShaderStageFlags.FragmentBit,
                 Module = shaders.Get(FragmentShader),
                 PName = entry,
+                PSpecializationInfo = constants,
             };
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
@@ -199,7 +221,7 @@ internal sealed class GraphicsPipelineDesc
             DepthClampEnable = DepthClamp,
             PolygonMode = PolygonMode.Fill,
             CullMode = CullMode,
-            FrontFace = FrontFace.CounterClockwise,
+            FrontFace = FrontFace,
             DepthBiasEnable = DepthBiasSlope != 0f,
             DepthBiasSlopeFactor = DepthBiasSlope,
             LineWidth = 1f,

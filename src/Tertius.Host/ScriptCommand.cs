@@ -29,6 +29,8 @@ namespace Tertius.Host;
 /// <item><c>--local-shadows off|on</c> turns the headless renderer's <see cref="RendererOptions.LocalShadows"/> off, or
 /// keeps the default atlas. <c>--local-shadow-tiles N</c> gives that atlas N tiles.</item>
 /// <item><c>--cascaded-lights N</c> sets the headless renderer's <see cref="RendererOptions.CascadedLights"/>, 0 to 4.</item>
+/// <item><c>--environment-map on|off</c> keeps the headless renderer's default <see cref="SceneEnvironmentMap"/>, or turns
+/// it off.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -64,7 +66,7 @@ public static class ScriptCommand
     public const string GpuTimingsFile = "gpu-timings.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -90,6 +92,7 @@ public static class ScriptCommand
         "--local-shadows",
         "--local-shadow-tiles",
         "--cascaded-lights",
+        "--environment-map",
     ];
 
     /// <summary>
@@ -313,6 +316,8 @@ public static class ScriptCommand
             rendererOptions.LocalShadows = localShadows;
         if (options.CascadedLights is { } cascadedLights)
             rendererOptions.CascadedLights = cascadedLights;
+        if (options.EnvironmentMapOff)
+            rendererOptions.EnvironmentMap = new NoEnvironmentMap();
         try
         {
             return createRenderer(rendererOptions);
@@ -449,6 +454,7 @@ public static class ScriptCommand
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="LocalShadows">The local shadows that replace the headless renderer's default, or null to keep it.</param>
     /// <param name="CascadedLights">The count of far lights with cascades that replaces the renderer's default, or null.</param>
+    /// <param name="EnvironmentMapOff">True to turn the headless renderer's environment map off, false to keep its default.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -463,7 +469,8 @@ public static class ScriptCommand
         bool BloomOff = false,
         AntiAliasing? AntiAliasing = null,
         LocalShadowSetting? LocalShadows = null,
-        int? CascadedLights = null
+        int? CascadedLights = null,
+        bool EnvironmentMapOff = false
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -491,7 +498,8 @@ public static class ScriptCommand
             BloomOff: given.Value("--bloom") == "off",
             AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
             LocalShadows: LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
-            CascadedLights: CascadedLightsOf(given.Value("--cascaded-lights"))
+            CascadedLights: CascadedLightsOf(given.Value("--cascaded-lights")),
+            EnvironmentMapOff: given.Value("--environment-map") == "off"
         );
     }
 
@@ -557,10 +565,11 @@ public static class ScriptCommand
         ?? SizeProblem(given)
         ?? ToneCurveProblem(given)
         ?? AmbientOcclusionProblem(given)
-        ?? BloomProblem(given)
+        ?? OnOffProblem(given, "--bloom")
         ?? AntiAliasingProblem(given)
         ?? LocalShadowsProblem(given)
-        ?? CascadedLightsProblem(given);
+        ?? CascadedLightsProblem(given)
+        ?? OnOffProblem(given, "--environment-map");
 
     private static string? SpeedProblem(GivenOptions given)
     {
@@ -621,14 +630,15 @@ public static class ScriptCommand
         return null;
     }
 
-    private static string? BloomProblem(GivenOptions given)
+    /// <summary>The problem with <paramref name="option"/>, a switch of the headless renderer that takes on or off, or null.</summary>
+    private static string? OnOffProblem(GivenOptions given, string option)
     {
-        if (given.Value("--bloom") is not { } bloom)
+        if (given.Value(option) is not { } value)
             return null;
         if (!given.Headless)
-            return "--bloom applies to a headless run, so add --headless.";
-        if (bloom is not ("on" or "off"))
-            return $"--bloom needs on or off, not '{bloom}'.";
+            return $"{option} applies to a headless run, so add --headless.";
+        if (value is not ("on" or "off"))
+            return $"{option} needs on or off, not '{value}'.";
         return null;
     }
 

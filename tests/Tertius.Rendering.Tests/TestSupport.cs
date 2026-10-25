@@ -43,8 +43,9 @@ internal static class Gpu
     /// tests see every object as geometry; the impostor tests turn them on with a small atlas. Ambient occlusion is off
     /// unless asked for, because the zero case of the setting is off. The exposure is fixed, at 0 stops unless asked for,
     /// so that a pixel does not depend on the frames before it. Anti-aliasing is off unless asked for, so that the pixel
-    /// tests keep their values (docs/plans/anti-aliasing.md, "Decisions"). Local shadows are off, as the impostors are
-    /// (docs/plans/local-light-shadows.md, "Decisions").
+    /// tests keep their values (docs/plans/anti-aliasing.md, "Decisions"). The environment map is off unless asked for,
+    /// so the hemisphere lights the tests. Local shadows are off, as the impostors are (docs/plans/local-light-shadows.md,
+    /// "Decisions").
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -54,7 +55,8 @@ internal static class Gpu
         int impostorTiles = 16,
         AmbientOcclusionSetting ambientOcclusion = default,
         ExposureSetting exposure = default,
-        AntiAliasing antiAliasing = AntiAliasing.None
+        AntiAliasing antiAliasing = AntiAliasing.None,
+        EnvironmentMapSetting? environmentMap = null
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -70,6 +72,7 @@ internal static class Gpu
                 Bloom = new NoBloom(),
                 AntiAliasing = antiAliasing,
                 LocalShadows = new NoLocalShadows(),
+                EnvironmentMap = environmentMap ?? new NoEnvironmentMap(),
             }
         );
 
