@@ -36,9 +36,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
         this.smaa = smaa;
         (string shader, glow) = bloom switch
         {
-            Bloom on => ("tonemap_bloom.frag", on),
-            NoBloom => ("tonemap.frag", null),
-            null => throw new ArgumentException("A bloom setting holds NoBloom or a Bloom.", nameof(bloom)),
+            Bloom on => ("tonemap_bloom.frag", (Bloom?)on),
+            NoBloom => ("tonemap.frag", (Bloom?)null),
         };
         pipeline = new GraphicsPipelineDesc
         {

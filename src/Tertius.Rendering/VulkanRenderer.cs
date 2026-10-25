@@ -283,8 +283,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
         if (options.Exposure.Problem is { } problem)
             throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (options.Bloom.Value is null)
-            throw new ArgumentException("Bloom must hold NoBloom or a Bloom.", nameof(options));
+        if (options.Bloom.Problem is { } bloomProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
         if (!Enum.IsDefined(options.AntiAliasing))
             throw new ArgumentOutOfRangeException(
                 nameof(options),
@@ -1033,7 +1033,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             Bloom on => on.Levels,
             NoBloom => 0,
-            null => throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case."),
         };
 
     /// <summary>
@@ -1050,22 +1049,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 FrameGraph.Stage.Exposure,
                 new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto)
             );
-        switch (options.Bloom)
-        {
-            case Bloom on:
-                Graph.Add(
-                    FrameGraph.Stage.Bloom,
-                    new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
-                );
-                break;
-            case NoBloom:
-                // No bloom pass: the tone map reads only the HDR image.
-                break;
-            case null:
-                throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case.");
-            default:
-                throw new UnreachableException();
-        }
+        if (options.Bloom is Bloom on)
+            Graph.Add(
+                FrameGraph.Stage.Bloom,
+                new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
+            );
         Graph.Add(
             FrameGraph.Stage.ToneMap,
             new ToneMapPass(

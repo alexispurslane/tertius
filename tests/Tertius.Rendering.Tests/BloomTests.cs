@@ -18,7 +18,7 @@ public sealed class BloomTests
 
     /// <summary>The bloom of the defaults, written out, so that a test can change one value of it.</summary>
     private static Bloom Shaped(float strength = 0.25f, int levels = 6, float threshold = 1, float knee = 0.5f) =>
-        new(threshold: threshold, knee: knee, strength: strength, levels: levels);
+        new(Threshold: threshold, Knee: knee, Strength: strength, Levels: levels);
 
     /// <summary>A renderer under <see cref="FixedExposure"/> at 0 stops, so the HDR image holds the light as it is.</summary>
     private static VulkanRenderer Headless(BloomSetting bloom, int width = Width, int height = Height) =>
