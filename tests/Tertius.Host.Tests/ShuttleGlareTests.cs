@@ -8,15 +8,20 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The window films look out through the glass at the station. A cabin lamp's highlight on a pane appears where the
+/// The window films look out through the glass at the station. A cabin lamp's reflection on a pane appears where the
 /// lamp's mirror image in the pane's inner face lies. Seen head-on, glass with an anti-reflection coating reflects about
-/// 0.5 % of the light, so the highlight stays faint and the view stays the brightest thing. At a grazing angle, glass
-/// reflects much more, so the highlights on the side and roof glass in the cabin views stay.
+/// 0.5 % of the light, so the reflection is a soft bright spot, as in a train window at night, and the view behind it
+/// still shows. Glass without the coating reflects 16 % head-on, and the reflection would be a white blob that hides the
+/// view. At a grazing angle, glass reflects much more, so the highlights on the side and roof glass in the cabin views
+/// stay.
 /// </summary>
 public sealed class ShuttleGlareTests : IDisposable
 {
-    /// <summary>How far above and below the highlight the test samples the glass beside it, in pixels.</summary>
-    private const int Beside = 80;
+    /// <summary>
+    /// A brightest channel of 224 of 255, seven eighths of white. Near white, the tone curve is nearly flat, so a pixel
+    /// brighter than this barely changes with what lies behind the glass, and the view behind the reflection is lost.
+    /// </summary>
+    private const int ShortOfWhite = 224;
 
     private readonly string folder = NewFolder();
 
@@ -24,17 +29,16 @@ public sealed class ShuttleGlareTests : IDisposable
 
     /// <summary>
     /// In <c>demo-surface</c>, the camera of a window film sees the mirror image of a lamp in the inner face of the pane
-    /// that the film looks through. The test renders the view twice with the real renderer, once with the cabin's lamps
-    /// and once without them. The lamps also light the glass itself, smoothly across the pane. So the test compares what
-    /// the lamps add at the pixel of the mirror image with what they add 80 px above and below it, on the same pane. The
-    /// highlight stands less than a quarter of full white above the glass beside it. Glass that reflects 16 % head-on, as
-    /// the orbit scene's glass does, gives a highlight up to 174 of 255 above it, and the coated glass up to 47.
+    /// that the film looks through. The test renders the view with the real renderer and reads the pixel of the mirror
+    /// image, where the lamp's reflection is brightest. Its brightest channel stays below 224 of 255, so the reflection
+    /// does not hide the view. The coated glass gives 186 at the nose pane and 200 at the port pane. Glass that reflects
+    /// 16 % head-on, as the orbit scene's glass does, gives 254 at all three: a white blob.
     /// </summary>
     [Theory]
     [InlineData("window-camera", "pane-nose", "lamp-port-fore")]
     [InlineData("window-camera", "pane-nose", "lamp-starboard-fore")]
     [InlineData("port-window-camera", "pane-port-7", "lamp-starboard-aft")]
-    public void ALampsHighlightInTheGlassThatAWindowFilmLooksThroughStaysFaint(
+    public void ALampsReflectionInTheGlassThatAWindowFilmLooksThroughDoesNotHideTheView(
         string camera,
         string paneId,
         string lampId
@@ -49,8 +53,7 @@ public sealed class ShuttleGlareTests : IDisposable
             face = pane.Center - normal * 0.01;
         Double3 mirror = light - normal * (2 * Double3.Dot(light - face, normal));
 
-        (Png lit, DPose view, double verticalFov) = Render(camera, withLamps: true);
-        (Png dark, _, _) = Render(camera, withLamps: false);
+        (Png picture, DPose view, double verticalFov) = Render(camera);
 
         PaneChecks
             .CrossesTheHole(pane.Inner, view.Position, mirror)
@@ -58,41 +61,27 @@ public sealed class ShuttleGlareTests : IDisposable
             .BeTrue($"the mirror image of {lampId} lies behind {paneId} as {camera} sees it");
         Double3 projected = Picture.Project(view, mirror, verticalFov);
         Picture.Contains(projected).Should().BeTrue($"{camera} sees the mirror image of {lampId}");
-        int x = (int)Math.Round((1 + projected.X) / 2 * lit.Width),
-            y = (int)Math.Round((1 - projected.Y) / 2 * lit.Height);
-        int peak = Added(lit: lit, dark: dark, x: x, y: y),
-            beside =
-                (Added(lit: lit, dark: dark, x: x, y: y - Beside) + Added(lit: lit, dark: dark, x: x, y: y + Beside))
-                / 2;
-        (peak - beside)
+        int x = (int)Math.Round((1 + projected.X) / 2 * picture.Width),
+            y = (int)Math.Round((1 - projected.Y) / 2 * picture.Height);
+        (int R, int G, int B) reflection = picture.Average(x, y);
+        Math.Max(reflection.R, Math.Max(reflection.G, reflection.B))
             .Should()
             .BeLessThan(
-                64,
-                $"the highlight of {lampId} in {paneId} at ({x}, {y}) is faint: the lamps add {peak} there and {beside} beside it"
+                ShortOfWhite,
+                $"the reflection of {lampId} in {paneId} at ({x}, {y}) leaves the view visible: it shows {reflection}"
             );
     }
 
-    /// <summary>How much the lamps add to the brightest channel at a pixel: <paramref name="lit"/> with them against
-    /// <paramref name="dark"/> without them.</summary>
-    private static int Added(Png lit, Png dark, int x, int y)
-    {
-        (int R, int G, int B) a = lit.Average(x, y),
-            b = dark.Average(x, y);
-        return Math.Max(a.R - b.R, Math.Max(a.G - b.G, a.B - b.B));
-    }
-
     /// <summary>
-    /// Builds <c>demo-surface</c> on a real world, without the cabin's lamps when <paramref name="withLamps"/> is false,
-    /// runs one tick and captures the view of <paramref name="camera"/> at the long script's size with the real headless
-    /// renderer. Returns the picture, the camera's pose in the shuttle's frame and the world's vertical view angle.
+    /// Builds <c>demo-surface</c> on a real world, runs one tick and captures the view of <paramref name="camera"/> at the
+    /// long script's size with the real headless renderer. Returns the picture, the camera's pose in the shuttle's frame and the world's vertical view angle.
     /// </summary>
-    private (Png Picture, DPose View, double VerticalFov) Render(string camera, bool withLamps)
+    private (Png Picture, DPose View, double VerticalFov) Render(string camera)
     {
-        string name = withLamps ? "lit" : "dark";
         var script = Script.Parse(
             $$"""
             { "scene": "demo-surface", "window": { "width": {{BlueDanube.Window.Width}}, "height": {{BlueDanube.Window.Height}} },
-              "steps": [ { "do": "camera", "entity": "{{camera}}" }, { "do": "run", "ticks": 1 }, { "do": "capture", "name": "{{name}}" } ] }
+              "steps": [ { "do": "camera", "entity": "{{camera}}" }, { "do": "run", "ticks": 1 }, { "do": "capture", "name": "view" } ] }
             """
         );
         using World world = NewJoltWorld();
@@ -102,9 +91,6 @@ public sealed class ShuttleGlareTests : IDisposable
         try
         {
             SceneInstance scene = All.Single(s => s.Name == "demo-surface").Build(world, renderer);
-            if (!withLamps)
-                foreach ((string id, _) in Shuttle.Lamps)
-                    world.Destroy(scene[id]);
             ScriptRunner.Run(
                 script: script,
                 world: world,
@@ -121,6 +107,6 @@ public sealed class ShuttleGlareTests : IDisposable
             renderer.ValidationMessages.Should().BeEmpty();
         }
 
-        return (Png.Load(Path.Combine(folder, name + ".png")), view, verticalFov);
+        return (Png.Load(Path.Combine(folder, "view.png")), view, verticalFov);
     }
 }

@@ -13,7 +13,9 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) flat in uint inMaterial;
 layout(location = 5) flat in vec4 inHemisphere;
 
-layout(location = 0) out vec4 outColor;
+// Dual-source blending (BlendMode.Transmittance): the target becomes outColor + target · outTransmittance.
+layout(location = 0, index = 0) out vec4 outColor;
+layout(location = 0, index = 1) out vec4 outTransmittance;
 
 void main()
 {
@@ -37,6 +39,16 @@ void main()
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
-    outColor = vec4(surfaceRadiance(shading, s.emissive, inPosition, V, true), clamp(s.baseColor.a, 0.0, 1.0));
+    // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
+    // in full. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales.
+    float opacity = clamp(s.baseColor.a, 0.0, 1.0);
+    SurfaceLobes lobes = lobesOf(shading, V);
+    lobes.diffuseColor *= opacity;
+    // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E), per channel.
+    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
+    // outColor is radiance: a factor that scales every pass's radiance, such as an exposure, applies to it. The
+    // transmittance is a fraction of the radiance behind, and never takes such a factor. The blend keeps the target's
+    // alpha, so neither alpha matters. A clamped radiance plus a finite target times at most 1 stays finite.
+    outColor = vec4(lobesRadiance(shading, lobes, s.emissive, inPosition, V, true), 0.0);
+    outTransmittance = vec4(transmittance, 0.0);
 }

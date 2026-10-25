@@ -164,6 +164,13 @@ float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
     return attenuation;
 }
 
+// The compensated specular albedo E · c: the share of a uniform light that the specular part reflects toward the eye.
+// It weights the ambient specular term, and a pane of glass lets through what it leaves (transparent.frag).
+vec3 compensatedSpecularAlbedo(SurfaceLobes lobes)
+{
+    return lobes.specularAlbedo * lobes.energyCompensation;
+}
+
 // The hemisphere ambient light reflected toward the eye: its diffuse part by the normal's sky share, and its specular
 // part by the lobe's.
 vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
@@ -171,7 +178,7 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
     vec3 ground = frame.ambientGround.rgb;
     vec3 sky = frame.ambientSky.rgb;
     vec3 diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
-    vec3 specular = lobes.specularAlbedo * lobes.energyCompensation * mix(ground, sky, s.lobeSkyFraction);
+    vec3 specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
     return diffuse + specular;
 }
 
@@ -205,15 +212,20 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
     return color;
 }
 
-// All light that leaves a surface point toward the eye, emission included, clamped to what the HDR target holds. The
-// clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts. V points from
-// the surface to the eye. Impostor captures pass shadowMaps false.
-vec3 surfaceRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, bool shadowMaps)
+// All light that leaves a surface point of the given lobes toward the eye, emission included, clamped to what the HDR
+// target holds. The clamp applies to the whole sum, because the target's range bounds what it stores, whatever the
+// parts. V points from the surface to the eye. Impostor captures pass shadowMaps false.
+vec3 lobesRadiance(ShadingInput s, SurfaceLobes lobes, vec3 emission, vec3 position, vec3 V, bool shadowMaps)
 {
-    SurfaceLobes lobes = lobesOf(s, V);
     vec3 radiance = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
         + localLights(s, lobes, position, V) + emission;
     return min(radiance, vec3(MaxRadiance));
+}
+
+// lobesRadiance with the lobes of the material itself: every opaque surface.
+vec3 surfaceRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, bool shadowMaps)
+{
+    return lobesRadiance(s, lobesOf(s, V), emission, position, V, shadowMaps);
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
