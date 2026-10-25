@@ -338,7 +338,11 @@ public sealed class GlassRenderTests
             width: Width,
             height: Height,
             framesInFlight: 1,
-            exposure: AutoExposure.Default with { MinStops = 0, MaxStops = 0 }
+            exposure: AutoExposure.Default with
+            {
+                MinStops = 0,
+                MaxStops = 0,
+            }
         );
         try
         {
@@ -378,7 +382,7 @@ public sealed class GlassRenderTests
         // 2 stops of exposure on a backdrop of 0.05 show as 0 stops on a backdrop 4 times as bright, because the
         // backdrop's light takes the exposure once, before the pane lets through its share. An unlit black pane adds
         // no light of its own.
-        Vector3 Shown(VulkanRenderer renderer, Vector3 backdrop, string name) =>
+        static Vector3 Shown(VulkanRenderer renderer, Vector3 backdrop, string name) =>
             ShownThroughPane(
                 renderer: renderer,
                 snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),

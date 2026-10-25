@@ -17,7 +17,7 @@ public readonly record struct NoBloom;
 /// </param>
 /// <param name="Strength">The glow's energy as a fraction of the light above the threshold. Positive.</param>
 /// <param name="Levels">
-/// How many half-size images the glow spreads through, 1 to <see cref="Bloom.MaxLevels"/>. Each level doubles its reach.
+/// How many half-size images the glow spreads through, 1 to <see cref="MaxLevels"/>. Each level doubles its reach.
 /// </param>
 public readonly record struct Bloom(float Threshold, float Knee, float Strength, int Levels)
 {

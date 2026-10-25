@@ -154,7 +154,7 @@ public sealed class AntiAliasingTests
     [Fact]
     public void ARendererWhoseOptionsDoNotNameAnAntiAliasingRunsTheThreeSmaaPassesBetweenTheToneMapAndTheOverlay()
     {
-        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+        var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
                 Width = Width,
@@ -294,7 +294,7 @@ public sealed class AntiAliasingTests
     public void OnAUnormOutputSmaaAppliesTheSrgbCurveOnceSoThePixelsFarFromTheEdgeMatchThoseOfAnSrgbOutput()
     {
         Capture srgb = Render(AntiAliasing.Smaa, "aa-smaa-srgb-output", DiagonalEdge);
-        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+        var renderer = VulkanRenderer.CreateOffscreen(
             new()
             {
                 Validation = true,
@@ -524,7 +524,7 @@ public sealed class AntiAliasingTests
                 width: Width,
                 height: Height
             );
-            Vector2 direction = Vector2.Normalize(along - point);
+            var direction = Vector2.Normalize(along - point);
             var normal = new Vector2(-direction.Y, direction.X);
             if (Vector2.Dot(normal, intoSquare - point) < 0)
                 normal = -normal;
