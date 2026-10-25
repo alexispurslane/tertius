@@ -1,6 +1,6 @@
 ---
 id: ter-7sep
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-25T17:00:53Z
@@ -38,3 +38,7 @@ The process-wide state of joltc 886e088 (src/joltc.cpp; joltc.h and joltc_assert
 - The function-local `static const` default filters (`g_defaultBroadPhaseLayerFilter`, `g_defaultObjectLayerFilter`, two `g_defaultBodyFilter`): const, and C++11 initializes a function-local static once, thread-safe. Safe.
 
 No other risk found, so the patch holds only the one lock.
+
+**2026-10-25T17:29:07Z**
+
+Merged into main on 2026-10-25. The C# change is a doc remark only, so coverage has no changed lines. Red: 9 of 15 runs of the new test hung or crashed on the old library. Green: 100 of 100 with native/joltc-system-map-lock.patch.
