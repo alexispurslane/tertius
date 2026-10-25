@@ -53,4 +53,16 @@ public sealed class DeviceFeatureTests
 
         VulkanDevice.MissingFeature(Core, withoutIt, Vulkan13).Should().Be("descriptorIndexing");
     }
+
+    [Fact]
+    public void ADeviceWithoutExtendedStorageImageFormatsIsRefusedByItsName()
+    {
+        // The occlusion passes write R8 and R16F storage images, which only this feature guarantees.
+        PhysicalDeviceFeatures withoutIt = Core with
+        {
+            ShaderStorageImageExtendedFormats = false,
+        };
+
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("shaderStorageImageExtendedFormats");
+    }
 }

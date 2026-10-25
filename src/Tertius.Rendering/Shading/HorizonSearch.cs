@@ -12,7 +12,7 @@ internal static class HorizonSearch
     /// <summary>The nearest step from the center, in half-resolution texels (XeGTAO's pixelTooCloseThreshold).</summary>
     public const double NearestStepTexels = 1.3;
 
-    /// <summary>The view depth of sky, in m: beyond every radius, and finite in three squared 32-bit coordinates.</summary>
+    /// <summary>The view depth of sky, in m: beyond every radius. No pass squares a sky texel's view position.</summary>
     public const double SkyDepth = 1e18;
 
     // The golden ratio's inverse, the R1 sequence that spreads the steps of one texel (XeGTAO.hlsli line 420).
@@ -23,6 +23,14 @@ internal static class HorizonSearch
     /// whose z is 1. A distance of 0 is sky and gives <see cref="SkyDepth"/>.
     /// </summary>
     public static double ViewDepth(double distance, Double3 ray) => distance > 0 ? distance / ray.Length : SkyDepth;
+
+    /// <summary>
+    /// The view position of a sample at <paramref name="viewDepth"/> along its view <paramref name="ray"/>, or null for
+    /// sky, which hides nothing. The depth decides first, because a sky position squares past the single float range at a
+    /// wide field of view (ARCHITECTURE.md, "Portable Vulkan").
+    /// </summary>
+    public static Double3? SamplePosition(Double3 ray, double viewDepth) =>
+        viewDepth >= SkyDepth ? null : ray * viewDepth;
 
     /// <summary>p(z) = 4 t_x z / W: the width in m of one half-resolution texel, two pixels, at the view depth z.</summary>
     public static double TexelWidth(double viewDepth, double tanHalfX, int fullWidth) =>

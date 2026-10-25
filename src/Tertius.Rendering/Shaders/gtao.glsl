@@ -35,7 +35,8 @@
 const float GtaoPi = 3.1415926535897932384626433832795;
 const float GtaoHalfPi = 1.5707963267948966192313216916398;
 
-// The view depth of sky, in m: beyond every radius, and finite in three squared 32-bit coordinates (decision 18).
+// The view depth of sky, in m: beyond every radius (decision 18). No pass squares a sky texel's view position, which a
+// wide field of view or a wide image puts past 10^19 m across (gtaoSampleHorizon).
 const float SkyDepth = 1e18;
 // Moves the center toward the eye against self-occlusion from the precision of the depths: XeGTAO's value for 32-bit
 // depths (XeGTAO.hlsli line 281).
@@ -159,7 +160,12 @@ float gtaoSampleHorizon(ivec2 texel, vec3 center, vec3 toEye)
 {
     if (!insideHalf(texel))
         return -1.0;
-    vec3 delta = gtaoTexelPosition(texel) - center;
+    float sampleDepth = viewDepthAt(texel);
+    // Sky hides nothing. Its view position, SkyDepth times a long view ray, would square past the single float range,
+    // so the depth decides before the length (HorizonSearch.SamplePosition, ARCHITECTURE.md, "Portable Vulkan").
+    if (sampleDepth >= SkyDepth)
+        return -1.0;
+    vec3 delta = gtaoViewPosition(pixelScreenPosition(2 * texel), sampleDepth) - center;
     float sampleDistance = length(delta);
     if (!(sampleDistance < occlusion.radiusMeters))
         return -1.0;

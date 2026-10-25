@@ -57,3 +57,7 @@ The puffs' budget takes the rounding of their blends (2026-10-25, settled by the
 **2026-10-25T19:36:38Z**
 
 Review fixes (2026-10-25). Fixed: the pane's emission capped before the exposure (exposed), the asin of the far shadows capped at 1 in the shader and its C# twin, the outline rim's sqrt floored at 0, light ranges read at most 2^63 and every drawn point within 2^62 of the eye (ShaderInput.InPositionRange), the field of view floored at 1e-6 rad, the trim shares limited to 0.99 in sum, descriptorIndexing checked, GgxLobe's dominant direction falls back to the normal. ARCHITECTURE.md lists the extensions too. Design and Acceptance amended to the rule. No test here can fail for the asin, the rim or the pane's emission, which Metal hides.
+
+**2026-10-25T20:18:04Z**
+
+Main merged with ambient occlusion (2026-10-25), and its sites audited under the rule. Fixed: gtaoSampleHorizon tests a sample's depth before it measures the sample, because a sky position (SkyDepth times a long view ray) squares past the float range above about 167 degrees in 16:9 or in a window wider than about 32:1; HorizonSearch.SamplePosition is the C# copy, and Metal hides the fault. Safe with reasons: the depth pass, the texel width, the edges, the slice axis, the denoise and upsample divisions, the R16F terms, specularOcclusion. The occlusion scales only the ambient terms inside lobesRadiance, before its one cap. shaderStorageImageExtendedFormats is in the required features.
