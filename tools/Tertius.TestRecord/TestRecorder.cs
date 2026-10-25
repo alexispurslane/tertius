@@ -36,7 +36,14 @@ public sealed class TestRecorder(bool fullRun) : IDataConsumer, ITestSessionLife
     private const string StampFile = "code-tree.txt";
 
     // Options that run only part of the tests or none of them. A response file (@file) can hold any of them.
-    private static readonly string[] PartialRunPrefixes = ["--filter", "--treenode-filter", "--list-tests", "--explicit", "@"];
+    private static readonly string[] PartialRunPrefixes =
+    [
+        "--filter",
+        "--treenode-filter",
+        "--list-tests",
+        "--explicit",
+        "@",
+    ];
 
     private int passed;
     private int failed;
@@ -66,7 +73,9 @@ public sealed class TestRecorder(bool fullRun) : IDataConsumer, ITestSessionLife
     /// <inheritdoc/>
     public Task ConsumeAsync(IDataProducer dataProducer, IData value, CancellationToken cancellationToken)
     {
-        TestNodeStateProperty? state = (value as TestNodeUpdateMessage)?.TestNode.Properties.SingleOrDefault<TestNodeStateProperty>();
+        TestNodeStateProperty? state = (
+            value as TestNodeUpdateMessage
+        )?.TestNode.Properties.SingleOrDefault<TestNodeStateProperty>();
         if (state is PassedTestNodeStateProperty)
             Interlocked.Increment(ref passed);
         else if (state is FailedTestNodeStateProperty or ErrorTestNodeStateProperty or TimeoutTestNodeStateProperty)
