@@ -19,15 +19,18 @@ internal sealed class SceneBatcher
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
     /// <summary>
+    /// The narrowest vertical field of view that the renderer draws, 10^−6 rad. The shaders normalize the camera's up and
+    /// right axes, of length tan(fov / 2) and that times the aspect, whose squares stay normal single floats above it.
+    /// </summary>
+    private const float NarrowestVerticalFov = 1e-6f;
+
+    /// <summary>
     /// The smallest and the largest magnitude of a scale axis that the renderer draws: 2^−60 and 2^60. A zero axis
     /// collapses the object. The normal transform multiplies by 1 / scale², which stays a finite, normal single float
     /// for an axis in this range, and so does its square in the length of the transformed normal.
     /// </summary>
     private const float SmallestScale = 8.6736174e-19f,
         LargestScale = 1.1529215e18f;
-
-    /// <summary>The smallest normal single float.</summary>
-    private const float SmallestNormal = 1.17549435e-38f;
 
     private DrawItem[] opaque = new DrawItem[256];
 
@@ -86,7 +89,9 @@ internal sealed class SceneBatcher
     {
         RenderCamera camera = snapshot.Camera;
         Quaternion rotation = Interpolate(camera.PreviousRotation, camera.Rotation, alpha);
-        float fov = camera.VerticalFov is > 0f and < MathF.PI ? camera.VerticalFov : DefaultVerticalFov;
+        float fov = camera.VerticalFov is > 0f and < MathF.PI
+            ? MathF.Max(camera.VerticalFov, NarrowestVerticalFov)
+            : DefaultVerticalFov;
         float aspect = (float)Math.Max(width, 1) / Math.Max(height, 1);
         float tanY = MathF.Tan(fov * 0.5f);
         return new()
@@ -183,10 +188,10 @@ internal sealed class SceneBatcher
 
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - camera.Offset;
             float radius = BoundingRadius(instance, meshes[mesh]);
-            // One sum is non-finite when any term is NaN or infinite. The mesh's extent bounds its scaled vertices, which
-            // must stay finite when the bounding radius is set.
+            // The mesh's extent bounds its scaled vertices, which must stay in range also when the bounding radius is set.
+            // MathF.Max passes a NaN on.
             if (
-                !float.IsFinite(position.X + position.Y + position.Z + radius + MeshExtent(scale, meshes[mesh]))
+                !ShaderInput.InPositionRange(position, MathF.Max(radius, MeshExtent(scale, meshes[mesh])))
                 || camera.Culls(position, radius)
             )
                 continue;
@@ -212,8 +217,9 @@ internal sealed class SceneBatcher
     /// the render age is its age less (1 − alpha) times <see cref="RenderSnapshot.PuffAgeStep"/>, and t is the render age
     /// over L's life: the radius is lerp(L.StartRadius, L.EndRadius, t), and the color is the own share 1 − t times the
     /// radiance or the albedo of L's shading. A puff is left out when its render age is below 0 or at its life or more,
-    /// when its look is outside the snapshot's list or holds no shading, when its place or radius is not finite, when its
-    /// radius is 0 or less, and when its sphere is outside the frustum.
+    /// when its look is outside the snapshot's list or holds no shading, when its sphere is not finite or reaches past
+    /// <see cref="ShaderInput.PositionLimit"/>, when its radius is below the smallest normal float, and when its sphere
+    /// is outside the frustum.
     /// </summary>
     private void CollectPuffs(RenderSnapshot snapshot, float alpha, in CameraView camera)
     {
@@ -232,11 +238,10 @@ internal sealed class SceneBatcher
             float t = age / look.Life;
             float radius = look.StartRadius + (look.EndRadius - look.StartRadius) * t;
             Vector3 position = Vector3.Lerp(puff.PreviousPosition, puff.Position, alpha) - camera.Offset;
-            // One sum is non-finite when any term is NaN or infinite. The fades of puff.frag divide by the radius, which a
-            // GPU may flush to 0 below the smallest normal float.
+            // The fades of puff.frag divide by the radius, which a GPU may flush to 0 below the smallest normal float.
             if (
-                !float.IsFinite(position.X + position.Y + position.Z + radius)
-                || !(radius >= SmallestNormal)
+                !ShaderInput.InPositionRange(position, radius)
+                || !(radius >= ShaderInput.SmallestNormal)
                 || camera.Culls(position, radius)
             )
                 continue;
@@ -472,13 +477,20 @@ internal sealed class SceneBatcher
     /// </summary>
     private static void AppendPointLight(PreparedScene scene, in PointRenderLight light)
     {
+        bool finite = IsFiniteLight(
+            position: light.Position,
+            color: light.Color,
+            intensity: light.Intensity,
+            range: light.Range
+        );
+        float range = ShaderInput.Range(light.Range);
         if (
-            !IsFiniteLight(position: light.Position, color: light.Color, intensity: light.Intensity, range: light.Range)
+            !finite
             || PositionInReach(
                 camera: scene.Camera,
                 worldPosition: light.Position,
                 intensity: light.Intensity,
-                range: light.Range
+                range: range
             )
                 is not { } position
         )
@@ -489,7 +501,7 @@ internal sealed class SceneBatcher
             scene,
             new()
             {
-                PositionRange = new(position, light.Range),
+                PositionRange = new(position, range),
                 RadianceKind = new(ShaderInput.Radiance(light.Color * light.Intensity), 0f),
             }
         );
@@ -502,15 +514,18 @@ internal sealed class SceneBatcher
     /// </summary>
     private static void AppendSpotLight(PreparedScene scene, in SpotRenderLight light)
     {
+        bool finite =
+            IsFiniteLight(position: light.Position, color: light.Color, intensity: light.Intensity, range: light.Range)
+            && ShaderInput.IsFinite(light.Direction)
+            && float.IsFinite(light.InnerConeAngle + light.OuterConeAngle);
+        float range = ShaderInput.Range(light.Range);
         if (
-            !IsFiniteLight(position: light.Position, color: light.Color, intensity: light.Intensity, range: light.Range)
-            || !ShaderInput.IsFinite(light.Direction)
-            || !float.IsFinite(light.InnerConeAngle + light.OuterConeAngle)
+            !finite
             || PositionInReach(
                 camera: scene.Camera,
                 worldPosition: light.Position,
                 intensity: light.Intensity,
-                range: light.Range
+                range: range
             )
                 is not { } position
         )
@@ -529,7 +544,7 @@ internal sealed class SceneBatcher
             scene,
             new()
             {
-                PositionRange = new(position, light.Range),
+                PositionRange = new(position, range),
                 RadianceKind = new(ShaderInput.Radiance(light.Color * light.Intensity), 1f),
                 DirectionCosOuter = new(direction, cosOuter),
                 Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f),
@@ -546,13 +561,15 @@ internal sealed class SceneBatcher
 
     /// <summary>
     /// The position relative to the camera, which is what the GPU light holds, of a light of this intensity and range at
-    /// <paramref name="worldPosition"/> that can reach a visible surface: both are above zero, and the light's sphere of
-    /// influence is not outside the frustum. Null for a light that cannot reach one.
+    /// <paramref name="worldPosition"/> that can reach a visible surface: both are above zero, the position lies within
+    /// <see cref="ShaderInput.PositionLimit"/> of the eye, and the light's sphere of influence is not outside the frustum.
+    /// Null for a light that cannot reach one.
     /// </summary>
     private static Vector3? PositionInReach(in CameraView camera, Vector3 worldPosition, float intensity, float range)
     {
         Vector3 position = worldPosition - camera.Offset;
-        return !(range <= 0f || intensity <= 0f) && !camera.Culls(position, range) ? position : null;
+        bool reaches = range > 0f && intensity > 0f && ShaderInput.InPositionRange(position, 0f);
+        return reaches && !camera.Culls(position, range) ? position : null;
     }
 
     private static void Append(PreparedScene scene, in GpuLight light)
@@ -596,9 +613,9 @@ internal sealed class SceneBatcher
                 continue;
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
             float radius = BoundingRadius(instance, meshes[mesh]);
-            float distance = position.Length();
-            if (!float.IsFinite(distance + radius))
+            if (!ShaderInput.InPositionRange(position, radius))
                 continue;
+            float distance = position.Length();
             if (ShadowCascades.TakesCaster(distance, radius))
             {
                 // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.

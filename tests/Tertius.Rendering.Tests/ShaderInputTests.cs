@@ -360,6 +360,127 @@ public sealed class ShaderInputTests
         flat.Normal.Should().Be(Vector3.Zero, "a normal of length 0 has no direction, and the shader gives it one");
     }
 
+    [Fact]
+    public void ALightRangePastTheLimitReachesTheShaderAtTheLimit()
+    {
+        // The shaders square the range, and float.MaxValue squared is infinite.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Lights.Add(
+            new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: float.MaxValue)
+        );
+        snapshot.Lights.Add(
+            new SpotRenderLight(
+                Position: new(0, 0, -5),
+                Direction: -Vector3.UnitY,
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 1e30f,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(2);
+        scene.Lights[0].PositionRange.W.Should().Be(ShaderInput.RangeLimit, "a point light reaches every drawn point");
+        scene.Lights[1].PositionRange.W.Should().Be(ShaderInput.RangeLimit, "a spot light reaches every drawn point");
+    }
+
+    [Fact]
+    public void AnInstanceThatReachesPastThePositionLimitIsLeftOut()
+    {
+        // The mesh's extent, 10^21 m, is finite, but the shaders square the distance of its surface from the eye. The box
+        // reaches just short of the limit.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: new(1), material: new(0), position: new(0, 0, -10), scale: Vector3.One, radius: 1)
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -4e18f), scale: Vector3.One, radius: 1)
+        );
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.VisibleCount.Should().Be(1);
+        scene.VisibleSpan[0].Position.Z.Should().Be(-4e18f);
+    }
+
+    [Fact]
+    public void APuffPastThePositionLimitIsLeftOut()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.PuffLooks.Add(Look(PuffShading.Glow(Vector3.One)));
+        snapshot.Puffs.Add(Puff(look: 0) with { Position = new(0, 0, -1e19f), PreviousPosition = new(0, 0, -1e19f) });
+        snapshot.Puffs.Add(Puff(look: 0));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.PuffCount.Should().Be(1);
+        scene.Puffs[0].PositionRadius.Z.Should().Be(-10);
+    }
+
+    [Fact]
+    public void ALightPastThePositionLimitIsLeftOut()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Lights.Add(
+            new PointRenderLight(Position: new(0, 0, -1e19f), Color: Vector3.One, Intensity: 1, Range: 10)
+        );
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(1);
+        scene.Lights[0].PositionRange.Z.Should().Be(-5);
+    }
+
+    [Fact]
+    public void AnOutlinePastThePositionLimitIsLeftOut()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Outlines.Add(new FallingOutline(new(0, 0, -1e19f), 1));
+        snapshot.Outlines.Add(new FallingOutline(new(0, 0, -20), 1));
+        PreparedScene scene = Prepare(snapshot);
+
+        OutlinePass.Collect(snapshot, scene);
+
+        scene.OutlineCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void AFarShadowPastThePositionLimitIsLeftOut()
+    {
+        // Its radius is a tenth of its distance, far over a pixel, so only the limit leaves it out.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -1e19f),
+                scale: Vector3.One,
+                flags: RenderFlags.CastsShadow,
+                radius: 1e18f
+            )
+        );
+
+        Prepare(snapshot).OccluderCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ACameraWithAFieldOfViewNearZeroGivesTheShadersAxesThatHaveADirection()
+    {
+        // The shaders normalize the camera's up and right axes, of length tan(fov / 2) and that times the aspect. Their
+        // squares must stay normal single floats, which a GPU does not flush to 0.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Camera = snapshot.Camera with { VerticalFov = 1e-19f };
+
+        GpuFrameConstants constants = Prepare(snapshot).Constants;
+
+        Rgb(constants.CameraUp).LengthSquared().Should().BeGreaterThanOrEqualTo(ShaderInput.SmallestNormal);
+        Rgb(constants.CameraRight).LengthSquared().Should().BeGreaterThanOrEqualTo(ShaderInput.SmallestNormal);
+    }
+
     /// <summary>A look of life 2 s and radius 1 m.</summary>
     private static PuffLook Look(PuffShading shading) =>
         new(Life: 2, StartRadius: 1, EndRadius: 1, TemperatureRatio: 1, Shading: shading);

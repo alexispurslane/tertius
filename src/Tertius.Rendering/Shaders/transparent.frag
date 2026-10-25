@@ -50,7 +50,8 @@ void main()
     // MaxRadiance · (1 − T) + T · v keeps the surfaces' share and the puffs' inside the half float's range: past it, a
     // device may store infinity, which the tone curve turns into NaN (ARCHITECTURE.md, "Portable Vulkan").
     float exposure = exposureScale();
-    vec3 radiance = min(lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, true, exposure),
+    // The emission is capped before the exposure multiplies it, as every writer's light is (exposure.glsl).
+    vec3 radiance = min(lobesRadiance(shading, lobes, exposed(s.emissive, exposure), inPosition, V, true, exposure),
         MaxRadiance * (1.0 - transmittance));
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha

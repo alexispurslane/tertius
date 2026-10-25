@@ -116,7 +116,7 @@ w_i  = max(0, min(end_i, high) − max(start_i, low))
 M    = Σ w_i · center(i) / Σ w_i                    Σ w_i = high − low > 0 when N > 0
 ```
 
-A bin that straddles an edge counts only its share inside. The shares add up to less than 1, by validation, so the kept interval is never empty.
+A bin that straddles an edge counts only its share inside. The shares add up to at most 0.99, by validation, so the kept interval is never empty, also after the shader rounds its two ends in single floats.
 
 ### The bright edge
 

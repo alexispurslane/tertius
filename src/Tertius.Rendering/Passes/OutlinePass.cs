@@ -93,7 +93,8 @@ internal sealed class OutlinePass : RenderPass
     /// <summary>
     /// Writes one <see cref="GpuOutline"/> into <paramref name="scene"/> for each outline of <paramref name="snapshot"/> that
     /// can show, in the order of the snapshot, and nothing for the others. An outline shows when its outline sphere has a
-    /// radius above 0 and is not outside the view frustum: the largest radius for an ellipsoid, the radius for a sphere.
+    /// radius above 0, lies within <see cref="ShaderInput.PositionLimit"/> of the eye and is not outside the view frustum:
+    /// the largest radius for an ellipsoid, the radius for a sphere.
     /// A sphere, which gets <see cref="GpuOutline.SphereFlag"/>, is the contents sphere of a numeric frame, or a bubble
     /// with three equal radii (<see cref="FrameBounds.IsSphere"/>). The center becomes relative to the interpolated eye
     /// of <see cref="PreparedScene.Camera"/>, as a light's does. The batcher has reset <paramref name="scene"/> for the frame, so the records of the frame before are gone.
@@ -156,24 +157,12 @@ internal sealed class OutlinePass : RenderPass
     {
         float outlineRadius = MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z));
         Vector3 position = center - scene.Camera.Offset;
-        // One sum is non-finite when any term is NaN or infinite. MathF.Max passes a NaN on, so a NaN radius fails here too.
-        // The rotation's parts are at most 1 in a unit quaternion, so their sum overflows only for a rotation that is not.
-        if (
-            !float.IsFinite(
-                position.X
-                    + position.Y
-                    + position.Z
-                    + radii.X
-                    + radii.Y
-                    + radii.Z
-                    + rotation.X
-                    + rotation.Y
-                    + rotation.Z
-                    + rotation.W
-            )
-            || !(outlineRadius > 0f)
-            || scene.Camera.Culls(position, outlineRadius)
-        )
+        // One sum is non-finite when any term is NaN or infinite. The rotation's parts are at most 1 in a unit quaternion,
+        // so their sum overflows only for a rotation that is not.
+        bool finite = float.IsFinite(radii.X + radii.Y + radii.Z + rotation.X + rotation.Y + rotation.Z + rotation.W);
+        // MathF.Max passes a NaN on, so a NaN radius fails the first test.
+        bool shows = outlineRadius > 0f && ShaderInput.InPositionRange(position, outlineRadius);
+        if (!finite || !shows || scene.Camera.Culls(position, outlineRadius))
             return;
         scene.AppendOutline(
             new()

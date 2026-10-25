@@ -52,9 +52,17 @@ internal readonly record struct GgxLobe
     /// The unit direction d where the lobe gathers most of its light, between the unit <paramref name="mirror"/>
     /// direction and the unit <paramref name="normal"/> (Lagarde and de Rousiers 2014).
     /// </summary>
-    public Double3 DominantDirection(Double3 normal, Double3 mirror)
+    public Double3 DominantDirection(Double3 normal, Double3 mirror) =>
+        DominantDirection(normal: normal, mirror: mirror, towardMirror: (1 - Alpha) * (Math.Sqrt(1 - Alpha) + Alpha));
+
+    /// <summary>
+    /// The unit direction <paramref name="towardMirror"/> of the way from the unit <paramref name="normal"/> to the unit
+    /// <paramref name="mirror"/> direction, as specularDominantDirection in Shaders/brdf.glsl mixes them. The normal where
+    /// the mix is too short to have a direction, as the shader's normalizedOr gives it.
+    /// </summary>
+    internal static Double3 DominantDirection(Double3 normal, Double3 mirror, double towardMirror)
     {
-        double towardMirror = (1 - Alpha) * (Math.Sqrt(1 - Alpha) + Alpha);
-        return Double3.Lerp(normal, mirror, towardMirror).Normalized();
+        Double3 mix = Double3.Lerp(normal, mirror, towardMirror);
+        return mix.LengthSquared >= ShaderInput.SmallestNormal ? mix.Normalized() : normal;
     }
 }

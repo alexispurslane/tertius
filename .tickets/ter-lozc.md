@@ -16,14 +16,16 @@ The Vulkan spec leaves some results undefined that Metal defines, and the code r
 
 ## Design
 
-1. Bloom's first pass lost its NaN guard in review. Add an explicit, portable guard, with a GPU test that feeds a NaN texel and makes sure that no NaN reaches the glow.
-2. surfaceRadiance caps radiance with min(). Make the cap correct for a NaN input by the spec, with a GPU test.
-3. Find every other shader that uses clamp, min or max on a value that can be NaN or infinity, and every pass that writes or blends into a half-float image. List each site in the ticket with its verdict, and fix each one that relies on Metal.
+The rule (settled 2026-10-25 from the Vulkan spec): keep NaN and infinity from arising, at their sources; never detect them in a shader. A guard such as isnan(x), or a clamp that turns a NaN into 0, does not work on every driver.
+
+1. Bloom's first pass lost its NaN guard in review. Keep NaN and infinity out of the HDR image at its writers, so that the prefilter needs no guard.
+2. surfaceRadiance caps radiance with min(). Keep its operands finite, with the cap before the exposure product, so that the min never sees a NaN or an infinity.
+3. Find every other shader operation that can see a NaN, an infinity, a zero or an out-of-domain operand, and every pass that writes or blends into a half-float image. List each site with its verdict in ARCHITECTURE.md, "Portable Vulkan", and fix each one that relies on Metal: a guarded operand at each division, sqrt, log, pow, inversesqrt, normalize, acos and asin, every half-float value and blend sum at or below 65,504, and the CPU inputs read into their ranges once.
 4. List the device features and extensions that the renderer requires in ARCHITECTURE.md, and make sure that NVIDIA, RADV, ANV and lavapipe offer each one.
 
 ## Acceptance Criteria
 
-No shader relies on a result that the Vulkan spec leaves undefined. Each fixed site has a GPU test that feeds a NaN or an infinity. ARCHITECTURE.md lists the required device features.
+No shader relies on a result that the Vulkan spec leaves undefined. Each fixed site has a GPU or CPU test that feeds the input that would break it, except the sites that ARCHITECTURE.md, "Portable Vulkan", names as untestable here with the reason (a fragment exactly at the eye, an exact half in floats, a puff fade's underflow, a ratio that a division rounds past 1, which Metal hides). A test of a fault that Metal hides asserts the cap or reads the intermediate value. ARCHITECTURE.md lists the required device features, extensions and formats.
 
 
 ## Notes
@@ -43,3 +45,7 @@ Puffs share a budget (user's design A, 2026-10-25). MaxRadiance is now 32,256: e
 **2026-10-25T18:51:45Z**
 
 The puffs' budget takes the rounding of their blends (2026-10-25, settled by the Linux rule and the user's preference for strong highlights). ShaderInput.PuffBudget is 16,128, half of MaxRadiance; each puff caps at 16,128 / max(N, 1). A blend that rounds to nearest or toward zero turns S + x into at most S + 2x, so every pixel stays at or below 32,256 + 2 · 16,128 = 64,512 for any N. A blend that rounds toward +infinity is not covered. A CPU test sums Half values for 1 to 4,096 puffs; under the old budget it gave infinity at 106 puffs.
+
+**2026-10-25T19:36:38Z**
+
+Review fixes (2026-10-25). Fixed: the pane's emission capped before the exposure (exposed), the asin of the far shadows capped at 1 in the shader and its C# twin, the outline rim's sqrt floored at 0, light ranges read at most 2^63 and every drawn point within 2^62 of the eye (ShaderInput.InPositionRange), the field of view floored at 1e-6 rad, the trim shares limited to 0.99 in sum, descriptorIndexing checked, GgxLobe's dominant direction falls back to the normal. ARCHITECTURE.md lists the extensions too. Design and Acceptance amended to the rule. No test here can fail for the asin, the rim or the pane's emission, which Metal hides.

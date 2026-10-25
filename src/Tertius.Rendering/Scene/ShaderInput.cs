@@ -30,6 +30,21 @@ internal static class ShaderInput
     /// </summary>
     public const float RadianceLimit = 18446744073709551616f;
 
+    /// <summary>The smallest normal single float, `SmallestNormal` in Shaders/vectors.glsl. A GPU may flush a smaller value to 0.</summary>
+    public const float SmallestNormal = 1.17549435e-38f;
+
+    /// <summary>
+    /// The farthest from the eye, 2^62 m, that a point of a surface, a puff, a light, an outline or a far shadow may lie.
+    /// The shaders square the distance between two such points, at most 2^63, which stays inside the single float's range.
+    /// </summary>
+    public const float PositionLimit = 4611686018427387904f;
+
+    /// <summary>
+    /// The largest range of a point or spot light that the shaders read, 2^63 m, which they square. No distance between
+    /// two points within <see cref="PositionLimit"/> of the eye is longer.
+    /// </summary>
+    public const float RangeLimit = 9223372036854775808f;
+
     /// <summary>
     /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
     /// <paramref name="puffCount"/> puffs: an equal share of <see cref="PuffBudget"/>.
@@ -39,6 +54,19 @@ internal static class ShaderInput
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>
         float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
+
+    /// <summary>
+    /// Whether every point within <paramref name="extent"/> of the camera-relative <paramref name="position"/> lies within
+    /// <see cref="PositionLimit"/> of the eye. A number that is not finite fails too.
+    /// </summary>
+    public static bool InPositionRange(Vector3 position, float extent)
+    {
+        // A NaN fails the comparison, and the length of a position with a huge part is infinite.
+        return position.Length() + extent <= PositionLimit;
+    }
+
+    /// <summary>A finite light range above 0 as the shaders read it: at most <see cref="RangeLimit"/>.</summary>
+    public static float Range(float range) => MathF.Min(range, RangeLimit);
 
     /// <summary>
     /// A radiance from the CPU as the shaders read it, per channel: its nearest value from 0 to

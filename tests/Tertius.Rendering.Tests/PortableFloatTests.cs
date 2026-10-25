@@ -266,6 +266,53 @@ public sealed class PortableFloatTests
     }
 
     [Fact]
+    public void AGlassPaneWhoseEmissionTheExposureCarriesPastTheFloatRangeKeepsTheBlendAtTheCap()
+    {
+        // The pane's emission, 2^64, times the exposure, 2^64, is past the largest single float, as for an opaque
+        // surface, and the pane's cap of the sum is a min that is not defined for an infinity.
+        VulkanRenderer renderer = Headless(stops: 64);
+        try
+        {
+            MaterialId pane = renderer.CreateMaterial(
+                new(
+                    BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.5f),
+                    Roughness: 0.5f,
+                    Emissive: new(ShaderInput.RadianceLimit)
+                )
+            );
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)),
+                    material: pane,
+                    position: new(0, 0, -3),
+                    scale: Vector3.One,
+                    rotation: Facing,
+                    flags: RenderFlags.Transparent,
+                    radius: 1.5f
+                )
+            );
+            snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
+
+            Vector3 center = HdrCenter(renderer, snapshot);
+
+            center
+                .X.Should()
+                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+            center
+                .Y.Should()
+                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+            center
+                .Z.Should()
+                .BeInRange(0.99f * ShaderInput.MaxRadiance, ShaderInput.MaxRadiance, "the blend stays at the cap");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AGlassPaneOverLightAtTheCapKeepsTheBlendAtTheCap()
     {
         // The pane's own light takes at most the cap times what it does not let through, so the blend's sum with the
@@ -310,8 +357,9 @@ public sealed class PortableFloatTests
     [InlineData(Bloom.MaxLevels)]
     public void TheSummedBloomLevelsOfLightAtTheCapStayBelowTheLargestHalfFloat(int levels)
     {
-        // Each level holds its share of the light, the cap over the levels, and level 0 ends holding every level summed.
-        // Each half float that a level stores rounds, so the sum of the shares of 65,504 can round past it.
+        // Each level holds its share of the surfaces' light, the cap over the levels, and level 0 ends holding every
+        // level summed. This GPU blends round toward zero, so the rounding past the largest half float shows only in
+        // TheSummedBloomLevelsOfLightAtTheHdrBoundStayFiniteInABlendThatRoundsToNearest.
         VulkanRenderer renderer = Headless(
             bloom: new Bloom(Threshold: 0, Knee: 0, Strength: 1f / 65536, Levels: levels)
         );
@@ -334,6 +382,35 @@ public sealed class PortableFloatTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(7)]
+    [InlineData(10)]
+    [InlineData(Bloom.MaxLevels)]
+    public void TheSummedBloomLevelsOfLightAtTheHdrBoundStayFiniteInABlendThatRoundsToNearest(int levels)
+    {
+        // A pixel holds at most the surfaces' cap and twice the puffs' budget. The prefilter gives each level a share of
+        // it, and the filters of the levels average, so no texel of a level holds more than that share, rounded up to a
+        // half float here. The up chain adds level by level in a blend, which .NET's Half rounds to nearest, ties to even.
+        float bound = ShaderInput.MaxRadiance + 2 * ShaderInput.PuffBudget;
+        var share = (Half)(bound / levels);
+        if ((float)share < bound / levels)
+            share = Half.BitIncrement(share);
+        Half sum = share;
+        for (int level = 1; level < levels; level++)
+            sum += share;
+
+        ((float)sum)
+            .Should()
+            .BeLessThanOrEqualTo(
+                LargestHalf,
+                "the {0} levels of light at the HDR bound sum to a finite half float",
+                levels
+            );
     }
 
     [Fact]

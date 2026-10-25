@@ -62,7 +62,9 @@ vec3 ringPoint(int k)
     vec3 u = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
     vec3 v = cross(n, u);
     float shrink = r * r / (d * d);
-    return outline.center * (1.0 - shrink) + r * sqrt(1.0 - shrink) * (c * u + s * v);
+    // ringExists makes shrink below 1 only in exact arithmetic: a division may be off by 2.5 ULP, and for a center
+    // within 2 ULP outside the sphere, shrink can come out above 1, and sqrt of a negative is not defined.
+    return outline.center * (1.0 - shrink) + r * sqrt(max(1.0 - shrink, 0.0)) * (c * u + s * v);
 }
 
 // The near range's projection, infinite reversed-Z: a point is in front of the near plane where w - z >= 0.
