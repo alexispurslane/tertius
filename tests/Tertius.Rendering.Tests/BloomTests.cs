@@ -417,15 +417,15 @@ public sealed class BloomTests
     [Theory]
     [InlineData(2)]
     [InlineData(4)]
-    public void ALargeSquareAtTheLargestHalfFloatGlowsByItsLightWithoutOverflowing(int levels)
+    public void ALargeSquareAtTheCapGlowsByItsLightWithoutOverflowing(int levels)
     {
-        // At 0 stops the HDR image holds the square's light as it is, the largest half float, and so does each level
-        // inside the square, so a sum of the levels as they are overflows to infinity. The glow is linear in the light,
+        // At 0 stops the HDR image holds the square's light at the cap, 64,512, and so does each level inside the
+        // square, so a sum of the levels as they are overflows to infinity. The glow is linear in the light,
         // so beside the square it equals the glow of a square 1,024 times dimmer under a bloom 1,024 times stronger. The
         // strength brings that glow into the range of the tone curve, as an exposure would before pre-exposure.
         const float dimmer = 1024;
         const int side = 200;
-        float largest = (float)Half.MaxValue,
+        float largest = ShaderInput.MaxRadiance,
             strength = 1f / 65536;
         VulkanRenderer bright = Headless(Shaped(strength: strength, levels: levels, threshold: 0, knee: 0));
         VulkanRenderer dim = Headless(Shaped(strength: strength * dimmer, levels: levels, threshold: 0, knee: 0));
@@ -441,7 +441,7 @@ public sealed class BloomTests
                 .Should()
                 .BeLessThanOrEqualTo(
                     1 / 255f,
-                    "the {0} levels hold the glow of the largest half float without overflowing",
+                    "the {0} levels hold the glow of light at the cap without overflowing",
                     levels
                 );
         }
@@ -449,59 +449,6 @@ public sealed class BloomTests
         {
             Gpu.DisposeAndAssertClean(bright);
             Gpu.DisposeAndAssertClean(dim);
-        }
-    }
-
-    [Fact]
-    public void ANaNInTheHdrImageAddsNoGlow()
-    {
-        // A glow puff of radiance −∞ writes −∞ into the HDR image over a dim wall that is below the knee, and NaN in the
-        // corners of its square, where its profile of 0 multiplies −∞. Its light is negative infinite, not NaN, because
-        // pre-exposure clamps the light from above with min, which GLSL leaves undefined for a NaN. If the NaN reached the
-        // bloom levels, their filters would spread it over the wall around the puff.
-        VulkanRenderer withBloom = Headless(Shaped());
-        VulkanRenderer without = Headless(new NoBloom());
-        try
-        {
-            Capture bloomed = Gpu.RenderAndCapture(
-                renderer: withBloom,
-                snapshot: NaNPuff(withBloom),
-                name: "bloom-nan"
-            );
-            Capture plain = Gpu.RenderAndCapture(renderer: without, snapshot: NaNPuff(without), name: "bloom-nan-off");
-
-            plain.Color(Width / 2, Height / 2).Should().Be(Vector3.Zero, "the puff's −∞ shows black without bloom");
-            bloomed.Rgba.Should().Equal(plain.Rgba, "the NaN stays in its own pixels and adds no glow");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(withBloom);
-            Gpu.DisposeAndAssertClean(without);
-        }
-
-        static RenderSnapshot NaNPuff(VulkanRenderer renderer)
-        {
-            RenderSnapshot snapshot = Scene(renderer, Centered(side: Width, radiance: 0.2f));
-            snapshot.PuffLooks.Add(
-                new(
-                    Life: 100,
-                    StartRadius: 0.1f,
-                    EndRadius: 0.1f,
-                    TemperatureRatio: 1,
-                    Shading: PuffShading.Glow(new(float.NegativeInfinity))
-                )
-            );
-            var position = new Vector3(0, 0, -Depth / 2);
-            snapshot.Puffs.Add(
-                new()
-                {
-                    Position = position,
-                    PreviousPosition = position,
-                    Age = 1,
-                    Look = 0,
-                }
-            );
-            return snapshot;
         }
     }
 

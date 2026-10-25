@@ -60,13 +60,7 @@ internal struct GpuInstance
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: position.Z),
             InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
-            Hemisphere = hemisphere switch
-            {
-                UpAlong { Direction: var direction } => new(direction, 1),
-                // The center moves with the instance, so it is exact wherever the instance is interpolated to.
-                UpAwayFrom { Center: var center } => new(position + center, 2),
-                null => Vector4.Zero,
-            },
+            Hemisphere = HemisphereOf(position, hemisphere),
         };
     }
 
@@ -84,6 +78,22 @@ internal struct GpuInstance
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
+
+    /// <summary>
+    /// The hemisphere of an instance at <paramref name="position"/> as the shaders read it. One that holds a number that is
+    /// not finite mixes the sky and the ground evenly, as no hemisphere does.
+    /// </summary>
+    private static Vector4 HemisphereOf(Vector3 position, HemisphereUp hemisphere)
+    {
+        Vector4 gpu = hemisphere switch
+        {
+            UpAlong { Direction: var direction } => new(direction, 1),
+            // The center moves with the instance, so it is exact wherever the instance is interpolated to.
+            UpAwayFrom { Center: var center } => new(position + center, 2),
+            null => Vector4.Zero,
+        };
+        return ShaderInput.IsFinite(new(gpu.X, gpu.Y, gpu.Z)) ? gpu : Vector4.Zero;
+    }
 }
 
 /// <summary>One material in the material storage buffer (std430). 52 bytes of fields, padded to 64, the struct's alignment of 16.</summary>

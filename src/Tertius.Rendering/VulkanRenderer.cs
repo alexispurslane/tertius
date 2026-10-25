@@ -668,7 +668,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
                 layer: cascade,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -734,22 +734,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ImpostorAtlas atlas = impostorAtlas ?? throw new InvalidOperationException("Impostors are off.");
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)tile, (uint)atlas.Tiles);
         const int size = ImpostorAtlas.TileSize;
-        float[] rgba = ReadLayer(image: atlas.Color, layer: tile, size: size, channels: 4);
-        float[] depth = ReadLayer(image: atlas.DepthOffset, layer: tile, size: size, channels: 1);
+        var extent = new Extent2D((uint)size, (uint)size);
+        float[] rgba = ReadLayer(image: atlas.Color, layer: tile, extent: extent, channels: 4);
+        float[] depth = ReadLayer(image: atlas.DepthOffset, layer: tile, extent: extent, channels: 1);
         return (rgba, depth);
     }
 
-    /// <summary>Copies level 0 of one layer of a 16-bit float color image to the CPU.</summary>
-    private float[] ReadLayer(GpuImage image, int layer, int size, int channels)
+    /// <summary>
+    /// Reads the HDR image of the last drawn frame back to the CPU, row by row from the top: red, green, blue and alpha
+    /// of each pixel, as the half floats that the image stores. A test hook: it waits for the device to be idle and
+    /// submits its own copy.
+    /// </summary>
+    internal float[] ReadHdrImage() => ReadLayer(image: targets.Hdr, layer: 0, extent: targets.Hdr.Extent, channels: 4);
+
+    /// <summary>
+    /// Reads one bloom level back to the CPU, as <see cref="ReadHdrImage"/> reads the HDR image. After a frame, level 0
+    /// holds every level summed. A test hook.
+    /// </summary>
+    internal float[] ReadGlowLevel(int level)
     {
-        int count = size * size * channels;
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, (uint)targets.Glow.Length);
+        GpuImage image = targets.Glow[level];
+        return ReadLayer(image: image, layer: 0, extent: image.Extent, channels: 4);
+    }
+
+    /// <summary>Copies level 0 of one layer of a 16-bit float color image to the CPU.</summary>
+    private float[] ReadLayer(GpuImage image, int layer, Extent2D extent, int channels)
+    {
+        int count = (int)(extent.Width * extent.Height) * channels;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
             size: (ulong)(count * 2),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
-            name: "impostor readback"
+            name: "image readback"
         );
         SubmitAndWait(commandBuffer =>
             CopyLayer(
@@ -757,7 +776,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.ColorBit,
                 layer: layer,
-                size: size,
+                extent: extent,
                 buffer: buffer
             )
         );
@@ -778,7 +797,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         GpuImage image,
         ImageAspectFlags aspect,
         int layer,
-        int size,
+        Extent2D extent,
         GpuBuffer buffer
     )
     {
@@ -791,7 +810,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         var region = new BufferImageCopy
         {
             ImageSubresource = new(aspectMask: aspect, mipLevel: 0, baseArrayLayer: (uint)layer, layerCount: 1),
-            ImageExtent = new((uint)size, (uint)size, 1),
+            ImageExtent = new(extent.Width, extent.Height, 1),
         };
         vk.CmdCopyImageToBuffer(
             commandBuffer: commandBuffer,

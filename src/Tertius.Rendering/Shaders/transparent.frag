@@ -19,8 +19,9 @@ layout(location = 0, index = 1) out vec4 outTransmittance;
 
 void main()
 {
+    vec3 V = towardEye(inPosition);
     // Sample before the discard below, so implicit derivatives stay defined for the whole quad.
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.
@@ -32,12 +33,11 @@ void main()
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
-    shading.geometricNormal = normalize(inNormal);
+    shading.geometricNormal = normalizedOr(inNormal, V);
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
-    vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
     // in full. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales.

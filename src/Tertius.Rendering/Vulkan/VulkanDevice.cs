@@ -11,7 +11,8 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The Vulkan instance, the chosen physical device, the logical device and its one graphics and compute queue. Optionally a
 /// validation messenger and a window surface. Requires Vulkan 1.3 with dynamic rendering, synchronization2,
-/// descriptor indexing, multi-draw indirect and depth clamp.
+/// descriptor indexing, multi-draw indirect, depth clamp, dual-source blending and anisotropic filtering
+/// (ARCHITECTURE.md, "Required device features").
 /// </summary>
 internal sealed unsafe class VulkanDevice : IDisposable
 {
@@ -351,6 +352,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "depthClamp";
         if (!f.DualSrcBlend)
             return "dualSrcBlend";
+        if (!f.SamplerAnisotropy)
+            return "samplerAnisotropy";
         if (!f12.RuntimeDescriptorArray)
             return "runtimeDescriptorArray";
         if (!f12.DescriptorBindingPartiallyBound)

@@ -145,7 +145,7 @@ internal sealed class RenderTargets : IDisposable
             mipLevels: 1,
             name: "depth"
         );
-        Hdr = ColorTarget(extent: extent, format: HdrFormat, name: "hdr");
+        Hdr = ColorTarget(extent: extent, format: HdrFormat, name: "hdr", readable: true);
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
@@ -165,21 +165,26 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < Glow.Length; i++)
         {
             level = new((level.Width + 1) / 2, (level.Height + 1) / 2);
-            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}");
+            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}", readable: true);
             layouts.WriteImage(set: GlowSources[i + 1], binding: 0, arrayElement: 0, image: Glow[i]);
         }
 
         layouts.WriteImage(set: PostSet, binding: 1, arrayElement: 0, image: Glow[0]);
     }
 
-    /// <summary>An image of one level that passes draw into and later passes sample.</summary>
-    private GpuImage ColorTarget(Extent2D extent, Format format, string name) =>
+    /// <summary>
+    /// An image of one level that passes draw into and later passes sample. A <paramref name="readable"/> image can also
+    /// be copied out, for the renderer's read hooks.
+    /// </summary>
+    private GpuImage ColorTarget(Extent2D extent, Format format, string name, bool readable = false) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
             format: format,
-            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
+            usage: ImageUsageFlags.ColorAttachmentBit
+                | ImageUsageFlags.SampledBit
+                | (readable ? ImageUsageFlags.TransferSrcBit : 0),
             mipLevels: 1,
             name: name
         );

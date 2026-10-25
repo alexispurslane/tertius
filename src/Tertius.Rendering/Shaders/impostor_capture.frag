@@ -26,16 +26,16 @@ layout(location = 1) out float outDepth;  // R16F: view depth over the center's 
 
 void main()
 {
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    vec3 V = towardEye(inPosition);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
-    shading.geometricNormal = normalize(inNormal);
+    shading.geometricNormal = normalizedOr(inNormal, V);
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
-    vec3 V = normalize(draw.eye.xyz - inPosition);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, false, 1.0);

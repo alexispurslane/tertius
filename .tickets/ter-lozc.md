@@ -31,3 +31,7 @@ No shader relies on a result that the Vulkan spec leaves undefined. Each fixed s
 **2026-10-25T15:53:10Z**
 
 From the exposure branch (2026-10-25): pre-exposure's clamp, min(radiance * exposureScale(), vec3(MaxRadiance)), turns a NaN light into 65,504 on MoltenVK, so a NaN glow puff shows white where main showed black. GLSL leaves min undefined for a NaN. Surfaces were already clamped this way on main. Include this site.
+
+**2026-10-25T18:04:27Z**
+
+Builder (2026-10-25). The rule: keep NaN and infinity from arising at their sources, never detect them in a shader. ARCHITECTURE.md, "Portable Vulkan", lists every site with its verdict, the CPU boundary (ShaderInput) and the required device features. Fixed: the zero-normal and at-the-eye normalizations (normalizedOr, towardEye), the specular dominant direction, the cap before the exposure product (exposed), MaxRadiance lowered to 64,512 for the rounding room of the glass blend and the summed bloom levels, the bloom prefilter's clamp removed, the puff fades, impostor.frag's divide by w, the samplerAnisotropy check. Safe with reasons: the meter, the adapt step, the eclipse, the attenuation, the BRDF terms, 1/E1, the shadows, the octahedral code, the outlines, the tone curves, SMAA. Open: the puffs' additive blend, which no cap on one puff bounds; the Blue Danube film peaks at 1,178 in the HDR image with puffs alive, more than 50 times below the cap.

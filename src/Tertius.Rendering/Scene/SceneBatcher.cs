@@ -18,6 +18,17 @@ internal sealed class SceneBatcher
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
+    /// <summary>
+    /// The smallest and the largest magnitude of a scale axis that the renderer draws: 2^−60 and 2^60. A zero axis
+    /// collapses the object. The normal transform multiplies by 1 / scale², which stays a finite, normal single float
+    /// for an axis in this range, and so does its square in the length of the transformed normal.
+    /// </summary>
+    private const float SmallestScale = 8.6736174e-19f,
+        LargestScale = 1.1529215e18f;
+
+    /// <summary>The smallest normal single float.</summary>
+    private const float SmallestNormal = 1.17549435e-38f;
+
     private DrawItem[] opaque = new DrawItem[256];
 
     private DrawItem[] transparent = new DrawItem[64];
@@ -101,15 +112,14 @@ internal sealed class SceneBatcher
 
     /// <summary>
     /// The world-space bounding radius of an instance: <see cref="RenderInstance.BoundingRadius"/> when it is set,
-    /// else the mesh radius times the largest scale factor.
+    /// else <see cref="MeshExtent"/>.
     /// </summary>
-    internal static float BoundingRadius(in RenderInstance instance, in MeshInfo mesh)
-    {
-        Vector3 scale = instance.Scale;
-        return instance.BoundingRadius > 0f
-            ? instance.BoundingRadius
-            : mesh.Radius * MathF.Max(MathF.Abs(scale.X), MathF.Max(MathF.Abs(scale.Y), MathF.Abs(scale.Z)));
-    }
+    internal static float BoundingRadius(in RenderInstance instance, in MeshInfo mesh) =>
+        instance.BoundingRadius > 0f ? instance.BoundingRadius : MeshExtent(instance.Scale, mesh);
+
+    /// <summary>How far the scaled mesh reaches from the instance's origin: the mesh radius times the largest scale factor.</summary>
+    internal static float MeshExtent(Vector3 scale, in MeshInfo mesh) =>
+        mesh.Radius * MathF.Max(MathF.Abs(scale.X), MathF.Max(MathF.Abs(scale.Y), MathF.Abs(scale.Z)));
 
     /// <summary>
     /// The index of an instance's mesh in the meshes on the GPU, or −1 when it has none: <see cref="MeshId.None"/>, or
@@ -118,14 +128,21 @@ internal sealed class SceneBatcher
     internal static int MeshIndex(MeshId mesh, int meshCount) =>
         !mesh.IsNone && (uint)mesh.Value < (uint)meshCount ? mesh.Value : -1;
 
-    /// <summary>A zero scale axis collapses the object, and the normal matrix would divide by zero.</summary>
-    internal static bool HasVolume(Vector3 scale) => scale.X != 0f && scale.Y != 0f && scale.Z != 0f;
+    /// <summary>Each axis of the scale is finite, and its magnitude lies from <see cref="SmallestScale"/> to <see cref="LargestScale"/>.</summary>
+    internal static bool HasVolume(Vector3 scale) =>
+        IsDrawableAxis(scale.X) && IsDrawableAxis(scale.Y) && IsDrawableAxis(scale.Z);
 
-    /// <summary>Slerp between two rotations. A zero quaternion (an unset field) counts as the other rotation, or identity.</summary>
+    // A NaN fails both comparisons.
+    private static bool IsDrawableAxis(float axis) => MathF.Abs(axis) is >= SmallestScale and <= LargestScale;
+
+    /// <summary>
+    /// Slerp between two rotations. A zero quaternion (an unset field), or one whose squared length is not finite, counts
+    /// as the other rotation, or identity.
+    /// </summary>
     internal static Quaternion Interpolate(Quaternion previous, Quaternion current, float alpha)
     {
-        bool hasCurrent = current.LengthSquared() > 1e-12f;
-        bool hasPrevious = previous.LengthSquared() > 1e-12f;
+        bool hasCurrent = IsRotation(current);
+        bool hasPrevious = IsRotation(previous);
         if (!hasCurrent)
             return hasPrevious ? Quaternion.Normalize(previous) : Quaternion.Identity;
         if (!hasPrevious || alpha >= 1f)
@@ -133,6 +150,13 @@ internal sealed class SceneBatcher
         return Quaternion.Normalize(
             Quaternion.Slerp(Quaternion.Normalize(previous), Quaternion.Normalize(current), alpha)
         );
+    }
+
+    // A NaN fails the comparison, and the squared length of a quaternion with an infinite or huge part is infinite.
+    private static bool IsRotation(Quaternion rotation)
+    {
+        float lengthSquared = rotation.LengthSquared();
+        return float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
     }
 
     private static void CollectVisible(
@@ -159,8 +183,12 @@ internal sealed class SceneBatcher
 
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - camera.Offset;
             float radius = BoundingRadius(instance, meshes[mesh]);
-            // One sum is non-finite when any term is NaN or infinite.
-            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || camera.Culls(position, radius))
+            // One sum is non-finite when any term is NaN or infinite. The mesh's extent bounds its scaled vertices, which
+            // must stay finite when the bounding radius is set.
+            if (
+                !float.IsFinite(position.X + position.Y + position.Z + radius + MeshExtent(scale, meshes[mesh]))
+                || camera.Culls(position, radius)
+            )
                 continue;
 
             ref PreparedInstance prepared = ref scene.AddVisible();
@@ -204,18 +232,19 @@ internal sealed class SceneBatcher
             float t = age / look.Life;
             float radius = look.StartRadius + (look.EndRadius - look.StartRadius) * t;
             Vector3 position = Vector3.Lerp(puff.PreviousPosition, puff.Position, alpha) - camera.Offset;
-            // One sum is non-finite when any term is NaN or infinite.
+            // One sum is non-finite when any term is NaN or infinite. The fades of puff.frag divide by the radius, which a
+            // GPU may flush to 0 below the smallest normal float.
             if (
                 !float.IsFinite(position.X + position.Y + position.Z + radius)
-                || radius <= 0f
+                || !(radius >= SmallestNormal)
                 || camera.Culls(position, radius)
             )
                 continue;
             float ownShare = 1f - t;
             Vector4? colorKind = look.Shading switch
             {
-                GlowPuffs glow => new Vector4(glow.Radiance * ownShare, GpuPuff.GlowKind),
-                LitPuffs lit => new Vector4(lit.Albedo * ownShare, GpuPuff.LitKind),
+                GlowPuffs glow => new Vector4(ShaderInput.Radiance(glow.Radiance * ownShare), GpuPuff.GlowKind),
+                LitPuffs lit => new Vector4(ShaderInput.Fraction(lit.Albedo) * ownShare, GpuPuff.LitKind),
                 null => null,
             };
             if (colorKind is not { } color)
@@ -420,82 +449,100 @@ internal sealed class SceneBatcher
 
     private static void CollectLights(RenderSnapshot snapshot, PreparedScene scene)
     {
-        CameraView camera = scene.Camera;
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
-            // The default light holds no case, so it adds no light. A light of either case is left out when it cannot reach
-            // a visible surface (see PositionInReach).
+            // The default light holds no case, so it adds no light.
             switch (light)
             {
-                case PointRenderLight
-                {
-                    Position: var worldPosition,
-                    Color: var color,
-                    Intensity: var intensity,
-                    Range: var range
-                }:
-                {
-                    if (
-                        PositionInReach(
-                            camera: camera,
-                            worldPosition: worldPosition,
-                            intensity: intensity,
-                            range: range
-                        )
-                        is not { } position
-                    )
-                        continue;
-                    // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
-                    // impostor lighting read them only for a spot light.
-                    Append(
-                        scene,
-                        new() { PositionRange = new(position, range), RadianceKind = new(color * intensity, 0f) }
-                    );
+                case PointRenderLight point:
+                    AppendPointLight(scene, point);
                     break;
-                }
-                case SpotRenderLight
-                {
-                    Position: var worldPosition,
-                    Direction: var axis,
-                    Color: var color,
-                    Intensity: var intensity,
-                    Range: var range,
-                    InnerConeAngle: var innerConeAngle,
-                    OuterConeAngle: var outerConeAngle
-                }:
-                {
-                    if (
-                        PositionInReach(
-                            camera: camera,
-                            worldPosition: worldPosition,
-                            intensity: intensity,
-                            range: range
-                        )
-                        is not { } position
-                    )
-                        continue;
-                    Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
-                    float cosOuter = MathF.Cos(Math.Clamp(outerConeAngle, 0f, MathF.PI));
-                    float cosInner = MathF.Cos(Math.Clamp(innerConeAngle, 0f, MathF.PI));
-                    // smoothstep needs a non-empty edge interval.
-                    cosInner = MathF.Max(cosInner, cosOuter + 1e-4f);
-                    Append(
-                        scene,
-                        new()
-                        {
-                            PositionRange = new(position, range),
-                            RadianceKind = new(color * intensity, 1f),
-                            DirectionCosOuter = new(direction, cosOuter),
-                            Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f),
-                        }
-                    );
+                case SpotRenderLight spot:
+                    AppendSpotLight(scene, spot);
                     break;
-                }
                 case null:
                     break;
                 default:
                     throw new UnreachableException($"The light {light} has a case that the batcher does not draw.");
             }
     }
+
+    /// <summary>
+    /// Adds a point light to the scene's lights, unless one of its numbers is not finite or it cannot reach a visible
+    /// surface (see PositionInReach).
+    /// </summary>
+    private static void AppendPointLight(PreparedScene scene, in PointRenderLight light)
+    {
+        if (
+            !IsFiniteLight(position: light.Position, color: light.Color, intensity: light.Intensity, range: light.Range)
+            || PositionInReach(
+                camera: scene.Camera,
+                worldPosition: light.Position,
+                intensity: light.Intensity,
+                range: light.Range
+            )
+                is not { } position
+        )
+            return;
+        // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
+        // impostor lighting read them only for a spot light.
+        Append(
+            scene,
+            new()
+            {
+                PositionRange = new(position, light.Range),
+                RadianceKind = new(ShaderInput.Radiance(light.Color * light.Intensity), 0f),
+            }
+        );
+    }
+
+    /// <summary>
+    /// Adds a spot light to the scene's lights, unless one of its numbers is not finite or it cannot reach a visible
+    /// surface (see PositionInReach). Its axis goes at unit length, and its cone angles as the cosines of their values
+    /// clamped to 0 to π.
+    /// </summary>
+    private static void AppendSpotLight(PreparedScene scene, in SpotRenderLight light)
+    {
+        if (
+            !IsFiniteLight(position: light.Position, color: light.Color, intensity: light.Intensity, range: light.Range)
+            || !ShaderInput.IsFinite(light.Direction)
+            || !float.IsFinite(light.InnerConeAngle + light.OuterConeAngle)
+            || PositionInReach(
+                camera: scene.Camera,
+                worldPosition: light.Position,
+                intensity: light.Intensity,
+                range: light.Range
+            )
+                is not { } position
+        )
+            return;
+        float axisLengthSquared = light.Direction.LengthSquared();
+        // The squared length of a huge axis overflows, and the axis cannot be normalized in single floats.
+        Vector3 direction =
+            float.IsFinite(axisLengthSquared) && axisLengthSquared > 1e-12f
+                ? Vector3.Normalize(light.Direction)
+                : -Vector3.UnitY;
+        float cosOuter = MathF.Cos(Math.Clamp(light.OuterConeAngle, 0f, MathF.PI));
+        float cosInner = MathF.Cos(Math.Clamp(light.InnerConeAngle, 0f, MathF.PI));
+        // smoothstep needs a non-empty edge interval.
+        cosInner = MathF.Max(cosInner, cosOuter + 1e-4f);
+        Append(
+            scene,
+            new()
+            {
+                PositionRange = new(position, light.Range),
+                RadianceKind = new(ShaderInput.Radiance(light.Color * light.Intensity), 1f),
+                DirectionCosOuter = new(direction, cosOuter),
+                Spot = new(x: cosInner, y: 0f, z: 0f, w: 0f),
+            }
+        );
+    }
+
+    /// <summary>Whether the numbers that both cases of a light hold are finite.</summary>
+    private static bool IsFiniteLight(Vector3 position, Vector3 color, float intensity, float range) =>
+        ShaderInput.IsFinite(position)
+        && ShaderInput.IsFinite(color)
+        && float.IsFinite(intensity)
+        && float.IsFinite(range);
 
     /// <summary>
     /// The position relative to the camera, which is what the GPU light holds, of a light of this intensity and range at
@@ -604,11 +651,14 @@ internal sealed class SceneBatcher
             CameraForward = new(camera.Forward, 0f),
             SunDirection = new(
                 hasSun ? Vector3.Normalize(sun.Direction) : Vector3.UnitY,
-                MathF.Max(sun.AngularRadius, 0f)
+                // A NaN fails the comparison: a point sun.
+                sun.AngularRadius >= 0f
+                    ? MathF.Min(sun.AngularRadius, MathF.PI)
+                    : 0f
             ),
-            SunRadiance = new(hasSun ? sun.Color * sun.Intensity : Vector3.Zero, 0f),
-            AmbientSky = new(ambient.SkyColor * ambient.Intensity, 0f),
-            AmbientGround = new(ambient.GroundColor * ambient.Intensity, 0f),
+            SunRadiance = new(hasSun ? ShaderInput.Radiance(sun.Color * sun.Intensity) : Vector3.Zero, 0f),
+            AmbientSky = new(ShaderInput.Radiance(ambient.SkyColor * ambient.Intensity), 0f),
+            AmbientGround = new(ShaderInput.Radiance(ambient.GroundColor * ambient.Intensity), 0f),
             Viewport = new(
                 x: camera.Width,
                 y: camera.Height,

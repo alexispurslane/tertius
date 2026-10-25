@@ -157,8 +157,20 @@ internal sealed class OutlinePass : RenderPass
         float outlineRadius = MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z));
         Vector3 position = center - scene.Camera.Offset;
         // One sum is non-finite when any term is NaN or infinite. MathF.Max passes a NaN on, so a NaN radius fails here too.
+        // The rotation's parts are at most 1 in a unit quaternion, so their sum overflows only for a rotation that is not.
         if (
-            !float.IsFinite(position.X + position.Y + position.Z + radii.X + radii.Y + radii.Z)
+            !float.IsFinite(
+                position.X
+                    + position.Y
+                    + position.Z
+                    + radii.X
+                    + radii.Y
+                    + radii.Z
+                    + rotation.X
+                    + rotation.Y
+                    + rotation.Z
+                    + rotation.W
+            )
             || !(outlineRadius > 0f)
             || scene.Camera.Culls(position, outlineRadius)
         )

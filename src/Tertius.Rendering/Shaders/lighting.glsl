@@ -213,6 +213,7 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
 // All light that leaves a surface point of the given lobes toward the eye, pre-exposed and clamped to what the HDR
 // target holds: the reflected light times `exposure`, plus `preExposedEmission`, which the caller has already
 // multiplied. The clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts.
+// The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass shadowMaps false and an exposure of 1, because the atlas
 // stores radiance.
 vec3 lobesRadiance(
@@ -220,7 +221,7 @@ vec3 lobesRadiance(
 {
     vec3 reflected = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
         + localLights(s, lobes, position, V);
-    return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
+    return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
 // lobesRadiance with the lobes of the material itself: every opaque surface.

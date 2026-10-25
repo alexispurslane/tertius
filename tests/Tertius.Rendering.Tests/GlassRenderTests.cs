@@ -316,7 +316,7 @@ public sealed class GlassRenderTests
     [Fact]
     public void APaneWhoseHighlightFillsTheTargetLeavesRoomForWhatItLetsThrough()
     {
-        const float largestHalf = 65504;
+        const float cap = ShaderInput.MaxRadiance;
         const float opacity = 0.2f;
         var backdrop = new Vector3(1000);
         var glass = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0.3, Reflectance: 1);
@@ -327,8 +327,8 @@ public sealed class GlassRenderTests
             tables: BrdfTables.Shared
         );
         // The pane's own light fills what the target holds beyond the share that the glow behind may take, so the sum
-        // stays at most the largest half float. Past it, a device may store infinity, which the tone curve turns to NaN.
-        Double3 stored = largestHalf * (new Double3(1, 1, 1) - transmittance) + transmittance * backdrop;
+        // stays at most the cap. Past the largest half float, a device may store infinity, which the tone curve turns to NaN.
+        Double3 stored = cap * (new Double3(1, 1, 1) - transmittance) + transmittance * backdrop;
         int expectedBin = ExposureMeter.BinOf(ExposureMeter.Luminance(stored.ToVector3()));
 
         // The shading passes write pre-exposed light, and the tone curve shows anything this bright as white, so the
@@ -346,7 +346,7 @@ public sealed class GlassRenderTests
         );
         try
         {
-            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 65,504 over
+            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 64,512 over
             // the whole pane, so the cap binds on every pixel of the pane.
             ShownThroughPane(
                 renderer: renderer,
@@ -367,7 +367,7 @@ public sealed class GlassRenderTests
                     expectedBin + 1,
                     "the target holds {0}, at most {1}, not the highlight of the uncapped pane",
                     stored,
-                    largestHalf
+                    cap
                 );
         }
         finally

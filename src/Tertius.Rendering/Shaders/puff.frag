@@ -26,8 +26,12 @@ void main()
     // The G-buffer distance covers every depth range. It is 0 for sky, which counts as no surface.
     float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
     float distanceToEye = length(inPosition - draw.eye.xyz);
-    float surfaceFade = opaqueDistance > 0.0 ? clamp((opaqueDistance - distanceToEye) / inRadius, 0.0, 1.0) : 1.0;
-    float eyeFade = clamp(distanceToEye / inRadius, 0.0, 1.0);
+    // Each fade clamps its distance to [0, r] before it divides by r, so a small radius cannot carry the quotient past
+    // the largest single float. The renderer draws no puff of a radius below the smallest normal float.
+    float surfaceFade = opaqueDistance > 0.0
+        ? clamp(opaqueDistance - distanceToEye, 0.0, inRadius) / inRadius
+        : 1.0;
+    float eyeFade = min(distanceToEye, inRadius) / inRadius;
 
     // Additive blending keeps the target's alpha, so the alpha written here is not used.
     outColor = vec4(inRadiance * (profile * surfaceFade * eyeFade), 0.0);

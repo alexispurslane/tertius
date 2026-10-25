@@ -63,11 +63,12 @@ internal sealed unsafe class MaterialStore : IDisposable
     public static GpuMaterial ToGpu(MaterialDesc desc) =>
         new()
         {
-            BaseColor = desc.BaseColor,
-            Emissive = Vector3.Max(desc.Emissive, Vector3.Zero),
-            Metallic = Math.Clamp(desc.Metallic, 0f, 1f),
-            Roughness = Math.Clamp(desc.Roughness, 0f, 1f),
-            Reflectance = Math.Clamp(desc.Reflectance, 0f, 1f),
+            // The colors and the factors reach the shaders in their ranges (ShaderInput), with a NaN as 0.
+            BaseColor = ShaderInput.Fraction(desc.BaseColor),
+            Emissive = ShaderInput.Radiance(desc.Emissive),
+            Metallic = ShaderInput.Fraction(desc.Metallic),
+            Roughness = ShaderInput.Fraction(desc.Roughness),
+            Reflectance = ShaderInput.Fraction(desc.Reflectance),
             BaseColorMap = TextureStore.Resolve(desc.BaseColorMap, TextureStore.White),
             NormalMap = TextureStore.Resolve(desc.NormalMap, TextureStore.FlatNormal),
             MetallicRoughnessMap = TextureStore.Resolve(
