@@ -327,6 +327,51 @@ public sealed class ScriptCommandTests : IDisposable
         "--tone-curve",
         "filmic"
     )]
+    [InlineData(
+        "--ambient-occlusion applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--ambient-occlusion",
+        "off"
+    )]
+    [InlineData(
+        "--ambient-occlusion applies to a headless run",
+        "--scene",
+        "no-such-scene",
+        "--ambient-occlusion",
+        "off"
+    )]
+    [InlineData(
+        "--anti-aliasing needs a value",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--anti-aliasing"
+    )]
+    [InlineData(
+        "--anti-aliasing applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--anti-aliasing",
+        "off"
+    )]
+    [InlineData("--anti-aliasing applies to a headless run", "--scene", "no-such-scene", "--anti-aliasing", "off")]
+    [InlineData(
+        "--anti-aliasing needs off or smaa",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--anti-aliasing",
+        "fxaa"
+    )]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(
         string rule,
         params string[] args
@@ -336,6 +381,20 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain(rule);
+    }
+
+    [Theory]
+    [InlineData("on")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public void AnAmbientOcclusionOptionThatIsNeitherOffNorAPositiveNumberIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--ambient-occlusion", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--ambient-occlusion needs off or a radius").And.Contain($"'{value}'");
     }
 
     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the
@@ -407,6 +466,20 @@ public sealed class ScriptCommandTests : IDisposable
         code.Should().Be(ScriptCommand.ToolError, "the test's renderer cannot start");
         EnvironmentMapSetting expected = off ? new NoEnvironmentMap() : new RendererOptions().EnvironmentMap;
         settings.Should().Equal(expected);
+    }
+
+    [Theory]
+    [InlineData("off", AntiAliasing.None)]
+    [InlineData("smaa", AntiAliasing.Smaa)]
+    public void TheAntiAliasingOptionCarriesTheChoiceThatItNames(string name, AntiAliasing antiAliasing)
+    {
+        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--anti-aliasing", name],
+            out string? problem
+        );
+
+        chosen.Should().NotBeNull(problem);
+        chosen!.AntiAliasing.Should().Be(antiAliasing);
     }
 
     [Fact]

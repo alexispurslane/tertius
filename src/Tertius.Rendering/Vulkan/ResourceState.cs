@@ -29,7 +29,10 @@ internal enum ImageUse
     /// <summary>Sampled or fetched in a compute shader, as the exposure's meter reads the HDR image.</summary>
     SampledCompute,
 
-    /// <summary>Written as a storage image in a compute shader, as the environment prefilter writes the specular map.</summary>
+    /// <summary>
+    /// Read and written as a storage image in a compute shader, as the occlusion passes use their images and the
+    /// environment prefilter writes the specular map.
+    /// </summary>
     StorageCompute,
     TransferSource,
     TransferDestination,
@@ -97,10 +100,12 @@ internal static class ResourceUses
                 PipelineStageFlags2.ComputeShaderBit,
                 AccessFlags2.ShaderSampledReadBit
             ),
+            // Storage images are read and written only in the General layout. Both bits, so that any two storage uses
+            // get a barrier: each occlusion pass reads what the one before it wrote.
             ImageUse.StorageCompute => new(
                 ImageLayout.General,
                 PipelineStageFlags2.ComputeShaderBit,
-                AccessFlags2.ShaderStorageWriteBit
+                AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
             ),
             ImageUse.TransferSource => new(
                 ImageLayout.TransferSrcOptimal,

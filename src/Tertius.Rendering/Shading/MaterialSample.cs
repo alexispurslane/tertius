@@ -41,8 +41,27 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     }
 
     /// <summary>
-    /// The light that the hemisphere ambient light sends toward <paramref name="toView"/>: the diffuse color by the
-    /// normal's sky share, plus the compensated specular albedo by the lobe's sky share.
+    /// The C# copy of hemisphereAmbient: the diffuse color by the normal's sky share, and the compensated specular albedo
+    /// by the lobe's sky share.
+    /// </summary>
+    public AmbientTerms HemisphereTerms(
+        Double3 normal,
+        Double3 toView,
+        Double3 sky,
+        Double3 ground,
+        double normalSkyShare,
+        double lobeSkyShare,
+        BrdfTables tables
+    ) =>
+        new(
+            Diffuse: DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare),
+            Specular: CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables)
+                * Double3.Lerp(ground, sky, lobeSkyShare)
+        );
+
+    /// <summary>
+    /// The C# copy of ambientLight: the light that the hemisphere ambient light sends toward <paramref name="toView"/>,
+    /// with the ambient <paramref name="occlusion"/> V applied to its two terms.
     /// </summary>
     public Double3 ReflectedHemisphere(
         Double3 normal,
@@ -51,15 +70,47 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         Double3 ground,
         double normalSkyShare,
         double lobeSkyShare,
+        double occlusion,
         BrdfTables tables
     )
     {
-        double nDotV = ViewCosine(normal, toView);
-        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(nDotV: nDotV, roughness: Lobe.Roughness);
-        Double3 specularAlbedo = One * schlickPart + F0 * (lobeAlbedo - schlickPart);
-        Double3 diffuse = DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare);
-        Double3 specular = specularAlbedo * EnergyCompensation(lobeAlbedo) * Double3.Lerp(ground, sky, lobeSkyShare);
-        return diffuse + specular;
+        AmbientTerms terms = HemisphereTerms(
+            normal: normal,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: normalSkyShare,
+            lobeSkyShare: lobeSkyShare,
+            tables: tables
+        );
+        AmbientTerms occluded = terms.Occluded(occlusion: occlusion, nDotV: ViewCosine(normal, toView), lobe: Lobe);
+        return occluded.Diffuse + occluded.Specular;
+    }
+
+    /// <summary>
+    /// E · c, the compensated specular albedo per channel: the share of a uniform light that the specular part sends
+    /// toward <paramref name="toView"/>. It weights the ambient specular term, and a pane lets through what it leaves.
+    /// </summary>
+    public Double3 CompensatedSpecularAlbedo(Double3 normal, Double3 toView, BrdfTables tables)
+    {
+        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(
+            nDotV: ViewCosine(normal, toView),
+            roughness: Lobe.Roughness
+        );
+        return (One * schlickPart + F0 * (lobeAlbedo - schlickPart)) * EnergyCompensation(lobeAlbedo);
+    }
+
+    /// <summary>
+    /// T = (1 − opacity)(1 − E · c), per channel and clamped to [0, 1]: the share of the light behind a pane of this
+    /// material that passes through it toward <paramref name="toView"/> (ARCHITECTURE.md, "Transparent objects").
+    /// </summary>
+    /// <param name="opacity">The base color's alpha, clamped to [0, 1] as the transparent pass clamps it.</param>
+    public Double3 Transmittance(double opacity, Double3 normal, Double3 toView, BrdfTables tables)
+    {
+        Double3 passed =
+            (1 - Math.Clamp(opacity, 0, 1))
+            * (One - CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables));
+        return new(Math.Clamp(passed.X, 0, 1), Math.Clamp(passed.Y, 0, 1), Math.Clamp(passed.Z, 0, 1));
     }
 
     /// <summary>μ, the cosine of the view direction to the normal, with its floor.</summary>

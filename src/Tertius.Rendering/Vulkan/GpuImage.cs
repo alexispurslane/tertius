@@ -58,7 +58,8 @@ internal sealed unsafe class GpuImage : IDisposable
     /// <summary>
     /// Creates an image with its own memory. Its view is a 2D array view when it has more than one layer or when
     /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too. With
-    /// <paramref name="cube"/>, the image is cube-compatible with six square layers, and its view is a cube.
+    /// <paramref name="cube"/>, the image is cube-compatible with six square layers, and its view is a cube. With
+    /// <paramref name="mutableFormat"/>, <see cref="CreateFormatView"/> can view it in another format of its class.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="cube"/> is set for an image that is not six square layers.</exception>
     public static GpuImage Create(
@@ -71,56 +72,29 @@ internal sealed unsafe class GpuImage : IDisposable
         string name,
         uint arrayLayers = 1,
         bool arrayView = false,
-        bool cube = false
+        bool cube = false,
+        bool mutableFormat = false
     )
     {
-        if (extent.Width == 0 || extent.Height == 0)
-            throw new ArgumentOutOfRangeException(nameof(extent), "Images must be at least 1x1.");
-        ArgumentOutOfRangeException.ThrowIfZero(arrayLayers);
-        bool cubeShaped = arrayLayers == 6 && extent.Width == extent.Height;
-        if (cube && !cubeShaped)
-            throw new ArgumentException(
-                $"A cube has six square layers, not {arrayLayers} of {extent.Width}×{extent.Height}."
-            );
+        CheckShape(extent: extent, arrayLayers: arrayLayers, cube: cube);
         ImageAspectFlags aspect = IsDepth(format) ? ImageAspectFlags.DepthBit : ImageAspectFlags.ColorBit;
-        var info = new ImageCreateInfo
-        {
-            SType = StructureType.ImageCreateInfo,
-            Flags = cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0,
-            ImageType = ImageType.Type2D,
-            Format = format,
-            Extent = new(extent.Width, extent.Height, 1),
-            MipLevels = mipLevels,
-            ArrayLayers = arrayLayers,
-            Samples = SampleCountFlags.Count1Bit,
-            Tiling = ImageTiling.Optimal,
-            Usage = usage,
-            SharingMode = SharingMode.Exclusive,
-            InitialLayout = ImageLayout.Undefined,
-        };
-        device
-            .Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image)
-            .Check("vkCreateImage");
+        ImageCreateFlags flags = (cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
+            | (mutableFormat ? ImageCreateFlags.CreateMutableFormatBit : 0);
+        Image image = CreateHandle(
+            device: device,
+            extent: extent,
+            format: format,
+            usage: usage,
+            mipLevels: mipLevels,
+            arrayLayers: arrayLayers,
+            flags: flags
+        );
         MemoryAllocation memory = default;
         bool allocated = false;
         try
         {
-            device.Vk.GetImageMemoryRequirements(device.Device, image, out MemoryRequirements requirements);
-            memory = allocator.Allocate(
-                requirements: requirements,
-                usage: MemoryUsage.GpuOnly,
-                linear: false,
-                name: name
-            );
+            memory = BindMemory(device: device, allocator: allocator, image: image, name: name);
             allocated = true;
-            device
-                .Vk.BindImageMemory(
-                    device: device.Device,
-                    image: image,
-                    memory: memory.Memory,
-                    memoryOffset: memory.Offset
-                )
-                .Check("vkBindImageMemory");
             ImageViewType viewType = ViewTypeOf(cube: cube, arrayed: arrayLayers > 1 || arrayView);
             ImageView view = CreateView(
                 device: device,
@@ -156,6 +130,85 @@ internal sealed unsafe class GpuImage : IDisposable
             device.Vk.DestroyImage(device.Device, image, null);
             throw;
         }
+    }
+
+    /// <exception cref="ArgumentException"><paramref name="cube"/> is set for an image that is not six square layers.</exception>
+    private static void CheckShape(Extent2D extent, uint arrayLayers, bool cube)
+    {
+        if (extent.Width == 0 || extent.Height == 0)
+            throw new ArgumentOutOfRangeException(nameof(extent), "Images must be at least 1x1.");
+        ArgumentOutOfRangeException.ThrowIfZero(arrayLayers);
+        bool cubeShaped = arrayLayers == 6 && extent.Width == extent.Height;
+        if (cube && !cubeShaped)
+            throw new ArgumentException(
+                $"A cube has six square layers, not {arrayLayers} of {extent.Width}×{extent.Height}."
+            );
+    }
+
+    /// <summary>Allocates the GPU memory of <paramref name="image"/> and binds it. Frees the memory if the bind fails.</summary>
+    private static MemoryAllocation BindMemory(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        Image image,
+        string name
+    )
+    {
+        device.Vk.GetImageMemoryRequirements(device.Device, image, out MemoryRequirements requirements);
+        MemoryAllocation memory = allocator.Allocate(
+            requirements: requirements,
+            usage: MemoryUsage.GpuOnly,
+            linear: false,
+            name: name
+        );
+        try
+        {
+            device
+                .Vk.BindImageMemory(
+                    device: device.Device,
+                    image: image,
+                    memory: memory.Memory,
+                    memoryOffset: memory.Offset
+                )
+                .Check("vkBindImageMemory");
+            return memory;
+        }
+        catch
+        {
+            allocator.Free(memory);
+            throw;
+        }
+    }
+
+    /// <summary>A 2D image with optimal tiling and no memory yet.</summary>
+    private static Image CreateHandle(
+        VulkanDevice device,
+        Extent2D extent,
+        Format format,
+        ImageUsageFlags usage,
+        uint mipLevels,
+        uint arrayLayers,
+        ImageCreateFlags flags
+    )
+    {
+        var info = new ImageCreateInfo
+        {
+            SType = StructureType.ImageCreateInfo,
+            Flags = flags,
+            ImageType = ImageType.Type2D,
+            Format = format,
+            Extent = new(extent.Width, extent.Height, 1),
+            MipLevels = mipLevels,
+            ArrayLayers = arrayLayers,
+            Samples = SampleCountFlags.Count1Bit,
+            Tiling = ImageTiling.Optimal,
+            Usage = usage,
+            SharingMode = SharingMode.Exclusive,
+            InitialLayout = ImageLayout.Undefined,
+        };
+        device
+            .Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image)
+            .Check("vkCreateImage");
+        return image;
     }
 
     /// <summary>Wraps an image owned by someone else, such as a swapchain image. Only the view is destroyed on dispose.</summary>
@@ -239,6 +292,27 @@ internal sealed unsafe class GpuImage : IDisposable
         if (cube)
             return ImageViewType.TypeCube;
         return arrayed ? ImageViewType.Type2DArray : ImageViewType.Type2D;
+    }
+
+    /// <summary>
+    /// A 2D view of level 0 and layer 0 in another format of the same class, such as the UNORM twin of an sRGB image.
+    /// The image must have been created with a mutable format. The caller destroys the view before the image.
+    /// </summary>
+    public ImageView CreateFormatView(Format format)
+    {
+        ImageView view = CreateView(
+            device: device,
+            image: Handle,
+            format: format,
+            aspect: Aspect,
+            type: ImageViewType.Type2D,
+            baseMip: 0,
+            mipLevels: 1,
+            baseLayer: 0,
+            layers: 1
+        );
+        device.SetName(ObjectType.ImageView, view.Handle, $"{Name} as {format}");
+        return view;
     }
 
     public static bool IsDepth(Format format) =>

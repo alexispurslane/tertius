@@ -1,0 +1,21 @@
+#version 460
+// The occlusion depth pass (docs/plans/ambient-occlusion.md, "The occlusion depth pass"): the view depth of each
+// half-resolution texel, from the distance of its representative pixel. Engine glue after the shape of vaGTAO.hlsl.
+// XeGTAO's copyright and permission notice are in gtao.glsl.
+#extension GL_GOOGLE_include_directive : require
+#include "gtao.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(texel))
+        return;
+    ivec2 pixel = 2 * texel;
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    vec3 ray = gtaoViewPosition(pixelScreenPosition(pixel), 1.0);
+    // The distance target holds 0 for sky. SkyDepth puts sky beyond every radius, where an infinite depth gives NaN.
+    float z = distanceToEye > 0.0 ? distanceToEye / length(ray) : SkyDepth;
+    imageStore(viewDepth, texel, vec4(z));
+}

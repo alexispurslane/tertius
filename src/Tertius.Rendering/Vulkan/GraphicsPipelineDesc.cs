@@ -28,6 +28,12 @@ internal enum BlendMode
 
     /// <summary>The source color is added to the target, with the factors One and One. The target's alpha stays as it is.</summary>
     Additive,
+
+    /// <summary>
+    /// Dual-source blending: the first output is added to the target times the second output, per channel. The target's
+    /// alpha stays as it is. The device feature dualSrcBlend allows it on one color attachment only.
+    /// </summary>
+    Transmittance,
 }
 
 /// <summary>
@@ -99,6 +105,18 @@ internal sealed class GraphicsPipelineDesc
                 BlendEnable = true,
                 SrcColorBlendFactor = BlendFactor.One,
                 DstColorBlendFactor = BlendFactor.One,
+                ColorBlendOp = BlendOp.Add,
+                SrcAlphaBlendFactor = BlendFactor.Zero,
+                DstAlphaBlendFactor = BlendFactor.One,
+                AlphaBlendOp = BlendOp.Add,
+                ColorWriteMask = allChannels,
+            },
+            // The target's alpha times One, plus the source's times Zero: it stays as it was.
+            BlendMode.Transmittance => new()
+            {
+                BlendEnable = true,
+                SrcColorBlendFactor = BlendFactor.One,
+                DstColorBlendFactor = BlendFactor.Src1Color,
                 ColorBlendOp = BlendOp.Add,
                 SrcAlphaBlendFactor = BlendFactor.Zero,
                 DstAlphaBlendFactor = BlendFactor.One,

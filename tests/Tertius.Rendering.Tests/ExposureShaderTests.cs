@@ -97,7 +97,7 @@ public sealed class ExposureShaderTests
             // The frame before it read the still's exposure a moment after time 0.
             float step = (float)(frameTime - ReadingStepSeconds);
             float target = ExposureMeter.TargetStops(
-                trimmedMeanStops: ExposureMeter.TrimmedMeanStops(histogram, setting.DarkShare, setting.BrightShare),
+                reading: ExposureMeter.Reading(histogram, setting.DarkShare, setting.BrightShare),
                 usedStops: used,
                 compensationStops: setting.CompensationStops,
                 minStops: setting.MinStops,
@@ -111,6 +111,65 @@ public sealed class ExposureShaderTests
             );
 
             Math.Sign(target - used).Should().Be(rising ? 1 : -1, "the view changed in that direction");
+            next.Should().BeApproximately(expected, StopsTolerance);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheAdaptStepTakesTheHighlightTargetAsTheCSharpCopyDoes()
+    {
+        // A compensation, so that the shader must add it after it takes the lower target, as the C# copy does. Time
+        // constants of 0, so that the step reaches the target and the test pins the target itself, not 1 % of it.
+        AutoExposure setting = AutoExposure.Default with
+        {
+            CompensationStops = 0.5f,
+            IntoDarkSeconds = 0,
+            IntoLightSeconds = 0,
+        };
+        VulkanRenderer renderer = Renderer(setting);
+        try
+        {
+            RenderSnapshot snapshot = BrightObjectOverDarkGround(renderer);
+            Still(renderer: renderer, snapshot: snapshot, time: 0);
+            // Half the sun, so the square darkens by a stop and the target rises.
+            snapshot.Sun.Intensity /= 2;
+
+            const double frameTime = 1.0 / 30;
+            snapshot.Time = frameTime;
+            renderer.Render(snapshot, 1f);
+            uint[] histogram = renderer.ReadExposureHistogram();
+            snapshot.Time = 2 * frameTime;
+            renderer.Render(snapshot, 1f);
+            float used = renderer.LastFrameStats.Exposure!.Value.Stops;
+            snapshot.Time = 3 * frameTime;
+            renderer.Render(snapshot, 1f);
+            float next = renderer.LastFrameStats.Exposure!.Value.Stops;
+
+            float step = (float)(frameTime - ReadingStepSeconds);
+            (float TrimmedMeanStops, float BrightEdgeStops) reading = ExposureMeter
+                .Reading(histogram, setting.DarkShare, setting.BrightShare)!
+                .Value;
+            float target = ExposureMeter.TargetStops(
+                reading: reading,
+                usedStops: used,
+                compensationStops: setting.CompensationStops,
+                minStops: setting.MinStops,
+                maxStops: setting.MaxStops
+            );
+            float expected = ExposureMeter.Approach(
+                stops: used,
+                target: target,
+                intoDarkFactor: ExposureMeter.ApproachFactor(step, setting.IntoDarkSeconds),
+                intoLightFactor: ExposureMeter.ApproachFactor(step, setting.IntoLightSeconds)
+            );
+
+            (reading.BrightEdgeStops - reading.TrimmedMeanStops)
+                .Should()
+                .BeGreaterThan(-MathF.Log2(ExposureMeter.MiddleGray), "the highlight target must be the lower one");
             next.Should().BeApproximately(expected, StopsTolerance);
         }
         finally

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Tertius.Rendering;
@@ -53,20 +54,65 @@ internal static class ExposureMeter
         return (float)(weightedStops / kept);
     }
 
-    /// <summary>The target: middle gray for the trimmed mean, with the compensation, inside the clamp; the used stops when there is no mean.</summary>
+    /// <summary>
+    /// The bright edge: the pre-exposed luminance in stops at the (1 − brightShare) quantile of the counts, inside its
+    /// bin by the share of the bin's count below it; null when the histogram holds no count.
+    /// </summary>
+    public static float? BrightEdgeStops(ReadOnlySpan<uint> bins, float brightShare)
+    {
+        double total = 0;
+        foreach (uint count in bins)
+            total += count;
+        if (total == 0)
+            return null;
+
+        double high = (1 - brightShare) * total;
+        double end = 0;
+        for (int bin = 0; bin < bins.Length; bin++)
+        {
+            double start = end;
+            end += bins[bin];
+            // high lies above 0 and at most total, so exactly one bin with a count holds it.
+            bool holdsTheEdge = start < high && high <= end;
+            if (holdsTheEdge)
+                return (float)(LowestStops + (bin + (high - start) / bins[bin]) / BinsPerStop);
+        }
+
+        throw new UnreachableException();
+    }
+
+    /// <summary>The trimmed mean and the bright edge of a histogram, or null when it holds no count.</summary>
+    public static (float TrimmedMeanStops, float BrightEdgeStops)? Reading(
+        ReadOnlySpan<uint> bins,
+        float darkShare,
+        float brightShare
+    )
+    {
+        if (TrimmedMeanStops(bins, darkShare, brightShare) is not { } mean)
+            return null;
+        if (BrightEdgeStops(bins, brightShare) is not { } edge)
+            return null;
+        return (mean, edge);
+    }
+
+    /// <summary>
+    /// The target: the lower of the exposure that maps the trimmed mean to middle gray and the one that maps the bright
+    /// edge to 1, plus the compensation, inside the clamp; the used stops when there is no reading.
+    /// </summary>
     public static float TargetStops(
-        float? trimmedMeanStops,
+        (float TrimmedMeanStops, float BrightEdgeStops)? reading,
         float usedStops,
         float compensationStops,
         float minStops,
         float maxStops
     )
     {
-        if (trimmedMeanStops is not { } mean)
+        if (reading is not { TrimmedMeanStops: var mean, BrightEdgeStops: var edge })
             return usedStops;
-        // The frame shaded with usedStops, so the radiance's mean is the metered mean minus them.
-        float radianceMean = mean - usedStops;
-        return Math.Clamp(MathF.Log2(MiddleGray) - radianceMean + compensationStops, minStops, maxStops);
+        // The frame shaded with usedStops, so the radiance's stops are the metered stops minus them.
+        float averageTarget = MathF.Log2(MiddleGray) - (mean - usedStops);
+        float highlightTarget = -(edge - usedStops);
+        return Math.Clamp(MathF.Min(averageTarget, highlightTarget) + compensationStops, minStops, maxStops);
     }
 
     /// <summary>1 − exp(−seconds / timeConstant), in doubles: 0 for a step of 0 or less, 1 for an endless step or a time constant of 0.</summary>

@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 /// The BRDF tables of <see cref="BrdfTables.Shared"/> on the GPU, uploaded in the first frame and never changed
 /// (docs/plans/pbr-brdf.md, "The tables"). Vulkan requires linear filtering of both formats on every device.
 /// </summary>
-internal sealed unsafe class BrdfTableImages : IDisposable
+internal sealed class BrdfTableImages : IDisposable
 {
     private readonly VulkanDevice device;
     private bool uploaded;
@@ -51,10 +51,9 @@ internal sealed unsafe class BrdfTableImages : IDisposable
         barriers.Image(Dfg, ImageUse.TransferDestination, discard: true);
         barriers.Image(LobeSky, ImageUse.TransferDestination, discard: true);
         barriers.Flush(device.Vk, commandBuffer);
-        Copy(commandBuffer: commandBuffer, staging: staging, image: Dfg, texels: MemoryMarshal.AsBytes(tables.Dfg));
-        Copy(
+        staging.CopyToImage(commandBuffer: commandBuffer, image: Dfg, texels: MemoryMarshal.AsBytes(tables.Dfg));
+        staging.CopyToImage(
             commandBuffer: commandBuffer,
-            staging: staging,
             image: LobeSky,
             texels: MemoryMarshal.AsBytes(tables.LobeSky)
         );
@@ -63,31 +62,6 @@ internal sealed unsafe class BrdfTableImages : IDisposable
         barriers.Image(LobeSky, ImageUse.SampledFragment);
         barriers.Flush(device.Vk, commandBuffer);
         uploaded = true;
-    }
-
-    private void Copy(CommandBuffer commandBuffer, StagingArena staging, GpuImage image, ReadOnlySpan<byte> texels)
-    {
-        StagingSlice stage = staging.Allocate((ulong)texels.Length);
-        texels.CopyTo(stage.Bytes);
-        var region = new BufferImageCopy
-        {
-            BufferOffset = stage.Offset,
-            ImageSubresource = new(
-                aspectMask: ImageAspectFlags.ColorBit,
-                mipLevel: 0,
-                baseArrayLayer: 0,
-                layerCount: 1
-            ),
-            ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
-        };
-        device.Vk.CmdCopyBufferToImage(
-            commandBuffer: commandBuffer,
-            srcBuffer: stage.Buffer.Handle,
-            dstImage: image.Handle,
-            dstImageLayout: ImageLayout.TransferDstOptimal,
-            regionCount: 1,
-            pRegions: &region
-        );
     }
 
     public void Dispose()

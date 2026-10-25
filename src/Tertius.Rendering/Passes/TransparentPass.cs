@@ -4,8 +4,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Forward-shades transparent objects over the lit HDR image with the same lighting function, alpha-blended, and adds the
-/// puffs to it, sorted together back to front across all ranges (far range first). Each range draws its runs in order:
+/// Forward-shades transparent objects over the lit HDR image with the same lighting function, and adds the puffs to it,
+/// sorted together back to front across all ranges (far range first). A transparent object adds its light and multiplies
+/// what lies behind it by the share that it lets through (<see cref="BlendMode.Transmittance"/>). Each range draws its runs in order:
 /// a <see cref="MeshCommands"/> run with the transparent pipeline, and a <see cref="PuffSprites"/> run with the puff
 /// pipeline, one instanced draw of 6 vertices per puff. So glass dims a puff behind it and leaves one in front of it as
 /// it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth
@@ -34,7 +35,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             ColorFormats = [RenderTargets.HdrFormat],
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            Blend = BlendMode.Alpha,
+            Blend = BlendMode.Transmittance,
             Constants = constants,
         }.Create(device, shaders);
         puffPipeline = new GraphicsPipelineDesc

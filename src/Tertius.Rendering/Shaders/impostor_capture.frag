@@ -41,6 +41,8 @@ void main()
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
     shading.lobeSkyFraction =
         environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    // A capture has no screen around it for the occlusion passes to search.
+    shading.occlusion = 1.0;
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, SunShadowsNone, 1.0);
     outColor = vec4(color, 1.0);

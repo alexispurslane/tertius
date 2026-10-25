@@ -26,14 +26,19 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
-/// <item>Lighting: one fullscreen pass into the HDR target.</item>
+/// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
+/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
+/// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
 /// <item>Bloom (<see cref="BloomPass"/>), when <see cref="RendererOptions.Bloom"/> is on: the glow of the bright light
 /// in the bloom levels.</item>
-/// <item>Tone mapping into the swapchain image or the offscreen output, with the glow added before the tone curve.</item>
-/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
+/// <item>Tone mapping into the swapchain image or the offscreen output, or, with SMAA on, into the SMAA tone-mapped image,
+/// with the glow added before the tone curve.</item>
+/// <item>SMAA, when it is on (<see cref="SmaaPass"/>): edge detection, blending weights, and neighborhood blending into the
+/// output.</item>
+/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the output image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
@@ -71,6 +76,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly BrdfTableImages brdfTables;
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
+    private readonly OcclusionImages? occlusionImages;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureResources exposure;
@@ -114,16 +120,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materials = Own(new MaterialStore(device, Allocator));
             brdfTables = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
-            Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
-            targets = Own(
-                new RenderTargets(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    extent: extent,
-                    glowLevels: glowLevels
-                )
-            );
+            targets = CreateTargets(glowLevels: glowLevels, antiAliasing: options.AntiAliasing);
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
                 new ExposureResources(
@@ -139,6 +136,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
+            occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -296,8 +294,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
         if (options.Exposure.Problem is { } problem)
             throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (options.Bloom.Value is null)
-            throw new ArgumentException("Bloom must hold NoBloom or a Bloom.", nameof(options));
+        if (options.AmbientOcclusion.Problem is { } occlusionProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), occlusionProblem);
+        if (options.Bloom.Problem is { } bloomProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
+        if (!Enum.IsDefined(options.AntiAliasing))
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
+            );
         if (options.EnvironmentMap.Problem is { } mapProblem)
             throw new ArgumentOutOfRangeException(nameof(options), mapProblem);
     }
@@ -446,7 +451,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
             device.WaitIdle();
-            targets.Resize(image.Extent);
+            ResizeTargets(image.Extent);
         }
 
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
@@ -513,7 +518,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return new(new WithMap(faces, map.Latest));
     }
 
-    /// <summary>Records the command buffer of a frame: the uploads, the batch, the exposure's readback copy and the passes.</summary>
+    /// <summary>
+    /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's
+    /// readback copy and the passes.
+    /// </summary>
     private void RecordFrame(
         FrameResources frame,
         RenderSnapshot snapshot,
@@ -526,6 +534,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
+        // Before the frame graph, whose lighting pass reads the target, and whose occlusion passes overwrite it.
+        targets.RecordOcclusionClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials, textures);
         Batcher.Prepare(
             snapshot: snapshot,
@@ -633,6 +643,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
                 exposure.RecordSeed(
@@ -694,7 +705,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         device.WaitIdle();
         output.Resize(extent);
         if (output.Extent.Width > 0 && output.Extent.Height > 0)
-            targets.Resize(output.Extent);
+            ResizeTargets(output.Extent);
+    }
+
+    /// <summary>
+    /// Resizes the render targets and the occlusion images, whose sets point at the targets, to
+    /// <paramref name="extent"/>. The device must be idle.
+    /// </summary>
+    private void ResizeTargets(Extent2D extent)
+    {
+        if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
+            return;
+        targets.Resize(extent);
+        occlusionImages?.Resize(targets);
     }
 
     /// <summary>
@@ -722,7 +745,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 aspect: ImageAspectFlags.DepthBit,
                 layer: cascade,
                 level: 0,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -740,6 +763,42 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
 
         return depths;
+    }
+
+    /// <summary>
+    /// The occlusion target of the last frame, V from 0 to 1 per pixel, row by row from the top. A test hook: it waits for
+    /// the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadOcclusion()
+    {
+        GpuImage image = targets.Occlusion;
+        Extent2D extent = targets.Extent;
+        int count = (int)(extent.Width * extent.Height);
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: (ulong)count,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "occlusion readback"
+        );
+        SubmitAndWait(commandBuffer =>
+            CopyLayer(
+                commandBuffer: commandBuffer,
+                image: image,
+                aspect: ImageAspectFlags.ColorBit,
+                layer: 0,
+                level: 0,
+                extent: extent,
+                buffer: buffer
+            )
+        );
+
+        float[] occlusion = new float[count];
+        var stored = new ReadOnlySpan<byte>(buffer.Mapped, count);
+        for (int i = 0; i < count; i++)
+            occlusion[i] = stored[i] / 255f;
+        return occlusion;
     }
 
     /// <summary>
@@ -828,7 +887,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 aspect: ImageAspectFlags.ColorBit,
                 layer: (int)face,
                 level: level,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -874,7 +933,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 aspect: ImageAspectFlags.ColorBit,
                 layer: layer,
                 level: 0,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -887,7 +946,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Records the copy of mip <paramref name="level"/>, <paramref name="size"/> texels square, of one layer of
+    /// Records the copy of mip <paramref name="level"/>, of <paramref name="extent"/>, of one layer of
     /// <paramref name="image"/> into <paramref name="buffer"/>, and leaves the image in the state that the renderer's own
     /// barriers continue from.
     /// </summary>
@@ -897,7 +956,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ImageAspectFlags aspect,
         int layer,
         int level,
-        int size,
+        Extent2D extent,
         GpuBuffer buffer
     )
     {
@@ -915,7 +974,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 baseArrayLayer: (uint)layer,
                 layerCount: 1
             ),
-            ImageExtent = new((uint)size, (uint)size, 1),
+            ImageExtent = new(extent.Width, extent.Height, 1),
         };
         vk.CmdCopyImageToBuffer(
             commandBuffer: commandBuffer,
@@ -1062,6 +1121,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Environment = environmentMap,
         };
 
+    /// <summary>
+    /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
+    /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
+    /// </summary>
+    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing)
+    {
+        SmaaTables? smaaTables = antiAliasing switch
+        {
+            AntiAliasing.None => null,
+            AntiAliasing.Smaa => Own(new SmaaTables(device, Allocator)),
+        };
+        Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
+        return Own(
+            new RenderTargets(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                extent: extent,
+                glowLevels: glowLevels,
+                smaaTables: smaaTables
+            )
+        );
+    }
+
     /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
     private FrameResources[] CreateFrames(int framesInFlight)
     {
@@ -1166,18 +1249,75 @@ public sealed unsafe class VulkanRenderer : IRenderer
             NoEnvironmentMap => null,
         };
 
+    /// <summary>
+    /// Under <see cref="GroundTruthOcclusion"/>, makes the occlusion images, which the renderer owns, and adds the four
+    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoAmbientOcclusion"/>.
+    /// </summary>
+    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, AmbientOcclusionSetting setting) =>
+        setting switch
+        {
+            GroundTruthOcclusion occlusion => AddOcclusionPasses(shaders: shaders, setting: occlusion),
+            NoAmbientOcclusion => null,
+        };
+
+    /// <summary>
+    /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
+    /// <paramref name="setting"/> to the graph. Returns the images.
+    /// </summary>
+    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, GroundTruthOcclusion setting)
+    {
+        OcclusionImages images = Own(
+            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionDepthPass(device: device, shaders: shaders, layouts: layouts, images: images, setting: setting)
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionHorizonsPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionDenoisePass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionUpsamplePass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        return images;
+    }
+
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>
     private static int GlowLevelsOf(BloomSetting bloom) =>
         bloom switch
         {
             Bloom on => on.Levels,
             NoBloom => 0,
-            null => throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case."),
         };
 
     /// <summary>
     /// Adds the passes from lighting to the readback to the graph, each in its own stage, the exposure pass only under
-    /// <see cref="AutoExposure"/> and the bloom pass only with a <see cref="Bloom"/>.
+    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
+    /// on.
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
@@ -1194,22 +1334,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 FrameGraph.Stage.Exposure,
                 new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto)
             );
-        switch (options.Bloom)
-        {
-            case Bloom on:
-                Graph.Add(
-                    FrameGraph.Stage.Bloom,
-                    new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
-                );
-                break;
-            case NoBloom:
-                // No bloom pass: the tone map reads only the HDR image.
-                break;
-            case null:
-                throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case.");
-            default:
-                throw new UnreachableException();
-        }
+        if (options.Bloom is Bloom on)
+            Graph.Add(
+                FrameGraph.Stage.Bloom,
+                new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
+            );
         Graph.Add(
             FrameGraph.Stage.ToneMap,
             new ToneMapPass(
@@ -1218,9 +1347,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 outputFormat: output.Format,
                 curve: options.ToneCurve,
-                bloom: options.Bloom
+                bloom: options.Bloom,
+                smaa: targets.Smaa
             )
         );
+        if (targets.Smaa is { } smaa)
+            foreach (SmaaStep step in (SmaaStep[])[SmaaStep.Edges, SmaaStep.Weights, SmaaStep.Blending])
+                Graph.Add(
+                    FrameGraph.Stage.AntiAliasing,
+                    new SmaaPass(
+                        device: device,
+                        shaders: shaders,
+                        layouts: layouts,
+                        targets: smaa,
+                        step: step,
+                        outputFormat: output.Format
+                    )
+                );
         Graph.Add(
             FrameGraph.Stage.Overlay,
             new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)
