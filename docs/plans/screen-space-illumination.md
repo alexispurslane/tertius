@@ -1,6 +1,6 @@
 # Bounce light
 
-Ticket: `ter-a24f`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The design ticket is `ter-zi4i`. The user chose the design on 2026-10-25 in two steps, which the ticket's last two notes record. First: one estimate of the light around each point, gathered in the crease shadowing's slices with masks of sectors, from this frame's direct light, with a blur and nothing carried over between frames. Then, the same day: "near and far". The same estimate continues beyond the crease radius with rays through the reflections' depth pyramid, only in the directions that the near sectors leave open. This doc fills in the details. Three points are open, see "Open forks".
+Ticket: `ter-a24f`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The design ticket is `ter-zi4i`. The user chose the design on 2026-10-25 in two steps, which the ticket's last two notes record. First: one estimate of the light around each point, gathered in the crease shadowing's slices with masks of sectors, from this frame's direct light, with a blur and nothing carried over between frames. Then, the same day: "near and far". The same estimate continues beyond the crease radius with rays through the reflections' depth pyramid, only in the directions that the near sectors leave open. This doc fills in the details. Its three open points are settled, see "Settled forks".
 
 The doc is written against main at `bcaf139e`, which holds the crease shadowing ([ambient-occlusion.md](ambient-occlusion.md), `ter-b3h5`), and against five designs on their branches:
 
@@ -78,7 +78,7 @@ Today a surface gets light only straight from the sun, from local lights and fro
 3. Blur only: the crease shadowing's fixed noise and edge-aware blur. Nothing carries over between frames. (User)
 4. The far range reuses SSR's depth pyramid, its trace and its C# copy `ScreenRay`, with no second tracer. So the build waits for `ter-jxv9`. (User)
 5. The default radius is the orchestrator's pick from captures: "whatever feels most dramatic, but not overly so". (User) "The default radius and steps" says how the captures pick it.
-6. Before decision 1, the user chose XeGTAO's tuned set over the physical constants for darker creases (fork 1 of [ambient-occlusion.md](ambient-occlusion.md)). Sector masks replace the horizon angles that the set works on. Fork 1 below sorts its constants. (User)
+6. Before decision 1, the user chose XeGTAO's tuned set over the physical constants for darker creases (fork 1 of [ambient-occlusion.md](ambient-occlusion.md)). Sector masks replace the horizon angles that the set works on. "XeGTAO's tuned set in sector masks" sorts its constants, and the user then chose none of them (fork 1). (User)
 7. The ticket's and the epic's rules: a `RendererOptions` switch, the cost measured at 1080p, deterministic in tests, GPU pixel tests of the acceptance criteria, no reference images. (User)
 8. The decisions of [ambient-occlusion.md](ambient-occlusion.md) stay where this doc does not change them: half resolution (its decision 2), compute passes (3), XeGTAO as the reference (4), the estimate scales only the ambient light (5), the distance target and the G-buffer normals as the inputs (6), fixed spatial noise (7), no multi-bounce brightening (8), a union switch (9), one place in `lighting.glsl` where the estimate applies (14). (User and orchestrator)
 
@@ -851,7 +851,7 @@ Each value describes the frame whose G-buffer and direct passes finished, as the
 | The slope fudge | 0.05 | Lerps \|n_p\| 5 % toward 1 against an unexplained darkening on slopes | Scales a whole slice, its open and blocked sectors alike, so it moves no light between them, but the weights of a steep slice's directions then sum past their share of the hemisphere, up to 5 %. The darkening that it corrects was XeGTAO's horizons', and no measurement shows it in masks. | Contradicts, mildly |
 | The floor | V ≥ 0.03 | Forbids full occlusion | Adds open share to a fully blocked texel, so the shares sum past 1. It has no reason here: a fully blocked point gets the light of its blockers, so V = 0 is not black. | Contradicts |
 
-Two carry and five contradict. Fork 1 asks the user what to build.
+Two carry and five contradict. The user chose none of the seven (fork 1).
 
 ## The default radius and steps
 
@@ -861,7 +861,7 @@ Part 7 captures, headless with the real renderer, each looked at by the builder 
 
 - `demo-surface` (the cabin and the apron), `demo-exit`, `pbr-spheres`, and the two acceptance scenes of the GPU tests (the red wall and the raised box), as review captures.
 - Each at R of 0.5 m, 1 m, 1.457 m and 2 m, with `StepsPerSide` 3 and 6, and with the setting off.
-- With fork 1's two options and fork 2's options on the cabin and the red wall.
+- With fork 2's options on the cabin and the red wall.
 
 The orchestrator picks the radius and the steps by the user's words, "most dramatic, but not overly so". The pick has the strongest contact shadows and color bleeding that show no lines of light under walls, the sign of too few steps for the radius. It also shows no fixed pattern of the far rays in flat areas. Between two that look alike, the cheaper one wins, by the timings of "Cost". The user sees the picks with the captures.
 
@@ -975,7 +975,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `ALitRedWallTintsTheFloorBesideItRed` (User): a white floor and a red wall, both under the sun, a white ambient light. The red share of a pixel is R / (R + G + B). With the setting on, the floor pixels within 0.3 m of the wall have a red share at least 0.02 above two others: the same pixels with the setting off, and the floor pixels 3 m away.
 - `ASunlitFloorBrightensTheUndersideOfABoxAboveIt` (User): a box 0.3 m above a white sunlit floor, a black ambient light. The underside's pixels are 0 with the setting off, and above 0 in every pixel with it on.
 - `ASceneWithNoDirectLightGetsNoBounce` (User): the corner of the crease tests under only the ambient light. The estimate target's rgb is 0 in every pixel, bit for bit.
-- `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins fork 1's option A: the tuned set's power fails it.
+- `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins the one estimate: a power on V fails it.
 - `AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays`: a lit red wall 3 m from the floor's measured pixels, with R = 0.5 m. The red share rises with the setting on.
 - `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: the estimate's rgb is 0 at the floor, and V is that of an open floor within 0.02.
 - `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, the near estimate of the GPU, read with `ReadOcclusionTerm` after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, normals and direct image. Within one sector per slice, 1/32 of a slice's weight.
@@ -1057,7 +1057,7 @@ With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image
 | The environment map (`ter-nl5u`) | `ambientTerms`, `environmentAmbient`, the reflected stars' footprint, `directLight` | Its lighting pass becomes the ambient pass, which keeps its derivatives. Its known limit of the map's near surfaces meets decision 31 |
 | The lights (`ter-s9cv`) | `directLight`'s one loop, G-buffer binding 8 | Its loop runs in the direct pass. The direct image takes binding 9 |
 | The shader audit (`ter-lozc`) | `MaxRadiance`, `exposed` | The two passes keep the surfaces' share by "The cap at `MaxRadiance`". Its tables gain this doc's rows |
-| XeGTAO's tuned set (`ter-sdks`) | The seven constants | Fork 1 decides what of it this ticket builds, inside the sector pass. `ter-sdks` closes as merged into this ticket, or with what the user chooses |
+| XeGTAO's tuned set (`ter-sdks`) | The seven constants | The user chose none of it (fork 1). `ter-sdks` closes unbuilt |
 | The profile of the occlusion passes (`ter-izsu`) | The upsample, now in four channels, and the new passes | It profiles the passes of this design |
 | The snapshot tests (`ter-rtxu`) | The deterministic switch | The estimate has no temporal part, so it needs no case of that switch |
 | The atmosphere (`ter-6vhj`) | The ambient source | Its sky light is what open directions get |
@@ -1257,40 +1257,26 @@ internal sealed class DepthPyramidImage : IDisposable
 
 ### Part 7: the cost, the captures, the defaults and the docs
 
-- The cost first, on a quiet machine, by "Cost". The captures of "The default radius and steps", with fork 1's and fork 2's options. The orchestrator picks the defaults, and the user sees them and decides the forks.
+- The cut of `ter-izsu` comes first (see "Settled forks", "The cost"). Then the cost, on a quiet machine, by "Cost", and the captures of "The default radius and steps", with fork 2's options. The orchestrator picks the defaults, and the user sees them and decides fork 2.
 - Files: the docs of "Doc changes", `VisibilityBitmaskLight.Default` by the pick, and the forks' choices.
 - Done: ARCHITECTURE.md matches the code, with the measured cost. The ticket closes after the merge into main.
 
-## Open forks
+## Settled forks
+
+The user and the orchestrator settled the three forks on 2026-10-25. The ticket's notes have the user's words.
 
 ### 1. XeGTAO's tuned set in sector masks
 
-The user chose the tuned set for darker creases before choosing the one estimate. Two of its constants carry into sector masks and five contradict the estimate (see "XeGTAO's tuned set in sector masks").
-
-| Option | What it gives | What it costs |
-|---|---|---|
-| A. Keep the two that carry and drop the five (Recommended) | The steps bunched by a power of 2, and the radius multiplier as a longer default radius among the captures. The one estimate holds exactly: no light lost or counted twice, the furnace test passes, and a crease is as dark as its blocked share, filled by its blockers' light. | Creases lighter than the tuned GTAO that the user chose, by the power of 2.2: at V = 0.5, the sky's share is 0.5 where the tuned set gives 0.22. The drama comes from the radius, the steps and the bounce's color. `ter-sdks` closes with two of its seven constants built. |
-| B. Keep all seven | The falloff weights each step's newly blocked share and light. The power, the small-radius term and the floor apply to V after the estimate. The slope fudge scales each slice's weight. The creases of the tuned set, as dark as the user chose. | The estimate loses light: (V − V^2.2) of the ambient light goes to no blocker, 28 % of the hemisphere at V = 0.5. Blockers between 0.385 R and R count partly in neither range. The floor, the small-radius term and the fudge count light twice in small amounts. The furnace test fails and goes. |
-
-Recommended: A. The user's later decision says that light is never counted twice or lost, and B breaks it in a way that grows with the darkness that it adds. The captures of Part 7 show both on the cabin and the red wall, with A at the radius that the orchestrator picks.
+None of the seven, by the user: "Let's just not do the tuned set". The sector masks keep the physical constants: even steps, no falloff, no power on V, no small-radius term, no slope fudge and no floor. The radius multiplier has no constant of its own, because the captures of Part 7 pick the radius. `InAFurnaceACreaseGetsTheLightOfTheOpenFloor` pins the one estimate. `ter-sdks` closes unbuilt.
 
 ### 2. The number of far rays
 
-The far rays carry the binary noise of the estimate, and most of its new cost.
-
-| Option | What it gives | What it costs |
-|---|---|---|
-| A. One per slice: 3 per texel at the defaults (Recommended) | Each slice's open sectors decided by their own ray, along that slice. A noise of about 0.06 to 0.09 of the open share after the blurs, where far blockers cover half of it | 1.56 million rays at 1080p, expected 1.1 to 3.4 ms |
-| B. One per texel, through an open sector of any slice, picked by its weight | A third of the rays and of their cost, expected 0.4 to 1.1 ms | √3 times the noise, about 0.1 to 0.16 of the open share. A slice whose open sectors face a far wall takes the outcome of a ray along another slice |
-| C. One per slice and side | Least noise where a far blocker stands on one side only, a cliff or a wall, about 0.04 to 0.06 | Twice A's rays, expected 2.2 to 6.8 ms |
-
-Recommended: A, because under a blur only, the noise is the larger risk to the look, and its cost is within reach of the levers in "Cost". Part 7 measures A and B and shows both on the cabin and the red wall, so the user weighs the look against the time.
+Decided from the captures and the measured cost of Part 7, as the fork's text says. The build makes option A, one ray per slice. Part 7 measures A and B and shows both on the cabin and the red wall, and the user weighs the look against the time.
 
 ### 3. The split with the switch off
 
-| Option | What it gives | What it costs |
-|---|---|---|
-| A. The direct and ambient passes in both cases (Recommended) | One frame graph and one shader path for every setting, as the occlusion target existed in both cases of GTAO (its decision 27). The image with the switch off differs from today's only by one rounding of the direct light. | About 0.3 to 0.7 ms and 31.1 MB at 1080p over today, with the switch off, for nothing that the image shows |
-| B. Today's single lighting pass with the switch off | The frame from before, bit for bit and at its cost | Two lighting paths: two pipelines or a specialization constant, and the reference images and the tests see only one of them. A change to the ambient light must keep both in step. |
+Option A, the direct and ambient passes in both cases, settled by the orchestrator by the rule to start from one model and add an exception only for a misbehavior that can be named. Part 7 measures the cost with the switch off, and that number can name the exception later.
 
-Recommended: A, by the rule to start from one model and add an exception only for a misbehavior that can be named. B's misbehavior is a cost, which the measurement of Part 7 names: if the user finds 0.3 to 0.7 ms too much in a frame that does not show the effect, B is the exception.
+### The cost
+
+The arithmetic of "Cost" gives 4.0 to 8.4 ms for the occlusion passes at 1080p, far over the 1 ms limit. The user chose to build as designed, then cut: after Part 6, ticket `ter-izsu` measures the passes on a quiet machine and tries the three levers of "Cost", each with captures, before Part 7 picks the defaults.
