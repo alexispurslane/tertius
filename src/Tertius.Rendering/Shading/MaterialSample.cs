@@ -54,12 +54,37 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         BrdfTables tables
     )
     {
-        double nDotV = ViewCosine(normal, toView);
-        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(nDotV: nDotV, roughness: Lobe.Roughness);
-        Double3 specularAlbedo = One * schlickPart + F0 * (lobeAlbedo - schlickPart);
         Double3 diffuse = DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare);
-        Double3 specular = specularAlbedo * EnergyCompensation(lobeAlbedo) * Double3.Lerp(ground, sky, lobeSkyShare);
+        Double3 specular =
+            CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables)
+            * Double3.Lerp(ground, sky, lobeSkyShare);
         return diffuse + specular;
+    }
+
+    /// <summary>
+    /// E · c, the compensated specular albedo per channel: the share of a uniform light that the specular part sends
+    /// toward <paramref name="toView"/>. It weights the ambient specular term, and a pane lets through what it leaves.
+    /// </summary>
+    public Double3 CompensatedSpecularAlbedo(Double3 normal, Double3 toView, BrdfTables tables)
+    {
+        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(
+            nDotV: ViewCosine(normal, toView),
+            roughness: Lobe.Roughness
+        );
+        return (One * schlickPart + F0 * (lobeAlbedo - schlickPart)) * EnergyCompensation(lobeAlbedo);
+    }
+
+    /// <summary>
+    /// T = (1 − opacity)(1 − E · c), per channel and clamped to [0, 1]: the share of the light behind a pane of this
+    /// material that passes through it toward <paramref name="toView"/> (ARCHITECTURE.md, "Transparent objects").
+    /// </summary>
+    /// <param name="opacity">The base color's alpha, clamped to [0, 1] as the transparent pass clamps it.</param>
+    public Double3 Transmittance(double opacity, Double3 normal, Double3 toView, BrdfTables tables)
+    {
+        Double3 passed =
+            (1 - Math.Clamp(opacity, 0, 1))
+            * (One - CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables));
+        return new(Math.Clamp(passed.X, 0, 1), Math.Clamp(passed.Y, 0, 1), Math.Clamp(passed.Z, 0, 1));
     }
 
     /// <summary>μ, the cosine of the view direction to the normal, with its floor.</summary>

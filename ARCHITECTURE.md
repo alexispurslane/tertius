@@ -836,7 +836,7 @@ The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes
 5. Impostor captures.
 6. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
 7. The lighting pass, into the HDR target.
-8. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
+8. The transparent forward pass: the transparent instances, with the glass blend (see "Transparent objects" below), and the puffs, added, in one order from back to front.
 9. The exposure pass, under `AutoExposure`: the meter of the HDR image and the adapt step, which writes the exposure of the next frame (see "Exposure"). `FixedExposure` adds no exposure pass.
 10. Bloom, when `RendererOptions.Bloom` is on: the glow of the light brighter than white, in the bloom levels (see "Bloom" below). It comes after the last pass that writes the HDR image, so that every bright thing glows, the transparent ones and the puffs too. It comes after the exposure pass because both only read the HDR image, and this order changes the image's use once, from the meter's compute read to the fragment reads of the bloom and the tone map.
 11. Tone mapping: the glow added by its strength, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding. The shading passes pre-expose the light that they write, so the tone map multiplies by no exposure.
@@ -1166,7 +1166,7 @@ ambient = c_diff · mix(ground, sky, s_n) + E(μ, r) · c(μ, r) · mix(ground, 
 
 where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum. (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
 
-`surfaceRadiance` in `lighting.glsl` returns pre-exposed light: min(k · (ambient + sun + lights) + emission, 65,504) per channel, where k is the scale of the frame's exposure (see "Exposure"). The emission term is already pre-exposed by the caller. The lighting pass, the transparent pass and the impostor capture write its result, and the impostor capture passes a k of 1, so the atlas stores radiance (see "Exposure"). 65,504 is the largest finite half float, and `MaxRadiance` in `exposure.glsl` holds it. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
+`surfaceRadiance` in `lighting.glsl` returns pre-exposed light: min(k · (ambient + sun + lights) + emission, 65,504) per channel, where k is the scale of the frame's exposure (see "Exposure"). The emission term is already pre-exposed by the caller. The lighting pass and the impostor capture write its result, and the impostor capture passes a k of 1, so the atlas stores radiance (see "Exposure"). The transparent pass writes the same pre-exposed sum with its diffuse part scaled, through `lobesRadiance`, which takes the lobes as an argument, and caps it lower, so that the blend stays finite (see "Transparent objects" below). 65,504 is the largest finite half float, and `MaxRadiance` in `exposure.glsl` holds it. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
 
 The G-buffer has these targets:
 
@@ -1179,8 +1179,6 @@ The G-buffer has these targets:
 | Distance | R32F | Distance from the eye. Zero is sky. |
 
 The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, binding 10 an immutable sampler with linear filtering, clamping and one level, and binding 11 the exposure buffer (see "Exposure"). The `params.x` of the frame constants once held a copy of the exposure that no shader read. It is unused now, because a second store can disagree with the first.
-
-Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
@@ -1195,6 +1193,20 @@ The hemisphere ambient light needs an up, and each instance takes it from the gr
 The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
 
 The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes.
+
+#### Transparent objects
+
+Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer. The opacity is the alpha of the base color, clamped to [0, 1].
+
+The rule for glass is Filament's transparent mode, with a transmittance that follows the reflection (user, 2026-10-25). The reflection happens at the surface, whatever the glass lets through, so the specular part of every light and of the ambient light adds in full, and so does the emission. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales by the opacity: `transparent.frag` multiplies the lobes' diffuse color by it before `lobesRadiance`. The glass lets through what it neither reflects nor scatters:
+
+T = clamp((1 − opacity) · (1 − E(μ, r) · c(μ, r)), 0, 1) per channel
+
+where E · c is the compensated specular albedo that weights the ambient specular term (`compensatedSpecularAlbedo` in `lighting.glsl`). So glass of opacity 0 and reflectance 1 (F0 = 0.16) lets through about 84 % head-on, and turns into a mirror at grazing angles. An opacity of 1 hides what lies behind.
+
+The blend is dual-source, `BlendMode.Transmittance`: the shader writes the radiance to output 0 (location 0, index 0) and T to output 1 (index 1), and the target becomes output 0 · One + target · Src1Color. The target's alpha stays as it is, because nothing reads it. The renderer requires the device feature `dualSrcBlend`, which Metal provides, and refuses a device without it. Output 0 is the pre-exposed radiance (see "Pre-exposure") clamped to 65,504 · (1 − T) per channel, so output 0 plus a target of at most 65,504 times T stays at most 65,504. A device may store a larger sum as infinity, which the tone curve turns into NaN (see `surfaceRadiance` above). 1 − T is at least the larger of the opacity and E · c, so for the demo's glass of opacity 0.2 the cap binds only on pre-exposed light above 13,100, which tone-maps to white either way. The exposure applies to output 0, as to every pass's radiance, and never to T, which is a fraction. `MaterialSample.Transmittance` is the C# copy of T, and `GlassRenderTests` pins the shader to it. A transparent object never becomes an impostor, so the capture has no glass.
+
+The glass blend costs nothing that the GPU timers (see "GPU timings") can see. On `demo-exit.json` at 1920 × 1080 in Release, two runs per build, with the 1-minute load from 5.2 to 7.1, the transparent pass took a mean of 0.335 and 0.334 ms (p95 1.322 and 1.322 ms) before, and 0.334 and 0.336 ms (p95 1.326 and 1.330 ms) after. The difference of the means is no larger than the difference between two runs of one build.
 
 #### Cost of the BRDF
 
@@ -1225,7 +1237,7 @@ The renderer draws each puff of the snapshot (see "Puffs in the snapshot") as a 
 
 The batcher leaves out a puff whose look index is outside `PuffLooks`, whose look holds no shading (a free entry of the look table holds none), whose position or radius is not finite, whose radius is 0 or less, or whose sphere is outside the frustum. It writes one `GpuPuff` of 32 bytes for each puff that it keeps, in the order of the runs: `positionRadius`, and `colorKind`, whose `w` holds the case, 0 for glow and 1 for lit, as `GpuInstance` packs the case of `HemisphereUp`. The records go into a storage buffer of the frame set, binding 7, which grows by doubling as the instance buffer does. `RenderStats.Puffs` counts the drawn puffs.
 
-The puff pipeline is `puff.vert` and `puff.frag`, with no vertex input, no face culling, depth clamping on, and `BlendMode.Additive`. `GraphicsPipelineDesc.Blend` is an enum, `BlendMode`, with the cases `None`, `Alpha` and `Additive`, because no case carries a field. `Additive` adds the source color to the HDR target, with the factors One and One, and keeps the target's alpha. The vertex shader builds a square from the vertex index, centered on the puff, across the line of sight from the eye, with the radius as half its side. The fragment shader adds
+The puff pipeline is `puff.vert` and `puff.frag`, with no vertex input, no face culling, depth clamping on, and `BlendMode.Additive`. `GraphicsPipelineDesc.Blend` is an enum, `BlendMode`, with the cases `None`, `Alpha`, `Additive` and `Transmittance`, because no case carries a field. The outlines use `Alpha`, and the transparent instances `Transmittance`. `Additive` adds the source color to the HDR target, with the factors One and One, and keeps the target's alpha. The vertex shader builds a square from the vertex index, centered on the puff, across the line of sight from the eye, with the radius as half its side. The fragment shader adds
 
 color × (1 − ρ²)² × clamp((D − d) / r, 0, 1) × clamp(d / r, 0, 1)
 
@@ -1311,7 +1323,7 @@ Every pass that writes the HDR image or the emissive target writes pre-exposed l
 | G-buffer, the billboards | The emissive target: the capture's radiance | `preExposed` in `impostor.frag` |
 | Impostor captures | The atlas | Nothing: a scale of 1, so the atlas stores radiance |
 | Lighting | The HDR image: the reflected light, the sky, and the emission | `surfaceRadiance(..., exposureScale())` for a lit pixel, `preExposed(starField(direction))` for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
-| Transparent, a mesh | The HDR image, alpha-blended | `surfaceRadiance(..., s.emissive * k, ..., k)` |
+| Transparent, a mesh | The HDR image, with the glass blend: output 0, never the transmittance T | `lobesRadiance(..., s.emissive * k, ..., k)`, then the cap at 65,504 · (1 − T) |
 | Transparent, a puff | The HDR image, added | `preExposed` of the puff's light, in `puff.vert` |
 | Bloom | The bloom levels, from the pre-exposed HDR image | Nothing: the threshold compares the pre-exposed value directly |
 | Tone map | The output | Nothing |
