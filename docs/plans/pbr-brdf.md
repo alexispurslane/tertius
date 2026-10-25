@@ -62,7 +62,7 @@ The user made the decisions marked (User). This design settled the others by the
 16. The texture slots of `MaterialDesc` are renamed `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`, and the albedo target of the G-buffer becomes the base color target. For a metal, the base color is not an albedo, so the old name would name two things. The factor already holds the name `BaseColor`, and the content formats plan names its planned emissive slot `EmissiveMap`, so every slot ends in "Map".
 17. `Roughness` is a required field of `MaterialDesc`, and `MaterialDesc.Color` takes it. No roughness is neutral, so a default would be a convenience value. A new field of a seam type is required or defaults to its honest zero (project memory, "No test defaults in production"). `Metallic` defaults to its honest zero, a non-metal. `Reflectance` keeps the default of the field that it renames, 0.5, the reflectance of a common dielectric and of glTF's default index of refraction, 1.5.
 18. The reflectance has no map channel. glTF puts occlusion in the R channel of a packed map, and no producer has a reflectance map. The material's factor is the reflectance of every texel.
-19. The tables are computed once per process, on first use, into an immutable `BrdfTables.Shared`. Each renderer uploads them in its first frame. A test process creates many renderers, and each computation takes about 3 million BRDF samples.
+19. The tables are computed once per process, on first use, into an immutable `BrdfTables.Shared`. Each renderer uploads them in its first frame. A test process creates many renderers, and each computation takes about 50 million BRDF samples.
 20. The lit puffs do not change. A lit puff scatters the mean of a matte surface over every facing ([particles.md](particles.md), "Lit puffs"). The Lambert part of the new BRDF is that matte surface, so `scatteredLight` gives the same light.
 21. The six reference images of today's snapshot tests are re-rendered and re-approved, each with a real review. Every ground, wall, box and pane in them takes the new BRDF. Re-approval is not an addition, so the epic's rule of no new reference images holds.
 22. A scene of spheres, `pbr-spheres`, joins the demo for the screenshots. The demo has no metal, so without it no screenshot shows the acceptance criteria.
@@ -127,11 +127,11 @@ Both tables integrate the GGX lobe with the same sample sequence. The C# copy co
 |---|---|
 | Size | 32 × 32 texels |
 | Format | R16G16_SFLOAT |
-| Across, u | μ. Texel i holds μ = (i + 0.5) / 32. |
-| Down, v | r. Row j holds r = (j + 0.5) / 32. Row 0 is the first row of the image. |
+| Across, u | μ. Texel i holds μ = i / 31, so the first texel holds 0 and the last 1. |
+| Down, v | r. Row j holds r = j / 31. Row 0 is the first row of the image. |
 | R | The Schlick part S(μ, r) |
 | G | The lobe albedo E₁(μ, r) |
-| Sampling | Linear, clamp to edge, at (μ, r), level 0. Each texel holds the integral at its center, so (μ, r) is the texture coordinate itself. |
+| Sampling | Linear, clamp to edge, level 0, at the texture coordinate (31 (μ, r) + 0.5) / 32. See "Sampling the tables". |
 
 The two channels are those of Filament's table for multiple scattering, after Karis's split sum (Karis 2013, "Real Shading in Unreal Engine 4"):
 
@@ -141,7 +141,7 @@ S(μ, r)  = ∫ D · Vis · (n·l) · (1 − v·h)⁵ dω_l
 E(μ, r)  = F0 · E₁ + (1 − F0) · S = S + F0 · (E₁ − S)
 ```
 
-The resolution: the steepest part of the table is S at small roughness, which tends to (1 − μ)⁵. Its second derivative is at most 20, so bilinear filtering between texel centers 1/32 apart errs by at most 20 · (1/32)² / 8, about 0.0024. That is less than one step of an 8-bit output, 0.0039. Half floats hold 11 bits of mantissa, a relative error of about 5 · 10⁻⁴, and every Vulkan device filters R16G16_SFLOAT and R16_SFLOAT linearly. 32-bit floats need an optional feature to filter.
+The resolution: the steepest part of the table is S at small roughness, which tends to (1 − μ)⁵. Its second derivative is at most 20, so bilinear filtering between texels 1/31 apart errs by at most 20 · (1/31)² / 8, about 0.0026. That is less than one step of an 8-bit output, 0.0039. Half floats hold 11 bits of mantissa, a relative error of about 5 · 10⁻⁴, and every Vulkan device filters R16G16_SFLOAT and R16_SFLOAT linearly. 32-bit floats need an optional feature to filter.
 
 #### The lobe-sky table
 
@@ -149,12 +149,26 @@ The resolution: the steepest part of the table is S at small roughness, which te
 |---|---|
 | Size | 64 × 32 texels |
 | Format | R16_SFLOAT |
-| Across, u | (cos + 1) / 2, where cos is d·up. Texel i holds cos = 2 (i + 0.5) / 64 − 1. |
-| Down, v | r. Row j holds r = (j + 0.5) / 32. |
+| Across, u | (cos + 1) / 2, where cos is d·up. Texel i holds cos = 2 i / 63 − 1, from −1 to 1. |
+| Down, v | r. Row j holds r = j / 31. |
 | R | The lobe's sky share for that tilt and roughness |
-| Sampling | Linear, clamp to edge, at ((cos + 1) / 2, r), level 0 |
+| Sampling | Linear, clamp to edge, level 0, at the texture coordinate (63 (cos + 1) / 2 + 0.5) / 64 across and (31 r + 0.5) / 32 down |
 
-Under the split-sum assumption, the lobe is the lobe of n = v, centered on the mirror direction, which is then n itself. Its sky share depends only on the angle between that center and up, and on r. At small roughness the share is a step at the horizon. 64 texels across make one texel 1/32 of the cosine, about 1.8° of elevation at the horizon, so the step blurs over less than 2°. The rows follow the DFG table.
+Under the split-sum assumption, the lobe is the lobe of n = v, centered on the mirror direction, which is then n itself. Its sky share depends only on the angle between that center and up, and on r. At small roughness the share is a step at the horizon. 64 texels across make one texel 2/63 of the cosine, about 1.8° of elevation at the horizon, so the step blurs over less than 2°. The rows follow the DFG table.
+
+#### Sampling the tables
+
+The texels of each axis span its range from end to end, so r = 1, μ = 1 and cos = ±1 read exact values, not the value of the nearest texel center. A value x from 0 to 1 on an axis of n texels has the texture coordinate
+
+```
+coordinate(x, n) = ((n − 1) · x + 0.5) / n
+```
+
+- DFG table: `texture(dfg, vec2(31 μ + 0.5, 31 r + 0.5) / 32)`.
+- Lobe-sky table: `texture(lobeSky, vec2((63 (cos + 1) / 2 + 0.5) / 64, (31 r + 0.5) / 32))`.
+- The C# copy names the formula `BrdfTables.TexelCoordinate`, and its inverse, the value that a texel holds, `BrdfTables.TexelValue`.
+
+With texel centers at (i + 0.5) / 32, which an earlier version of this doc used, every r above 0.984 read the last row. E₁ falls steeply there, so a white metal at r = 1 reflected only 94 % head on.
 
 #### Computing them
 
@@ -182,10 +196,10 @@ Lobe-sky texel (cos, r), α = r², v = n = +Z, up = (sqrt(1 − cos²), 0, cos):
   share = above / total
 ```
 
-- N is 1,024 samples per texel, as in Filament. The Hammersley set (Hammersley and Handscomb 1964) is a fixed low-discrepancy sequence, so its error is near 10⁻³ for these smooth integrals, and the tables are the same on every run.
+- N is 16,384 samples per texel. The Hammersley set (Hammersley and Handscomb 1964) is a fixed low-discrepancy sequence, so the tables are the same on every run. Against 2¹⁷ samples, its largest error is 0.0029 in the DFG table, at grazing views (μ < 0.2), where the integrand changes steeply near the horizon, and below 10⁻³ elsewhere. In the lobe-sky table it is 0.0015. Both are under one 8-bit step, 1/255. Filament's 1,024 samples err by up to 0.011 at grazing views, about 3 steps.
 - The GGX half vectors are drawn with density D(h) (n·h) (Walter and others 2007), so w is the estimator of the integrand over that density. The lobe-sky weights by n·l, as Karis's prefiltering does.
-- The work is (32 × 32 + 64 × 32) × 1,024, about 3.1 million samples, in doubles, then rounded to half floats.
-- Determinism. Each texel sums its samples in the order of k, so its value is the same bits on every run. No texel reads another, so rows may run on several threads without a change of value. Part 1 measures the time on one thread. If it is over 100 ms, the rows run in parallel. `Math.Sin` and `Math.Cos` may differ in the last bit between platforms; the reference images come from one machine anyway (ARCHITECTURE.md, "Snapshot tests").
+- The work is (32 × 32 + 64 × 32) × 16,384, about 50 million samples, in doubles, then rounded to half floats. In Release on the 10-core Apple M1 Max it takes 880 ms on one thread and 130 ms with the rows in parallel, once per process, at a 1-minute load of 8.4.
+- Determinism. Each texel sums its samples in the order of k, so its value is the same bits on every run. No texel reads another, and each writes only its own slot, so the rows run in parallel without a change of value, whatever the number of threads or their order. `Math.Sin` and `Math.Cos` may differ in the last bit between platforms; the reference images come from one machine anyway (ARCHITECTURE.md, "Snapshot tests").
 
 ### The energy compensation
 
@@ -451,7 +465,7 @@ internal sealed class BrdfTables
     public const int DfgSize = 32;
     public const int LobeSkyWidth = 64;
     public const int LobeSkyHeight = 32;
-    public const int SamplesPerTexel = 1024;
+    public const int SamplesPerTexel = 16384;
 
     public static BrdfTables Shared { get; }   // computed on first use, thread-safe
 
@@ -460,7 +474,10 @@ internal sealed class BrdfTables
     public ReadOnlySpan<Half> Dfg { get; }       // DfgSize² texels of two halves, (S, E₁), row by row from r = 0
     public ReadOnlySpan<Half> LobeSky { get; }   // LobeSkyWidth × LobeSkyHeight halves, row by row from r = 0
 
-    /// <summary>Bilinear between texel centers, clamped at the edges, as the GPU samples.</summary>
+    public static double TexelValue(int index, int texelCount);           // index / (texelCount − 1)
+    public static double TexelCoordinate(double value, int texelCount);   // ((texelCount − 1) value + 0.5) / texelCount
+
+    /// <summary>Bilinear between texels at TexelCoordinate, clamped at the ends, as the GPU samples.</summary>
     public (double SchlickPart, double LobeAlbedo) SampleDfg(double nDotV, double roughness);
     public double SampleLobeSky(double cosine, double roughness);
 
@@ -588,14 +605,17 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 
 `BrdfTablesTests`:
 
-- `EachDfgTexelHoldsTheIntegralsAtItsCenterWithinOneThousandth`: a spread of texels against the midpoint quadrature.
+- `EachDfgTexelHoldsTheIntegralsAtItsPointWithinOneThousandthOrOneEightBitStepAtGrazingViews`: a spread of texels against the midpoint quadrature, within 10⁻³, and within 1/255 where μ < 0.2.
+- `EachLobeSkyTexelHoldsTheLobesSkyShareAtItsPointWithinOneEightBitStep`: a spread of texels against the midpoint quadrature.
 - `AtNormalIncidenceAndRoughnessOneTheLobeAlbedoIsOneMinusLnTwo`: `IntegrateDfg(1, 1)`. With α = 1 and v = n, D is 1/π, the mirror of h at θ_h lies at 2θ_h, and the integral comes to 1 − ln 2 in closed form.
-- `TheSmoothestRowReflectsEverythingAndItsSchlickPartIsOneMinusMuToTheFifth`.
-- `ARougherLobeNeverReflectsMore`: E₁ falls down each column, within 10⁻³.
+- `TheSmoothestRowReflectsEverythingAndItsSchlickPartIsOneMinusMuToTheFifth`, except at μ = 0, where the mirror direction lies on the horizon and v·h is the lobe's width, not μ.
+- `OutsideGrazingViewsARougherLobeNeverReflectsMore`: E₁ falls down each column where μ ≥ 0.1, within 10⁻³. Below μ = 0.1, E₁ dips and rises again with roughness, by up to 0.012 at μ = 1/31. The independent quadrature finds the same rise, so it belongs to the height-correlated GGX lobe.
 - `ASmoothLobeSeesOnlyTheSkyAboveTheHorizonAndOnlyTheGroundBelow`: the first row of the lobe-sky table is 0 below the horizon and 1 above it.
 - `TheSkySharesOfATiltAndOfItsMirrorTiltAddUpToOne`: within 2 · 10⁻³, the error of the sample set.
 - `TheLobesSkyShareRisesAsTheLobeTiltsUp`.
-- `SamplingBetweenTexelCentersIsBilinearAndClampsAtTheEdges`.
+- `TheTexelCoordinateOfATexelsValueIsTheCenterOfThatTexel`.
+- `TheEndsOfEachAxisReadTheirTexelsExactly`.
+- `SamplingBetweenTexelsIsBilinearAndClampsBeyondTheEnds`.
 - `TwoComputationsGiveTheSameBits`.
 
 ### The GPU test that pins the shaders to the C# copy
