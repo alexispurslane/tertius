@@ -662,7 +662,9 @@ internal readonly partial struct FrameClock
 
 A GPU test drives the film clock through `RenderSnapshot.Time`, which tests set per frame.
 
-## Open fork: a headless still after a long step
+## A headless still after a long step
+
+The user chose option B, the metering draw, on 2026-10-25. (User)
 
 A frame is shaded with the exposure that the frame before it decided. In a window or a film, the step is a frame time, and a lag of one frame does not show. A headless still can come after a long step: the first capture of a run, or a capture after a camera step and a run of seconds, as `scripts/demo-surface.json` takes. Such a still is shaded with the exposure of the view before the camera step, and its own view's exposure shows only in the next frame, which a still never has. The ticket's decisions do not say what a still shows, and the answer changes the screenshots that the user reviews.
 
