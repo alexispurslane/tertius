@@ -1,12 +1,13 @@
 ---
 id: ter-yiii
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-11T22:48:45Z
 type: task
 priority: 3
 assignee: Alexis Purslane
+parent: ter-sglu
 tags: [rendering, performance]
 ---
 # Add GPU timestamp queries to the render statistics, so each pass's cost can be measured
