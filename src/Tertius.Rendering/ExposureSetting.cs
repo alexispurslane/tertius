@@ -6,8 +6,8 @@ public readonly record struct FixedExposure(float Stops);
 
 /// <summary>
 /// An exposure that follows the brightness of the surfaces in view over time (docs/plans/auto-exposure.md). The meter
-/// maps the trimmed mean of the log luminance of the surface pixels to middle gray, and the exposure approaches that
-/// target with a time constant for each direction.
+/// maps the surface pixels' trimmed mean to middle gray, or their bright edge to 1 when that is lower, and the exposure
+/// approaches that target with a time constant per direction.
 /// </summary>
 /// <param name="MinStops">The lowest exposure, in stops, from −64 to <paramref name="MaxStops"/>.</param>
 /// <param name="MaxStops">The highest exposure, in stops, up to 64.</param>

@@ -4,8 +4,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The C# copy of the exposure's meter and approach (docs/plans/auto-exposure.md, "The math"): the bin of a luminance,
-/// the trimmed mean of a histogram, the target that maps it to middle gray inside the clamp, and the frame-rate
-/// independent approach toward it with one time constant per direction.
+/// the trimmed mean and the bright edge of a histogram, the target that maps the mean to middle gray or the bright edge
+/// to 1, whichever is lower, inside the clamp, and the frame-rate independent approach toward it with one time constant
+/// per direction.
 /// </summary>
 public sealed class ExposureMeterTests
 {
@@ -102,13 +103,65 @@ public sealed class ExposureMeterTests
         ExposureMeter.TrimmedMeanStops(Histogram(), darkShare: 0.1f, brightShare: 0.1f).Should().BeNull();
 
     [Fact]
-    public void TheTargetMapsTheTrimmedMeanToMiddleGray()
+    public void TheBrightEdgeLiesInsideItsBinByTheShareOfTheBinBelowTheEdge() =>
+        ExposureMeter
+            .BrightEdgeStops(Histogram((100, 80), (120, 20)), brightShare: 0.15f)
+            .Should()
+            .BeApproximately(
+                ExposureMeter.BinCenterStops(120) - BinWidth / 2 + BinWidth / 4,
+                1e-5f,
+                "the edge at 85 of the 100 pixels lies 5 of the 20 pixels of bin 120 up from its lower edge"
+            );
+
+    [Fact]
+    public void WithNoBrightShareTheBrightEdgeIsTheTopOfTheBrightestBin() =>
+        ExposureMeter
+            .BrightEdgeStops(Histogram((100, 80), (120, 20)), brightShare: 0)
+            .Should()
+            .BeApproximately(ExposureMeter.BinCenterStops(120) + BinWidth / 2, 1e-5f);
+
+    [Fact]
+    public void AHistogramWithNoCountHasNoReading() =>
+        ExposureMeter.Reading(Histogram(), darkShare: 0.1f, brightShare: 0.1f).Should().BeNull();
+
+    [Fact]
+    public void WhenATenthOrMoreOfTheSurfaceIsFarBrighterTheTargetMapsTheBrightEdgeToOne()
+    {
+        const float used = 1.5f;
+        // The bright 15 % lie 10 stops above the rest, so their edge lies far more than 2.47 stops above the mean.
+        (float TrimmedMeanStops, float BrightEdgeStops) reading = ExposureMeter
+            .Reading(Histogram((100, 85), (180, 15)), darkShare: 0.1f, brightShare: 0.1f)!
+            .Value;
+
+        float target = ExposureMeter.TargetStops(
+            reading: reading,
+            usedStops: used,
+            compensationStops: 0,
+            minStops: -8,
+            maxStops: 8
+        );
+
+        MathF
+            .Pow(2, reading.BrightEdgeStops - used + target)
+            .Should()
+            .BeApproximately(1, 1e-5f, "the bright area sits at the start of the tone curve's shoulder");
+        MathF
+            .Pow(2, reading.TrimmedMeanStops - used + target)
+            .Should()
+            .BeLessThan(
+                ExposureMeter.MiddleGray,
+                "the highlight target is the lower one, so the mean falls below gray"
+            );
+    }
+
+    [Fact]
+    public void WhenTheBrightEdgeShowsBelowOneAtTheAverageTargetTheTargetMapsTheTrimmedMeanToMiddleGray()
     {
         const float used = 1.5f;
         const float mean = -3;
 
         float target = ExposureMeter.TargetStops(
-            trimmedMeanStops: mean,
+            reading: (TrimmedMeanStops: mean, BrightEdgeStops: mean + 2),
             usedStops: used,
             compensationStops: 0,
             minStops: -8,
@@ -118,7 +171,31 @@ public sealed class ExposureMeterTests
         MathF
             .Pow(2, mean - used + target)
             .Should()
-            .BeApproximately(ExposureMeter.MiddleGray, 1e-6f, "the radiance's mean at the target shows as middle gray");
+            .BeApproximately(
+                ExposureMeter.MiddleGray,
+                1e-6f,
+                "at middle gray the edge 2 stops above shows at 0.72, below 1"
+            );
+    }
+
+    [Fact]
+    public void ADimSceneWithNoBrightAreaKeepsTheAverageTarget()
+    {
+        const float used = 4;
+        // A dim view whose luminances spread over 2 stops, about 7 stops below middle gray in radiance.
+        float[] view = [.. Enumerable.Range(0, 17).Select(step => MathF.Pow(2, -10 + step / 8f))];
+        uint[] histogram = Metered(view, used);
+
+        float target = ExposureMeter.TargetStops(
+            reading: ExposureMeter.Reading(histogram, darkShare: 0.1f, brightShare: 0.1f),
+            usedStops: used,
+            compensationStops: 0,
+            minStops: -8,
+            maxStops: 8
+        );
+
+        float mean = ExposureMeter.TrimmedMeanStops(histogram, darkShare: 0.1f, brightShare: 0.1f)!.Value;
+        MathF.Pow(2, mean - used + target).Should().BeApproximately(ExposureMeter.MiddleGray, 1e-6f);
     }
 
     [Fact]
@@ -127,11 +204,7 @@ public sealed class ExposureMeterTests
         float[] view = [.. Enumerable.Range(40, 60).Select(bin => MathF.Pow(2, ExposureMeter.BinCenterStops(bin)))];
         float TargetAt(float used) =>
             ExposureMeter.TargetStops(
-                trimmedMeanStops: ExposureMeter.TrimmedMeanStops(
-                    Metered(view, used),
-                    darkShare: 0.1f,
-                    brightShare: 0.1f
-                ),
+                reading: ExposureMeter.Reading(Metered(view, used), darkShare: 0.1f, brightShare: 0.1f),
                 usedStops: used,
                 compensationStops: 0,
                 minStops: -8,
@@ -145,7 +218,10 @@ public sealed class ExposureMeterTests
     public void TheCompensationAddsItsStopsBeforeTheClamp() =>
         ExposureMeter
             .TargetStops(
-                trimmedMeanStops: MathF.Log2(ExposureMeter.MiddleGray) - 6,
+                reading: (
+                    TrimmedMeanStops: MathF.Log2(ExposureMeter.MiddleGray) - 6,
+                    BrightEdgeStops: MathF.Log2(ExposureMeter.MiddleGray) - 5
+                ),
                 usedStops: 0,
                 compensationStops: 4,
                 minStops: -8,
@@ -154,13 +230,39 @@ public sealed class ExposureMeterTests
             .Should()
             .BeApproximately(8, 1e-5f, "the target of 6 stops plus 4 stops of compensation is clamped to 8");
 
+    [Fact]
+    public void TheCompensationAddsItsStopsToTheHighlightTarget() =>
+        ExposureMeter
+            .TargetStops(
+                reading: (TrimmedMeanStops: -6, BrightEdgeStops: 2),
+                usedStops: 0,
+                compensationStops: 1,
+                minStops: -8,
+                maxStops: 8
+            )
+            .Should()
+            .BeApproximately(-1, 1e-5f, "the highlight target of −2 stops is below the average target of 3.53");
+
+    [Fact]
+    public void TheClampBoundsTheHighlightTarget() =>
+        ExposureMeter
+            .TargetStops(
+                reading: (TrimmedMeanStops: 0, BrightEdgeStops: 12),
+                usedStops: 0,
+                compensationStops: 0,
+                minStops: -8,
+                maxStops: 8
+            )
+            .Should()
+            .Be(-8, "the highlight target of −12 stops is below the clamp, and the average target of −2.47 inside it");
+
     [Theory]
     [InlineData(-30f, 8f)]
     [InlineData(30f, -8f)]
     public void TheTargetStaysInsideTheClamp(float trimmedMeanStops, float clampedTarget) =>
         ExposureMeter
             .TargetStops(
-                trimmedMeanStops: trimmedMeanStops,
+                reading: (TrimmedMeanStops: trimmedMeanStops, BrightEdgeStops: trimmedMeanStops + 1),
                 usedStops: 0,
                 compensationStops: 0,
                 minStops: -8,
@@ -172,7 +274,7 @@ public sealed class ExposureMeterTests
     [Fact]
     public void WithNoSurfaceTheTargetIsTheExposureThatTheFrameUsed() =>
         ExposureMeter
-            .TargetStops(trimmedMeanStops: null, usedStops: 2.5f, compensationStops: 1, minStops: -8, maxStops: 8)
+            .TargetStops(reading: null, usedStops: 2.5f, compensationStops: 1, minStops: -8, maxStops: 8)
             .Should()
             .Be(2.5f);
 
