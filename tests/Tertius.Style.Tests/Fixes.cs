@@ -141,7 +141,12 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         ImmutableArray<Diagnostic> found = await compilation
             .WithAnalyzers([new StyleAnalyzer()])
             .GetAnalyzerDiagnosticsAsync(cancel);
-        return [.. found.Where(diagnostic => diagnostic.Id == rule)];
+        return
+        [
+            .. found
+                .Where(diagnostic => diagnostic.Id == rule)
+                .OrderBy(diagnostic => diagnostic.Location.SourceSpan.Start),
+        ];
     }
 
     private async Task<string> Applied(Document document, CodeAction action)
