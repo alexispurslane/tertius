@@ -61,6 +61,7 @@ internal static class Gpu
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
                 Exposure = exposure,
+                Bloom = new NoBloom(),
             }
         );
 

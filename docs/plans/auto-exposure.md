@@ -415,11 +415,12 @@ Counts are exact as floats up to 2^24, about 16.7 million pixels, so up to an 8K
 | Lighting, sky | `lighting.frag` | The HDR image | `preExposed(starField(direction))` |
 | Transparent, a mesh | `transparent.frag` | The HDR image, alpha-blended | `surfaceRadiance(..., s.emissive * k, ..., k)` |
 | Transparent, a puff | `puff.vert`, then `puff.frag` | The HDR image, added | `preExposed` of the glow color or of `scatteredLight`, in the vertex shader. The fragment shader multiplies by factors of 1 or less. |
-| Tone map | `tonemap.frag` | The output | Nothing: `tonemap.exposure` and its multiply go |
+| Bloom | `bloom_prefilter.frag`, `bloom_down.frag`, `bloom_up.frag` | The bloom levels, from the pre-exposed HDR image | Nothing: the threshold compares the pre-exposed value directly, and `BloomPushConstants.Exposure` goes |
+| Tone map | `tonemap.glsl`, through `tonemap.frag` and `tonemap_bloom.frag` | The output | Nothing: `tonemap.exposure` and its multiply go. The glow of the bloom levels joins the pre-exposed light before the curve. |
 | Overlay | `outline.frag` | The output, after the tone map | Nothing: display colors |
 | Shadow maps | `shadow.vert` | Depth only | Nothing |
 
-No other pass writes the HDR image or the emissive target. Bloom (`ter-63wr`) will read the pre-exposed image.
+No other pass writes the HDR image or the emissive target. Bloom (`ter-63wr`, merged into this branch on 2026-10-25) reads the pre-exposed image, after the exposure pass ("The order of a rendered frame" in ARCHITECTURE.md gives the reason for that order).
 
 ### The shader interface
 

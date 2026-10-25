@@ -49,4 +49,10 @@ public sealed class RendererOptions
 
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
+
+    /// <summary>
+    /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
+    /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
+    /// </summary>
+    public BloomSetting Bloom { get; set; } = new Bloom(threshold: 1, knee: 0.5f, strength: 0.25f, levels: 6);
 }

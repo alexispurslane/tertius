@@ -129,6 +129,13 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>
         Exposure,
+
+        /// <summary>
+        /// After every pass that writes the HDR image, so that all bright light glows, and before the tone map, which adds the
+        /// glow. After the exposure pass, because both only read the HDR image, and this order changes its use from the
+        /// meter's compute read to the fragment reads of the bloom and the tone map once.
+        /// </summary>
+        Bloom,
         ToneMap,
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>

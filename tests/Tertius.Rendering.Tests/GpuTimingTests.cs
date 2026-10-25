@@ -163,6 +163,7 @@ public sealed class GpuTimingTests
             {
                 Validation = true,
                 Width = Width,
+                Bloom = new NoBloom(),
                 Height = Height,
                 Impostors = false,
                 // A fixed exposure draws no metering draw, so each Render draws one frame.

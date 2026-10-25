@@ -88,6 +88,7 @@ public static class GpuTesting
                 Height = height,
                 Impostors = false,
                 Exposure = new FixedExposure(0),
+                Bloom = new NoBloom(),
             }
         );
 
