@@ -10,7 +10,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 | Ticket | Feature | Waits for | Design |
 |---|---|---|---|
-| `ter-ptft` | A PBR BRDF: GGX with metallic-roughness materials | Nothing | Two designs, in the ticket |
+| `ter-ptft` | A PBR BRDF: GGX with metallic-roughness materials | Nothing | [pbr-brdf.md](pbr-brdf.md) |
 | `ter-zzyr` | Automatic exposure | PBR | Two designs, in the ticket |
 | `ter-2t5o` | The Hable tone curve | PBR | Two designs, in the ticket |
 | `ter-63wr` | Bloom | PBR | Two designs, in the ticket |
@@ -26,7 +26,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
 - SSGI waits for SSAO, as before.
 - The snapshot tests (`ter-rtxu`) wait for this whole epic. A snapshot locks in a look, and it cannot drive red-green TDD, because its reference image exists only after the feature works.
-- The asset pipeline (`ter-kge6`) waits for this whole epic. Its decisions 12 and 13 convert glTF metallic-roughness materials to Blinn-Phong and accept that metals look wrong. After PBR, the importer takes glTF materials as they are.
+- The asset pipeline (`ter-kge6`) waits for this whole epic. Its decisions 12 and 13 took glTF metallic-roughness materials as they are, once the PBR BRDF exists (changed on 2026-10-24, see [pbr-brdf.md](pbr-brdf.md)).
 
 ## Rules for every member
 

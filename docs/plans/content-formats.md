@@ -298,7 +298,7 @@ Four smaller blueprints from the same package show topics, inline primitives, an
   "body": { "shape": { "kind": "box", "halfExtents": [0.4, 0.4, 0.4] }, "mass": 40 },
   "render": {
     "mesh": { "kind": "box", "halfExtents": [0.4, 0.4, 0.4] },
-    "material": { "baseColor": "#8a6b3f", "gloss": 0.3 }
+    "material": { "baseColor": "#8a6b3f", "roughness": 0.55 }
   }
 }
 ```
@@ -387,12 +387,13 @@ An inline material maps to `MaterialDesc`. Each texture key passes its slot to t
 | Key | Form | Default | Slot |
 |---|---|---|---|
 | `baseColor` | Linear RGBA | `[1, 1, 1, 1]` | |
-| `specularIntensity` | 0 to 1 | 0.5 | |
-| `gloss` | 0 to 1 | 0.5 | |
+| `metallic` | 0 to 1 | 0 | |
+| `roughness` | 0 to 1 | 0.5 | The roughness of the default material. `MaterialDesc.Roughness` has no default, so the converter supplies this one. |
+| `reflectance` | 0 to 1 | 0.5 | |
 | `emissive` | Linear RGB | `[0, 0, 0]` | |
-| `albedo` | A texture reference | None | `Albedo` |
-| `normal` | A texture reference | None | `Normal` |
-| `specularGloss` | A texture reference | None | `SpecularGloss` |
+| `baseColorMap` | A texture reference | None | `BaseColor` |
+| `normalMap` | A texture reference | None | `Normal` |
+| `metallicRoughnessMap` | A texture reference | None | `MetallicRoughness`. Roughness in G, metallic in B, as in glTF. |
 | `emissiveMap` | A texture reference | None | `Emissive`. Emitted radiance is `emissive` times the texture color. The asset pipeline work adds the binding, with `MaterialDesc.EmissiveMap`. |
 
 The loader creates one material for each distinct inline value and one mesh for each distinct primitive.
@@ -873,7 +874,7 @@ public static class SceneSpawner
 namespace Tertius;
 
 /// <summary>What a texture is for. The resolver of the asset pipeline makes sure that the role of the image fits the slot.</summary>
-public enum TextureSlot { Albedo, Normal, SpecularGloss, Emissive, Ui, Data, Any }
+public enum TextureSlot { BaseColor, Normal, MetallicRoughness, Emissive, Ui, Data, Any }
 
 namespace Tertius.Simulation;
 
