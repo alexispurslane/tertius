@@ -60,5 +60,11 @@ public sealed class RendererOptions
     /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
     /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
     /// </summary>
-    public BloomSetting Bloom { get; set; } = new Bloom(threshold: 1, knee: 0.5f, strength: 0.25f, levels: 6);
+    public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
+
+    /// <summary>
+    /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
+    /// (about 21 MB at 1920 × 1080) and three full-screen passes.
+    /// </summary>
+    public AntiAliasing AntiAliasing { get; set; } = AntiAliasing.Smaa;
 }

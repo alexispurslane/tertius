@@ -91,6 +91,7 @@ public static class GpuTesting
                 AmbientOcclusion = new NoAmbientOcclusion(),
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
             }
         );
 

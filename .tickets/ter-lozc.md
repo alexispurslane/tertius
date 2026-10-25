@@ -1,6 +1,6 @@
 ---
 id: ter-lozc
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T15:27:48Z
@@ -31,3 +31,7 @@ No shader relies on a result that the Vulkan spec leaves undefined. Each fixed s
 **2026-10-25T15:53:10Z**
 
 From the exposure branch (2026-10-25): pre-exposure's clamp, min(radiance * exposureScale(), vec3(MaxRadiance)), turns a NaN light into 65,504 on MoltenVK, so a NaN glow puff shows white where main showed black. GLSL leaves min undefined for a NaN. Surfaces were already clamped this way on main. Include this site.
+
+**2026-10-25T18:24:29Z**
+
+User, 2026-10-25: the puffs' additive sum stays finite by a shared budget (design A). Every writer except the puffs caps at 32,256; each puff caps at 32,256 / N for the N puffs drawn this frame; so every pixel stays at or below 64,512. Design B, a 32-bit float image for puffs, was rejected: 32 MB at 1080p, one more pass, and an optional Vulkan feature.

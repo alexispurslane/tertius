@@ -1,6 +1,6 @@
 ---
 id: ter-s9cv
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-2t5o, ter-63wr, ter-ptft]
 links: []
 created: 2026-10-11T13:52:12Z
@@ -24,3 +24,7 @@ On performance, the doc's plan holds for local lights: one shared atlas, a tile 
 **2026-10-22T00:09:45Z**
 
 2026-10-21: the user chose the design of the part "Lights instead of one sun" from two designs: SI units, one light list for the renderer, a reach derived from the power. It is now ticket ter-bpvl, which waits for automatic exposure (ter-zzyr). The design doc holds the full design, with every reader and writer.
+
+**2026-10-25T16:59:42Z**
+
+2026-10-25: the design doc is refreshed against main at 5479c5f1 (branch ter-s9cv-light-shadows, 60b86c6c and 62b0d35b) and split into seven part tickets: ter-3att, ter-cl86, ter-cnam, ter-iz58, ter-wjib, ter-542e, ter-t1cp. Lights instead of one sun comes first. The user chose physical stars in SI units (fork 1, A). The orchestrator kept pure ranking at the tile budget's edge by the user's rule 'pure model first' (fork 2, A).

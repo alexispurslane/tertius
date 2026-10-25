@@ -27,7 +27,10 @@ Exposure and the tone curve (`ter-2t5o`) share one model: radiance, then the exp
 | The histogram | 256 counters in a device-local buffer. Bin i counts the surface pixels whose pre-exposed luminance lies in its eighth of a stop. |
 | Dark share, bright share | The shares of the surface pixels that the meter drops from the dark end and from the bright end of the histogram. |
 | Trimmed mean, M | The mean of log2 Y over the surface pixels that are left after the trim, in stops of pre-exposed luminance. |
-| Target, T | The exposure in stops that maps the trimmed mean to middle gray, plus the compensation, inside the clamp. |
+| Bright edge, E | log2 Y at the upper end of the trim: the (1 − BrightShare) quantile of the surface pixels, in stops of pre-exposed luminance. |
+| Average target | The exposure in stops that maps the trimmed mean to middle gray. |
+| Highlight target | The exposure in stops that maps the bright edge to 1.0 before the tone curve. |
+| Target, T | The lower of the average target and the highlight target, plus the compensation, inside the clamp. |
 | The clamp | The range from `MinStops` to `MaxStops`. S never leaves it under `AutoExposure`. |
 | Compensation, C | `CompensationStops`: stops added to the target. |
 | Drawn frame | One recording and submission of the frame graph. A call of `Render` whose output skips the frame draws none. Under option B of the open fork, one call can draw two. |
@@ -47,7 +50,7 @@ The user made the decisions marked (User). This design settled the others by the
 4. Tests and the coming snapshot tests use the fixed case. (User)
 5. The meter counts only surface pixels, so a ship in front of black space is not blown out, and the share of sky in the frame does not move the exposure. A view with no surface keeps its exposure. (User)
 6. The meter drops the darkest and the brightest shares of the surface pixels, so a lamp or a glint alone does not set the exposure. (User)
-7. The target maps the trimmed mean of log luminance to middle gray, 0.18. (User)
+7. The target maps the trimmed mean of log luminance to middle gray, 0.18. (User) Highlight priority (`ter-is7n`) changed it: the target is the lower of that average target and a highlight target, which maps the bright edge to 1.0 before the tone curve. So when a large bright area shares the view with a dark one, the bright area keeps its detail and the dark part falls into deep shadow, as the eye sees it. Both come from the same histogram. (User, 2026-10-25)
 8. The exposure approaches its target in stops, frame-rate independent, with two time constants: into the dark 3 s, into the light 1 s, by default. A clamp holds it between a lowest and a highest number of stops. The time constants, the clamp, the trim shares and an exposure compensation in stops are settings. (User)
 9. The clock is the time between presented frames: the wall clock in a window, and the film's frame time in a headless run, so a headless film gives the same images every run. (User)
 10. `RenderStats.Exposure` reports the exposure in stops a few frames late. The renderer reads it back after the slot's fence wait, as it reads the GPU timings, for tests and debugging. The decision stays on the GPU. (Orchestrator, 2026-10-25)
@@ -72,6 +75,7 @@ Settled by this design:
 26. The device's graphics queue family must also support compute. The renderer records compute and graphics work in one command buffer on one queue. MoltenVK's one queue family supports both.
 27. `params.x` of the frame constants held a copy of the exposure that no shader read. It goes, and `x` is unused. A second store can disagree with the first.
 28. The readback copies the exposure buffer at the start of each drawn frame, before any pass reads it. So a reading is the exposure that a frame's passes used.
+29. The bright edge lies inside its bin by the share of the bin's count below the edge, not at the bin's center (`ter-is7n`). It is the trim's own rule for a bin that straddles an edge. See "The bright edge".
 
 ## The math
 
@@ -114,16 +118,32 @@ M    = Σ w_i · center(i) / Σ w_i                    Σ w_i = high − low > 0
 
 A bin that straddles an edge counts only its share inside. The shares add up to less than 1, by validation, so the kept interval is never empty.
 
-### The target
+### The bright edge
 
-The frame shaded with S, so its pre-exposed log luminance is the radiance's plus S. The adapt step divides the exposure out, in stops, before it maps the mean to middle gray:
+The bright edge E is the luminance at the upper end of the kept interval, the cumulative count `high`. Exactly one bin holds it: the bin with `start_i < high ≤ end_i`. `high` lies above 0, because N > 0 and `BrightShare` < 1, and at most N, so such a bin exists, and its count is above 0. Inside that bin, E lies by the share of the bin's count below `high`:
 
 ```
-T = clamp(log2(0.18) − (M − S) + C, MinStops, MaxStops)         when N > 0
+E = −16 + (i + (high − start_i) / count_i) / 8                  start_i < high ≤ end_i
+```
+
+The trim treats a bin that straddles an edge by its share inside, so M moves smoothly as `high` moves through a bin. E follows the same rule, so it moves smoothly too. A bin's center instead would jump by an eighth of a stop when the edge crosses into the next bin, and the target with it. Then a steady view whose edge sits near a bin's boundary would settle on that jump, not on its own exposure. With `BrightShare` = 0, E is the top of the brightest bin that has a count.
+
+### The target
+
+The frame shaded with S, so its pre-exposed log luminance is the radiance's plus S. The adapt step divides the exposure out, in stops, before it maps the mean to middle gray and the bright edge to 1.0:
+
+```
+T_average   = log2(0.18) − (M − S)
+T_highlight = log2(1) − (E − S) = S − E
+T = clamp(min(T_average, T_highlight) + C, MinStops, MaxStops)  when N > 0
 T = S                                                            when N = 0
 ```
 
-At a steady view, M − S is the same for every S, so T does not depend on the exposure that the frame used. That is the reason the meter can read pre-exposed values. The mean of log luminance is the log-average luminance of Reinhard et al. 2002, and 0.18 is their key value for a scene of average brightness.
+- At a steady view, M − S and E − S are the same for every S, so T does not depend on the exposure that the frame used. That is the reason the meter can read pre-exposed values.
+- The mean of log luminance is the log-average luminance of Reinhard et al. 2002, and 0.18 is their key value for a scene of average brightness.
+- The highlight target is the lower one when E − M is more than −log2(0.18), about 2.47 stops: the bright edge would show above 1.0 at the average target. Then the brightest `BrightShare` of the pixels lies above 1.0, and the rest lies at or below it. Stephen Hill's ACES fit maps 1.0 to about 0.62, 0.81 after the sRGB curve, the start of its shoulder, and reaches 250 of 255 only at about 7. So the brightest share clips only where it lies more than about 2.8 stops above the edge.
+- A view whose bright edge lies within 2.47 stops of its mean, such as a dim room or a sunlit view with no deep shadow, keeps the average target as before.
+- The cost is the dark part of a view with a large bright area: it falls into deep shadow. The user chose that, as the eye sees it. (User, 2026-10-25)
 
 ### The approach
 
@@ -143,7 +163,7 @@ The exponential form is that of Krawczyk, Myszkowski and Seidel 2005, "Perceptua
 
 ### The clamp and the compensation
 
-The compensation adds to the target before the clamp, so S stays from `MinStops` to `MaxStops` whatever the compensation (decision 21). The adapt step clamps the target, not S'. S' lies between S and T, and both lie inside the clamp, so S' does too.
+The compensation adds to the lower of the two targets, and the clamp applies after it, so S stays from `MinStops` to `MaxStops` whatever the compensation (decision 21). +1 stop of compensation makes the settled image twice as bright under either target. The adapt step clamps the target, not S'. S' lies between S and T, and both lie inside the clamp, so S' does too.
 
 ### The first frame
 
@@ -159,7 +179,7 @@ The compensation adds to the target before the clamp, so S stays from `MinStops`
 | `MaxStops` | +8 | The darkest view, the orbit scene's night side under an ambient light of 0.03, wants about +4 stops. In total darkness the exposure stops at +8, 256 times today's. |
 | `CompensationStops` | 0 | The target is middle gray as the user asked. |
 | `DarkShare` | 0.1 | The deepest shadows and black parts show no detail at any exposure. |
-| `BrightShare` | 0.1 | A lamp panel or a glint covers less than a tenth of the surface pixels in the demo's views. |
+| `BrightShare` | 0.1 | A lamp panel or a glint covers less than a tenth of the surface pixels in the demo's views. So a bright area that covers a tenth or more of the surface pixels sets the bright edge. |
 | `IntoDarkSeconds` | 3 | (User) |
 | `IntoLightSeconds` | 1 | (User) |
 
@@ -343,6 +363,7 @@ layout(push_constant, std430) uniform AdaptPush
 shared uint cumulative[HistogramBins];
 shared float weighted[HistogramBins];
 shared float weights[HistogramBins];
+shared float brightEdge;   // written by the one bin that holds the bright edge, read only when the histogram has a count
 
 void main()
 {
@@ -362,9 +383,13 @@ void main()
     float low = adapt.darkShare * total;
     float high = (1.0 - adapt.brightShare) * total;
     float end = float(cumulative[i]);
-    float inside = max(min(end, high) - max(end - float(count), low), 0.0);
+    float start = end - float(count);
+    float inside = max(min(end, high) - max(start, low), 0.0);
     weighted[i] = inside * binCenterStops(i);
     weights[i] = inside;
+    // high lies above 0 and at most total, so exactly one bin with a count holds it.
+    if (start < high && high <= end)
+        brightEdge = LowestStops + (float(i) + (high - start) / float(count)) / BinsPerStop;
     barrier();
     // A fixed tree, so the sums round the same way on every run.
     for (uint stride = HistogramBins / 2u; stride > 0u; stride >>= 1u)
@@ -383,13 +408,18 @@ void main()
         if (total > 0.0)
         {
             float mean = weighted[0] / weights[0];
-            target = clamp(log2(MiddleGray) - (mean - used) + adapt.compensationStops, adapt.minStops, adapt.maxStops);
+            float averageTarget = log2(MiddleGray) - (mean - used);
+            float highlightTarget = -(brightEdge - used);
+            float compensated = min(averageTarget, highlightTarget) + adapt.compensationStops;
+            target = clamp(compensated, adapt.minStops, adapt.maxStops);
         }
         float factor = target > used ? adapt.intoDarkFactor : adapt.intoLightFactor;
         exposureStops = used + (target - used) * factor;
     }
 }
 ```
+
+The bright edge needs no reduction: one invocation writes it, and the barrier before the sum makes it visible to invocation 0. `high` and the cumulative counts are exact integers in floats, so the test `start < high && high <= end` holds in exactly one bin with a count.
 
 Counts are exact as floats up to 2^24, about 16.7 million pixels, so up to an 8K image. Determinism: the integer atomic adds commute, so the histogram does not depend on the order of the workgroups. The scan and the reduction run in one workgroup over a fixed tree, and the CPU computes the factors. So the same frames give the same bits in every run on one GPU.
 
@@ -515,8 +545,8 @@ public readonly record struct FixedExposure(float Stops);
 
 /// <summary>
 /// An exposure that follows the brightness of the surfaces in view over time (docs/plans/auto-exposure.md). The meter
-/// maps the trimmed mean of the log luminance of the surface pixels to middle gray, and the exposure approaches that
-/// target with a time constant for each direction.
+/// maps the surface pixels' trimmed mean to middle gray, or their bright edge to 1 when that is lower, and the exposure
+/// approaches that target with a time constant per direction.
 /// </summary>
 /// <param name="MinStops">The lowest exposure, in stops, from −64 to <paramref name="MaxStops"/>.</param>
 /// <param name="MaxStops">The highest exposure, in stops, up to 64.</param>
@@ -796,9 +826,16 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `TheTrimmedMeanDropsTheDarkestAndTheBrightestShares`: three bins of known counts.
 - `ABinThatStraddlesATrimEdgeCountsOnlyItsShareInside`.
 - `AHistogramWithNoCountHasNoMean`.
-- `TheTargetMapsTheTrimmedMeanToMiddleGray`.
+- `TheBrightEdgeLiesInsideItsBinByTheShareOfTheBinBelowTheEdge` (`ter-is7n`).
+- `WithNoBrightShareTheBrightEdgeIsTheTopOfTheBrightestBin` (`ter-is7n`).
+- `AHistogramWithNoCountHasNoReading` (`ter-is7n`).
+- `WhenATenthOrMoreOfTheSurfaceIsFarBrighterTheTargetMapsTheBrightEdgeToOne` (`ter-is7n`): 15 % of the pixels 10 stops above the rest. The edge shows at 1.0, and the mean below middle gray.
+- `WhenTheBrightEdgeShowsBelowOneAtTheAverageTargetTheTargetMapsTheTrimmedMeanToMiddleGray`: the edge 2 stops above the mean. Before `ter-is7n` it was `TheTargetMapsTheTrimmedMeanToMiddleGray`.
+- `ADimSceneWithNoBrightAreaKeepsTheAverageTarget` (`ter-is7n`).
 - `TheTargetDoesNotDependOnTheExposureThatTheFrameUsed`: one view metered at two exposures gives one target.
 - `TheCompensationAddsItsStopsBeforeTheClamp`.
+- `TheCompensationAddsItsStopsToTheHighlightTarget` (`ter-is7n`).
+- `TheClampBoundsTheHighlightTarget` (`ter-is7n`): a highlight target below `MinStops`, and an average target inside the clamp.
 - `TheTargetStaysInsideTheClamp`.
 - `WithNoSurfaceTheTargetIsTheExposureThatTheFrameUsed`.
 - `TwoHalfStepsMoveTheExposureAsFarAsOneWholeStep`: within 10^−5 stops, for both directions.
@@ -842,7 +879,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 `ExposureShaderTests` (Part 3):
 
 - `TheMeterCountsEachSurfacePixelInTheBinOfItsLuminance`: black squares of reflectance 0 that emit four known radiances, each at the center of a bin, with no light and some sky. The capture tells the squares apart by color, so the test counts each square's pixels. After one frame, `ReadExposureHistogram` holds each square's count in the bin that `ExposureMeter.BinOf` gives, and 0 elsewhere. The sum is the number of surface pixels.
-- `TheAdaptStepMovesTheExposureAsTheCSharpCopyDoes`: with the histogram that the GPU wrote and the reading of the frame, the next reading equals `ExposureMeter`'s result within 10^−4 stops, for a step that rises and one that falls. The C# copy sums in index order and the shader in a tree, which the tolerance covers.
+- `TheAdaptStepMovesTheExposureAsTheCSharpCopyDoes`: with the histogram that the GPU wrote and the reading of the frame, the next reading equals `ExposureMeter`'s result within 10^−4 stops, for a step that rises and one that falls. The C# copy sums in index order and the shader in a tree, which the tolerance covers. The ramp square's view takes the average target.
+- `TheAdaptStepTakesTheHighlightTargetAsTheCSharpCopyDoes` (`ter-is7n`): the same for a sunlit square over a dark glowing ground, with 0.5 stops of compensation and time constants of 0, where the highlight target is the lower one. The time constants of 0 make the step reach the target, so the test pins the target itself: at a step of 1/30 s and 3 s, the exposure closes only about 1 % of the gap, and an error of 0.004 stops in the target hides under the tolerance.
 
 ### GPU tests of the acceptance criteria
 
@@ -862,6 +900,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `AViewWithNoSurfaceKeepsItsExposure`: after the view settles, 5 s of sky alone leave the reading unchanged.
 - `AFixedExposureNeverMovesAndTimesNoExposurePass`: the readings stay at the fixed stops, and the GPU timings name no "exposure" pass.
 - `ANewRendererAdaptsItsExposure`: a renderer made with default options moves its exposure, so the default is `AutoExposure`.
+- `ALargeSunlitObjectOverADarkGroundSettlesWithTheObjectNotClipped` (`ter-is7n`): a sunlit gray square on about a fifth of the view, over a glowing ground about 8 stops darker. The first frame shows the square's middle below 250 of 255. The average target alone would show it white.
 
 `MeteringDrawTests` (Part 3, option B):
 
@@ -936,7 +975,7 @@ Part 4 measured it by the recipe above: Release, `scripts/demo-exit.json`, 1920 
 - The hull loses the sun at about tick 101,500, and its front face falls from white to mid gray in 7 s while the mean luma falls from 45.7 to 34.8. The Earth pixels do not move. So this is the hull losing light, not an exposure change.
 - No dark frame and no slow brightening appear. The meter counts surface pixels, and these are mostly the night side of the Earth, which is as bright after the entry as before it. So the exposure stays put. The design's picture, dark first and then detail slowly appearing, does not happen in this scene. This is a property of the scene and the camera. It does not show a fault of the meter.
 - In the sunrise, the mean luma creeps from 34.9 to 38.7, with no overexposed flash. The sun comes over the limb as a glare patch, not as a lit hull. Once the sun disc is in view at tick 246,500, the hull falls to about 120, half a stop or so darker, as an automatic exposure should do.
-- The sunlit hull clips white with a large bloom halo before the entry. By the rules of the meter, the metered pixels are mostly Earth, so the hull is not what sets the exposure.
+- The sunlit hull clips white with a large bloom halo before the entry. By the rules of the meter, the metered pixels are mostly Earth, so the hull is not what sets the exposure. Highlight priority (`ter-is7n`, "The target") came from this: when the hull covers a tenth or more of the surface pixels, its bright edge sets the exposure. The film again with it, at 1280 × 720: frames 0 to 200 of the entry clip no pixel, against 3.8 % before (a pixel clips when R, G and B are all 250 or more), and the mean gray falls from about 150 to 133 of 255. After the hull loses the sun, the exposure rises back toward the average target with the time constant into the dark, and from frame 395 of the exit on, the film is bit for bit what it was. The day still, the settled still, and the stills of `scripts/demo-surface.json` and `scripts/pbr-spheres.json` do not change.
 - About 1,400 frames show no isolated jump of brightness, no NaN, no black blocks and no banding. A film that shows the adaptation needs a scene whose metered surfaces change, and the exposure in stops for each frame, which needs a column in the headless run's output. Both are follow-up work.
 
 ## Doc changes
@@ -1002,9 +1041,25 @@ internal static class ExposureMeter
     /// <summary>The trimmed mean in stops of pre-exposed luminance, or null when the histogram holds no count.</summary>
     public static float? TrimmedMeanStops(ReadOnlySpan<uint> bins, float darkShare, float brightShare);
 
-    /// <summary>The target: middle gray for the trimmed mean, with the compensation, inside the clamp; the used stops when there is no mean.</summary>
+    /// <summary>
+    /// The bright edge: the pre-exposed luminance in stops at the (1 − brightShare) quantile of the counts, inside its
+    /// bin by the share of the bin's count below it; null when the histogram holds no count.
+    /// </summary>
+    public static float? BrightEdgeStops(ReadOnlySpan<uint> bins, float brightShare);
+
+    /// <summary>The trimmed mean and the bright edge of a histogram, or null when it holds no count.</summary>
+    public static (float TrimmedMeanStops, float BrightEdgeStops)? Reading(
+        ReadOnlySpan<uint> bins,
+        float darkShare,
+        float brightShare
+    );
+
+    /// <summary>
+    /// The target: the lower of the exposure that maps the trimmed mean to middle gray and the one that maps the bright
+    /// edge to 1, plus the compensation, inside the clamp; the used stops when there is no reading.
+    /// </summary>
     public static float TargetStops(
-        float? trimmedMeanStops,
+        (float TrimmedMeanStops, float BrightEdgeStops)? reading,
         float usedStops,
         float compensationStops,
         float minStops,

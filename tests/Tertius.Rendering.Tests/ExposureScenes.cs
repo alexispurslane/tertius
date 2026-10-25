@@ -116,6 +116,24 @@ internal static class ExposureScenes
         );
 
     /// <summary>
+    /// A sunlit gray square in the middle of the view, 2 m wide, that covers about a fifth of it, in front of a glowing
+    /// ground that fills the rest about 8 stops darker. The square's pixels are the brightest fifth of the surface.
+    /// </summary>
+    public static RenderSnapshot BrightObjectOverDarkGround(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Sunlit();
+        AddGlowingSquare(
+            renderer: renderer,
+            snapshot: snapshot,
+            position: new(0, 0, -3.2f),
+            halfSize: FillsTheView,
+            radiance: new(0.002f)
+        );
+        AddGraySquare(renderer, snapshot, halfSize: 1);
+        return snapshot;
+    }
+
+    /// <summary>
     /// Films <paramref name="frames"/> drawn frames of <paramref name="snapshot"/>, the first at <paramref name="start"/> s of
     /// snapshot time and each next one <paramref name="frameSeconds"/> later, and returns the exposure and the middle luma
     /// of each. One more frame, <see cref="ReadingStepSeconds"/> after the last, reads the last frame's exposure.

@@ -1,6 +1,6 @@
 ---
 id: ter-is7n
-status: open
+status: closed
 deps: [ter-zzyr]
 links: []
 created: 2026-10-25T15:56:12Z
@@ -26,3 +26,9 @@ User, 2026-10-25: when a large bright area shares the view with a dark one, the 
 
 Over the night side the sunlit hull shows its detail. Scenes with no large bright area look as before. The full suites pass in Checked and Release.
 
+
+## Notes
+
+**2026-10-25T16:43:42Z**
+
+Merged into main on 2026-10-25. Coverage of the changed lines (Debug and Release, Rendering): 26 of 29 lines. The three uncovered lines are the UnreachableException after the bin loop and two empty-histogram checks that Reading's first check makes unreachable. Captures at 1280x720: orbit-umbra entry frame 150 went from 3.85 % clipped to 0 %; every scene with no large bright area is bit for bit the same.

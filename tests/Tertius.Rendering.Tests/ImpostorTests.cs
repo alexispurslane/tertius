@@ -917,7 +917,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ImpostorOptionsAreCheckedAndImpostorsCanBeTurnedOff()
+    public void AnImpostorAtlasOfNoTilesOrOfMoreLayersThanTheDeviceAllowsIsRefused()
     {
         FluentActions
             .Invoking(() =>
@@ -927,6 +927,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         Width = 64,
                         Height = 64,
                         ImpostorTiles = 0,
+                        AntiAliasing = AntiAliasing.None,
                     }
                 )
             )
@@ -941,15 +942,24 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         Width = 64,
                         Height = 64,
                         ImpostorTiles = 1_000_000,
+                        AntiAliasing = AntiAliasing.None,
                     }
                 )
             )
             .Should()
             .ThrowExactly<ArgumentOutOfRangeException>("the atlas cannot have more layers than the device allows");
+    }
+
+    [Fact]
+    public void ImpostorsAreOnByDefaultWithAnAtlasOf64Tiles()
+    {
         new RendererOptions().ImpostorTiles.Should().Be(64);
         new RendererOptions().Impostors.Should().BeTrue();
+    }
 
-        // Off: no manager, no atlas, and a small object stays geometry.
+    [Fact]
+    public void WithImpostorsOffTheRendererHasNoManagerAndNoAtlasAndASmallObjectStaysGeometry()
+    {
         VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, impostors: false);
         try
         {
@@ -982,9 +992,12 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
 
-        // A one-tile atlas still uses an array view, as the shader expects.
-        renderer = Gpu.Headless(width: 320, height: 180, impostors: true, impostorTiles: 1);
+    [Fact]
+    public void AOneTileAtlasStillDrawsALitImpostorBecauseItUsesAnArrayViewAsTheShaderExpects()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, impostors: true, impostorTiles: 1);
         try
         {
             var assets = Assets.Create(renderer);

@@ -46,6 +46,7 @@ public sealed class PuffScriptCostMeasurement
                     Height = script.Window.Height,
                     Impostors = false,
                     Validation = false,
+                    AntiAliasing = AntiAliasing.None,
                 }
             );
             var seconds = new Dictionary<int, List<double>> { [4096] = [], [0] = [] };

@@ -46,4 +46,19 @@ public sealed class BlendModeTests
             .Be((BlendFactor.Zero, BlendFactor.One, BlendOp.Add));
         state.ColorWriteMask.Should().Be(AllChannels);
     }
+
+    [Fact]
+    public void TheTransmittanceBlendAddsTheFirstOutputToTheTargetTimesTheSecondAndKeepsTheTargetsAlpha()
+    {
+        PipelineColorBlendAttachmentState state = GraphicsPipelineDesc.BlendState(BlendMode.Transmittance);
+
+        ((bool)state.BlendEnable).Should().BeTrue();
+        (state.SrcColorBlendFactor, state.DstColorBlendFactor, state.ColorBlendOp)
+            .Should()
+            .Be((BlendFactor.One, BlendFactor.Src1Color, BlendOp.Add));
+        (state.SrcAlphaBlendFactor, state.DstAlphaBlendFactor, state.AlphaBlendOp)
+            .Should()
+            .Be((BlendFactor.Zero, BlendFactor.One, BlendOp.Add));
+        state.ColorWriteMask.Should().Be(AllChannels);
+    }
 }

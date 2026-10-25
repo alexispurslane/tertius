@@ -23,7 +23,10 @@ internal sealed class FrameContext
 
     public long Number { get; set; }
 
-    /// <summary>The output format stores linear values and the tone mapper must apply the sRGB curve.</summary>
+    /// <summary>
+    /// The output format stores linear values, so the pass that writes the output applies the sRGB curve: the tone map
+    /// with SMAA off, the SMAA blending with SMAA on.
+    /// </summary>
     public bool EncodeSrgb { get; set; }
 
     /// <summary>Set when this frame must also be copied to the capture buffer.</summary>
@@ -50,6 +53,51 @@ internal sealed class FrameContext
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
+    }
+
+    /// <summary>
+    /// Begins rendering into <paramref name="target"/> alone, binds a full-screen <paramref name="pipeline"/> with its one
+    /// descriptor set, and sets the full viewport. The target starts at zero when <paramref name="loadOp"/> is Clear;
+    /// DontCare leaves it undefined, for a pass that writes every pixel.
+    /// </summary>
+    public unsafe void BeginFullScreen(
+        GpuImage target,
+        AttachmentLoadOp loadOp,
+        Pipeline pipeline,
+        PipelineLayout layout,
+        DescriptorSet set
+    )
+    {
+        var color = new RenderingAttachmentInfo
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = target.View,
+            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+            LoadOp = loadOp,
+            StoreOp = AttachmentStoreOp.Store,
+            ClearValue = default,
+        };
+        var rendering = new RenderingInfo
+        {
+            SType = StructureType.RenderingInfo,
+            RenderArea = new(new Offset2D(0, 0), target.Extent),
+            LayerCount = 1,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &color,
+        };
+        Vk.CmdBeginRendering(CommandBuffer, &rendering);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        SetFullViewport();
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
@@ -109,8 +157,8 @@ internal abstract class RenderPass : IDisposable
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="GroundTruthOcclusion"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>)
-/// and the overlay (<see cref="OutlinePass"/>) included. Draws
+/// <see cref="GroundTruthOcclusion"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
+/// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -145,7 +193,13 @@ internal sealed class FrameGraph : IDisposable
         Bloom,
         ToneMap,
 
-        /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
+        /// <summary>
+        /// The three SMAA passes, when SMAA is on. They follow the tone map, because SMAA finds edges in the display-encoded
+        /// image, and precede the overlay, so that they never blend its outlines.
+        /// </summary>
+        AntiAliasing,
+
+        /// <summary>Debug drawing over the output image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,
         Readback,
     }

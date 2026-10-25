@@ -1,6 +1,6 @@
 ---
 id: ter-gcm3
-status: in_progress
+status: closed
 deps: [ter-ptft]
 links: []
 created: 2026-10-11T13:52:12Z
@@ -24,3 +24,7 @@ Design: docs/plans/anti-aliasing.md.
 **2026-10-25T15:26:13Z**
 
 Coverage of the changed lines (Checked and Release, Rendering and Host): 596 of 598 lines (99.7%), 73 of 80 branches. The two uncovered lines need no test: SmaaPass.cs:132 is the UnreachableException of a closed switch, and SmaaTables.cs:60 refuses an embedded table of the wrong size, which the build cannot produce. The branch merges after automatic exposure, by the planned order.
+
+**2026-10-25T17:08:19Z**
+
+Merged into main on 2026-10-25, after main and glass were merged into the branch (e70bab51, 1d66a9d0). The frame graph holds 13 timed passes with everything on; GpuTimer.MaxPasses is 31.

@@ -115,7 +115,8 @@ public sealed class OcclusionImagesTests
                 allocator: Allocator,
                 layouts: Layouts,
                 extent: new(width, height),
-                glowLevels: 0
+                glowLevels: 0,
+                smaaTables: null
             );
         }
 

@@ -318,6 +318,17 @@ internal struct ExposureAdaptPushConstants
     public float IntoLightFactor;
 }
 
+/// <summary>The push constants of the three SMAA passes (Shaders/smaa.glsl).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct SmaaPushConstants
+{
+    /// <summary>1 / width, 1 / height, width and height of the output, in pixels: the header's SMAA_RT_METRICS.</summary>
+    public Vector4 Metrics;
+
+    /// <summary>1 when the output format is UNORM and the blending pass must apply the sRGB curve itself.</summary>
+    public uint EncodeSrgb;
+}
+
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OutlinePushConstants
