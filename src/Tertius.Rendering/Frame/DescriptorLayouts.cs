@@ -26,6 +26,10 @@ namespace Tertius.Rendering;
 /// resize.</description></item>
 /// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
 /// written once.</description></item>
+/// <item><term>occlusion</term><description>the G-buffer distance and normals, and the half-resolution images and the
+/// occlusion target as storage images, for the occlusion passes. One, rewritten on resize.</description></item>
+/// <item><term>denoise</term><description>the source and the destination term of one denoise dispatch. Two, rewritten on
+/// resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
@@ -50,6 +54,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         AtlasSampler = CreateAtlasSampler();
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
+        (OcclusionSet, DenoiseSet) = CreateOcclusionSetLayouts();
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -82,6 +87,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             count: 2,
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ExposureAdaptPushConstants>()),
             name: "exposure layout"
+        );
+        DescriptorSetLayout* occlusionSets = stackalloc[] { OcclusionSet, DenoiseSet };
+        OcclusionLayout = CreatePipelineLayout(
+            sets: occlusionSets,
+            count: 2,
+            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<OcclusionPushConstants>()),
+            name: "occlusion layout"
         );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -144,6 +156,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The meter set and the exposure set plus <see cref="ExposureAdaptPushConstants"/>, for both compute pipelines.</summary>
     public PipelineLayout ExposureLayout { get; }
 
+    /// <summary>
+    /// Set 0 of <see cref="OcclusionLayout"/>: the G-buffer distance and normals, then the view depth, edges, term A
+    /// and occlusion target as storage images (docs/plans/ambient-occlusion.md, "Push constants and sets").
+    /// </summary>
+    public DescriptorSetLayout OcclusionSet { get; }
+
+    /// <summary>Set 1 of <see cref="OcclusionLayout"/>: the source term and the destination term of one denoise dispatch.</summary>
+    public DescriptorSetLayout DenoiseSet { get; }
+
+    /// <summary>Set 0 the occlusion set, set 1 a denoise set, and <see cref="OcclusionPushConstants"/> for the compute stage.</summary>
+    public PipelineLayout OcclusionLayout { get; }
+
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
     public DescriptorSet AllocateGBufferSet() => Allocate(pool, GBufferSet, null);
@@ -157,6 +181,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateMeterSet() => Allocate(pool, MeterSet, null);
 
     public DescriptorSet AllocateExposureSet() => Allocate(pool, ExposureSet, null);
+
+    public DescriptorSet AllocateOcclusionSet() => Allocate(pool, OcclusionSet, null);
+
+    public DescriptorSet AllocateDenoiseSet() => Allocate(pool, DenoiseSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -224,6 +252,28 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DstArrayElement = arrayElement,
             DescriptorCount = 1,
             DescriptorType = DescriptorType.SampledImage,
+            PImageInfo = &info,
+        };
+        device.Vk.UpdateDescriptorSets(
+            device: device.Device,
+            descriptorWriteCount: 1,
+            pDescriptorWrites: &write,
+            descriptorCopyCount: 0,
+            pDescriptorCopies: null
+        );
+    }
+
+    /// <summary>Writes a storage image in the General layout.</summary>
+    public void WriteStorageImage(DescriptorSet set, uint binding, GpuImage image)
+    {
+        var info = new DescriptorImageInfo(default, image.View, ImageLayout.General);
+        var write = new WriteDescriptorSet
+        {
+            SType = StructureType.WriteDescriptorSet,
+            DstSet = set,
+            DstBinding = binding,
+            DescriptorCount = 1,
+            DescriptorType = DescriptorType.StorageImage,
             PImageInfo = &info,
         };
         device.Vk.UpdateDescriptorSets(
@@ -340,13 +390,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // of the G-buffer, atlas and post sets, and one per glow source set.
             new(DescriptorType.Sampler, 2 * frames + 3 + glowSourceSets),
             // 18 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, and
-            // two for the meter set.
-            new(DescriptorType.SampledImage, 18 + 2 * frames + glowSourceSets + 2),
+            // two each for the meter set and the occlusion set.
+            new(DescriptorType.SampledImage, 18 + 2 * frames + glowSourceSets + 2 + 2),
+            // Four for the occlusion set and two for each of the two denoise sets.
+            new(DescriptorType.StorageImage, 8),
         ];
-        // The frame sets, the G-buffer, post, atlas, meter and exposure sets, and the glow source sets.
+        // The frame sets, the G-buffer, post, atlas, meter, exposure and occlusion sets, the two denoise sets, and the
+        // glow source sets.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: frames + 5 + glowSourceSets,
+            maxSets: frames + 8 + glowSourceSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -388,6 +441,34 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             CreateLayout(bindings: exposure, name: "exposure set")
         );
     }
+
+    /// <summary>The layouts of the occlusion set and the denoise set, whose bindings the compute stage reads.</summary>
+    private (DescriptorSetLayout Occlusion, DescriptorSetLayout Denoise) CreateOcclusionSetLayouts()
+    {
+        Span<DescriptorSetLayoutBinding> occlusion =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
+            StorageImage(binding: 2),
+            StorageImage(binding: 3),
+            StorageImage(binding: 4),
+            StorageImage(binding: 5),
+        ];
+        Span<DescriptorSetLayoutBinding> denoise = [StorageImage(binding: 0), StorageImage(binding: 1)];
+        return (
+            CreateLayout(bindings: occlusion, name: "occlusion set"),
+            CreateLayout(bindings: denoise, name: "denoise set")
+        );
+    }
+
+    /// <summary>A binding of one storage image for the compute stage.</summary>
+    private static DescriptorSetLayoutBinding StorageImage(uint binding) =>
+        new(
+            binding: binding,
+            descriptorType: DescriptorType.StorageImage,
+            descriptorCount: 1,
+            stageFlags: ShaderStageFlags.ComputeBit
+        );
 
     private Sampler CreateShadowSampler()
     {
@@ -621,6 +702,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
         vk.DestroyPipelineLayout(device.Device, BloomLayout, null);
         vk.DestroyPipelineLayout(device.Device, ExposureLayout, null);
+        vk.DestroyPipelineLayout(device.Device, OcclusionLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
@@ -629,6 +711,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, MeterSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ExposureSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, OcclusionSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, DenoiseSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);

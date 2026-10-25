@@ -237,6 +237,43 @@ internal struct DrawPushConstants
     public Vector4 Eye;
 }
 
+/// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl). 64 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct OcclusionPushConstants
+{
+    /// <summary>xyz the unit right of the camera in world axes, w the tangent of half the horizontal field of view.</summary>
+    public Vector4 CameraRight;
+
+    /// <summary>xyz the unit up, w the tangent of half the vertical field of view.</summary>
+    public Vector4 CameraUp;
+
+    /// <summary>xyz the unit forward, w 0.</summary>
+    public Vector4 CameraForward;
+
+    public float RadiusMeters;
+    public uint Slices;
+    public uint StepsPerSide;
+
+    /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
+    public uint LastDenoise;
+
+    /// <summary>
+    /// The push constants of one dispatch. The camera is the one that the frame constants hold, so the passes and the
+    /// lighting pass never disagree about it.
+    /// </summary>
+    public static OcclusionPushConstants For(in CameraView camera, GroundTruthOcclusion setting, bool lastDenoise) =>
+        new()
+        {
+            CameraRight = new(camera.Right, camera.TanHalfX),
+            CameraUp = new(camera.Up, camera.TanHalfY),
+            CameraForward = new(camera.Forward, 0),
+            RadiusMeters = setting.RadiusMeters,
+            Slices = (uint)setting.Slices,
+            StepsPerSide = (uint)setting.StepsPerSide,
+            LastDenoise = lastDenoise ? 1u : 0u,
+        };
+}
+
 /// <summary>The push constants of the tone mapping pass.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants

@@ -124,6 +124,12 @@ internal sealed class FrameGraph : IDisposable
         ShadowMaps,
         ImpostorCaptures,
         GBuffer,
+
+        /// <summary>
+        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
+        /// normals they read, and before the lighting pass, which reads their occlusion target.
+        /// </summary>
+        AmbientOcclusion,
         Lighting,
         Transparent,
 
