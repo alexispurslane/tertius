@@ -72,7 +72,10 @@ public static partial class DemoScenes
         foreach (SphereRowSpec row in PbrRows)
             SphereRow(world: world, resources: resources, scene: scene, surface: surface, row: row, mesh: sphereMesh);
 
-        scene.Add("lamp", world.Spawn(PbrLamp(surface: surface, resources: resources)));
+        scene.Add(
+            "lamp",
+            world.Spawn(GlowLamp(surface: surface, resources: resources, position: new(-1.5, EarthRadius + 0.9, 1)))
+        );
         Entity frontCamera = world.Spawn(
             ViewIn(surface, LookingAt(new(0, EarthRadius + 1, 7.5), new(0, EarthRadius + 0.9, 0)))
         );
@@ -92,14 +95,14 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The lamp of the PBR scene in <paramref name="surface"/>: a small glowing sphere with a point light, 1 m in front of
-    /// the rows and 0.9 m up, between them, on the -X side.
+    /// A lamp of the review scenes in <paramref name="surface"/> at <paramref name="position"/>: a glowing sphere 5 cm in
+    /// radius with a warm point light of range 8 m.
     /// </summary>
-    private static SpawnDesc PbrLamp(FrameHandle surface, IRenderResources resources) =>
+    private static SpawnDesc GlowLamp(FrameHandle surface, IRenderResources resources, Double3 position) =>
         new()
         {
             Frame = surface,
-            Pose = new(new(-1.5, EarthRadius + 0.9, 1), DQuaternion.Identity),
+            Pose = new(position, DQuaternion.Identity),
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere(0.05f)),
