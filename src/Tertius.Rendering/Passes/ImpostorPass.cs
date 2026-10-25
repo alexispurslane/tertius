@@ -16,15 +16,15 @@ namespace Tertius.Rendering;
 /// Perspective, not orthographic: at the 200 px switch an object can be only a few radii away, where an
 /// orthographic capture misses the front-to-back perspective by many pixels; the manager recaptures when the eye's
 /// distance changes the perspective by about a pixel. The fragment shader lights the object with the lighting
-/// pass's Blinn-Phong (ambient, the sun with the eclipse term, and the point and spot lights, but not the shadow
-/// maps) and writes premultiplied color, coverage and the relative depth into level 0 of the tile. Blits then rebuild the tile's mip
+/// pass's BRDF, <c>surfaceRadiance</c> with the shadow maps off (ambient with its specular part, the sun with the
+/// eclipse term, and the point and spot lights) and writes premultiplied color, coverage and the relative depth into level 0 of the tile. Blits then rebuild the tile's mip
 /// chain.</para>
 /// <para>A billboard is a quad in the plane of the bounding sphere's center, spanned by the capture's axes as the
 /// object's current rotation turns them (so an object rolling about the view axis needs no recapture), with one
 /// GPU instance per depth range it is drawn in. Seen from the capture's eye, the quad shows exactly the captured
 /// perspective image. Its fragment shader alpha-tests the coverage at 0.5, rebuilds the surface point on the ray
 /// from the capture's eye through the quad, writes that point's depth (<c>gl_FragDepth</c>) and distance, and
-/// writes the captured color as emission with albedo alpha 0, so the lighting pass adds no light of its own.</para>
+/// writes the captured color as emission with base color alpha 0, so the lighting pass adds no light of its own.</para>
 /// </remarks>
 internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
 {

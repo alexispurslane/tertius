@@ -214,9 +214,9 @@ public sealed class LitPuffRenderTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId gray = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), gloss: 0.2f) with
+                MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), roughness: 0.65f) with
                 {
-                    SpecularIntensity = 0f,
+                    Reflectance = 0f,
                 }
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.05f), sunIntensity: 6f);
@@ -258,7 +258,7 @@ public sealed class LitPuffRenderTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
             MaterialId gray = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), gloss: 0.2f)
+                MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), roughness: 0.65f)
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.2f), sunIntensity: 6f);
             var puff = new Vector3(0, 0, -20);
@@ -320,9 +320,9 @@ public sealed class LitPuffRenderTests
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId gray = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
+            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), roughness: 0.65f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.9f, 0.3f), sunIntensity: 5f);

@@ -115,9 +115,9 @@ public sealed class OutlineRenderTests
     {
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId white = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f) with
+            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.75f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f));
@@ -372,10 +372,10 @@ public sealed class OutlineRenderTests
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId gray = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f)
+            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), roughness: 0.55f)
         );
         MaterialId ground = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f)
+            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), roughness: 0.65f)
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
         snapshot.Instances.Add(

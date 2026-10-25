@@ -38,7 +38,7 @@ public sealed class AmbientFrameTests : IDisposable
                 Render = new RenderData
                 {
                     Mesh = resources.CreateMesh(Primitives.Sphere(1, 64, 32)),
-                    Material = resources.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0)),
+                    Material = resources.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, Reflectance: 0)),
                     BoundingRadius = 1,
                     Flags = RenderFlags.Visible,
                 },

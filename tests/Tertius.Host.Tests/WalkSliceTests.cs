@@ -117,10 +117,13 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     {
         // The nose window is 6 m wide and 2 m tall, centered at eye height, so it is in the middle of the image. The ship's
         // nose points along its motion, level, and Earth's horizon is 19.8 degrees below level, out of the window's view.
-        // Space is black, and the pane in the window adds its own lamp-lit color, a dark blue gray.
+        // Space is black, and the pane in the window adds its own lamp-lit color, a dark blue gray. The C# BRDF gives the
+        // pane at most 22 % more light here than Blinn-Phong did, mostly because its diffuse part no longer gives up the
+        // Fresnel share (docs/plans/pbr-brdf.md, "Decisions", 13). So the bound of 90 grew by that share, to 110: the tone
+        // curve and the sRGB curve grow less than in proportion at these levels.
         (int r, int g, int b) window = run.Capture("cabin").Average(640, 360);
 
-        (window.r + window.g + window.b < 90 && window.b > window.r)
+        (window.r + window.g + window.b < 110 && window.b > window.r)
             .Should()
             .BeTrue($"dark space shows through the pane, not {window}");
     }

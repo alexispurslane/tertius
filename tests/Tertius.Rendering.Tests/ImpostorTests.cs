@@ -41,20 +41,22 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 Checker = renderer.CreateMaterial(
                     new(
                         BaseColor: Vector4.One,
-                        SpecularIntensity: 0.6f,
-                        Gloss: 0.6f,
-                        Albedo: checker,
-                        Normal: tiles,
-                        SpecularGloss: TextureId.None
+                        Reflectance: 0.6f,
+                        Roughness: 0.32f,
+                        BaseColorMap: checker,
+                        NormalMap: tiles,
+                        MetallicRoughnessMap: TextureId.None
                     )
                 ),
                 Red = renderer.CreateMaterial(
-                    MaterialDesc.Color(new(x: 0.75f, y: 0.08f, z: 0.06f, w: 1), gloss: 0.8f) with
+                    MaterialDesc.Color(new(x: 0.75f, y: 0.08f, z: 0.06f, w: 1), roughness: 0.22f) with
                     {
-                        SpecularIntensity = 1f,
+                        Reflectance = 1f,
                     }
                 ),
-                Ground = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f)),
+                Ground = renderer.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.65f)
+                ),
             };
         }
     }
@@ -364,9 +366,9 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             var assets = Assets.Create(renderer);
             MaterialId[] colors =
             [
-                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1), gloss: 0.7f)),
-                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), gloss: 0.3f)),
-                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.3f, z: 0.8f, w: 1), gloss: 0.5f)),
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1), roughness: 0.26f)),
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), roughness: 0.55f)),
+                renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.3f, z: 0.8f, w: 1), roughness: 0.38f)),
                 assets.Checker,
             ];
             // 50 objects in a 10 × 5 grid, every one between 25 and 150 px tall.
@@ -466,7 +468,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             ];
             MaterialId[] materials =
             [
-                .. tints.Select(t => renderer.CreateMaterial(MaterialDesc.Color(t, gloss: 0.3f))),
+                .. tints.Select(t => renderer.CreateMaterial(MaterialDesc.Color(t, roughness: 0.55f))),
             ];
             float far = DistanceForHeight(height: 80f, radius: 1f, outputHeight: height),
                 close = DistanceForHeight(height: 320f, radius: 1f, outputHeight: height);

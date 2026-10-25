@@ -594,7 +594,12 @@ public static partial class DemoScenes
             // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.
             Vector3 bay = HubHalf - new Vector3(HubWall);
             MaterialId lampMaterial = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(6, 5.4f, 4.5f)
+                )
             );
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [

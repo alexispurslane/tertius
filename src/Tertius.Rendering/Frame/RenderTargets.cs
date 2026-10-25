@@ -11,13 +11,13 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// G-buffer layout:
 /// <list type="table">
-/// <item><term>albedo</term>
-/// <description>R8G8B8A8_SRGB: linear albedo, stored with the sRGB curve for precision in the darks.</description></item>
+/// <item><term>base color</term>
+/// <description>R8G8B8A8_SRGB: linear base color, stored with the sRGB curve for precision in the darks.</description></item>
 /// <item><term>normal</term>
 /// <description>R16G16B16A16_SNORM: two octahedral-encoded world-space normals: the shading normal
 /// (after normal mapping) in rg, the interpolated vertex normal in ba. The shadow lookup biases along the second.</description>
 /// </item>
-/// <item><term>specular-gloss</term><description>R8G8_UNORM: specular intensity and gloss.</description></item>
+/// <item><term>specular</term><description>R8G8B8A8_UNORM: metallic, roughness r₀, reflectance, the lobe's sky share.</description></item>
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// </list>
@@ -25,9 +25,9 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
-    public const Format AlbedoFormat = Format.R8G8B8A8Srgb;
+    public const Format BaseColorFormat = Format.R8G8B8A8Srgb;
     public const Format NormalFormat = Format.R16G16B16A16SNorm;
-    public const Format SpecularGlossFormat = Format.R8G8Unorm;
+    public const Format SpecularFormat = Format.R8G8B8A8Unorm;
     public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
@@ -36,9 +36,9 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
     [
-        AlbedoFormat,
+        BaseColorFormat,
         NormalFormat,
-        SpecularGlossFormat,
+        SpecularFormat,
         EmissiveFormat,
         DistanceFormat,
     ];
@@ -59,9 +59,9 @@ internal sealed class RenderTargets : IDisposable
     }
 
     public Extent2D Extent { get; private set; }
-    public GpuImage Albedo { get; private set; }
+    public GpuImage BaseColor { get; private set; }
     public GpuImage Normal { get; private set; }
-    public GpuImage SpecularGloss { get; private set; }
+    public GpuImage Specular { get; private set; }
     public GpuImage Emissive { get; private set; }
     public GpuImage Distance { get; private set; }
     public GpuImage Depth { get; private set; }
@@ -86,9 +86,9 @@ internal sealed class RenderTargets : IDisposable
     }
 
     [MemberNotNull(
-        nameof(Albedo),
+        nameof(BaseColor),
         nameof(Normal),
-        nameof(SpecularGloss),
+        nameof(Specular),
         nameof(Emissive),
         nameof(Distance),
         nameof(Depth),
@@ -98,14 +98,14 @@ internal sealed class RenderTargets : IDisposable
     {
         const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        Albedo = GpuImage.Create(
+        BaseColor = GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
-            format: AlbedoFormat,
+            format: BaseColorFormat,
             usage: target,
             mipLevels: 1,
-            name: "g-buffer albedo"
+            name: "g-buffer base color"
         );
         Normal = GpuImage.Create(
             device: device,
@@ -116,14 +116,14 @@ internal sealed class RenderTargets : IDisposable
             mipLevels: 1,
             name: "g-buffer normal"
         );
-        SpecularGloss = GpuImage.Create(
+        Specular = GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
-            format: SpecularGlossFormat,
+            format: SpecularFormat,
             usage: target,
             mipLevels: 1,
-            name: "g-buffer specular-gloss"
+            name: "g-buffer specular"
         );
         Emissive = GpuImage.Create(
             device: device,
@@ -161,7 +161,7 @@ internal sealed class RenderTargets : IDisposable
             mipLevels: 1,
             name: "hdr"
         );
-        GBuffer = [Albedo, Normal, SpecularGloss, Emissive, Distance];
+        GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);

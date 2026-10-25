@@ -23,6 +23,7 @@ internal sealed unsafe class FrameResources : IDisposable
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         TextureStore textures,
+        BrdfTableImages tables,
         int index
     )
     {
@@ -130,13 +131,7 @@ internal sealed unsafe class FrameResources : IDisposable
 
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
-        layouts.WriteBuffer(set: FrameSet, binding: 0, type: DescriptorType.UniformBuffer, buffer: Constants);
-        layouts.WriteBuffer(set: FrameSet, binding: 1, type: DescriptorType.StorageBuffer, buffer: Instances.Buffer);
-        layouts.WriteBuffer(set: FrameSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Lights.Buffer);
-        layouts.WriteBuffer(set: FrameSet, binding: 4, type: DescriptorType.StorageBuffer, buffer: Occluders.Buffer);
-        layouts.WriteSampler(FrameSet, 5, textures.MaterialSampler);
-        layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
-        layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+        WriteFrameSet(textures, tables);
     }
 
     public int Index { get; }
@@ -190,6 +185,21 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         if (Puffs.Write(scene.Puffs.AsSpan(0, scene.PuffCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+    }
+
+    /// <summary>Writes every binding of the frame set but the materials, which <see cref="UpdateSharedDescriptors"/> writes.</summary>
+    private void WriteFrameSet(TextureStore textures, BrdfTableImages tables)
+    {
+        layouts.WriteBuffer(set: FrameSet, binding: 0, type: DescriptorType.UniformBuffer, buffer: Constants);
+        layouts.WriteBuffer(set: FrameSet, binding: 1, type: DescriptorType.StorageBuffer, buffer: Instances.Buffer);
+        layouts.WriteBuffer(set: FrameSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Lights.Buffer);
+        layouts.WriteBuffer(set: FrameSet, binding: 4, type: DescriptorType.StorageBuffer, buffer: Occluders.Buffer);
+        layouts.WriteSampler(FrameSet, 5, textures.MaterialSampler);
+        layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
+        layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+        // The tables never change, so their bindings are written once.
+        layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
+        layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
     }
 
     /// <summary>Points this frame's sets at the current material buffer and writes textures added since its last frame.</summary>

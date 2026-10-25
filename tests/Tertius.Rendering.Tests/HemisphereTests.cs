@@ -26,11 +26,33 @@ public sealed class HemisphereTests
         bool impostors = false
     )
     {
+        Vector3[] colors = Render(
+            up: up,
+            name: name,
+            // A reflectance of 0: the lobe's share of the ambient light is small at these view angles.
+            material: new(BaseColor: Vector4.One, Roughness: 0.38f, Reflectance: 0),
+            pixels: [Toward(Vector3.UnitX), Toward(-Vector3.UnitX), Toward(Vector3.UnitY)],
+            flags: flags,
+            impostors: impostors
+        );
+        return (colors[0], colors[1], colors[2]);
+    }
+
+    /// <summary>Renders the sphere with <paramref name="material"/> and returns its color at each of <paramref name="pixels"/>.</summary>
+    private static Vector3[] Render(
+        HemisphereUp up,
+        string name,
+        MaterialDesc material,
+        Vector2[] pixels,
+        RenderFlags flags,
+        bool impostors
+    )
+    {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, impostors: impostors);
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
-            MaterialId white = renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularIntensity: 0));
+            MaterialId surface = renderer.CreateMaterial(material);
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
             snapshot.Ambient = new()
             {
@@ -41,7 +63,7 @@ public sealed class HemisphereTests
             snapshot.Instances.Add(
                 RenderInstance.Create(
                     mesh: sphere,
-                    material: white,
+                    material: surface,
                     position: Center,
                     rotation: Quaternion.Identity,
                     scale: Vector3.One,
@@ -54,11 +76,7 @@ public sealed class HemisphereTests
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
             if (impostors)
                 renderer.LastFrameStats.Impostors.Should().Be(1, "the sphere is 78 px tall, below 200");
-            return (
-                image.Color(Toward(Vector3.UnitX)),
-                image.Color(Toward(-Vector3.UnitX)),
-                image.Color(Toward(Vector3.UnitY))
-            );
+            return [.. pixels.Select(image.Color)];
         }
         finally
         {
@@ -156,5 +174,90 @@ public sealed class HemisphereTests
         ExpectSkyward(right, "right");
         ExpectGroundward(left, "left");
         ExpectEven(top, "top");
+    }
+
+    /// <summary>
+    /// The pixel of the point on the sphere's front, in its vertical plane, whose lobe's dominant direction for
+    /// <paramref name="roughness"/> rises <paramref name="elevation"/> degrees above the horizon, found by bisection.
+    /// </summary>
+    private static Vector2 WhereTheLobeRises(double elevation, double roughness)
+    {
+        var lobe = new GgxLobe(roughness);
+        Double3 center = Center;
+        double RiseOf(double normalElevation)
+        {
+            var normal = new Double3(0, Math.Sin(normalElevation), Math.Cos(normalElevation));
+            Double3 toView = -(center + normal).Normalized();
+            return Math.Asin(lobe.DominantDirection(normal, BrdfTesting.Mirror(normal, toView)).Y);
+        }
+
+        double target = elevation * Math.PI / 180;
+        (double low, double high) = (-Math.PI / 3, Math.PI / 3);
+        for (int i = 0; i < 60; i++)
+        {
+            double middle = (low + high) / 2;
+            if (RiseOf(middle) < target)
+                low = middle;
+            else
+                high = middle;
+        }
+
+        Double3 point = new Double3(0, Math.Sin(low), Math.Cos(low)) + center;
+        return Gpu.Project(point: point.ToVector3(), width: Width, height: Height);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void AShinyMetalReflectsTheSkyAboveItsHorizonAndTheGroundBelow(bool transparent, bool impostor)
+    {
+        const double roughness = 0.1;
+        Vector3[] colors = Render(
+            up: HemisphereUp.Along(Vector3.UnitY),
+            name: $"hemisphere-metal-transparent-{transparent}-impostor-{impostor}",
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
+            flags: transparent ? RenderFlags.Transparent : RenderFlags.None,
+            impostors: impostor
+        );
+
+        ExpectSkyward(colors[0], "point whose lobe rises 10° above the horizon");
+        ExpectGroundward(colors[1], "point whose lobe sinks 10° below the horizon");
+    }
+
+    [Fact]
+    public void WithoutGravityAShinyMetalsLobeMixesTheSkyAndTheGroundEvenly()
+    {
+        const double roughness = 0.1;
+        Vector3[] colors = Render(
+            up: HemisphereUp.Even,
+            name: "hemisphere-metal-even",
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
+            flags: RenderFlags.None,
+            impostors: false
+        );
+
+        ExpectEven(colors[0], "point whose lobe rises 10° above the horizon");
+        ExpectEven(colors[1], "point whose lobe sinks 10° below the horizon");
+    }
+
+    [Fact]
+    public void AroundAPointAShinyMetalsLobeSeesTheSkyOnBothSidesOfTheHorizontal()
+    {
+        // Up leads away from the sphere's center, so every lobe that leaves the surface points into the sky.
+        const double roughness = 0.1;
+        Vector3[] colors = Render(
+            up: HemisphereUp.AwayFrom(Vector3.Zero),
+            name: "hemisphere-metal-away",
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
+            flags: RenderFlags.None,
+            impostors: false
+        );
+
+        ExpectSkyward(colors[0], "point whose lobe rises 10° above the horizon");
+        ExpectSkyward(colors[1], "point whose lobe sinks 10° below the horizon");
     }
 }

@@ -990,7 +990,7 @@ internal static class DeepYardReport
         );
         Line(
             report,
-            $"- The faces of the crates look paler than their colors: the light comes from straight behind the person, so the Blinn-Phong highlight covers each face that looks at the person and adds white to it. The scene keeps the light there so that the person's shadow falls on crate-a in touching.png."
+            $"- The faces of the crates look paler than their colors: the light comes from straight behind the person, so the GGX highlight covers each face that looks at the person and adds white to it. The scene keeps the light there so that the person's shadow falls on crate-a in touching.png."
         );
         Line(report, $"");
 

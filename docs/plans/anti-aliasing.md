@@ -11,7 +11,7 @@ Add SMAA 1x (subpixel morphological anti-aliasing, single sample) as the default
 - SMAA 1x is on by default. A switch in `RendererOptions` turns it off. (User)
 - The deterministic-rendering switch from the renderer snapshot tests work turns it off, so the existing snapshots stay valid. Separate snapshot scenes test SMAA itself.
 - Measure the cost with GPU timestamps and report it. (User: the engine must be fast.)
-- Toksvig gloss reduction is optional. It reduces specular sparkle on bumpy, glossy surfaces. If the snapshots show sparkle, add it as a switchable feature.
+- Toksvig roughness widening is optional. It reduces specular sparkle on bumpy, smooth surfaces. It widens the roughness, not a gloss. If the snapshots show sparkle, add it as a switchable feature.
 
 ## Design
 

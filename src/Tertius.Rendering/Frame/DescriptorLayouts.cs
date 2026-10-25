@@ -7,7 +7,8 @@ namespace Tertius.Rendering;
 /// The descriptor set layouts, pipeline layouts and pools shared by all passes.
 /// <list type="table">
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
-/// frame outlines, puffs. One per frame in flight.</description></item>
+/// frame outlines, puffs, and the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable). One per frame
+/// in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -33,18 +34,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         this.device = device;
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
 
-        Span<DescriptorSetLayoutBinding> frame =
-        [
-            new(binding: 0, descriptorType: DescriptorType.UniformBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 1, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 2, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 3, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 4, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 5, descriptorType: DescriptorType.Sampler, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 7, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-        ];
-        FrameSet = CreateLayout(bindings: frame, name: "frame set");
+        TableSampler = CreateTableSampler();
+        FrameSet = CreateFrameSetLayout(TableSampler);
 
         // Textures live in their own set because only update-after-bind layouts may hold more than
         // maxPerStageDescriptorSampledImages (256 on MoltenVK) descriptors.
@@ -182,9 +173,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             new(DescriptorType.UniformBuffer, frames),
             new(DescriptorType.StorageBuffer, 6 * frames),
-            // One per frame set, and the immutable samplers of the G-buffer and atlas sets.
-            new(DescriptorType.Sampler, frames + 2),
-            new(DescriptorType.SampledImage, 16),
+            // Two per frame set (the material sampler and the immutable table sampler), and the immutable samplers of
+            // the G-buffer and atlas sets.
+            new(DescriptorType.Sampler, 2 * frames + 2),
+            new(DescriptorType.SampledImage, 16 + 2 * frames),
         ];
         pool = CreatePool(sizes: sizes, maxSets: frames + 3, flags: 0, name: "descriptor pool");
         Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * TextureStore.Capacity)];
@@ -206,6 +198,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// as near the sun as the stored caster is lit), clamped to the edge.
     /// </summary>
     public Sampler ShadowSampler { get; }
+
+    /// <summary>Linear filtering, clamped to the edge, one level and no anisotropy, for the BRDF tables.</summary>
+    public Sampler TableSampler { get; }
 
     /// <summary>The impostor atlas: color and depth offset (2D arrays) and <see cref="AtlasSampler"/>.</summary>
     public DescriptorSetLayout AtlasSet { get; }
@@ -342,6 +337,70 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             )
             .Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "shadow comparison sampler");
+        return sampler;
+    }
+
+    /// <summary>The layout of set 0, whose binding 10 holds <paramref name="tableSampler"/> as its immutable sampler.</summary>
+    private DescriptorSetLayout CreateFrameSetLayout(Sampler tableSampler)
+    {
+        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
+        Span<DescriptorSetLayoutBinding> frame =
+        [
+            new(binding: 0, descriptorType: DescriptorType.UniformBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 1, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 2, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 3, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 4, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 5, descriptorType: DescriptorType.Sampler, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            new(binding: 7, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            // The tables sit in the frame set because the impostor capture binds only sets 0 and 1.
+            new(
+                binding: 8,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 9,
+                descriptorType: DescriptorType.SampledImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit
+            ),
+            new(
+                binding: 10,
+                descriptorType: DescriptorType.Sampler,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit,
+                pImmutableSamplers: &tableSampler
+            ),
+        ];
+        return CreateLayout(bindings: frame, name: "frame set");
+    }
+
+    private Sampler CreateTableSampler()
+    {
+        var info = new SamplerCreateInfo
+        {
+            SType = StructureType.SamplerCreateInfo,
+            MagFilter = Filter.Linear,
+            MinFilter = Filter.Linear,
+            MipmapMode = SamplerMipmapMode.Nearest,
+            AddressModeU = SamplerAddressMode.ClampToEdge,
+            AddressModeV = SamplerAddressMode.ClampToEdge,
+            AddressModeW = SamplerAddressMode.ClampToEdge,
+            MinLod = 0f,
+            MaxLod = 0f,
+        };
+        device
+            .Vk.CreateSampler(
+                device: device.Device,
+                pCreateInfo: &info,
+                pAllocator: null,
+                pSampler: out Sampler sampler
+            )
+            .Check("vkCreateSampler");
+        device.SetName(ObjectType.Sampler, sampler.Handle, "brdf table sampler");
         return sampler;
     }
 
@@ -489,5 +548,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
+        vk.DestroySampler(device.Device, TableSampler, null);
     }
 }

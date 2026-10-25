@@ -45,7 +45,7 @@ public class PuffRenderBenchmarks
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId gray = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), gloss: 0.3f)
+            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), roughness: 0.55f)
         );
         snapshot = new()
         {

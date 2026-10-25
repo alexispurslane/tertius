@@ -1,0 +1,84 @@
+namespace Tertius.Rendering;
+
+/// <summary>A material at one point, after its maps, as the BRDF reads it.</summary>
+/// <remarks>The terms and their sources are in docs/plans/pbr-brdf.md, "The BRDF".</remarks>
+internal readonly record struct MaterialSample(Double3 BaseColor, double Metallic, double Roughness, double Reflectance)
+{
+    // A normal map can turn the shading normal away from the eye, and the visibility term divides by μ.
+    private const double MinViewCosine = 1e-4;
+
+    private static Double3 One => new(1, 1, 1);
+
+    /// <summary>The Lambert color, b (1 − m): a metal has none.</summary>
+    public Double3 DiffuseColor => BaseColor * (1 - Metallic);
+
+    /// <summary>The share of light reflected head on, per channel: 0.16 ρ² for a non-metal, b for a metal.</summary>
+    public Double3 F0 => One * ((1 - Metallic) * 0.16 * Reflectance * Reflectance) + BaseColor * Metallic;
+
+    /// <summary>The GGX lobe of the material's roughness, after the floor.</summary>
+    public GgxLobe Lobe => new(Roughness);
+
+    /// <summary>Schlick's Fresnel term at the cosine of the view direction to the half vector.</summary>
+    public Double3 Fresnel(double vDotH) => F0 + (One - F0) * Math.Pow(1 - vDotH, 5);
+
+    /// <summary>f_ss, the BRDF with single scattering, per steradian, for unit directions above the horizon.</summary>
+    public Double3 SingleScatteringBrdf(Double3 normal, Double3 toView, Double3 toLight) =>
+        DiffuseColor / Math.PI + SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight);
+
+    /// <summary>
+    /// f · max(n·l, 0): the share of the irradiance from <paramref name="toLight"/> that the point sends toward
+    /// <paramref name="toView"/>, per steradian, with the energy compensation.
+    /// </summary>
+    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables)
+    {
+        double nDotL = Double3.Dot(normal, toLight);
+        if (nDotL <= 0)
+            return Double3.Zero;
+        double lobeAlbedo = tables.SampleDfg(nDotV: ViewCosine(normal, toView), roughness: Lobe.Roughness).LobeAlbedo;
+        Double3 compensation = EnergyCompensation(lobeAlbedo);
+        Double3 lobe = SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * compensation;
+        return (DiffuseColor / Math.PI + lobe) * nDotL;
+    }
+
+    /// <summary>
+    /// The light that the hemisphere ambient light sends toward <paramref name="toView"/>: the diffuse color by the
+    /// normal's sky share, plus the compensated specular albedo by the lobe's sky share.
+    /// </summary>
+    public Double3 ReflectedHemisphere(
+        Double3 normal,
+        Double3 toView,
+        Double3 sky,
+        Double3 ground,
+        double normalSkyShare,
+        double lobeSkyShare,
+        BrdfTables tables
+    )
+    {
+        double nDotV = ViewCosine(normal, toView);
+        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(nDotV: nDotV, roughness: Lobe.Roughness);
+        Double3 specularAlbedo = One * schlickPart + F0 * (lobeAlbedo - schlickPart);
+        Double3 diffuse = DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare);
+        Double3 specular = specularAlbedo * EnergyCompensation(lobeAlbedo) * Double3.Lerp(ground, sky, lobeSkyShare);
+        return diffuse + specular;
+    }
+
+    /// <summary>μ, the cosine of the view direction to the normal, with its floor.</summary>
+    private static double ViewCosine(Double3 normal, Double3 toView) =>
+        Math.Clamp(Double3.Dot(normal, toView), MinViewCosine, 1);
+
+    /// <summary>D · Vis · F, the GGX lobe with single scattering, per steradian.</summary>
+    private Double3 SingleScatteringLobe(Double3 normal, Double3 toView, Double3 toLight)
+    {
+        Double3 halfVector = (toView + toLight).Normalized();
+        GgxLobe lobe = Lobe;
+        double distribution = lobe.Distribution(Double3.Dot(normal, halfVector));
+        double visibility = lobe.Visibility(nDotL: Double3.Dot(normal, toLight), nDotV: ViewCosine(normal, toView));
+        return Fresnel(Double3.Dot(toView, halfVector)) * (distribution * visibility);
+    }
+
+    /// <summary>
+    /// c = 1 + F0 (1 / E₁ − 1), per channel, from the lobe albedo E₁: gives back the light that single scattering
+    /// loses.
+    /// </summary>
+    private Double3 EnergyCompensation(double lobeAlbedo) => One + F0 * (1 / lobeAlbedo - 1);
+}

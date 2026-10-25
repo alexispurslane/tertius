@@ -16,10 +16,10 @@ public sealed class HookAndCameraTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
             MaterialId white = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.75f)
             );
             MaterialId red = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), gloss: 0.1f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), roughness: 0.75f)
             );
             // Turned 90 degrees to the left, the camera looks down −X. The sun shines from +Y, so the upper half of
             // the sphere in front is lit and the lower half is not, whatever the camera's rotation.
@@ -83,7 +83,7 @@ public sealed class HookAndCameraTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.38f));
             var log = new List<string>();
             var probe = new ProbePass(log);
             renderer.Graph.Add(FrameGraph.Stage.ShadowMaps, probe);

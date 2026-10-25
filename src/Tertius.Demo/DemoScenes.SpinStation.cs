@@ -227,7 +227,12 @@ public static partial class DemoScenes
             // Each lamp is a glowing panel on the inner face of a wall, with its light just in front of it.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
             MaterialId lampMaterial = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(6, 5.4f, 4.5f)
+                )
             );
             for (int k = 0; k < Segments; k += LampEvery)
             {
@@ -291,7 +296,9 @@ public static partial class DemoScenes
                 HalfExtents: new(CrateHalfSize),
                 Mass: CrateMass,
                 Mesh: resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1)))
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1), UsualRoughness)
+                )
             );
             scene.Add(
                 "carried-crate",

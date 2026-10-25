@@ -1,11 +1,12 @@
-// The lighting model, shared by the deferred lighting pass, the transparent forward pass and the lit puffs.
+// The lighting model, shared by the deferred lighting pass, the transparent forward pass, the impostor capture and the
+// lit puffs.
 //
-// Energy-normalized Blinn-Phong (ARCHITECTURE.md, Shading):
-//   f = albedo / π · (1 − F) + F · (n + 8) / (8π) · (N·H)^n
-//   n  = 2^(1 + 11 · gloss), so gloss 0 gives n = 2 and gloss 1 gives n = 4096
-//   F  = Schlick: F0 + (1 − F0)(1 − L·H)^5, with F0 = 0.16 · specular² (specular 0.5 gives F0 = 0.04)
-// Lights add f · E · (N·L), where E is the irradiance of the light. Ambient light is a hemisphere: ground color
-// below, sky color above, blended by the normal's part along the up of the surface's own frame (skyFraction).
+// The PBR BRDF (docs/plans/pbr-brdf.md, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
+// visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
+//   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
+// The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
+// color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
+// share (hemisphere.glsl). surfaceRadiance clamps the sum to the largest finite half float.
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -14,30 +15,50 @@
 
 #include "shadows.glsl"
 #include "hemisphere.glsl"
+#include "brdf.glsl"
+
+// The largest finite half float: the HDR target stores no more (docs/plans/pbr-brdf.md, "The clamp").
+const float MaxRadiance = 65504.0;
 
 struct ShadingInput
 {
-    vec3 albedo;
-    vec3 normal;            // shading normal, after normal mapping
-    vec3 geometricNormal;   // interpolated vertex normal: the surface the shadow map sees
-    float specular;
-    float gloss;
-    float skyFraction;      // how much of the hemisphere ambient light comes from the sky, 0 to 1 (skyFraction below)
+    vec3 baseColor;
+    vec3 normal;              // shading normal, after normal mapping
+    vec3 geometricNormal;     // interpolated vertex normal: the surface the shadow map sees
+    float metallic;
+    float roughness;          // r₀, before the floor
+    float reflectance;
+    float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
+    float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
 };
 
-
-float specularExponent(float gloss)
+// The values that every light at one pixel shares, computed once per pixel.
+struct SurfaceLobes
 {
-    return exp2(1.0 + 11.0 * clamp(gloss, 0.0, 1.0));
+    vec3 diffuseColor;
+    vec3 f0;
+    float alpha;
+    float NdotV;              // clamped to MinNdotV
+    vec3 specularAlbedo;      // E = S + F0 (E₁ − S)
+    vec3 energyCompensation;  // c = 1 + F0 (1 / E₁ − 1)
+};
+
+SurfaceLobes lobesOf(ShadingInput s, vec3 V)
+{
+    SurfaceLobes lobes;
+    float roughness = flooredRoughness(s.roughness);
+    lobes.alpha = roughness * roughness;
+    lobes.diffuseColor = s.baseColor * (1.0 - s.metallic);
+    lobes.f0 = vec3((1.0 - s.metallic) * 0.16 * s.reflectance * s.reflectance) + s.baseColor * s.metallic;
+    lobes.NdotV = clamp(dot(s.normal, V), MinNdotV, 1.0);
+    vec2 dfg = dfgAt(lobes.NdotV, roughness);
+    lobes.specularAlbedo = vec3(dfg.x) + lobes.f0 * (dfg.y - dfg.x);
+    lobes.energyCompensation = 1.0 + lobes.f0 * (1.0 / dfg.y - 1.0);
+    return lobes;
 }
 
-float fresnelF0(float specularIntensity)
-{
-    return 0.16 * specularIntensity * specularIntensity;
-}
-
-// Reflected radiance for unit irradiance from direction L, including the cosine term.
-vec3 blinnPhong(ShadingInput s, vec3 V, vec3 L)
+// f · max(N·L, 0): the radiance toward V per unit irradiance from direction L.
+vec3 brdf(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
 {
     vec3 N = s.normal;
     float NdotL = dot(N, L);
@@ -46,13 +67,10 @@ vec3 blinnPhong(ShadingInput s, vec3 V, vec3 L)
     vec3 halfVector = L + V;
     float halfLengthSq = dot(halfVector, halfVector);
     vec3 H = halfLengthSq > 1e-12 ? halfVector * inversesqrt(halfLengthSq) : N;
-    float NdotH = max(dot(N, H), 0.0);
-    float LdotH = max(dot(L, H), 0.0);
-    float n = specularExponent(s.gloss);
-    float f0 = fresnelF0(s.specular);
-    float F = f0 + (1.0 - f0) * pow(1.0 - LdotH, 5.0);
-    float specular = (n + 8.0) / (8.0 * PI) * pow(NdotH, n);
-    return (s.albedo * ((1.0 - F) / PI) + vec3(F * specular)) * NdotL;
+    float distribution = ggxDistribution(dot(N, H), lobes.alpha);
+    float visibility = smithVisibility(NdotL, lobes.NdotV, lobes.alpha);
+    vec3 lobe = schlickFresnel(lobes.f0, dot(V, H)) * (distribution * visibility) * lobes.energyCompensation;
+    return (lobes.diffuseColor / PI + lobe) * NdotL;
 }
 
 // The fraction of the sun's disc (angular radius sunRadius) hidden by an occluder's disc (angular radius
@@ -146,15 +164,20 @@ float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
     return attenuation;
 }
 
-// Hemisphere ambient light reflected by a surface.
-vec3 ambientLight(ShadingInput s)
+// The hemisphere ambient light reflected toward the eye: its diffuse part by the normal's sky share, and its specular
+// part by the lobe's.
+vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
 {
-    return mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.skyFraction) * s.albedo;
+    vec3 ground = frame.ambientGround.rgb;
+    vec3 sky = frame.ambientSky.rgb;
+    vec3 diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
+    vec3 specular = lobes.specularAlbedo * lobes.energyCompensation * mix(ground, sky, s.lobeSkyFraction);
+    return diffuse + specular;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.
 // Impostor captures pass false: the cascades cover the main view, not the capture.
-vec3 sunLight(ShadingInput s, vec3 position, vec3 V, bool shadowMaps)
+vec3 sunLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, bool shadowMaps)
 {
     vec3 L = frame.sunDirection.xyz;
     // A normal map can tilt the shading normal toward the sun on a surface that itself faces away; that surface is
@@ -163,11 +186,12 @@ vec3 sunLight(ShadingInput s, vec3 position, vec3 V, bool shadowMaps)
     if (dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
         return vec3(0.0);
     float visibility = sunReaches(position, s.geometricNormal, geometricNdotL, shadowMaps);
-    return visibility > 0.0 ? blinnPhong(s, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);
+    return visibility > 0.0 ? brdf(s, lobes, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);
 }
 
-// Light from the point and spot lights reflected toward V.
-vec3 localLights(ShadingInput s, vec3 position, vec3 V)
+// Light from the point and spot lights reflected toward V. They add in the order of the light list, so the sum rounds
+// the same way on every run.
+vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
 {
     vec3 color = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
@@ -176,15 +200,20 @@ vec3 localLights(ShadingInput s, vec3 position, vec3 V)
         vec3 lightDirection;
         float attenuation = lightReaches(light, position, lightDirection);
         if (attenuation > 0.0)
-            color += blinnPhong(s, V, lightDirection) * light.radianceKind.rgb * attenuation;
+            color += brdf(s, lobes, V, lightDirection) * light.radianceKind.rgb * attenuation;
     }
     return color;
 }
 
-// All light that leaves a surface point toward the viewer, except emission. V points from the surface to the eye.
-vec3 shadeSurface(ShadingInput s, vec3 position, vec3 V)
+// All light that leaves a surface point toward the eye, emission included, clamped to what the HDR target holds. The
+// clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts. V points from
+// the surface to the eye. Impostor captures pass shadowMaps false.
+vec3 surfaceRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, bool shadowMaps)
 {
-    return ambientLight(s) + sunLight(s, position, V, true) + localLights(s, position, V);
+    SurfaceLobes lobes = lobesOf(s, V);
+    vec3 radiance = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
+        + localLights(s, lobes, position, V) + emission;
+    return min(radiance, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no

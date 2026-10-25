@@ -15,6 +15,18 @@ public static partial class DemoScenes
     public const double EarthRadius = 6.371e6;
 
     /// <summary>
+    /// The roughness of every painted part and lamp: the old default gloss of 0.5, converted so that each highlight keeps
+    /// its size (docs/plans/pbr-brdf.md, "The demo materials").
+    /// </summary>
+    public const float UsualRoughness = 0.38f;
+
+    /// <summary>
+    /// The roughness of both glasses: their old gloss of 0.9, converted so that each highlight keeps its size
+    /// (docs/plans/pbr-brdf.md, "The demo materials").
+    /// </summary>
+    public const float GlassRoughness = 0.18f;
+
+    /// <summary>
     /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. Only puffs feel the air
     /// (see <see cref="Air"/>), so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it.
     /// </summary>
@@ -97,6 +109,7 @@ public static partial class DemoScenes
         new("earth-system", EarthSystem.Build),
         new("demo-exit", DemoExit.Build),
         new("puff-yard", PuffYard),
+        new("pbr-spheres", PbrSpheres),
     ];
 
     /// <summary>
@@ -322,7 +335,12 @@ public static partial class DemoScenes
         // glowing panel, with its light just below.
         MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
         MaterialId lampMaterial = resources.CreateMaterial(
-            new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+            new(
+                BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                Roughness: UsualRoughness,
+                Reflectance: 0,
+                Emissive: new(6, 5.4f, 4.5f)
+            )
         );
         for (int i = -2; i <= 2; i++)
             world.Spawn(
@@ -350,7 +368,7 @@ public static partial class DemoScenes
         // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
         // solid at the windows.
         MaterialId glass = resources.CreateMaterial(
-            new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), SpecularIntensity: 1, Gloss: 0.9f)
+            new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), Roughness: GlassRoughness, Reflectance: 1)
         );
         var paneMeshes = new Dictionary<Vector3, MeshId>();
         foreach ((string pane, Opening window) in Windows)
@@ -410,7 +428,9 @@ public static partial class DemoScenes
             HalfExtents: new(0.2f),
             Mass: 5,
             Mesh: resources.CreateMesh(Primitives.Box(new(0.2f))),
-            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1)))
+            Material: resources.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1), UsualRoughness)
+            )
         );
         double onTheFloor = -Cabin.Y + crate.HalfExtents.Y;
 
@@ -528,7 +548,12 @@ public static partial class DemoScenes
                 // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
                 // its sphere.
                 Material = resources.CreateMaterial(
-                    new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(60, 55, 45))
+                    new(
+                        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                        Roughness: UsualRoughness,
+                        Reflectance: 0,
+                        Emissive: new(60, 55, 45)
+                    )
                 ),
                 BoundingRadius = (float)SunRadius,
                 Flags = RenderFlags.Visible | RenderFlags.Celestial,
@@ -591,8 +616,9 @@ public static partial class DemoScenes
                         Material = resources.CreateMaterial(
                             new(
                                 BaseColor: Vector4.One,
-                                SpecularIntensity: 0.1f,
-                                Albedo: resources.CreateTexture(EarthGrid())
+                                Roughness: UsualRoughness,
+                                Reflectance: 0.1f,
+                                BaseColorMap: resources.CreateTexture(EarthGrid())
                             )
                         ),
                         BoundingRadius = (float)EarthRadius,
@@ -619,7 +645,11 @@ public static partial class DemoScenes
                     {
                         Mesh = resources.CreateMesh(Primitives.Sphere((float)MoonRadius, 128, 64)),
                         Material = resources.CreateMaterial(
-                            new(BaseColor: new(x: 0.55f, y: 0.55f, z: 0.53f, w: 1), SpecularIntensity: 0.05f)
+                            new(
+                                BaseColor: new(x: 0.55f, y: 0.55f, z: 0.53f, w: 1),
+                                Roughness: UsualRoughness,
+                                Reflectance: 0.05f
+                            )
                         ),
                         BoundingRadius = (float)MoonRadius,
                         Flags = RenderFlags.Visible | RenderFlags.Celestial,
@@ -874,7 +904,7 @@ public static partial class DemoScenes
         new()
         {
             Mesh = resources.CreateMesh(mesh),
-            Material = resources.CreateMaterial(MaterialDesc.Color(color)),
+            Material = resources.CreateMaterial(MaterialDesc.Color(color, UsualRoughness)),
             BoundingRadius = boundingRadius,
             Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
         };

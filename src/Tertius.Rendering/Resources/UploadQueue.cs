@@ -77,9 +77,9 @@ internal sealed class UploadQueue(int maxTextureSize)
         ArgumentNullException.ThrowIfNull(material);
         lock (gate)
         {
-            CheckTexture(material.Albedo, nameof(material.Albedo));
-            CheckTexture(material.Normal, nameof(material.Normal));
-            CheckTexture(material.SpecularGloss, nameof(material.SpecularGloss));
+            CheckTexture(material.BaseColorMap, nameof(material.BaseColorMap));
+            CheckTexture(material.NormalMap, nameof(material.NormalMap));
+            CheckTexture(material.MetallicRoughnessMap, nameof(material.MetallicRoughnessMap));
             var id = new MaterialId(Next(ref materialCount, "materials"));
             pending.Materials.Add((id, material));
             return id;

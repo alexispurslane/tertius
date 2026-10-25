@@ -1,0 +1,11 @@
+{
+  "scene": "pbr-spheres",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 10 },
+    { "do": "capture", "name": "front" },
+    { "do": "camera", "entity": "low-camera" },
+    { "do": "run", "ticks": 10 },
+    { "do": "capture", "name": "low" }
+  ]
+}

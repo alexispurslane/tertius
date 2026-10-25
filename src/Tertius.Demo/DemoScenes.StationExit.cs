@@ -315,7 +315,12 @@ public static partial class DemoScenes
             );
 
             MaterialId lampMaterial = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(6, 5.4f, 4.5f)
+                )
             );
             MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
             MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new(0.05f, 0.6f, 0.6f)));

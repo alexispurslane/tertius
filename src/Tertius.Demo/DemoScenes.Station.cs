@@ -279,7 +279,12 @@ public static partial class DemoScenes
             // the lamps' own faces white.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
             MaterialId lampMaterial = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(2, 1.8f, 1.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(2, 1.8f, 1.5f)
+                )
             );
             for (int i = -2; i <= 2; i++)
                 world.Spawn(
@@ -350,7 +355,9 @@ public static partial class DemoScenes
             RenderData pod = new()
             {
                 Mesh = resources.CreateMesh(Primitives.Box(new(PodHalfSize))),
-                Material = resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange))),
+                Material = resources.CreateMaterial(
+                    new(BaseColor: orange, Roughness: UsualRoughness, Emissive: MarkerGlow(orange))
+                ),
                 BoundingRadius = PodHalfSize * MathF.Sqrt(3),
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
             };
@@ -397,7 +404,9 @@ public static partial class DemoScenes
                 HalfExtents: new(CrateHalfSize),
                 Mass: CrateMass,
                 Mesh: resources.CreateMesh(Primitives.Box(new(CrateHalfSize))),
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.15f, y: 0.55f, z: 0.1f, w: 1)))
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.15f, y: 0.55f, z: 0.1f, w: 1), UsualRoughness)
+                )
             );
             scene.Add(
                 "crate",

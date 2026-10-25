@@ -273,21 +273,22 @@ public sealed record MeshData(Vertex[] Vertices, uint[] Indices);
 public sealed record TextureData(int Width, int Height, byte[] Rgba, bool Srgb = true);
 
 /// <summary>
-/// An energy-normalized Blinn-Phong material. <see cref="Gloss"/> in [0, 1] maps to a specular exponent.
-/// The gloss texture holds specular intensity in R and gloss in G. Colors are linear RGB. BaseColor.W is opacity,
-/// used only with <see cref="RenderFlags.Transparent"/>. A texture slot left at its default is "no texture".
+/// A metallic-roughness material (docs/plans/pbr-brdf.md). Colors are linear RGB. BaseColor.W is opacity, used only with
+/// <see cref="RenderFlags.Transparent"/>. A map left at its default is no map. The metallic-roughness map has glTF's
+/// layout: roughness in G, metallic in B. Each map channel multiplies its factor.
 /// </summary>
 public sealed record MaterialDesc(
     Vector4 BaseColor,
-    float SpecularIntensity = 0.5f,
-    float Gloss = 0.5f,
+    float Roughness,
+    float Metallic = 0f,
+    float Reflectance = 0.5f,
     Vector3 Emissive = default,
-    TextureId Albedo = default,
-    TextureId Normal = default,
-    TextureId SpecularGloss = default
+    TextureId BaseColorMap = default,
+    TextureId NormalMap = default,
+    TextureId MetallicRoughnessMap = default
 )
 {
-    public static MaterialDesc Color(Vector4 color, float gloss = 0.5f) => new(BaseColor: color, Gloss: gloss);
+    public static MaterialDesc Color(Vector4 color, float roughness) => new(BaseColor: color, Roughness: roughness);
 }
 
 /// <summary>

@@ -5,7 +5,7 @@
 #include "octahedral.glsl"
 
 // Impostor billboards into the G-buffer (ImpostorPass.cs). The capture's lighting is baked, so the pixel is
-// written as emission with albedo alpha 0, which tells the lighting pass to add nothing else. The captured relative
+// written as emission with base color alpha 0, which tells the lighting pass to add nothing else. The captured relative
 // depth rebuilds the surface point on the ray from the capture's eye through the quad, which gives the depth test
 // and the distance target the object's real shape.
 
@@ -16,9 +16,9 @@ layout(set = 3, binding = 2) uniform sampler impostorSampler;              // tr
 layout(location = 0) in vec2 inCorner;
 layout(location = 1) flat in uint inInstance;
 
-layout(location = 0) out vec4 outAlbedo;
+layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec2 outSpecularGloss;
+layout(location = 2) out vec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
 
@@ -49,9 +49,9 @@ void main()
     gl_FragDepth = depth;
 
     vec3 toward = normalize(vec3(instance.modelRow0.z, instance.modelRow1.z, instance.modelRow2.z));
-    outAlbedo = vec4(0.0);
+    outBaseColor = vec4(0.0);
     outNormal = vec4(octEncode(toward), octEncode(toward));
-    outSpecularGloss = vec2(0.0);
+    outSpecular = vec4(0.0);
     outEmissive = vec4(color.rgb / coverage, 1.0);
     outDistance = length(world - draw.eye.xyz);
 }

@@ -27,8 +27,8 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 9. A model file is addressed by node names. A piece is a node that renders as one unit. Every root node is a piece, and an author can mark any other node as a piece. A part is one mesh with one material inside a piece. One entity renders one piece with all its parts through `render.model`.
 10. The front of an object in the engine is -Z, like the camera and spot lights. glTF puts the front of an asset at +Z. So the importer turns every model by 180° about +Y.
 11. One engine light unit is 683 candela for point and spot lights, and 683 lux for the sun. For the sun, this is a Blender sun of strength 1 W/m². For a point light, it is a Blender point light of 4π W. The Blender exporter multiplies by exactly 683, so a scene from Blender keeps its relative brightness.
-12. Materials convert from glTF metallic-roughness to the Blinn-Phong model of the engine with fixed formulas. The default glTF dielectric, with an IOR of 1.5, gives the default engine specular intensity of 0.5 exactly.
-13. Metals cannot look right yet. The engine caps F0 at 0.16 and has no environment reflections. The importer keeps half of the base color of a metal as its diffuse color. Colored specular and environment reflections get a renderer plan of their own later. (User)
+12. Materials import from glTF metallic-roughness as they are. Metallic, roughness and the base color pass through to `MaterialDesc`, and the reflectance is clamp(√(Y(F0d) / 0.16), 0, 1), where F0d is the dielectric reflectance of the glTF material. The default glTF dielectric, with an IOR of 1.5, gives the default reflectance of 0.5 exactly. (Changed on 2026-10-24: the renderer switched from Blinn-Phong to a PBR BRDF, so no conversion to gloss is needed. See [pbr-brdf.md](pbr-brdf.md).)
+13. Metals look right. The BRDF takes the base color of a metal as its F0. Environment reflections still wait for their own plan, and the specular part of the hemisphere ambient light lights metals meanwhile. (Changed on 2026-10-24: the renderer no longer caps F0 at 0.16, so the importer no longer keeps half of the base color of a metal as diffuse color. (User))
 14. Textures are block-compressed (BC4, BC5 and BC7), and the importer makes every mip level. All target GPUs support BC: Apple Silicon through MoltenVK (measured on this machine) and desktop GPUs on Linux.
 15. LODs belong to a mesh. A LOD is a coarser index list over the same vertices. The renderer picks a LOD by its projected error in pixels.
 16. Collision is stored as points and triangles. Jolt builds the shapes at content load, outside a tick. joltc exports no shape serialization (research), and the documentation of Jolt says that its cooked format changes between versions.
@@ -266,7 +266,6 @@ The section `texture` applies to standalone texture assets, and `model.textures`
 | `pieces` | `{}` | Node name to piece configuration. A listed node becomes a piece. |
 | `doubleSided` | `"duplicate"` | `"duplicate"` adds back faces. `"ignore"` keeps one side. |
 | `alphaMask` | `"blend"` | The drawing of glTF alpha mode MASK: `"blend"` or `"opaque"` |
-| `metalAlbedo` | 0.5 | The fraction of the base color that a metal keeps as diffuse color, 0 to 1 |
 | `lods.count` | 3 | The largest number of LODs after LOD 0, 0 to 4 |
 | `lods.ratio` | 0.5 | The fraction of triangles that each LOD keeps of the level before it |
 | `lods.maxError` | 0.02 | The largest error of a LOD, relative to the size of the mesh |
@@ -286,11 +285,11 @@ The section `texture` applies to standalone texture assets, and `model.textures`
 
 | Key | Default | Meaning |
 |---|---|---|
-| `role` | From the name rules, otherwise `"albedo"` | `"albedo"`, `"normal"`, `"normalDx"`, `"specularGloss"`, `"emissive"`, `"data"` or `"ui"` |
+| `role` | From the name rules, otherwise `"albedo"` | `"albedo"`, `"normal"`, `"normalDx"`, `"metallicRoughness"`, `"emissive"`, `"data"` or `"ui"` |
 | `maxSize` | 4096 | The largest side in pixels, a power of two, at most 16384 |
 | `mips` | `true` (`false` for `ui`) | Make every mip level |
 | `compression` | `"bc"` (`"none"` for `ui`) | `"bc"` or `"none"`. `"none"` stores RGBA8. |
-| `toksvig` | `true` | Reduce gloss in the mips of a bumpy normal map (see "Textures") |
+| `toksvig` | `true` | Widen roughness in the mips of a bumpy normal map (see "Textures") |
 
 #### Name rules
 
@@ -301,9 +300,9 @@ Texture roles from the end of the file name, without the extension. Matching ign
 | `albedo`, `basecolor`, `diffuse`, `diff`, `color`, `col` | `albedo` |
 | `normal`, `nor_gl`, `normalgl`, `nrm` | `normal` (OpenGL convention, +Y green, as in glTF) |
 | `nor_dx`, `normaldx` | `normalDx`: the importer flips green |
-| `specgloss` | `specularGloss`: R is the specular intensity, G is the gloss |
+| `metalrough`, `metallicroughness`, `arm`, `orm` | `metallicRoughness`: G is the roughness, B is the metallic, as in glTF. R (occlusion) is not read. |
 | `emissive`, `emission` | `emissive` |
-| `rough`, `roughness`, `metal`, `metallic`, `metalness`, `arm`, `orm`, `ao`, `disp`, `height` | `data` |
+| `rough`, `roughness`, `metal`, `metallic`, `metalness`, `ao`, `disp`, `height` | `data` |
 
 A folder named `ui` anywhere in the path gives the role `ui`.
 
@@ -397,65 +396,50 @@ Bounds: the axis-aligned box of the vertices, and a sphere around the center of 
 
 ### Materials
 
-The importer converts each glTF material to a `MaterialDesc`. The formulas run per texel for outputs with a texture input, and once per material for the other outputs. A texture sample counts as 1 where the material has no texture.
+The importer converts each glTF material to a `MaterialDesc` (see [pbr-brdf.md](pbr-brdf.md)). The values of glTF metallic-roughness pass through as they are. The textures pass through too, with two exceptions that "Packing into `MaterialDesc`" names. A texture sample counts as 1 where the material has no texture.
 
 ```
 Inputs, all linear:
-  base = baseColorFactor × baseColorTexture             RGBA; the texture is decoded from sRGB
-  m    = metallicFactor × metallicRoughnessTexture.b
-  r    = roughnessFactor × metallicRoughnessTexture.g
+  base = baseColorFactor                                RGBA
+  m    = metallicFactor
+  r    = roughnessFactor
   ior  = KHR_materials_ior.ior                          default 1.5
-  sf   = specularFactor × specularTexture.a             KHR_materials_specular, default 1
-  sc   = specularColorFactor × specularColorTexture.rgb default 1; the texture is decoded from sRGB
+  sf   = specularFactor                                 KHR_materials_specular, default 1
+  sc   = specularColorFactor                            default 1
   Y(c) = 0.2126 c.r + 0.7152 c.g + 0.0722 c.b           luminance
 
 Outputs:
-  F0d    = min(((ior − 1) / (ior + 1))² × Y(sc), 1) × sf   dielectric reflectance, KHR_materials_specular
-  F0     = (1 − m) × F0d + m × Y(base.rgb)                 a metal reflects its base color
-  spec   = clamp(sqrt(F0 / 0.16), 0, 1)                    inverse of the engine's F0 = 0.16 × spec²
-  α      = r²
-  n      = clamp(2 / α² − 2, 2, 4096)                      n = 4096 for α = 0
-  gloss  = (log2(n) − 1) / 11                              inverse of the engine's n = 2^(1 + 11 × gloss)
-  albedo = base.rgb × ((1 − m) + m × metalAlbedo)
-  alpha  = base.a                                          1 for alpha mode OPAQUE
-  emissive    = emissiveFactor × emissiveStrength          KHR_materials_emissive_strength, default 1
-  emissiveMap = emissiveTexture                            the new slot of MaterialDesc
+  BaseColor   = base                                    RGBA, the opacity is base.a
+  Metallic    = m
+  Roughness   = r
+  F0d         = min(((ior − 1) / (ior + 1))² × sc, 1) × sf    dielectric reflectance, KHR_materials_specular, per channel
+  Reflectance = clamp(sqrt(Y(F0d) / 0.16), 0, 1)        inverse of the engine's F0 = 0.16 × Reflectance² for a non-metal
+  Emissive    = emissiveFactor × emissiveStrength       KHR_materials_emissive_strength, default 1
+  EmissiveMap = emissiveTexture                         the new slot of MaterialDesc
 ```
 
 Reasons for the formulas:
 
-- n = 2/α² − 2 relates the Blinn-Phong exponent to the Beckmann roughness α (Walter and others, 2007). Engines use the same mapping for GGX, because the two lobes are close for small α. The lobe test of step 10 measures the difference.
-- The engine has white specular, so a colored F0 becomes its luminance.
-- The renderer multiplies albedo by (1 − F) already (`lighting.glsl`), so the importer does not.
-- For the default dielectric (IOR 1.5), F0 is 0.04, and spec is exactly 0.5, the default of `MaterialDesc`.
-- A metal with no diffuse color is black under the hemisphere ambient light, because the engine has no reflections. `metalAlbedo` keeps some of its color.
-
-Roughness to gloss, from the formula:
-
-| glTF roughness | α | n | Gloss |
-|---|---|---|---|
-| 0 to 0.149 | 0 to 0.022 | 4096 | 1.00 |
-| 0.2 | 0.04 | 1248 | 0.84 |
-| 0.3 | 0.09 | 245 | 0.63 |
-| 0.4 | 0.16 | 76 | 0.48 |
-| 0.5 | 0.25 | 30 | 0.36 |
-| 0.6 | 0.36 | 13.4 | 0.25 |
-| 0.7 | 0.49 | 6.3 | 0.15 |
-| 0.841 to 1 | 0.707 to 1 | 2 | 0.00 |
+- The engine has one reflectance for a non-metal, and it is white. So a colored F0d becomes its luminance.
+- The reflectance has no map channel. So `specularTexture` and `specularColorTexture` are not read, and only their factors count (warning AS3005).
+- For the default dielectric (IOR 1.5), F0d is 0.04, and the reflectance is exactly 0.5, the default of `MaterialDesc`.
+- The renderer takes the base color of a metal as its F0, and the diffuse color of a metal is 0. So the importer does nothing special for metals.
+- The engine floors the roughness at 0.045 (`pbr-brdf.md`), so the importer does not.
 
 Packing into `MaterialDesc`:
 
-- If any input of an output is a texture, the importer bakes that output into a texture and sets the factor to 1. Otherwise the output is a constant factor.
-- `Albedo` gets the baked albedo and alpha. `SpecularGloss` gets spec in R and gloss in G. `Normal` gets the normal map with its `scale` baked in: n = normalize((t × 2 − 1) × (scale, scale, 1)).
-- Baked textures use the size of the largest input texture. The importer resizes smaller inputs with the filter of "Textures".
+- `BaseColorMap` gets the glTF base color texture. `MetallicRoughnessMap` gets the glTF metallic-roughness texture, which has the engine's layout: roughness in G, metallic in B. R and A are not read. Each map channel multiplies its factor, as in glTF.
+- The first exception is the normal map. `NormalMap` gets the normal map with its `scale` baked in: n = normalize((t × 2 − 1) × (scale, scale, 1)).
+- The second exception is Toksvig (see "Textures"). A material with a normal map and `toksvig` on gets a `MetallicRoughnessMap` whose mips carry the widened roughness. For this, the importer bakes the factors into the map: G holds roughness factor × G, B holds metallic factor × B, and both factors become 1. A material with no such map gets a constant one.
+- A baked texture uses the size of the largest input texture. The importer resizes smaller inputs with the filter of "Textures".
 - Two materials that bake to equal bytes share one texture. The comparison uses the SHA-256 of the texels.
 
 Alpha modes:
 
 | glTF | Engine |
 |---|---|
-| `OPAQUE` | Alpha is 1. The albedo texture loses its alpha channel. |
-| `BLEND` | The model part gets `Transparent`. The transparent pass uses albedo alpha times base color alpha (`transparent.frag`). |
+| `OPAQUE` | Alpha is 1. The base color texture loses its alpha channel. |
+| `BLEND` | The model part gets `Transparent`. The transparent pass uses base color map alpha times base color alpha (`transparent.frag`). |
 | `MASK` | The renderer has no alpha cutout. With `alphaMask` `"blend"`, the part is `Transparent` and keeps its alpha (warning AS3003). With `"opaque"`, alpha is 1. |
 
 Other material features:
@@ -463,12 +447,12 @@ Other material features:
 | Feature | What the importer does |
 |---|---|
 | `doubleSided` | Back faces are duplicated geometry (see "Meshes"). |
-| KHR_materials_unlit | Albedo 0, spec 0, emissive = base color, and the base color texture becomes the emissive map |
+| KHR_materials_unlit | Base color 0, metallic 0, reflectance 0, emissive = base color, and the base color texture becomes the emissive map |
 | KHR_texture_transform | Baked into the UVs of the primitives of the material. Different transforms on two textures of one material are error AS3004. |
 | `occlusionTexture` | Dropped (info AS3002). The G-buffer has no free channel for ambient occlusion. |
 | `texCoord` other than the set of the base color texture | The base color set wins (warning AS2017). |
 | KHR_materials_clearcoat, sheen, transmission, volume, iridescence, anisotropy, dispersion, diffuse_transmission | Ignored (warning AS3005) |
-| KHR_materials_pbrSpecularGlossiness | Converted: its diffuse is the albedo, its specular gives F0 by luminance, and its glossiness g gives r = 1 − g. |
+| KHR_materials_pbrSpecularGlossiness | Converted: its diffuse is the base color, its metallic is 0, its specular gives the reflectance by clamp(√(Y(specular) / 0.16), 0, 1), and its glossiness g gives the roughness 1 − g. |
 | KHR_materials_variants | The default material is used (warning AS3005). |
 
 ### Lights
@@ -486,7 +470,7 @@ castsShadow        = the custom property tertius_cast_shadow, or lights.castsSha
 - The renderer computes irradiance as color × intensity / d² (`RenderLight`), and the sun has a default intensity of 1. A Blender sun of strength 1 and the engine sun of intensity 1 then give the same irradiance.
 - Blender writes no range, so the range comes from the cutoff. A light of intensity 30 reaches 55 m. Step 11 measures the GPU cost of the light ranges of a real interior.
 - A directional light is ignored (warning AS2019). The sun is a value of the scene.
-- Emissive values pass through unchanged. KHR_materials_emissive_strength is a unitless factor (its specification), and the Blender exporter writes the Blender emission strength without a conversion. The engine adds emissive as radiance, and its diffuse term is albedo × (1 − F) / π. So an emission strength of 1 looks as bright as in Blender.
+- Emissive values pass through unchanged. KHR_materials_emissive_strength is a unitless factor (its specification), and the Blender exporter writes the Blender emission strength without a conversion. The engine adds emissive as radiance, and its diffuse term is base color × (1 − metallic) / π. So an emission strength of 1 looks as bright as in Blender.
 
 The content formats design states this unit for the light sections of content files: an intensity of 1 is 683 candela, which is a Blender point light of 4π W, about 12.6 W.
 
@@ -498,9 +482,9 @@ A role says what an image holds. A slot (`TextureSlot` of content formats) says 
 
 | Role | Source color space | Slot | Format | Bytes per pixel | Mips |
 |---|---|---|---|---|---|
-| `albedo` | sRGB | `Albedo` | `Bc7Srgb` | 1 | Yes |
+| `albedo` | sRGB | `BaseColor` | `Bc7Srgb` | 1 | Yes |
 | `normal`, `normalDx` | Linear | `Normal` | `Bc5Unorm` (X and Y) | 1 | Yes |
-| `specularGloss` | Linear | `SpecularGloss` | `Bc5Unorm` | 1 | Yes |
+| `metallicRoughness` | Linear | `MetallicRoughness` | `Bc7Unorm`: the map needs G and B, and BC5 holds two channels | 1 | Yes |
 | `emissive` | sRGB | `Emissive`, the new `EmissiveMap` of a material | `Bc7Srgb` | 1 | Yes |
 | `data` | Linear | `Data`, for component fields | `Bc4Unorm` for 1 channel, `Bc5Unorm` for 2, `Bc7Unorm` for 3 or 4 | 0.5 or 1 | Yes |
 | `ui` | sRGB | `Ui`, for component fields | `Rgba8Srgb` | 4 | No |
@@ -516,22 +500,22 @@ The normal map stores only X and Y. The shader computes Z = sqrt(1 − X² − Y
 3. For `normalDx`, flip green.
 4. If a side is not a power of two, resize to the nearest power of two (info AS4003). The filter is a separable Lanczos-3 in linear space. BC blocks and mip chains are simplest with power-of-two sizes.
 5. Make the mips with a 2 × 2 box filter in linear space:
-   - Albedo and emissive: filter color weighted by alpha, then divide by the filtered alpha. Transparent texels then do not darken the edges.
+   - Base color and emissive: filter color weighted by alpha, then divide by the filtered alpha. Transparent texels then do not darken the edges.
    - Normal: average the vectors. Keep the average length |Na| for Toksvig. Renormalize.
-   - Specular and gloss: average spec. Average gloss, convert it to n, apply Toksvig with |Na| of the normal map at the same level, and convert back.
+   - Metallic and roughness: average the metallic. Average the roughness, convert it to n by n = 2 / α² − 2 with α = roughness², apply Toksvig with |Na| of the normal map at the same level, and convert back.
    - Data: average each channel.
 6. Drop the top levels until the largest side is at most `maxSize` (info AS4004). The kept levels are then the same as a fresh build at the smaller size.
 7. Encode each level with BCnEncoder.Net: `BcEncoder.EncodeToRawBytes` with its own mipmap generation off, one call per level, at the quality `Balanced`.
 8. Write a KTX2 file.
 
-Toksvig reduces gloss where a normal map is bumpy at a small mip, so highlights do not sparkle. With exponent n and the average normal length |Na| of the mip:
+Toksvig widens the roughness where a normal map is bumpy at a small mip, so highlights do not sparkle. With exponent n and the average normal length |Na| of the mip:
 
 ```
 ft = |Na| / (|Na| + n × (1 − |Na|))
 n' = ft × n
 ```
 
-The [anti-aliasing](anti-aliasing.md) design lists Toksvig as an optional renderer feature. Doing it in the mips costs nothing at runtime. A material with a normal map and a constant gloss then gets a `SpecularGloss` texture, so that the mips can carry the reduced gloss. `toksvig: false` turns this off for one asset or folder.
+The [anti-aliasing](anti-aliasing.md) design lists Toksvig as an optional renderer feature. Doing it in the mips costs nothing at runtime. A material with a normal map and a constant roughness then gets a `MetallicRoughnessMap` texture, so that the mips can carry the widened roughness. `toksvig: false` turns this off for one asset or folder.
 
 #### The container
 
@@ -685,8 +669,8 @@ bin/assets/ships/corvette.blend/
     { "mesh": 1, "material": 1, "offset": { "position": [0, 0, 0] }, "transparent": true }
   ],
   "materials": [
-    { "name": "HullPaint", "baseColor": [1, 1, 1, 1], "specularIntensity": 1, "gloss": 1, "emissive": [0, 0, 0],
-      "albedo": 0, "normal": 1, "specularGloss": 2, "emissiveMap": null }
+    { "name": "HullPaint", "baseColor": [1, 1, 1, 1], "metallic": 0, "roughness": 0.2, "reflectance": 1, "emissive": [0, 0, 0],
+      "baseColorMap": 0, "normalMap": 1, "metallicRoughnessMap": 2, "emissiveMap": null }
   ],
   "textures": [
     { "file": "textures/0.ktx2", "role": "albedo", "format": "bc7Srgb", "width": 2048, "height": 2048, "levels": 12 }
@@ -1113,7 +1097,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
     { "name": "AirlockDoor", "size": [2.1, 2.4, 0.2], "parts": [{ "material": "DoorMetal", "triangles": 620, "lods": [] }] }
   ],
   "materials": [
-    { "name": "HullPaint", "specularIntensity": 0.5, "gloss": 0.63, "albedoTexture": "2048x2048 bc7Srgb", "normalTexture": "2048x2048 bc5Unorm" }
+    { "name": "HullPaint", "metallic": 0, "roughness": 0.3, "reflectance": 0.5, "baseColorMap": "2048x2048 bc7Srgb", "normalMap": "2048x2048 bc5Unorm" }
   ],
   "nodes": [
     { "name": "AirlockDoor", "piece": "AirlockDoor", "pose": { "position": [0, 1.1, 16] }, "relativeTo": "Hull" },
@@ -1135,7 +1119,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
 | `views.png` | Four views of the whole file: front, right, three-quarter from above, and top. A file with several pieces also gets one `views-<piece>.png` per piece. A floor grid with 1 m lines, a 1.8 m figure next to the model, and an arrow that marks the front (-Z). Labels: piece name, size in meters, triangle count. |
 | `collision.png` | The model in pale gray, with the moving collision in orange and the static collision in teal, both transparent. Labels: shape kinds, hull count and point count. |
 | `lods.png` | LOD 0 to the last LOD side by side at one distance. Labels: triangles and error in millimeters. |
-| `textures.png` | Each texture after BC compression, decoded again: albedo, alpha, normal, specular, gloss and emissive as separate tiles. Labels: role, size and format. |
+| `textures.png` | Each texture after BC compression, decoded again: base color, alpha, normal, metallic, roughness and emissive as separate tiles. Labels: role, size and format. |
 | `materials.png` | One sphere per material, with the textures of the material. Labels: material names. |
 | `thumbnail.png` | 256 × 256 pixels, with no labels: the three-quarter view of a model, or the sphere of a texture. The asset browser of the editor shows it. |
 
@@ -1388,10 +1372,10 @@ Facts read in primary sources during this planning work:
 - The glTF specification: +Y up, the front of an asset at +Z, and a negative determinant reverses the winding.
 - The Blender light conversion of 683 lumens per watt (`blender/exp/lights.py` and `blender/com/conversion.py` of glTF-Blender-IO).
 - KHR_lights_punctual units (candela and lux) and the unitless KHR_materials_emissive_strength.
-- The engine shading in `lighting.glsl` and `material.glsl`:
-  - diffuse = albedo × (1 − F) / π
-  - F0 = 0.16 × spec²
-  - n = 2^(1 + 11 × gloss)
+- The engine shading in `lighting.glsl` and `material.glsl` (see [pbr-brdf.md](pbr-brdf.md)):
+  - diffuse = base color × (1 − metallic) / π
+  - F0 = 0.16 × reflectance² for a non-metal, and the base color for a metal
+  - α = roughness², with a GGX lobe
   - emissive is added radiance
 - The joltc hull and center-of-mass functions in the pinned `joltc.h`.
 - The meshoptimizer 1.2 functions, flags and the experimental macro (`meshoptimizer.h` at tag v1.2).
@@ -1467,7 +1451,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
    - The mip of a black and white checkerboard is sRGB 188, not 128.
    - Alpha-weighted mips keep the color at transparent edges.
    - Normal mips have unit length.
-   - Toksvig lowers gloss on a bumpy normal map and keeps it on a flat one.
+   - Toksvig widens roughness on a bumpy normal map and keeps it on a flat one.
    - Resizing to a power of two, `maxSize`, and the green flip of `normalDx`.
    - An image header that claims 100,000 × 100,000 pixels gives AS4002 before decoding.
    - EXR, HDR and 16-bit PNG input.
@@ -1484,9 +1468,9 @@ Each step writes its tests first and sees them fail for the right reason. The en
    - LODs with an error under the limit, the `minReduction` rule, and bounds.
 10. Write the material conversion. Tests:
     - One test per formula line.
-    - The default dielectric gives spec 0.5.
-    - The roughness table of "Materials".
-    - A lobe test: for roughness 0.15 to 0.84, the half-width of the Blinn-Phong lobe is within 10% of the GGX lobe.
+    - The default dielectric gives reflectance 0.5.
+    - Metallic, roughness and the base color pass through, and the reflectance follows clamp(√(Y(F0d) / 0.16), 0, 1) for IOR and specular factors.
+    - Toksvig in the mips: n = 2 / α² − 2 and back gives the same roughness for |Na| = 1.
     - Metals, unlit, every alpha mode, packing into textures and texture sharing.
 11. Write the light conversion. Tests: candela to engine units, ranges from the cutoff, spot cones and ignored directional lights. Measure the GPU cost of the lights of the interior fixture.
 12. Write collision. Tests:
@@ -1563,7 +1547,7 @@ Other tests:
   - `AssetStore.AssertInvariants`: each loaded sub-asset has one id, the id tables and the asset tables agree, and `Shapes` holds exactly the shapes that the store made.
 - Lock-in tests for the decisions:
   - The front turn and the light unit of 683.
-  - Spec 0.5 for the default dielectric, Toksvig on by default, and MASK drawn as BLEND.
+  - Reflectance 0.5 for the default dielectric, Toksvig on by default, and MASK drawn as BLEND.
   - Provenance outside the key, and the configuration precedence.
   - The static collision of a ship piece holds no solid hulls.
   - The license list, and no download from `fetch` without `--approved`.
@@ -1574,7 +1558,7 @@ Other tests:
 
 The user accepted every recommendation of this section on 2026-10-10.
 
-1. Metals keep the approximation of this plan: a metal keeps half its base color as diffuse color. Colored specular with F0 up to 1 and reflections of the surroundings get a renderer plan of their own. When ships and stations need metal that looks right, that plan comes next.
+1. Metals look right under the BRDF: the base color of a metal is its F0 (changed on 2026-10-24, see decision 13). Reflections of the surroundings get a renderer plan of their own. When ships and stations need them, that plan comes next.
 2. Binary source files in `content/*/assets/` use Git LFS from the start, because a later move to LFS rewrites the history. The other options were plain git with size limits, and fetching third-party files again from their provenance records.
 
 ## Out of scope and later

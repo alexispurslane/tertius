@@ -28,7 +28,7 @@ public sealed class ShuttleGlareTests : IDisposable
     /// and once without them. The lamps also light the glass itself, smoothly across the pane. So the test compares what
     /// the lamps add at the pixel of the mirror image with what they add 80 px above and below it, on the same pane. The
     /// highlight stands less than a quarter of full white above the glass beside it. Glass that reflects 16 % head-on, as
-    /// the orbit scene's glass does, gives a highlight up to 192 of 255 above it, and the coated glass about 40.
+    /// the orbit scene's glass does, gives a highlight up to 174 of 255 above it, and the coated glass up to 47.
     /// </summary>
     [Theory]
     [InlineData("window-camera", "pane-nose", "lamp-port-fore")]

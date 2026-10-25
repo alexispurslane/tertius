@@ -68,9 +68,9 @@ public sealed class PuffRenderTests
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId ground = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.08f, y: 0.08f, z: 0.08f, w: 1), gloss: 0.1f) with
+            MaterialDesc.Color(new(x: 0.08f, y: 0.08f, z: 0.08f, w: 1), roughness: 0.75f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), sunIntensity: 0.5f);
@@ -145,15 +145,15 @@ public sealed class PuffRenderTests
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId ground = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), gloss: 0.2f) with
+            MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), roughness: 0.65f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         MaterialId glass = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), gloss: 0.2f) with
+            MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), roughness: 0.65f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), sunIntensity: 0.6f);
@@ -232,9 +232,9 @@ public sealed class PuffRenderTests
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId gray = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), gloss: 0.2f) with
+            MaterialDesc.Color(new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1), roughness: 0.65f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.7f, 0.6f), sunIntensity: 1.5f);
@@ -331,9 +331,9 @@ public sealed class PuffRenderTests
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         MaterialId ground = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.25f, y: 0.27f, z: 0.22f, w: 1), gloss: 0.1f) with
+            MaterialDesc.Color(new(x: 0.25f, y: 0.27f, z: 0.22f, w: 1), roughness: 0.75f) with
             {
-                SpecularIntensity = 0f,
+                Reflectance = 0f,
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), sunIntensity: 2f);

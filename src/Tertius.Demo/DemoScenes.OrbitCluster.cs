@@ -109,7 +109,9 @@ public static partial class DemoScenes
                 Render = new RenderData
                 {
                     Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                    Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
+                    Material = resources.CreateMaterial(
+                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
+                    ),
                     BoundingRadius = 1,
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
                 },
@@ -124,7 +126,9 @@ public static partial class DemoScenes
             HalfExtents: ClusterCrateHalfExtents,
             Mass: 50,
             Mesh: resources.CreateMesh(Primitives.Box(ClusterCrateHalfExtents)),
-            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange)))
+            Material: resources.CreateMaterial(
+                new(BaseColor: orange, Roughness: UsualRoughness, Emissive: MarkerGlow(orange))
+            )
         );
         foreach (
             (string id, Double3 offset) in new[] { ("crate-above", CrateAboveStart), ("crate-below", CrateBelowStart) }

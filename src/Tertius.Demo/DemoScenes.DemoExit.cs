@@ -93,8 +93,9 @@ public static partial class DemoScenes
                             Material = resources.CreateMaterial(
                                 new(
                                     BaseColor: Vector4.One,
-                                    SpecularIntensity: 0.1f,
-                                    Albedo: resources.CreateTexture(EarthGrid())
+                                    Roughness: UsualRoughness,
+                                    Reflectance: 0.1f,
+                                    BaseColorMap: resources.CreateTexture(EarthGrid())
                                 )
                             ),
                             BoundingRadius = (float)EarthRadius,
@@ -156,7 +157,9 @@ public static partial class DemoScenes
                 HalfExtents: DemoSurface.PenHalf,
                 Mass: DemoSurface.PenMass,
                 Mesh: resources.CreateMesh(Primitives.Box(DemoSurface.PenHalf)),
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1)))
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1), UsualRoughness)
+                )
             );
             Entity copy = world.Spawn(
                 penSpec.HeldCopy(frame: cabin, holder: person, view: personRender.ViewOffset, grip: PenGrip)
