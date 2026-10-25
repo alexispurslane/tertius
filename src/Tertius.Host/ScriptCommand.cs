@@ -24,6 +24,8 @@ namespace Tertius.Host;
 /// <item><c>--ambient-occlusion off|&lt;meters&gt;</c> turns the headless renderer's ambient occlusion off, or sets its
 /// radius in m. Without the option, the renderer keeps its default.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
+/// <item><c>--reflections on|off</c> keeps the headless renderer's default <see cref="ConeTracedReflections"/>, or turns
+/// them off.</item>
 /// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
 /// option.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
@@ -67,7 +69,7 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -89,6 +91,7 @@ public static class ScriptCommand
         "--tone-curve",
         "--ambient-occlusion",
         "--bloom",
+        "--reflections",
         "--anti-aliasing",
     ];
 
@@ -398,6 +401,8 @@ public static class ScriptCommand
             rendererOptions.AmbientOcclusion = ambientOcclusion;
         if (options.BloomOff)
             rendererOptions.Bloom = new NoBloom();
+        if (options.ReflectionsOff)
+            rendererOptions.Reflections = new NoReflections();
         if (options.AntiAliasing is { } antiAliasing)
             rendererOptions.AntiAliasing = antiAliasing;
         try
@@ -581,6 +586,7 @@ public static class ScriptCommand
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="AmbientOcclusion">The setting that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
+    /// <param name="ReflectionsOff">True to turn the headless renderer's reflections off, false to keep its default.</param>
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
     internal sealed record Options(
         string? Script,
@@ -594,6 +600,7 @@ public static class ScriptCommand
         ToneCurve? ToneCurve = null,
         AmbientOcclusionSetting? AmbientOcclusion = null,
         bool BloomOff = false,
+        bool ReflectionsOff = false,
         AntiAliasing? AntiAliasing = null
     );
 
@@ -620,6 +627,7 @@ public static class ScriptCommand
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
             AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
             BloomOff: given.Value("--bloom") == "off",
+            ReflectionsOff: given.Value("--reflections") == "off",
             AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing"))
         );
     }
@@ -686,7 +694,8 @@ public static class ScriptCommand
         ?? SizeProblem(given)
         ?? ToneCurveProblem(given)
         ?? AmbientOcclusionProblem(given)
-        ?? BloomProblem(given)
+        ?? OnOffProblem(given, "--bloom")
+        ?? OnOffProblem(given, "--reflections")
         ?? AntiAliasingProblem(given);
 
     private static string? SpeedProblem(GivenOptions given)
@@ -748,14 +757,15 @@ public static class ScriptCommand
         return null;
     }
 
-    private static string? BloomProblem(GivenOptions given)
+    /// <summary>The problem with a switch of the headless renderer, such as <c>--bloom</c>, which takes on or off, or null.</summary>
+    private static string? OnOffProblem(GivenOptions given, string option)
     {
-        if (given.Value("--bloom") is not { } bloom)
+        if (given.Value(option) is not { } value)
             return null;
         if (!given.Headless)
-            return "--bloom applies to a headless run, so add --headless.";
-        if (bloom is not ("on" or "off"))
-            return $"--bloom needs on or off, not '{bloom}'.";
+            return $"{option} applies to a headless run, so add --headless.";
+        if (value is not ("on" or "off"))
+            return $"{option} needs on or off, not '{value}'.";
         return null;
     }
 

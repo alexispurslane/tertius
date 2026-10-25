@@ -67,7 +67,7 @@ public sealed class ExposureShaderTests
             // The histogram and the HDR image are both of the frame that read the still's exposure a moment after it,
             // which used that exposure, so the two meters read one image.
             uint[] metered = renderer.ReadExposureHistogram();
-            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdrImage());
+            uint[] everyPixel = HistogramOfEveryPixel(renderer.ReadHdr());
 
             float meteredTarget = Target(metered, setting, used);
             float everyPixelTarget = Target(everyPixel, setting, used);
@@ -286,7 +286,7 @@ public sealed class ExposureShaderTests
 
     /// <summary>
     /// The histogram of a meter of every pixel at full resolution, over the HDR image that
-    /// <see cref="VulkanRenderer.ReadHdrImage"/> read. Every pixel counts as a surface pixel, so the scene must fill the
+    /// <see cref="VulkanRenderer.ReadHdr"/> read. Every pixel counts as a surface pixel, so the scene must fill the
     /// view.
     /// </summary>
     private static uint[] HistogramOfEveryPixel(float[] rgba)
