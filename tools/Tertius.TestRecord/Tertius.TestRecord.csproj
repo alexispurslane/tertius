@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The test platform extension that records a passed full run of a test project, so that the pre-commit hook can skip
+    those tests (tools/README.md, "Git hooks"). Directory.Build.props adds it to every test project.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- The test platform package makes a project a test application by default, and dotnet test then tries to run it. -->
+    <IsTestProject>false</IsTestProject>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Platform" />
+  </ItemGroup>
+</Project>

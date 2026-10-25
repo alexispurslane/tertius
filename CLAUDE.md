@@ -6,6 +6,9 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - `bash tools/test-all.sh` runs every test module in Checked and Release. Checked is the test configuration: Debug's contracts with Release's optimized code. An agent in an isolated worktree cannot run it, because Claude Code refuses a script there: it cannot prove that the script runs no git outside the worktree. Such an agent runs `nix develop --command dotnet test --solution Tertius.slnx -c Checked`, then the same with `-c Release`. Each command builds and runs every test project in about two minutes.
+- The pre-commit hook runs only the Checked tests. Release runs when you choose, through `tools/test-all.sh` or with `-c Release`, and at least once before a merge into main.
+- The hook skips a test project whose full Checked run passed on exactly the staged code (tools/README.md, "The test record"). So run the full Checked tests just before a commit, and the commit does not run them again.
+- Run at most two agents that build at once. On 2026-10-24, two agents brought the load of this 10-core machine to about 23.
 - Do each ticket or epic on its own branch, named after the ticket, such as `ter-dtw2-vertical-slice`. Never commit work straight to main. The user reads the code in the diff pane of the Claude desktop app, against main.
 - When the ticket closes, merge its branch into main in this checkout, and leave the checkout on main. Other sessions commit ticket notes in this checkout, and the user wants those on main.
 - Use git, not jj. This overrides the jj rule in the user's other agent configuration.
@@ -32,13 +35,13 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 ## Gotchas
 
-- The pre-commit hook builds and tests the changed modules, so a commit takes minutes. Its report of complex, long or duplicated code asks you to refactor the touched code in the same commit.
+- The pre-commit hook builds and tests the changed modules, so a commit takes minutes, unless a full Checked run passed on the staged code just before. Its report of complex, long or duplicated code asks you to refactor the touched code in the same commit.
 
 ## Testing
 
 - `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
 - Mutation testing is not a gate on every epic, because a Stryker run over the whole vertical slice took hours.
-  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. Mutation builds need `--no-incremental`. A mutation can make a loop that never ends, and the tests have no time limit. So each mutation builds only its test project and runs only the test class that covers it, under `timeout 120`, and a run that the timeout stops counts as killed.
+  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. A plain incremental build picks up a mutation, in src and in the analyzers alike (measured on 2026-10-24: 1 to 4 s per build), so mutation builds do not use `--no-incremental`. A mutation can make a loop that never ends, and the tests have no time limit. So each mutation builds only its test project and runs only the test class that covers it, under `timeout 120`. A run that the timeout stops counts as killed.
   - Each epic runs coverage on its changed lines before the merge.
   - Stryker runs only on Core, Simulation and Physics, scoped to files or to changed lines.
 - A snapshot test proves only that nothing changed. So the first approval of a reference image is a real review against the scene description. If an agent adds or re-approves a reference image, or sees a snapshot fail, it opens three images with the Read tool. They are the reference, the actual image and the FLIP heat map, and its report describes them.

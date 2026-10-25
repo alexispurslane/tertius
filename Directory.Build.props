@@ -63,6 +63,17 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Tertius.Unions/Tertius.Unions.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <!--
+    Every test project loads the test record extension, which records a passed full run so that the pre-commit hook can
+    skip those tests (tools/README.md, "Git hooks"). The test platform calls the hook type by name at startup.
+  -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)tools/Tertius.TestRecord/Tertius.TestRecord.csproj" />
+    <TestingPlatformBuilderHook Include="6452709C-76A7-4A66-A24D-5095847308D4">
+      <DisplayName>Tertius test record</DisplayName>
+      <TypeFullName>Tertius.TestRecord.TestingPlatformBuilderHook</TypeFullName>
+    </TestingPlatformBuilderHook>
+  </ItemGroup>
   <!-- The style analyzer checks the rules of STYLE.md that a tool can check (ARCHITECTURE.md, "Style analyzer"). -->
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'Tertius.Style'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Tertius.Style/Tertius.Style.csproj"
