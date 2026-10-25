@@ -52,14 +52,12 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         double normalSkyShare,
         double lobeSkyShare,
         BrdfTables tables
-    )
-    {
-        return new(
+    ) =>
+        new(
             Diffuse: DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare),
             Specular: CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables)
                 * Double3.Lerp(ground, sky, lobeSkyShare)
         );
-    }
 
     /// <summary>
     /// The C# copy of ambientLight: the light that the hemisphere ambient light sends toward <paramref name="toView"/>,
