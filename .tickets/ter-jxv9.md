@@ -1,6 +1,6 @@
 ---
 id: ter-jxv9
-status: in_progress
+status: closed
 deps: [ter-ptft, ter-zzyr]
 links: [ter-a24f]
 created: 2026-10-22T00:22:07Z
@@ -54,3 +54,7 @@ Part 1 committed as 12576004 (43 tests, 50 hand mutations). Settled by the orche
 **2026-10-25T22:44:36Z**
 
 Coverage of the changed C# lines on 1527af45: 769 of 919 lines, 166 of 178 branches. Uncovered: the demo scenes of the review (DemoScenes.Reflections.cs, DemoScenes.PbrSpheres.cs), which the captures review; RenderTargets.CheckReflectionFormats' two throws for a device without the formats; DepthPyramid.FromInverseDepths' size guard; ReadLevel's arm for a format that no hook reads; and ReflectionTargets.Dispose, which nothing calls, because RenderTargets calls DestroyImages. The Physics allocation tests fail under coverage, as always.
+
+**2026-10-25T23:58:57Z**
+
+Merged into main on 2026-10-25 (branch tip 0a51479e). After Part 6: main merged in (cafbc307), 128 steps by default (3dd875d9), the cost at 128 steps (563a5048: reflections 6.52 ms mean, the three passes about 7.7 ms at 1080p), and the portable float audit (0a51479e: the origin offset capped at half the view depth, an empty segment when a computed depth falls below a quarter of the view depth, 17 rows in the site table). Coverage on 0a51479e: 777 of 927 changed lines, 170 of 182 branches; the uncovered lines are the review scenes of the demo, the device format guards, DepthPyramid's size guard, ReadLevel's unknown-format arm and the unused ReflectionTargets.Dispose. The orchestrator added the reflections' formats to ARCHITECTURE.md's two portable rows of storage formats (155c68cc).
