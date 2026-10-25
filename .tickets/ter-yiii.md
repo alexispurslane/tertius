@@ -1,6 +1,6 @@
 ---
 id: ter-yiii
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-11T22:48:45Z

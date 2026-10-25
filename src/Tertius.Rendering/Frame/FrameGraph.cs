@@ -15,6 +15,9 @@ internal sealed class FrameContext
     /// <summary>The sun shadow cascades. Passes that shade with the sun sample them.</summary>
     public required ShadowMap Shadows { get; init; }
 
+    /// <summary>The timestamps around the passes. Only <see cref="FrameGraph.Record"/> writes them.</summary>
+    public required GpuTimer Timer { get; init; }
+
     public long Number { get; set; }
     public float Exposure { get; set; } = 1f;
 
@@ -124,8 +127,11 @@ internal sealed class FrameGraph : IDisposable
         Readback,
     }
 
+    /// <exception cref="InvalidOperationException">The graph already holds <see cref="GpuTimer.MaxPasses"/> passes.</exception>
     public void Add(Stage stage, RenderPass pass)
     {
+        if (passes.Count == GpuTimer.MaxPasses)
+            throw new InvalidOperationException($"A frame graph holds at most {GpuTimer.MaxPasses} passes.");
         passes.Add((stage, passes.Count, pass));
         passes.Sort((a, b) => a.Stage != b.Stage ? a.Stage.CompareTo(b.Stage) : a.Order.CompareTo(b.Order));
     }
@@ -136,13 +142,17 @@ internal sealed class FrameGraph : IDisposable
             pass.Prepare(context);
     }
 
+    /// <summary>Records every pass in order, with a GPU timestamp before the first pass and after each pass.</summary>
     public void Record(FrameContext context)
     {
+        int slot = context.Frame.Index;
+        context.Timer.Begin(context.CommandBuffer, slot);
         foreach ((_, _, RenderPass pass) in passes)
         {
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);
+            context.Timer.After(commandBuffer: context.CommandBuffer, slot: slot, pass: pass.Name);
         }
     }
 

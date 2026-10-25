@@ -1117,7 +1117,12 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -8)));
         snapshot.Puffs.Add(Puff(new(0, 0, 30))); // behind the eye
 
-        RenderStats stats = VulkanRenderer.StatsOf(Prepare(snapshot: snapshot), impostors: null, indirectDrawCalls: 0);
+        RenderStats stats = VulkanRenderer.StatsOf(
+            scene: Prepare(snapshot: snapshot),
+            impostors: null,
+            indirectDrawCalls: 0,
+            gpuTimings: null
+        );
 
         stats.Puffs.Should().Be(2);
         stats.TransparentCommands.Should().Be(2, "a run of puffs adds no indirect command");

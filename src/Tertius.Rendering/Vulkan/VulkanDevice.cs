@@ -58,6 +58,10 @@ internal sealed unsafe class VulkanDevice : IDisposable
         MemoryProperties = memory;
         vk.GetDeviceQueue(device: device, queueFamilyIndex: queueFamily, queueIndex: 0, pQueue: out Queue queue);
         Queue = queue;
+        Timestamps = new(
+            QueueFamilies(vk, physicalDevice)[queueFamily].TimestampValidBits,
+            properties.Limits.TimestampPeriod
+        );
     }
 
     public Vk Vk { get; }
@@ -71,6 +75,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
     public ValidationLog Log { get; }
     public bool Validation { get; }
     public string DeviceName { get; }
+
+    /// <summary>The clock of the timestamps that <see cref="Queue"/> writes.</summary>
+    public TimestampClock Timestamps { get; }
 
     /// <summary>The window surface, or a null handle for a headless device.</summary>
     public SurfaceKHR Surface { get; }
@@ -282,15 +289,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 continue;
             }
 
-            uint familyCount = 0;
-            vk.GetPhysicalDeviceQueueFamilyProperties(candidate, ref familyCount, null);
-            var families = new QueueFamilyProperties[familyCount];
-            fixed (QueueFamilyProperties* p = families)
-            {
-                vk.GetPhysicalDeviceQueueFamilyProperties(candidate, ref familyCount, p);
-            }
-
-            for (uint i = 0; i < familyCount; i++)
+            QueueFamilyProperties[] families = QueueFamilies(vk, candidate);
+            for (uint i = 0; i < families.Length; i++)
             {
                 if ((families[i].QueueFlags & QueueFlags.GraphicsBit) == 0)
                     continue;
@@ -315,6 +315,19 @@ internal sealed unsafe class VulkanDevice : IDisposable
         }
 
         throw new NotSupportedException($"No usable Vulkan device. {reasons}");
+    }
+
+    private static QueueFamilyProperties[] QueueFamilies(Vk vk, PhysicalDevice device)
+    {
+        uint count = 0;
+        vk.GetPhysicalDeviceQueueFamilyProperties(device, ref count, null);
+        var families = new QueueFamilyProperties[count];
+        fixed (QueueFamilyProperties* p = families)
+        {
+            vk.GetPhysicalDeviceQueueFamilyProperties(device, ref count, p);
+        }
+
+        return families;
     }
 
     private static string? MissingFeature(Vk vk, PhysicalDevice device)
