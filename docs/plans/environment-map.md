@@ -1,15 +1,16 @@
 # Scene environment map
 
-Ticket: `ter-nl5u`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's last note. This doc fills in the details. Two points are open, see "Open forks".
+Ticket: `ter-nl5u`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's last note, and answered this doc's two open points on the same day (decisions 12 and 13). This doc fills in the details.
 
-This doc is written against main at `af2d0a8c` and against the automatic exposure design on its branch, [auto-exposure.md](auto-exposure.md) (`ter-zzyr`). It names that branch's types: the compute pipelines (`ComputePipelineDesc`, `ImageUse.SampledCompute`, `BufferUse.ComputeRead` and `ComputeWrite`), `FrameClock`, `VulkanRenderer.MeteringStepSeconds`, the step of a draw that `DrawFrame` takes, `exposure.glsl` and the `exposure` parameter of `surfaceRadiance`.
+This doc is written against main at `af2d0a8c` and against two designs on their branches. The automatic exposure design, [auto-exposure.md](auto-exposure.md) (`ter-zzyr`), gives the compute pipelines (`ComputePipelineDesc`, `ImageUse.SampledCompute`, `BufferUse.ComputeRead` and `ComputeWrite`), `FrameClock`, `VulkanRenderer.MeteringStepSeconds`, the step of a draw that `DrawFrame` takes, `exposure.glsl` and the `exposure` parameter of `surfaceRadiance`. The ambient occlusion design, [ambient-occlusion.md](ambient-occlusion.md) (`ter-b3h5`), splits the ambient light into an ambient source and its occlusion: `AmbientTerms`, `hemisphereAmbient` and `occludedAmbient` in `lighting.glsl`.
 
 ## Goal
 
 Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome and polished steel reflect a gradient between a sky color and a ground color, and a surface that no light reaches gets the same dim gray in space, in a cabin and on a planet. After this ticket:
 
-- The renderer keeps a cube map of what surrounds the camera: the scene in all three depth ranges, lit by the sun and the lamps, and the star field.
+- The renderer keeps a cube map of what surrounds the camera: the scene in all three depth ranges, lit by the sun and the lamps, and the share of each texel through which the sky is open.
 - Chrome, steel and glass reflect that map along their lobe: sharp when smooth, blurred when rough.
+- Near mirrors also reflect the star field, computed for each pixel. The stars are sharp, steady while the camera's frame turns, and hidden where the map shows a surface in front of the sky.
 - The diffuse ambient light comes from the same map. The belly of a ship over Earth's day side gets Earth's light, and its side toward deep space stays dark.
 - SSR (`ter-jxv9`) falls back to the map where its ray leaves the screen.
 - The hemisphere stays only as the ambient light of a renderer whose map is off.
@@ -18,17 +19,26 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 
 | Term | Meaning |
 |---|---|
-| The map | The scene environment map: the light that reaches the camera's eye from every direction, in six square views. |
+| The map | The scene environment map: the light that reaches the camera's eye from every direction, in six square views, without the stars. |
 | Face | One of the six views, 90° wide, along one axis of camera-relative world space. `CubeFace` names them in Vulkan's layer order: +X, −X, +Y, −Y, +Z, −Z. |
 | W | The face size: the texels along one side of a face. `SceneEnvironmentMap.FaceSize`, 128 by default. |
 | The main view | The camera's own view, which the G-buffer, lighting and transparent passes draw. |
 | The radiance map | The cube image that the faces are drawn into, with a box-filtered mip chain. |
 | The specular map | The cube image of the GGX-prefiltered levels. Its level k holds the light along the lobe of roughness k / (L − 1). |
 | L | The number of levels of the specular map: log2(W / 4) + 1, so 6 at W = 128 (128 to 4 texels). |
+| The open-sky share | The share of a texel's directions through which the sky shows past every opaque surface: 1 where the sky pass shows, 0 where a surface covers it. The alpha of both cube images holds it. |
 | The irradiance | Nine RGB coefficients of real spherical harmonics up to band 2, already convolved with the clamped cosine: E(n) is the light that a surface with normal n receives. |
 | D(n) | The ambient diffuse radiance: E(n) / π with the map on, the mix of the hemisphere's colors by the normal's sky share with it off. A Lambert surface sends c_diff · D(n). |
-| S(d, r) | The ambient specular radiance: the specular map at direction d and roughness r with the map on, the mix of the hemisphere's colors by the lobe's sky share with it off. |
+| S(d, r) | The ambient specular radiance. With the map on, it is the specular map's light at direction d and roughness r, plus the reflected stars times the open-sky share there. With the map off, it is the mix of the hemisphere's colors by the lobe's sky share. |
+| T_d, T_s | The ambient diffuse term c_diff · D(n) and the ambient specular term E(μ, r) · c(μ, r) · S(d, r), before occlusion: the two fields of `AmbientTerms` in [ambient-occlusion.md](ambient-occlusion.md). |
+| An ambient source | A function that gives `AmbientTerms` for a surface point: `hemisphereAmbient`, or `environmentAmbient` while the map is on. |
 | d | The specular dominant direction of [pbr-brdf.md](pbr-brdf.md), "The ambient light's specular part". |
+| The star field | The stars of the sky pixels, today's `starField`: in root axes, a grid of cells 1/150 wide, one cell in 50 holding a star, each star a Gaussian one main-view pixel wide. |
+| p | The angle, in rad, that one pixel of the main view spans, `frame.params.z`: about 9.7 · 10⁻⁴ at 1080p and a 60° vertical field of view. |
+| c | The width of a star cell, 1/150 rad, about 0.38°. |
+| The reflected stars | The star field as a surface's lobe reflects it. The ambient specular term adds them (see "The reflected stars"). |
+| f | The reflection's footprint: the angle, in rad, by which d moves from one pixel to the next, at least p. |
+| M(ω) | The mean star radiance near direction ω: the stars' light there, spread evenly. About 6 · 10⁻⁴ at 1080p. |
 | Drawn frame | One recording and submission of the frame graph, as in [auto-exposure.md](auto-exposure.md). A metering draw is a drawn frame. |
 | The draw step | The time, in s, that a drawn frame advances the renderer's clock: the step for a single draw or a metering draw, 0 for the shown draw after a metering draw. Today `DrawFrame`'s `exposureStep`. |
 | A long step | A headless draw whose draw step is at least `MeteringStepSeconds`, 0.1 s. The same condition as the exposure's metering draw, without its `AutoExposure` part. |
@@ -38,9 +48,9 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 
 ## Decisions
 
-The user made the decisions marked (User), in the ticket's note of 2026-10-25. This design settled the others by the project's rules. Each has its reason.
+The user made the decisions marked (User): decisions 1 to 11 in the ticket's note of 2026-10-25, and decisions 12 to 14 in the answers to this doc's open points on the same day. The orchestrator settled decision 15 for every setting of the epic. This design settled the others by the project's rules. Each has its reason.
 
-1. The map holds the whole scene seen from the camera: all three depth ranges, lit by the sun, and the star field. (User)
+1. The map holds the whole scene seen from the camera: all three depth ranges, lit by the sun, and the sky. (User) Decision 13 says how the stars come in: through the reflections, not through the map's color.
 2. Each face has 128 texels on a side. (User)
 3. One face updates per frame, so all six every six frames. A headless still refreshes all six first. (User)
 4. The diffuse ambient light also comes from the map. The hemisphere, `World.Ambient`, is used only while the map is off. (User)
@@ -51,31 +61,36 @@ The user made the decisions marked (User), in the ticket's note of 2026-10-25. T
 9. GPU pixel tests, no reference images: a mirror sphere reflects a bright object behind the camera, and a rough sphere shows it blurred. (User)
 10. The cost is measured at 1080p, and the user sees captures. (User)
 11. The per-frame sky and ground colors (`ter-hro7`) are closed without work. The atmosphere color (`ter-6vhj`) reaches the ambient light through the map. (User)
+12. One map serves every surface, now. A lit room then lights what lies outside it, such as the apron that the cabin's seat sees through the canopy, and the user accepts that for now. Local maps per room are a later ticket (see "Known limits" and "Later"). (User)
+13. The faces draw no stars. The map's alpha holds the open-sky share of each texel, and the prefilter blurs it with the same GGX lobe as the color. The ambient specular term adds the star field, evaluated at the dominant direction through the same star function as the sky pixels, times the prefiltered open-sky share. The stars fade with roughness so that their light matches what a map that held them gives a rough lobe. See "The reflected stars". (User)
+14. The atmosphere ticket (`ter-6vhj`) stays last, as planned. So while the map is on, the map's sky is black until that ticket, and planet shadows and the ground lose today's sky fill light, 0.08 on demo-surface. No interim sky color comes before the atmosphere. (User)
+15. The setting takes the form that STYLE.md gives struct cases: a `[GeneratedUnion]` of positional `readonly record struct` cases, with `NoEnvironmentMap` as its zero case and a `Problem` check that `CheckOptions` calls, as `ExposureSetting` and `AmbientOcclusionSetting` do. `ter-48qn` converts `BloomSetting` to the same form. (Orchestrator, for every setting of the epic, 2026-10-25)
 
 Settled by this design:
-
-12. A face is shaded in a forward pass, as the impostor capture is: one draw per depth range into the face, with the shading in the fragment shader. A face has 16,384 texels, so overdraw costs little, and a G-buffer of six faces adds five images and a lighting pass for nothing. The impostor capture is the existing pass that shades objects off screen.
-13. The capture takes no ambient light. A face holds the light that the sun, the lamps and emission send toward the camera, so the main view's surfaces get one bounce of that light. Three reasons. A face then depends only on the frame that draws it. With the previous map as the capture's ambient, each face depends on every earlier face, a chain with no end, and a still after a camera step needs repeated refreshes to converge. The hemisphere is excluded by decision 4. And SSAO already left out bounced brightening because SSGI (`ter-a24f`) adds real bounced light. The cost: in a room, the parts that only bounced light reaches are black in the map, so interiors are darker than with many bounces.
-14. A face draws the opaque instances, the impostor objects as geometry, emission and the sky. It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes.
-15. A face samples the sun's cascades by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. See "The sun's shadow maps in a face".
-16. One light list serves every view of a frame. A light is kept when its reach touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
-17. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
-18. Frame n draws the faces (n · F + k) mod 6 for k from 0 to F − 1, where F is `FacesPerFrame`, in layer order. It is a pure function of the frame number, so no stored cursor has to be reset by a refresh, a film draws the same faces on every run, and every face is at most ⌈6 / F⌉ − 1 frames old. An order that follows the camera's view changes with the view and needs a rule for ties.
-19. A refresh happens when the map's frame differs from the camera's frame, and on a long step. The map starts with no frame, so the first drawn frame refreshes. A change of the camera's frame changes the axes of camera-relative world space, so every old face is wrong, not only old. See "Which faces a frame draws".
-20. The diffuse irradiance is a set of spherical harmonics up to band 2, not a small irradiance cube. See "The irradiance".
-21. Level k of the specular map holds roughness k / (L − 1), linear in perceptual roughness, as Filament maps its levels ("lod_α = α^(1/2) = perceptualRoughness"). The reader samples at the level r · (L − 1), with r the floored roughness.
-22. The prefilter takes 64 Hammersley samples per texel with filtered importance sampling (Křivánek and Colbert 2008, GPU Gems 3, chapter 20). They found 40 samples visually acceptable for smooth surfaces. 64 is the next power of two, which the Hammersley set prefers.
-23. The map stores plain radiance, as the impostor atlas does. See "Exposure".
-24. The radiance map and the specular map are RGBA16F (`R16G16B16A16_SFLOAT`), the format of the HDR target and of the atlas. It holds up to 65,504, and every Vulkan device can write it as a storage image. B10G11R11 has 6 bits of mantissa at most, 1.5 % steps, which band in a mirror's smooth gradients, and it needs an optional feature to be a storage image.
-25. The shading pipelines learn whether the map is on from a Vulkan specialization constant, `environmentMapOn`, fixed when the renderer makes them. The setting is fixed for the renderer's life, so a per-frame value is a second store of it, and a constant lets the driver drop the dead path. The map's bindings in the frame set are partially bound, so with the map off they stay empty, as the bindless texture array's unused slots do.
-26. The union follows `BloomSetting`: a built-in union of two sealed record classes, whose constructor checks its values. The renderer refuses a setting that holds no case. `ToneCurve` is an enum because no case carries data. The exposure branch's `ExposureSetting` is a generated union of record structs. The brief named bloom as the analogue, and the two forms disagree, so this doc names the difference as a small point.
-27. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
+16. A face is shaded in a forward pass, as the impostor capture is: one draw per depth range into the face, with the shading in the fragment shader. A face has 16,384 texels, so overdraw costs little, and a G-buffer of six faces adds five images and a lighting pass for nothing. The impostor capture is the existing pass that shades objects off screen.
+17. The capture takes no ambient light. A face holds the light that the sun, the lamps and emission send toward the camera, so the main view's surfaces get one bounce of that light. Three reasons. A face then depends only on the frame that draws it. With the previous map as the capture's ambient, each face depends on every earlier face, a chain with no end, and a still after a camera step needs repeated refreshes to converge. The hemisphere is excluded by decision 4. And SSAO already left out bounced brightening because SSGI (`ter-a24f`) adds real bounced light. The cost: in a room, the parts that only bounced light reaches are black in the map, so interiors are darker than with many bounces.
+18. A face draws the opaque instances, the impostor objects as geometry, emission and the sky, with no stars (decision 13). It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes.
+19. A face samples the sun's cascades by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. See "The sun's shadow maps in a face".
+20. One light list serves every view of a frame. A light is kept when its reach touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
+21. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
+22. Frame n draws the faces (n · F + k) mod 6 for k from 0 to F − 1, where F is `FacesPerFrame`, in layer order. It is a pure function of the frame number, so no stored cursor has to be reset by a refresh, a film draws the same faces on every run, and every face is at most ⌈6 / F⌉ − 1 frames old. An order that follows the camera's view changes with the view and needs a rule for ties.
+23. A refresh happens when the map's frame differs from the camera's frame, and on a long step. The map starts with no frame, so the first drawn frame refreshes. A change of the camera's frame changes the axes of camera-relative world space, so every old face is wrong, not only old. See "Which faces a frame draws".
+24. The diffuse irradiance is a set of spherical harmonics up to band 2, not a small irradiance cube. See "The irradiance".
+25. Level k of the specular map holds roughness k / (L − 1), linear in perceptual roughness, as Filament maps its levels ("lod_α = α^(1/2) = perceptualRoughness"). The reader samples at the level r · (L − 1), with r the floored roughness.
+26. The prefilter takes 64 Hammersley samples per texel with filtered importance sampling (Křivánek and Colbert 2008, GPU Gems 3, chapter 20). They found 40 samples visually acceptable for smooth surfaces. 64 is the next power of two, which the Hammersley set prefers.
+27. The map stores plain radiance, as the impostor atlas does. See "Exposure".
+28. The radiance map and the specular map are RGBA16F (`R16G16B16A16_SFLOAT`), the format of the HDR target and of the atlas. It holds up to 65,504, and every Vulkan device can write it as a storage image. B10G11R11 has 6 bits of mantissa at most, 1.5 % steps, which band in a mirror's smooth gradients, and it needs an optional feature to be a storage image. Its alpha holds the open-sky share, from 0 to 1, in steps of at most 2⁻¹¹.
+29. The shading pipelines learn whether the map is on from a Vulkan specialization constant, `environmentMapOn`, fixed when the renderer makes them. The setting is fixed for the renderer's life, so a per-frame value is a second store of it, and a constant lets the driver drop the dead path. The map's bindings in the frame set are partially bound, so with the map off they stay empty, as the bindless texture array's unused slots do.
+30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
+31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
+32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
+33. The reflection's footprint f comes from the screen derivatives of d in each fragment shader, at least p. A compute caller, such as SSR, passes its own. A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 
 ## The capture
 
 ### The faces and their axes
 
-The six faces look out from the eye, which is the origin of camera-relative world space. Their axes are in camera-relative world axes, the axes of the camera's frame. So turning the camera changes no face, and the star field turns in the map only when the camera's frame turns against the root frame.
+The six faces look out from the eye, which is the origin of camera-relative world space. Their axes are in camera-relative world axes, the axes of the camera's frame. So turning the camera changes no face. The map holds no stars, so the camera's frame turning against the root frame changes no face either.
 
 Each face follows Vulkan's table of cube map face selection (Vulkan specification, "Cube Map Face Selection"), so that a sample in direction ω reads the texel that the face drew in direction ω. "Right" is the direction in which the texel column s grows, and "up" is the direction in which the texel row t falls, because row 0 is the top of the image:
 
@@ -92,29 +107,32 @@ Each face follows Vulkan's table of cube map face selection (Vulkan specificatio
 direction(face, s, t) = normalize(forward + (2s − 1) · right + (1 − 2t) · up)      s, t in [0, 1]
 ```
 
-For every face, right × up = forward. The renderer's view space is right-handed, with right × up pointing backward. So each face is a mirror image of a right-handed camera, the winding of every triangle flips, and the face pipeline sets its front face to clockwise. `CubeFacesTests.EveryFaceBasisIsLeftHanded` locks this in, and `EnvironmentFaceTests.EachFaceHoldsWhatLiesInItsDirection` checks it on the GPU.
+For every face, right × up = forward. The renderer's view space is right-handed, with right × up pointing backward. So each face is a mirror image of a right-handed camera, the winding of every triangle flips, and the face pipeline sets its front face to clockwise. `CubeFacesTests.EveryFaceBasisIsLeftHanded` locks this in, and `EnvironmentFaceTests.EachFaceHoldsWhatLiesInItsDirection` tests it on the GPU.
 
-A face's view matrix takes x = p · right, y = p · up and z = −p · forward. Its projection for depth range i is `DepthRanges.RangeProjection(i, π / 2, 1)`: 90° and square, infinite reversed-Z from the range's near plane, with the y flip of every view.
+A face's view matrix takes x = q · right, y = q · up and z = −q · forward, for a camera-relative point q. Its projection for depth range i is `DepthRanges.RangeProjection(i, π / 2, 1)`: 90° and square, infinite reversed-Z from the range's near plane, with the y flip of every view.
 
 ### What a face draws
 
 | Thing | In a face | Why |
 |---|---|---|
 | Opaque instances with `Visible`, the planets and the sun's sphere included | Yes, as geometry | The scene seen from the camera (User) |
-| Objects that the main view draws as impostors | Yes, as geometry | Decision 17 |
+| Objects that the main view draws as impostors | Yes, as geometry | Decision 21 |
 | Emission, the lamp panels included | Yes | It is light |
-| The sky: the star field | Yes, as background | The map holds the star field (User) |
-| Transparent instances | No | Decision 14: SSR shows no glass either |
-| Puffs | No | Decision 14 |
+| The sky: `skyRadiance`, black until the atmosphere ticket | Yes, as background, with an open-sky share of 1 | The map holds the sky (User) |
+| The stars | No | The ambient specular term computes them for each pixel (User, decision 13) |
+| Transparent instances | No | Decision 18: SSR shows no glass either |
+| Puffs | No | Decision 18 |
 | Frame outlines | No | The overlay is a debug drawing over the tone-mapped image, not light |
 
-The sky is drawn first, by a fullscreen triangle that writes `skyRadiance(direction)` into every texel of the face, with no depth test. The three depth ranges then draw over it. `skyRadiance` is today's `starField` moved to `sky.glsl`, unchanged: each star is a Gaussian as wide as one pixel of the main view, `frame.params.z`. So a face point-samples the screen's star field at its texel centers. On average, a texel then holds the same light from the stars as the screen does, about 6 · 10⁻⁴ of radiance at 1080p. A star shows in a texel only when the texel's center falls within about a screen pixel of it, which happens for about 3 % of the stars at W = 128. See "Open forks: the stars in the map".
+The sky is drawn first, by a fullscreen triangle that writes `vec4(skyRadiance(direction), 1)` into every texel of the face, with no depth test. The three depth ranges then draw over it, and every surface writes an alpha of 0. So the alpha of level 0 is the open-sky share of each texel's center: 1 where the sky shows, 0 where a surface covers it. The radiance map's blits and the prefilter then average it into shares between 0 and 1.
+
+`skyRadiance(direction)` in `sky.glsl` is the sky's light without the stars. It returns black until the atmosphere ticket (decision 14). The stars stay out of the map's color: the readers add them for each pixel, where the open-sky share lets them through (see "The reflected stars").
 
 The sun's sphere, 0.53° across from Earth, is smaller than a texel, 0.4° to 0.9° at W = 128. It covers a texel's center about a quarter of the time, so it comes and goes as the sun crosses the texels. Its light in the map is at most about 1 % of what the directional sun gives, so it needs no rule of its own. An emissive panel that stands for a point light, such as a cabin lamp, lights twice: through its point light and through the map. In the shuttle's cabin the panels add a few percent to their lamps' light.
 
 ### The three depth ranges in a face
 
-A face draws the far, middle and near ranges in that order into one RGBA16F color target and one D32 depth target of W × W, as the G-buffer pass does. Each range begins a rendering that loads the color, clears the depth to `DepthRanges.ClearDepth(range)`, and draws the face's opaque commands of that range with the range's projection. So a nearer range overwrites a farther one, the overlap of 1 % at each boundary hides nothing, and an object that straddles a boundary draws in both ranges. A face sorts its instances by their depth along its own forward axis, `DepthRanges.OpaqueMask(p · forward, radius)`, not the main view's.
+A face draws the far, middle and near ranges in that order into one RGBA16F color target and one D32 depth target of W × W, as the G-buffer pass does. Each range begins a rendering that loads the color, clears the depth to `DepthRanges.ClearDepth(range)`, and draws the face's opaque commands of that range with the range's projection. So a nearer range overwrites a farther one, the overlap of 1 % at each boundary hides nothing, and an object that straddles a boundary draws in both ranges. A face sorts its instances by their depth along its own forward axis, `DepthRanges.OpaqueMask(q · forward, radius)`, not the main view's.
 
 ### How a face is lit
 
@@ -124,12 +142,12 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
 ShadingInput shading = ...;   // as in impostor_capture.frag, both sky shares 0
 vec3 V = normalize(-inPosition);   // toward the eye, which every face shares
-outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding), 1.0);
+outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding), 0.0);   // alpha: no open sky
 ```
 
 where
 
-- `directRadiance` = the sun and the point and spot lights reflected toward V, plus the emission, clamped to 65,504, in plain radiance (see "The shader interface").
+- `directRadiance` = the sun and the point and spot lights reflected toward V, plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
 - `SunShadowsHolding` = the rule of the sun's shadow maps for a view that is not the main view (next section).
 - `V` = the unit direction from the surface point to the eye. A face's highlights are those that the camera's eye sees, because the map is the light that arrives at the eye.
 
@@ -145,11 +163,11 @@ With the far shadows alone, the sun lights the cabin's walls in the map through 
 
 #### The point and spot lights
 
-`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 16). On a refresh, the six faces see every direction, so every light of positive range and intensity is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
+`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 20). On a refresh, the six faces see every direction, so every light of positive range and intensity is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
 
 #### No ambient light in the capture
 
-Decision 13. A face's surfaces get the sun, the far and map shadows, the point and spot lights, and their emission. A surface that none of these reach is black in the map.
+Decision 17. A face's surfaces get the sun, the far and map shadows, the point and spot lights, and their emission. A surface that none of these reach is black in the map.
 
 ### Culling and level of detail
 
@@ -159,8 +177,8 @@ Decision 13. A face's surfaces get the sun, the far and map shadows, the point a
 | Frustum | `CubeFaces.Culls(face, center, radius)`: a sphere is culled when it lies behind the near plane, 5 cm ahead, or outside one of the four side planes of the 90° face, which pass through the eye with normals (forward ∓ right) / √2 and (forward ∓ up) / √2 |
 | Depth ranges | `DepthRanges.OpaqueMask` with the depth along the face's forward axis |
 | Level of detail | None. The engine has no mesh LOD, and a face draws each instance's one mesh |
-| Impostors | None in a face. Decision 17 |
-| Small objects | Not culled. Decision 17 |
+| Impostors | None in a face. Decision 21 |
+| Small objects | Not culled. Decision 21 |
 
 The batcher interpolates each instance it keeps by the frame's alpha, as for the main view, and writes its `GpuInstance` and its indirect commands after the main view's, into the same arrays. A face's commands per range go into `PreparedScene.EnvironmentFaces`.
 
@@ -190,7 +208,7 @@ where
 
 - `frame` = the number of the drawn frame, `FrameContext.Number`, counted from 0 over every drawn frame, metering draws included.
 - `facesPerFrame` = `SceneEnvironmentMap.FacesPerFrame`, F, from 1 to 6.
-- `InTurn` = the faces (frame · F + k) mod 6 for k from 0 to F − 1 (decision 18).
+- `InTurn` = the faces (frame · F + k) mod 6 for k from 0 to F − 1 (decision 22).
 - `mapFrameId` = `EnvironmentMap.FrameId`, the map's frame: null before the first drawn frame.
 - `originFrameId` = `RenderSnapshot.OriginFrameId` of the snapshot that this frame draws.
 - `longStep` = true for a headless draw whose draw step is at least `MeteringStepSeconds`, 0.1 s.
@@ -214,11 +232,11 @@ Everything in this section runs on the GPU in one compute pass, `EnvironmentPref
 
 ### The radiance map's mips
 
-After the face pass draws a face, it rebuilds that face's mip chain with linear blits, from level 0 down to 1 × 1, as `ImpostorPass.GenerateMips` rebuilds a tile. A blit's linear filter halves each axis, so each texel of level i + 1 is the mean of four texels of level i. The chain is the source of filtered importance sampling below.
+After the face pass draws a face, it rebuilds that face's mip chain with linear blits, from level 0 down to 1 × 1, as `ImpostorPass.GenerateMips` rebuilds a tile. A blit's linear filter halves each axis, so each texel of level i + 1 is the mean of four texels of level i, in all four channels. So the alpha of a coarser level is the open-sky share of its larger texel. The chain is the source of filtered importance sampling below.
 
 ### The specular levels
 
-Level 0 holds roughness 0, a lobe of zero width, so it is the radiance map's level 0, texel for texel. Level k, from 1 to L − 1, holds the prefilter of Karis 2013 ("Real Shading in Unreal Engine 4", the split sum's first sum, with n = v = r):
+Level 0 holds roughness 0, a lobe of zero width, so it is the radiance map's level 0, texel for texel, alpha included. Level k, from 1 to L − 1, holds the prefilter of Karis 2013 ("Real Shading in Unreal Engine 4", the split sum's first sum, with n = v = r):
 
 ```
 For the texel of level k at direction n, with r_k = k / (L − 1) and α = r_k²:
@@ -238,12 +256,13 @@ For the texel of level k at direction n, with r_k = k / (L − 1) and α = r_k²
 
 where
 
-- `N` = `PrefilterLevels.SamplesPerTexel`, 64 (decision 22).
+- `N` = `PrefilterLevels.SamplesPerTexel`, 64 (decision 26).
 - `Ω_s` = the solid angle that one sample stands for, in sr.
 - `Ω_p` = the solid angle of one texel of the radiance map's level 0, in sr.
 - `+ 1` = the bias of Křivánek and Colbert, who found that a little overlap between samples looks smoother.
 - `D` = `ggxDistribution` of `brdf.glsl`.
 - The weight n·l is Karis's.
+- `sum` = a sum of all four channels. So the alpha of level k is the open-sky share along the lobe of roughness r_k, weighted as the color is (decision 13).
 
 Each texel sums its samples in the order of i, so the specular map is the same bits on every run on one GPU. The texels of a level are independent, so the dispatch is one invocation per texel: workgroups of 8 × 8 over (W_k, W_k, 6), where W_k = W / 2^k. A level of 4 or 8 texels fills part of one group, and the extra invocations write nothing.
 
@@ -256,7 +275,7 @@ The work at W = 128: levels 1 to 5 hold 6 × (64² + 32² + 16² + 8² + 4²) = 
 The irradiance is the projection of the radiance map's level 0 onto the nine real spherical harmonics Y_lm up to band 2, multiplied by the clamped cosine's coefficients (Ramamoorthi and Hanrahan 2001, "An Efficient Representation for Irradiance Environment Maps"):
 
 ```
-L_lm = Σ over every texel of the six faces:  radiance(texel) · Y_lm(direction(texel)) · Ω(texel)
+L_lm = Σ over every texel of the six faces:  radiance(texel).rgb · Y_lm(direction(texel)) · Ω(texel)
 E_lm = Â_l · L_lm,      Â_0 = π,  Â_1 = 2π/3,  Â_2 = π/4
 E(n) = max(Σ_lm E_lm · Y_lm(n), 0)
 D(n) = E(n) / π
@@ -267,9 +286,9 @@ where
 
 - `Ω(texel)` = the exact solid angle of a texel of a cube face: A(x₀, y₀) − A(x₀, y₁) − A(x₁, y₀) + A(x₁, y₁), with A(x, y) = atan2(x · y, √(x² + y² + 1)) and the texel's corners x₀, x₁, y₀, y₁ in [−1, 1] (Driscoll 2012, "Cubemap Texel Solid Angle"). The texels of one face add up to 4π / 6 exactly.
 - `Y_lm` = the real basis in world axes, in this order. Band 0: 0.282095. Band 1: 0.488603 y, 0.488603 z, 0.488603 x. Band 2: 1.092548 xy, 1.092548 yz, 0.315392 (3z² − 1), 1.092548 xz, 0.546274 (x² − y²).
-- `E_lm` = what the irradiance buffer stores, coefficient i in `vec4` i, w unused.
+- `E_lm` = what the irradiance buffer stores, coefficient i in `vec4` i, with w 0. The open-sky share is not projected, and the stars stay out of the irradiance (decision 32).
 - `D(n)` = the ambient diffuse radiance: a Lambert surface sends c_diff · D(n), as it sends c_diff times the hemisphere's mix today.
-- `mean radiance` = the mean of the map's radiance over every direction, which the lit puffs need.
+- `mean radiance` = the mean of the map's radiance over every direction, without the stars, which the lit puffs need.
 
 One check of the formula, which a CPU test and a GPU test use: under a sky of radiance 1 above the horizon and a black ground, L_00 = √π, L_1(y) = (√3 / 2) √π, and the band-2 terms vanish. So E(n) = π (1 + n_y) / 2 exactly, and D(n) = (1 + n_y) / 2: the hemisphere's diffuse light with a white sky and a black ground.
 
@@ -294,13 +313,15 @@ The projection is one dispatch of one workgroup of 256 invocations. Invocation j
 
 ### The one source of the ambient light
 
-The ambient light keeps its formula of [pbr-brdf.md](pbr-brdf.md), with its two incoming radiances given new names:
+The ambient light keeps its formula of [pbr-brdf.md](pbr-brdf.md), split as [ambient-occlusion.md](ambient-occlusion.md) splits it into an ambient source and its occlusion:
 
 ```
-ambient = c_diff · D(n)  +  E(μ, r) · c(μ, r) · S(d, r)
+T_d = c_diff · D(n)
+T_s = E(μ, r) · c(μ, r) · S(d, r)
 
 map on:   D(n)    = max(Σ E_lm Y_lm(n), 0) / π
-          S(d, r) = textureLod(specular map, d, r · (L − 1))
+          S(d, r) = C(d, r) + a(d, r) · stars(d, r, f)
+          C, a    = the color and the alpha of textureLod(specular map, d, r · (L − 1))
 map off:  D(n)    = mix(ground, sky, s_n)
           S(d, r) = mix(ground, sky, s_l)
 
@@ -312,34 +333,171 @@ where
 - `E(μ, r)` and `c(μ, r)` = the specular albedo and the energy compensation from the DFG table, unchanged.
 - `r` = the floored roughness, from 0.045 to 1. At the floor, the read is 0.225 of a level above level 0.
 - `textureLod` = a trilinear read of the cube with Vulkan's seamless filtering across faces.
+- `C(d, r)` = the map's light along the lobe, in plain radiance.
+- `a(d, r)` = the open-sky share along the lobe, from 0 to 1.
+- `stars(d, r, f)` = the reflected stars at d for the roughness r and the footprint f, in plain radiance (next section).
 
-The one place where the map becomes the source is two functions in a new file, `environment.glsl`: `ambientDiffuseRadiance` for D and `ambientSpecularRadiance` for S. `ambientLight` in `lighting.glsl` calls them and keeps the weights. The three designs that run beside this one meet it there:
+The one place where the map becomes the source is `ambientTerms` in `lighting.glsl`:
+
+```glsl
+// The ambient source of every shading pass: the map while it is on, the hemisphere while it is off.
+AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
+{
+    return environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
+}
+
+vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
+{
+    return occludedAmbient(ambientTerms(s, lobes, V), s, lobes);
+}
+```
+
+where
+
+- `environmentMapOn` = the specialization constant of decision 29: true while the setting is `SceneEnvironmentMap`.
+- `environmentAmbient` = the map as an ambient source: T_d from `environmentDiffuse(n)` and T_s from `environmentSpecular(d, r, f)`, both in `environment.glsl`.
+- `hemisphereAmbient` = the hemisphere as an ambient source, from ambient-occlusion.md.
+- `occludedAmbient` = the one place where SSAO applies, from ambient-occlusion.md: T_d · V + T_s · V_s.
+
+If this ticket merges before SSAO, it adds `AmbientTerms` and `hemisphereAmbient` in that form, and `ambientLight` returns `terms.diffuse + terms.specular`. SSAO then puts `occludedAmbient` around the same call. If SSAO merges first, this ticket adds `environmentAmbient` and `ambientTerms` beside SSAO's functions. The three designs that run beside this one meet it there:
 
 | Design | What it does to the ambient light | Where |
 |---|---|---|
-| SSAO (`ter-b3h5`) | Scales the diffuse part by the occlusion and the specular part by the specular occlusion | In `ambientLight`, on the two terms. It does not care whether D and S come from the map. |
-| SSR (`ter-jxv9`) | Replaces S by the radiance that its ray hits, and fades back to S where the ray misses | Its compute pass calls `ambientSpecularRadiance` for the fallback. With the map on, that is the map. With it off, it is the hemisphere. |
+| SSAO (`ter-b3h5`) | T_d · V + T_s · V_s | `occludedAmbient`, on the terms of whichever source `ambientTerms` picks. The occlusion also dims the reflected stars, because they are part of T_s. |
+| SSR (`ter-jxv9`) | Replaces S by the radiance that its ray hits, and fades back to T_s where the ray misses | Its compute pass calls `ambientTerms` for the fallback, with a footprint that it computes itself in `ShadingInput.reflectionFootprint`. With the map on, that is the map and the stars. With it off, it is the hemisphere. |
 | The glass blend (`ter-mgze`) | Lets through (1 − opacity)(1 − E) of what lies behind | E is the DFG table's specular albedo, which the map does not change |
 
-Whichever of these merges after this ticket applies its factor to the terms in `ambientLight` and calls the two functions for D and S. Whichever merges before it, this ticket keeps its factor.
+### The reflected stars
+
+The sky pixels show `starRadiance(direction)`, today's `starField` moved to `sky.glsl` unchanged:
+
+```glsl
+vec3 cell = floor(root * 150.0);
+vec3 h = hash33(cell);                                   // the cell holds a star when h.x ≤ 0.02
+vec3 star = normalize(cell + hash33(cell + 17.0));
+float brightness = 0.05 + 3.0 * pow(h.y, 8.0);
+vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.82, 1.0), h.z);
+vec3 radiance = tint * brightness * exp(-dot(root - star, root - star) / (p * p));
+```
+
+where
+
+- `root` = the direction in root axes: the shader turns it by the conjugate of `frame.rootRotation`, as today.
+- `cell` = the star cell that holds the direction, in a grid of cells c = 1/150 wide.
+- `star` = the star's direction: a hashed point of its cell, seen from the eye.
+- `tint * brightness` = the star's peak radiance in the sky, b in what follows. Over the sky, E[brightness] = 0.05 + 3/9 = 0.383, and E[tint] = (0.86, 0.82, 0.81).
+- `p` = the main view's pixel angle, `frame.params.z`.
+
+Each star sends the light b · π p² toward the eye, in radiance times sr: the integral of its Gaussian.
+
+#### The width of a reflected star
+
+A surface of roughness r spreads a star over its GGX lobe. Around d, the lobe's density over the reflected directions l is D(h) / (4 v·h). With n and v along the reflected direction, as in the prefilter, its peak is D(1) / 4 = 1 / (4π α²) per sr, with α = r². A Gaussian exp(−θ² / w²) / (π w²) has the peak 1 / (π w²), so the two peaks agree at w = 2α. The pixel's footprint adds to that width as a second Gaussian blur, so a reflected star has the width and the peak
+
+```
+w    = √(f² + 4α²)
+peak = b · (p / w)²
+```
+
+and keeps its light b · π p². On a flat mirror f = p, so as α goes to 0 the reflected star becomes the sky's star. At the roughness floor (r = 0.045, α ≈ 0.002) on a flat mirror at 1080p, w ≈ 0.0042 rad: 0.63 of a star cell, and a peak of b / 19.
+
+#### The cells it reads
+
+A star that wide reaches beyond its own cell. So the reflection reads the stars of the 3 × 3 × 3 cells around the cell that holds d. It skips each cell that the sphere of radius 150 cells does not cross, because no direction of the sky reads that cell either, so the sky and the reflections hold the same stars. The block holds every star within c of d. Each star's Gaussian is cut off smoothly at c, so the sum does not depend on where d lies in its cell:
+
+```
+K(θ) = exp(−θ² / w²) · (1 − θ² / c²)²      for θ < c, and 0 beyond
+k(w) = 1 − 2/a + 2 (1 − e^(−a)) / a²,       a = c² / w²
+```
+
+where
+
+- `θ` = the angle between d and the star, in rad, measured as the sky measures it: |root − star|.
+- `K` = the star's kernel in the reflection.
+- `k(w)` = the share of the star's light that K keeps: the integral of K over the sphere divided by that of the Gaussian, π w². With x = θ² / c², k = a ∫₀¹ e^(−a x) (1 − x)² dx, which gives the closed form. k goes to 1 for narrow stars and to a / 3 for wide ones.
+
+At the roughness floor on a flat mirror at 1080p, a = 2.52 and k = 0.50. The window keeps half of the star's light in its blob, which is about 0.3° wide at half its peak.
+
+#### The fade with roughness
+
+A prefiltered map with the stars in it gives each lobe the stars' light averaged over the lobe. A narrow lobe sees single stars. A lobe much wider than the space between two stars, about 2.2° on average, sees their mean M(ω). The reflected stars give that mean on average at every roughness, and single stars only while the window keeps their shape:
+
+```
+t(w)           = smoothstep(c, 2c, w)
+stars(d, r, f) = (1 − t) · Σ over the stars s of the block: b_s · (p / w)² · K(θ_s)
+               + (1 − (1 − t) · k(w)) · M(d)
+M(ω)           = 450 · |ω_root|₁ · E[brightness] · E[tint] · π p²
+```
+
+where
+
+- `t(w)` = how far single stars have faded, from 0 to 1.
+- `|ω_root|₁` = |x| + |y| + |z| of the direction in root axes.
+- `M(ω)` = the mean star radiance near ω.
+
+M comes from counting the stars. A sphere of radius R in a grid of unit cells crosses about R² · |n|₁ cells per sr around its normal n. With R = 150 and one cell in 50 holding a star, that gives 450 · |n|₁ stars per sr: 450 along the axes, 780 along the diagonals, and 675 on average. The comment on `starField` says 450, the count along the axes. Each star sends E[b] · π p² on average. At 1080p and 60°, M is about (4.4, 4.2, 4.1) · 10⁻⁴ along the axes and (6.6, 6.3, 6.2) · 10⁻⁴ on average over the sphere.
+
+The fade keeps the light. Over all directions, each star's term integrates to b · π p² · k, so the mean of the sum is k · M. The mean of the whole term is then (1 − t) · k · M + (1 − (1 − t) · k) · M = M, for every w and every t. So the fade can sit wherever single stars stop looking right, and the reflected stars still carry the light that a prefiltered map with the stars gives each lobe. Two approximations remain: the star density changes over a few cells, and a star can sit a little outside its cell, so the block can miss a rare star within c. `StarFieldTests.TheReflectedStarsKeepTheMeanRadianceOnAverageAtEveryRoughness` measures both, within 2 %.
+
+On a flat mirror at 1080p:
+
+| Roughness | w | What the mirror shows |
+|---|---|---|
+| 0.045, the floor | 0.63 c | Single stars, about 0.3° wide at half their peak, at about 1/19 of their peak in the sky |
+| 0.058 | c | Single stars, about 0.35° wide, before the fade starts |
+| 0.07 | 1.5 c | The stars half faded into their mean |
+| 0.082 and rougher | 2 c and more | M alone, times the open-sky share |
+
+The peaks above are before the surface's specular albedo E · c. On a curved mirror f is larger than p, so the stars fade at a lower roughness. That is the antialiased answer: a pixel that covers more than a star cell of the sky holds the stars' mean.
+
+#### The open-sky share, and why the stars stay steady
+
+The stars reach a surface only through open sky, so `environmentSpecular` multiplies them by a(d, r), the specular map's alpha at the level of the color. On a near mirror the read is level 0.225, so a surface in the map hides the stars with an edge about one texel wide, 0.4° to 0.9° at W = 128. On a rough surface the share is the lobe's average.
+
+A reflected star stays steady while the camera's frame turns, for three reasons:
+
+- Its direction is fixed in root axes, and the shader turns d into root axes by the frame's root rotation, as the sky does.
+- Its width w is at least f, the step of d between two pixels. A Gaussian sampled at steps no wider than itself sums to the same light at every offset, within 10⁻⁴: the ripple of the sum is 2 exp(−π² w² / f²).
+- Under open sky the share is 1 in every face, so the face that a frame redraws changes nothing there.
+
+#### Where it runs
+
+`environmentSpecular` adds the term for every pixel that the map lights: in the lighting pass, the transparent pass and the impostor capture, and in SSR's fallback later. A pixel with t = 1 skips the 27 cells and adds M alone. In a fragment shader, `reflectionFootprint` gives f from the screen derivatives of d:
+
+```glsl
+float reflectionFootprint(vec3 d)
+{
+    return max(frame.params.z, max(length(dFdx(d)), length(dFdy(d))));
+}
+```
+
+where
+
+- `d` = the dominant direction of the pixel, from `ambientSpecularDirection(s, V)`.
+- `dFdx`, `dFdy` = the change of d to the neighbor pixel in x and in y.
+- `frame.params.z` = p, the lower bound.
+
+Derivatives are defined only in uniform control flow, so each fragment shader computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. So `lighting.frag` reads the normal and the roughness from the G-buffer before its test for sky pixels. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
+
+The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
 ### The passes that read it
 
 | Pass | Reads | Notes |
 |---|---|---|
-| Lighting, a lit pixel | D at the shading normal, S at d | Through `surfaceRadiance`, unchanged in its callers |
-| Transparent, a mesh | The same | Glass reflects the map (User) |
+| Lighting, a lit pixel | D at the shading normal, S at d with the reflected stars | Through `surfaceRadiance`. The footprint comes from the derivatives of d. |
+| Transparent, a mesh | The same | Glass reflects the map and the stars (User) |
 | Impostor capture | The same, with V from the main view's eye | The capture bakes the map's light |
-| Lit puffs (`scatteredLight`) | The mean radiance | Was the mean of the sky and the ground color |
+| Lit puffs (`scatteredLight`) | The mean radiance, without the stars | Was the mean of the sky and the ground color. Decision 32 leaves the stars out. |
 | SSR, later | S, as its fallback | Its compute pass binds set 0 |
-| Environment faces | Nothing | Decision 13 |
-| Sky pixels | Nothing | They show `skyRadiance` |
+| Environment faces | Nothing | Decision 17 |
+| Sky pixels | Nothing | They show `skyRadiance` plus `starRadiance`, today's stars |
 
 ### The hemisphere and the lobe-sky table while the map is on
 
 - `World.Ambient` still flows into the snapshot, because the snapshot builder cannot see the renderer's options, as with the frame outlines. With the map on, the batcher writes zero into the frame constants `ambientSky` and `ambientGround`, so the frame constants hold the hemisphere only when it is the light.
 - `HemisphereUp` stays in every `GpuInstance` and is not read by any shading.
-- The G-buffer pass writes 0 into the alpha of the specular target and of the emissive target, and the transparent pass and the impostor capture skip both shares (decision 27).
+- The G-buffer pass writes 0 into the alpha of the specular target and of the emissive target, and the transparent pass and the impostor capture skip both shares (decision 30).
 - The lobe-sky table stays uploaded and unread.
 
 ### Impostors
@@ -350,7 +508,7 @@ The signature's ambient part becomes a union, `AmbientSignature`: `HemisphereSig
 
 ## Exposure
 
-The map stores plain radiance: the face pass writes `directRadiance`, which multiplies by no exposure, and the sky pass writes `skyRadiance` as it is. The readers multiply the reflected light by the frame's exposure in `surfaceRadiance`, ambient included, so the map's light is pre-exposed where it lands, like every other light.
+The map stores plain radiance: the face pass writes `directRadiance`, which multiplies by no exposure, and the sky pass writes `skyRadiance` as it is. The readers multiply the reflected light by the frame's exposure in `surfaceRadiance`, ambient included, so the map's light is pre-exposed where it lands, like every other light. The reflected stars are part of T_s, so the same multiply pre-exposes them, as the exposure branch pre-exposes the sky pixels' stars.
 
 The reason is the one of the impostor atlas ([auto-exposure.md](auto-exposure.md), "The impostor atlas"). A face is drawn in one frame and read for up to ⌈6 / F⌉ − 1 later frames while the exposure moves, and the prefilter mixes faces of different frames into one lobe. A pre-exposed face holds the exposure of its own frame, so six faces hold six different units. In plain radiance they share one, with no record of the exposure per face. The range of a half float is enough by the atlas's argument: 65,504 is 150 times a sunlit white surface in SI units, and 6.1 · 10⁻⁵ at +8 stops still shows at about 7 of 255.
 
@@ -358,33 +516,37 @@ A headless still refreshes all six faces before it shades (see "Which faces a fr
 
 ## The setting
 
-`src/Tertius.Rendering/EnvironmentMapSetting.cs` (new, public):
+`src/Tertius.Rendering/EnvironmentMapSetting.cs` (new, public), in the form of decision 15:
 
 ```csharp
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Whether the renderer lights surfaces with a map of the scene around the camera, and its size and pace
-/// (docs/plans/environment-map.md). A built-in C# 15 union of two class cases, as BloomSetting is. The default value holds no
-/// case, and the renderer refuses it.
-/// </summary>
-public union EnvironmentMapSetting(NoEnvironmentMap, SceneEnvironmentMap)
-{
-    // The built-in union's ToString gives only the name of the union.
-    public override readonly string ToString() => Value?.ToString() ?? "EnvironmentMapSetting(none)";
-}
-
-/// <summary>
 /// No map: the hemisphere of World.Ambient is the ambient light, as before the map. The renderer makes no map images and no
 /// map passes.
 /// </summary>
-public sealed record NoEnvironmentMap;
+public readonly record struct NoEnvironmentMap;
 
 /// <summary>
-/// A cube map of the scene around the camera: the three depth ranges lit by the sun and the lamps, and the star field. It
-/// gives every surface its ambient light, diffuse and specular, and SSR its fallback.
+/// A cube map of the scene around the camera (docs/plans/environment-map.md): the three depth ranges lit by the sun and the
+/// lamps, and the share of each texel through which the sky is open. It gives every surface its ambient light, diffuse and
+/// specular, the stars in its reflections, and SSR its fallback.
 /// </summary>
-public sealed record SceneEnvironmentMap
+/// <param name="FaceSize">The texels along one side of each face: a power of two from 16 to 1024.</param>
+/// <param name="FacesPerFrame">How many of the six faces each drawn frame draws again, 1 to 6. 6 keeps every face from the frame that reads it.</param>
+public readonly record struct SceneEnvironmentMap(int FaceSize, int FacesPerFrame)
+{
+    /// <summary>The renderer's default: 128 texels per face, one face per frame.</summary>
+    public static SceneEnvironmentMap Default => new(FaceSize: 128, FacesPerFrame: 1);
+}
+
+/// <summary>
+/// Whether the renderer lights surfaces with a map of the scene around the camera: <see cref="NoEnvironmentMap"/> or
+/// <see cref="SceneEnvironmentMap"/>. The default value is NoEnvironmentMap. It is a generated union (see
+/// <see cref="GeneratedUnionAttribute"/>).
+/// </summary>
+[GeneratedUnion(typeof(NoEnvironmentMap), typeof(SceneEnvironmentMap), ZeroCase = typeof(NoEnvironmentMap))]
+public readonly partial struct EnvironmentMapSetting
 {
     /// <summary>The smallest face: its levels reach roughness 1 through one level between, 16, 8 and 4 texels.</summary>
     public const int MinFaceSize = 16;
@@ -392,43 +554,58 @@ public sealed record SceneEnvironmentMap
     /// <summary>The largest face. At 1024 texels one texel is about the width of the lobe of the roughness floor, so a larger map adds nothing that any material shows.</summary>
     public const int MaxFaceSize = 1024;
 
-    /// <param name="faceSize">The texels along one side of each face: a power of two from 16 to 1024.</param>
-    /// <param name="facesPerFrame">How many of the six faces each drawn frame draws again, 1 to 6. 6 keeps every face from the frame that reads it.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A value is outside its range.</exception>
-    public SceneEnvironmentMap(int faceSize, int facesPerFrame);
+    /// <summary>The most faces a frame can draw: all six.</summary>
+    public const int MaxFacesPerFrame = 6;
 
-    /// <summary>The texels along one side of each face.</summary>
-    public int FaceSize { get; }
+    /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
+    internal string? Problem =>
+        this switch
+        {
+            NoEnvironmentMap => null,
+            SceneEnvironmentMap map => ProblemOf(map),
+        };
 
-    /// <summary>How many faces each drawn frame draws again.</summary>
-    public int FacesPerFrame { get; }
+    private static string? ProblemOf(SceneEnvironmentMap map)
+    {
+        bool sizeInRange = map.FaceSize is >= MinFaceSize and <= MaxFaceSize && BitOperations.IsPow2(map.FaceSize);
+        if (!sizeInRange)
+            return $"SceneEnvironmentMap.FaceSize must be a power of two from {MinFaceSize} to {MaxFaceSize}, not {map.FaceSize}.";
+        if (map.FacesPerFrame is < 1 or > MaxFacesPerFrame)
+            return $"SceneEnvironmentMap.FacesPerFrame must be 1 to {MaxFacesPerFrame}, not {map.FacesPerFrame}.";
+        return null;
+    }
 }
 ```
+
+`new SceneEnvironmentMap()` gives zeros, not the defaults, as for every record struct, so callers start from `SceneEnvironmentMap.Default with { ... }`, and `Problem` refuses the zeros.
 
 `RendererOptions` gains:
 
 ```csharp
 /// <summary>
 /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of
-/// World.Ambient. On by default, with 128 texels per face, one face per frame. The map takes about 2 MB at 128
-/// (ARCHITECTURE.md, "The environment map").
+/// World.Ambient. The default is <see cref="SceneEnvironmentMap.Default"/>: 128 texels per face, one face per frame, about
+/// 2 MB (ARCHITECTURE.md, "The environment map").
 /// </summary>
-public EnvironmentMapSetting EnvironmentMap { get; set; } = new SceneEnvironmentMap(faceSize: 128, facesPerFrame: 1);
+public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
 ```
+
+`VulkanRenderer.CheckOptions` throws `ArgumentOutOfRangeException` for `options` with the message of `Problem`, as it does for the exposure and the occlusion. It also refuses a `FaceSize` above the device's `maxImageDimensionCube`, as it refuses a `ShadowMapSize` above the device's limit, because only the renderer knows the device.
 
 | Field | Unit | Valid | Default | Checked by |
 |---|---|---|---|---|
-| `FaceSize` | Texels along a face's side | A power of two from 16 to 1024, and at most the device's `maxImageDimensionCube` | 128 (User) | The constructor for the range and the power of two, `VulkanRenderer.CheckOptions` at creation for the device's limit, as for `ShadowMapSize` |
-| `FacesPerFrame` | Faces per drawn frame | 1 to 6 | 1 (User) | The constructor |
-| The union | | `NoEnvironmentMap` or `SceneEnvironmentMap` | `SceneEnvironmentMap(128, 1)` (User) | `CheckOptions` refuses a value that holds no case, with `ArgumentException`, as for `Bloom` |
+| `FaceSize` | Texels along a face's side | A power of two from 16 to 1024, and at most the device's `maxImageDimensionCube` | 128 (User) | `Problem` for the range and the power of two. `CheckOptions` for the device's limit. |
+| `FacesPerFrame` | Faces per drawn frame | 1 to 6 | 1 (User) | `Problem` |
+| The union | | `NoEnvironmentMap` or `SceneEnvironmentMap` | `SceneEnvironmentMap.Default` in `RendererOptions` (User). The union's zero value is `NoEnvironmentMap`. | Nothing: every value of the union holds a case |
 
 | Analogue | How the map matches it |
 |---|---|
-| `BloomSetting` | The same union form, constructor validation, a refused empty value, a default written in `RendererOptions`, `NoBloom` in the test fixtures, and `--bloom on\|off` on the headless command line, which becomes `--environment-map on\|off` |
+| `ExposureSetting`, `AmbientOcclusionSetting` | The same form: a generated union of positional record structs, a valid zero case, a `Default` on the case with fields, and a `Problem` that `CheckOptions` turns into `ArgumentOutOfRangeException` |
+| `BloomSetting` | `ter-48qn` gives it the same form. Its `NoBloom` in the test fixtures and its `--bloom on\|off` on the headless command line are the analogues of `NoEnvironmentMap` in the fixtures and of `--environment-map on\|off`. |
 | `ToneCurve` | An enum, because neither of its cases carries data. The map's case carries two fields, so it is a union. |
 | `Impostors` | On by default and off in the test fixtures, fixed for the renderer's life |
 
-The test helpers `Gpu.Headless` (`tests/Tertius.Rendering.Tests/TestSupport.cs`) and `GpuTesting.Headless` (`tests/Tertius.Host.Tests`) set `NoEnvironmentMap` (User). `Gpu.Headless` takes an optional `EnvironmentMapSetting environmentMap` for the map's own tests. The six reference images keep their bits.
+The test helpers `Gpu.Headless` (`tests/Tertius.Rendering.Tests/TestSupport.cs`) and `GpuTesting.Headless` (`tests/Tertius.Host.Tests`) set `new NoEnvironmentMap()` (User). `Gpu.Headless` takes an optional `EnvironmentMapSetting? environmentMap` for the map's own tests. The six reference images keep their bits.
 
 A face count of 6 makes the map draw every face from the frame that reads it, so it carries nothing from earlier frames. The snapshot tests epic can choose that, or `NoEnvironmentMap`, in its tests' options. Its deterministic switch then has no map of its own to turn off, as the exposure doc says of `FixedExposure`.
 
@@ -438,12 +615,12 @@ A face count of 6 makes the map draw every face from the frame that reads it, so
 
 | Image or buffer | Format and size | Memory at W = 128 | Usage | Written by | Read by |
 |---|---|---|---|---|---|
-| The radiance map | RGBA16F cube, W × W, 6 layers, log2(W) + 1 levels | 1.0 MB | Color attachment, sampled, transfer source and destination, cube-compatible | The face pass: level 0 of the drawn faces, then the blits of their levels | The prefilter pass |
+| The radiance map | RGBA16F cube, W × W, 6 layers, log2(W) + 1 levels. RGB: plain radiance without the stars. A: the open-sky share. | 1.0 MB | Color attachment, sampled, transfer source and destination, cube-compatible | The face pass: level 0 of the drawn faces, then the blits of their levels | The prefilter pass |
 | The face views | One 2D view of level 0 of each layer | | | | The face pass's color attachment |
-| The specular map | RGBA16F cube, W × W, 6 layers, L levels | 1.0 MB | Storage, sampled, transfer source (for the test hook), cube-compatible | The prefilter pass, every level | The impostor capture, the lighting pass, the transparent pass, SSR |
+| The specular map | RGBA16F cube, W × W, 6 layers, L levels. RGB: the prefiltered radiance. A: the prefiltered open-sky share. | 1.0 MB | Storage, sampled, transfer source (for the test hook), cube-compatible | The prefilter pass, every level | The impostor capture, the lighting pass, the transparent pass, SSR |
 | The specular level views | One 2D-array view of 6 layers per level | | | The prefilter's storage images | |
 | The face depth | D32, W × W | 64 KB | Depth attachment | The face pass, cleared per range | The face pass |
-| The irradiance buffer | 9 `vec4`, 144 B, `GpuOnly` | 144 B | Storage, transfer source | The prefilter pass | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
+| The irradiance buffer | 9 `vec4`, 144 B, `GpuOnly`. xyz: E_lm. w: 0. | 144 B | Storage, transfer source | The prefilter pass | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
 | A readback buffer per frame slot | 144 B, `Readback` | 144 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
 
 The images take about 2.1 MB at W = 128 and about 134 MB at W = 1024.
@@ -475,11 +652,13 @@ Push constants:
 | Value | Written by | When | Read by | When | Stored in | Analogue |
 |---|---|---|---|---|---|---|
 | `RendererOptions.EnvironmentMap` | The host, tests | Before the renderer is made | `CheckOptions`, and `VulkanRenderer`, which makes the map and its passes and sets the shader constant | At creation | `RendererOptions` | `RendererOptions.Bloom` |
-| The shader constant `environmentMapOn` | `VulkanRenderer`, from the setting | When each shading pipeline is made | `environment.glsl`, `gbuffer.frag`, `transparent.frag`, `impostor_capture.frag` | Every draw | The pipelines | None today |
+| The shader constant `environmentMapOn` | `VulkanRenderer`, from the setting | When each shading pipeline is made | `ambientTerms` in `lighting.glsl`, `gbuffer.frag`, `transparent.frag`, `impostor_capture.frag`, `lighting.frag` | Every draw | The pipelines | None today |
 | The map's frame, `EnvironmentMap.FrameId` | `FacesFor` | Each drawn frame | `FacesFor` | Each drawn frame | `EnvironmentMap` | An impostor's capture record: CPU state that describes what a GPU image holds |
 | The faces of a frame, a `FaceMask` | `FacesFor` | Step 2, before batching | `SceneBatcher` | Step 2 | `EnvironmentDraw.WithMap.Faces`, then `PreparedScene.EnvironmentFaces` | `ImpostorManager.Captures` |
 | A face's commands per range | `SceneBatcher` | Step 2 | `EnvironmentFacePass` | Step 3a | `PreparedScene.EnvironmentFaces`, `Instances`, `Commands` | The capture instances that `ImpostorPass.Prepare` appends |
 | The light list | `SceneBatcher` | Step 2 | Every pass that shades, the faces included | Steps 3a to 7 | `PreparedScene.Lights` | Today's list, with the faces' lights added |
+| The open-sky share of a face, level 0 | The sky pass writes 1, the face shader 0 | Step 3a of a frame that draws it | The blits, the prefilter | Steps 3a and 3b | The radiance map's alpha | The radiance of the same texel: one image, one frame |
+| The prefiltered open-sky share | `EnvironmentPrefilterPass` | Step 3b | `environmentSpecular`, as the mask of the reflected stars | Steps 4 to 7 | The specular map's alpha | The prefiltered radiance |
 | A face of the radiance map, level 0 | `EnvironmentFacePass` | Step 3a of a frame that draws it | Its blits and the prefilter | Steps 3a and 3b of the same frame and of every later frame until it is drawn again | `EnvironmentMap.Radiance` | An impostor atlas tile |
 | A face's mips in the radiance map | The blits | Step 3a, after the face | The prefilter | Step 3b | `EnvironmentMap.Radiance` | A tile's mips |
 | The specular map | `EnvironmentPrefilterPass` | Step 3b of each drawn frame | The impostor capture, lighting, transparent, SSR | Steps 4 to 7 | `EnvironmentMap.Specular` | A tile's mips: derived from the stored image in the frame that changes it |
@@ -487,6 +666,8 @@ Push constants:
 | The readback of a slot | The copy at the end of step 3b | Each drawn frame | `EnvironmentMap.Collect` | After the slot's fence, in `Render` | The readback buffers | The exposure's readback buffers |
 | `EnvironmentMap.Latest`, an `IrradianceReading` | `Collect` | Each `Render`, after the fence wait | `VulkanRenderer`, into `EnvironmentDraw.WithMap.Irradiance`, then `PreparedScene.Ambient`, and `ImpostorManager` | Step 2 | `EnvironmentMap` | `ExposureResources.Latest` |
 | The ambient source of a frame, `AmbientSource` | `SceneBatcher` | Step 2 | `ImpostorManager`, `WriteConstants` | Step 2 | `PreparedScene.Ambient` | Today's `PreparedScene.Ambient`, which held the hemisphere alone |
+| The reflection's footprint f | Each fragment shader that shades, at the top of `main`. SSR computes its own. | Per pixel | `environmentSpecular` | Per pixel | `ShadingInput.reflectionFootprint`, a value in the shader | `ShadingInput.occlusion` of ambient-occlusion.md |
+| The reflected stars | `environmentSpecular`, from d, the root rotation and p | Per pixel | `environmentAmbient`, as part of T_s | Per pixel | None: a derived read of the frame's root rotation | The sky pixels' stars, which read the same root rotation |
 
 The steps are those of ARCHITECTURE.md, "The order of a rendered frame". This doc adds 3a, the environment faces, and 3b, the environment prefilter, between the shadow maps (3) and the impostor captures (4). Each ordering rule has its reason:
 
@@ -499,6 +680,8 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame". This do
 ### How the map fits "stored state describes the last finished step"
 
 The stored state of the map is its six faces. Each face describes the frame that drew it, with that frame's snapshot at that frame's alpha, its cascades and its lights. A frame's readers come after its face pass in submission order, so they never read a face in flight: the newest face is this frame's own, finished before them, as this frame's shadow maps are finished before the lighting pass. The specular map and the irradiance are not a second store. They are a pure function of the six faces, recomputed in each drawn frame right after the faces change, from the faces alone. The map's frame on the CPU describes the axes of the faces that the recorded frames will have drawn, as the impostor manager's capture records describe tiles on the GPU.
+
+The reflected stars are not stored. Each pixel reads them from the frame's root rotation, as the sky pixels do, so a mirror and the sky always show the stars of the same frame. Their mask, the open-sky share, is stored with each face and describes the frame that drew it, as the face's color does.
 
 The exposure buffer differs: frame n uses the exposure that frame n − 1 decided. The map's newest face is from frame n itself, and its oldest from frame n − (⌈6 / F⌉ − 1).
 
@@ -513,10 +696,10 @@ flowchart TD
     B --> S["Shadow maps"]
     S --> EF["Environment faces: sky, then far, middle and near ranges per drawn face, then the blits of their mips"]
     EF --> EP["Environment prefilter: specular levels 0 to L − 1 of all six faces, the irradiance, the readback copy"]
-    EP --> IC["Impostor captures: bake D and S from the map"]
+    EP --> IC["Impostor captures: bake the ambient terms from the map"]
     IC --> G["G-buffer: the sky shares are 0 with the map on"]
-    G --> L["Lighting: c_diff · D(n) + E · c · S(d, r), pre-exposed"]
-    L --> T["Transparent: glass reflects S, and lit puffs take the mean radiance"]
+    G --> L["Lighting: T_d + T_s, with the reflected stars masked by the open-sky share, pre-exposed"]
+    L --> T["Transparent: glass reflects S and the stars, and lit puffs take the mean radiance"]
     T --> R["Exposure, bloom, tone map, overlay, readback"]
 ```
 
@@ -524,23 +707,25 @@ flowchart TD
 
 | Kind or place | In the map | Its diffuse ambient light | Its specular ambient light |
 |---|---|---|---|
-| Chrome in open space with a planet below | Drawn, lit by the sun | None: a metal has no diffuse color | Earth's day side below, black space with the Moon and the stations above, blurred by the roughness. SSR adds what is on screen, sharper, and falls back to the map. The 128 texels resolve the lobe of roughness 0.1 and rougher. Smoother chrome shows the map no sharper. Stars: see "Open forks". |
-| A matte hull under Earth | Drawn | From LEO, Earth fills about a third of the map. Over the day side, the belly gets about c_diff · 0.35 at noon, ten times today's 0.03. Over the night side, almost nothing. The side toward deep space gets the stars, about 6 · 10⁻⁴: darker than today. | Its small specular part reflects the same |
+| Chrome in open space with a planet below | Drawn, lit by the sun | None: a metal has no diffuse color | Earth's day side below, black space with the Moon and the stations above, blurred by the roughness. SSR adds what is on screen, sharper, and falls back to the map. The 128 texels resolve the lobe of roughness 0.1 and rougher. Smoother chrome shows the map no sharper. Chrome below roughness 0.07 shows single stars, sharp and steady, and rougher chrome their mean, about 6 · 10⁻⁴. |
+| A matte hull under Earth | Drawn | From LEO, Earth fills about a third of the map. Over the day side, the belly gets about c_diff · 0.35 at noon, ten times today's 0.03. Over the night side, almost nothing. The side toward deep space gets nothing: decision 32 leaves the stars out. Today it gets 0.03. | Its small specular part reflects the same |
 | A cabin interior with lamps | Drawn, lit by its lamps and the cascades, through the canopy's opening to the outside | One bounce of the lamps' light from the walls, floor and ceiling, colored by them. Corners that no lamp lights are black in the map. | The lit cabin, and the outside through the canopy, along the lobe |
-| The outside seen from the cabin | Drawn | The cabin's light: see "Open forks: far surfaces and the camera's surroundings" | The cabin, along the lobe |
-| Glass | Not drawn | As a surface, if its diffuse color is above 0 | The map at its roughness: from inside the cabin, the cabin. From outside, the outside. It blends as `ter-mgze` decides. |
+| The outside seen from the cabin | Drawn | The cabin's light, which the user accepts for now (decision 12, "Known limits") | The cabin, along the lobe |
+| Glass | Not drawn | As a surface, if its diffuse color is above 0 | The map at its roughness: from inside the cabin, the cabin. From outside, the outside. Smooth glass under open sky shows the stars. It blends as `ter-mgze` decides. |
 | A far planet | Drawn | The light around the camera, not around the planet. The Moon's night side seen from Earth orbit takes what the camera sees in the directions its surface faces: Earth, where its night side faces Earth, which happens to be earthshine, and the shuttle's sunlit hull when the camera sits beside it, which is wrong and about as bright as today's fill. | The same, along the lobe |
 | An impostor billboard | Its object is drawn as geometry | Baked into the capture from the map, recaptured when the irradiance reading changes | Baked |
 | A lit puff | Not drawn | The map's mean radiance, in place of the mean of the two colors | None: a puff has no lobe |
 | A glow puff | Not drawn | None | None |
-| The sky | The background of every face | None | None |
-| Earth's surface in daylight | The sunlit ground below the horizon, the black sky with stars above, until the atmosphere ticket gives the sky its color | Ground bounce from below and the sides. Almost nothing from above, where the hemisphere gave 0.08 | The ground and the black sky |
+| The sky | The background of every face: black until the atmosphere ticket, with an open-sky share of 1 | None | None |
+| The stars | Not drawn | None (decision 32) | Added for each pixel at d, masked by the open-sky share, single stars below roughness 0.07 and their mean above 0.082 |
+| A near mirror with a wall between it and the sky | The wall, with an open-sky share of 0 | None: a metal has no diffuse color | The wall, and no stars where the wall covers the sky |
+| Earth's surface in daylight | The sunlit ground below the horizon, and the black sky above until the atmosphere ticket gives it its color (User, decision 14) | Ground bounce from below and the sides. Almost nothing from above, where the hemisphere gave 0.08. A planet's shadow loses that fill too. | The ground, the black sky, and the reflected stars where the sky is open |
 | The first frame after the renderer starts | All six faces, a refresh | From a complete map | From a complete map |
-| A camera that jumps to another frame tree | All six faces, a refresh, in the new frame's axes and stars | From the new place at once, in a window too | From the new place |
+| A camera that jumps to another frame tree | All six faces, a refresh, in the new frame's axes | From the new place at once, in a window too | From the new place, with the stars of the new root rotation |
 | A window camera cut within one frame | F faces per frame | Mixed old and new faces for up to 83 ms at 60 Hz | The same |
-| A ship that turns with the camera in it | The cabin is fixed in the map's axes. The stars and the outside turn. | Unchanged by the turn | The stars blink in near mirrors as they cross texels |
+| A ship that turns with the camera in it | The cabin is fixed in the map's axes. The outside turns, and the faces follow it one per frame. | Unchanged by the turn | The reflected stars move smoothly and keep their light. The outside's surfaces lag by up to ⌈6 / F⌉ − 1 frames. |
 
-Every surface with a material takes D and S from one place. Only the source changes with the setting. The map holds what the main view draws opaque, with the same sky.
+Every surface with a material takes its ambient terms from one place, `ambientTerms`. Only the source changes with the setting. The map holds what the main view draws opaque, with the same sky, and the reflected stars are the stars of the sky pixels.
 
 ## The frame graph, barriers, timers, resize, and the switch off
 
@@ -574,7 +759,7 @@ With `NoEnvironmentMap`: no `EnvironmentMap`, no images, no sets, no passes, no 
 
 ## Tests
 
-The tests follow tests/STYLE.md: one behavior per test, named as a statement. No test adds a reference image (the epic's rule). The GPU tests use small outputs, 160 × 90 or 320 × 180, and `SceneEnvironmentMap(32, 1)` where the face size does not matter, so a test draws its faces quickly. Two hooks read the map back, each waiting for the device to be idle as `ReadImpostorTile` does:
+The tests follow tests/STYLE.md: one behavior per test, named as a statement. No test adds a reference image (the epic's rule). The GPU tests use small outputs, 160 × 90 or 320 × 180, and `SceneEnvironmentMap.Default with { FaceSize = 32 }` where the face size does not matter, so a test draws its faces quickly. The tests of the reflected stars use a vertical field of view of 10° at 320 × 180, so that p ≈ 9.7 · 10⁻⁴ rad, as at 1080p and 60°. A small output at 60° has stars wider than a cell, which fade at once in a mirror. Two hooks read the map back, each waiting for the device to be idle as `ReadImpostorTile` does:
 
 ```csharp
 internal Half[] ReadEnvironmentFace(CubeFace face, int level, EnvironmentImage image);   // RGBA halves, rows from the top
@@ -624,11 +809,26 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `TwoProjectionsOfOneCubeGiveTheSameBits`.
 - `TheChangeBetweenTwoIrradiancesIsAShareOfTheLargerTotal`, and `NoChangeIsZero`.
 
+`StarFieldTests` (Part 1):
+
+- `AReflectedStarHasThePeakOfTheGgxLobe`: with f = 0, the peak b · (p / w)² equals the star's light b · π p² times 1 / (4π α²), for α from 0.002 to 0.1.
+- `AReflectedStarKeepsItsLightAtEveryWidth`: the Gaussian of peak b · (p / w)² integrates to b · π p² within 10⁻⁶, by quadrature, for w from p to 20 c.
+- `TheWindowKeepsTheShareThatTheClosedFormGives`: the quadrature of K over the plane divided by π w² equals k(w) within 10⁻⁶, for a from 0.01 to 100.
+- `TheReflectionReadsNoCellThatTheSkyNeverReads`: every cell of the block that holds a reflected star is crossed by the sphere of radius 150.
+- `TheStarDensityFollowsTheSumOfTheDirectionsAbsoluteComponents`: the stars counted in a cap of 5° around +X and around (1, 1, 1) / √3 are in the ratio √3 within 5 %.
+- `TheMeanStarRadianceIsTheLightOfEveryStarSpreadOverTheSphere`: the sum of b · π p² over the star of every crossed cell, divided by 4π, equals the sphere's mean of M(ω) within 1 %.
+- `TheReflectedStarsKeepTheMeanRadianceOnAverageAtEveryRoughness`: over a fixed Fibonacci set of 4 million directions, the mean of stars(d, r, p) equals the mean of M(d) within 2 %, for r = 0.045, 0.058, 0.07, 0.082, 0.2 and 1.
+- `BeyondTwoCellsTheReflectedStarsAreTheirMeanAlone`: for w ≥ 2 c, stars(d, r, f) = M(d) for every d.
+- `NarrowerThanACellTheReflectedStarsShowSingleStars`: for w ≤ c, a direction at a star's center gets at least 4 times M.
+
 `EnvironmentMapSettingTests` (Part 2):
 
-- `TheDefaultSettingIsAMapOf128TexelsThatDrawsOneFacePerFrame`.
-- `AFaceSizeThatIsNotAPowerOfTwoFrom16To1024IsRefused`, a theory with 0, 8, 100, 2048.
-- `AFaceCountOutsideOneToSixIsRefused`, a theory with 0 and 7.
+- `TheZeroValueIsNoMap`: `default(EnvironmentMapSetting)` holds `NoEnvironmentMap`, and its `Problem` is null.
+- `TheDefaultMapHas128TexelsPerFaceAndDrawsOneFacePerFrame`, and its `Problem` is null.
+- `AFaceSizeThatIsNotAPowerOfTwoFrom16To1024IsAProblem`, a theory with 0, 8, 100, 2048.
+- `AFaceCountOutsideOneToSixIsAProblem`, a theory with 0 and 7.
+- `AMapOfZerosIsAProblem`: `new SceneEnvironmentMap()`.
+- `TheRendererRefusesASettingWithAProblem`: `CheckOptions` throws `ArgumentOutOfRangeException` with the message of `Problem`, as the exposure tests do.
 - `TheTestFixturesTurnTheMapOff`: `Gpu.Headless` holds `NoEnvironmentMap`.
 
 `ScriptCommandTests` (Part 2): `TheEnvironmentMapFlagOffTurnsTheMapOff`, and the usage line names it.
@@ -657,6 +857,8 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AFaceShowsTheSunsMapShadowBehindTheCamera`: a ground and a box 5 m behind the main view. The face behind the camera shows the box's shadow on the ground and the lit ground beside it.
 - `AFaceIsLitByALampThatTheMainViewDoesNotSee`.
 - `AFaceTakesNoAmbientLight`: a gray wall that no light reaches, under a bright `World.Ambient`, is black in its face.
+- `TheSkyMarksOpenSkyAndASurfaceMarksNone`: a wall that covers half of face +Z. Its texels have an alpha of 0, and the rest of the map has 1.
+- `AFaceHoldsNoStars`: with no geometry, every texel of every face holds a color of 0 at level 0.
 - `AFaceHoldsPlainRadianceWhateverTheExposure`: `FixedExposure(3)` and `FixedExposure(0)` give the same texels.
 - `AFaceLeavesOutGlassAndPuffs`: a pane and a glow puff between the camera and an emissive wall leave the wall's texels unchanged.
 - `OneFaceUpdatesPerFrameInLayerOrder`: an emissive dome whose color changes each frame. After the first frame's refresh, frame n changes face n mod 6 only.
@@ -671,6 +873,7 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AUniformMapStaysUniformAtEveryLevel`: the weights add up to one.
 - `ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLight`: the spot's width grows level by level, and its light, the sum of radiance times solid angle, stays within 5 %.
 - `TheIrradianceIsTheProjectionOfTheMapsTexels`: the reading equals `Irradiance.Project` of the read-back level 0 within 10⁻⁴ of the total. This pins the shader to the C# copy.
+- `TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor`: an emissive wall of radiance 1 covers part of the map, and the rest is open sky. Color and share then add up to 1 in every texel of level 0, so they add up to 1 within 10⁻³ in every texel of every level.
 - `UnderAWhiteSkyAndABlackGroundTheIrradianceIsTheHemispheres`: an emissive dome of radiance 1 above the camera's horizon and a black floor below give E(n) = π (1 + n_y) / 2 within 1 % at ±X, ±Y and ±Z.
 
 ### GPU tests of the readers and the acceptance criteria
@@ -686,6 +889,10 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AnImpostorIsRecapturedWhenTheMapsLightChanges`: the dome's emission changes. Within `FramesInFlight` + 2 frames, the impostor's status shows a new capture, and its color follows.
 - `ALitPuffTakesTheMapsMeanRadiance`: a lit puff matches a glow puff whose radiance is the albedo times the mean from `Irradiance.MeanRadiance` of the reading, as `LitPuffRenderTests` compares them.
 - `ANewRendererHasTheMapOn`: a renderer made with default options times the passes `environment faces` and `environment prefilter`.
+- `AMirrorReflectsAStarSharpAndSteadyWhileTheCamerasFrameTurns` (User): a flat white metal mirror of roughness 0 faces the camera, under open sky. The test first renders the sky behind the camera, takes its brightest pixel as the star, and turns the snapshot's root rotation so that the mirror's center reflects it. In the mirror, that star's blob is under 8 pixels wide at half its peak, and its peak is within 20 % of b · (p / w)² · E · c from `StarField`. Then the snapshot's root rotation turns by a fifth of a pixel per frame for 20 frames. The sum of the blob's pixels stays within 2 % of its mean, and its center moves by the same angle as the star in the sky.
+- `AWallInFrontOfTheSkyHidesTheStarsInTheMirror` (User): the same mirror and star, then a black wall that no light reaches, behind the camera, across the reflected direction. After a refresh, the blob's pixels are within 1 of 255 of the mirror without the star.
+- `ARoughSurfaceShowsNoSingleStars` (User): a white metal sphere of roughness 0.5 under open sky, with no sun and no lamps. Every pixel of the sphere differs from the mean of the 5 × 5 pixels around it by at most 2 %, and the sphere's mean is within 10 % of E · c · M from `StarField`. The same sphere at roughness 0 fails the first rule, which shows that the test can fail.
+- `TheSkyLooksTheSameWithTheMapOnAndOff`: every sky pixel of a scene has the same bytes under `SceneEnvironmentMap.Default` and `NoEnvironmentMap`.
 
 `PreExposureTests.EachWriterOfTheHdrImageMultipliesItsLightByTheExposure` (the exposure branch) gains a case: a matte surface lit only by the map shows four times the light at `FixedExposure(2)`.
 
@@ -693,7 +900,7 @@ internal enum EnvironmentImage { Radiance, Specular }
 
 | Test | What changes | Why |
 |---|---|---|
-| The six reference images | Unchanged, bit for bit | The fixtures turn the map off (User) |
+| The six reference images | Unchanged, bit for bit | The fixtures turn the map off (User), and the sky pixels keep today's stars (decision 31) |
 | Every GPU test that uses `Gpu.Headless` or `GpuTesting.Headless` | Unchanged | The same |
 | `ScriptCommandCaptureTests.AHeadlessFilmWritesTheGpuTimeOfEachPassOverItsFinishedFramesToAFileWhosePathItPrints` | The pass list gains `environment faces` and `environment prefilter` after `shadow maps` | The scripted run uses the default, the map on |
 | Tests that make their own options with pixel assertions | Each sets `NoEnvironmentMap`, as they set `FixedExposure(0)` | Their scenes were tuned under the hemisphere |
@@ -705,6 +912,8 @@ To measure in Part 6, by the recipe of [rendering-upgrade.md](rendering-upgrade.
 
 - The two new passes: their mean, median and p95. The face pass's cost depends on the geometry that each face draws. The prefilter's is fixed: about 2.1 million trilinear samples and 200,000 texel reads, expected near 0.1 to 0.2 ms.
 - The lighting, transparent and G-buffer passes: one cube read and nine coefficients in place of two mixes and a table read, expected within a few hundredths of a millisecond.
+- The reflected stars in the lighting and transparent passes: two derivatives and the fill M for every lit pixel, and 27 hashed cells for each pixel below the end of the fade, t < 1. On `scripts/demo-exit.json` few pixels are that smooth. So the report also gives the lighting pass on `mirror-balls`, whose sphere at the roughness floor covers many pixels, with the map on and off.
+- The sky pixels: no change, because they keep today's one cell.
 - The impostor captures: the same change per texel of a capture.
 - The shadow maps: no change expected, because their casters do not change.
 - A run of `scripts/demo-exit.json` with `--environment-map off` on the branch, which must match the base within the spread between runs.
@@ -721,64 +930,68 @@ A renderer built from scratch around one map at the camera captures the faces wi
 
 | From scratch | This design | Why it stays |
 |---|---|---|
-| Local maps for rooms, such as the cabin, with parallax correction against a box, beside the map at the camera | One map at the camera for every surface | (User) See "Open forks". |
+| Local maps for rooms, such as the cabin, with parallax correction against a box, beside the map at the camera | One map at the camera for every surface | (User, decision 12) See "Known limits" and "Later". |
 | One rule for picking a sun cascade, the finest box that holds the point, in every view | The main view keeps its rule by view depth, with blend bands. The faces take the finest box | Changing the main view's shadows is a change of look outside this ticket. The finest-box rule picks finer cascades in the main view. |
-| The capture fed by the previous map, for light of many bounces | No ambient light in the capture | Decision 13 |
-| A star field defined by each star's irradiance, the same in every view | Stars one screen pixel wide, point-sampled in the faces | The star field's look is defined per pixel today. See "Open forks". |
+| The capture fed by the previous map, for light of many bounces | No ambient light in the capture | Decision 17 |
+| A star field defined by each star's light in sr · radiance, the same at every resolution, and one evaluation of it for the sky and the reflections | Stars one main-view pixel wide, so their light falls with the resolution. The sky reads the cell that holds its direction, and the reflections the 27 cells around d. | The sky's look and the six reference images stay (decision 31). A star within about two pixels of its cell's edge is cut in the sky and whole in a mirror. |
+| Reflected stars read from enough cells to follow a lobe until the stars blend, about roughness 0.15 | 27 cells, so single stars fade out between roughness 0.058 and 0.082 on a flat mirror | 125 cells cost 4.6 times as much per smooth pixel. The light stays right either way. See "Later". |
 | No hemisphere, and no sky shares in the G-buffer | The hemisphere stays as the light of a renderer with the map off, so the G-buffer keeps its two alphas, which hold 0 with the map on | (User) The switch keeps the hemisphere. |
 | A light list per view | One list for every view of a frame | The main view's pixels do not change, and one list is one store. |
-| The map's sky the atmosphere's color | The star field, until `ter-6vhj` | No stopgaps for planned work: the atmosphere ticket gives the sky its color in one function. |
+| The map's sky the atmosphere's color | Black, until `ter-6vhj` | (User, decision 14) The atmosphere ticket stays last, and no interim sky color comes before it. It gives the sky its color in one function. |
 
 ## The atmosphere
 
-The atmosphere ticket (`ter-6vhj`) waits for this map. Its sky color reaches the map through one function. `skyRadiance(direction)` in `sky.glsl` is what the lighting pass shows at a sky pixel and what the sky pass draws behind each face. The atmosphere changes the body of that function: the atmosphere's color, with the stars faded. The map then carries the sky's color into the ambient light, diffuse and specular, with no change to the map. If the atmosphere also tints what lies in the air, by distance or by the sun's path, that tint must apply in the face shader too, through the same function as in the main view, so that the map and the screen agree.
+The atmosphere ticket (`ter-6vhj`) waits for this map, and it stays last (User, decision 14). Until it merges, the map's sky is black while the map is on, so the ground, and the shadow of a planet, lose today's sky fill light of 0.08 on demo-surface.
+
+The sky color reaches the map through one function. `skyRadiance(direction)` in `sky.glsl` is the sky without the stars: what the lighting pass adds at a sky pixel, and what the sky pass draws behind each face. The atmosphere changes the body of that function. The map then carries the sky's color into the ambient light, diffuse and specular, with no change to the map.
+
+If the atmosphere dims the stars, by its transmittance or by its own brightness, it does so in `sky.glsl`, in the star code that both `starRadiance` and the reflected stars call. A mirror and the sky then dim the stars the same way. The open-sky share keeps its meaning: the share of directions that see past every opaque surface, so haze does not make a texel less open. If the atmosphere also tints what lies in the air, by distance or by the sun's path, that tint must apply in the face shader too, through the same function as in the main view, so that the map and the screen agree.
 
 ## Doc changes
 
 | Doc | Change |
 |---|---|
 | ARCHITECTURE.md, "The order of a rendered frame" | Steps 3a and 3b: the environment faces and the prefilter, with the reasons of their order. Step 2: `FacesFor` before batching, and the faces' views. |
-| ARCHITECTURE.md, a new section "The environment map", after "Shading" | The map, its faces and their axes, what a face draws and how it is lit, the cascade rule of the faces, the light list, the face order and the refresh, the prefilter and the irradiance with their sources, the readers and the one source of D and S, exposure, the setting, the images, the barriers, determinism, and the costs from Part 6. |
-| ARCHITECTURE.md, "Shading" | The ambient light: D and S, from the map or from the hemisphere. The hemisphere paragraphs say that they describe the light of a renderer with the map off. The frame set gains bindings 12 to 14. `starField` lives in `sky.glsl` as `skyRadiance`. |
+| ARCHITECTURE.md, a new section "The environment map", after "Shading" | The map, its faces and their axes, what a face draws and how it is lit, the cascade rule of the faces, the light list, the face order and the refresh, the prefilter and the irradiance with their sources, the open-sky share, the readers and `ambientTerms`, the reflected stars with their width, window and fade, exposure, the setting, the images, the barriers, determinism, and the costs from Part 6. |
+| ARCHITECTURE.md, "Shading" | The ambient light: the ambient terms from the map or from the hemisphere, through `ambientTerms`. The hemisphere paragraphs say that they describe the light of a renderer with the map off. The frame set gains bindings 12 to 14. `starField` moves to `sky.glsl` as `starRadiance`, beside `skyRadiance` and the reflected stars, with the derivation of their width and their fade. |
 | ARCHITECTURE.md, "Shadows" | The faces' cascade rule. |
 | ARCHITECTURE.md, "Impostors" | A capture bakes the map's light, and the signature counts the irradiance reading. |
 | ARCHITECTURE.md, "Puffs in the renderer" | A lit puff's ambient part is the map's mean radiance with the map on. |
 | ARCHITECTURE.md, "Switches" | A row for `EnvironmentMap`: `SceneEnvironmentMap(128, 1)` by default, `NoEnvironmentMap` in the test fixtures. |
 | ARCHITECTURE.md, "GPU timings" | The two passes' names. |
 | `World.Ambient`'s doc comment | The hemisphere is the light only of a renderer with the map off. |
-| docs/plans/rendering-upgrade.md | The row of `ter-nl5u` links this doc. "Out of scope" keeps local reflection probes and drops image-based lighting, which this map is. |
+| docs/plans/rendering-upgrade.md | The row of `ter-nl5u` links this doc. "Out of scope" keeps local reflection probes, as "Later" here does, and drops image-based lighting, which this map is. |
 | docs/plans/README.md | A row for this doc and `ter-nl5u`. |
 | docs/plans/asset-pipeline.md | Decision 13: metals reflect the environment map. Line 1577: sky maps stay out, because the renderer's map is captured, not imported. |
 | docs/plans/local-light-shadows.md | Line 196: the hemisphere is the ambient light only with the map off. The light list keeps the lights of every view of a frame. |
 | docs/plans/renderer-snapshot-tests.md | Line 19: the snapshot tests set the map's setting in their options, `NoEnvironmentMap` or six faces per frame, so the deterministic switch has no map of its own to turn off. |
 | docs/plans/editor.md | `ViewOptions` gains an `EnvironmentMapSetting`, which a view passes to `RendererOptions`, as it passes `Impostors`. |
-| .tickets/ter-6vhj.md | A note: the sky color reaches the map through `skyRadiance` (this doc, "The atmosphere"). |
+| .tickets/ter-6vhj.md | A note: the sky color reaches the map through `skyRadiance`, and a dimming of the stars goes into the star code that the sky and the reflections share (this doc, "The atmosphere"). |
 
-## Open forks
+## Known limits
 
-### Far surfaces and the camera's surroundings
+### Far surfaces take the light around the camera
 
-The map is the light at the camera's eye. Decision 4 and decision 5 give it to every surface. A surface far from the camera then takes the light of the camera's surroundings, not of its own. Out in the open, where the surroundings are far, the error is small: a far planet's night side takes a little light from the ship beside the camera, about as much as today's fill. In a lit room it is large. In `demo-surface`, the cabin's four lamps of intensity 50 light its walls to a radiance of about 2, while the sun of intensity 1 lights the apron to about 0.1 to 0.2. Seen from the seat, the apron through the canopy takes several times its sunlight as ambient light, and its shadows fill in. The terminal and its lamps of intensity 100 do the same to what lies outside its windows.
+The map is the light at the camera's eye, and decisions 4 and 5 give it to every surface. So a surface far from the camera takes the light of the camera's surroundings, not of its own. Out in the open, where the surroundings are far, the error is small: a far planet's night side takes a little light from the ship beside the camera, about as much as today's fill. In a lit room it is large. In `demo-surface`, the cabin's four lamps of intensity 50 light its walls to a radiance of about 2, while the sun of intensity 1 lights the apron to about 0.1 to 0.2. Seen from the seat, the apron through the canopy takes several times its sunlight as ambient light, and its shadows fill in. The terminal and its lamps of intensity 100 do the same to what lies outside its windows.
 
-| Option | What it gives | What it costs |
+The user accepts this for now and keeps one map (decision 12). Part 6's captures from the cabin show how much it shows. Local maps per room are a later ticket, and the one map keeps all of its machinery under them.
+
+### The black sky until the atmosphere
+
+While the map is on, nothing lights a surface from the open sky until the atmosphere ticket (decision 14). On demo-surface, the ground and the shadows of the buildings and of a planet lose today's sky fill of 0.08, and the hemisphere's colors stay unread.
+
+## Later
+
+Each item is left out because nothing needs it yet. The orchestrator files the tickets.
+
+| Item | What it adds | When it is needed |
 |---|---|---|
-| A. One map for every surface, as decided (Recommended, with C as a new ticket once the user has seen captures from the cabin) | The decisions as they stand. Open space, orbit and the planet's surface are lit by what really surrounds them. | The outside seen from a lit room takes the room's light. Part 6's captures from the cabin show how much. |
-| B. A map per depth range: surfaces in the far range take only the far range's content, those in the middle range the middle and far ranges' | A ship beside the camera no longer lights Earth or the Moon | Three prefiltered maps and three irradiances, about 6 MB and three times the prefilter. It does not help the cabin, whose outside lies in the near range with it. |
-| C. Local maps for rooms, placed by the scene, with influence boxes | The cabin's map lights the cabin, and the camera's map the rest | A design of its own: where scenes put the boxes, how the snapshot carries them, how two maps blend at a door. The user chose one map over local probes. |
-
-This doc is written for A. A keeps all of its machinery under B and C, so A can be built and merged first.
-
-### The stars in the map
-
-The map holds the star field (User). Its stars are as wide as one pixel of the main view, about 0.06° at 1080p. A texel of the map is 0.4° to 0.9° at W = 128, and the map resolves the lobe of roughness 0.1 and rougher. A star reflected in chrome of roughness 0.1 spreads over about 1.5° and keeps under 1/100 of its brightness, so under every honest option the stars show only in mirrors near the roughness floor. The question is what those near mirrors show, and how much light the stars add.
-
-| Option | What it gives | What it costs |
-|---|---|---|
-| A. The screen's star field, point-sampled at the texel centers (Recommended) | No change to the star field. The stars add the same light as on screen, about 6 · 10⁻⁴, so space stays dark. | A near mirror shows about 3 % of the stars at their full brightness. They blink on and off as the camera's frame turns against the stars: every few seconds on Earth's turning ground, every frame in a spinning station. |
-| B. Stars one texel wide at their full brightness | About 20 % of the stars show in near mirrors, each a soft dot of one texel | The stars add about 0.007 of fill light in space, about a quarter of the demo's space fill today, 0.03. They still blink as the frame turns. The star field takes a width parameter. |
-| C. The stars computed per pixel in the ambient specular term, masked by the share of open sky that the map stores in its alpha | Every star sharp in near mirrors, steady, and fading with roughness as GGX spreads it. No fill light. | A per-pixel star evaluation in every shading pass, a fourth channel in the map, and a change of the decision: the map holds where the sky is open, not the stars' light. |
-
-This doc is written for A. Under B, `skyRadiance` takes the sample's angular size and the sky pass passes its texel's, and nothing else changes. Under C, the sky pass writes its alpha, the prefilter carries it, `ambientSpecularRadiance` adds the stars, and `EnvironmentLightingTests` gains a test that a near mirror shows a star.
+| Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | When the captures from the cabin, or a later scene, show the outside lit by the room's light |
+| A larger block for the reflected stars, 5 × 5 × 5 cells | Single stars until about roughness 0.12 on a flat mirror, at 4.6 times the cost per smooth pixel | When a capture shows chrome between roughness 0.06 and 0.12 that misses its stars |
+| The stars' light in the diffuse term, through the irradiance buffer's w components | About 6 · 10⁻⁴ of diffuse light in open space | When an image shows the difference, which decision 32 expects never |
+| A star field defined by each star's light, the same at every resolution, with one evaluation for the sky and the reflections | Stars whose light does not fall with the resolution | When the star field gets its own ticket. It re-approves the reference images. |
+| A snapshot field that marks a camera cut | A refresh on a cut in a window | When a window shows the 83 ms of old faces after a cut |
+| A cull of small objects in the faces | Less work in the face pass | When Part 6 measures the face pass as too slow |
 
 ## Order of the work
 
@@ -797,7 +1010,7 @@ At most four builders run at once (CLAUDE.md): Parts 1, 2 and 3, then Parts 4 an
 
 ### Part 1: the C# math of the map
 
-- Files, all new: `src/Tertius.Rendering/Shading/CubeFaces.cs`, `EnvironmentFaces.cs`, `PrefilterLevels.cs`, `Irradiance.cs`, `tests/Tertius.Rendering.Tests/CubeFacesTests.cs`, `EnvironmentFacesTests.cs`, `PrefilterLevelsTests.cs`, `IrradianceTests.cs`.
+- Files, all new: `src/Tertius.Rendering/Shading/CubeFaces.cs`, `EnvironmentFaces.cs`, `PrefilterLevels.cs`, `Irradiance.cs`, `StarField.cs`, `tests/Tertius.Rendering.Tests/CubeFacesTests.cs`, `EnvironmentFacesTests.cs`, `PrefilterLevelsTests.cs`, `IrradianceTests.cs`, `StarFieldTests.cs`.
 - Tests first: the CPU tests of Part 1 in "Tests". Red for the right reason: the types exist and return wrong values.
 - Gives, exactly:
 
@@ -868,6 +1081,30 @@ internal readonly struct Irradiance
 
 /// <summary>The irradiance that one finished frame's passes used.</summary>
 internal readonly record struct IrradianceReading(long Frame, Irradiance Irradiance);
+
+/// <summary>One star of the sky: its direction in root axes and its peak radiance in the sky, b = tint × brightness.</summary>
+internal readonly record struct Star(Vector3 Direction, Vector3 Peak);
+
+/// <summary>
+/// The C# copy of the star code in sky.glsl (docs/plans/environment-map.md, "The reflected stars"). Directions are in root
+/// axes. The hash runs in float, in the shader's order, so the CPU and the GPU agree on almost every star.
+/// </summary>
+internal static class StarField
+{
+    public const float CellsPerUnit = 150f;
+    public const float CellWidth = 1f / CellsPerUnit;                                  // c, in rad
+    public const float StarShare = 0.02f;                                             // one cell in 50 holds a star
+    public const float MeanBrightness = 0.05f + 3f / 9f;                              // E[brightness]
+    public static readonly Vector3 MeanTint = new(0.86f, 0.82f, 0.81f);               // E[tint]
+    public static Vector3 Hash33(Vector3 p);                                           // hash33 of the shader
+    public static bool SkyReads(Vector3 cell);                                         // the sphere of radius 150 crosses the cell
+    public static Star? OfCell(Vector3 cell);                                          // null for a cell with no star
+    public static float LobeWidth(float footprint, float roughness);                  // √(f² + 4α²), α from the floored roughness
+    public static float KeptShare(float width);                                        // k(w)
+    public static float Fade(float width);                                             // t(w) = smoothstep(c, 2c, w)
+    public static Vector3 MeanRadiance(Vector3 direction, float pixelAngle);           // M(ω)
+    public static Vector3 Reflected(Vector3 direction, float width, float pixelAngle); // stars(d, r, f), before the open-sky share
+}
 ```
 
 - Takes: `DepthRanges` and `GgxLobe` (for the floored roughness).
@@ -875,10 +1112,10 @@ internal readonly record struct IrradianceReading(long Frame, Irradiance Irradia
 
 ### Part 2: the setting
 
-- Files: `src/Tertius.Rendering/EnvironmentMapSetting.cs` (new), `src/Tertius.Rendering/RendererOptions.cs`, `src/Tertius.Host/ScriptCommand.cs` (`--environment-map on|off`, as `--bloom`), `tests/Tertius.Rendering.Tests/TestSupport.cs` (`Gpu.Headless` sets `NoEnvironmentMap` and takes `EnvironmentMapSetting? environmentMap = null`), `tests/Tertius.Host.Tests/GpuTesting.cs`, `tests/Tertius.Rendering.Tests/EnvironmentMapSettingTests.cs` (new), `tests/Tertius.Host.Tests/ScriptCommandTests.cs`.
-- Gives: the C# of "The setting", exactly.
-- Takes: nothing. If bloom merges first, its lines in these files stay.
-- Done: the tests of Part 2 pass in Checked and Release. The renderer ignores the setting until Part 4.
+- Files: `src/Tertius.Rendering/EnvironmentMapSetting.cs` (new), `src/Tertius.Rendering/RendererOptions.cs`, `src/Tertius.Rendering/VulkanRenderer.cs` (`CheckOptions` only), `src/Tertius.Host/ScriptCommand.cs` (`--environment-map on|off`, as `--bloom`), `tests/Tertius.Rendering.Tests/TestSupport.cs` (`Gpu.Headless` sets `new NoEnvironmentMap()` and takes `EnvironmentMapSetting? environmentMap = null`), `tests/Tertius.Host.Tests/GpuTesting.cs`, `tests/Tertius.Rendering.Tests/EnvironmentMapSettingTests.cs` (new), `tests/Tertius.Host.Tests/ScriptCommandTests.cs`.
+- Gives: the C# of "The setting", exactly, with the `Problem` check called from `VulkanRenderer.CheckOptions`, and the device's limit on `FaceSize` there.
+- Takes: nothing. If bloom, its conversion (`ter-48qn`) or the occlusion setting merges first, their lines in these files stay.
+- Done: the tests of Part 2 pass in Checked and Release. The renderer refuses a setting with a problem and otherwise ignores it until Part 4.
 
 ### Part 3: the views on the CPU and the impostors' signature
 
@@ -922,9 +1159,10 @@ internal readonly record struct EnvironmentFaceDraw(CubeFace Face, CommandRange 
 
 - Files:
   - New: `src/Tertius.Rendering/Frame/EnvironmentMap.cs`, `Passes/EnvironmentFacePass.cs`, `Passes/EnvironmentPrefilterPass.cs`, `ShaderConstants.cs`, and the shaders `cube_faces.glsl`, `spherical_harmonics.glsl`, `sky.glsl`, `environment_face.frag`, `environment_sky.frag`, `environment_prefilter.comp`, `environment_irradiance.comp`.
-  - Changed: `VulkanRenderer.cs` (the map and its passes under `SceneEnvironmentMap`, `CheckOptions`, `FacesFor` before batching with the draw step, `EnvironmentDraw` for the batcher, `Collect` after the fence, the shader constants for every shading pass, the two test hooks), `Frame/FrameGraph.cs` (the stages, `FrameContext.Environment`, an `EnvironmentMap?`), `Frame/DescriptorLayouts.cs` (frame set bindings 12 to 14, partially bound, `EnvironmentSampler`, the prefilter set with `EnvironmentPrefilterLayout`, and the pool), `Frame/FrameResources.cs` (writes bindings 12 and 14 once), `Vulkan/ResourceState.cs` (`ImageUse.StorageCompute`), `Vulkan/GpuImage.cs` (cube-compatible images, cube and per-layer and per-level views), `Vulkan/GraphicsPipelineDesc.cs` (`FrontFace`, and `Constants`, a `ShaderConstants?` that becomes a specialization of constant 0 for both stages), `Scene/GpuTypes.cs` (`SkyFacePushConstants`, `EnvironmentPrefilterPushConstants`), and the shaders `shadows.glsl` (the faces' cascade rule) and `lighting.frag` (`skyRadiance` from `sky.glsl`, `SunShadowsMainView`).
+  - Changed: `VulkanRenderer.cs` (the map and its passes under `SceneEnvironmentMap`, `FacesFor` before batching with the draw step, `EnvironmentDraw` for the batcher, `Collect` after the fence, the shader constants for every shading pass, the two test hooks), `Frame/FrameGraph.cs` (the stages, `FrameContext.Environment`, an `EnvironmentMap?`), `Frame/DescriptorLayouts.cs` (frame set bindings 12 to 14, partially bound, `EnvironmentSampler`, the prefilter set with `EnvironmentPrefilterLayout`, and the pool), `Frame/FrameResources.cs` (writes bindings 12 and 14 once), `Vulkan/ResourceState.cs` (`ImageUse.StorageCompute`), `Vulkan/GpuImage.cs` (cube-compatible images, cube and per-layer and per-level views), `Vulkan/GraphicsPipelineDesc.cs` (`FrontFace`, and `Constants`, a `ShaderConstants?` that becomes a specialization of constant 0 for both stages), `Scene/GpuTypes.cs` (`SkyFacePushConstants`, `EnvironmentPrefilterPushConstants`), and the shader `shadows.glsl` (the faces' cascade rule).
   - Tests, new: `EnvironmentFaceTests.cs`, `EnvironmentPrefilterTests.cs`. Changed: `tests/Tertius.Host.Tests/ScriptCommandCaptureTests.cs`, `FrameGraphTests.cs`.
 - Tests first: `EnvironmentFaceTests` and `EnvironmentPrefilterTests`. They fail for the right reason: the map holds nothing.
+- The sky pass writes `vec4(skyRadiance(direction), 1)`, and `environment_face.frag` writes an alpha of 0. Part 4 writes all of `sky.glsl`, the reflected stars included, so that Part 5 only calls it. `lighting.frag` still has its own `starField` until Part 5 replaces it.
 - Gives:
 
 ```csharp
@@ -968,8 +1206,15 @@ internal sealed class EnvironmentMap : IDisposable
   const float ShClampedCosine[3] = float[](PI, 2.0 * PI / 3.0, PI / 4.0);
   void shBasis(vec3 direction, out float y[9]);              // the doc's order, in world axes
 
-  // sky.glsl. The lighting pass's sky pixels and the environment faces' background.
-  vec3 skyRadiance(vec3 direction);                          // today's starField, unchanged
+  // sky.glsl. StarField.cs is the C# copy of the star code. Directions are in camera-relative world axes, and each
+  // function turns them into root axes by the conjugate of frame.rootRotation, as starField does today.
+  vec3 hash33(vec3 p);                                       // moved from lighting.frag, unchanged
+  bool starOfCell(vec3 cell, out vec3 star, out vec3 peak);  // the cell's star: its root direction and b, as starField finds it
+  vec3 skyRadiance(vec3 direction);                          // the sky without stars: black until the atmosphere ticket
+  vec3 starRadiance(vec3 direction);                         // the sky pixels' stars: today's starField, the one cell that holds the direction
+  float starWidth(float footprint, float alpha);             // w = √(f² + 4α²)
+  vec3 starMeanRadiance(vec3 direction);                     // M(ω)
+  vec3 reflectedStars(vec3 d, float width);                  // stars(d, r, f): the 27 cells, windowed, faded, with the fill
 
   // shadows.glsl, beside the main view's sunShadow and beyondShadowMaps.
   float sunShadowHolding(vec3 position, vec3 geometricNormal, float NdotL);   // the finest cascade whose box holds the point
@@ -983,9 +1228,9 @@ internal sealed class EnvironmentMap : IDisposable
 ### Part 5: the readers
 
 - Files:
-  - New: `src/Tertius.Rendering/Shaders/environment.glsl` and `tests/Tertius.Rendering.Tests/EnvironmentLightingTests.cs`.
-  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ambientLight` through D and S, `scatteredLight`'s mean), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
-- Tests first: `EnvironmentLightingTests`, which fail for the right reason once Part 4's map exists: the mirror sphere shows the hemisphere's gray.
+  - New: `src/Tertius.Rendering/Shaders/environment.glsl`, `src/Tertius.Rendering/Shaders/reflection_footprint.glsl` and `tests/Tertius.Rendering.Tests/EnvironmentLightingTests.cs`.
+  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ShadingInput.reflectionFootprint`, `ambientSpecularDirection`, `environmentAmbient`, `ambientTerms`, `ambientLight`, `scatteredLight`'s mean), `lighting.frag` (the footprint at the top of `main`, the G-buffer reads before the sky test, `skyRadiance` plus `starRadiance` for sky pixels, `SunShadowsMainView`), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
+- Tests first: `EnvironmentLightingTests`, which fail for the right reason once Part 4's map exists: the mirror sphere shows the hemisphere's gray, and the mirror shows no star.
 - First step, before anything else: the new `lighting.glsl` interface with today's behavior behind it, so that Part 4's face shader builds against it.
 - Gives:
 
@@ -995,29 +1240,36 @@ internal sealed class EnvironmentMap : IDisposable
   const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
   const uint SunShadowsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
   float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, uint sunShadows);
-  vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V);
+  struct ShadingInput { ...; float reflectionFootprint; };   // f, in rad, at least p: set by the caller ("Where it runs")
+  vec3 ambientSpecularDirection(ShadingInput s, vec3 V);     // d
+  AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V);   // the map as an ambient source
+  AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V);         // the map while environmentMapOn, else the hemisphere
+  vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V);                 // occludedAmbient(ambientTerms(...)), or the sum of the terms before SSAO
   vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint sunShadows);   // the sun and the point and spot lights
   vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, uint sunShadows, float exposure);
   vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint sunShadows);       // min(direct + emission, MaxRadiance), plain radiance
 
-  // environment.glsl: the one source of the ambient light's incoming radiance.
+  // environment.glsl: the map's light, for environmentAmbient and the lit puffs.
   layout(constant_id = 0) const bool environmentMapOn = false;                                       // ShaderConstants.EnvironmentMap
-  layout(set = 0, binding = 12) uniform textureCube environmentSpecular;                              // RGBA16F, level k holds roughness k / (L − 1)
+  layout(set = 0, binding = 12) uniform textureCube environmentSpecularMap;                           // RGBA16F: level k holds roughness k / (L − 1), alpha the open-sky share
   layout(set = 0, binding = 13) uniform sampler environmentSampler;                                   // trilinear, clamped, every level
   layout(set = 0, binding = 14, std430) readonly buffer EnvironmentIrradianceBlock { vec4 environmentIrradiance[9]; };
-  vec3 ambientDiffuseRadiance(vec3 normal, float skyFraction);                                        // D(n)
-  vec3 ambientSpecularRadiance(vec3 normal, vec3 V, float roughness, float lobeSkyFraction);          // S(d, r), d computed inside
-  vec3 ambientMeanRadiance();                                                                         // the lit puffs
+  vec3 environmentDiffuse(vec3 normal);                                     // D(n)
+  vec3 environmentSpecular(vec3 d, float roughness, float footprint);       // S(d, r): C + a · reflectedStars(d, starWidth(f, α))
+  vec3 environmentMeanRadiance();                                           // the lit puffs, without the stars
+
+  // reflection_footprint.glsl, for fragment shaders only.
+  float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
   ```
 
   `L` comes from `textureQueryLevels` of the specular map, so no other store holds it.
-- Takes: Part 4's `spherical_harmonics.glsl`, `shadows.glsl` functions, bindings and `ShaderConstants`, and the exposure branch's `exposure.glsl`.
+- Takes: Part 4's `spherical_harmonics.glsl`, `sky.glsl`, `shadows.glsl` functions, bindings and `ShaderConstants`, the exposure branch's `exposure.glsl`, and the occlusion branch's `AmbientTerms`, `hemisphereAmbient` and `occludedAmbient` when it merged first ("The one source of the ambient light").
 - Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The orchestrator runs coverage of the changed lines of Parts 1 to 5.
 
 ### Part 6: the cost, the captures and the docs
 
 - Files: `benchmarks/Tertius.Benchmarks/SceneBatcherBenchmarks.cs` (new), `src/Tertius.Demo/DemoScenes.MirrorBalls.cs` (new), its line in the scene list of `DemoScenes.cs`, `scripts/mirror-balls.json` (new), and the docs of "Doc changes".
 - The cost first, on a quiet machine, by "Cost". The report gives the tables with the load of the machine.
-- The scene `mirror-balls`: three white metal spheres of roughness 0.05, 0.2 and 0.5 floating beside the shuttle in Earth orbit, with the sun to one side and Earth below. Its script captures the spheres with Earth in their lower half, and the same view with `--environment-map off`.
-- Captures, headless with the real renderer, each looked at by the builder with a one-line caption: `mirror-balls` with the map on and off, `pbr-spheres` with the map on and off, `orbit`, a view of the shuttle's belly over the day side, and `demo-surface` at the seat, looking out through the canopy, which shows the first open fork. The user follows from a phone, so the report sends two to four of them.
+- The scene `mirror-balls`: four white metal spheres of roughness 0, 0.06, 0.2 and 0.5 floating beside the shuttle in Earth orbit, with the sun to one side and Earth below, and a flat mirror plate of roughness 0 turned toward open sky. Its script captures the spheres with Earth in their lower half, the plate with stars in it, and the same views with `--environment-map off`.
+- Captures, headless with the real renderer, each looked at by the builder with a one-line caption: `mirror-balls` with the map on and off, `pbr-spheres` with the map on and off, `orbit`, a view of the shuttle's belly over the day side, and `demo-surface` at the seat, looking out through the canopy, which shows the first known limit. The user follows from a phone, so the report sends two to four of them.
 - Done: ARCHITECTURE.md matches the code, with the numbers of the cost. The other docs follow "Doc changes". The ticket closes after the merge into main.
