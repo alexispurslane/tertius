@@ -273,6 +273,27 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "0x1080")]
     [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "1920x16385")]
     [InlineData("width and a height", "--script", "script.json", "--headless", "--out", "out", "--size", "-5x10")]
+    [InlineData("--tone-curve needs a value", "--script", "script.json", "--headless", "--out", "out", "--tone-curve")]
+    [InlineData(
+        "--tone-curve applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--tone-curve",
+        "hable"
+    )]
+    [InlineData("--tone-curve applies to a headless run", "--scene", "no-such-scene", "--tone-curve", "hable")]
+    [InlineData(
+        "--tone-curve needs aces or hable",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--tone-curve",
+        "filmic"
+    )]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(
         string rule,
         params string[] args
@@ -310,6 +331,20 @@ public sealed class ScriptCommandTests : IDisposable
 
         sized.Should().NotBeNull(problem);
         sized!.Size.Should().Be(new ScriptWindow(1920, 1080));
+    }
+
+    [Theory]
+    [InlineData("aces", ToneCurve.AcesFitted)]
+    [InlineData("hable", ToneCurve.Hable)]
+    public void TheToneCurveOptionCarriesTheCurveThatItNames(string name, ToneCurve curve)
+    {
+        ScriptCommand.Options? toned = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--tone-curve", name],
+            out string? problem
+        );
+
+        toned.Should().NotBeNull(problem);
+        toned!.ToneCurve.Should().Be(curve);
     }
 
     [Fact]

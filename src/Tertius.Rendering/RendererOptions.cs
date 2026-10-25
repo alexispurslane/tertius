@@ -40,4 +40,7 @@ public sealed class RendererOptions
     /// <see cref="Impostors"/> is false.
     /// </summary>
     public int ImpostorTiles { get; set; } = ImpostorAtlas.DefaultTiles;
+
+    /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
+    public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 }

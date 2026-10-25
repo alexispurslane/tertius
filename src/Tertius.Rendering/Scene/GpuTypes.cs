@@ -243,6 +243,9 @@ internal struct ToneMapPushConstants
 {
     public float Exposure;
     public uint EncodeSrgb;
+
+    /// <summary>The renderer's <see cref="Rendering.ToneCurve"/> as its number.</summary>
+    public uint ToneCurve;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

@@ -3,19 +3,27 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Maps the HDR image to the output with exposure and the ACES fitted curve (Stephen Hill's RRT + ODT fit). An sRGB
-/// output format applies the sRGB curve in hardware; for a UNORM output the shader applies it.
+/// Maps the HDR image to the output with exposure and a <see cref="ToneCurve"/>. An sRGB output format applies
+/// the sRGB curve in hardware; for a UNORM output the shader applies it.
 /// </summary>
 internal sealed unsafe class ToneMapPass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline pipeline;
+    private readonly ToneCurve curve;
 
-    public ToneMapPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, Format outputFormat)
+    public ToneMapPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        Format outputFormat,
+        ToneCurve curve
+    )
     {
         this.device = device;
         this.layouts = layouts;
+        this.curve = curve;
         pipeline = new GraphicsPipelineDesc
         {
             Name = "tone map",
@@ -71,7 +79,12 @@ internal sealed unsafe class ToneMapPass : RenderPass
             pDynamicOffsets: null
         );
         context.SetFullViewport();
-        var push = new ToneMapPushConstants { Exposure = context.Exposure, EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
+        var push = new ToneMapPushConstants
+        {
+            Exposure = context.Exposure,
+            EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
+            ToneCurve = (uint)curve,
+        };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.PostLayout,
