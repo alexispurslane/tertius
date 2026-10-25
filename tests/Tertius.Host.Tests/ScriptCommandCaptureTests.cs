@@ -17,11 +17,13 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [
         "shadow maps",
         "G-buffer",
+        "depth pyramid",
         "occlusion depth",
         "occlusion horizons",
         "occlusion denoise",
         "occlusion upsample",
         "lighting",
+        "radiance pyramid",
         "transparent",
         "exposure",
         "bloom",
@@ -366,6 +368,37 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         object expected = off ? new NoBloom() : new RendererOptions().Bloom.Value!;
+        settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--reflections", "on" }, false)]
+    [InlineData(new[] { "--reflections", "off" }, true)]
+    public void TheReflectionsOptionTurnsTheHeadlessRenderersReflectionsOffAndOnKeepsTheRenderersDefault(
+        string[] reflections,
+        bool off
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<object?>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. reflections],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.Reflections.Value);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        object expected = off ? new NoReflections() : new RendererOptions().Reflections.Value!;
         settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 

@@ -40,13 +40,19 @@ internal sealed class FrameContext
     public Extent2D Extent => Targets.Extent;
 
     /// <summary>Binds sets 0 to 2 of <see cref="DescriptorLayouts.SceneLayout"/> for this frame.</summary>
-    public unsafe void BindSceneSets()
+    public void BindSceneSets() => BindSceneSets(PipelineBindPoint.Graphics, Layouts.SceneLayout);
+
+    /// <summary>
+    /// Binds this frame's sets 0 to 2 at <paramref name="bindPoint"/> through <paramref name="layout"/>, whose first three
+    /// sets must be those of <see cref="DescriptorLayouts.SceneLayout"/>.
+    /// </summary>
+    public unsafe void BindSceneSets(PipelineBindPoint bindPoint, PipelineLayout layout)
     {
         DescriptorSet* sets = stackalloc[] { Frame.FrameSet, Frame.TextureSet, Targets.GBufferSet };
         Vk.CmdBindDescriptorSets(
             commandBuffer: CommandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: Layouts.SceneLayout,
+            pipelineBindPoint: bindPoint,
+            layout: layout,
             firstSet: 0,
             descriptorSetCount: 3,
             pDescriptorSets: sets,
@@ -157,7 +163,7 @@ internal abstract class RenderPass : IDisposable
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="GroundTruthOcclusion"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
+/// <see cref="GroundTruthOcclusion"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
 /// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
@@ -175,11 +181,24 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
 
         /// <summary>
+        /// The depth pyramid, under <see cref="ConeTracedReflections"/>: right after the G-buffer pass, because it describes
+        /// the G-buffer's distance, so every screen-space reader after it can use it. The occlusion passes do not read it.
+        /// </summary>
+        DepthPyramid,
+
+        /// <summary>
         /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
         /// normals they read, and before the lighting pass, which reads their occlusion target.
         /// </summary>
         AmbientOcclusion,
         Lighting,
+
+        /// <summary>
+        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the lighting pass,
+        /// whose lit image they read, and before the transparent pass, so glass and puffs neither show in reflections nor
+        /// lose them (docs/plans/screen-space-reflections.md, "The order of a frame").
+        /// </summary>
+        Reflections,
         Transparent,
 
         /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>

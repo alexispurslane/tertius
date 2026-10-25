@@ -19,12 +19,35 @@ public sealed class ResourceUsesTests
     {
         ResourceState storage = ResourceUses.Describe(ImageUse.StorageCompute);
 
-        storage.Access.Should().Be(AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit);
+        storage
+            .Access.Should()
+            .HaveFlag(AccessFlags2.ShaderStorageReadBit)
+            .And.HaveFlag(AccessFlags2.ShaderStorageWriteBit);
         ResourceUses
             .Writes(storage.Access)
             .Should()
             .BeTrue(
                 "each occlusion pass reads what the pass before it wrote, and a write waits for the reads before it"
             );
+    }
+
+    [Fact]
+    public void AStorageUseInAComputeShaderAlsoSamplesSoAPyramidLevelSeesTheLevelThatTheDispatchBeforeWrote() =>
+        ResourceUses
+            .Describe(ImageUse.StorageCompute)
+            .Access.Should()
+            .HaveFlag(
+                AccessFlags2.ShaderSampledReadBit,
+                "each build of a pyramid level samples the level below, which the dispatch before wrote as a storage image"
+            );
+
+    [Fact]
+    public void ASampledReadOfAStorageImageInAComputeShaderStaysInTheGeneralLayout()
+    {
+        ResourceState sampled = ResourceUses.Describe(ImageUse.SampledComputeGeneral);
+
+        sampled.Layout.Should().Be(ImageLayout.General, "the pyramids live in General, where their builds write them");
+        sampled.Stages.Should().Be(PipelineStageFlags2.ComputeShaderBit);
+        sampled.Access.Should().Be(AccessFlags2.ShaderSampledReadBit);
     }
 }

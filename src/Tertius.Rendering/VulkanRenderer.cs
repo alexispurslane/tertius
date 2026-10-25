@@ -23,9 +23,13 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
+/// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
+/// inverse depth of the distance target, level by level.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
 /// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
+/// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
+/// image times the surface coverage, and its 13-tap downsamples.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
@@ -114,7 +118,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materials = Own(new MaterialStore(device, Allocator));
             brdfTables = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
-            targets = CreateTargets(glowLevels: glowLevels, antiAliasing: options.AntiAliasing);
+            targets = CreateTargets(
+                glowLevels: glowLevels,
+                antiAliasing: options.AntiAliasing,
+                reflections: options.Reflections
+            );
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
                 new ExposureResources(
@@ -131,6 +139,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
             occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
+            AddReflectionPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
             context = CreateContext();
@@ -291,6 +300,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), occlusionProblem);
         if (options.Bloom.Problem is { } bloomProblem)
             throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
+        if (options.Reflections.Problem is { } reflectionProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), reflectionProblem);
         if (!Enum.IsDefined(options.AntiAliasing))
             throw new ArgumentOutOfRangeException(
                 nameof(options),
@@ -691,6 +702,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
                 layer: cascade,
+                mip: 0,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
@@ -734,6 +746,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.ColorBit,
                 layer: 0,
+                mip: 0,
                 extent: extent,
                 buffer: buffer
             )
@@ -744,6 +757,44 @@ public sealed unsafe class VulkanRenderer : IRenderer
         for (int i = 0; i < count; i++)
             occlusion[i] = stored[i] / 255f;
         return occlusion;
+    }
+
+    /// <summary>
+    /// The distance target of the last frame, in m from the eye and 0 for sky, row by row from the top. A test hook: it
+    /// waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadDistance() => ReadLevel(image: targets.Distance, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
+    /// waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
+    /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
+    internal (float[] Bounds, int Width, int Height) ReadDepthPyramidLevel(int level)
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
+        return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
+    }
+
+    /// <summary>
+    /// One level of the last frame's radiance pyramid: premultiplied RGB and the coverage of each texel, row by row from
+    /// the top. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadRadiancePyramidLevel(int level)
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        ArgumentOutOfRangeException.ThrowIfNegative(level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.RadianceTopLevel);
+        return ReadLevel(image: pyramids.RadianceImage, layer: 0, mip: level);
     }
 
     /// <summary>
@@ -791,23 +842,37 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         ImpostorAtlas atlas = impostorAtlas ?? throw new InvalidOperationException("Impostors are off.");
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)tile, (uint)atlas.Tiles);
-        const int size = ImpostorAtlas.TileSize;
-        float[] rgba = ReadLayer(image: atlas.Color, layer: tile, size: size, channels: 4);
-        float[] depth = ReadLayer(image: atlas.DepthOffset, layer: tile, size: size, channels: 1);
+        float[] rgba = ReadLevel(image: atlas.Color, layer: tile, mip: 0).Values;
+        float[] depth = ReadLevel(image: atlas.DepthOffset, layer: tile, mip: 0).Values;
         return (rgba, depth);
     }
 
-    /// <summary>Copies level 0 of one layer of a 16-bit float color image to the CPU.</summary>
-    private float[] ReadLayer(GpuImage image, int layer, int size, int channels)
+    /// <summary>
+    /// Copies one mip of one layer of a float color image to the CPU, channel by channel, row by row from the top, with
+    /// the mip's size.
+    /// </summary>
+    private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
-        int count = size * size * channels;
+        (int channels, bool halves) = image.Format switch
+        {
+            Format.R16Sfloat => (1, true),
+            Format.R16G16B16A16Sfloat => (4, true),
+            Format.R32Sfloat => (1, false),
+            Format.R32G32Sfloat => (2, false),
+            _ => throw new ArgumentException(
+                $"{image.Name} has the format {image.Format}, which no hook reads.",
+                nameof(image)
+            ),
+        };
+        var extent = new Extent2D(Math.Max(image.Extent.Width >> mip, 1), Math.Max(image.Extent.Height >> mip, 1));
+        int count = (int)(extent.Width * extent.Height) * channels;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: (ulong)(count * 2),
+            size: (ulong)(count * (halves ? 2 : 4)),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
-            name: "impostor readback"
+            name: $"{image.Name} readback"
         );
         SubmitAndWait(commandBuffer =>
             CopyLayer(
@@ -815,20 +880,29 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.ColorBit,
                 layer: layer,
-                extent: new((uint)size, (uint)size),
+                mip: mip,
+                extent: extent,
                 buffer: buffer
             )
         );
 
         float[] values = new float[count];
-        var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
-        for (int i = 0; i < count; i++)
-            values[i] = (float)halves[i];
-        return values;
+        if (halves)
+        {
+            var stored = new ReadOnlySpan<Half>(buffer.Mapped, count);
+            for (int i = 0; i < count; i++)
+                values[i] = (float)stored[i];
+        }
+        else
+        {
+            new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
+        }
+
+        return (values, (int)extent.Width, (int)extent.Height);
     }
 
     /// <summary>
-    /// Records the copy of level 0 of one layer of <paramref name="image"/>, of <paramref name="extent"/>, into
+    /// Records the copy of one mip of one layer of <paramref name="image"/>, of <paramref name="extent"/>, into
     /// <paramref name="buffer"/>, and leaves the image in the state that the renderer's own barriers continue from.
     /// </summary>
     private void CopyLayer(
@@ -836,6 +910,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         GpuImage image,
         ImageAspectFlags aspect,
         int layer,
+        int mip,
         Extent2D extent,
         GpuBuffer buffer
     )
@@ -848,7 +923,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         local.Flush(vk, commandBuffer);
         var region = new BufferImageCopy
         {
-            ImageSubresource = new(aspectMask: aspect, mipLevel: 0, baseArrayLayer: (uint)layer, layerCount: 1),
+            ImageSubresource = new(aspectMask: aspect, mipLevel: (uint)mip, baseArrayLayer: (uint)layer, layerCount: 1),
             ImageExtent = new(extent.Width, extent.Height, 1),
         };
         vk.CmdCopyImageToBuffer(
@@ -999,7 +1074,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
     /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
     /// </summary>
-    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing)
+    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing, ReflectionSetting reflections)
     {
         SmaaTables? smaaTables = antiAliasing switch
         {
@@ -1014,7 +1089,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 extent: extent,
                 glowLevels: glowLevels,
-                smaaTables: smaaTables
+                smaaTables: smaaTables,
+                reflections: reflections is ConeTracedReflections
             )
         );
     }
@@ -1140,6 +1216,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
         return images;
+    }
+
+    /// <summary>
+    /// Adds the two pyramid passes over the targets' pyramids, which the targets make only under
+    /// <see cref="ConeTracedReflections"/>: the depth pyramid after the G-buffer, the radiance pyramid after the lighting.
+    /// </summary>
+    private void AddReflectionPasses(ShaderLibrary shaders)
+    {
+        if (targets.Reflections is not { } pyramids)
+            return;
+        Graph.Add(
+            FrameGraph.Stage.DepthPyramid,
+            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
+        );
+        Graph.Add(
+            FrameGraph.Stage.Reflections,
+            new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
+        );
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

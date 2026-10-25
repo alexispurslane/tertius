@@ -336,3 +336,21 @@ internal struct OutlinePushConstants
     /// <summary>1 when the output format stores linear values and the shader must apply the sRGB curve, as the tone mapper does.</summary>
     public uint EncodeSrgb;
 }
+
+/// <summary>
+/// The push constants of reflection_trace.comp: the setting of the reflections (docs/plans/screen-space-reflections.md,
+/// "Descriptor sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ReflectionPushConstants
+{
+    /// <summary><see cref="ConeTracedReflections.MaxRoughness"/>.</summary>
+    public float MaxRoughness;
+
+    /// <summary><see cref="ConeTracedReflections.MaxSteps"/>.</summary>
+    public uint MaxSteps;
+
+    /// <summary>The push constants of <paramref name="setting"/>, which the renderer has checked.</summary>
+    public static ReflectionPushConstants For(ConeTracedReflections setting) =>
+        new() { MaxRoughness = setting.MaxRoughness, MaxSteps = (uint)setting.MaxSteps };
+}
