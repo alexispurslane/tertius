@@ -89,4 +89,23 @@ public sealed class GpuTimingSummaryTests
 
         summary.Passes().Single().MeanMs.Should().Be(5, "frame 0 took 1 ms and frame 1 took 9 ms");
     }
+
+    [Fact]
+    public void AddingAFrameWhosePassesTheSummaryKnowsAllocatesNothing()
+    {
+        var summary = new GpuTimingSummary();
+        PassTiming[] passes = [new("shadow maps", 1), new("G-buffer", 2), new("lighting", 3)];
+        long frame = 0;
+        // The first frames name the passes and warm up the path of the add.
+        for (; frame < 2; frame++)
+            summary.Add(Frame(frame, passes));
+
+        long allocated = Allocations.Fewest(() =>
+        {
+            for (int i = 0; i < 100; i++)
+                summary.Add(Frame(frame++, passes));
+        });
+
+        allocated.Should().Be(0, "a headless run adds the times of each frame inside the loop that it measures");
+    }
 }

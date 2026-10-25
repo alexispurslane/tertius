@@ -157,7 +157,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void AHeadlessFilmWritesTheGpuTimeOfEachPassOverItsFinishedFramesAndPrintsALineForEachPass()
+    public void AHeadlessFilmWritesTheGpuTimeOfEachPassOverItsFinishedFramesToAFileWhosePathItPrints()
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
@@ -201,7 +201,47 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                     .Should()
                     .BeGreaterThanOrEqualTo(pass.GetProperty("medianMs").GetDouble())
             );
-        output.ToString().Should().Contain(file).And.Contain("GPU G-buffer: mean ");
+        output.ToString().Should().Contain(file);
+    }
+
+    [Fact]
+    public void AHeadlessFilmPrintsOneLineWithTheGpuTimeOfEachPass()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        output
+            .ToString()
+            .Split(Environment.NewLine)
+            .Where(line => line.StartsWith("GPU ", StringComparison.Ordinal))
+            .Select(line => line[..line.IndexOf(": mean ", StringComparison.Ordinal)])
+            .Should()
+            .Equal(
+                "GPU shadow maps",
+                "GPU G-buffer",
+                "GPU lighting",
+                "GPU transparent",
+                "GPU tone map",
+                "GPU outlines",
+                "GPU capture"
+            );
     }
 
     [Fact]

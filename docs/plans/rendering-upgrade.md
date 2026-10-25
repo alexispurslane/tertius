@@ -38,7 +38,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 ### Measuring the cost of a feature
 
-The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,877 frames in about 33 s. A video keeps the run short, because the PNG encode of each frame takes far longer than its draw, and the GPU times do not depend on the target.
+The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. A video keeps the run short, because the PNG encode of each frame takes far longer than its draw, and the GPU times do not depend on the target.
 
 1. In the checkout of the branch, run the script at 1080p:
 

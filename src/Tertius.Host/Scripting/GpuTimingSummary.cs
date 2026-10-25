@@ -16,6 +16,10 @@ internal readonly record struct PassSummary(string Pass, int Frames, double Mean
 /// </summary>
 internal sealed class GpuTimingSummary
 {
+    // Room for the times of about a minute of frames at 60 frames per second, so that a measurement run of that length
+    // grows no list inside the loop that it measures.
+    private const int FramesPerPass = 4096;
+
     // Each pass in the order in which the frames first name it, with its time in each frame that timed it.
     private readonly List<(string Pass, List<double> Milliseconds)> passes = [];
     private long lastFrame = -1;
@@ -30,16 +34,18 @@ internal sealed class GpuTimingSummary
             return;
         lastFrame = frame.Frame;
         foreach (PassTiming timing in frame.Passes.Span)
-        {
-            int index = passes.FindIndex(pass => pass.Pass == timing.Pass);
-            if (index < 0)
-            {
-                passes.Add((timing.Pass, []));
-                index = passes.Count - 1;
-            }
+            TimesOf(timing.Pass).Add(timing.Milliseconds);
+    }
 
-            passes[index].Milliseconds.Add(timing.Milliseconds);
-        }
+    // A loop, not FindIndex: a lambda that captures the name would allocate for each pass of each frame.
+    private List<double> TimesOf(string pass)
+    {
+        foreach ((string name, List<double> milliseconds) in passes)
+            if (name == pass)
+                return milliseconds;
+        var times = new List<double>(FramesPerPass);
+        passes.Add((pass, times));
+        return times;
     }
 
     /// <summary>The summary of each pass, in the order in which the frames first named them.</summary>
