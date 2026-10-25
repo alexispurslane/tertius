@@ -79,6 +79,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         log = device.Log;
         try
         {
+            CheckOptionsOnDevice(options, device);
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device));
@@ -280,6 +281,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
         if (options.Bloom.Value is null)
             throw new ArgumentException("Bloom must hold NoBloom or a Bloom.", nameof(options));
+        if (options.EnvironmentMap.Problem is { } mapProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), mapProblem);
+    }
+
+    /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
+    private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
+    {
+        uint maxCube = device.Properties.Limits.MaxImageDimensionCube;
+        bool mapTooLarge = options.EnvironmentMap.TryGetValue(out SceneEnvironmentMap map) && map.FaceSize > maxCube;
+        if (mapTooLarge)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"SceneEnvironmentMap.FaceSize must be at most the device's maxImageDimensionCube, {maxCube}, not {map.FaceSize}."
+            );
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>

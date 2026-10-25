@@ -49,4 +49,11 @@ public sealed class RendererOptions
     /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
     /// </summary>
     public BloomSetting Bloom { get; set; } = new Bloom(threshold: 1, knee: 0.5f, strength: 0.25f, levels: 6);
+
+    /// <summary>
+    /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of
+    /// World.Ambient. The default is <see cref="SceneEnvironmentMap.Default"/>: 128 texels per face, one face per frame, about
+    /// 2 MB (ARCHITECTURE.md, "The environment map").
+    /// </summary>
+    public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
 }

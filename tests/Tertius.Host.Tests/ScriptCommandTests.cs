@@ -289,6 +289,35 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("--bloom applies to a headless run", "--scene", "no-such-scene", "--bloom", "off")]
     [InlineData("--bloom needs on or off", "--script", "script.json", "--headless", "--out", "out", "--bloom", "dim")]
     [InlineData(
+        "--environment-map needs a value",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--environment-map"
+    )]
+    [InlineData(
+        "--environment-map applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--environment-map",
+        "off"
+    )]
+    [InlineData("--environment-map applies to a headless run", "--scene", "no-such-scene", "--environment-map", "off")]
+    [InlineData(
+        "--environment-map needs on or off, not 'dim'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--environment-map",
+        "dim"
+    )]
+    [InlineData(
         "--tone-curve needs aces or hable",
         "--script",
         "script.json",
@@ -349,6 +378,35 @@ public sealed class ScriptCommandTests : IDisposable
 
         toned.Should().NotBeNull(problem);
         toned!.ToneCurve.Should().Be(curve);
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--environment-map", "on" }, false)]
+    [InlineData(new[] { "--environment-map", "off" }, true)]
+    public void TheEnvironmentMapOptionTurnsTheHeadlessRenderersMapOffAndOnKeepsTheRenderersDefault(
+        string[] environmentMap,
+        bool off
+    )
+    {
+        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "capture", "name": "front" } ] }""");
+        var settings = new List<EnvironmentMapSetting>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. environmentMap],
+            scenes: Scenes,
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.EnvironmentMap);
+                throw new InvalidOperationException("the test stops at the renderer's options");
+            }
+        );
+
+        code.Should().Be(ScriptCommand.ToolError, "the test's renderer cannot start");
+        EnvironmentMapSetting expected = off ? new NoEnvironmentMap() : new RendererOptions().EnvironmentMap;
+        settings.Should().Equal(expected);
     }
 
     [Fact]

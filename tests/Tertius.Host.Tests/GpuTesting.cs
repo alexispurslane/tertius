@@ -75,7 +75,7 @@ public static class GpuTesting
 
     public static readonly Scene LitDropScene = new("lit-drop", LitDrop);
 
-    /// <summary>A validating headless renderer with no impostors, as a scripted run makes one.</summary>
+    /// <summary>A validating headless renderer with no impostors, as a scripted run makes one, and no environment map.</summary>
     public static VulkanRenderer Headless(int width, int height) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -85,6 +85,7 @@ public static class GpuTesting
                 Height = height,
                 Impostors = false,
                 Bloom = new NoBloom(),
+                EnvironmentMap = new NoEnvironmentMap(),
             }
         );
 
