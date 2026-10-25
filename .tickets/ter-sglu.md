@@ -1,7 +1,7 @@
 ---
 id: ter-sglu
 status: open
-deps: [ter-ptft, ter-s9cv, ter-zzyr, ter-2t5o, ter-63wr, ter-gcm3, ter-b3h5, ter-a24f, ter-jxv9, ter-yiii]
+deps: [ter-ptft, ter-s9cv, ter-zzyr, ter-2t5o, ter-63wr, ter-gcm3, ter-b3h5, ter-a24f, ter-jxv9, ter-yiii, ter-mgze]
 links: []
 created: 2026-10-22T00:25:05Z
 type: epic
