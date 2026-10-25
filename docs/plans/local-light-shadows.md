@@ -1,6 +1,6 @@
 # Point and spot light shadows, and lights instead of one sun
 
-Ticket: `ter-s9cv`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The part "Lights instead of one sun" has its own ticket, `ter-bpvl`. The user approved the decisions of the local shadows on 2026-10-11 and those of "Lights instead of one sun" on 2026-10-21 (see "Decisions"). This version, of 2026-10-25, compares the design with main at `5479c5f1`, which has the PBR BRDF, the HDR pipeline with bloom and the automatic exposure with pre-exposure ([pbr-brdf.md](pbr-brdf.md), [auto-exposure.md](auto-exposure.md), ARCHITECTURE.md). It also fits the design to the work in flight on five branches (see "The work in flight on other branches"). Two points are open (see "Open forks").
+Ticket: `ter-s9cv`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The part "Lights instead of one sun" has its own ticket, `ter-bpvl`. The user approved the decisions of the local shadows on 2026-10-11 and those of "Lights instead of one sun" on 2026-10-21 (see "Decisions"). This version, of 2026-10-25, compares the design with main at `5479c5f1`, which has the PBR BRDF, the HDR pipeline with bloom and the automatic exposure with pre-exposure ([pbr-brdf.md](pbr-brdf.md), [auto-exposure.md](auto-exposure.md), ARCHITECTURE.md). It also fits the design to the work in flight on five branches (see "The work in flight on other branches"). Two forks are settled (see "Settled forks").
 
 ## Goal
 
@@ -136,7 +136,7 @@ A color is linear RGB and scales a quantity per channel. Two examples set the sc
 
 The hemisphere ambient light keeps its formula, and its colors become radiances. A surface under a uniform sky of radiance L gets the irradiance πL, and a matte surface sends back albedo × L. (kept)
 
-The star field becomes a radiance too. Its scale is open fork 1.
+The star field becomes a radiance too. Its scale is settled fork 1: physical stars.
 
 ### Light data
 
@@ -415,7 +415,7 @@ where
 3. A light that held layers in the frame before and still has tiles keeps its layers. The others take the lowest free layers. A light that lost its tiles frees its layers.
 4. Each light with tiles gets its `AtlasTiles(First, Count)` slot, and the frame's tile views get one entry per tile: the layer, the light and the aim (`ConeAim` for a spot light, `FaceAim(CubeFace)` for each face of a point light).
 
-The set of lights with tiles is a pure function of this frame's lights. Open fork 2 asks whether a light at the budget's edge keeps its tiles for a while.
+The set of lights with tiles is a pure function of this frame's lights. Settled fork 2 keeps this pure ranking, with no hysteresis.
 
 ### Tile views
 
@@ -741,7 +741,7 @@ All at `FixedExposure(0)`, with validation on, and with no reference image.
 Part 5:
 
 - `AutoExposureRenderTests`: `UnderTheDefaultASunlitWhiteSquareAtOneAuSettlesInsideTheClamp`, and `UnderTheDefaultASquareThatALampLightsAtThreeMetersSettlesInsideTheClamp`.
-- Under open fork 1, option A: `TheStarsDoNotShowBesideASunlitSurface` and `TheStarsShowInTheDark`.
+- Under settled fork 1, physical stars: `TheStarsDoNotShowBesideASunlitSurface` and `TheStarsShowInTheDark`.
 
 ### Existing tests
 
@@ -1023,7 +1023,7 @@ internal sealed unsafe class ShadowMap
 
 ### Part 5: SI units in every scene
 
-- Files: every scene file of `src/Tertius.Demo`, `src/Tertius.Rendering/ExposureSetting.cs` (`AutoExposure.Default`), the star field's scale in `sky.glsl` and `StarField.cs` (open fork 1), `tests/Tertius.Rendering.Tests/AutoExposureRenderTests.cs` and `ExposureSettingTests.cs`, and the Host tests whose assertions depend on a scene's brightness.
+- Files: every scene file of `src/Tertius.Demo`, `src/Tertius.Rendering/ExposureSetting.cs` (`AutoExposure.Default`), the star field's scale in `sky.glsl` and `StarField.cs` (settled fork 1), `tests/Tertius.Rendering.Tests/AutoExposureRenderTests.cs` and `ExposureSettingTests.cs`, and the Host tests whose assertions depend on a scene's brightness.
 - Tests first: Part 5's GPU tests.
 - Gives: the scenes of "Scenes" in SI units, `AutoExposure.Default` of −14 to +10, and the stars of the chosen option.
 - Captures, headless with the real renderer, each looked at by the builder with a one-line caption: orbit by day and in the umbra, the Sun in view, demo-surface in the cabin and on the apron, pbr-spheres, and highlight metering's three captures. The report says where the exposure clamps, how far the Sun's glow reaches, and whether the stars show where the chosen option says.
@@ -1075,9 +1075,13 @@ internal struct GpuShadowTile     // std430, 80 bytes
 - Captures, each looked at with a one-line caption: the spot light over the box, the room, the hall with 16 lamps, and two stars over a plane. The user follows from a phone, so the report sends two to four of them.
 - Done: ARCHITECTURE.md matches the code, with the costs. The other docs follow "Doc changes". The epic closes after the merge into main.
 
-## Open forks
+## Settled forks
+
+Both forks are settled. The first option of each is built.
 
 ### 1. The stars in SI units
+
+The user chose A, physical stars, on 2026-10-25. (User)
 
 The star field is a radiance like any other, and today's numbers suit today's units. In SI units a sunlit view sits near −11 stops, so the stars of today vanish there whatever this design does. The scale of the star field is a choice that changes what the user sees.
 
@@ -1085,6 +1089,8 @@ The star field is a radiance like any other, and today's numbers suit today's un
 - B: stars as today. The sky pixels and the reflected stars ignore the exposure and show at today's display brightness at every exposure. The user keeps stars beside sunlit hulls. It costs an exception to "every writer pre-exposes": the stars become the one light that the exposure does not scale, in the sky and in mirrors.
 
 ### 2. A light at the edge of the tile budget
+
+The orchestrator settled A, pure ranking, on 2026-10-25, by the user's rule "pure model first". Hysteresis waits until a scene shows the pop. (Orchestrator)
 
 - A (built if the user does not choose): pure ranking each frame. A light whose rank crosses the budget's edge as the camera moves turns its shadows on and off from one frame to the next. The model has no rule beyond the ranking, and the layer mapping keeps only what the cache needs. This follows the user's rule "pure model first": a second rule waits until a scene shows the pop.
 - B: hysteresis. A light that held tiles in the frame before keeps them until a light without tiles has twice its irradiance at the eye. Shadows at the edge of the budget pop far less. It costs a second rule in the ranking, which reads the layer owners of the frame before, and a light can keep its tiles while a slightly brighter one waits.
