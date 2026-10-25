@@ -1,6 +1,6 @@
 ---
 id: ter-zzyr
-status: in_progress
+status: closed
 deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:46:11Z
@@ -49,3 +49,7 @@ Shared by both designs, and settled with them:
 - The exposure approaches its target in stops, frame-rate independent, with two time constants: into the dark slower (3 s by default), into the light faster (1 s by default). A clamp holds it between a lowest and a highest number of stops. The time constants, the clamp, the trim shares and an exposure compensation in stops are settings.
 - The clock is the time between presented frames: the wall clock in a window, and the film's frame time in a headless run, so a headless film gives the same images every run.
 - The switch, the cost measured with the GPU timers, and ARCHITECTURE.md, as the epic's rules say.
+
+**2026-10-25T16:08:33Z**
+
+Merged into main on 2026-10-25. Coverage of the changed lines (Debug and Release, Rendering and Host): 682 of 693 lines (98.4%), 98 of 110 branches. The uncovered lines are a 16-bit depth readback, the refusal of a GPU with no compute queue, cleanup after a failed allocation, and the null case of FrameClock. The exposure pass costs 0.311 ms at 1080p (ter-zqla halves it). The user chose highlight-priority metering after the orbit-umbra captures (ter-is7n).
