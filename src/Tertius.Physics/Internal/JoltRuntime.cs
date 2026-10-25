@@ -6,8 +6,9 @@ namespace Tertius.Physics;
 /// <remarks>
 /// The native library holds no other mutable state for the whole process that a step uses. joltc's temp allocator, a
 /// stack allocator that is not thread-safe, is one per calling thread in the patched build (native/joltc.nix), so two
-/// backends can step at the same time on different threads. Each backend serializes its own native work with its
-/// <see cref="JoltPhysicsBackend.Gate"/>.
+/// backends can step at the same time on different threads. joltc's map from each Jolt physics system to its wrapper
+/// has a lock in the patched build, so two backends can create and destroy systems at the same time. Each backend
+/// serializes its own native work with its <see cref="JoltPhysicsBackend.Gate"/>.
 /// </remarks>
 internal static class JoltRuntime
 {
