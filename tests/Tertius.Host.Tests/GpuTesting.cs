@@ -89,6 +89,7 @@ public static class GpuTesting
                 Impostors = false,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
             }
         );
 

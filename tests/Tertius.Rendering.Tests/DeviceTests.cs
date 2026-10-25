@@ -132,6 +132,7 @@ public sealed class DeviceTests
                         Width = 64,
                         Height = 64,
                         ShadowMapSize = 100,
+                        AntiAliasing = AntiAliasing.None,
                     }
                 )
             )
@@ -145,6 +146,7 @@ public sealed class DeviceTests
                 Height = 90,
                 ShadowMapSize = 1024,
                 Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
             }
         );
         try

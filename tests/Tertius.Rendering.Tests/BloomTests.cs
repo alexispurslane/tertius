@@ -39,6 +39,7 @@ public sealed class BloomTests
                 Impostors = false,
                 Bloom = bloom,
                 Exposure = exposure,
+                AntiAliasing = AntiAliasing.None,
             }
         );
 
@@ -122,6 +123,7 @@ public sealed class BloomTests
                 Height = Height,
                 Impostors = false,
                 Exposure = new FixedExposure(0),
+                AntiAliasing = AntiAliasing.None,
             }
         );
         try

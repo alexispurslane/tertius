@@ -5,7 +5,8 @@ namespace Tertius.Rendering;
 /// <summary>
 /// Maps the pre-exposed HDR image to the output with a <see cref="ToneCurve"/>. With a <see cref="Bloom"/>, it first adds
 /// the summed bloom levels by their strength. An sRGB output format applies the sRGB curve in hardware; for a UNORM output
-/// the shader applies it.
+/// the shader applies it. With SMAA on, it writes the SMAA tone-mapped image instead, which is sRGB, and SMAA writes the
+/// output.
 /// </summary>
 internal sealed unsafe class ToneMapPass : RenderPass
 {
@@ -13,22 +14,26 @@ internal sealed unsafe class ToneMapPass : RenderPass
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline pipeline;
     private readonly ToneCurve curve;
+    private readonly SmaaTargets? smaa;
 
     // The bloom whose glow the pass adds, or null with NoBloom: the one record of the setting, which chose the shader.
     private readonly Bloom? glow;
 
+    /// <param name="smaa">The SMAA images, whose tone-mapped image this pass writes, or null to write the output.</param>
     public ToneMapPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         Format outputFormat,
         ToneCurve curve,
-        BloomSetting bloom
+        BloomSetting bloom,
+        SmaaTargets? smaa
     )
     {
         this.device = device;
         this.layouts = layouts;
         this.curve = curve;
+        this.smaa = smaa;
         (string shader, glow) = bloom switch
         {
             Bloom on => ("tonemap_bloom.frag", on),
@@ -41,13 +46,10 @@ internal sealed unsafe class ToneMapPass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = shader,
             Layout = layouts.PostLayout,
-            ColorFormats = [outputFormat],
+            ColorFormats = [smaa is null ? outputFormat : SmaaTargets.ToneMappedFormat],
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
-        OutputFormat = outputFormat;
     }
-
-    public Format OutputFormat { get; }
 
     public override string Name => "tone map";
 
@@ -56,45 +58,24 @@ internal sealed unsafe class ToneMapPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
+        GpuImage target = smaa?.ToneMapped ?? context.Output;
         barriers.Image(context.Targets.Hdr, ImageUse.SampledFragment);
         if (glow is not null)
             barriers.Image(context.Targets.Glow[0], ImageUse.SampledFragment);
-        barriers.Image(context.Output, ImageUse.ColorAttachment, discard: true);
+        barriers.Image(target, ImageUse.ColorAttachment, discard: true);
         barriers.Flush(vk, commandBuffer);
 
-        var color = new RenderingAttachmentInfo
-        {
-            SType = StructureType.RenderingAttachmentInfo,
-            ImageView = context.Output.View,
-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = AttachmentLoadOp.DontCare,
-            StoreOp = AttachmentStoreOp.Store,
-        };
-        var rendering = new RenderingInfo
-        {
-            SType = StructureType.RenderingInfo,
-            RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
-            LayerCount = 1,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &color,
-        };
-        vk.CmdBeginRendering(commandBuffer, &rendering);
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
-        DescriptorSet set = context.Targets.PostSet;
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Graphics,
+        context.BeginFullScreen(
+            target: target,
+            loadOp: AttachmentLoadOp.DontCare,
+            pipeline: pipeline,
             layout: layouts.PostLayout,
-            firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
+            set: context.Targets.PostSet
         );
-        context.SetFullViewport();
         var push = new ToneMapPushConstants
         {
-            EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
+            // The SMAA tone-mapped image is sRGB, so the hardware applies the curve.
+            EncodeSrgb = smaa is null && context.EncodeSrgb ? 1u : 0u,
             ToneCurve = (uint)curve,
             GlowStrength = glow?.Strength ?? 0,
         };

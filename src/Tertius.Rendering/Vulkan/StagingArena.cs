@@ -46,6 +46,35 @@ internal sealed unsafe class StagingArena(VulkanDevice device, DeviceAllocator a
         return new(buffer: current, offset: aligned, pointer: current.Mapped + aligned, size: size);
     }
 
+    /// <summary>
+    /// Stages <paramref name="texels"/> and records their copy into level 0 and layer 0 of <paramref name="image"/>, which
+    /// must be in the transfer destination layout. The texels are in memory order, top row first.
+    /// </summary>
+    public void CopyToImage(CommandBuffer commandBuffer, GpuImage image, ReadOnlySpan<byte> texels)
+    {
+        StagingSlice stage = Allocate((ulong)texels.Length);
+        texels.CopyTo(stage.Bytes);
+        var region = new BufferImageCopy
+        {
+            BufferOffset = stage.Offset,
+            ImageSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: 0,
+                baseArrayLayer: 0,
+                layerCount: 1
+            ),
+            ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
+        };
+        device.Vk.CmdCopyBufferToImage(
+            commandBuffer: commandBuffer,
+            srcBuffer: stage.Buffer.Handle,
+            dstImage: image.Handle,
+            dstImageLayout: ImageLayout.TransferDstOptimal,
+            regionCount: 1,
+            pRegions: &region
+        );
+    }
+
     /// <summary>Starts over. The frame that used this arena must be complete.</summary>
     public void Reset()
     {

@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target and the bloom
-/// levels.
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target, the bloom
+/// levels and, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -50,12 +50,14 @@ internal sealed class RenderTargets : IDisposable
     private readonly DescriptorLayouts layouts;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
+    /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
-        int glowLevels
+        int glowLevels,
+        SmaaTables? smaaTables
     )
     {
         this.device = device;
@@ -70,6 +72,8 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
+        if (smaaTables is not null)
+            Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
     }
 
     public Extent2D Extent { get; private set; }
@@ -80,6 +84,9 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Distance { get; private set; }
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
+
+    /// <summary>The images of SMAA, or null when SMAA is off.</summary>
+    public SmaaTargets? Smaa { get; }
 
     /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -109,6 +116,7 @@ internal sealed class RenderTargets : IDisposable
             return;
         DestroyImages();
         Create(extent);
+        Smaa?.Resize(extent);
     }
 
     [MemberNotNull(
@@ -212,5 +220,9 @@ internal sealed class RenderTargets : IDisposable
         GBuffer = [];
     }
 
-    public void Dispose() => DestroyImages();
+    public void Dispose()
+    {
+        Smaa?.Dispose();
+        DestroyImages();
+    }
 }

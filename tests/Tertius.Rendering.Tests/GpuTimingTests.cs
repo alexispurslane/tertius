@@ -168,6 +168,7 @@ public sealed class GpuTimingTests
                 Impostors = false,
                 // A fixed exposure draws no metering draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
+                AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );
