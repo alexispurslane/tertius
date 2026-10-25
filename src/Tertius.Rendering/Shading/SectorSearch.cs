@@ -1,14 +1,26 @@
 namespace Tertius.Rendering;
 
+/// <summary>The side of a slice on which a step lies, as the sign of its angles: plus on ô's side of V̂.</summary>
+internal enum SliceSide
+{
+    Plus = 1,
+    Minus = -1,
+}
+
 /// <summary>One near step as the search sees it, in view space.</summary>
 /// <param name="Position">s_f, the surface point of the step's representative pixel.</param>
 /// <param name="GeometricNormal">The unit geometric normal at that pixel.</param>
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
-/// <param name="Side">σ, +1 on the slice's plus side and −1 on its minus side.</param>
-internal readonly record struct NearStep(Double3 Position, Double3 GeometricNormal, Double3 DirectLight, int Side);
+/// <param name="Side">σ, the side of the slice on which the step lies.</param>
+internal readonly record struct NearStep(
+    Double3 Position,
+    Double3 GeometricNormal,
+    Double3 DirectLight,
+    SliceSide Side
+);
 
-/// <summary>A slice after its near steps: its blocked sectors and the sum of newly blocked sectors times their light.</summary>
-internal readonly record struct NearSlice(SectorMask Blocked, Double3 Light);
+/// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
+internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
 
 /// <summary>What a far ray decides for its slice's open sectors: the share it blocks, from 0 to 1, and that share times its light.</summary>
 internal readonly record struct FarOutcome(double Blocked, Double3 Light)
@@ -41,7 +53,7 @@ internal static class SectorSearch
         Double3 center,
         Double3 toEye,
         Double3 position,
-        int side,
+        SliceSide side,
         double thicknessShare
     ) =>
         (
@@ -84,7 +96,7 @@ internal static class SectorSearch
             if (Faces(step.GeometricNormal, center - step.Position))
                 light += step.DirectLight * fresh.Count;
         }
-        return new(blocked, light);
+        return new(Sectors: sectors, Blocked: blocked, Light: light);
     }
 
     /// <summary>η: the next value of the slice's R1 sequence past its steps, index slice + n² for n steps per side.</summary>
@@ -96,16 +108,18 @@ internal static class SectorSearch
 
     /// <summary>
     /// The open sector of rank min(floor(η · count), count − 1), from sector 0: a cosine-weighted pick, because the
-    /// sectors are equal shares. The mask leaves at least one sector open.
+    /// sectors are equal shares. Null when no sector is open: the slice traces no far ray.
     /// </summary>
-    public static int FarRaySector(SectorMask blocked, float farRayNoise)
+    public static int? FarRaySector(SectorMask blocked, float farRayNoise)
     {
         SectorMask open = blocked.Open;
         int count = open.Count;
+        if (count == 0)
+            return null;
         return open.SectorOfRank(Math.Min((int)(farRayNoise * count), count - 1));
     }
 
     /// <summary>σ acos(V̂ · d / |d|): the signed angle of the direction <paramref name="direction"/> in the slice.</summary>
-    private static double SliceAngle(Double3 toEye, Double3 direction, int side) =>
-        side * Math.Acos(Math.Clamp(Double3.Dot(direction.Normalized(), toEye), -1, 1));
+    private static double SliceAngle(Double3 toEye, Double3 direction, SliceSide side) =>
+        (int)side * Math.Acos(Math.Clamp(Double3.Dot(direction.Normalized(), toEye), -1, 1));
 }

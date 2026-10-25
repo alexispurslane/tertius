@@ -271,7 +271,7 @@ The sectors pass writes the near estimate, the same sums without the far terms, 
 
 ### At infinite thickness: GTAO's horizons
 
-As κ grows without bound, each step's back point moves away from the eye along its view ray, and the direction from c to it turns to the edge of the hemisphere on the step's side. Each step's run then reaches from its surface's angle to the edge. The union of the runs of one side's steps is the run from the angle of that side's step nearest to V̂, GTAO's horizon h, to the edge. So the open sectors are those between h₀ and h₁, and their count over 32 is (sliceArc(h₀, γ) + sliceArc(h₁, γ)) / T to within one sector, by the center rule. The slice's open weight W · count / 32 is then \|n_p\| · â, GTAO's slice, to within W / 32. With no far blocker and no bounce, V is GTAO's sum of slices over ΣW, where GTAO divides by the number of slices: the same in the mean for an open surface, where ΣW / S comes to 1. `SectorSearchTests.AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons` pins this.
+As κ grows without bound, each step's back point moves away from the eye along its view ray, and the direction from c to it tends to that view ray's own direction, at θ = σ (π − α), where α is the angle at the eye between the center's view ray and the step's. That direction lies at or past the edge of the hemisphere on the step's side, γ + σ π/2, when α ≤ π/2 − σ γ. Within the domain α ≤ π/2 − |γ|, each step's run then reaches from its surface's angle to the edge. Outside it, a grazing normal near the eye, the runs stop short of the edge, and the masks block fewer sectors than GTAO's horizons: the slab lies along the step's view ray (decision 13), not along the direction from c. The union of the runs of one side's steps is the run from the angle of that side's step nearest to V̂, GTAO's horizon h, to the edge. So the open sectors are those between h₀ and h₁, and their count over 32 is (sliceArc(h₀, γ) + sliceArc(h₁, γ)) / T to within one sector, by the center rule. The slice's open weight W · count / 32 is then \|n_p\| · â, GTAO's slice, to within W / 32. With no far blocker and no bounce, V is GTAO's sum of slices over ΣW, where GTAO divides by the number of slices: the same in the mean for an open surface, where ΣW / S comes to 1. `SectorSearchTests.AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons` pins this within the domain: its center lies 2 m from the eye, so its steps keep α below 0.47 rad.
 
 ### Where the near range is empty
 
@@ -326,8 +326,8 @@ float measureFraction(SliceGeometry g, float angle)
     return (signedArc(clamped, g.normalAngle) - signedArc(low, g.normalAngle)) / g.arc;
 }
 
-// The first sector whose center lies at or after the measure fraction m, from 0 to 32. floor(x + 0.5), not round,
-// whose ties GLSL leaves to the driver.
+// The first sector whose center lies after the measure fraction m, from 0 to 32: a tie goes to the later sector.
+// floor(x + 0.5), not round, whose ties GLSL leaves to the driver.
 uint sectorBoundary(float m)
 {
     return uint(floor(m * float(SectorCount) + 0.5));
@@ -555,7 +555,7 @@ HDR(p)          = min(direct image(p) + exposed(ambient light, k), c)           
 ```
 
 - Each term is finite and at most c, so their sum is at most 2c = 64,512 in a 32-bit float, and the min brings it to c. So the surfaces keep their share of the HDR image, and the puffs' budget and the glass blend keep their bound of the audit ("Portable Vulkan" on `ter-lozc`).
-- Where no cap binds, the two give the same light, up to one rounding more: the direct image rounds the direct light to a half float before the ambient pass adds the ambient light. That is at most half a step of the half float, 2⁻¹² of the value.
+- Where no cap binds, the two give the same light, up to one rounding more: the direct image rounds the direct light to a half float before the ambient pass adds the ambient light. That is at most half a step of the half float, 2⁻¹¹ of the value.
 - Before the audit merges, c is 65,504 and `exposed` is `preExposed`'s min(x · k, c). The same argument holds.
 
 ### Where the ambient pass meets the environment map and SSR
@@ -944,16 +944,22 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AnOpenSurfaceHasFullVisibilityAndNoBounceAtAnyTilt`.
 - `ATexelWhoseSlicesHaveNoWeightIsOpen`.
 - `InAFurnaceTheSkyLightAndTheBounceSumToTheSkyLight`: every blocker's light equals the sky's, near and far, so V · L + G = L for any blockers.
-- `AFarRayThatHitsMovesItsSlicesOpenShareToTheHitsLightByTheEdgeFade`.
-- `AFarRayThatLeavesTheScreenLeavesItsSlicesOpenShareOpen`.
-- `AFarRayIntoItsOwnSurfaceBlocksWithoutLight`.
-- `AFarRayWhoseStartLiesAtOrBehindTheNearPlaneIsOpen`.
+- `AFarRayDecidesItsSlicesOpenWeightOverTheTexelsTotalWeight`: U = W · count / (32 · ΣW), 0 for a slice with no open sector.
+- `AFarOutcomeMovesItsBlockedShareOfTheOpenShareFromOpenToItsLight`.
+- `TheOpenOutcomeLeavesTheEstimateAsItIs`.
+- `TheOutcomeIntoItsOwnSurfaceBlocksTheOpenShareWithoutLight`.
+
+These tests build each far outcome themselves. How a trace decides its outcome is `FarRay.Trace`'s, and `FarRayTests` pin it.
 
 `FarRayTests` (Part 5, on SSR's `ScreenRay` and `DepthPyramid`):
 
 - `AFarRayStartsAtTheRadiusAlongItsDirectionWithTheOriginOffset`.
 - `AFarRayFindsAWallBeyondTheRadiusThatTheNearStepsMissed`.
 - `AFarRayThatEntersASlabFromBehindIsBlockedWithoutLight`: the facing test, not the entry share.
+- `AFarRayThatHitsIsBlockedByTheEdgeFadeAtTheHit`, with the hit's direct light.
+- `AFarRayThatLeavesTheScreenIsOpen`.
+- `AFarRayIntoItsOwnSurfaceIsBlockedWithoutLight`.
+- `AFarRayWhoseStartLiesAtOrBehindTheNearPlaneIsOpen`.
 
 `OcclusionUpsampleTests`: the existing tests over the four channels, and `TheBounceTakesTheWeightsOfTheOcclusion`.
 
@@ -963,8 +969,10 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 
 `LightingSplitTests`:
 
-- `TheDirectAndTheAmbientPassesSumToTheOnePassLightBelowTheCap`: the C# copy of `exposed` and the two caps against one cap, for random light below c.
-- `TheTwoPassesKeepAPixelWithinTheSurfacesShare`: light at the cap in both parts.
+- `ExposedLightIsTheRadianceTimesTheExposureBelowTheCap`.
+- `TheBrightestRadianceAtTheLargestExposureGivesTheCap`. The order of the cap and the product is not visible in C#, whose min of infinity and c is c: the GLSL audit keeps it.
+- `TheDirectAndTheAmbientPassesSumToTheOnePassLightBelowTheCap`: `ShaderInput.SurfaceLight`, the C# copy of the passes' caps, for the two passes against the one pass, for random light below c.
+- `TheTwoPassesKeepAPixelWithinTheSurfacesShare`: light at the cap in both parts. The direct image is c, and so is the pixel.
 
 `ScreenSpaceLightSettingTests`: the four fields' rules, the zero case, the default, and `CreateHeadlessRefusesAnInvalidSettingBeforeItMakesADevice`. The host's tests: `TheScreenSpaceLightOptionTurnsTheEstimateOffOrSetsItsRadius`, and its refusal.
 
@@ -1109,7 +1117,7 @@ internal readonly record struct SliceSectors
     public Double3 DirectionAt(double angle);
 }
 
-/// <summary>The sectors of a slice that are blocked nearby, one bit each.</summary>
+/// <summary>A set of a slice's sectors, one bit each. A slice's blocked sectors and its open sectors are both such sets.</summary>
 internal readonly record struct SectorMask(uint Bits)
 {
     public static SectorMask None => new(0);
@@ -1123,11 +1131,14 @@ internal readonly record struct SectorMask(uint Bits)
     public int SectorOfRank(int rank);
 }
 
-/// <summary>One near step as the search sees it, in view space.</summary>
-internal readonly record struct NearStep(Double3 Position, Double3 GeometricNormal, Double3 DirectLight, int Side);
+/// <summary>The side of a slice on which a step lies, as the sign of its angles: plus on ô's side of V̂.</summary>
+internal enum SliceSide { Plus = 1, Minus = -1 }
 
-/// <summary>A slice after its near steps: its blocked sectors and the sum of newly blocked sectors times their light.</summary>
-internal readonly record struct NearSlice(SectorMask Blocked, Double3 Light);
+/// <summary>One near step as the search sees it, in view space.</summary>
+internal readonly record struct NearStep(Double3 Position, Double3 GeometricNormal, Double3 DirectLight, SliceSide Side);
+
+/// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
+internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
 
 /// <summary>What a far ray decides for its slice's open sectors: the share it blocks, from 0 to 1, and that share times its light.</summary>
 internal readonly record struct FarOutcome(double Blocked, Double3 Light)
@@ -1139,23 +1150,32 @@ internal readonly record struct FarOutcome(double Blocked, Double3 Light)
 internal static class SectorSearch
 {
     public const double MinTotalWeight = 1e-6;
-    public static (double Front, double Back) StepAngles(Double3 center, Double3 toEye, Double3 position, int side, double thicknessShare);
+    public static (double Front, double Back) StepAngles(Double3 center, Double3 toEye, Double3 position, SliceSide side, double thicknessShare);
     public static bool Faces(Double3 geometricNormal, Double3 towardReceiver);
     /// <summary>The near steps of one slice, in order, nearest first: each blocks what it covers and no nearer step blocked.</summary>
     public static NearSlice Near(SliceSectors sectors, Double3 center, double radius, double thicknessShare, ReadOnlySpan<NearStep> steps);
     public static float FarRayNoise(float stepNoise, int slice, int stepsPerSide);
-    public static int FarRaySector(SectorMask blocked, float farRayNoise);
+    /// <summary>The open sector of rank min(floor(η · count), count − 1). Null when no sector is open: the slice traces no far ray.</summary>
+    public static int? FarRaySector(SectorMask blocked, float farRayNoise);
 }
 
 /// <summary>The estimate of a texel or a pixel: G, the bounce, pre-exposed, and V, the occlusion.</summary>
 internal readonly record struct AmbientEstimate(Double3 Bounce, double Occlusion)
 {
     public static AmbientEstimate Open => new(Double3.Zero, 1);
+    /// <summary>ΣW: the sum of the weights of a texel's slices.</summary>
+    public static double TotalWeight(ReadOnlySpan<NearSlice> slices);
     /// <summary>The near estimate: each slice's open share and light by its weight, over the total weight.</summary>
-    public static AmbientEstimate OfSlices(ReadOnlySpan<SliceSectors> sectors, ReadOnlySpan<NearSlice> near);
+    public static AmbientEstimate OfSlices(ReadOnlySpan<NearSlice> slices);
+    /// <summary>U = W · count / (32 ΣW): the share of the texel's estimate that the slice's far ray decides.</summary>
+    public static double OpenShare(NearSlice slice, double totalWeight);
     /// <summary>The estimate after one slice's far ray: openShare times the outcome moves from open to blocked.</summary>
     public AmbientEstimate WithFarRay(double openShare, FarOutcome outcome);
 }
+
+// Scene/ShaderInput.cs: the C# copy of the cap of lobesRadiance, of the direct pass and of the ambient pass:
+// min(exposed(radiance, k) + preExposedLight, c), with the emission or the direct image as the pre-exposed light.
+public static Vector3 SurfaceLight(Vector3 radiance, Vector3 preExposedLight, float exposure);
 
 // Shading/AmbientTerms.cs: the C# copy of occludedAmbient with the bounce, in plain radiance.
 public AmbientTerms Occluded(double occlusion, Double3 bounce, Double3 diffuseColor, double nDotV, GgxLobe lobe);

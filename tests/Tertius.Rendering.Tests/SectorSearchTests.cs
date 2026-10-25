@@ -33,7 +33,12 @@ public sealed class SectorSearchTests
 
     /// <summary>A step on the plus side at <paramref name="position"/>, of a wall whose normal faces the center.</summary>
     private static NearStep FacingStep(Double3 position, Double3 light) =>
-        new(Position: position, GeometricNormal: (Center - position).Normalized(), DirectLight: light, Side: +1);
+        new(
+            Position: position,
+            GeometricNormal: (Center - position).Normalized(),
+            DirectLight: light,
+            Side: SliceSide.Plus
+        );
 
     private static NearSlice Near(SliceSectors sectors, double thicknessShare, params NearStep[] steps) =>
         SectorSearch.Near(
@@ -94,17 +99,24 @@ public sealed class SectorSearchTests
             var steps = new List<NearStep>();
             double plusCosine = slice.TangentHorizonCosine(+1);
             double minusCosine = slice.TangentHorizonCosine(-1);
-            foreach (int side in new[] { +1, -1 })
+            foreach (SliceSide side in new[] { SliceSide.Plus, SliceSide.Minus })
                 for (int i = 0; i < 3; i++)
                 {
                     double angle = 0.1 + 1.9 * random.NextDouble();
                     double distance = 0.1 + 0.8 * random.NextDouble();
                     Double3 position =
                         Center
-                        + (TowardTheEye * Math.Cos(angle) + slice.TowardPlusSide * (side * Math.Sin(angle))) * distance;
+                        + (TowardTheEye * Math.Cos(angle) + slice.TowardPlusSide * ((int)side * Math.Sin(angle)))
+                            * distance;
+                    // As κ grows, the back of a slab tends to the step's own view ray, at θ = π − α from V̂. It reaches
+                    // the hemisphere's edge only when α ≤ π/2 − |γ|, which a center 2 m from the eye keeps.
+                    double viewRaysAngle = Math.Acos(Double3.Dot(position.Normalized(), Center.Normalized()));
+                    viewRaysAngle
+                        .Should()
+                        .BeLessThan(Math.PI / 2 - Math.Abs(normalAngle), "the test needs every slab to reach the edge");
                     steps.Add(new(Position: position, GeometricNormal: -TowardTheEye, DirectLight: Red, Side: side));
                     double cosine = Double3.Dot((position - Center).Normalized(), TowardTheEye);
-                    if (side > 0)
+                    if (side == SliceSide.Plus)
                         plusCosine = Math.Max(plusCosine, cosine);
                     else
                         minusCosine = Math.Max(minusCosine, cosine);
@@ -150,8 +162,13 @@ public sealed class SectorSearchTests
                 steps: [step]
             );
 
-        Within(0.625).Should().Be(new NearSlice(SectorMask.None, Double3.Zero), "the edge at the radius is hard");
-        Within(0.5).Should().Be(new NearSlice(SectorMask.None, Double3.Zero));
+        Within(0.625)
+            .Should()
+            .Be(
+                new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero),
+                "the edge at the radius is hard"
+            );
+        Within(0.5).Should().Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero));
         Within(0.626).Blocked.Count.Should().BePositive();
     }
 
@@ -159,7 +176,12 @@ public sealed class SectorSearchTests
     public void ABlockerThatFacesAwayBlocksWithoutLight()
     {
         // A wall on the plus side whose normal points away from the center: the center sees its back.
-        var back = new NearStep(Position: new(0.3, 0, 1.6), GeometricNormal: Double3.UnitX, DirectLight: Red, Side: +1);
+        var back = new NearStep(
+            Position: new(0.3, 0, 1.6),
+            GeometricNormal: Double3.UnitX,
+            DirectLight: Red,
+            Side: SliceSide.Plus
+        );
 
         NearSlice near = Near(Facing, ThicknessShare, back);
 
@@ -173,7 +195,12 @@ public sealed class SectorSearchTests
         // The direction from the step back to the center is (−0.6, 0, 0.8). One wall faces it head on, the other at a
         // grazing angle, with a cosine of about 0.016.
         Double3 position = new(0.375, 0, 1.5);
-        var headOn = new NearStep(Position: position, GeometricNormal: new(-0.6, 0, 0.8), DirectLight: Red, Side: +1);
+        var headOn = new NearStep(
+            Position: position,
+            GeometricNormal: new(-0.6, 0, 0.8),
+            DirectLight: Red,
+            Side: SliceSide.Plus
+        );
         NearStep grazing = headOn with { GeometricNormal = new Double3(0.79, 0, 0.613).Normalized() };
 
         NearSlice seenHeadOn = Near(Facing, ThicknessShare, headOn);
@@ -190,7 +217,7 @@ public sealed class SectorSearchTests
             Position: new(-0.3, 0, 1.6),
             GeometricNormal: Double3.UnitX,
             DirectLight: Red,
-            Side: -1
+            Side: SliceSide.Minus
         );
 
         NearSlice near = Near(Facing, ThicknessShare, step);
@@ -208,7 +235,7 @@ public sealed class SectorSearchTests
 
         foreach (float noise in new[] { 0f, 0.13f, 0.5f, 0.77f, 0.999f })
         {
-            int sector = SectorSearch.FarRaySector(blocked, noise);
+            int sector = SectorSearch.FarRaySector(blocked, noise)!.Value;
             Double3 direction = sectors.DirectionAt(sectors.CenterAngle(sector));
 
             ((blocked.Bits >> sector) & 1).Should().Be(0u, $"noise {noise}: the far ray runs only in an open sector");
@@ -242,21 +269,13 @@ public sealed class SectorSearchTests
     [Fact]
     public void TheFarRayOfASliceWithNoOpenSectorIsNotTraced()
     {
-        // A slice whose every sector is blocked nearby has no open share for a far ray to decide.
-        SliceSectors[] sectors = [Tilted(0.3), Tilted(-0.2)];
-        NearSlice[] near =
-        [
-            new(new SectorMask(uint.MaxValue), Red * 32),
-            new(SectorMask.Run(start: 0, end: 9), Green * 9),
-        ];
-        var estimate = AmbientEstimate.OfSlices(sectors, near);
-        double totalWeight = sectors[0].Weight + sectors[1].Weight;
-        double openShare = sectors[0].Weight * near[0].Blocked.Open.Count / (SliceSectors.Count * totalWeight);
+        var blocked = new SectorMask(uint.MaxValue);
 
-        estimate
-            .WithFarRay(openShare: openShare, outcome: FarOutcome.IntoItsOwnSurface)
-            .Should()
-            .Be(estimate, "whatever a ray would meet, it moves no share of the estimate");
+        foreach (float noise in new[] { 0f, 0.5f, 1f })
+            SectorSearch
+                .FarRaySector(blocked, noise)
+                .Should()
+                .BeNull($"noise {noise}: a slice whose every sector is blocked nearby has no open sector to trace");
     }
 
     [Theory]

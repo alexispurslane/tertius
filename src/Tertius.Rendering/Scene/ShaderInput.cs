@@ -58,6 +58,15 @@ internal static class ShaderInput
     public static Vector3 Exposed(Vector3 radiance, float exposure) =>
         Vector3.Min(radiance, new(MaxRadiance / exposure)) * exposure;
 
+    /// <summary>
+    /// The light that a surface pass writes: <paramref name="radiance"/> exposed, plus <paramref name="preExposedLight"/>,
+    /// at most <see cref="MaxRadiance"/> per channel. The C# copy of the cap of `lobesRadiance` in Shaders/lighting.glsl,
+    /// and of the direct and the ambient passes (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+    /// </summary>
+    /// <param name="preExposedLight">Finite light that the caller has already exposed and capped: emission, or the direct image.</param>
+    public static Vector3 SurfaceLight(Vector3 radiance, Vector3 preExposedLight, float exposure) =>
+        Vector3.Min(Exposed(radiance, exposure) + preExposedLight, new(MaxRadiance));
+
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>
         float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
