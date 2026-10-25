@@ -8,7 +8,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 
 ## Terms
 
-- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes, which the sum of the pass times leaves out.
+- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes. The renderer's stamps each wait for all commands before them, so its pass times include those too. Each of its pass times is the difference of two neighbouring stamps, so they add up to the span (ARCHITECTURE.md, "GPU timings"). A Metal System Trace times each pass's encoders on their own, so its pass times leave the gaps out.
 - GPU time per frame: the mean GPU span over the frames of a run.
 - Share: the part of the budget that one pass can take. Part 3 sets the shares.
 - Quiet machine: no other build, test or GPU run during the measurement. The report gives the one-minute load at the start of each run.
@@ -24,7 +24,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 
 ### Settled by this design
 
-4. The budget applies to the GPU span, not to the sum of the pass times. The frame rate depends on the span. On a GPU that overlaps passes, the span is shorter than the sum, and on a GPU that drains between passes, it is longer.
+4. The budget applies to the GPU span, not to the sum of the passes' own GPU times (the trace's). The frame rate depends on the span. On a GPU that overlaps passes, the span is shorter than that sum, and on a GPU that drains between passes, it is longer. The renderer's pass times add up to the span by their definition (Terms), so their sum is the span on every GPU.
 5. Each feature's profile starts as soon as its feature merges and the tools of Part 1 merge. It brings the feature to the cost that its design expected. Part 3 then works on the whole frame. If a profile waits for the coda, later features build on a slow pass. For example, bounce light's far rays reuse the reflections' trace.
 6. The budget is measured on the Mac, but the user plays on a Linux PC (CLAUDE.md, Design preferences). An optimization must cut memory traffic, work or passes, which helps on every GPU. A change that helps only Apple's tile-based GPU needs a reason that holds on NVIDIA, AMD and Intel GPUs. The report gives that reason. Workgroup sizes stay multiples of 64, so that they fill both 32-wide and 64-wide waves.
 7. An optimization that keeps the image the same is checked by a pixel comparison of the captures before and after it, not by eye alone. The snapshot tests have no reference images yet. So the comparison uses the demo captures that each feature reviewed.
@@ -86,7 +86,7 @@ The feature's design gives the target: 1 to 3 ms for the reflections' trace ([sc
 
 1. Measure demo-exit at 1080p on a quiet machine, two runs, with the GPU span and a trace.
 2. If the GPU time per frame is at most 12 ms, write the table of each pass's time into ARCHITECTURE.md and close.
-3. Otherwise, give each pass a share: its measured time, scaled so that the shares add to 12 ms less the gaps between passes. Rank the passes by how far each one is over its share.
+3. Otherwise, give each pass a share: its own GPU time from the trace, scaled so that the shares add to 12 ms less the gaps between passes. Rank the passes by how far each one is over its share.
 4. Optimize the largest first, with changes that keep the image (decision 2). Measure after each change.
 5. If the frame is still over 12 ms, lower one feature's default. Choose the feature that saves the most time for the least change in the image. Show the user captures of the old and the new default before the change merges. Keep the old default as a setting.
 6. Write the budget table into ARCHITECTURE.md: each pass's share and its measured time.

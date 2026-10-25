@@ -96,7 +96,8 @@ public static class ScriptCommand
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image, or of the video, to
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
     /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
-    /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path and one line for each pass.
+    /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path, one line for each pass and one
+    /// for the frame's GPU span.
     /// Every headless renderer adds <see cref="ExposureFile"/> and its path.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
@@ -481,8 +482,9 @@ public static class ScriptCommand
     }
 
     /// <summary>
-    /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of each pass, then its path and one line
-    /// for each pass to <paramref name="output"/>. Writes nothing when no frame was timed.
+    /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of the frames' GPU span and of each pass,
+    /// then its path, one line for each pass and one for the span to <paramref name="output"/>. Writes nothing when no
+    /// frame was timed.
     /// </summary>
     internal static void WriteGpuTimings(
         GpuTimingSummary timings,
@@ -492,9 +494,9 @@ public static class ScriptCommand
         TextWriter output
     )
     {
-        IReadOnlyList<PassSummary> passes = timings.Passes();
-        if (passes.Count == 0)
+        if (timings.Frame() is not { } frame)
             return;
+        IReadOnlyList<PassSummary> passes = timings.Passes();
         string path = Path.Combine(outputFolder, GpuTimingsFile);
         Directory.CreateDirectory(outputFolder);
         File.WriteAllText(
@@ -504,6 +506,7 @@ public static class ScriptCommand
                     Device: renderer.DeviceName,
                     Width: size.Width,
                     Height: size.Height,
+                    Frame: frame,
                     Passes: passes
                 ),
                 ReportJson
@@ -516,6 +519,11 @@ public static class ScriptCommand
                     $"GPU {pass.Pass}: mean {pass.MeanMs:F3} ms, median {pass.MedianMs:F3} ms, p95 {pass.P95Ms:F3} ms over {pass.Frames} frames"
                 )
             );
+        output.WriteLine(
+            FormattableString.Invariant(
+                $"GPU frame span: mean {frame.MeanMs:F3} ms, median {frame.MedianMs:F3} ms, p95 {frame.P95Ms:F3} ms over {frame.Frames} frames"
+            )
+        );
     }
 
     /// <summary>
@@ -553,8 +561,14 @@ public static class ScriptCommand
     /// <param name="Stops">The exposure in stops that the frame's passes used (<see cref="ExposureReading.Stops"/>).</param>
     internal readonly record struct ShownExposure(int Frame, string Capture, float Stops);
 
-    /// <summary>The content of <see cref="GpuTimingsFile"/>: the device, the size of the frames and each pass.</summary>
-    internal sealed record GpuTimingReport(string Device, int Width, int Height, IReadOnlyList<PassSummary> Passes);
+    /// <summary>The content of <see cref="GpuTimingsFile"/>: the device, the size of the frames, their GPU span and each pass.</summary>
+    internal sealed record GpuTimingReport(
+        string Device,
+        int Width,
+        int Height,
+        SpanSummary Frame,
+        IReadOnlyList<PassSummary> Passes
+    );
 
     /// <param name="Script">The script file, or null for free play.</param>
     /// <param name="Scene">The scene of free play, or null for a script.</param>

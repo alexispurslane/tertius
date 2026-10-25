@@ -54,7 +54,7 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
    nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video captures/gpu-branch/run.mkv
    ```
 
-   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`.
+   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes`.
 
 2. Make a checkout of the base, the commit of main that the branch starts from, beside the repository, and run the same script there into its own folder:
 
@@ -64,7 +64,7 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
    git worktree remove ../tertius-base
    ```
 
-3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
 Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 
