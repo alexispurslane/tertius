@@ -56,7 +56,16 @@ public sealed class AntiAliasingTests
     private static RenderSnapshot DarkEdge(VulkanRenderer renderer) =>
         EdgeBetween(renderer: renderer, squareGlow: DarkSquareGlow, wallGlow: WallGlow);
 
-    private static RenderSnapshot EdgeBetween(VulkanRenderer renderer, Vector3 squareGlow, Vector3 wallGlow)
+    /// <summary>
+    /// The scene of <see cref="DiagonalEdge"/> with the square's edge at <paramref name="angle"/> radians from vertical,
+    /// turned counterclockwise as the camera sees it.
+    /// </summary>
+    private static RenderSnapshot EdgeBetween(
+        VulkanRenderer renderer,
+        Vector3 squareGlow,
+        Vector3 wallGlow,
+        float angle = EdgeAngle
+    )
     {
         const float halfSize = 4;
         MeshId square = renderer.CreateMesh(Primitives.Plane(halfSize));
@@ -64,8 +73,8 @@ public sealed class AntiAliasingTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
         snapshot.Ambient.Intensity = 0;
         var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
-        Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, EdgeAngle) * facing;
-        var toEdge = new Vector3(MathF.Cos(EdgeAngle), MathF.Sin(EdgeAngle), 0);
+        Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle) * facing;
+        var toEdge = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: wall,
@@ -127,27 +136,6 @@ public sealed class AntiAliasingTests
         float square = Light(image, (int)EdgeX(row) - 3 * Reach, row);
         float wall = Light(image, (int)EdgeX(row) + 3 * Reach, row);
         return (Light(image, x, y) - wall) / (square - wall);
-    }
-
-    /// <summary>
-    /// The mean, over the rows, of the difference between the summed square share of the pixels around the edge and the
-    /// true area of the square in them.
-    /// </summary>
-    private static double MeanCoverageError(Capture image)
-    {
-        double total = 0;
-        for (int row = FirstRow; row < LastRow; row++)
-        {
-            int first = (int)EdgeX(row) - Reach;
-            double share = 0;
-            for (int x = first; x <= first + 2 * Reach; x++)
-                share += SquareShare(image, x, row);
-            // The edge is straight, so the square's area in the row's strip is its width at the row's center.
-            double area = EdgeX(row) - first;
-            total += Math.Abs(share - area);
-        }
-
-        return total / (LastRow - FirstRow);
     }
 
     private static Capture Render(AntiAliasing antiAliasing, string name, Func<VulkanRenderer, RenderSnapshot> scene)
@@ -336,20 +324,6 @@ public sealed class AntiAliasingTests
     }
 
     [Fact]
-    public void WithSmaaTheLightOfEachRowAcrossTheEdgeIsCloserToTheAreaThatTheSquareCovers()
-    {
-        Capture off = Render(AntiAliasing.None, "aa-off-coverage", DiagonalEdge);
-        Capture smaa = Render(AntiAliasing.Smaa, "aa-smaa-coverage", DiagonalEdge);
-
-        double offError = MeanCoverageError(off);
-        double smaaError = MeanCoverageError(smaa);
-
-        smaaError
-            .Should()
-            .BeLessThan(offError / 2, "SMAA blends in linear light by the area of each pixel that the square covers");
-    }
-
-    [Fact]
     public void WithSmaaTheOverlayKeepsItsHardPixels()
     {
         static RenderSnapshot Outlined(VulkanRenderer renderer)
@@ -429,6 +403,155 @@ public sealed class AntiAliasingTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The light of each pixel along straight edges at many slopes, against the area of the pixel that the square covers
+    /// (tests/STYLE.md, "Long tests").
+    /// </summary>
+    public sealed class PixelCoverage
+    {
+        /// <summary>How far, in pixels, the center of a pixel that the error counts may lie from the edge.</summary>
+        private const float Band = 1.5f;
+
+        /// <summary>The pixels that the error leaves out at each border of the image.</summary>
+        private const int Margin = 40;
+
+        /// <summary>
+        /// The mean, over the pixels whose centers lie within <see cref="Band"/> of the edge, of the difference between a
+        /// pixel's square share and the area of it that the square covers.
+        /// </summary>
+        private static double MeanPixelError(Capture image, ProjectedEdge edge)
+        {
+            Vector2 inside = edge.Point + 3 * Reach * edge.Normal;
+            Vector2 outside = edge.Point - 3 * Reach * edge.Normal;
+            float square = Light(image, (int)inside.X, (int)inside.Y);
+            float wall = Light(image, (int)outside.X, (int)outside.Y);
+            double total = 0;
+            int pixels = 0;
+            for (int y = Margin; y < Height - Margin; y++)
+            for (int x = Margin; x < Width - Margin; x++)
+            {
+                if (MathF.Abs(edge.Distance(new(x + 0.5f, y + 0.5f))) >= Band)
+                    continue;
+                float share = (Light(image, x, y) - wall) / (square - wall);
+                total += Math.Abs(share - edge.Coverage(x, y));
+                pixels++;
+            }
+
+            return total / pixels;
+        }
+
+        /// <summary>
+        /// The error of SMAA is at most this share of the error without anti-aliasing at every slope. Measured on
+        /// 2026-10-25, the largest share was 0.52, near 45 degrees. An area table uploaded with its rows reversed, which
+        /// turns the blend along the runs of a staircase the wrong way, gave 0.87 or more at every slope.
+        /// </summary>
+        private const double MostSmaaErrorShare = 0.6;
+
+        /// <remarks>
+        /// The slopes leave out exactly 45 degrees: that edge passes through pixel centers, so the rasterizer's rule for
+        /// ties decides those pixels, not their covered area. 49.7 degrees is 1.18 pixels of x per row.
+        /// </remarks>
+        [Theory]
+        [InlineData(5f)]
+        [InlineData(30f)]
+        [InlineData(40f)]
+        [InlineData(44f)]
+        [InlineData(46f)]
+        [InlineData(49.7f)]
+        [InlineData(60f)]
+        [InlineData(85f)]
+        [InlineData(-5f)]
+        [InlineData(-30f)]
+        [InlineData(-40f)]
+        [InlineData(-44f)]
+        [InlineData(-46f)]
+        [InlineData(-49.7f)]
+        [InlineData(-60f)]
+        [InlineData(-85f)]
+        public void WithSmaaEachPixelAlongAStraightEdgeIsCloserToTheAreaThatTheSquareCoversThanWithout(float degrees)
+        {
+            float angle = degrees * MathF.PI / 180;
+            Capture off = Render(
+                AntiAliasing.None,
+                $"aa-off-pixels-{degrees}",
+                renderer => EdgeBetween(renderer: renderer, squareGlow: SquareGlow, wallGlow: WallGlow, angle: angle)
+            );
+            Capture smaa = Render(
+                AntiAliasing.Smaa,
+                $"aa-smaa-pixels-{degrees}",
+                renderer => EdgeBetween(renderer: renderer, squareGlow: SquareGlow, wallGlow: WallGlow, angle: angle)
+            );
+            var edge = ProjectedEdge.At(angle);
+
+            double offError = MeanPixelError(off, edge);
+            double smaaError = MeanPixelError(smaa, edge);
+            TestContext.Current.TestOutputHelper?.WriteLine($"{degrees}: off {offError:F4}, smaa {smaaError:F4}");
+
+            smaaError
+                .Should()
+                .BeLessThan(
+                    MostSmaaErrorShare * offError,
+                    "SMAA blends each pixel by the area of it that the square covers, at {0} degrees (off {1:F4})",
+                    degrees,
+                    offError
+                );
+        }
+    }
+
+    /// <summary>The square's edge in the image: a point on it, in pixels, and the unit normal that points into the square.</summary>
+    private readonly record struct ProjectedEdge(Vector2 Point, Vector2 Normal)
+    {
+        /// <summary>The subdivisions of a pixel along the axis that <see cref="Coverage"/> sums over.</summary>
+        private const int Strips = 64;
+
+        /// <summary>The edge of the square of <see cref="EdgeBetween"/> at <paramref name="angle"/> radians from vertical.</summary>
+        public static ProjectedEdge At(float angle)
+        {
+            Vector2 point = Gpu.Project(point: new(0, 0, -3), width: Width, height: Height);
+            Vector2 along = Gpu.Project(
+                point: new(-MathF.Sin(angle), MathF.Cos(angle), -3),
+                width: Width,
+                height: Height
+            );
+            Vector2 intoSquare = Gpu.Project(
+                point: new(-MathF.Cos(angle), -MathF.Sin(angle), -3),
+                width: Width,
+                height: Height
+            );
+            Vector2 direction = Vector2.Normalize(along - point);
+            var normal = new Vector2(-direction.Y, direction.X);
+            if (Vector2.Dot(normal, intoSquare - point) < 0)
+                normal = -normal;
+            return new(point, normal);
+        }
+
+        /// <summary>The signed distance of a point from the edge, in pixels: positive inside the square.</summary>
+        public float Distance(Vector2 pixel) => Vector2.Dot(pixel - Point, Normal);
+
+        /// <summary>
+        /// The area of the pixel whose top left corner is at (<paramref name="x"/>, <paramref name="y"/>) that the square
+        /// covers, from 0 to 1: the sum, over thin strips across the axis that the edge crosses more steeply, of the exact
+        /// covered length of each strip.
+        /// </summary>
+        public double Coverage(int x, int y)
+        {
+            bool stripsAreRows = MathF.Abs(Normal.X) >= MathF.Abs(Normal.Y);
+            (double across, double along) = stripsAreRows ? (Normal.X, Normal.Y) : (Normal.Y, Normal.X);
+            (double start, double alongStart) = stripsAreRows ? (x - Point.X, y - Point.Y) : (y - Point.Y, x - Point.X);
+            double covered = 0;
+            for (int strip = 0; strip < Strips; strip++)
+            {
+                double offset = alongStart + (strip + 0.5) / Strips;
+                // Inside where across * t + along * offset > 0, for t from start to start + 1.
+                double bound = -along * offset / across;
+                double length = across > 0 ? start + 1 - bound : bound - start;
+                covered += Math.Clamp(length, 0, 1);
+            }
+
+            return covered / Strips;
         }
     }
 }
