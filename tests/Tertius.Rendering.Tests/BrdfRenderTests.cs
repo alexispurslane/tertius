@@ -409,7 +409,7 @@ public sealed class BrdfRenderTests
         Vector2 pixel = Pixel(center);
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         double reflected = LampHighlight(point: point, lightPosition: lightPosition);
-        reflected.Should().BeGreaterThan(65504, "the C# highlight is beyond the largest finite half float");
+        reflected.Should().BeGreaterThan(ShaderInput.MaxRadiance, "the C# highlight is beyond the HDR target's cap");
         const float dimming = 1e-5f;
 
         Vector3 shown = MirrorUnderALamp(
@@ -438,7 +438,7 @@ public sealed class BrdfRenderTests
 
         shown.Should().Be(Vector3.One, "the clamp keeps the value finite, and the tone curve turns it white");
         // 4 of 255, not 2: the mirror's peak at the pixel lies below the C# one, which the curve's shoulder nearly hides
-        // (measured 3 of 255). The clamp before the exposure would show 65,504 times the dimming, 72 of 255 darker.
+        // (measured 3 of 255). The clamp before the exposure would show the cap, 32,256, times the dimming, far darker.
         LargestChannelDifference(dimmed, expected)
             .Should()
             .BeLessThanOrEqualTo(

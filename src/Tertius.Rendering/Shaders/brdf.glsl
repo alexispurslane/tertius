@@ -3,6 +3,8 @@
 #ifndef TERTIUS_BRDF_GLSL
 #define TERTIUS_BRDF_GLSL
 
+#include "vectors.glsl"
+
 const float MinRoughness = 0.045;   // GgxLobe.MinRoughness
 const float MinNdotV = 1e-4;        // MaterialSample's floor on μ
 
@@ -43,11 +45,12 @@ vec3 schlickFresnel(vec3 f0, float VdotH)
     return f0 + (1.0 - f0) * pow(1.0 - clamp(VdotH, 0.0, 1.0), 5.0);
 }
 
-// d: the direction between the mirror direction R and the normal N where the lobe gathers most of its light.
+// d: the direction between the mirror direction R and the normal N where the lobe gathers most of its light. Seen
+// straight from behind, R is −N, and the mix is zero where towardMirror is one half: d is then N.
 vec3 specularDominantDirection(vec3 N, vec3 R, float alpha)
 {
     float towardMirror = (1.0 - alpha) * (sqrt(1.0 - alpha) + alpha);
-    return normalize(mix(N, R, towardMirror));
+    return normalizedOr(mix(N, R, towardMirror), N);
 }
 
 // BrdfTables.TexelCoordinate: texel i of n holds the value i / (n − 1), so both ends read exact values.

@@ -2,6 +2,8 @@
 #ifndef TERTIUS_MATERIAL_GLSL
 #define TERTIUS_MATERIAL_GLSL
 
+#include "vectors.glsl"
+
 struct SurfaceSample
 {
     vec4 baseColor;       // linear RGB and alpha
@@ -25,14 +27,15 @@ vec4 sampleTexture(uint index, vec2 uv)
 }
 
 // Tangent space follows the vertex convention: tangent along +u, bitangent = cross(normal, tangent) × w.
-// Normal maps store the tangent-space normal as RGB = xyz × 0.5 + 0.5.
-SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent)
+// Normal maps store the tangent-space normal as RGB = xyz × 0.5 + 0.5. `fallbackNormal` is the unit normal of a surface
+// whose interpolated vertex normal has no direction.
+SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent, vec3 fallbackNormal)
 {
     GpuMaterial m = materials[materialIndex];
     SurfaceSample s;
     s.baseColor = m.baseColor * sampleTexture(m.baseColorMap, uv);
 
-    vec3 n = normalize(vertexNormal);
+    vec3 n = normalizedOr(vertexNormal, fallbackNormal);
     vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
     float tangentLengthSq = dot(t, t);
     t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);

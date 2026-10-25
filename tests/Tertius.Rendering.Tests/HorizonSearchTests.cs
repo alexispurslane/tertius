@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -138,6 +140,37 @@ public sealed class HorizonSearchTests
         // the eye on the ray (1/4, 1/3, 1).
         HorizonSearch.ViewDepth(distance: 5, ray: new(0, 0, 1)).Should().BeApproximately(5, 1e-15);
         HorizonSearch.ViewDepth(distance: 13, ray: new(0.25, 1.0 / 3, 1)).Should().BeApproximately(12, 1e-12);
+    }
+
+    [Fact]
+    public void ASurfaceSampleLiesAtItsViewDepthAlongItsRay() =>
+        HorizonSearch.SamplePosition(ray: new(0.25, 1.0 / 3, 1), viewDepth: 12).Should().Be(new Double3(3, 4, 12));
+
+    [Theory]
+    [InlineData(170.0, 16.0 / 9)]
+    [InlineData(60.0, 40.0)]
+    public void ASkySampleHasNoPositionWhereItsPositionWouldSquarePastTheSingleFloatRange(
+        double verticalFovDegrees,
+        double aspect
+    )
+    {
+        // The ray through the image's corner, at a very wide field of view, and at the default one in a very wide window.
+        double tanHalfY = Math.Tan(verticalFovDegrees * Math.PI / 360);
+        var corner = new Double3(tanHalfY * aspect, tanHalfY, 1);
+        var skyInSingleFloats = new Vector3(
+            (float)(corner.X * HorizonSearch.SkyDepth),
+            (float)(corner.Y * HorizonSearch.SkyDepth),
+            (float)HorizonSearch.SkyDepth
+        );
+        skyInSingleFloats
+            .LengthSquared()
+            .Should()
+            .Be(float.PositiveInfinity, "the shader's length of this sky position would see an infinity");
+
+        HorizonSearch
+            .SamplePosition(ray: corner, viewDepth: HorizonSearch.SkyDepth)
+            .Should()
+            .BeNull("sky hides nothing, so the shader measures no sky sample");
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 ---
 id: ter-izsu
 status: open
-deps: [ter-sdks]
+deps: [ter-y1s7]
 links: []
 created: 2026-10-25T18:34:36Z
 type: task
@@ -18,3 +18,9 @@ ter-b3h5 measured the four occlusion passes at about 1.7 ms together at 1920x108
 
 A profile of each pass, the changes that it justifies, and the cost measured again on a quiet machine, with the numbers in ARCHITECTURE.md.
 
+
+## Notes
+
+**2026-10-25T20:07:18Z**
+
+2026-10-25: the user chose 'build, then cut' for the bounce light, whose passes replace and extend these four (4.0 to 8.4 ms by arithmetic at 1080p). So this ticket now profiles the screen-space light passes after the bounce light's Part 6, and tries the three levers of docs/plans/screen-space-illumination.md, 'Cost' (fewer far rays, a half-resolution copy of the direct light, and what the profile finds, the upsample first), each with captures, before Part 7 picks the defaults.

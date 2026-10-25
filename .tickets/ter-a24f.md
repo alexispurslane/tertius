@@ -1,7 +1,7 @@
 ---
 id: ter-a24f
 status: in_progress
-deps: [ter-b3h5, ter-ptft]
+deps: [ter-b3h5, ter-ptft, ter-jxv9, ter-7s3g]
 links: [ter-jxv9]
 created: 2026-10-11T20:51:00Z
 type: feature
@@ -30,3 +30,11 @@ With SSGI on, a sunlit surface lights nearby surfaces in shadow with its own col
 **2026-10-25T19:06:16Z**
 
 The user's design choices, 2026-10-25, from two designs in the chat: (1) gather the bounce inside the crease shadowing's slices with a mask of 32 sectors per slice (a visibility bitmask), one estimate of the light around each point, so that the light of a surface that blocks a sector replaces the sky light it blocks, over choosing separate Hi-Z rays through the reflections' depth pyramid; (2) this frame's direct light bounces, one bounce, so the lighting pass splits into a direct pass and an ambient pass, over the last frame's image reprojected; (3) blur only, nothing carries over between frames, over a running average. The design doc is ter-zi4i.
+
+**2026-10-25T19:09:47Z**
+
+2026-10-25, later: the user asked whether design A can work at a distance, and chose a hybrid, 'near and far': sector masks inside the crease radius, and beyond it rays through the reflections' depth pyramid, only in the directions that the near sectors leave open. Each direction is blocked nearby, blocked far away, or open to the sky: one estimate. This frame's direct light still bounces, and blur only. The bounce light's build now waits for the reflections' depth pyramid and trace (ter-jxv9).
+
+**2026-10-25T20:07:18Z**
+
+2026-10-25: the design doc is on ter-a24f-ssgi (45b819d9, forks recorded in the next commit). The user dropped XeGTAO's tuned set ('Let's just not do the tuned set maybe'), and chose to build as designed, then cut the cost (4.0 to 8.4 ms by arithmetic). The orchestrator settled fork 3 (the direct and ambient passes in both cases of the switch) by the one-model rule. Fork 2 (far rays per texel) waits for Part 7's captures and cost. Parts: ter-r0hc to ter-7s3g, with ter-izsu as the cut between Parts 6 and 7.
