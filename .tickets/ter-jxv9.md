@@ -46,3 +46,7 @@ Part 1 committed as 12576004 (43 tests, 50 hand mutations). Settled by the orche
 **2026-10-25T22:35:51Z**
 
 2026-10-25: Part 6 done (1527af45). The user chose MaxRoughness 0.6 from the captures, then profile (ter-ff6y). The orchestrator settled MaxSteps at 256 by the design's own check (decision 31 and "MaxSteps must be large enough that the review scenes show no such edge"): against 512, 64 steps differ by up to 57 levels and 128 by up to 39 in a strip near the low view's horizon, and 256 by 0. Cost at 64 steps: depth pyramid 0.29, radiance pyramid 0.93, reflections 5.8 ms mean at 1080p; at MaxRoughness 0.3 the reflections pass costs 0.27 ms, because the demo's paint (roughness 0.38) then traces nothing.
+
+**2026-10-25T22:42:15Z**
+
+2026-10-25, later: the user prefers 64 steps if the difference does not show to the naked eye. It shows: at 64 steps the edge view's glossy box face has horizontal streaks at actual size, where rays run out of steps and their neighbors hit (3,935 pixels off by more than 10 levels from 512). At 128 steps the streaks are gone: 0 such pixels in the front and edge views and 50 in the low view's horizon strip. So the default is 128, the fewest steps that do not show, by the user's own condition. This replaces the note's 256.
