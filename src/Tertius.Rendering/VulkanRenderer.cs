@@ -32,8 +32,8 @@ namespace Tertius.Rendering;
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
-/// <para>A headless frame under <see cref="AutoExposure"/> whose step is at least <see cref="MeteringStepSeconds"/> is
-/// drawn twice: a metering draw, then the shown draw (docs/plans/auto-exposure.md, "The metering draw").</para>
+/// <para>A headless frame under <see cref="AutoExposure"/> whose step is at least <see cref="MeteringStepSeconds"/>, or
+/// 0, is drawn twice: a metering draw, then the shown draw (docs/plans/auto-exposure.md, "The metering draw").</para>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
@@ -362,14 +362,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshotTime: snapshot.Time,
             wallSeconds: Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency
         );
-        // A headless still can follow a long step, and would show the exposure of the view before it
-        // (docs/plans/auto-exposure.md, "A headless still after a long step"). A window's steps are frame times.
-        bool metering = exposureSetting is AutoExposure && headless && step >= MeteringStepSeconds;
+        // A headless still can follow a long step, or a camera cut at the tick of the frame before it, and would show
+        // the exposure of the view before it (docs/plans/auto-exposure.md, "A headless still after a long step"). A
+        // window's steps are frame times.
+        bool atTheTickBefore = step == 0;
+        bool metering = exposureSetting is AutoExposure && headless && (atTheTickBefore || step >= MeteringStepSeconds);
         if (metering)
         {
-            if (!DrawFrame(snapshot: snapshot, alpha: alpha, exposureStep: step, takeCapture: false))
+            // A still at the tick before has no time to adapt in, so it settles on its own view.
+            float meteringStep = atTheTickBefore ? float.PositiveInfinity : step;
+            if (!DrawFrame(snapshot: snapshot, alpha: alpha, exposureStep: meteringStep, takeCapture: false))
                 return;
-            // The metering draw moved the exposure by the whole step, so the shown draw moves it by none.
+            // The metering draw adapted the exposure for the whole step, so the shown draw moves it by none.
             clock = next;
             step = 0;
         }

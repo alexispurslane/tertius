@@ -85,15 +85,17 @@ public sealed class ExposureShaderTests
             snapshot.Time = frameTime;
             renderer.Render(snapshot, 1f);
             uint[] histogram = renderer.ReadExposureHistogram();
-            // The two frames after it report the exposure of that frame and of the one after it.
+            // The two frames after it report the exposure of that frame and of the one after it. Each draws once,
+            // because its step is one real-time frame.
             snapshot.Time = 2 * frameTime;
             renderer.Render(snapshot, 1f);
             float used = renderer.LastFrameStats.Exposure!.Value.Stops;
+            snapshot.Time = 3 * frameTime;
             renderer.Render(snapshot, 1f);
             float next = renderer.LastFrameStats.Exposure!.Value.Stops;
 
-            // The frame before it drew at time 0.
-            float step = (float)frameTime;
+            // The frame before it read the still's exposure a moment after time 0.
+            float step = (float)(frameTime - ReadingStepSeconds);
             float target = ExposureMeter.TargetStops(
                 trimmedMeanStops: ExposureMeter.TrimmedMeanStops(histogram, setting.DarkShare, setting.BrightShare),
                 usedStops: used,

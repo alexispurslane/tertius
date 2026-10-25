@@ -655,7 +655,7 @@ internal readonly partial struct FrameClock
 ```
 
 - The step is now − last. Before the first frame, last is −∞, so the step is +∞ with no special case.
-- A time that did not move forward gives 0: two captures at one tick, or a test that renders one snapshot many times. A NaN gives 0.
+- A time that did not move forward gives 0: two captures at one tick, a capture after a camera cut at the tick of the frame before it, or a test that renders one snapshot many times. A NaN gives 0. Under option B, a headless frame under `AutoExposure` with a step of 0 draws a metering draw with an endless step ("The metering draw (option B)").
 - The clock steps only for a drawn frame. A frame that the output skips, such as one of a minimized window, records nothing, so the next drawn frame steps from the last one that drew.
 - `Render` computes the step at its start and keeps `Next` after the frame records. The renderer starts with `FrameClock.Window` from `CreateForWindow` and `FrameClock.Film` from `CreateOffscreen`, which `CreateHeadless` calls.
 - The step reaches the exposure pass as `FrameContext.ExposureStep`, in s.
@@ -666,12 +666,14 @@ A GPU test drives the film clock through `RenderSnapshot.Time`, which tests set 
 
 The user chose option B, the metering draw, on 2026-10-25. (User)
 
+Two rules of B were settled after the review, by the orchestrator from the user's decision that a headless still shows the settled exposure of its own view, on 2026-10-25 ("The metering draw (option B)"): a frame whose step is 0 draws a metering draw with an endless step, and a frame whose step reaches `MeteringStep` draws one, the frames of a time-lapse film included.
+
 A frame is shaded with the exposure that the frame before it decided. In a window or a film, the step is a frame time, and a lag of one frame does not show. A headless still can come after a long step: the first capture of a run, or a capture after a camera step and a run of seconds, as `scripts/demo-surface.json` takes. Such a still is shaded with the exposure of the view before the camera step, and its own view's exposure shows only in the next frame, which a still never has. The ticket's decisions do not say what a still shows, and the answer changes the screenshots that the user reviews.
 
 | Option | What it gives | What it costs |
 |---|---|---|
 | A. One draw per frame, everywhere | One rule for a window, a film and a still. A still after a long step shows the view before it, adapted toward that view for the step. The first still of a run shows the seed, 0 stops. A script that wants a settled still films a few frames before it. | Today's screenshot scripts show wrong exposures after camera steps until each one gets a short film before its stills. No cost on the GPU. |
-| B. A metering draw before a headless frame whose step is at least `MeteringStep` (Recommended) | Under `AutoExposure`, a headless renderer whose step is 0.09 s or more, or endless, draws the frame twice. The first draw, the metering draw, takes no capture, and its adapt step moves S by the whole step toward its own view's target. The second draw, the shown draw, uses that S, and its adapt step moves by 0. So a still shows its own view, adapted for the time since the frame before, and the first still of a run shows its settled exposure. A real-time film's frames step 1 to 4 ticks and draw once. A time-lapse film's frames step 6 ticks or more and draw twice, so each one adapts toward its own view. A window never draws twice. | One more frame of GPU time for each such still and for each frame of a time-lapse film, about 3 ms at 1080p, and one constant. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the metering draw, so the shown draw is still short of the target, and later frames finish the approach. |
+| B. A metering draw before a headless frame whose step is at least `MeteringStep` (Recommended) | Under `AutoExposure`, a headless renderer whose step is 0.09 s or more, endless, or 0, draws the frame twice. The first draw, the metering draw, takes no capture, and its adapt step moves S by the whole step toward its own view's target. The second draw, the shown draw, uses that S, and its adapt step moves by 0. So a still shows its own view, adapted for the time since the frame before, and the first still of a run shows its settled exposure. A real-time film's frames step 1 to 4 ticks and draw once. A time-lapse film's frames step 6 ticks or more and draw twice, so each one adapts toward its own view. A window never draws twice. | One more frame of GPU time for each such still and for each frame of a time-lapse film, about 3 ms at 1080p, and one constant. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the metering draw, so the shown draw is still short of the target, and later frames finish the approach. |
 
 `MeteringStep` is 0.09 s, 5.4 ticks at 60 Hz: longer than the longest step of the demo's real-time films (4 ticks, 67 ms, `scripts/blue-danube.json` and `scripts/demo-docking.json`), shorter than the shortest step of its time-lapse films (6 ticks, 0.1 s, the glide of `scripts/blue-danube.json`), and shorter than the shortest run before a capture in the demo's scripts (30 ticks, 0.5 s). It lies between two whole ticks, so that no step of whole ticks lies on it, and the rounding of a step's subtraction cannot decide whether a frame meters. No value lies above every film step and below every run before a capture: `scripts/blue-danube.json` films at up to 240 ticks per frame, 4 s. Why B is recommended: the stills are the user's way of reviewing every visible change, often from a phone, and under A each review first needs a fix to its script. The model of the approach is "the eye adapts for the step toward what it watched". For a step of a frame, the view before is a good stand-in for what the eye watched. For a step of seconds after a camera step, only the current view is.
 
@@ -688,10 +690,13 @@ This doc is written for B. Under A, these change, and nothing else:
 
 ```csharp
 (FrameClock next, float step) = clock.Step(snapshot.Time, Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
-if (exposureSetting is AutoExposure && headless && step >= MeteringStepSeconds)
+bool atTheTickBefore = step == 0;
+if (exposureSetting is AutoExposure && headless && (atTheTickBefore || step >= MeteringStepSeconds))
 {
-    if (!DrawFrame(snapshot, alpha, exposureStep: step, takeCapture: false))
+    float meteringStep = atTheTickBefore ? float.PositiveInfinity : step;
+    if (!DrawFrame(snapshot, alpha, exposureStep: meteringStep, takeCapture: false))
         return;
+    clock = next;
     step = 0;
 }
 
@@ -700,6 +705,11 @@ if (DrawFrame(snapshot, alpha, exposureStep: step, takeCapture: true))
 ```
 
 `DrawFrame` returns false when the output skipped the frame. Each draw takes its own frame slot and frame number, and `LastFrameStats` describes the shown draw. The metering draw runs the batcher, the impostor manager and every pass, so its impostor captures count, and the shown draw finds them made.
+
+Which frames meter, settled by the orchestrator from the user's decision, 2026-10-25:
+
+- A frame whose step is 0 draws a metering draw with an endless step, so it settles on its own view. Such a frame lies at the tick of the frame before it: a still or the first film frame right after a camera cut, which takes no snapshot time, as in `scripts/earth-system.json`, `scripts/demo-launch.json` and `scripts/doorway.json`. Without it, such a still would show the exposure of the view before the cut. A second capture of one view at one tick shows that view's settled exposure, not the first capture's exposure.
+- A frame whose step reaches `MeteringStep` draws a metering draw with its step. So each frame of a time-lapse film, such as those of `scripts/blue-danube.json`, adapts toward its own view, at about one more frame of GPU time per frame ("Cost").
 
 ## Every reader and writer
 
@@ -726,8 +736,8 @@ if (DrawFrame(snapshot, alpha, exposureStep: step, takeCapture: true))
 flowchart TD
     W["Render: wait for the slot's fence"] --> C["Collect: the slot's readback buffer becomes RenderStats.Exposure"]
     C --> K["FrameClock.Step: the step since the last drawn frame"]
-    K --> Q{"AutoExposure, headless, and a step of at least MeteringStep?"}
-    Q -- yes --> MD["Metering draw: no capture, ExposureStep = the step"]
+    K --> Q{"AutoExposure, headless, and a step of 0 or at least MeteringStep?"}
+    Q -- yes --> MD["Metering draw: no capture, ExposureStep = the step, or endless for a step of 0"]
     MD --> SD0["Shown draw: ExposureStep = 0"]
     Q -- no --> SD1["Shown draw: ExposureStep = the step"]
     SD0 --> D
@@ -745,7 +755,7 @@ flowchart TD
 ```
 
 1. `Render` waits for the slot's fence and collects the slot's timings and exposure reading: the exposure that frame n − `FramesInFlight` used.
-2. It steps the clock. Under option B, a headless frame under `AutoExposure` with a step of at least `MeteringStep` draws a metering draw first.
+2. It steps the clock. Under option B, a headless frame under `AutoExposure` with a step of 0 or at least `MeteringStep` draws a metering draw first.
 3. In a drawn frame, the uploads run. In the first drawn frame they also seed the exposure buffer.
 4. The readback copy takes the exposure that this frame uses.
 5. Batching, the shadow maps and the impostor captures run as today. A capture writes radiance into the atlas.
@@ -856,6 +866,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 - `FirstFrame.TheFirstFrameShowsTheSettledExposure`, in a nested class of its own (tests/STYLE.md, "Long tests"): the first capture of a dark view equals the capture of the same view after 15 s of film, within 2 of 255.
 - `AHeadlessFrameAfterALongStepShowsTheExposureOfItsOwnView`: after a settled bright view, the camera turns to a dark view, and the next frame, 2 s of film later, shows the exposure of the C# approach from the bright exposure toward the dark target over 2 s, within 0.01 stops.
+- `AStillRightAfterACameraCutAtItsTickShowsTheExposureOfTheNewView`: after a settled bright view, the camera turns to a dark view, and a still at the same snapshot time shows the settled exposure of the dark view, within 0.01 stops.
+- `AMeteringDrawAndItsShownDrawMoveTheExposureByTheirStepOnce`: after a long step, the frame one real-time frame later (1/60 s, so it draws once) used the exposure that the shown draw left, bit for bit.
 - `AFilmFrameDrawsOnce`: at a step of 1/30 s, each `Render` advances the frame number by 1. At a step of 0.5 s, by 2.
 - `ATimeLapseFrameOfSixTicksDrawsAMeteringDrawWhateverTheRoundingOfItsStep`: at a step of 4 ticks at 60 Hz, each `Render` advances the frame number by 1. At a step of 6 ticks, and at one float below it, by 2.
 - `AWindowNeverDrawsAMeteringDraw` is not testable without a window. The rule is one condition in `Render`, which the review checks.

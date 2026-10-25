@@ -4,9 +4,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The metering draw (docs/plans/auto-exposure.md, "The metering draw (option B)"): a headless frame under
-/// <see cref="AutoExposure"/> whose step is at least <see cref="VulkanRenderer.MeteringStepSeconds"/> is drawn twice, so
-/// that the shown draw uses the exposure that the first draw metered on its own view. A real-time film's frames draw
-/// once.
+/// <see cref="AutoExposure"/> whose step is at least <see cref="VulkanRenderer.MeteringStepSeconds"/>, or 0, is drawn
+/// twice, so that the shown draw uses the exposure that the first draw metered on its own view. A real-time film's
+/// frames draw once.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class MeteringDrawTests
@@ -42,16 +42,50 @@ public sealed class MeteringDrawTests
             RenderSnapshot snapshot = TwoSquares(renderer);
             float bright = Still(renderer: renderer, snapshot: snapshot, time: 0).Stops;
             Turn(snapshot);
-            float shown = Still(renderer: renderer, snapshot: snapshot, time: 2).Stops;
+            const double shownTime = 2;
+            float shown = Still(renderer: renderer, snapshot: snapshot, time: shownTime).Stops;
 
+            // The frame before it read the still's exposure a moment after it.
+            float step = (float)(shownTime - ReadingStepSeconds);
             float expected = ExposureMeter.Approach(
                 stops: bright,
                 target: darkTarget,
-                intoDarkFactor: ExposureMeter.ApproachFactor(2, setting.IntoDarkSeconds),
-                intoLightFactor: ExposureMeter.ApproachFactor(2, setting.IntoLightSeconds)
+                intoDarkFactor: ExposureMeter.ApproachFactor(step, setting.IntoDarkSeconds),
+                intoLightFactor: ExposureMeter.ApproachFactor(step, setting.IntoLightSeconds)
             );
             darkTarget.Should().BeGreaterThan(bright, "the view behind the camera is darker");
             shown.Should().BeApproximately(expected, 0.01f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AStillRightAfterACameraCutAtItsTickShowsTheExposureOfTheNewView()
+    {
+        AutoExposure setting = AutoExposure.Default;
+        float darkTarget = SettledStops(
+            setting,
+            renderer =>
+            {
+                RenderSnapshot snapshot = TwoSquares(renderer);
+                Turn(snapshot);
+                return snapshot;
+            }
+        );
+        VulkanRenderer renderer = Renderer(setting);
+        try
+        {
+            RenderSnapshot snapshot = TwoSquares(renderer);
+            float bright = Still(renderer: renderer, snapshot: snapshot, time: 0).Stops;
+            Turn(snapshot);
+            // The cut takes no snapshot time, so the still after it lies no later than the frames before it.
+            float shown = Still(renderer: renderer, snapshot: snapshot, time: 0).Stops;
+
+            darkTarget.Should().BeGreaterThan(bright + 1, "the view behind the camera is darker");
+            shown.Should().BeApproximately(darkTarget, 0.01f, "the still settles on its own view");
         }
         finally
         {
@@ -68,8 +102,15 @@ public sealed class MeteringDrawTests
             RenderSnapshot snapshot = TwoSquares(renderer);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
             Turn(snapshot);
-            // The second frame lies at the time of the first, so its step is 0 and it shows what the first left.
-            FilmFrame[] after = Film(renderer: renderer, snapshot: snapshot, start: 2, frameSeconds: 0, frames: 2);
+            // The second frame lies one real-time frame after the first, so it draws once and shows what the first
+            // left.
+            FilmFrame[] after = Film(
+                renderer: renderer,
+                snapshot: snapshot,
+                start: 2,
+                frameSeconds: 1.0 / 60,
+                frames: 2
+            );
 
             after[1].Stops.Should().Be(after[0].Stops, "the shown draw moves the exposure by a step of 0");
         }

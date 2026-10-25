@@ -20,6 +20,12 @@ internal static class ExposureScenes
     /// <summary>The ramp's fall in reflectance from its bright edge to its dark edge, in stops.</summary>
     public const int RampStops = 8;
 
+    /// <summary>
+    /// The step, in s, of the frame after a film that reads its last frame's exposure. It is too short to meter, as a
+    /// step of 0 would, and it moves the exposure by far less than a float's precision.
+    /// </summary>
+    public const double ReadingStepSeconds = 1e-9;
+
     /// <summary>A square facing the camera, as the plane primitive faces +Y.</summary>
     public static readonly Quaternion FacingTheCamera = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
 
@@ -112,8 +118,7 @@ internal static class ExposureScenes
     /// <summary>
     /// Films <paramref name="frames"/> drawn frames of <paramref name="snapshot"/>, the first at <paramref name="start"/> s of
     /// snapshot time and each next one <paramref name="frameSeconds"/> later, and returns the exposure and the middle luma
-    /// of each. One more frame at the time of the last reads the last frame's exposure, and moves nothing, because its
-    /// step is 0.
+    /// of each. One more frame, <see cref="ReadingStepSeconds"/> after the last, reads the last frame's exposure.
     /// </summary>
     public static FilmFrame[] Film(
         VulkanRenderer renderer,
@@ -127,7 +132,7 @@ internal static class ExposureScenes
         float[] lumas = new float[frames];
         for (int frame = 0; frame <= frames; frame++)
         {
-            snapshot.Time = start + Math.Min(frame, frames - 1) * frameSeconds;
+            snapshot.Time = frame < frames ? start + frame * frameSeconds : snapshot.Time + ReadingStepSeconds;
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "auto exposure film");
             // With one frame in flight, each frame reports the exposure of the frame before it.
             if (frame > 0)
