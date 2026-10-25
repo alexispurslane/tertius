@@ -3,6 +3,7 @@
 #include "frame.glsl"
 #include "draw.glsl"
 #include "octahedral.glsl"
+#include "exposure.glsl"
 
 // Impostor billboards into the G-buffer (ImpostorPass.cs). The capture's lighting is baked, so the pixel is
 // written as emission with base color alpha 0, which tells the lighting pass to add nothing else. The captured relative
@@ -52,6 +53,7 @@ void main()
     outBaseColor = vec4(0.0);
     outNormal = vec4(octEncode(toward), octEncode(toward));
     outSpecular = vec4(0.0);
-    outEmissive = vec4(color.rgb / coverage, 1.0);
+    // The atlas holds radiance, which the billboard pre-exposes with this frame's exposure.
+    outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);
     outDistance = length(world - draw.eye.xyz);
 }

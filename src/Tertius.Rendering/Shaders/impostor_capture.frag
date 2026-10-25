@@ -39,7 +39,8 @@ void main()
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // A capture has no screen around it for the occlusion passes to search.
     shading.occlusion = 1.0;
-    vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, false);
+    // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
+    vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, false, 1.0);
     outColor = vec4(color, 1.0);
     // gl_FragCoord.w is 1 / clip w, and clip w is the view depth over the center's depth. Negative in front of the
     // center's plane.

@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target and the
-/// occlusion target.
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target, the bloom
+/// levels and the occlusion target.
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -24,6 +24,7 @@ namespace Tertius.Rendering;
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The occlusion target is
 /// R8_UNORM: the occlusion V of each pixel, 1 when ambient occlusion is off (docs/plans/ambient-occlusion.md, "Images").
+/// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -60,7 +61,14 @@ internal sealed class RenderTargets : IDisposable
     // True from the creation of the occlusion target until the first frame after it records the clear to 1.
     private bool occlusionNeedsClear;
 
-    public RenderTargets(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, Extent2D extent)
+    /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
+    public RenderTargets(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        DescriptorLayouts layouts,
+        Extent2D extent,
+        int glowLevels
+    )
     {
         this.device = device;
         this.allocator = allocator;
@@ -68,6 +76,11 @@ internal sealed class RenderTargets : IDisposable
         CheckFormats(device);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
+        MeterSet = layouts.AllocateMeterSet();
+        Glow = new GpuImage[glowLevels];
+        GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
+        for (int i = 0; i < GlowSources.Length; i++)
+            GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
     }
 
@@ -89,8 +102,20 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
 
+    /// <summary>The HDR image and the distance, for the exposure's meter.</summary>
+    public DescriptorSet MeterSet { get; }
+
     /// <summary>The G-buffer color targets in attachment order.</summary>
     public GpuImage[] GBuffer { get; private set; } = [];
+
+    /// <summary>The bloom levels, largest first: empty without bloom. After the bloom pass, level 0 holds every level summed.</summary>
+    public GpuImage[] Glow { get; }
+
+    /// <summary>
+    /// The sets that the draws of the bloom pass read: the HDR image first, then each level of <see cref="Glow"/>. Empty
+    /// without bloom.
+    /// </summary>
+    public DescriptorSet[] GlowSources { get; }
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
     public void Resize(Extent2D extent)
@@ -113,24 +138,29 @@ internal sealed class RenderTargets : IDisposable
     )]
     private void Create(Extent2D extent)
     {
-        const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        BaseColor = CreateTarget(extent: extent, format: BaseColorFormat, usage: target, name: "g-buffer base color");
-        Normal = CreateTarget(extent: extent, format: NormalFormat, usage: target, name: "g-buffer normal");
-        Specular = CreateTarget(extent: extent, format: SpecularFormat, usage: target, name: "g-buffer specular");
-        Emissive = CreateTarget(extent: extent, format: EmissiveFormat, usage: target, name: "g-buffer emissive");
-        Distance = CreateTarget(extent: extent, format: DistanceFormat, usage: target, name: "g-buffer distance");
-        Depth = CreateTarget(
+        BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
+        Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
+        Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
+        Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
+        Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance");
+        Depth = GpuImage.Create(
+            device: device,
+            allocator: allocator,
             extent: extent,
             format: DepthFormat,
             usage: ImageUsageFlags.DepthStencilAttachmentBit,
+            mipLevels: 1,
             name: "depth"
         );
-        Hdr = CreateTarget(extent: extent, format: HdrFormat, usage: target, name: "hdr");
-        Occlusion = CreateTarget(
+        Hdr = ColorTarget(extent: extent, format: HdrFormat, name: "hdr");
+        Occlusion = GpuImage.Create(
+            device: device,
+            allocator: allocator,
             extent: extent,
             format: OcclusionFormat,
             usage: ImageUsageFlags.SampledBit | ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
+            mipLevels: 1,
             name: "occlusion"
         );
         occlusionNeedsClear = true;
@@ -139,15 +169,36 @@ internal sealed class RenderTargets : IDisposable
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: OcclusionBinding, arrayElement: 0, image: Occlusion);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
+        CreateGlow(extent);
     }
 
-    private GpuImage CreateTarget(Extent2D extent, Format format, ImageUsageFlags usage, string name) =>
+    /// <summary>Makes the bloom levels at their sizes for <paramref name="extent"/>, and points every set at them.</summary>
+    private void CreateGlow(Extent2D extent)
+    {
+        if (Glow.Length == 0)
+            return;
+        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: Hdr);
+        Extent2D level = extent;
+        for (int i = 0; i < Glow.Length; i++)
+        {
+            level = new((level.Width + 1) / 2, (level.Height + 1) / 2);
+            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}");
+            layouts.WriteImage(set: GlowSources[i + 1], binding: 0, arrayElement: 0, image: Glow[i]);
+        }
+
+        layouts.WriteImage(set: PostSet, binding: 1, arrayElement: 0, image: Glow[0]);
+    }
+
+    /// <summary>An image of one level that passes draw into and later passes sample.</summary>
+    private GpuImage ColorTarget(Extent2D extent, Format format, string name) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
             format: format,
-            usage: usage,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
             mipLevels: 1,
             name: name
         );
@@ -214,6 +265,8 @@ internal sealed class RenderTargets : IDisposable
         Depth?.Dispose();
         Hdr?.Dispose();
         Occlusion?.Dispose();
+        foreach (GpuImage? level in Glow)
+            level?.Dispose();
         GBuffer = [];
     }
 

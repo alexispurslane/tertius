@@ -40,5 +40,7 @@ void main()
     // Transparent objects are not in the G-buffer, so the occlusion passes give them no V.
     shading.occlusion = 1.0;
     // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
-    outColor = vec4(surfaceRadiance(shading, s.emissive, inPosition, V, true), clamp(s.baseColor.a, 0.0, 1.0));
+    float exposure = exposureScale();
+    vec3 radiance = surfaceRadiance(shading, s.emissive * exposure, inPosition, V, true, exposure);
+    outColor = vec4(radiance, clamp(s.baseColor.a, 0.0, 1.0));
 }

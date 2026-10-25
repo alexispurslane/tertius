@@ -376,6 +376,30 @@ public sealed class BrdfRenderTests
         }
     }
 
+    /// <summary>
+    /// The color at the center of a mirror square at <paramref name="center"/>, facing the camera, under a lamp of
+    /// intensity 1,000 at <paramref name="lamp"/>, drawn by a new renderer at <paramref name="exposure"/>.
+    /// </summary>
+    private static Vector3 MirrorUnderALamp(ExposureSetting exposure, Double3 center, Double3 lamp, string name)
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, exposure: exposure);
+        try
+        {
+            MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
+            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
+            snapshot.Lights.Add(
+                new PointRenderLight(Position: lamp.ToVector3(), Color: Vector3.One, Intensity: 1000, Range: 10)
+            );
+            snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
+            return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name).Color(Pixel(center));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void AHighlightBrighterThanTheHdrTargetHoldsShowsWhite()
     {
@@ -386,43 +410,44 @@ public sealed class BrdfRenderTests
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         double reflected = LampHighlight(point: point, lightPosition: lightPosition);
         reflected.Should().BeGreaterThan(65504, "the C# highlight is beyond the largest finite half float");
+        const float dimming = 1e-5f;
 
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        Vector3 shown = MirrorUnderALamp(
+            exposure: new FixedExposure(0),
+            center: center,
+            lamp: lightPosition,
+            name: "brdf-clamp"
+        );
+        // Turned down by the exposure before the clamp, the highlight fits the target and shows as itself.
+        Vector3 dimmed = MirrorUnderALamp(
+            exposure: new FixedExposure(MathF.Log2(dimming)),
+            center: center,
+            lamp: lightPosition,
+            name: "brdf-clamp-dimmed"
+        );
+        VulkanRenderer reference = Gpu.Headless(width: Width, height: Height);
+        Vector3 expected;
         try
         {
-            MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
-            RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
-            snapshot.Lights.Add(
-                new PointRenderLight(
-                    Position: lightPosition.ToVector3(),
-                    Color: Vector3.One,
-                    Intensity: 1000,
-                    Range: 10
-                )
-            );
-            snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
-            Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-clamp")
-                .Color(pixel);
-            // Turned down by the exposure, the stored value shows: the largest finite half float, not infinity.
-            renderer.Exposure = 1e-5f;
-            Vector3 dimmed = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-clamp-dimmed")
-                .Color(pixel);
-            Vector3 largest = Displayed(renderer, [new(65504)], "brdf-clamp-largest")[0];
-
-            shown.Should().Be(Vector3.One, "the clamp keeps the value finite, and the tone curve turns it white");
-            Vector3
-                .Abs(dimmed - largest)
-                .Should()
-                .Match<Vector3>(
-                    d => MathF.Max(d.X, MathF.Max(d.Y, d.Z)) <= 2f / 255,
-                    $"the target holds 65,504, not {dimmed}"
-                );
+            expected = Displayed(reference, [new((float)reflected * dimming)], "brdf-clamp-expected")[0];
         }
         finally
         {
-            Gpu.DisposeAndAssertClean(renderer);
+            Gpu.DisposeAndAssertClean(reference);
         }
+
+        shown.Should().Be(Vector3.One, "the clamp keeps the value finite, and the tone curve turns it white");
+        // 4 of 255, not 2: the mirror's peak at the pixel lies below the C# one, which the curve's shoulder nearly hides
+        // (measured 3 of 255). The clamp before the exposure would show 65,504 times the dimming, 72 of 255 darker.
+        LargestChannelDifference(dimmed, expected)
+            .Should()
+            .BeLessThanOrEqualTo(
+                4f / 255,
+                "the exposure multiplies the highlight of {0} before the clamp, so it shows as {1}, not {2}",
+                reflected,
+                expected,
+                dimmed
+            );
     }
 
     [Fact]

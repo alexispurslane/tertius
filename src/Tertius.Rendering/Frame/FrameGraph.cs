@@ -18,8 +18,10 @@ internal sealed class FrameContext
     /// <summary>The timestamps around the passes. Only <see cref="FrameGraph.Record"/> writes them.</summary>
     public required GpuTimer Timer { get; init; }
 
+    /// <summary>The exposure buffer, which the passes that write the HDR image or the emissive target read.</summary>
+    public required ExposureResources Exposure { get; init; }
+
     public long Number { get; set; }
-    public float Exposure { get; set; } = 1f;
 
     /// <summary>The output format stores linear values and the tone mapper must apply the sRGB curve.</summary>
     public bool EncodeSrgb { get; set; }
@@ -71,6 +73,9 @@ internal sealed class FrameContext
     /// <summary>The interpolation factor of this frame.</summary>
     public float Alpha { get; set; }
 
+    /// <summary>The step, in s, by which this draw's adapt step moves the exposure (docs/plans/auto-exposure.md, "The clock").</summary>
+    public float ExposureStep { get; set; }
+
     public PreparedScene Scene { get; set; } = null!;
 
     /// <summary>The final image: a swapchain image or the headless output.</summary>
@@ -103,7 +108,8 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the overlay included (<see cref="OutlinePass"/>). Draws
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the exposure pass (<see cref="ExposurePass"/>, under
+/// <see cref="AutoExposure"/>) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -120,6 +126,16 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
         Lighting,
         Transparent,
+
+        /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>
+        Exposure,
+
+        /// <summary>
+        /// After every pass that writes the HDR image, so that all bright light glows, and before the tone map, which adds the
+        /// glow. After the exposure pass, because both only read the HDR image, and this order changes its use from the
+        /// meter's compute read to the fragment reads of the bloom and the tone map once.
+        /// </summary>
+        Bloom,
         ToneMap,
 
         /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>

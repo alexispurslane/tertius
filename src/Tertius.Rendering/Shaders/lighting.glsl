@@ -7,7 +7,8 @@
 // The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
 // color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
 // share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
-// (docs/plans/ambient-occlusion.md, "The lighting pass"). surfaceRadiance clamps the sum to the largest finite half float.
+// (docs/plans/ambient-occlusion.md, "The lighting pass"). surfaceRadiance pre-exposes the sum and clamps it to the
+// largest finite half float.
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -17,9 +18,7 @@
 #include "shadows.glsl"
 #include "hemisphere.glsl"
 #include "brdf.glsl"
-
-// The largest finite half float: the HDR target stores no more (docs/plans/pbr-brdf.md, "The clamp").
-const float MaxRadiance = 65504.0;
+#include "exposure.glsl"
 
 struct ShadingInput
 {
@@ -239,15 +238,16 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
     return color;
 }
 
-// All light that leaves a surface point toward the eye, emission included, clamped to what the HDR target holds. The
-// clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts. V points from
-// the surface to the eye. Impostor captures pass shadowMaps false.
-vec3 surfaceRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, bool shadowMaps)
+// All light that leaves a surface point toward the eye, pre-exposed and clamped to what the HDR target holds: the
+// reflected light times `exposure`, plus `preExposedEmission`, which the caller has already multiplied. The clamp
+// applies to the whole sum. V points from the surface to the eye. Impostor captures pass shadowMaps false and an
+// exposure of 1, because the atlas stores radiance.
+vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    vec3 radiance = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
-        + localLights(s, lobes, position, V) + emission;
-    return min(radiance, vec3(MaxRadiance));
+    vec3 reflected = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
+        + localLights(s, lobes, position, V);
+    return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no

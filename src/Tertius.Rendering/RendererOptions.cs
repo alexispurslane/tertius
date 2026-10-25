@@ -41,6 +41,12 @@ public sealed class RendererOptions
     /// </summary>
     public int ImpostorTiles { get; set; } = ImpostorAtlas.DefaultTiles;
 
+    /// <summary>
+    /// How the renderer chooses the exposure: <see cref="AutoExposure"/> follows the surfaces in view over time, and
+    /// <see cref="FixedExposure"/> never moves, for tests. The default is <see cref="AutoExposure.Default"/>.
+    /// </summary>
+    public ExposureSetting Exposure { get; set; } = AutoExposure.Default;
+
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 
@@ -49,4 +55,10 @@ public sealed class RendererOptions
     /// <see cref="NoAmbientOcclusion"/>. The default is <see cref="GroundTruthOcclusion.Default"/>.
     /// </summary>
     public AmbientOcclusionSetting AmbientOcclusion { get; set; } = GroundTruthOcclusion.Default;
+
+    /// <summary>
+    /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
+    /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
+    /// </summary>
+    public BloomSetting Bloom { get; set; } = new Bloom(threshold: 1, knee: 0.5f, strength: 0.25f, levels: 6);
 }

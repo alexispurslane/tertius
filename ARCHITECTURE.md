@@ -829,27 +829,21 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
-1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading").
-2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
-3. The shadow maps of the sun.
-4. Impostor captures.
-5. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
-6. The lighting pass, into the HDR target.
-7. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
-8. Tone mapping: an exposure scale, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding.
-9. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
-10. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
+1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading") and seeds the exposure buffer with the setting's first exposure (see "Exposure").
+2. The exposure readback: a copy of the exposure buffer into the frame slot's readback buffer, before any pass reads the exposure. So the reading is the exposure that the passes of this frame use.
+3. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
+4. The shadow maps of the sun.
+5. Impostor captures.
+6. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
+7. The lighting pass, into the HDR target.
+8. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
+9. The exposure pass, under `AutoExposure`: the meter of the HDR image and the adapt step, which writes the exposure of the next frame (see "Exposure"). `FixedExposure` adds no exposure pass.
+10. Bloom, when `RendererOptions.Bloom` is on: the glow of the light brighter than white, in the bloom levels (see "Bloom" below). It comes after the last pass that writes the HDR image, so that every bright thing glows, the transparent ones and the puffs too. It comes after the exposure pass because both only read the HDR image, and this order changes the image's use once, from the meter's compute read to the fragment reads of the bloom and the tone map.
+11. Tone mapping: the glow added by its strength, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding. The shading passes pre-expose the light that they write, so the tone map multiplies by no exposure.
+12. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
+13. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
 
-### Tone mapping
-
-`ToneMapPass` (`Shaders/tonemap.frag`) reads the HDR target, scales it by `VulkanRenderer.Exposure`, and maps each pixel to the output's range [0, 1] with one of two curves, the `ToneCurve` enum in `RendererOptions.ToneCurve`. The setting carries no data per curve, because each curve keeps its published constants (User, 2026-10-25).
-
-| Curve | What it does |
-|---|---|
-| `AcesFitted` (default) | Stephen Hill's fit of the ACES RRT and ODT: into ACES AP1 with the RRT's saturation, a rational fit of the RRT and ODT, and back to linear sRGB. It mixes the channels. |
-| `Hable` | John Hable's filmic curve from Uncharted 2 (GDC 2010), per channel: f(x) = (x (A x + C B) + D E) / (x (A x + B) + D F) − E / F, and the color f(2 x) / f(W), with A = 0.15, B = 0.50, C = 0.10, D = 0.20, E = 0.02, F = 0.30 and the white point W = 11.2. His exposure bias of 2 is part of the curve, so an HDR value of W / 2 = 5.6 shows white. |
-
-Each curve clamps its result to [0, 1]. Then an sRGB output format encodes it in hardware, and a UNORM output in the shader. The pass gets the curve as a push constant, so both curves share one pipeline. The default stays ACES until the user picks one from captures of both. At 1920x1080 on the development Mac, the pass takes about 0.09 ms with either curve (`scripts/demo-exit.json`, 2026-10-25). `ToneCurveTests` compare emissive squares on the GPU with each published formula.
+One call of `Render` normally draws one frame. A headless renderer under `AutoExposure` draws two when the step since the frame before is long enough to need a metering draw first (see "Exposure"). The metering draw takes no capture, and the shown draw takes it.
 
 A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors use three hooks:
 
@@ -858,6 +852,50 @@ A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors
 - An `IInstanceProcessor`, which gets the culled instances before batching.
 
 A capture is a one-shot request. `IRenderer.CaptureNextFrame(sink)` takes an `ICaptureSink`, and any thread can call it. The next `Render` call that draws a frame waits for that frame on the GPU. Then it calls the sink's `Take` with a `CapturedImage`, on the thread that called `Render`, before it returns. The image holds width × height × 4 bytes, rows from the top, each pixel red, green, blue with sRGB encoding, then a fourth byte with no defined value. The bytes are in the renderer's readback buffer, so they are valid only during the call. A BGRA output, such as a window swapchain, swaps red and blue in place in that buffer first, so every sink gets one pixel order. A window whose swapchain images do not allow transfer reads, or whose surface offers none of the four 8-bit RGBA and BGRA formats, refuses a capture: `CaptureNextFrame` throws `NotSupportedException`. A frame that the output skips, such as one of a minimized window, keeps the request for the next frame that draws. The renderer knows nothing about files. `PngCaptureSink`, in Rendering, copies the pixels, makes every pixel opaque, and writes a PNG file before `Take` returns. `FfmpegVideoSink`, in Host, writes the pixels straight into the input of an ffmpeg process as the next frame of a video (see "Host and scripted runs").
+
+### Tone mapping
+
+`ToneMapPass` (`Shaders/tonemap.frag`) reads the HDR target, adds the glow of the bloom when it is on (`Shaders/tonemap_bloom.frag`, see "Bloom"), and maps each pixel to the output's range [0, 1] with one of two curves, the `ToneCurve` enum in `RendererOptions.ToneCurve`. The setting carries no data per curve, because each curve keeps its published constants (User, 2026-10-25). The HDR target holds pre-exposed light (see "Exposure"), so the pass applies no exposure of its own: the model is radiance, then the exposure, then the tone curve, then the sRGB encoding. (User)
+
+| Curve | What it does |
+|---|---|
+| `AcesFitted` (default) | Stephen Hill's fit of the ACES RRT and ODT: into ACES AP1 with the RRT's saturation, a rational fit of the RRT and ODT, and back to linear sRGB. It mixes the channels. |
+| `Hable` | John Hable's filmic curve from Uncharted 2 (GDC 2010), per channel: f(x) = (x (A x + C B) + D E) / (x (A x + B) + D F) − E / F, and the color f(2 x) / f(W), with A = 0.15, B = 0.50, C = 0.10, D = 0.20, E = 0.02, F = 0.30 and the white point W = 11.2. His exposure bias of 2 is part of the curve, so an HDR value of W / 2 = 5.6 shows white. |
+
+Each curve clamps its result to [0, 1]. Then an sRGB output format encodes it in hardware, and a UNORM output in the shader. The pass gets the curve as a push constant, so both curves share one pipeline. The default stays ACES until the user picks one from captures of both. At 1920x1080 on the development Mac, the pass takes about 0.09 ms with either curve (`scripts/demo-exit.json`, 2026-10-25). `ToneCurveTests` compare emissive squares on the GPU with each published formula.
+
+### Bloom
+
+Bloom adds a glow around light that is brighter than white after the exposure, so that the sun and other very bright things glow. It is the design that the user chose on 2026-10-25 (ticket `ter-63wr`): only bright light glows, through a soft threshold, and the glow is added on top of the image by a strength. Dark areas stay clean, which keeps the contrast. Nothing treats the sun as special: its disc keeps its true size, which the eclipse math uses, and its glow comes from its brightness alone.
+
+The setting is `RendererOptions.Bloom`, a built-in union `BloomSetting` of `NoBloom` and `Bloom(Threshold, Knee, Strength, Levels)`. The constructor of `Bloom` refuses a threshold below 0, a knee outside 0 to 1, a strength that is not above 0, a value that is not finite, and levels outside 1 to 14. Fourteen levels halve a 16,384 px side, the largest image, to 1 px. Past 1 px, each level would add only the image's mean glow everywhere, a flat veil. The renderer refuses a setting that holds no case.
+
+| Value | Default | Meaning |
+|---|---|---|
+| `Threshold` | 1 | The brightness after the exposure at the center of the soft knee. Above the knee's top, (1 + Knee) × Threshold, the glow is the light above the threshold. The brightness of a pixel is its largest channel. |
+| `Knee` | 0.5 | The half-width of the soft knee, as a fraction of the threshold. Light from (1 − Knee) × Threshold glows a little, and the glow grows smoothly to the light above the threshold at (1 + Knee) × Threshold, so nothing pops on or off. At the threshold itself, the glow is Threshold × Knee / 4. |
+| `Strength` | 0.25 | The glow's energy, as a fraction of the light above the threshold. The prefilter divides the light by the levels, so a change of the levels spreads the glow differently but keeps its energy. |
+| `Levels` | 6 | How many images the glow spreads through, each half the size of the one before. Each level doubles the glow's reach. |
+
+The default strength comes from captures of the sun in orbit and of the cabin lamps, with bloom off and on (2026-10-25). At 0.25, the sun shows a halo several times its disc. At 0.5, the halo is larger, but the cabin, which the fixed exposure of 1 shows brighter than white over large areas, washes out.
+
+`BloomPass` (`Passes/BloomPass.cs`) is one pass in the stage `Bloom` of the frame graph, between the transparent pass and the tone map, so the GPU timings report it as one line, `bloom`. It draws fullscreen triangles into the bloom levels, `RenderTargets.Glow`: HDR images, the first half the output's size, each next one half the one before, rounded up. They are made and remade with the other targets. Each draw reads one image through a glow source set (`RenderTargets.GlowSources`), with the shared linear clamp-to-edge sampler, `DescriptorLayouts.LinearClampSampler`, which the BRDF tables also use.
+
+1. The prefilter (`Shaders/bloom_prefilter.frag`) writes level 0. It applies the soft threshold to each HDR texel, before any averaging, so a star, a glint or the 6 px sun glows by its own brightness. The threshold is the quadratic soft knee of Unity's post-processing stack (PostProcessing v2, `QuadraticThreshold`): the texel's color times max(soft, b − T) / b, where b is the brightness of the pre-exposed HDR texel, T the threshold, w = T × Knee, and soft = clamp(b − T + w, 0, 2w)² / 4w. Then it filters the thresholded texels with Jimenez's 13-tap downsample (Call of Duty: Advanced Warfare, SIGGRAPH 2014). Each bilinear tap of that filter averages the four texels around a texel corner, so the filter is a fixed weight for each of the 6x6 texels under it, and the draw sums the 36 weighted texels itself. No image holds the thresholded light. A texel is first clamped to the largest half float, so an infinity from an overflowing blend, such as of many puffs, cannot spread NaN through the levels. On Metal the clamp also turns a NaN into 0, so a NaN stays in its own pixels (`BloomTests`). The prefilter then divides its result by the levels, so each level holds at most the largest half float over the levels, and their sum in level 0 stays finite.
+2. The downsamples (`bloom_down.frag`) write each next level from the one before, with the 13 bilinear taps.
+3. The upsamples (`bloom_up.frag`), from the smallest level up, add each level into the one before with a 3x3 tent filter of bilinear taps one texel apart, through an additive blend. So level 0 ends holding every level summed.
+
+The tone map reads level 0 with the same tent filter, multiplies it by Strength, adds it to the HDR value, and then applies the tone curve. The glow lives only in the bloom levels, so a later exposure meter measures the scene and not the glare.
+
+No weighting by brightness, such as Karis's average, dims the first downsample, so the smallest bright points glow faithfully. A glint that jumps between pixels can make its glow flicker, until anti-aliasing calms it. (User)
+
+The threshold applies to the light after the exposure. The shading passes write pre-exposed light into the HDR image (docs/plans/auto-exposure.md, "Pre-exposure"), so the prefilter compares the HDR value with the threshold directly, and the exposure enters the bloom nowhere.
+
+With `NoBloom`, the renderer makes no bloom levels, no glow source sets and no bloom pass, and the tone map runs `tonemap.frag`, which never reads the glow. So a frame without bloom is the frame from before bloom, pixel for pixel.
+
+Cost, at 1920x1080 on the development Mac (Apple M1 Max), over the 3,877 frames of `scripts/demo-exit.json`, two runs each with bloom on and off (2026-10-25): the bloom pass takes 0.46 ms (95th percentile 0.53 to 0.56 ms), and the tone map grows from 0.09 ms to 0.26 ms, for its nine taps of the glow. Two more passes differ by more than the spread between two runs of one build (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature"): the transparent pass by 0.05 ms (0.33 ms against 0.38 to 0.39 ms) and the outline pass by 0.01 ms. The timings do not show why. No pass's time holds the bloom's work, because each timestamp waits for all the commands before it. The lighting pass reports 0.03 ms more, which is less than the 0.04 ms between the two runs with bloom on, so the cost leaves it out. So bloom costs about 0.7 ms per frame. Its six levels take about 5.5 MB. A first prefilter that kept the 6x6 texels in arrays took 1.4 ms, and the sum of weighted texels replaced it.
+
+The tests run with bloom off unless they test it (`BloomTests`, `BloomSettingTests`). `BloomTests` draws emissive squares of an exact size in pixels in front of a black wall that no light reaches.
 
 ### GPU timings
 
@@ -870,6 +908,7 @@ A capture is a one-shot request. `IRenderer.CaptureNextFrame(sink)` takes an `IC
 - `TimestampClock` (on `VulkanDevice.Timestamps`) is the queue's clock: `timestampValidBits` of the graphics queue family and the device's `timestampPeriod`. A queue with 0 valid bits, or a period that is not above 0, cannot time the passes. Then `VulkanRenderer.TimesPasses` is false, the timer makes no pools and records no queries, and `GpuTimings` stays null. A difference of two ticks wraps at the valid bits, as the counter does.
 - The timings allocate nothing per frame. The timer reuses one array, so a later frame rewrites the passes of an earlier `RenderStats` in place, and a reader copies what it keeps.
 - On the development Mac (Apple M1 Max, MoltenVK 1.4.2), the graphics queue has 64 valid bits and a period of 1 ns, and the passes report real times.
+- The pass "exposure" appears in the timings only under `AutoExposure`. The exposure that the passes used is a second reading of the same kind: the copy of the exposure buffer is collected right after the slot's fence wait, with the timings and by the same rules, so `RenderStats.Exposure` is also a few frames late (see "Exposure").
 - A headless run writes the summary of the timings to `gpu-timings.json` in its output folder (see "Host and scripted runs"). `docs/plans/rendering-upgrade.md`, "Rules for every member", gives the commands to measure a feature's cost at 1080p.
 
 ### The render snapshot
@@ -1127,7 +1166,7 @@ ambient = c_diff · mix(ground, sky, s_n) + E(μ, r) · c(μ, r) · mix(ground, 
 
 where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum. (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
 
-`surfaceRadiance` in `lighting.glsl` returns min(ambient + sun + lights + emission, 65,504) per channel. The lighting pass, the transparent pass and the impostor capture write its result. 65,504 is the largest finite half float. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
+`surfaceRadiance` in `lighting.glsl` returns pre-exposed light: min(k · (ambient + sun + lights) + emission, 65,504) per channel, where k is the scale of the frame's exposure (see "Exposure"). The emission term is already pre-exposed by the caller. The lighting pass, the transparent pass and the impostor capture write its result, and the impostor capture passes a k of 1, so the atlas stores radiance (see "Exposure"). 65,504 is the largest finite half float, and `MaxRadiance` in `exposure.glsl` holds it. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
 
 The G-buffer has these targets:
 
@@ -1136,10 +1175,10 @@ The G-buffer has these targets:
 | Base color | RGBA8 sRGB | The base color b. Alpha 0 marks an unlit impostor pixel. |
 | Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
 | Specular | RGBA8 UNORM | R metallic, G roughness r₀, B reflectance, A the lobe's sky share s_l. An impostor billboard writes zero. |
-| Emissive | RGBA16F | Emitted light. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked color here. |
+| Emissive | RGBA16F | Pre-exposed emitted light: the emission times the frame's exposure scale, clamped to 65,504. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked radiance here, pre-exposed by the billboard. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
 
-The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, and binding 10 an immutable sampler with linear filtering, clamping and one level.
+The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, binding 10 an immutable sampler with linear filtering, clamping and one level, and binding 11 the exposure buffer (see "Exposure"). The `params.x` of the frame constants once held a copy of the exposure that no shader read. It is unused now, because a second store can disagree with the first.
 
 Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
@@ -1196,7 +1235,9 @@ A glow puff emits its color and takes no light. A lit puff is lit once, at its c
 
 L = color × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π))
 
-where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow, never become impostors, and get no bloom: glow puffs saturate through the ACES curve until the bloom ticket (`ter-63wr`).
+where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow and never become impostors. They glow through the bloom as any bright light does.
+
+The vertex shader pre-exposes the light of each puff, whether glow or lit, with `preExposed` (see "Exposure"). `preExposed` multiplies by the exposure scale and clamps each channel to 65,504, so one puff never stores infinity. The fragment shader multiplies the light by factors of 1 or less. The limit is additive blending: two puffs that each send 40,000 add past 65,504 in the blend unit, and the target can then store infinity. A pre-exposed 40,000 is thousands of times display white, so the limit needs a glow puff far brighter than anything else in view. The limit was there before pre-exposure, and the pre-exposure brings the values near display white. A scene that shows it needs a clamp in the tone map.
 
 `PuffRenderBenchmarks` measures one headless `Render` at 1280 × 720, as `OutlineRenderBenchmarks` does (ter-4zt6, Release, validation off), with the ground and the 100 boxes of that scene. Small puffs have radii from 0.2 m to 1 m, from 5 m to 100 m ahead. Puffs that fill the screen have a radius of 8 m, 3 m to 4 m ahead, so each one covers every pixel. The 1-minute load of the machine was 7.7 when the run began and 6.0 when it ended.
 
@@ -1219,6 +1260,219 @@ Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load o
 | 4,096 | 2.16 ms | 2.30 ms |
 
 With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
+
+### Exposure
+
+The design is `docs/plans/auto-exposure.md`, which holds the reasons and the derivations. The renderer has one model: radiance, then the exposure, then the tone curve, then the sRGB encoding. (User) The exposure in stops, S, is a number, and one stop doubles the image's brightness. The scale k = 2^S is the factor by which every pass multiplies radiance.
+
+#### The setting
+
+`RendererOptions.Exposure` is an `ExposureSetting`, a generated union with two cases. (User) It is fixed for the renderer's life. `CheckOptions` refuses a setting with a value outside the ranges below.
+
+| Case | Meaning |
+|---|---|
+| `FixedExposure(Stops)` | Every pass multiplies radiance by 2^Stops. The renderer adds no exposure pass, and nothing writes the exposure buffer after the seed. This is the zero case of the union, so the empty setting is `FixedExposure(0)`, which multiplies by exactly 1. Tests use it. |
+| `AutoExposure(MinStops, MaxStops, CompensationStops, DarkShare, BrightShare, IntoDarkSeconds, IntoLightSeconds)` | The exposure follows the surfaces in view. The default is `AutoExposure.Default`. |
+
+Every stops value (`Stops`, `MinStops`, `MaxStops` and `CompensationStops`) is finite and lies from −64 to 64. 2^64 is about 1.8 × 10^19, so a radiance below about 10^19 stays finite in a 32-bit float after the multiply, before the clamp. `MinStops` is not above `MaxStops`. The two trim shares and the two time constants are finite and 0 or more, and the two shares add up to less than 1, so the meter always keeps some pixels. The defaults of `AutoExposure.Default`:
+
+| Field | Default | Reason |
+|---|---|---|
+| `MinStops` | −8 | The brightest view of the demo, a wall 2 m from a lamp of intensity 100, wants about −5 stops. |
+| `MaxStops` | +8 | The darkest view, the orbit scene's night side, wants about +4 stops. In total darkness the exposure stops at +8, 256 times the scale of 0 stops. |
+| `CompensationStops` | 0 | The target is middle gray, as the user asked. |
+| `DarkShare`, `BrightShare` | 0.1 each | The deepest shadows show no detail at any exposure, and a lamp panel or a glint covers less than a tenth of the surface pixels in the demo's views. |
+| `IntoDarkSeconds` | 3 | The time constant while the exposure rises because the view got darker. (User) |
+| `IntoLightSeconds` | 1 | The time constant while the exposure falls because the view got brighter. (User) |
+
+The lights plan moves the scenes to SI units and sets the clamp's defaults again then (`docs/plans/local-light-shadows.md`).
+
+#### The exposure buffer
+
+`ExposureResources` owns the buffers. The exposure buffer is the one store of S: 16 bytes in device-local memory, whose first float, `exposureStops`, holds S in stops, not the scale. It is a storage buffer at binding 11 of every frame set, because the CPU never knows the value, so the frame constants, which the CPU writes for each slot, cannot carry it. There is one exposure buffer for the renderer, not one for each frame in flight, because each frame passes the exposure to the next.
+
+| When | Who | What |
+|---|---|---|
+| The first drawn frame, in the uploads | `RecordSeed` | `vkCmdFillBuffer` writes the first exposure: `FixedExposure.Stops`, or 0 stops clamped into the `AutoExposure` range. A first call whose output skips the frame seeds in the next call that draws. |
+| The start of every drawn frame, before the first pass | `RecordReadback` | Copies the exposure buffer into the readback buffer of the frame's slot. |
+| The G-buffer, lighting and transparent passes | `gbuffer.frag`, `impostor.frag`, `lighting.frag`, `transparent.frag` and `puff.vert` | Read `exposureStops`. |
+| The exposure pass, under `AutoExposure` | The adapt step | Reads `exposureStops`, the S that the frame used, and writes the S of the next frame. |
+| After the slot's fence wait, in `Render` | `Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. |
+
+The exposure buffer is on the GPU timeline only. `RenderStats.Exposure` is an `ExposureReading(Frame, Stops)`: the exposure that the passes of the last finished frame used, a few frames late, as the GPU timings are. It is for tests and debugging. The decision stays on the GPU. A frame that the output skips keeps the reading that its wait found.
+
+#### Pre-exposure
+
+Every pass that writes the HDR image or the emissive target writes pre-exposed light: min(k · L, 65,504) per color channel, where L is radiance. `exposure.glsl` holds `exposureScale()`, which is `exp2(exposureStops)`, one instruction per invocation, and `preExposed(radiance)`, which multiplies and clamps. 65,504 is the largest finite half float. The writers:
+
+| Pass | Writes | Pre-exposed by |
+|---|---|---|
+| G-buffer | The emissive target: the material's emission | `preExposed(s.emissive)` |
+| G-buffer, the billboards | The emissive target: the capture's radiance | `preExposed` in `impostor.frag` |
+| Impostor captures | The atlas | Nothing: a scale of 1, so the atlas stores radiance |
+| Lighting | The HDR image: the reflected light, the sky, and the emission | `surfaceRadiance(..., exposureScale())` for a lit pixel, `preExposed(starField(direction))` for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
+| Transparent, a mesh | The HDR image, alpha-blended | `surfaceRadiance(..., s.emissive * k, ..., k)` |
+| Transparent, a puff | The HDR image, added | `preExposed` of the puff's light, in `puff.vert` |
+| Bloom | The bloom levels, from the pre-exposed HDR image | Nothing: the threshold compares the pre-exposed value directly |
+| Tone map | The output | Nothing |
+| Overlay | The output, after the tone map | Nothing: display colors |
+| Shadow maps | Depth only | Nothing |
+
+#### The meter and the adapt step
+
+Under `AutoExposure`, the exposure pass (`ExposurePass`, the only pass of `FrameGraph.Stage.Exposure`) comes after the transparent pass and before bloom. It measures what the viewer sees: glass and puffs in front of surfaces count, and the bloom has not yet added glare. `ExposureMeter` is the C# copy of the math, and `ExposureShaderTests` pin the shaders to it.
+
+The pass records:
+
+1. A fill that clears the histogram, so after a frame the histogram holds that frame's counts.
+2. The meter, `exposure_meter.comp`, in workgroups of 16 by 16 pixels over the whole image. It reads every pixel at full resolution. For each surface pixel it adds 1 to a bin of a histogram of the pixel's pre-exposed luminance. A surface pixel is a pixel whose G-buffer distance is above 0. A pixel at distance 0 is sky, and glass or a puff in front of the sky has distance 0 too, so no sky pixel counts at any exposure.
+3. The adapt step, `exposure_adapt.comp`, one workgroup of 256 invocations. It reads the histogram, computes the target and moves S toward it.
+
+The luminance is Y = 0.2126 R + 0.7152 G + 0.0722 B of the linear Rec. 709 values of the pre-exposed light. The histogram has 256 bins of an eighth of a stop, from 2^−16 to 2^16 of pre-exposed luminance. The code of `meter.glsl` and `ExposureMeter` is:
+
+```glsl
+uint binOf(float y)
+{
+    float stops = log2(max(y, exp2(LowestStops)));
+    return uint(clamp(floor((stops - LowestStops) * BinsPerStop), 0.0, float(HistogramBins - 1u)));
+}
+```
+
+where
+
+- `y` = the pre-exposed luminance of one pixel.
+- `LowestStops` = −16, the log2 of the lowest luminance that has a bin of its own.
+- `BinsPerStop` = 8.
+- `HistogramBins` = 256.
+
+A luminance at or below 2^−16, black included, falls in the first bin. So a fully dark view drives the exposure up to `MaxStops`. A pre-exposed value never reaches 2^16, because the clamp keeps it at or below 65,504.
+
+The trim. With N the number of surface pixels, the adapt step keeps the pixels from `DarkShare` · N to (1 − `BrightShare`) · N of the sorted order. A bin that straddles an edge counts only its share inside. The trimmed mean M is the mean of the bin centers, in stops, weighted by those shares. So a lamp or a glint alone does not set the exposure.
+
+The target. The frame was shaded with S, so its pre-exposed log luminance is the radiance's plus S. The adapt step divides S out, then maps the mean to middle gray, 0.18, with the compensation C, inside the clamp:
+
+```glsl
+target = clamp(log2(MiddleGray) - (mean - used) + adapt.compensationStops, adapt.minStops, adapt.maxStops);
+```
+
+where
+
+- `mean` = M, the trimmed mean in stops of pre-exposed luminance.
+- `used` = S, the `exposureStops` that the frame used. It is read before it is written, and nothing writes the buffer between the frame's start and the adapt step.
+- `MiddleGray` = 0.18.
+- `adapt.compensationStops` = C, the `CompensationStops` of the setting.
+- `adapt.minStops`, `adapt.maxStops` = the clamp of the setting.
+
+At a steady view, M − S is the same for every S, so the target does not depend on the exposure that the frame used. That is why the meter can read pre-exposed values. The compensation applies before the clamp, so S never leaves the clamp, and the lights plan's `E_cut` can take the highest exposure that any frame can use. When no pixel counts, the target is S, so a view with no surface keeps its exposure.
+
+The approach. With Δt the step in seconds (see "The clock"), and τ the time constant of the direction:
+
+S' = S + (target − S) · (1 − exp(−Δt / τ))
+
+τ is `IntoDarkSeconds` when the target is above S, because the view got darker and the exposure rises, and `IntoLightSeconds` otherwise. Two steps of Δt/2 toward one target give the same S' as one step of Δt, so the curve of S over time does not depend on the frame rate. The CPU computes the two factors 1 − exp(−Δt / τ) in doubles (`ExposureMeter.ApproachFactor`) and pushes them with the setting's other fields as `ExposureAdaptPushConstants`, 32 bytes. So the GPU computes no exponential. A step of 0 gives a factor of 0, and an endless step or a time constant of 0 gives 1.
+
+The first frame. The seed is the first exposure. The clock's first step is endless, so the first frame's adapt step reaches its target at once. A window's first frame is still shaded with the seed. A headless first frame is a metering draw (see below), so it already shows its target.
+
+Determinism. The integer atomic adds commute, so the histogram does not depend on the order of the workgroups. The scan and the sum of the adapt step run in one workgroup over a fixed tree, and the CPU computes the factors. So the same frames give the same bits in every run on one GPU. Counts are exact as floats up to 2^24 pixels, so up to an 8K image.
+
+#### The clock
+
+The step Δt is the time between two drawn frames. `FrameClock` is a union of two kinds, and the renderer picks the kind from its output:
+
+| Kind | Made by | Reads |
+|---|---|---|
+| `WallClock` | `CreateForWindow` | `Stopwatch.GetTimestamp()` at each drawn frame |
+| `FilmClock` | `CreateOffscreen`, which `CreateHeadless` calls | `RenderSnapshot.Time` |
+
+So a headless film gives the same images every run. (User) The host needs to know nothing about exposure, and `IRenderer.Render` keeps its signature. The step is the time now minus the time of the last drawn frame. Before the first drawn frame it is endless. It is 0 when the time did not move forward, such as two captures at one tick or a NaN. A frame that the output skips records nothing, so the next drawn frame steps from the last one that drew. The step reaches the exposure pass as `FrameContext.ExposureStep`.
+
+#### The metering draw
+
+A frame is shaded with the exposure that the frame before it decided. In a window or a film, the step is a frame time, and a lag of one frame does not show. A headless still can come after a long step, such as a capture after a camera step and a run of seconds. Its own view's exposure would show only in the next frame, which a still never has. So a headless renderer under `AutoExposure` draws such a frame twice. (User)
+
+```csharp
+bool atTheTickBefore = step == 0;
+bool metering = exposureSetting is AutoExposure && headless && (atTheTickBefore || step >= MeteringStepSeconds);
+```
+
+where
+
+- `step` = the seconds from the last drawn frame to this frame, by the clock above.
+- `atTheTickBefore` = true when this frame lies at the tick of the frame before it, such as a still right after a camera cut.
+- `MeteringStepSeconds` = 0.09, in seconds.
+- `headless` = true for a renderer made with `CreateHeadless` or `CreateOffscreen`.
+
+The first draw, the metering draw, takes no capture. Its step is the whole step, or endless for a frame at the tick of the frame before. Its adapt step moves S toward the target of its own view. The second draw, the shown draw, has a step of 0, so it uses that S and keeps it. Each draw takes its own frame slot and frame number, and `RenderStats` describes the shown draw. The metering draw runs the batcher, the impostor manager and every pass, so its impostor captures count, and the shown draw finds them made. A window never draws twice.
+
+0.09 s is 5.4 ticks at 60 Hz. It is longer than the longest step of the demo's real-time films (4 ticks), and shorter than the shortest step of its time-lapse films (6 ticks) and than the shortest run before a capture (30 ticks). It lies between two whole ticks, so no step of whole ticks lies on it. A time-lapse film draws twice at each frame, so each frame adapts toward its own view. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the metering draw, so the shown draw can still be short of the target, and later frames finish the approach.
+
+#### Compute pipelines and sets
+
+The exposure pass brought the first compute pipelines. `ComputePipelineDesc` is the analogue of `GraphicsPipelineDesc`: a name, a shader and a layout. The build compiles `Shaders/*.comp` with glslc beside the vertex and fragment shaders, and `ShaderLibrary.Get` loads them. A compute pass is a `RenderPass`: it binds its pipelines and sets at the compute bind point and records `vkCmdDispatch`. The GPU timer times it with no work of its own. The device must offer a queue family with both graphics and compute, because one command buffer on one queue holds both kinds of work. `VulkanDevice` chooses such a family, and refuses a device with none.
+
+Both pipelines use one layout, `DescriptorLayouts.ExposureLayout`, which holds two sets and a push constant range for the compute stage:
+
+| Set | Binding | Holds | Owner |
+|---|---|---|---|
+| 0, the meter set | 0 | The HDR image, sampled | `RenderTargets.MeterSet`, rewritten at creation and on every resize |
+| 0, the meter set | 1 | The G-buffer distance, sampled | The same |
+| 1, the exposure set | 0 | The histogram, a storage buffer | `ExposureResources.Set`, written once |
+| 1, the exposure set | 1 | The exposure buffer, a storage buffer | The same |
+
+#### Synchronization
+
+Every use of the buffers goes through `BarrierBatch`, with three new uses: `ImageUse.SampledCompute`, `BufferUse.ComputeRead` and `BufferUse.ComputeWrite`. `ComputeWrite` carries the read bit too, because the meter's atomic adds and the adapt step both read what they write. One queue runs the submissions in order, and the first scope of a barrier covers every command earlier in submission order, also in earlier frames. So the uses of the exposure buffer form one chain in submission order, for any number of frames in flight, and the CPU never maps the buffer. Each barrier, with its reason:
+
+| Resource | From | To | Reason |
+|---|---|---|---|
+| Exposure buffer | The seed (transfer write) | The readback copy (transfer read) | The copy must see the seed. |
+| Exposure buffer | The adapt step of frame n (compute write) | The readback copy of frame n+1 (transfer read) | Frame n+1 uses what frame n decided. |
+| Exposure buffer | The readback copy (transfer read) | The G-buffer pass (vertex and fragment read) | A chain that carries the write's visibility to the shading stages. |
+| Exposure buffer | The shading reads | The adapt step (compute read and write) | The adapt step must not change S while a pass of the same frame still reads it. |
+| Readback buffer of the slot | The readback copy (transfer write) | The host read | The CPU reads the copy after the slot's fence. |
+| Histogram | The adapt step of frame n (compute read) | The fill of frame n+1 (transfer write) | The fill must not clear counts that the adapt step still reads. |
+| Histogram | The fill (transfer write) | The meter (compute read and write) | The atomic adds start from zeros. |
+| Histogram | The meter (compute write) | The adapt step (compute read) | The adapt step reads every count. |
+| HDR image | The transparent pass (color attachment write) | The meter (`SampledCompute`) | The meter reads the finished image. |
+| G-buffer distance | The lighting and transparent passes (fragment read) | The meter (`SampledCompute`) | A chain to the compute stage. |
+| HDR image | The meter (`SampledCompute`) | The bloom and tone map (fragment read) | A chain back to the fragment stage. |
+
+The readback buffers need no barrier between frames. Each belongs to one slot: the slot's frame writes it, and the CPU reads it after the slot's fence, before the slot records again.
+
+#### The impostor atlas
+
+A capture is baked once and drawn in later frames, while the exposure moves. So the atlas stores radiance, clamped to 65,504, and the billboard multiplies by the scale of the frame that draws it. The image of a capture follows the exposure with no recapture and no record of the exposure at the capture. A pre-exposed atlas with the capture's exposure for each tile would keep the values near display range, but it costs a buffer, a copy at each capture and a binding. The half float's range makes it unnecessary. At the top, 65,504 is 150 times a sunlit white surface in SI units. At the bottom, a half float keeps 11 bits down to 6.1 × 10^−5, which shows at about 7 of 255 at +8 stops. If a later ticket raises `MaxStops` above about +12, it checks the second point again.
+
+#### Memory and cost
+
+| Item | Size |
+|---|---|
+| The exposure buffer | 16 B |
+| The histogram | 1 KiB |
+| The readback buffers | 16 B for each frame in flight |
+| Two descriptor sets and two compute pipelines | Small |
+
+The HDR image, the G-buffer and the atlas keep their formats and sizes.
+
+The GPU timers (see "GPU timings") measured the cost in Release, at 1920 × 1080, on the Apple M1 Max, with `scripts/demo-exit.json` (3,877 frames for each pass). "Base" is main before the feature, "branch" is the branch. Each build ran twice, interleaved, one run at a time. The 1-minute load of the machine before the four runs was 5.9, 6.9, 8.7 and 7.1. The base run with the load of 8.7 agrees with the first base run to 0.013 ms on every mean, so the numbers are sound. The table gives the mean of the two runs of a build:
+
+| Pass | Mean base | Mean branch | Change of the mean |
+|---|---|---|---|
+| Exposure | none | 0.311 ms | +0.311 ms |
+| Shadow maps | 0.198 ms | 0.285 ms | +0.087 ms |
+| G-buffer | 0.886 ms | 1.005 ms | +0.120 ms, about 2.5 times the spread of the branch runs |
+| Lighting | 1.854 ms | 1.611 ms | −0.242 ms |
+| Transparent | 0.387 ms | 0.332 ms | −0.054 ms |
+| Bloom | 0.459 ms | 0.478 ms | +0.018 ms |
+| Tone map | 0.267 ms | 0.289 ms | +0.021 ms |
+| Outlines | 0.038 ms | 0.024 ms | −0.013 ms |
+| Capture | 0.017 ms | 0.032 ms | +0.015 ms |
+
+- The exposure pass costs a mean of 0.311 ms, a median of 0.320 ms and a p95 of 0.422 ms. That is above the 0.2 ms line of the design doc, which says that a meter on every second pixel in each axis then becomes a ticket.
+- The sum of the pass means is about 4.12 ms on the base and about 4.14 ms on the branch. So the whole feature costs about 0 ms within the noise. The lighting pass (−0.24 ms) and the transparent pass (−0.05 ms) got cheaper by about as much as the exposure pass costs. Why they did, and why the shadow maps and the G-buffer got dearer, is not explained. The timestamps may shift work between neighbors, because the exposure pass sits after the transparent pass.
+- The p95 of the G-buffer pass doubles in both branch runs, from 1.14 ms to about 2.24 ms, more than the spread. It is an unexplained cost of the worst frames.
+- The tone map costs 0.02 ms more, where it was expected to cost a multiply less. The change is within what the other passes show.
+- The cost of the metering draws, one more frame of GPU time for each still of a headless run and for each frame of a time-lapse film, was not measured.
 
 ### Shadows
 
@@ -1246,6 +1500,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 - Each rendered frame makes the 4 captures of highest priority. They come from two binary heaps, one of recaptures and one of first captures, merged by priority. A recapture of an impostor that the last rendered frame drew has the priority error × h. That impostor draws its stale capture until the recapture. Any other capture has the priority π × h, the error of the worst view. Its object draws as geometry until the capture.
 - A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
 - A capture bakes the sun, the ambient light with its specular part, far shadows and point and spot lights, but not shadow-map shadows.
+- The atlas stores radiance, clamped to 65,504, not pre-exposed light: a capture passes a scale of 1 to `surfaceRadiance`. The billboard (`impostor.frag`) pre-exposes the atlas's color with the exposure of the frame that draws it, when it writes the emissive target. So a capture follows the exposure with no recapture, and the impostor's signature of the light holds no exposure (see "Exposure").
 - A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
 - The renderer keys impostor state on the entity index, the render part, the mesh and the resolved material slot (`ImpostorKey`). So a part that changes its mesh or its material gets a new key, and it never draws an old capture.
 
@@ -1262,7 +1517,9 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `ShadowMapSize` | 2048 | The side of each of the four shadow cascades, in texels. The maps take size² × 16 bytes, 64 MB at the default. |
 | `Impostors` | On | Draws small objects as impostors. |
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
+| `Exposure` | `AutoExposure.Default` | How the renderer chooses the exposure: `AutoExposure(...)` follows the surfaces in view over time, and `FixedExposure(Stops)` never moves (see "Exposure"). It is fixed for the renderer's life, so the lights plan's one constant `E_cut` stays one constant. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `FixedExposure(0)`, as they turn impostors off, so that a pixel does not depend on the frames before it. A deterministic switch that overrode the setting would be a second store of it. |
 | `ToneCurve` | `AcesFitted` | The curve of the tone map pass: ACES fitted or Hable's (see "Tone mapping"). |
+| `Bloom` | On | The glow around light brighter than white after the exposure: `Bloom(Threshold, Knee, Strength, Levels)`, by default a threshold of 1, a knee of 0.5, a strength of 0.25 and 6 levels, or `NoBloom` (see "Bloom"). It costs about 0.7 ms per frame at 1080p and 5.5 MB. |
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
 
@@ -1276,12 +1533,14 @@ A switch that makes rendering deterministic for snapshot tests is planned, not b
 
 A snapshot test renders a scene headlessly and compares the image with its approved reference image through FLIP, a perceptual image difference from NVIDIA (Andersson et al. 2020, in its form for display-encoded images). FLIP gives each pixel a value from 0 to 1: how much the pixel seems to change when a viewer flips between the two images. It blurs both images as the eye does at a given viewing distance, measures the color difference of the blurred images in CIELAB, and makes that difference count more where an edge or a point changed. The tests use the paper's default viewer, who sees 67 pixels in each degree of view. `Flip` in `tests/Tertius.Rendering.Tests` is a C# port, written from the paper, so the project needs no native build and no package for it. It uses no code from NVIDIA's reference implementation. Tests on hand-made images pin its values, each derived by hand from the paper: black against white, green against blue, two close grays, a checker of one-pixel squares at two viewing distances, a step edge and a line.
 
-`ReferenceImages.Verify` renders a scene with the headless capture and checks the image. The reference image of a test is `tests/Tertius.Rendering.Tests/ReferenceImages/<name>.png`.
+`ReferenceImages.Verify` renders a scene with the headless capture and checks the image. The scenes render with bloom off, because the test renderer `Gpu.Headless` turns it off, so no reference image depends on the glow. The reference image of a test is `tests/Tertius.Rendering.Tests/ReferenceImages/<name>.png`.
 
 - The check fails when any pixel's FLIP value is above the tolerance of the test. The default tolerance is 0.1, and a test can name its own. In a flat area, 0.1 is the value of a CIELAB lightness step of about 2.2, about one just noticeable difference. So a change of one level in every pixel passes, and one changed pixel that anyone can see fails. A rule on the mean FLIP value would let a small object disappear without a failure, because the object hardly moves the mean.
 - When the check fails, it writes the actual image as `<name>.actual.png` and the FLIP heat map as `<name>.flip.png`, beside the reference. Git ignores both files, and a passing check removes them. The heat map is black where nothing changed, and it grows brighter, through purple, red and orange to pale yellow, as the change grows.
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
+
+The test renderers set `FixedExposure(0)` (see "Switches"), so no reference image depends on the frames before it, and 0 stops multiply radiance by exactly 1. A scene that tests another exposure sets its own `FixedExposure`.
 
 The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. Four reference images of glow puffs come from `PuffRenderTests`, and one of lit puffs from `LitPuffRenderTests` (ter-4zt6). Each test also renders its scene without its puffs and measures what the puffs add.
 
@@ -1309,7 +1568,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 
 | Run | Command line | What it does |
 |---|---|---|
-| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
+| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--bloom on\|off]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
 | Script in the window | `--script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]` | The same script in a window. The simulation thread paces the ticks by the wall clock, times the speed factor. |
 | Free play | `--scene <name> [--speed <factor>] [--record <file>]` | The scene in a window, until the window closes. With `--record`, the host writes the session to the file as a script that replays it. |
 
@@ -1321,7 +1580,8 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A `capture` step renders the current state at the size of the window of the script, and gives the image to the run's capture target by the name of the step.
 - `--size <width>x<height>`, such as `--size 1920x1080`, replaces the size of the script's window in either run of a script, so any script can render at the size of a measurement. Each side is a whole number from 1 to 16,384. The command refuses `--size` in free play.
 - `--tone-curve aces|hable` sets `RendererOptions.ToneCurve` of the headless renderer, so a headless run can capture either curve. Without it the renderer keeps its default. The command refuses it without `--headless`.
-- A headless run whose renderer times its passes (see "GPU timings") collects `RenderStats.GpuTimings` after each capture, once per finished frame, and writes `gpu-timings.json` into the output folder after its last step (`ScriptCommand.WriteGpuTimings`). The file names the device and the size of the frames, and gives for each pass the frames that timed it and the mean, median and 95th percentile (by nearest rank) of its times in milliseconds. The command then writes the file's path and one line for each pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`. A headless run never turns on the validation layers, so its times are those of the renderer alone.
+- `--bloom off` sets `RendererOptions.Bloom` of the headless renderer to `NoBloom`, so a headless run can capture a frame without the glow. `--bloom on`, like no option, keeps the renderer's default bloom. The command refuses it without `--headless`.
+- A headless run whose renderer times its passes (see "GPU timings") collects `RenderStats.GpuTimings` after each capture, once per finished frame, and writes `gpu-timings.json` into the output folder after its last step (`ScriptCommand.WriteGpuTimings`). The file names the device and the size of the frames, and gives for each pass the frames that timed it and the mean, median and 95th percentile (by nearest rank) of its times in milliseconds. The command then writes the file's path and one line for each pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`. A headless run never turns on the validation layers, so its times are those of the renderer alone. A headless renderer made with the default options runs `AutoExposure`, so the file also holds the pass "exposure", and a still after a long step draws twice (see "Exposure").
 - A run has one capture target for its whole life. `CaptureTarget` is a built-in C# 15 union with two cases, built as `ScriptStep` is, and the headless playback refuses its default value. `PngFolder` writes the capture named `name` into `<folder>/<name>.png` (`PngFolder.PathOf`). `VideoFile` makes each capture the next frame of one video, in the order taken, and drops the names. The playback holds the target, and the runner gives it only the name of each capture (`IPlayback.Capture(world, name)`). So the runner builds no paths, and `RunResult.Captures` lists the names, in the order taken. A capture needs a live camera and a playback before the first tick. It needs no check for its folder, because a `PngFolder` cannot exist without one. The command writes the path of each dump, then the path of each PNG file, or the path of the video.
 - A `film` step, `{ "do": "film", "name": "climb", "frames": 18000, "every": 2 }`, captures every Nth tick. It is defined as its expansion: `frames` repetitions of a `run` step of `every` ticks followed by a `capture`. So it runs frames × every ticks, its first capture comes after its first `every` ticks, and two films in a row with the same `every` give evenly spaced frames. Frame k, counted from 0, is the capture `<name>-<k>` with k in six digits (`FilmStep.FrameName`), such as `climb-000000`, which fits ffmpeg's `%06d` pattern. The runner's arm for it calls the same code as the arms of `run` and `capture`, so its images are byte-identical to those of its expansion.
 - `Script.CheckSteps` refuses `frames` outside 1 to 1,000,000, `every` below 1, and a name that is not a scene id or that has more than 57 characters, so that every frame name is a scene id of at most 64 characters. The frame names count as capture names. A frame name is its film's name with seven characters more, so two films clash only when they have one name, and a capture clashes with a film when its name is the film's name, a dash and six digits below the film's `frames` (`FilmStep.HasFrameNamed`). The check makes no list of frame names, and its message names both steps. A film has the checks of a capture before the first tick: a live camera and a renderer. If the camera dies during a film, the next frame fails with a message that names the step, the frame and the tick, and the frames before it stay on disk.
@@ -1333,7 +1593,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A `post` step reads its payload into the fields of the payload type by their camelCase names. `InputEvent` is the exception, because it is a union: it has its own JSON form, in scripts, in recordings and in dumps. A key or a mouse button is `{"kind":"keyDown","code":87}`, and a move or a scroll is `{"kind":"mouseMove","delta":[3,-4]}`. The kinds are `keyDown`, `keyUp`, `mouseDown`, `mouseUp`, `mouseMove` and `scroll`. Reading refuses a kind that is missing or unknown, a member that its kind needs and lacks, and a member that its kind does not have (`delta` on a key, `code` on a move). The one exception is that member with its zero value (`"delta":[0, 0]` on a key, `"code":0` on a move), which reading ignores: the recorder wrote it into every input post before `InputEvent` was a union, so recordings from then still play. A delta reads and writes in the form of every other vector of a script or a dump, because the converter of `InputEvent` and the vector converters of the host call the same methods (`JsonVectors`).
 - During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard.
 - In free play, the main thread decides where each input event goes (`InputRouter`). Esc closes the window, F1 switches the debug fly camera on and off, and V makes the next view of the scene the camera. The game sees none of these keys. The window host queues every other event. The simulation thread posts the queued events to the `input` topic before its next tick. So each event joins a known tick, and a recording replays it exactly.
-- The command returns an exit code (`ScriptCommand`). 0 is success, 1 a wrong command line, 2 a file problem, 3 a script problem and 4 a bug. 5 (`ToolError`) means that a tool that the run needs cannot start: the renderer, the window or ffmpeg. The command refuses, with code 1, `--size` without `--script` or with a side outside 1 to 16,384, `--video` without `--headless`, `--fps` without `--video` or outside 1 to 240, a `--video` file whose name does not end in `.mkv`, `--video` for a script with no capture or film step, and `--tone-curve` without `--headless` or with a name other than `aces` or `hable`.
+- The command returns an exit code (`ScriptCommand`). 0 is success, 1 a wrong command line, 2 a file problem, 3 a script problem and 4 a bug. 5 (`ToolError`) means that a tool that the run needs cannot start: the renderer, the window or ffmpeg. The command refuses, with code 1, `--size` without `--script` or with a side outside 1 to 16,384, `--video` without `--headless`, `--fps` without `--video` or outside 1 to 240, a `--video` file whose name does not end in `.mkv`, `--video` for a script with no capture or film step, `--tone-curve` without `--headless` or with a name other than `aces` or `hable`, and `--bloom` without `--headless` or with a value other than `on` or `off`.
 
 ## Rules for references
 

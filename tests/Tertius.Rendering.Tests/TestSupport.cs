@@ -41,7 +41,8 @@ internal static class Gpu
     /// <summary>
     /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow
     /// tests see every object as geometry; the impostor tests turn them on with a small atlas. Ambient occlusion is off
-    /// unless asked for, because the zero case of the setting is off.
+    /// unless asked for, because the zero case of the setting is off. The exposure is fixed, at 0 stops unless asked for,
+    /// so that a pixel does not depend on the frames before it.
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -49,7 +50,8 @@ internal static class Gpu
         int framesInFlight = 2,
         bool impostors = false,
         int impostorTiles = 16,
-        AmbientOcclusionSetting ambientOcclusion = default
+        AmbientOcclusionSetting ambientOcclusion = default,
+        ExposureSetting exposure = default
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -61,6 +63,8 @@ internal static class Gpu
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
                 AmbientOcclusion = ambientOcclusion,
+                Exposure = exposure,
+                Bloom = new NoBloom(),
             }
         );
 

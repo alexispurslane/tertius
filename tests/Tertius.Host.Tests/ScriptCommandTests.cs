@@ -284,6 +284,10 @@ public sealed class ScriptCommandTests : IDisposable
         "hable"
     )]
     [InlineData("--tone-curve applies to a headless run", "--scene", "no-such-scene", "--tone-curve", "hable")]
+    [InlineData("--bloom needs a value", "--script", "script.json", "--headless", "--out", "out", "--bloom")]
+    [InlineData("--bloom applies to a headless run", "--script", "script.json", "--out", "out", "--bloom", "off")]
+    [InlineData("--bloom applies to a headless run", "--scene", "no-such-scene", "--bloom", "off")]
+    [InlineData("--bloom needs on or off", "--script", "script.json", "--headless", "--out", "out", "--bloom", "dim")]
     [InlineData(
         "--tone-curve needs aces or hable",
         "--script",
