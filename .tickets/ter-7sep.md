@@ -1,6 +1,6 @@
 ---
 id: ter-7sep
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-25T17:00:53Z
