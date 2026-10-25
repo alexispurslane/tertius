@@ -18,6 +18,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Content packages and mods](content-packages.md) | `ter-ynqi` |
 | [Design review](design-review.md) | `ter-tanj` |
 | [Editor](editor.md) | `ter-631h` |
+| [Scene environment map](environment-map.md) | `ter-nl5u` |
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |

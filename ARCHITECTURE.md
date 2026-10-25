@@ -941,6 +941,7 @@ The test fixtures turn SMAA off, because the deterministic switch of the snapsho
 - `TimestampClock` (on `VulkanDevice.Timestamps`) is the queue's clock: `timestampValidBits` of the graphics queue family and the device's `timestampPeriod`. A queue with 0 valid bits, or a period that is not above 0, cannot time the passes. Then `VulkanRenderer.TimesPasses` is false, the timer makes no pools and records no queries, and `GpuTimings` stays null. A difference of two ticks wraps at the valid bits, as the counter does.
 - The timings allocate nothing per frame. The timer reuses one array, so a later frame rewrites the passes of an earlier `RenderStats` in place, and a reader copies what it keeps.
 - On the development Mac (Apple M1 Max, MoltenVK 1.4.2), the graphics queue has 64 valid bits and a period of 1 ns, and the passes report real times.
+- The passes "environment faces" and "environment prefilter" appear in the timings only under `SceneEnvironmentMap` (see "The environment map").
 - The pass "exposure" appears in the timings only under `AutoExposure`. The exposure that the passes used is a second reading of the same kind: the copy of the exposure buffer is collected right after the slot's fence wait, with the timings and by the same rules, so `RenderStats.Exposure` is also a few frames late (see "Exposure").
 - A headless run writes the summary of the timings to `gpu-timings.json` in its output folder (see "Host and scripted runs"). `docs/plans/rendering-upgrade.md`, "Rules for every member", gives the commands to measure a feature's cost at 1080p.
 
@@ -1193,11 +1194,13 @@ The renderer uses two tables, computed by the C# copy of the BRDF (`BrdfTables`)
 
 A table has the texel i hold the value i / (size − 1) on each axis, so the ends are exact. The shaders read a table at the coordinate ((size − 1) · x + 0.5) / size, `BrdfTables.TexelCoordinate` in C# and `tableCoordinate` in `brdf.glsl`, with linear filtering and clamping at the edge. `BrdfTables.Compute` integrates the GGX lobe with `SamplesPerTexel` = 16,384 Hammersley samples per texel, in doubles. Each texel sums its samples in the order of the sample index and writes only its own slot, so the tables are the same bits on every run, and the rows run in parallel. `BrdfTables.Shared` computes them once per process, on first use, because a test process makes many renderers.
 
+Every shading pass takes its ambient light from one place, `ambientTerms` in `lighting.glsl`, an ambient source that returns the diffuse term T_d and the specular term T_s as `AmbientTerms`: `environmentAmbient` while the environment map is on (see "The environment map" below), and `hemisphereAmbient` while it is off. The shader constant `environmentMapOn` picks the source, fixed when the renderer makes its pipelines. The rest of this section, down to the G-buffer, describes the hemisphere, the light of a renderer whose map is off.
+
 The hemisphere ambient light has a specular part:
 
 ambient = c_diff · mix(ground, sky, s_n) + E(μ, r) · c(μ, r) · mix(ground, sky, s_l)
 
-where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum, in two steps: an ambient source returns the two terms as `AmbientTerms` (`hemisphereAmbient` today), and `occludedAmbient` scales the diffuse term by the occlusion V and the specular term by the specular occlusion V_s (see "Ambient occlusion"). (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
+where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum, in two steps: an ambient source returns the two terms as `AmbientTerms` (`hemisphereAmbient` with the map off), and `occludedAmbient` scales the diffuse term by the occlusion V and the specular term by the specular occlusion V_s (see "Ambient occlusion"). (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. With the map on, the G-buffer pass writes 0 into both alphas, and the transparent pass and the impostor capture skip both shares, because only the hemisphere reads them. Later screen-space reflections fade their off-screen rays to the specular term of `ambientTerms`: the map and its reflected stars with the map on, this specular part with it off.
 
 `surfaceRadiance` in `lighting.glsl` returns pre-exposed light: min(k · (ambient + sun + lights) + emission, 65,504) per channel, where k is the scale of the frame's exposure (see "Exposure"). The emission term is already pre-exposed by the caller. The lighting pass and the impostor capture write its result, and the impostor capture passes a k of 1, so the atlas stores radiance (see "Exposure"). The transparent pass writes the same pre-exposed sum with its diffuse part scaled, through `lobesRadiance`, which takes the lobes as an argument, and caps it lower, so that the blend stays finite (see "Transparent objects" below). 65,504 is the largest finite half float, and `MaxRadiance` in `exposure.glsl` holds it. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
 
@@ -1207,13 +1210,13 @@ The G-buffer has these targets:
 |---|---|---|
 | Base color | RGBA8 sRGB | The base color b. Alpha 0 marks an unlit impostor pixel. |
 | Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
-| Specular | RGBA8 UNORM | R metallic, G roughness r₀, B reflectance, A the lobe's sky share s_l. An impostor billboard writes zero. |
-| Emissive | RGBA16F | Pre-exposed emitted light: the emission times the frame's exposure scale, clamped to 65,504. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked radiance here, pre-exposed by the billboard. |
+| Specular | RGBA8 UNORM | R metallic, G roughness r₀, B reflectance, A the lobe's sky share s_l, 0 with the environment map on. An impostor billboard writes zero. |
+| Emissive | RGBA16F | Pre-exposed emitted light: the emission times the frame's exposure scale, clamped to 65,504. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky, 0 with the environment map on. Impostors write their baked radiance here, pre-exposed by the billboard. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
 
 The G-buffer set has a binding 7 beside these five targets: the occlusion target, R8, the share V of the ambient hemisphere that nothing hides. The occlusion passes write it (cleared to 1 under `NoAmbientOcclusion`), and the lighting pass reads it.
 
-The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, binding 10 an immutable sampler with linear filtering, clamping and one level, and binding 11 the exposure buffer (see "Exposure"). The `params.x` of the frame constants once held a copy of the exposure that no shader read. It is unused now, because a second store can disagree with the first.
+The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, binding 10 an immutable sampler with linear filtering, clamping and one level, and binding 11 the exposure buffer (see "Exposure"). Bindings 12 to 14 belong to the environment map: 12 the specular map, 13 its immutable sampler `DescriptorLayouts.EnvironmentSampler`, and 14 the irradiance buffer. Bindings 12 and 14 are partially bound and stay empty with the map off (see "The environment map"). The `params.x` of the frame constants once held a copy of the exposure that no shader read. It is unused now, because a second store can disagree with the first.
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
@@ -1221,9 +1224,9 @@ An entity carries its light as `RenderData.Light`, a `LightData`. It is a genera
 
 The snapshot gives each light as a `RenderLight`, a second custom union. Its cases are `PointRenderLight(Position, Color, Intensity, Range)` and `SpotRenderLight(Position, Direction, Color, Intensity, Range, InnerConeAngle, OuterConeAngle)`. The two unions have their own case types and do not share them. The snapshot builder switches on the case of the `LightData` and makes the matching case of the `RenderLight`, with the position relative to the render origin and, for a spot light, the direction in the axes of the camera's frame. `SceneBatcher` switches on the case again and writes one `GpuLight`. It leaves out a light of either case whose range or intensity is zero or less, or whose sphere of reach is outside the frustum. `GpuLight` keeps its std430 layout of 64 bytes. A point light writes kind 0 and leaves its direction and cone fields zero, because the shader and the impostor lighting read them only for a spot light. A spot light writes kind 1, a unit direction (straight down when the direction is zero), the cosine of the outer angle, and the cosine of the inner angle, which is never less than the outer cosine plus 1e-4, so that the shader's smoothstep has a non-empty interval.
 
-The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them.
+The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them. `sky.glsl` holds the sky's light, and `StarField` is the C# copy of its star code. A sky pixel shows `skyRadiance(direction) + starRadiance(direction)`. `skyRadiance` is the sky without the stars, black until the atmosphere ticket (`ter-6vhj`), and the environment map draws it behind each face. `starRadiance` evaluates the one cell of a grid of cells 1/150 wide that holds the direction, one cell in 50 holding a star, each star a Gaussian one main-view pixel wide, `frame.params.z`. `starOfCell` defines each star once, for the sky pixels and for the reflected stars of the map (see "The environment map").
 
-The hemisphere ambient light needs an up, and each instance takes it from the gravity field of its own frame, at its place. (User) Up points against a uniform field, inside the field's region, and away from the frame's origin in a point field. In a frame without gravity, every surface gets the mean of the sky and the ground color. A frame owner, such as a ship's hull, takes its own frame's field at the frame's origin. Only the field counts, not the frame's proper acceleration, so thrust never turns the up. (User) The ambient light of a surface therefore does not depend on the frame that the camera rides in, a planet sees the sky on every side, and an empty frame in space mixes evenly by itself.
+The hemisphere ambient light needs an up, and with the map off each instance takes it from the gravity field of its own frame, at its place. (User) Up points against a uniform field, inside the field's region, and away from the frame's origin in a point field. In a frame without gravity, every surface gets the mean of the sky and the ground color. A frame owner, such as a ship's hull, takes its own frame's field at the frame's origin. Only the field counts, not the frame's proper acceleration, so thrust never turns the up. (User) The ambient light of a surface therefore does not depend on the frame that the camera rides in, a planet sees the sky on every side, and an empty frame in space mixes evenly by itself.
 
 The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
 
@@ -1282,7 +1285,7 @@ A glow puff emits its color and takes no light. A lit puff is lit once, at its c
 
 L = color × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π))
 
-where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow and never become impostors. They glow through the bloom as any bright light does.
+where color is the own share times the albedo, mean ambient is the mean of the sky and the ground color with the environment map off, and the map's mean radiance without the stars, `environmentMeanRadiance`, the first coefficient of its irradiance, with it on, E_sun is the sun's radiance, V_sun is the sun's visibility at the center, and E_light is the radiance of a point or spot light times its distance attenuation and its cone at the center. V_sun is the far shadows times the cascades, as for a surface, with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope. The surfaces and the puffs share the two functions that say how much of a light reaches a point: `sunReaches` for the sun and `lightReaches` for a point or spot light. The cascades sample with zero gradients, which works in a vertex shader. So the G-buffer set lets the vertex stage read the cascades and their sampler (bindings 5 and 6), and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, which makes the shadow pass's writes visible to the vertex shader too. Each of the six vertices of a lit puff computes the same light. `LitPuffRenderTests` checks the model: each lit puff must look exactly as a glow puff whose radiance is the light that the formula gives it, for the ambient light, the sun, a point light, a spot light inside and outside its cone, the shadow of a box in the cascades, a far shadow and a puff halfway through its life. Puffs cast no shadow and never become impostors. They glow through the bloom as any bright light does.
 
 The vertex shader pre-exposes the light of each puff, whether glow or lit, with `preExposed` (see "Exposure"). `preExposed` multiplies by the exposure scale and clamps each channel to 65,504, so one puff never stores infinity. The fragment shader multiplies the light by factors of 1 or less. The limit is additive blending: two puffs that each send 40,000 add past 65,504 in the blend unit, and the target can then store infinity. A pre-exposed 40,000 is thousands of times display white, so the limit needs a glow puff far brighter than anything else in view. The limit was there before pre-exposure, and the pre-exposure brings the values near display white. A scene that shows it needs a clamp in the tone map.
 
@@ -1307,6 +1310,187 @@ Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load o
 | 4,096 | 2.16 ms | 2.30 ms |
 
 With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
+
+### The environment map
+
+Under `SceneEnvironmentMap`, the renderer keeps a cube map of what surrounds the camera. Every surface takes its ambient light from it: the diffuse light, the reflections of chrome, steel and glass along their lobe, and the stars in near mirrors. The design, its derivations and the reasons of its decisions are in `docs/plans/environment-map.md`. These terms hold in this section:
+
+- The map: the light that reaches the camera's eye from every direction, without the stars, in six square faces.
+- W: the face size, `SceneEnvironmentMap.FaceSize`, 128 by default. F: `FacesPerFrame`, 1 by default.
+- The radiance map: the cube that the faces are drawn into, with a mip chain weighted by solid angle. The specular map: the cube of the GGX-prefiltered levels. L: its number of levels, log2(W / 4) + 1, 6 at W = 128.
+- The open-sky share: the share of a texel's directions through which the sky shows past every opaque surface. The alpha of both cubes holds it.
+- The irradiance: nine RGB coefficients E_lm of real spherical harmonics up to band 2, convolved with the clamped cosine.
+- p: the angle that one pixel of the main view spans, `frame.params.z`. c: the width of a star cell, 1/150 rad.
+
+#### The faces
+
+The six faces look out from the eye, in camera-relative world axes. Their layer order is Vulkan's: +X, −X, +Y, −Y, +Z, −Z. Each face follows Vulkan's table of cube map face selection (`CubeFaces.Basis`, `cube_faces.glsl`). So turning the camera changes no face. The map holds no stars, so the camera's frame turning against the root frame changes no face either. Each face is a mirror image of a right-handed camera, so the face pipeline's front face is clockwise. A face's projection for depth range i is `DepthRanges.RangeProjection(i, π / 2, 1)`.
+
+`EnvironmentFacePass` draws each face of the frame into level 0 of the radiance map, with a D32 depth target of W × W. First a fullscreen triangle (`environment_sky.frag`) writes `vec4(skyRadiance(direction), 1)` into every texel, with no depth test. The far, middle and near ranges then draw over it, as in the G-buffer pass. Each range loads the color, clears the depth, and draws the face's opaque commands of that range. A face sorts its instances by their depth along its own forward axis.
+
+| Thing | In a face |
+|---|---|
+| Opaque instances with `Visible`, the planets and the sun's sphere included | Yes, as geometry |
+| Objects that the main view draws as impostors | Yes, as geometry. A face draws no billboard. |
+| Emission | Yes |
+| The sky, `skyRadiance` | Yes, as background, with an open-sky share of 1 |
+| The stars | No: the readers add them for each pixel |
+| Transparent instances and puffs | No, so the map shows what SSR's rays will show |
+| Frame outlines | No |
+
+`CubeFaces.Culls` culls a sphere behind the near plane, 5 cm ahead, or outside one of the four side planes of the 90° face. A face has no level of detail and culls no small object, because a texel's center point-samples the object as the screen does. The batcher interpolates each instance of a face by the frame's alpha. It writes the face's `GpuInstance` rows and commands after the main view's, into the same arrays, so the main view's instances and commands keep the places that they have without the map. `PreparedScene.EnvironmentFaces` holds an `EnvironmentFaceDraw(Face, Far, Middle, Near)` per drawn face, in layer order.
+
+`environment_face.frag` is `impostor_capture.frag` without the ambient light. Its surfaces get the sun, the far and map shadows, the point and spot lights and their emission through `directRadiance`. The result is plain radiance, clamped to 65,504, with an alpha of 0. V is the direction toward the eye, which every face shares, so a face's highlights are those that the eye sees. The capture takes no ambient light. So the main view's surfaces get one bounce of the light of the sun and the lamps, and a face depends only on the frame that draws it. In a room, the parts that only bounced light reaches are black in the map. A face picks the sun's cascade by the finest box that holds the point (see "Shadows").
+
+One light list serves every view of a frame. `SceneBatcher.CollectLights` keeps a light in the snapshot's order when its reach touches a view of the frame: the main view's frustum, or the frustum of a face that the frame draws. A light that only a face keeps adds exactly nothing to the main view's pixels. So they stay bit for bit as without the map. On a refresh, every light of positive range and intensity is kept.
+
+#### Which faces a frame draws
+
+`EnvironmentMap.FacesFor(frame, originFrameId, longStep)` is the one choke point of the map's automatic machinery. It runs on the CPU for each drawn frame, before batching, and calls two pure predicates of `EnvironmentFaces`:
+
+- `RefreshesAll`: true when the map's frame, `EnvironmentMap.FrameId`, differs from the snapshot's `OriginFrameId`, or the draw has a long step. Then the frame draws all six faces, a refresh. The map's frame is null before the first drawn frame, so the first frame refreshes. A change of the camera's frame changes the axes of camera-relative world space. Then every old face is wrong, not only old.
+- `InTurn`: otherwise, the faces (frame · F + k) mod 6 for k from 0 to F − 1, in layer order. It is a pure function of the drawn frame's number, metering draws included. So no cursor needs a reset, and a film draws the same faces on every run. Every face is at most ⌈6 / F⌉ − 1 frames old.
+
+A long step is a headless draw whose clock step in `Render` is 0, or at least `MeteringStepSeconds`, 0.09 s. A step of 0 is a still at the tick of the frame before. Under `AutoExposure` the metering draw has the long step, so its meter measures the scene lit by a fresh map. The shown draw after it draws F faces of the same snapshot. A frame of a film draws F faces. A window never refreshes for a step, because a refresh makes a slow frame slower still. A window camera that cuts within one frame mixes old and new faces for up to 83 ms at 60 Hz.
+
+#### The prefilter
+
+`EnvironmentPrefilterPass` is one compute pass after the faces and before every reader. It reads only level 0 of the six faces, never its own earlier output. So the radiance map's mips, the specular map and the irradiance are a pure function of the six stored faces, rebuilt in every drawn frame. In order:
+
+1. The radiance map's mips, from level 0 down to 1 × 1, one dispatch of `environment_downsample.comp` per level. Each texel is the mean of its four children, weighted by their solid angles, in all four channels. So a texel of any level holds the mean radiance and the open-sky share of its own solid angle. A box filter loses about half the light of a spot at a face's center at roughness 1.
+2. The specular levels. Level 0 copies the radiance map's level 0. Level k from 1 to L − 1 holds roughness k / (L − 1), linear in perceptual roughness, as Filament maps its levels. `environment_prefilter.comp` prefilters it by Karis's split sum with n = v = r. Each texel takes `PrefilterLevels.SamplesPerTexel`, 64, Hammersley samples of the GGX lobe, weighted by n·l, in all four channels. Each sample reads the mip level that filtered importance sampling gives (Křivánek and Colbert 2008). So the alpha of level k is the open-sky share along the lobe of roughness k / (L − 1). Level L − 1 has faces of 4 texels, `PrefilterLevels.SmallestFaceSize`. The first sample's half vector is n, so the weight sum is at least 1.
+3. The irradiance (`environment_irradiance.comp`): the projection of level 0 onto the nine harmonics Y_lm, with each texel's exact solid angle. The clamped cosine's coefficients, π, 2π/3 and π/4, multiply the bands (Ramamoorthi and Hanrahan 2001). One workgroup of 128 invocations sums the texels in layer, row and column order. A tree in 13,824 B of shared memory then sums the partial sums in a fixed order. `Irradiance` is the C# copy, which evaluates the solid angle of Driscoll 2012 in double. The shader evaluates the same angle as two spherical triangles by Van Oosterom and Strackee 1983. In float, Driscoll's difference of four arc tangents loses most of its bits toward a face's corner, and the triangles keep them.
+4. The copy of the irradiance buffer into the frame slot's readback buffer. `EnvironmentMap.Collect` reads it after the slot's fence into `EnvironmentMap.Latest`, an `IrradianceReading`. So frame n knows the irradiance of frame n − `FramesInFlight`, as with the exposure's reading.
+
+Each texel sums its samples in a fixed order and writes only its own slot. So the map is the same bits on every run on one GPU.
+
+#### Reading the map
+
+`environmentAmbient` in `lighting.glsl` is the map as an ambient source (see "Shading"), and `environment.glsl` holds its reads:
+
+```
+T_d = c_diff · D(n)            D(n) = max(Σ E_lm Y_lm(n), 0) / π            environmentDiffuse
+T_s = E(μ, r) · c(μ, r) · S(d, r)      S(d, r) = C(d, r) + a(d, r) · stars(d, r, f)      environmentSpecular
+```
+
+where
+
+- `C`, `a` = the color and the alpha of a trilinear read of the specular map at d and the level r · (L − 1). Vulkan filters a cube across its faces.
+- `d` = the specular dominant direction. `r` = the floored roughness.
+- `E · c` = the compensated specular albedo of the DFG table.
+- `stars` = the reflected stars, below.
+
+`occludedAmbient` then applies the occlusion to both terms, the reflected stars included (see "Ambient occlusion").
+
+The reflected stars (`reflectedStars` in `sky.glsl`) are the stars of the sky pixels as a lobe reflects them. `starOfCell` defines each star once, so the sky and the mirrors hold the same stars.
+
+- A star of peak radiance b reflects with the width w = √(f² + 4α²) and the peak b · (p / w)². So it keeps its light b · π p².
+- f is the reflection's footprint: `reflectionFootprint`, the larger screen derivative of d, at least p. Each fragment shader computes it at the top of `main`, in uniform control flow, into `ShadingInput.reflectionFootprint`. So `lighting.frag` fetches the G-buffer before its test for sky pixels, at a pixel clamped to the image.
+- The reflection reads the 27 cells around the cell that holds d. It skips each cell that no direction of the sky reads.
+- The kernel K(θ) = exp(−θ² / w²) · (1 − θ² / c²)² cuts each star's Gaussian off smoothly at c. So the sum does not depend on where d lies in its cell. `starKeptShare` gives k(w) = 1 − 2 / a + 2 (1 − e^(−a)) / a², with a = c² / w²: the share of the star's light that K keeps.
+- Single stars fade into their mean as w grows. With t = smoothstep(c, 2c, w), the stars are (1 − t) · Σ b_s · (p / w)² · K(θ_s) + (1 − (1 − t) · k) · M. `starMeanRadiance` gives M(ω) = 450 · |ω_root|₁ · E[brightness] · E[tint] · π p², the mean star radiance near ω.
+- The mean of the whole term is M at every width. So the fade keeps the light that a map with the stars in it gives each lobe. Past the fade, at t = 1, the shader adds M alone and computes no k.
+- On a flat mirror at 1080p, single stars show up to roughness 0.058 and are gone by 0.082. A curved mirror has a larger f, so its stars fade at a lower roughness.
+- The open-sky share masks the stars. So a surface in the map hides the stars behind it, with an edge about one texel wide on a near mirror.
+- A reflected star stays steady while the camera's frame turns. Its direction is fixed in root axes, and its width is at least the step of d between two pixels. Under open sky the share is 1 in every face.
+
+| Pass | Reads |
+|---|---|
+| Lighting, a lit pixel | D at the shading normal, S at d with the reflected stars |
+| Transparent, a mesh | The same: glass reflects the map and the stars |
+| Impostor capture | The same, with V from the main view's eye: the capture bakes the map's light |
+| Lit puffs (`scatteredLight`) | The mean radiance `environmentMeanRadiance`, E_00 · Y_00 / π, without the stars |
+| Environment faces | Nothing |
+| Sky pixels | Nothing: they show `skyRadiance` plus `starRadiance` |
+
+The stars stay out of the diffuse term and the lit puffs. Their diffuse light is at most M, about 6 · 10⁻⁴ at 1080p. With the map on, `World.Ambient` still reaches the snapshot, because the snapshot builder cannot see the renderer's options. The batcher writes 0 into the frame constants `ambientSky` and `ambientGround`. `HemisphereUp` stays in each `GpuInstance`, unread, and the lobe-sky table stays uploaded and unread.
+
+#### Exposure
+
+The map stores plain radiance, as the impostor atlas does. The faces write `directRadiance` and `skyRadiance` with no exposure. The readers multiply the reflected light by the frame's exposure in `surfaceRadiance`, the reflected stars included. The reason: the readers read a face for up to ⌈6 / F⌉ − 1 frames while the exposure moves, and the prefilter mixes faces of different frames into one lobe. Pre-exposed faces then hold six different units.
+
+#### The setting
+
+`RendererOptions.EnvironmentMap` is an `EnvironmentMapSetting`, a generated union. Its cases are `NoEnvironmentMap`, its zero case, and `SceneEnvironmentMap(FaceSize, FacesPerFrame)`. `SceneEnvironmentMap.Default` is `(128, 1)`, the default of `RendererOptions`, so callers start from `SceneEnvironmentMap.Default with { ... }`. `VulkanRenderer.CheckOptions` turns the setting's `Problem` into `ArgumentOutOfRangeException`. `Problem` refuses a `FaceSize` that is not a power of two from 16 to 1024, and a `FacesPerFrame` outside 1 to 6. `CheckOptionsOnDevice` also refuses a `FaceSize` above the device's `maxImageDimensionCube`.
+
+The setting is fixed for the renderer's life. The renderer makes the shading pipelines with the specialization constant `environmentMapOn` (`ShaderConstants`), so the driver drops the dead path. A headless run takes `--environment-map on|off`. `SceneEnvironmentMap(128, 6)` draws every face in the frame that reads it, so the map then carries nothing from earlier frames.
+
+With `NoEnvironmentMap`, the renderer makes no `EnvironmentMap`, no images, no sets, no passes and no readback. Its pipelines have `environmentMapOn` false, and bindings 12 and 14 stay empty. `FacesFor` never runs. The batcher prepares no face and keeps the main view's lights only, and the impostor signature takes the hemisphere's case. So the frame is the frame from before the map, pixel for pixel, and the six reference images show it.
+
+#### Images, sets and barriers
+
+`EnvironmentMap` (`Frame/EnvironmentMap.cs`) owns the images and buffers, made at creation. One map serves every frame in flight. Frames run in submission order on one queue, and the barriers order each frame's writes after the earlier frame's reads.
+
+| Image or buffer | Format and size | Views | Memory at W = 128 |
+|---|---|---|---|
+| The radiance map | RGBA16F cube, W × W, log2(W) + 1 levels | A 2D view of level 0 of each face, a 2D-array view of each level | 1.0 MB |
+| The specular map | RGBA16F cube, W × W, L levels | A 2D-array view of each level | 1.0 MB |
+| The face depth | D32, W × W | | 64 KB |
+| The irradiance buffer | 9 `vec4`, xyz E_lm and w 0 | | 144 B |
+| A readback buffer per frame slot | 144 B | | 144 B each |
+
+The images take about 2.1 MB at W = 128 and about 134 MB at W = 1024. RGBA16F holds up to 65,504, and every Vulkan device can write it as a storage image.
+
+The frame set holds the specular map, its sampler and the irradiance buffer at bindings 12 to 14 (see "Shading"). `EnvironmentPrefilterLayout` has three sets:
+
+- Set 0, the prefilter set: the radiance cube, the sampler and the irradiance buffer.
+- Sets 1 and 2, level sets (`EnvironmentLevelSet`): one storage image each. Each level of each cube has a level set of its own, written once. A dispatch binds the level that it reads as set 1 and the level that it writes as set 2.
+
+The descriptor pool holds the level sets of the largest map, 11 + 9 at W = 1024. The face pass binds sets 0 to 2 of the scene layout, because it samples the cascades in set 2.
+
+`FrameGraph.Stage` has `EnvironmentFaces` and `EnvironmentPrefilter` between `ShadowMaps` and `ImpostorCaptures` (see "The order of a rendered frame"). Each barrier goes through `BarrierBatch`:
+
+- A drawn face's level 0 goes from the last prefilter's read to a color attachment, discarding its old content, and back to a compute read.
+- The mips move the radiance map through `General` storage reads and writes, level by level. Then the whole map goes to `SampledCompute`.
+- The specular map goes from the fragment reads of the frame before to `ImageUse.StorageCompute`, discarding. It then goes to `SampledFragment` for the impostor capture, the lighting and the transparent pass.
+- The irradiance buffer goes from the readers of the frame before to a compute write, then to a transfer source for the readback copy, then to the readers.
+
+The map's images do not depend on the output's size, so a resize changes nothing.
+
+The map follows the Vulkan specification, so it runs on NVIDIA, RADV, ANV and lavapipe as on MoltenVK (docs/plans/environment-map.md, "Portable Vulkan"):
+
+- The specification requires RGBA16F as a filtered sampled image, as a color attachment, and as a storage image that the shader declares `rgba16f`. It also requires D32 depth, and one cube with 2D and 2D-array views.
+- The specification's least limits cover the rest: a `maxImageDimensionCube` of 4096, four storage images per stage, a workgroup of 128 invocations and 16,384 B of shared memory.
+- The partially bound bindings need `descriptorBindingPartiallyBound`, which the bindless texture set already requires.
+- No pass of the map blends into a half-float target.
+- No value relies on a clamp to turn a NaN into a number. The faces clamp with `min`, and the prefilter's weight sum is at least 1. The shader computes k only where a ≥ 0.25, and w is at least p > 0.
+
+#### Cost
+
+The GPU timers measured the map in Release at 1920 × 1080 on the development Mac (Apple M1 Max), by the recipe of `docs/plans/rendering-upgrade.md`, "Measuring the cost of a feature" (2026-10-25). Each build ran each script twice, one run at a time, with no other demo run beside it, and the 1-minute load from 2.2 to 7.8 at each start. The base is the branch's merge base, without the map. `demo-exit.json` times 3,878 frames:
+
+| Pass | Base | Map off | Map on, `(128, 1)` | Map on, `(128, 6)` |
+|---|---|---|---|---|
+| Environment faces | | | 0.400 to 0.410 ms (p95 0.67 ms) | 2.30 to 2.35 ms (p95 2.78 ms) |
+| Environment prefilter | | | 1.23 to 1.27 ms (p95 1.34 to 1.37 ms) | 1.16 to 1.20 ms (p95 1.34 to 1.37 ms) |
+| Lighting | 1.661 to 1.663 ms | 1.645 to 1.647 ms | 1.66 to 1.80 ms | 2.05 to 2.11 ms |
+| Every pass | 5.997 to 6.002 ms | 5.968 to 5.969 ms | 7.53 to 7.83 ms | 9.45 to 9.72 ms |
+
+- The map costs about 1.6 ms per frame at the default: 0.4 ms for one face and 1.25 ms for the prefilter. The other passes sum to within 0.15 ms of the base, which is the spread between the two runs with the map on. Some move by more, because each timestamp waits for the commands before it, and because their work depends on the image. The exposure pass falls from 0.33 to 0.165 ms, and the transparent pass rises from 0.344 to 0.435 ms.
+- The prefilter takes 1.2 to 1.35 ms in every scene, about six times the 0.1 to 0.2 ms that the design expected. It does the same work in every drawn frame: the mips, the 2.1 million samples of the specular levels and the irradiance.
+- A face's cost follows the geometry in it. One face takes 0.4 ms on `demo-exit.json` and 0.16 ms on `mirror-balls`. Six faces per frame take 2.3 ms on `demo-exit.json`, 5.7 times one face.
+- With six faces per frame the lighting pass also grows by about 0.4 ms. Then every light of the scene is kept in every frame, and each light that only a face keeps adds a distance test to every lit pixel of the main view.
+- With the map off, the passes match the base within 0.016 ms each, and their sum within 0.03 ms.
+- `demo-surface.json` times 6 frames per run, and its stills refresh all six faces in their metering draws. The face pass takes a mean of 0.17 to 0.18 ms and at most 0.29 to 0.30 ms. The prefilter takes a mean of 0.99 to 1.04 ms and at most 1.30 to 1.32 ms. The sum of the passes rises from 4.29 to 4.30 ms to 5.37 to 5.49 ms.
+- On `mirror-balls`, a film of 600 frames of each of its first two views, the lighting pass grows from 0.21 to 0.23 ms to 0.42 to 0.44 ms with the map on. Its smooth balls and its plate at the roughness floor read the 27 star cells in many pixels. The transparent pass, which draws the shuttle's panes, grows from 0.21 to 0.27 ms.
+
+The CPU cost of the faces' views: `SceneBatcherBenchmarks` times one `SceneBatcher.Prepare` of 20,000 instances on one thread, with no allocation in any case. The 1-minute load was 7.7 at the start and 6.2 at the end.
+
+| Map | Median |
+|---|---|
+| Off | 813 µs |
+| One face, -Z, which keeps all 20,000 instances | 1,598 µs |
+| Six faces | 2,566 µs |
+
+A face loops over the snapshot's instances and interpolates each that it keeps. So a face that keeps every instance costs about as much as the main view, 0.79 ms, not the third that the design expected, and a refresh adds 1.75 ms, about twice the main view.
+
+The images take about 2.1 MB at the default (see "Images, sets and barriers").
+
+#### Known limits
+
+- The map is the light at the camera's eye, and every surface takes it. So a surface far from the camera takes the light of the camera's surroundings, not of its own. In open space the error is small. In a lit room it is large. In `demo-surface`, the cabin's lamps light its walls to a radiance of about 2. From the seat, the apron through the canopy then takes several times its sunlight of 0.1 to 0.2 as ambient light, and its shadows fill in. Local maps per room are a later ticket (User).
+- The map's sky is black until the atmosphere ticket (`ter-6vhj`). So with the map on, the ground and the shadows of the buildings and of a planet lose the hemisphere's sky fill, 0.08 on demo-surface (User). The atmosphere changes the body of `skyRadiance` alone, and the map carries its color into the ambient light.
+- The reflected stars read 27 cells, so single stars fade out between roughness 0.058 and 0.082 on a flat mirror. A block of 125 cells keeps them to about roughness 0.12, at 4.6 times the cost per smooth pixel.
 
 ### Ambient occlusion
 
@@ -1427,7 +1611,7 @@ Every pass that writes the HDR image or the emissive target writes pre-exposed l
 | G-buffer | The emissive target: the material's emission | `preExposed(s.emissive)` |
 | G-buffer, the billboards | The emissive target: the capture's radiance | `preExposed` in `impostor.frag` |
 | Impostor captures | The atlas | Nothing: a scale of 1, so the atlas stores radiance |
-| Lighting | The HDR image: the reflected light, the sky, and the emission | `surfaceRadiance(..., exposureScale())` for a lit pixel, `preExposed(starField(direction))` for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
+| Lighting | The HDR image: the reflected light, the sky, and the emission | `surfaceRadiance(..., exposureScale())` for a lit pixel, `preExposed(skyRadiance(direction) + starRadiance(direction))` for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
 | Transparent, a mesh | The HDR image, with the glass blend: output 0, never the transmittance T | `lobesRadiance(..., s.emissive * k, ..., k)`, then the cap at 65,504 · (1 − T) |
 | Transparent, a puff | The HDR image, added | `preExposed` of the puff's light, in `puff.vert` |
 | Bloom | The bloom levels, from the pre-exposed HDR image | Nothing: the threshold compares the pre-exposed value directly |
@@ -1606,6 +1790,8 @@ Shadow casters are selected by distance from the camera, not by frame, so an obj
 
 A far shadow counts only while the sun lights the scene. It must also be big enough to notice. A caster beyond the maps must cover a pixel, or a fifth of the sun's angular radius, seen from the camera. A caster in the maps must hide 4% of the sun, seen from where its far receivers start. They start 2 km from the camera. So the distance is 2 km minus the distance of the caster from the camera, and at least the radius of the caster. A 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The sun is still the one light with shadows. Making every far light work the same way belongs to the point and spot light shadows epic, which is planned (ticket `ter-s9cv`, `docs/plans/local-light-shadows.md`).
 
+The cascades are fitted to the main view, and the lighting pass, the transparent pass and the lit puffs pick a cascade by the view depth along the camera's forward axis, with blend bands (`SunShadowsMainView` in `lighting.glsl`). That rule holds only for points in the main view's frustum. The faces of the environment map pick the finest cascade whose box holds the point, with the margin of the filter (`SunShadowsHolding`). So at a 60° field of view every point within about 9 m of the camera, in any direction, gets cascade 0. In the outer tenth of the coarsest box the map shadow fades into the far shadows by the same weight as the main view's last blend band, and beyond every box the far shadows alone decide (docs/plans/environment-map.md, "The sun's shadow maps in a face"). The shadow pass culls its casters against every cascade's box, so a caster behind the camera is in the maps when its shadow falls into a box.
+
 The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide, with a D32 shadow map. When the device cannot filter D32, the map uses D16, which has less precision to spare. The box is then 4 times deeper than it is wide.
 
 ### Impostors
@@ -1617,12 +1803,12 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
   - The angle between the current and the captured view direction.
   - The change of r / d, the parallax between the front and the back of the sphere.
   - The angle between the current and the captured sun direction.
-  - The relative change of the light that reaches the object. That light counts the radiance of the sun times its visibility past the far shadows. It also counts both ambient colors and the hemisphere up in object space. It also counts the irradiance of the point and spot lights, with its direction.
+  - The relative change of the light that reaches the object. That light counts the radiance of the sun times its visibility past the far shadows. It also counts its ambient part, an `AmbientSignature`: with the environment map off, both ambient colors and the hemisphere up in object space, and with it on, the nine coefficients of the map's latest irradiance reading, zero before the first. The change of either is the sum of the changes of its parts as a share of the larger total, and a change from one case to the other changes all the light. The reading is `FramesInFlight` frames late, so a change of the map recaptures that late, and the first reading recaptures every impostor captured before it. It also counts the irradiance of the point and spot lights, with its direction.
   - How far the scale has become non-uniform.
 - If error × h is more than 2, about one pixel, the capture is stale. For the view direction, that is a change of more than 2 / h radians.
 - Each rendered frame makes the 4 captures of highest priority. They come from two binary heaps, one of recaptures and one of first captures, merged by priority. A recapture of an impostor that the last rendered frame drew has the priority error × h. That impostor draws its stale capture until the recapture. Any other capture has the priority π × h, the error of the worst view. Its object draws as geometry until the capture.
 - A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
-- A capture bakes the sun, the ambient light with its specular part, far shadows and point and spot lights, but not shadow-map shadows and not ambient occlusion: the capture passes V = 1, because it has no screen around it. So an object loses its own crease darkening when it becomes an impostor. The billboard's distance still hides the ground around it in the occlusion passes (see "Ambient occlusion"). Nothing bakes occlusion into a capture, because nothing needs it yet (fork 3 of `docs/plans/ambient-occlusion.md`).
+- A capture bakes the sun, the ambient light with its specular part (from the environment map, its reflected stars included, while the map is on), far shadows and point and spot lights, but not shadow-map shadows and not ambient occlusion: the capture passes V = 1, because it has no screen around it. So an object loses its own crease darkening when it becomes an impostor. The billboard's distance still hides the ground around it in the occlusion passes (see "Ambient occlusion"). Nothing bakes occlusion into a capture, because nothing needs it yet (fork 3 of `docs/plans/ambient-occlusion.md`).
 - The atlas stores radiance, clamped to 65,504, not pre-exposed light: a capture passes a scale of 1 to `surfaceRadiance`. The billboard (`impostor.frag`) pre-exposes the atlas's color with the exposure of the frame that draws it, when it writes the emissive target. So a capture follows the exposure with no recapture, and the impostor's signature of the light holds no exposure (see "Exposure").
 - A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
 - The renderer keys impostor state on the entity index, the render part, the mesh and the resolved material slot (`ImpostorKey`). So a part that changes its mesh or its material gets a new key, and it never draws an old capture.
@@ -1644,6 +1830,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `ToneCurve` | `AcesFitted` | The curve of the tone map pass: ACES fitted or Hable's (see "Tone mapping"). |
 | `AmbientOcclusion` | `GroundTruthOcclusion.Default` | The ambient occlusion of the ambient light: `GroundTruthOcclusion(RadiusMeters, Slices, StepsPerSide)`, by default 1 m, 3 and 3, or `NoAmbientOcclusion` (see "Ambient occlusion"). The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoAmbientOcclusion`. It costs about 1.7 ms per frame at 1080p and 6.74 MB. |
 | `Bloom` | On | The glow around light brighter than white after the exposure: `Bloom(Threshold, Knee, Strength, Levels)`, by default a threshold of 1, a knee of 0.5, a strength of 0.25 and 6 levels, or `NoBloom` (see "Bloom"). It costs about 0.7 ms per frame at 1080p and 5.5 MB. |
+| `EnvironmentMap` | `SceneEnvironmentMap(128, 1)` | The ambient light: `SceneEnvironmentMap(FaceSize, FacesPerFrame)`, a cube map of the scene around the camera, by default 128 texels per face and one face redrawn per frame, or `NoEnvironmentMap` for the hemisphere of `World.Ambient` (see "The environment map"). The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoEnvironmentMap`. It takes about 2.1 MB at the default and costs about 1.6 ms of GPU time per frame at 1080p on the development Mac, most of it the prefilter. |
 | `AntiAliasing` | `Smaa` | SMAA 1x after the tone map, or `None`. SMAA takes 10 bytes per output pixel and three full-screen passes (see "Anti-aliasing"). |
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
@@ -1693,7 +1880,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 
 | Run | Command line | What it does |
 |---|---|---|
-| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--ambient-occlusion off\|<meters>] [--bloom on\|off] [--anti-aliasing off\|smaa]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
+| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--ambient-occlusion off\|<meters>] [--bloom on\|off] [--anti-aliasing off\|smaa] [--environment-map on\|off]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
 | Script in the window | `--script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]` | The same script in a window. The simulation thread paces the ticks by the wall clock, times the speed factor. |
 | Free play | `--scene <name> [--speed <factor>] [--record <file>]` | The scene in a window, until the window closes. With `--record`, the host writes the session to the file as a script that replays it. |
 
@@ -1708,6 +1895,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - `--ambient-occlusion off|<meters>` sets `RendererOptions.AmbientOcclusion` of the headless renderer: `off` gives `NoAmbientOcclusion`, and a number above 0 gives `GroundTruthOcclusion.Default with { RadiusMeters = number }`. Without it the renderer keeps its default. The command refuses it without `--headless`. A headless run also turns impostors off (`Impostors = false`), so a scripted run shows no impostors.
 - `--bloom off` sets `RendererOptions.Bloom` of the headless renderer to `NoBloom`, so a headless run can capture a frame without the glow. `--bloom on`, like no option, keeps the renderer's default bloom. The command refuses it without `--headless`.
 - `--anti-aliasing off|smaa` sets `RendererOptions.AntiAliasing` of the headless renderer, so a headless run can capture with and without SMAA. Without it the renderer keeps its default, SMAA. The command refuses it without `--headless`.
+- `--environment-map off` sets `RendererOptions.EnvironmentMap` of the headless renderer to `NoEnvironmentMap`, so a headless run can capture a frame lit by the hemisphere (see "The environment map"). `--environment-map on`, like no option, keeps the renderer's default map. The command refuses it without `--headless`.
 - A headless run whose renderer times its passes (see "GPU timings") collects `RenderStats.GpuTimings` after each capture, once per finished frame, and writes `gpu-timings.json` into the output folder after its last step (`ScriptCommand.WriteGpuTimings`). The file names the device and the size of the frames, and gives for each pass the frames that timed it and the mean, median and 95th percentile (by nearest rank) of its times in milliseconds. The command then writes the file's path and one line for each pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`. A headless run never turns on the validation layers, so its times are those of the renderer alone. A headless renderer made with the default options runs `AutoExposure`, so the file also holds the pass "exposure", and a still after a long step draws twice (see "Exposure").
 - A run has one capture target for its whole life. `CaptureTarget` is a built-in C# 15 union with two cases, built as `ScriptStep` is, and the headless playback refuses its default value. `PngFolder` writes the capture named `name` into `<folder>/<name>.png` (`PngFolder.PathOf`). `VideoFile` makes each capture the next frame of one video, in the order taken, and drops the names. The playback holds the target, and the runner gives it only the name of each capture (`IPlayback.Capture(world, name)`). So the runner builds no paths, and `RunResult.Captures` lists the names, in the order taken. A capture needs a live camera and a playback before the first tick. It needs no check for its folder, because a `PngFolder` cannot exist without one. The command writes the path of each dump, then the path of each PNG file, or the path of the video.
 - A `film` step, `{ "do": "film", "name": "climb", "frames": 18000, "every": 2 }`, captures every Nth tick. It is defined as its expansion: `frames` repetitions of a `run` step of `every` ticks followed by a `capture`. So it runs frames × every ticks, its first capture comes after its first `every` ticks, and two films in a row with the same `every` give evenly spaced frames. Frame k, counted from 0, is the capture `<name>-<k>` with k in six digits (`FilmStep.FrameName`), such as `climb-000000`, which fits ffmpeg's `%06d` pattern. The runner's arm for it calls the same code as the arms of `run` and `capture`, so its images are byte-identical to those of its expansion.

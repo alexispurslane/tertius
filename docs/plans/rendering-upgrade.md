@@ -20,7 +20,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-jxv9` | Screen-space reflections | PBR | Two designs, in the ticket |
 | `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
-| `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | Two designs, in the ticket |
+| `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
 
@@ -68,4 +68,4 @@ Run one measurement at a time, with no other build or test on the machine, becau
 
 ## Out of scope
 
-Reflection probes and image-based lighting. SSR reflects only what is on screen, and a ray that leaves the screen fades to the ambient light. The asset pipeline plan also names environment reflections as a later renderer plan.
+Local reflection probes: maps placed by the scene for each room, with influence boxes and parallax correction. The one map at the camera of `ter-nl5u` is the image-based lighting of this epic ([environment-map.md](environment-map.md), "Later"), and SSR falls back to it where a ray leaves the screen.

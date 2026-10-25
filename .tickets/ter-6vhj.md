@@ -29,3 +29,9 @@ Design to decide (two designs, then the user chooses):
 
 A Mars-like test frame shows a colored sky behind its ground, with the stars faded, and the space above it stays black. The tint shows where the design turns it on. The look is reviewed in headless screenshots, and ARCHITECTURE.md describes the rule.
 
+
+## Notes
+
+**2026-10-25T21:55:49Z**
+
+From the environment map (ter-nl5u, docs/plans/environment-map.md, "The atmosphere"): the sky color reaches the map through one function, skyRadiance(direction) in sky.glsl, which the lighting pass adds at a sky pixel and the sky pass draws behind each face of the map. It returns black until this ticket. Change its body, and the map carries the sky's color into the ambient light, diffuse and specular, with no change to the map. A dimming of the stars, by the atmosphere's transmittance or brightness, goes into the star code that the sky pixels (starRadiance) and the reflected stars (reflectedStars, starMeanRadiance) share, so that a mirror and the sky dim the stars the same way. The open-sky share keeps its meaning: haze does not make a texel less open. A tint of what lies in the air must apply in the face shader (environment_face.frag) too, through the same function as in the main view.

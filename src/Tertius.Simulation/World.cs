@@ -165,7 +165,10 @@ public sealed partial class World : IDisposable
     /// <summary>Intensity of the sun.</summary>
     public float SunIntensity { get; set; } = 1;
 
-    /// <summary>The hemisphere ambient light of the render snapshot.</summary>
+    /// <summary>
+    /// The hemisphere ambient light of the render snapshot. It lights only a renderer whose environment map is off
+    /// (ARCHITECTURE.md, "The environment map").
+    /// </summary>
     public AmbientLight Ambient { get; set; } =
         new()
         {
