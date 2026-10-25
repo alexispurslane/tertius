@@ -1,6 +1,6 @@
 ---
 id: ter-r0hc
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-25T20:07:17Z
