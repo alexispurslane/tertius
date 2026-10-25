@@ -1,6 +1,6 @@
 ---
 id: ter-lozc
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T15:27:48Z
@@ -38,9 +38,17 @@ From the exposure branch (2026-10-25): pre-exposure's clamp, min(radiance * expo
 
 Builder (2026-10-25). The rule: keep NaN and infinity from arising at their sources, never detect them in a shader. ARCHITECTURE.md, "Portable Vulkan", lists every site with its verdict, the CPU boundary (ShaderInput) and the required device features. Fixed: the zero-normal and at-the-eye normalizations (normalizedOr, towardEye), the specular dominant direction, the cap before the exposure product (exposed), MaxRadiance lowered to 64,512 for the rounding room of the glass blend and the summed bloom levels, the bloom prefilter's clamp removed, the puff fades, impostor.frag's divide by w, the samplerAnisotropy check. Safe with reasons: the meter, the adapt step, the eclipse, the attenuation, the BRDF terms, 1/E1, the shadows, the octahedral code, the outlines, the tone curves, SMAA. Open: the puffs' additive blend, which no cap on one puff bounds; the Blue Danube film peaks at 1,178 in the HDR image with puffs alive, more than 50 times below the cap.
 
+**2026-10-25T18:24:29Z**
+
+User, 2026-10-25: the puffs' additive sum stays finite by a shared budget (design A). Every writer except the puffs caps at 32,256; each puff caps at 32,256 / N for the N puffs drawn this frame; so every pixel stays at or below 64,512. Design B, a 32-bit float image for puffs, was rejected: 32 MB at 1080p, one more pass, and an optional Vulkan feature.
+
 **2026-10-25T18:38:36Z**
 
 Puffs share a budget (user's design A, 2026-10-25). MaxRadiance is now 32,256: every writer of the HDR image but the puffs, and the emissive target and the atlas, cap there. Each puff caps at 32,256 / max(N, 1), N the puffs drawn this frame (ShaderInput.PuffRadianceCap, frame params.x). Exact sums stay at or below 64,512 (ARCHITECTURE.md, Portable Vulkan, the bound). Open: the rounding of many puff blends. A blend that rounds to nearest can add up to 16 per puff; a simulation finds infinity at 106 fully overlapping puffs at their share over a surface at the cap. Metal here rounds toward zero, so no test here shows it. A puff budget of 16,128 would bound the rounded sum for every N.
+
+**2026-10-25T18:45:08Z**
+
+2026-10-25: the settle agent built the shared budget (a2f6bfcb) and found that the 992 of room below 65,504 does not take the rounding of many puff blends on a GPU that rounds to nearest (infinity at 106 puffs fully overlapping at their share, by simulation). The orchestrator settled it by the Linux rule (Metal's rounding toward zero hides it) and the user's preference for strong highlights: the puffs' budget becomes 16,128, half the surfaces' 32,256. A blend that rounds to nearest or toward zero makes S + x at most S + 2x, so every pixel stays at or below 64,512 for any N. Cost: in a frame that draws many puffs, each bright puff dims to half the share of the first shared budget.
 
 **2026-10-25T18:51:45Z**
 

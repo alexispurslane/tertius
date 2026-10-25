@@ -15,6 +15,7 @@ public sealed class DeviceFeatureTests
         DepthClamp = true,
         DualSrcBlend = true,
         SamplerAnisotropy = true,
+        ShaderStorageImageExtendedFormats = true,
     };
 
     private static readonly PhysicalDeviceVulkan12Features Vulkan12 = new()

@@ -156,9 +156,9 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the exposure pass (<see cref="ExposurePass"/>, under
-/// <see cref="AutoExposure"/>), SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>)
-/// included. Draws
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
+/// <see cref="GroundTruthOcclusion"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
+/// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -173,6 +173,12 @@ internal sealed class FrameGraph : IDisposable
         ShadowMaps,
         ImpostorCaptures,
         GBuffer,
+
+        /// <summary>
+        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
+        /// normals they read, and before the lighting pass, which reads their occlusion target.
+        /// </summary>
+        AmbientOcclusion,
         Lighting,
         Transparent,
 

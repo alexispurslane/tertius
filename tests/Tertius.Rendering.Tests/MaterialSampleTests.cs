@@ -352,6 +352,7 @@ public sealed class MaterialSampleTests
                 ground: sky,
                 normalSkyShare: 0.3,
                 lobeSkyShare: 0.8,
+                occlusion: 1,
                 tables: BrdfTables.Shared
             );
             Double3 integrated = HalfVectorQuadrature.ColorIntegral(
@@ -384,6 +385,7 @@ public sealed class MaterialSampleTests
                 ground: Double3.Zero,
                 normalSkyShare: normalSkyShare,
                 lobeSkyShare: lobeSkyShare,
+                occlusion: 1,
                 tables: BrdfTables.Shared
             );
 
@@ -404,6 +406,98 @@ public sealed class MaterialSampleTests
             because: "the two parts add"
         );
         specularOnly.X.Should().BeInRange(0.03, 0.2, "a non-metal's specular albedo is a few percent");
+    }
+
+    [Fact]
+    public void TheHemisphereTermsAreTheDiffuseAndTheSpecularPartsOfTheHemisphereAmbientLight()
+    {
+        MaterialSample[] materials =
+        [
+            new(BaseColor: new(0.7, 0.4, 0.2), Metallic: 0, Roughness: 0.6, Reflectance: 0.5),
+            new(BaseColor: new(0.3, 0.6, 0.8), Metallic: 0, Roughness: 1, Reflectance: 1),
+            new(BaseColor: new(0.9, 0.6, 0.3), Metallic: 1, Roughness: 0.3, Reflectance: 0.5),
+            new(BaseColor: new(0.5, 0.5, 0.5), Metallic: 1, Roughness: 0, Reflectance: 0.5),
+        ];
+        Double3 sky = new(0.6, 0.8, 1.2);
+
+        foreach (MaterialSample material in materials)
+        foreach (double nDotV in ViewCosines)
+        {
+            Double3 toView = HalfVectorQuadrature.View(nDotV);
+            // Under a black ground, a sky share of 0 removes one part of the ambient light and leaves the other.
+            Double3 Ambient(double normalSkyShare, double lobeSkyShare) =>
+                material.ReflectedHemisphere(
+                    normal: Double3.UnitZ,
+                    toView: toView,
+                    sky: sky,
+                    ground: Double3.Zero,
+                    normalSkyShare: normalSkyShare,
+                    lobeSkyShare: lobeSkyShare,
+                    occlusion: 1,
+                    tables: BrdfTables.Shared
+                );
+
+            AmbientTerms terms = material.HemisphereTerms(
+                normal: Double3.UnitZ,
+                toView: toView,
+                sky: sky,
+                ground: Double3.Zero,
+                normalSkyShare: 0.3,
+                lobeSkyShare: 0.8,
+                tables: BrdfTables.Shared
+            );
+
+            string because = $"{material}, n·v = {nDotV}";
+            ShouldBeNear(
+                actual: terms.Diffuse,
+                expected: Ambient(normalSkyShare: 0.3, lobeSkyShare: 0),
+                tolerance: 1e-15,
+                because: because
+            );
+            ShouldBeNear(
+                actual: terms.Specular,
+                expected: Ambient(normalSkyShare: 0, lobeSkyShare: 0.8),
+                tolerance: 1e-15,
+                because: because
+            );
+        }
+    }
+
+    [Fact]
+    public void TheHemisphereAmbientLightIsTheSumOfItsOccludedTerms()
+    {
+        var plastic = new MaterialSample(BaseColor: new(0.7, 0.4, 0.2), Metallic: 0, Roughness: 0.3, Reflectance: 0.5);
+        Double3 toView = HalfVectorQuadrature.View(0.7);
+        Double3 sky = new(0.6, 0.8, 1.2);
+        Double3 ground = new(0.3, 0.2, 0.1);
+        AmbientTerms terms = plastic.HemisphereTerms(
+            normal: Double3.UnitZ,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: 0.4,
+            lobeSkyShare: 0.9,
+            tables: BrdfTables.Shared
+        );
+        AmbientTerms occluded = terms.Occluded(occlusion: 0.35, nDotV: 0.7, lobe: plastic.Lobe);
+
+        Double3 ambient = plastic.ReflectedHemisphere(
+            normal: Double3.UnitZ,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: 0.4,
+            lobeSkyShare: 0.9,
+            occlusion: 0.35,
+            tables: BrdfTables.Shared
+        );
+
+        ShouldBeNear(
+            actual: ambient,
+            expected: occluded.Diffuse + occluded.Specular,
+            tolerance: 1e-15,
+            because: "the hemisphere is one ambient source, and the occlusion applies to its two terms"
+        );
     }
 
     private static Double3 GlassAlbedo(double nDotV) =>

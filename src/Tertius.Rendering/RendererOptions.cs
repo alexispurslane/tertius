@@ -51,6 +51,12 @@ public sealed class RendererOptions
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 
     /// <summary>
+    /// Whether ambient occlusion darkens the ambient light: <see cref="GroundTruthOcclusion"/> or
+    /// <see cref="NoAmbientOcclusion"/>. The default is <see cref="GroundTruthOcclusion.Default"/>.
+    /// </summary>
+    public AmbientOcclusionSetting AmbientOcclusion { get; set; } = GroundTruthOcclusion.Default;
+
+    /// <summary>
     /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
     /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
     /// </summary>

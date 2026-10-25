@@ -1,0 +1,16 @@
+#version 460
+// The occlusion denoise pass (docs/plans/ambient-occlusion.md, "The denoise"): one dispatch of XeGTAO's 3 × 3
+// edge-aware blur, from set 1's source term to its destination term. The pass runs it twice, and lastDenoise marks the
+// second. Engine glue after the shape of vaGTAO.hlsl. XeGTAO's copyright and permission notice are in gtao.glsl.
+#extension GL_GOOGLE_include_directive : require
+#include "gtao.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(texel))
+        return;
+    imageStore(denoiseDestination, texel, vec4(gtaoDenoise(texel, occlusion.lastDenoise != 0u)));
+}

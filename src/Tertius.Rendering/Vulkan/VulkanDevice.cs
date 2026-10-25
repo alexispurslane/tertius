@@ -354,7 +354,11 @@ internal sealed unsafe class VulkanDevice : IDisposable
         in PhysicalDeviceFeatures f,
         in PhysicalDeviceVulkan12Features f12,
         in PhysicalDeviceVulkan13Features f13
-    )
+    ) =>
+        // The order only picks which of several missing features the refusal names.
+        MissingCoreFeature(f) ?? MissingVulkan12Feature(f12) ?? MissingVulkan13Feature(f13);
+
+    private static string? MissingCoreFeature(in PhysicalDeviceFeatures f)
     {
         if (!f.MultiDrawIndirect)
             return "multiDrawIndirect";
@@ -366,6 +370,13 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "dualSrcBlend";
         if (!f.SamplerAnisotropy)
             return "samplerAnisotropy";
+        if (!f.ShaderStorageImageExtendedFormats)
+            return "shaderStorageImageExtendedFormats";
+        return null;
+    }
+
+    private static string? MissingVulkan12Feature(in PhysicalDeviceVulkan12Features f12)
+    {
         // The feature itself, beside its parts, guarantees the limits of 500,000 descriptors after bind.
         if (!f12.DescriptorIndexing)
             return "descriptorIndexing";
@@ -379,6 +390,11 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "descriptorBindingSampledImageUpdateAfterBind";
         if (!f12.ShaderSampledImageArrayNonUniformIndexing)
             return "shaderSampledImageArrayNonUniformIndexing";
+        return null;
+    }
+
+    private static string? MissingVulkan13Feature(in PhysicalDeviceVulkan13Features f13)
+    {
         if (!f13.DynamicRendering)
             return "dynamicRendering";
         if (!f13.Synchronization2)
@@ -387,6 +403,44 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "shaderDemoteToHelperInvocation";
         return null;
     }
+
+    /// <summary>The Vulkan 1.3 features that the renderer enables, with no next structure.</summary>
+    private static PhysicalDeviceVulkan13Features EnabledVulkan13Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan13Features,
+            DynamicRendering = true,
+            Synchronization2 = true,
+            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
+            ShaderDemoteToHelperInvocation = true,
+        };
+
+    /// <summary>The Vulkan 1.2 features that the renderer enables, for the bindless textures, with no next structure.</summary>
+    private static PhysicalDeviceVulkan12Features EnabledVulkan12Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan12Features,
+            DescriptorIndexing = true,
+            RuntimeDescriptorArray = true,
+            DescriptorBindingPartiallyBound = true,
+            DescriptorBindingVariableDescriptorCount = true,
+            DescriptorBindingSampledImageUpdateAfterBind = true,
+            ShaderSampledImageArrayNonUniformIndexing = true,
+        };
+
+    /// <summary>The Vulkan 1.0 features that the renderer enables.</summary>
+    private static PhysicalDeviceFeatures EnabledCoreFeatures() =>
+        new()
+        {
+            MultiDrawIndirect = true,
+            DrawIndirectFirstInstance = true,
+            DepthClamp = true,
+            // The transparent pass blends with a second output: what a pane lets through.
+            DualSrcBlend = true,
+            SamplerAnisotropy = true,
+            // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
+            ShaderStorageImageExtendedFormats = true,
+        };
 
     private static Device CreateLogicalDevice(
         Vk vk,
@@ -401,38 +455,14 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (swapchain)
             extensions.Add(KhrSwapchain.ExtensionName);
 
-        var f13 = new PhysicalDeviceVulkan13Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan13Features,
-            DynamicRendering = true,
-            Synchronization2 = true,
-            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
-            ShaderDemoteToHelperInvocation = true,
-        };
-        var f12 = new PhysicalDeviceVulkan12Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan12Features,
-            PNext = &f13,
-            DescriptorIndexing = true,
-            RuntimeDescriptorArray = true,
-            DescriptorBindingPartiallyBound = true,
-            DescriptorBindingVariableDescriptorCount = true,
-            DescriptorBindingSampledImageUpdateAfterBind = true,
-            ShaderSampledImageArrayNonUniformIndexing = true,
-        };
+        PhysicalDeviceVulkan13Features f13 = EnabledVulkan13Features();
+        PhysicalDeviceVulkan12Features f12 = EnabledVulkan12Features();
+        f12.PNext = &f13;
         var features = new PhysicalDeviceFeatures2
         {
             SType = StructureType.PhysicalDeviceFeatures2,
             PNext = &f12,
-            Features = new()
-            {
-                MultiDrawIndirect = true,
-                DrawIndirectFirstInstance = true,
-                DepthClamp = true,
-                // The transparent pass blends with a second output: what a pane lets through.
-                DualSrcBlend = true,
-                SamplerAnisotropy = true,
-            },
+            Features = EnabledCoreFeatures(),
         };
 
         // MoltenVK is a portability implementation: it must be enabled, and its subset features are enabled as
