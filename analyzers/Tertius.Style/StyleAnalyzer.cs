@@ -28,6 +28,7 @@ public sealed class StyleAnalyzer : DiagnosticAnalyzer
         StyleRules.BoxedGenericStruct,
         StyleRules.HelperClass,
         StyleRules.UnnamedCase,
+        StyleRules.DiscardArm,
     ];
 
     /// <inheritdoc/>
@@ -73,7 +74,7 @@ public sealed class StyleAnalyzer : DiagnosticAnalyzer
         );
         context.RegisterOperationAction(GenericStructs.AnalyzeConversion, OperationKind.Conversion);
         context.RegisterSymbolAction(HelperClasses.Analyze, SymbolKind.NamedType);
-        context.RegisterCompilationStartAction(SwitchStatements.Start);
+        context.RegisterCompilationStartAction(ClosedSwitches.Start);
     }
 
     private static void AnalyzeArgumentList(SyntaxNodeAnalysisContext context)

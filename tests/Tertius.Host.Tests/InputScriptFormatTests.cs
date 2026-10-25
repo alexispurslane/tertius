@@ -188,7 +188,9 @@ public sealed class InputScriptFormatTests
             ) switch
             {
                 Scrolled(var read) => read,
-                _ => throw new InvalidOperationException("A scroll read as another case."),
+                KeyChanged or MouseButtonChanged or MouseMoved or null => throw new InvalidOperationException(
+                    "A scroll read as another case."
+                ),
             }
         );
 

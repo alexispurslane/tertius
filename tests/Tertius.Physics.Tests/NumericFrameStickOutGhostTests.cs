@@ -155,7 +155,12 @@ public partial class NumericFrameStickOutGhostTests
         {
             Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new(FrameBounds.Sphere(40))),
             Layout.ShipAndFarRock => (At(FarOut + 130), new(-60, 0, 0), ShipHull, new(FrameBounds.Sphere(200))),
-            _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200))),
+            Layout.ShipAndRockBeside => (
+                At(1100),
+                new Double3(-60, 0, 0),
+                ShipHull,
+                new FrameSpec(FrameBounds.Sphere(200))
+            ),
         };
         Entity owner = world.Spawn(
             new()
@@ -173,7 +178,12 @@ public partial class NumericFrameStickOutGhostTests
         {
             Layout.StationAndFastRock => (new(0, 40.5, 0), Double3.Zero, new(1130, 41, 0), new(-60, 0, 0)),
             Layout.ShipAndFarRock => (new(0, -200, 0), Double3.Zero, new(FarOut, -200.6, 0), Double3.Zero),
-            _ => (new Double3(0, -200, 0), new Double3(0, -2, 0), new Double3(1100, -202.6, 0), new Double3(-60, 0, 0)),
+            Layout.ShipAndRockBeside => (
+                new Double3(0, -200, 0),
+                new Double3(0, -2, 0),
+                new Double3(1100, -202.6, 0),
+                new Double3(-60, 0, 0)
+            ),
         };
         var crateLog = new CollisionLog();
         var rockLog = new CollisionLog();

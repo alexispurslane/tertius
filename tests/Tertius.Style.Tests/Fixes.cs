@@ -28,6 +28,9 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
     /// <summary>The fix of TS0006, which seals a class.</summary>
     public static readonly Fixes Seal = new("TS0006", () => new SealClassFix());
 
+    /// <summary>The fix of TS0016, which deletes the discard arm that only throws UnreachableException.</summary>
+    public static readonly Fixes DiscardArm = new("TS0016", () => new DiscardArmFix());
+
     /// <summary>The source after the fix of the first diagnostic of the rule in <paramref name="source"/>.</summary>
     public async Task<string> First(string source)
     {
@@ -138,7 +141,12 @@ internal sealed class Fixes(string rule, Func<CodeFixProvider> fix)
         ImmutableArray<Diagnostic> found = await compilation
             .WithAnalyzers([new StyleAnalyzer()])
             .GetAnalyzerDiagnosticsAsync(cancel);
-        return [.. found.Where(diagnostic => diagnostic.Id == rule)];
+        return
+        [
+            .. found
+                .Where(diagnostic => diagnostic.Id == rule)
+                .OrderBy(diagnostic => diagnostic.Location.SourceSpan.Start),
+        ];
     }
 
     private async Task<string> Applied(Document document, CodeAction action)

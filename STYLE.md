@@ -1,6 +1,6 @@
 # C# style for Tertius
 
-This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0015` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `tools/cleanup.sh` owns the modern syntax fixes, through the Roslyn rules in `.editorconfig`, and the formatting and the `using` order, through CSharpier.
+This guide covers the code in `src`. The code in `tests` has its own guide, [tests/STYLE.md](tests/STYLE.md). The guide holds the rules that no tool enforces, and names the tool for the rules that one does. The style analyzer's rules, `TS0001` to `TS0016` (ARCHITECTURE.md, "Style analyzer"), are each a warning, an error through `TreatWarningsAsErrors`, so a hit fails the build. `tools/cleanup.sh` owns the modern syntax fixes, through the Roslyn rules in `.editorconfig`, and the formatting and the `using` order, through CSharpier.
 
 When a reason can beat a rule, the rule says "prefer". When nothing beats a rule, it says "always" or "never". Most examples are real code from `src`. An example that starts with the comment `// Sketch` shows the form with made-up names.
 
@@ -161,7 +161,7 @@ Never use `!` to silence the compiler (tool: TS0003). Generated code that reads 
 
 These rules come from ARCHITECTURE.md, "Switches over closed sets". The build enforces the first and the third.
 
-- A switch over a closed set has no discard arm, so a new case fails the build.
+- A switch over a closed set has no discard arm, so a new case fails the build (tool: TS0016 for a switch expression over a union, a `closed` hierarchy or an enum of this solution).
 - A switch that chooses a value is a switch expression. A union switch ends in a `null` arm. The compiler never asks for that arm, and without it the empty value throws.
 - A switch statement over a closed set names every case, the quiet cases too, in a label without a guard. A union without a zero case also names `null`. The default case only throws `UnreachableException` (tool: TS0015 for a default case that does more, IDE0010 for a missing one).
 

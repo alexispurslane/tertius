@@ -2,8 +2,10 @@
 # Cleans up C# files in two steps (tools/README.md, "Code cleanup"):
 #   1. Roslyn makes every fix that changes the code but not its meaning. dotnet format style applies the IDE rules that
 #      .editorconfig sets to suggestion or warning, and dotnet format analyzers applies the Roslynator rules (RCS) that
-#      it sets the same way. The build fails at a hit of a warning rule, so on code that builds those rules find nothing
-#      to fix.
+#      it sets the same way, and the same pass applies the fix of TS0016 of the style analyzer. IDE0066 turns a switch
+#      statement into a switch expression and carries its default section over as a discard arm. TS0016's fix deletes the
+#      arm `_ => throw new UnreachableException()` in the same pass. The build fails at a hit of a warning rule, so on
+#      code that builds those rules find nothing to fix.
 #   2. CSharpier formats the files (.csharpierrc.yaml). It runs last, so its formatting wins. It skips the files in
 #      .csharpierignore, whose C# 15 syntax it cannot parse. A file that it cannot parse stops the cleanup, and
 #      CSharpier leaves that file as it was.
@@ -99,7 +101,7 @@ for pass in 1 2 3; do
     # shellcheck disable=SC2086 # the rule IDs are separate words on purpose
     dotnet format style "$solution" --severity info --diagnostics $ide "${include_args[@]}" --verbosity quiet
     # shellcheck disable=SC2086
-    dotnet format analyzers "$solution" --severity info --diagnostics $rcs "${include_args[@]}" --verbosity quiet
+    dotnet format analyzers "$solution" --severity info --diagnostics $rcs TS0016 "${include_args[@]}" --verbosity quiet
     after=$(cksum "${files[@]}")
     [[ "$after" == "$before" ]] && break
     before=$after

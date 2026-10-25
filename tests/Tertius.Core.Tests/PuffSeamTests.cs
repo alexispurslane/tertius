@@ -86,7 +86,7 @@ public sealed class PuffSeamTests
         {
             GlowPuffs(var radiance) => radiance.X,
             LitPuffs(var albedo) => albedo.X,
-            _ => 100,
+            null => 100,
         };
 
     [Fact]

@@ -11,11 +11,11 @@ namespace Tertius.Style.Tests;
 public sealed class StyleRulesTests
 {
     [Fact]
-    public void TheAnalyzerHasFifteenRulesThatAreWarningsOnByDefault()
+    public void TheAnalyzerHasSixteenRulesThatAreWarningsOnByDefault()
     {
         ImmutableArray<DiagnosticDescriptor> rules = new StyleAnalyzer().SupportedDiagnostics;
 
-        rules.Select(rule => rule.Id).Should().Equal(Enumerable.Range(1, 15).Select(number => $"TS{number:D4}"));
+        rules.Select(rule => rule.Id).Should().Equal(Enumerable.Range(1, 16).Select(number => $"TS{number:D4}"));
         rules
             .Should()
             .OnlyContain(

@@ -167,4 +167,15 @@ internal static class StyleRules
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true
     );
+
+    public static readonly DiagnosticDescriptor DiscardArm = new(
+        id: "TS0016",
+        title: "A switch expression over a closed set has no discard arm",
+        messageFormat: "This switch expression over '{0}' has a discard arm. A discard arm hides a new case from the "
+            + "compiler, which would otherwise fail the build at this switch. Name each case in an arm "
+            + "(STYLE.md, \"Switches\").",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true
+    );
 }

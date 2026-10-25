@@ -136,7 +136,9 @@ public sealed class FreePlayTests : IDisposable
         {
             KeyChanged { Code: var code } => code,
             MouseButtonChanged { Code: var code } => code,
-            _ => throw new InvalidOperationException($"{e} is not a key or mouse button event."),
+            MouseMoved or Scrolled or null => throw new InvalidOperationException(
+                $"{e} is not a key or mouse button event."
+            ),
         };
 
     /// <summary>The (tick, code) of each post step of a script: the number of ticks that run before the post, and the key code.</summary>

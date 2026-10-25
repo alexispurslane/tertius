@@ -96,7 +96,6 @@ public sealed class RenderSnapshotOutlineTests
             NumericMode.Resting => "resting",
             NumericMode.Nesting => "nesting",
             NumericMode.Following => "following",
-            _ => "?",
         };
 
     // ---- The view setting ----------------------------------------------------------------------------------------

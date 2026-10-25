@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Tertius.Simulation;
@@ -78,22 +77,16 @@ internal readonly partial struct QueryFilter
     /// asker or the other entity is not live or owns a root frame, or the fixed point's frame is gone. Such a filter
     /// matches nothing. Also null for a filter that is not a Near filter, which has no center.
     /// </summary>
-    public (FrameHandle Frame, Double3 Point)? Center(in Snapshot snapshot)
-    {
-        switch (this)
+    public (FrameHandle Frame, Double3 Point)? Center(in Snapshot snapshot) =>
+        this switch
         {
-            case NearAsker:
-                return CenterOfEntity(snapshot: snapshot, center: snapshot.Asker);
-            case NearEntity { Other: var center }:
-                return CenterOfEntity(snapshot: snapshot, center: center);
-            case NearPoint { Frame: var pointFrame, Point: var center }:
-                return snapshot.World.Frames.IsAlive(pointFrame) ? (pointFrame, center) : null;
-            case InFilter or WhereFilter or null:
-                return null;
-            default:
-                throw new UnreachableException($"The query filter {this} has a case that has no center here.");
-        }
-    }
+            NearAsker => CenterOfEntity(snapshot: snapshot, center: snapshot.Asker),
+            NearEntity { Other: var center } => CenterOfEntity(snapshot: snapshot, center: center),
+            NearPoint { Frame: var pointFrame, Point: var center } => snapshot.World.Frames.IsAlive(pointFrame)
+                ? (pointFrame, center)
+                : null,
+            InFilter or WhereFilter or null => null,
+        };
 
     /// <summary>
     /// True if <paramref name="entity"/>, whose front transform row is <paramref name="row"/>, passes this filter. The
