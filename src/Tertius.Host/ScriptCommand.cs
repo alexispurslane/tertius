@@ -688,15 +688,19 @@ public static class ScriptCommand
     }
 
     /// <summary>The frame rate that the text gives, or null for no text or one that is not a whole number in the range of a video.</summary>
-    private static int? FpsOf(string? text)
+    private static int? FpsOf(string? text) =>
+        WholeNumberOf(text: text, least: VideoFile.MinFramesPerSecond, most: VideoFile.MaxFramesPerSecond);
+
+    /// <summary>The whole number that the text gives, or null for no text or one that is not a number from least to most.</summary>
+    private static int? WholeNumberOf(string? text, int least, int most)
     {
         bool read = int.TryParse(
             s: text,
             style: NumberStyles.None,
             provider: CultureInfo.InvariantCulture,
-            result: out int fps
+            result: out int number
         );
-        return read && fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond ? fps : null;
+        return read && number >= least && number <= most ? number : null;
     }
 
     /// <summary>The tone curve that the text names, or null for no text or a name that is not aces or hable.</summary>
@@ -728,7 +732,7 @@ public static class ScriptCommand
 
     /// <summary>
     /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of
-    /// tiles alone, with that count, and null when neither option is given. The renderer refuses more tiles than the device holds.
+    /// tiles alone, with that count, and null when neither option is given.
     /// </summary>
     private static LocalShadowSetting? LocalShadowsOf(string? localShadows, string? tiles)
     {
@@ -740,28 +744,11 @@ public static class ScriptCommand
     }
 
     /// <summary>The count of tiles that the text gives, or null for no text or one that is not a whole number of 1 or more.</summary>
-    private static int? TilesOf(string? text)
-    {
-        bool read = int.TryParse(
-            s: text,
-            style: NumberStyles.None,
-            provider: CultureInfo.InvariantCulture,
-            result: out int tiles
-        );
-        return read && tiles >= 1 ? tiles : null;
-    }
+    private static int? TilesOf(string? text) => WholeNumberOf(text: text, least: 1, most: int.MaxValue);
 
     /// <summary>The count of far lights with cascades that the text gives, or null for no text or one outside 0 to 4.</summary>
-    private static int? CascadedLightsOf(string? text)
-    {
-        bool read = int.TryParse(
-            s: text,
-            style: NumberStyles.None,
-            provider: CultureInfo.InvariantCulture,
-            result: out int count
-        );
-        return read && count <= RendererOptions.MaxCascadedLights ? count : null;
-    }
+    private static int? CascadedLightsOf(string? text) =>
+        WholeNumberOf(text: text, least: 0, most: RendererOptions.MaxCascadedLights);
 
     /// <summary>The anti-aliasing that the text names, or null for no text or a name that is not off or smaa.</summary>
     private static AntiAliasing? AntiAliasingOf(string? text) =>

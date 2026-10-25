@@ -404,10 +404,11 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             { [], LocalShadowAtlas.Default, 1 },
             { ["--local-shadows", "off"], new NoLocalShadows(), 1 },
             {
-                ["--local-shadow-tiles", "384", "--cascaded-lights", "2"],
+                // The renderer is real, so its tiles stay within the 256 layers that Vulkan guarantees: 12 tiles, 12 MB.
+                ["--local-shadow-tiles", "12", "--cascaded-lights", "2"],
                 LocalShadowAtlas.Default with
                 {
-                    Tiles = 384,
+                    Tiles = 12,
                 },
                 2
             },

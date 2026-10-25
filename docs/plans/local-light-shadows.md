@@ -65,7 +65,7 @@ The user made the decisions marked (User). This design settled the others by the
 14. A light is far when its distance from the eye is at least `FarDistance` = 10,000 × `ShadowCascades.Distance` = 2 × 10⁷ m, by the pure predicate `LightUnits.IsFar`. Far chooses only how the light casts shadows. (kept) Across the 2 km of the cascades, the direction of a far light changes by at most 10⁻⁴ rad and its irradiance by at most 0.02 %, so one direction serves the whole cascade set.
 15. A point light's intensity is P / (4π). A spot light sends its power through its outer cone: I = P / (2π (1 − cos θ_o)), so a narrower cone with the same power is brighter. The fade between the inner and the outer cone is not counted in that solid angle. (kept)
 16. The cutoff radiance R_cut is 2⁻¹³ of pre-exposed radiance, and E_cut = π · R_cut / 2^S_max. (changed) The approved text took 1/256 of output white. That is too bright: the sRGB encoding is steep near black, and Hable's curve has a linear toe, so a pre-exposed 1/256 shows as about 10 of 255 under Hable. 2⁻¹³ is the largest power of two that shows below half an 8-bit step under both curves: ACES fitted maps it to black, and Hable to 0.31 of a step. S_max is fixed for the renderer's life, so E_cut is one constant ([auto-exposure.md](auto-exposure.md), decision 12).
-17. The reach is at most `MaxReach` = 5 × 10¹⁸ m, a light is kept only within 2 × `MaxReach` of the eye, and the largest channel of color × intensity is at most `MaxIntensity` = 10³⁴ W/sr. So every distance², reach² and irradiance stays a finite 32-bit float in the shaders (see "Portable Vulkan"). The Sun has 3 × 10²⁵ W/sr, and the most luminous known stars about 10³² W/sr.
+17. The reach is at most `MaxReach` = 5 × 10¹⁸ m, a light is kept only within 2 × `MaxReach` of the eye, and the largest channel of color × intensity is at most `MaxIntensity` = 10³⁴ W/sr. The batcher multiplies the color and the intensity in doubles (`LightUnits.RadiantIntensity`) and keeps only the product, `PreparedLight.RadiantIntensity`, because I alone can pass the largest float for a narrow, powerful spot light of dim color. So every distance², reach² and irradiance stays a finite 32-bit float in the shaders and on the CPU (see "Portable Vulkan"). The Sun has 3 × 10²⁵ W/sr, and the most luminous known stars about 10³² W/sr.
 18. The irradiance divides by max(d², R², (1 cm)²). Outside a sphere that emits evenly, the irradiance is exactly I / d², so the light's own radius is the honest floor. The 1 cm floor of today stays for a light of radius 0.
 19. Every light follows today's rule of the sun's geometric normal: where the vertex normal faces away from the light, the light adds nothing, whatever the normal map says. One loop has one rule, and the shadow maps need a positive cosine with the geometric normal anyway. A lamp on a normal-mapped surface at a grazing angle loses a little light that it has today.
 20. `SceneBatcher` decides whether a light shines, with one pure predicate, `Shines`, and leaves out a light that does not. (changed) The approved text had the snapshot builder drop a light of zero power. The builder copies every light, as it copies every instance, and the batcher drops instances of zero scale with `HasVolume`. One place decides. A light shines when its place, previous place and color are finite, each color channel is 0 or more and one is above 0, its power is finite and above 0, its radius is finite and 0 or more, a spot light's axes and cone angles are finite, and c_max · I is at most `MaxIntensity`.
@@ -73,9 +73,9 @@ The user made the decisions marked (User). This design settled the others by the
 22. A render light carries its previous place, and a spot light its previous axis. The batcher interpolates the place by alpha as it does an instance's, and the axis by a normalized linear interpolation, which falls back to the current axis when the two are nearly opposite. (kept) A spot light is symmetric about its axis, so it carries an axis, not a rotation, and a roll changes no tile.
 23. The angular radius of a light at a point is asin(min(R / d, 1)), the exact angle of a sphere. (changed) Today's sun uses atan(r / d) of its owner's bounding radius. For R ≪ d the two agree, and asin with the clamp is also defined inside the sphere.
 24. Lights rank for shadows by their irradiance at the eye, far lights for cascade sets and near lights for tiles. Ties keep the order of the snapshot, the slot order of the entity table, which every run shares. (changed for near lights) The approved text ranked near lights by projected size on screen, irradiance and distance. With a reach derived from the power, the reach sphere of nearly every lamp holds the camera, so its projected size is the whole screen for all of them and ranks nothing. The irradiance at the eye folds in the power and the distance, and one measure serves both kinds.
-25. The first `RendererOptions.CascadedLights` far lights that cast shadows get a `CascadeSet`, 1 by default and at most 4. Each other far light that casts shadows gets `FarShadowsOnly` when its irradiance at the eye is at least `FarShadows.Share` of the brightest far light's, and no slot otherwise. (kept) The approved text left the share to measure. It is 1/256: a far light dimmer than that changes a surface that the brightest lights by under a quarter of an 8-bit step, so its shadow cannot show there. See "Known limits" for the place where it can.
+25. A far light that casts shadows gets a slot when its irradiance at the eye is at least `FarShadows.Share` of the brightest far light's, shadowed or not, and no slot otherwise. Of those, the first `RendererOptions.CascadedLights` get a `CascadeSet`, 1 by default and at most 4, and the others `FarShadowsOnly`. (kept) The approved text left the share to measure. It is 1/256: a far light dimmer than that changes a surface that the brightest lights by under a quarter of an 8-bit step, so its shadow cannot show there, and a cascade set or an occluder list for it would cost for nothing. The brightest counts whether it casts shadows or not, because it lights the same surfaces either way. See "Known limits" for the place where it can.
 26. Each far light with a slot has its own occluder range, pruned by today's rules against its own angular radius. The split between casters in the maps and casters beyond them exists only for a `CascadeSet`. (kept)
-27. The four cascades of each set live in the frame's uniform block, as an array of `ShadowCascades.MaxSets` = 4 entries of `GpuCascadeSet`. (changed) The approved text moved them to a buffer. At most four sets of 288 bytes fit the block, the CPU writes them per frame like the rest of it, and no binding is added. The splits, blend starts, texel sizes and bias parameters stay single values, because every set has the same map size and the same camera.
+27. The four cascades of each set live in the frame's uniform block, as an array of `ShadowCascades.MaxSets` entries of `GpuCascadeSet`. `MaxSets` is `RendererOptions.MaxCascadedLights`, 4, the one home of the most cascade sets, so `CheckOptions` cannot accept a `CascadedLights` that the array cannot hold. (changed) The approved text moved them to a buffer. At most four sets of 288 bytes fit the block, the CPU writes them per frame like the rest of it, and no binding is added. The splits, blend starts, texel sizes and bias parameters stay single values, because every set has the same map size and the same camera.
 28. The cascade sets share one 2D array image of 4 × `CascadedLights` layers, `ShadowMap`, as today's four cascades share one.
 29. The atlas is a 2D array image with one tile per layer, as the impostor atlas is. A tile renders through its own layer view, as a cascade does. PCF taps that leave a tile clamp to its edge and never read a neighbor. No packing is needed, because every tile has one size. Tiles of several sizes by importance wait for a measurement that shows a need.
 30. `LocalShadowAtlas.Default` has 64 tiles of 512² texels in D32, 64 MB, the memory of the sun's cascades today. 64 layers are within the least `maxImageArrayLayers` that Vulkan guarantees, 256. A 512 texel cube face at 5 m from a lamp has texels of about 2 cm.
@@ -225,10 +225,11 @@ internal readonly partial struct LightShadow;
 The batcher and the local shadow pass choose the slots with pure predicates, in this order:
 
 1. A light without `CastsShadow` gets no slot.
-2. The far lights rank by their irradiance at the eye. Ties keep the snapshot order. (kept)
-3. The first `CascadedLights` far lights get `CascadeSet` 0, 1, and so on. Each set is four maps of `ShadowMapSize`², 64 MB at the default size. (kept)
-4. Each other far light gets `FarShadowsOnly` when its irradiance at the eye is at least 1/256 of the brightest far light's, and no slot otherwise (decision 25).
-5. Under `LocalShadowAtlas`, the near lights get `AtlasTiles` by the ranking of "The budget", in `LocalShadowPass.Prepare`.
+2. A far light whose irradiance at the eye is below 1/256 of the brightest far light's, shadowed or not, gets no slot (decision 25).
+3. The other far lights rank by their irradiance at the eye. Ties keep the snapshot order. (kept)
+4. The first `CascadedLights` of them get `CascadeSet` 0, 1, and so on. Each set is four maps of `ShadowMapSize`², 64 MB at the default size. (kept)
+5. The rest of them get `FarShadowsOnly`.
+6. Under `LocalShadowAtlas`, the near lights get `AtlasTiles` by the ranking of "The budget", in `LocalShadowPass.Prepare`.
 
 Each far light with a slot has its own occluder range. `CollectFarShadows` walks the frame's casters once for each such light, with today's pruning against that light's own angular radius at the camera: a caster beyond the maps must cover a pixel or a fifth of the light's angular radius, and a caster in the maps must hide 4 % of the light from where its far receivers start. Only a `CascadeSet` puts the casters that the maps draw first and counts them by the fade where the maps end. For a `FarShadowsOnly` light every caster is a sphere everywhere. (kept)
 
@@ -489,7 +490,7 @@ public LocalShadowSetting LocalShadows { get; set; } = LocalShadowAtlas.Default;
 public int CascadedLights { get; set; } = 1;
 ```
 
-`CheckOptions` refuses a `Problem`, `CascadedLights` outside 0 to 4, and `Tiles` above the device's `maxImageArrayLayers` or `TileSize` above its `maxImageDimension2D`, with `ArgumentOutOfRangeException`, as it does for `ImpostorTiles` and `ShadowMapSize`. The headless run gains `--local-shadows off|on`, `--local-shadow-tiles N` and `--cascaded-lights N`, for the cost.
+`CheckOptions` refuses a `Problem` and `CascadedLights` outside 0 to `RendererOptions.MaxCascadedLights`, with `ArgumentOutOfRangeException`, as it does for `ShadowMapSize`. It runs before the device exists, so it cannot read the device's limits. The `ShadowAtlas` constructor refuses `Tiles` above the device's `maxImageArrayLayers`, as the `ImpostorAtlas` constructor does for `ImpostorTiles` (Part 6). `TileSize` needs no device check: the setting allows at most 4,096, the least `maxImageDimension2D` that Vulkan guarantees. The headless run gains `--local-shadows off|on`, `--local-shadow-tiles N` and `--cascaded-lights N`, for the cost.
 
 ## The work in flight on other branches
 
@@ -511,7 +512,7 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame": 3 batch
 | `PointLightData.SurfaceRadiance` | None: derived from the light | | Scenes, for a star's sphere | Scene build | None | `GgxLobe`'s derived values |
 | `EntityIndex`, `Power`, `Radius`, `CastsShadow`, `PreviousPosition`, `PreviousDirection` of the render lights | `RenderSnapshotBuilder.BuildChunk` | The sync point, for the finished tick | `SceneBatcher.CollectLights` | Step 3 | `RenderSnapshot.Lights` | `RenderInstance`'s `EntityIndex`, `PreviousPosition` and `PreviousRotation` |
 | E_cut | `SceneBatcher`'s constructor, from `RendererOptions.Exposure` | When the renderer is made | `CollectLights`, through `LightUnits.Reach` | Step 3 | `SceneBatcher.CutoffIrradiance` | `ExposureSetting.InitialStops`: derived from the setting |
-| A `PreparedLight`: interpolated place and axis, intensity, reach, distance, spread | `SceneBatcher.CollectLights` | Step 3 | `FarShadows.Choose`, `CollectFarShadows`, `ImpostorManager`, `ShadowPass`, `LocalShadowPass`, `FrameResources.Write` | Steps 3 and 4, and W | `PreparedScene.Lights` | `PreparedInstance` in `PreparedScene.Visible` |
+| A `PreparedLight`: interpolated place and axis, radiant intensity, reach, distance, spread | `SceneBatcher.CollectLights` | Step 3 | `FarShadows.Choose`, `CollectFarShadows`, `ImpostorManager`, `ShadowPass`, `LocalShadowPass`, `FrameResources.Write` | Steps 3 and 4, and W | `PreparedScene.Lights` | `PreparedInstance` in `PreparedScene.Visible` |
 | A far light's slot, `CascadeSet` or `FarShadowsOnly` | `FarShadows.Choose`, with empty ranges | Step 3, before the far shadows | `CollectFarShadows`, `ShadowPass`, `ImpostorManager`, `GpuLight.From` | Steps 3 and 4, and W | `PreparedLight.Shadow` | Today's `HasSun`, which gave one light the maps |
 | A far light's occluder range and mapped count | `CollectFarShadows` | Step 3 | `GpuLight.From`, `ImpostorManager` (`Eclipse.Visibility`), the shaders | W, then steps 5, 7 and 8 | `PreparedScene.Occluders`, `PreparedLight.Shadow` | Today's one list and `MappedOccluderCount` |
 | A frame's casters, `ShadowCaster` | `SceneBatcher.CollectCasters` | Step 3 | `CollectFarShadows`, `ShadowPass`, `LocalShadowPass` | Steps 3 and 4 | `PreparedScene.Casters` | `PreparedScene.Visible`. Replaces two interpolations of each caster. |
@@ -598,7 +599,7 @@ The game must run on regular Vulkan on Linux, not only on MoltenVK (CLAUDE.md, "
 |---|---|
 | The atlas's depth format, D32_SFLOAT with `SAMPLED_IMAGE_FILTER_LINEAR` for hardware PCF, as a depth attachment and a sampled image, with D16_UNORM as the fallback | The atlas calls `ShadowMap.ChooseFormat`, which the sun's cascades already require on every device that runs the renderer. The atlas adds no format. |
 | A comparison sampler, `GREATER_OR_EQUAL`, clamped to the edge | Core Vulkan 1.0. The atlas reuses the immutable sampler of G-buffer binding 6, which MoltenVK needs immutable (`mutableComparisonSamplers`). |
-| Array layers: `Tiles` ≤ `maxImageArrayLayers`, and 4 × `CascadedLights` ≤ 16 | The specification guarantees at least 256 layers, and the default is 64 tiles. All four drivers report 2,048. `CheckOptions` reads the device's limit, as for `ImpostorTiles`. |
+| Array layers: `Tiles` ≤ `maxImageArrayLayers`, and 4 × `CascadedLights` ≤ 16 | The specification guarantees at least 256 layers, and the default is 64 tiles. All four drivers report 2,048. The `ShadowAtlas` constructor reads the device's limit, as the `ImpostorAtlas` constructor does for `ImpostorTiles`. A GPU test keeps its tiles within 256. |
 | Image size: `TileSize` ≤ `maxImageDimension2D` | The specification guarantees 4,096. The default is 512, and the setting allows at most 4,096. |
 | `depthClamp` for the tile pass | Already required by `VulkanDevice.MissingFeature` for the cascades |
 | A slope-scaled depth bias with no bias clamp | Core: a clamp of 0 needs no `depthBiasClamp` |
@@ -614,8 +615,8 @@ No feature or extension is added. No pass of this epic blends: the tile pass and
 |---|---|---|
 | `lightIrradiance`: d² and reach² | Overflow to infinity, then infinity / infinity | Decision 17: a kept light is within 10¹⁹ m and its reach at most 5 × 10¹⁸ m, so both stay below 10³⁸. |
 | `lightIrradiance`: the window d² / reach² | 0 / 0 for a light of reach 0 at the pixel | The function returns 0 when d² ≥ reach², before it divides, so the division sees reach² > d² ≥ 0. |
-| `lightIrradiance`: the intensity over the distance floor | Infinity, then infinity × a cone factor of 0 | c_max · I ≤ 10³⁴ and the floor is at least 10⁻⁴ m², so the irradiance is at most 10³⁸. |
-| `smoothstep` of the cone | Undefined when the edges are equal or reversed | The batcher keeps cos(inner) ≥ cos(outer) + 10⁻⁴, as today, with θ_o clamped to [10⁻³, π]. |
+| `lightIrradiance`: the intensity over the distance floor | Infinity, then infinity × a cone factor of 0 | c_max · I ≤ 10³⁴, multiplied in doubles before it becomes a float, and the floor is at least 10⁻⁴ m², so the irradiance is at most 10³⁸. |
+| `smoothstep` of the cone | Undefined when the edges are equal or reversed | `Cone.Of` clamps θ_o to [10⁻³, π] and keeps cos(inner) ≥ cos(outer) + min(10⁻⁴, (1 − cos(outer)) / 2). The fade of today, 10⁻⁴, holds for a cone wider than about 0.014 rad. A narrower cone fades over at most the outer half of its cosines, so its axis gets the whole intensity that `SpotIntensity` spreads over the cone. |
 | The direction L at the light's center | A zero vector | `inversesqrt(max(d², 10⁻⁸))` gives a zero L, the loop skips it at dot(N, L) ≤ 0, and no tile is sampled. |
 | `brdf × irradiance × visibility` | Infinity × 0 | The irradiance is finite. The product can overflow to +infinity only for an extreme light in a mirror highlight. The loop multiplies by the visibility only when it is above 0, and adds only values of 0 or more. `min(+infinity, 65,504)` in `surfaceRadiance` is defined: infinity is not a NaN. |
 | `asin` of the angular radius | asin above 1 inside the light's sphere, and 0 / 0 at its center | asin(min(R / max(d, 10⁻⁶), 1)) in the shader and in `LightUnits.AngularRadius`. |
@@ -655,7 +656,14 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ALightIsFarFromTwentyThousandKilometres`.
 - `TheAngularRadiusOfASphereIsTheArcsineOfItsRadiusOverItsDistance`, and `InsideItsSphereALightsAngularRadiusIsAQuarterTurn`.
 - `TheIrradianceAtTheEyeFloorsTheDistanceAtTheRadius`.
+- `TheRadiantIntensityOfAPowerfulNarrowSpotLightOfDimColorIsFinite`.
 - `AnAxisInterpolatesBetweenItsPreviousAndCurrentDirection`, and `NearlyOppositeAxesTakeTheCurrentAxis`.
+
+`ConeTests` (Part 1, from the review):
+
+- `TheAxisOfEveryConeGetsTheWholeIntensity`: a theory from `MinConeAngle` to π, with a C# copy of GLSL's `smoothstep`.
+- `TheInnerEdgeLiesStrictlyInsideTheOuterEdge`, `AnInnerEdgeInsideTheOuterEdgeStaysWhereItIs` and `AWideConeWithEqualEdgesFadesOverATenThousandthOfACosine`.
+- `AConeNarrowerThanTheSmallestCountsAsTheSmallest`, `AConeWiderThanAHalfTurnCountsAsAHalfTurn` and `TheConeKeepsItsAxis`.
 
 `FarShadowsTests` (Part 1):
 
@@ -663,7 +671,9 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `FarLightsOfEqualIrradianceKeepTheOrderOfTheList`.
 - `AFarLightOfAtLeastAShareOfTheBrightestGetsFarShadowsOnly`.
 - `ADimmerFarLightGetsNoSlot`.
-- `ALightThatCastsNoShadowGetsNoSlot`.
+- `AFarLightNearerTheEyeOutranksAMoreIntenseOneFartherAway`, and `AFarLightRanksByTheLuminanceOfItsColor`.
+- `AFarLightBelowTheShareGetsNoCascadeSet`.
+- `ALightThatCastsNoShadowGetsNoSlot`, and `TheShareCountsFromTheBrightestFarLightEvenWhenItCastsNoShadow`.
 - `ANearLightGetsNoFarSlot`.
 - `WithNoCascadedLightsEveryShadowedFarLightGetsFarShadowsOnly`.
 
@@ -783,6 +793,7 @@ Memory, by arithmetic:
 | ARCHITECTURE.md, "Shadows" | Rewritten: the slots, the cascade sets, the far shadows per light, the atlas, the budget, the cache, the sampling, the costs of Part 7. The sentence that sends the far lights to this epic goes. |
 | ARCHITECTURE.md, "Impostors" | The signature's light part, with no sun direction. |
 | ARCHITECTURE.md, "Switches" | Rows for `LocalShadows` and `CascadedLights`. `ShadowMapSize`'s memory is per cascade set. |
+| ARCHITECTURE.md, "Host and scripted runs" | Part 2 added `--local-shadows`, `--local-shadow-tiles` and `--cascaded-lights` and their refusals. Part 6 says that the options take effect. |
 | ARCHITECTURE.md, "Exposure" | The defaults −14 and +10 with decision 42's reasons, and E_cut. |
 | ARCHITECTURE.md, "Bloom" | The Sun's glow in SI units, from Part 5's captures. |
 | ARCHITECTURE.md, "Puffs in the renderer" | A lit puff takes every light and its tiles. |
@@ -821,7 +832,7 @@ The epic's branch merges main after each awaited merge, before the part that wai
 
 ### Part 1: the C# light math
 
-- Files, all new: `src/Tertius.Rendering/Scene/LightUnits.cs`, `Scene/FarShadows.cs`, `Scene/PreparedLight.cs` (`PreparedLight`, `LightSpread` and its cases), `Scene/LightShadow.cs` (the union, its cases and `OccluderRange`), `Scene/ShadowCaster.cs`, `tests/Tertius.Rendering.Tests/LightUnitsTests.cs`, `FarShadowsTests.cs`.
+- Files, all new: `src/Tertius.Rendering/Scene/LightUnits.cs`, `Scene/FarShadows.cs`, `Scene/PreparedLight.cs` (`PreparedLight`, `LightSpread` and its cases), `Scene/LightShadow.cs` (the union, its cases and `OccluderRange`), `Scene/ShadowCaster.cs`, `tests/Tertius.Rendering.Tests/LightUnitsTests.cs`, `FarShadowsTests.cs`, `ConeTests.cs`.
 - Tests first: `LightUnitsTests` and `FarShadowsTests`. Red for the right reason: the types exist and return wrong values.
 - Gives, exactly:
 
@@ -843,15 +854,20 @@ internal static class LightUnits
     public static double Reach(double peakIntensity, double cutoffIrradiance); // min(√(peak / cutoff), MaxReach)
     public static bool IsFar(double distance);                        // distance ≥ FarDistance
     public static float AngularRadius(float radius, float distance);  // asin(min(radius / max(distance, 1e-6), 1))
-    public static float EyeIrradiance(in PreparedLight light);        // luminance(Color) · I / max(d², R², NearestDistance²)
+    public static Vector3 RadiantIntensity(Vector3 color, double intensity);   // color × I per channel, multiplied in doubles
+    public static float EyeIrradiance(in PreparedLight light);        // luminance(RadiantIntensity) / max(d², R², NearestDistance²)
     public static Vector3 InterpolateAxis(Vector3 previous, Vector3 current, float alpha);   // normalized lerp; current when they cancel
 }
 
 /// <summary>A point light's spread: every direction.</summary>
 internal readonly record struct EveryDirection;
 
-/// <summary>A spot light's spread: a cone around the unit <paramref name="Axis"/>, CosInner ≥ CosOuter + 1e-4.</summary>
-internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOuter, float OuterAngle);
+/// <summary>A spot light's spread: a cone around the unit <paramref name="Axis"/>, OuterAngle in [MinConeAngle, π],
+/// CosInner ≥ CosOuter + min(1e-4, (1 − CosOuter) / 2). Of keeps these invariants.</summary>
+internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOuter, float OuterAngle)
+{
+    public static Cone Of(Vector3 axis, float innerAngle, float outerAngle);   // a unit axis; clamps the angles
+}
 
 [GeneratedUnion(typeof(EveryDirection), typeof(Cone), ZeroCase = typeof(EveryDirection))]
 internal readonly partial struct LightSpread;
@@ -861,8 +877,7 @@ internal struct PreparedLight
 {
     public uint EntityIndex;
     public Vector3 Position;      // camera-relative, interpolated
-    public Vector3 Color;
-    public float Intensity;       // W/sr
+    public Vector3 RadiantIntensity;   // color × intensity, W/sr per channel, from LightUnits.RadiantIntensity
     public float Radius;          // m
     public float Reach;           // m
     public double Distance;       // from the eye, m
@@ -889,9 +904,9 @@ internal static class FarShadows
 {
     public const float Share = 1f / 256;
     /// <summary>
-    /// Writes each far light's slot with empty occluder ranges: CascadeSet 0 to cascadedLights − 1 for the far lights that
-    /// cast shadows with the highest irradiance at the eye, ties in list order; FarShadowsOnly for each other one of at
-    /// least Share of the brightest; none for the rest. Leaves near lights as they are. Allocates nothing.
+    /// Writes each far light's slot with empty occluder ranges. The far lights that cast shadows and have at least Share
+    /// of the brightest far light's irradiance at the eye, shadowed or not, get a slot: CascadeSet 0 to cascadedLights − 1
+    /// for the brightest, ties in list order, and FarShadowsOnly for the rest. Leaves near lights as they are. Allocates nothing.
     /// </summary>
     public static void Choose(Span<PreparedLight> lights, int cascadedLights);
 }
@@ -899,6 +914,7 @@ internal static class FarShadows
 
   and the `LightShadow` union of "Shadows of each light".
 - Takes: nothing.
+- The fixes of the review (2026-10-25) changed this interface: `PreparedLight` holds `RadiantIntensity` in place of `Color` and `Intensity`, `LightUnits.RadiantIntensity` and `Cone.Of` are new, and `Choose` applies the share before every slot, with the brightest counted over every far light.
 - Done: the CPU tests pass in Checked and Release. No other file changes.
 
 ### Part 2: the settings
@@ -982,7 +998,7 @@ internal sealed class ShadowTiles
 - Files:
   - Core: `src/Tertius.Core/Seams/RenderLight.cs`, `RenderSeam.cs` (`RenderSun` and `RenderSnapshot.Sun` go, and the `CastsShadow` flag's doc changes).
   - Simulation: `src/Tertius.Simulation/Entities/LightData.cs`, `World.cs`, `Internal/Rendering/RenderSnapshotBuilder.cs`.
-  - Rendering: `Scene/SceneBatcher.cs` (the constructor, `CollectLights`, `Shines`, `CollectCasters`, the far slots, `CollectFarShadows` per light, `WriteConstants`), `Scene/PreparedScene.cs`, `Scene/GpuTypes.cs` (`GpuLight` and `From`, `GpuCascadeSet`, `GpuFrameConstants`), `Scene/ShadowCascades.cs` (`LightBasis.FromDirection`, `MaxSets`), `Scene/ImpostorManager.cs` (the signature, `Eclipse.Visibility`), `Frame/ShadowMap.cs` (sets), `Frame/FrameResources.cs` (`GpuLight.From` at W), `Passes/ShadowPass.cs` (sets, the frame's casters), `VulkanRenderer.cs` (the batcher's and the map's arguments, `ReadShadowCascade(set, cascade)`, the stats).
+  - Rendering: `Scene/SceneBatcher.cs` (the constructor, `CollectLights`, `Shines`, `CollectCasters`, the far slots, `CollectFarShadows` per light, `WriteConstants`), `Scene/PreparedScene.cs`, `Scene/GpuTypes.cs` (`GpuLight` and `From`, `GpuCascadeSet`, `GpuFrameConstants`), `Scene/ShadowCascades.cs` (`LightBasis.FromDirection`, and `MaxSets` defined as `RendererOptions.MaxCascadedLights`), `Scene/ImpostorManager.cs` (the signature, `Eclipse.Visibility`), `Frame/ShadowMap.cs` (sets), `Frame/FrameResources.cs` (`GpuLight.From` at W), `Passes/ShadowPass.cs` (sets, the frame's casters), `VulkanRenderer.cs` (the batcher's and the map's arguments, `ReadShadowCascade(set, cascade)`, the stats).
   - Shaders: `frame.glsl`, `lighting.glsl`, `shadows.glsl`, and the mode's name in `lighting.frag`, `transparent.frag`, `impostor_capture.frag`, `puff.vert` and `environment_face.frag`.
   - Demo: every scene file that sets a sun or a light, with today's brightness: a lamp's power is 4π × its old intensity (a spot light's is its old intensity × 2π (1 − cos θ_o)), and a star's power gives its old `SunIntensity` at its distance. The helper `DemoScenes.Star`.
   - Tests: the CPU and GPU tests of Part 4 in "Tests", and every test and benchmark of "Existing tests".
@@ -1018,6 +1034,7 @@ internal sealed unsafe class ShadowMap
 ```
 
   and the GLSL of "The shaders", with `tileShadow` returning 1 until Part 6.
+- `CollectLights` builds every spot light's `Cone` through `Cone.Of`, with the unit axis of `InterpolateAxis`, and every `RadiantIntensity` through `LightUnits.RadiantIntensity`. Today's fallback for a zero axis, −Y, or a refusal in `Shines`, comes before `Cone.Of`, which requires a unit axis. The environment faces read the same `PreparedLight`s.
 - Takes: Part 1, Part 2's `CascadedLights`, the environment map's `directLight` and modes, SSAO's `AmbientTerms`, glass's `lobesRadiance`.
 - Done: every test passes in Checked and Release, the six reference images within their thresholds. The demo's captures look as before, apart from lamps that now reach past their old ranges. The review goes through "Portable Vulkan" line by line.
 
@@ -1040,6 +1057,7 @@ internal sealed unsafe class ShadowMap
 ```csharp
 internal sealed unsafe class ShadowAtlas : IDisposable
 {
+    /// <exception cref="ArgumentOutOfRangeException">Tiles is above the device's maxImageArrayLayers.</exception>
     public ShadowAtlas(VulkanDevice device, DeviceAllocator allocator, LocalShadowAtlas setting);
     public int Tiles { get; }
     public int TileSize { get; }
@@ -1065,6 +1083,7 @@ internal struct GpuShadowTile     // std430, 80 bytes
 }
 ```
 
+- The `ShadowAtlas` constructor refuses `Tiles` above `maxImageArrayLayers`, as the `ImpostorAtlas` constructor does, and a test pins the refusal.
 - Takes: Part 3's `ShadowTiles`, Part 4's lights, casters and `GpuLight`, SSAO's G-buffer binding 7, the environment map's partially bound bindings.
 - Done: every test passes in Checked and Release. The review goes through "Portable Vulkan" line by line, with the four drivers' reports.
 

@@ -12,12 +12,11 @@ public sealed class FarShadowsTests
     /// <summary>A far light 10^8 m from the eye: beyond FarDistance, so every caster sees it as one direction.</summary>
     private const double FarAway = 1e8;
 
-    /// <summary>A white far light of <paramref name="intensity"/> W/sr that casts shadows.</summary>
+    /// <summary>A white far light of <paramref name="intensity"/> W/sr, FarAway from the eye, that casts shadows.</summary>
     private static PreparedLight Far(float intensity, bool castsShadow = true) =>
         new()
         {
-            Color = Vector3.One,
-            Intensity = intensity,
+            RadiantIntensity = new(intensity),
             Distance = FarAway,
             CastsShadow = castsShadow,
         };
@@ -26,8 +25,7 @@ public sealed class FarShadowsTests
     private static PreparedLight Near(float intensity) =>
         new()
         {
-            Color = Vector3.One,
-            Intensity = intensity,
+            RadiantIntensity = new(intensity),
             Distance = 10,
             CastsShadow = true,
         };
@@ -61,12 +59,40 @@ public sealed class FarShadowsTests
         Slots([Far(256), Far(0.99f)], cascadedLights: 1).Should().Equal(Set(0), default);
 
     [Fact]
-    public void ALightThatCastsNoShadowGetsNoSlot() =>
-        Slots([Far(1_000, castsShadow: false), Far(1), Far(0.5f)], cascadedLights: 1)
+    public void AFarLightNearerTheEyeOutranksAMoreIntenseOneFartherAway() =>
+        Slots([Far(8) with { Distance = 4 * FarAway }, Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal([FarOnly, Set(0)], "8 W/sr at four times the distance gives half the irradiance at the eye");
+
+    [Fact]
+    public void AFarLightRanksByTheLuminanceOfItsColor() =>
+        Slots([Far(2) with { RadiantIntensity = new(2, 0, 0) }, Far(1)], cascadedLights: 1)
             .Should()
             .Equal(
-                [default, Set(0), FarOnly],
-                "the light that casts no shadow neither takes the set nor is the brightest that the share counts from"
+                [FarOnly, Set(0)],
+                "red's luminance weight is 0.2126, so 2 W/sr of red is dimmer than 1 W/sr of white"
+            );
+
+    [Fact]
+    public void AFarLightBelowTheShareGetsNoCascadeSet() =>
+        Slots([Far(256), Far(0.99f)], cascadedLights: 2)
+            .Should()
+            .Equal(
+                [Set(0), default],
+                "its shadow cannot show beside the brightest, so a set of four maps would be wasted"
+            );
+
+    [Fact]
+    public void ALightThatCastsNoShadowGetsNoSlot() =>
+        Slots([Far(1, castsShadow: false), Far(1)], cascadedLights: 1).Should().Equal(default, Set(0));
+
+    [Fact]
+    public void TheShareCountsFromTheBrightestFarLightEvenWhenItCastsNoShadow() =>
+        Slots([Far(1_000, castsShadow: false), Far(3), Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal(
+                [default, default, default],
+                "the light that casts no shadow lights the same surfaces, so shadows of under a 256th of it cannot show"
             );
 
     [Fact]

@@ -13,8 +13,7 @@ public sealed class LightUnitsTests
     private static PreparedLight Light(float intensity, Vector3 color, float radius, double distance) =>
         new()
         {
-            Color = color,
-            Intensity = intensity,
+            RadiantIntensity = color * intensity,
             Radius = radius,
             Distance = distance,
         };
@@ -151,6 +150,10 @@ public sealed class LightUnitsTests
 
         LightUnits.HighestStops(new FixedExposure(2.5f)).Should().Be(2.5f);
         LightUnits.HighestStops(auto).Should().Be(7);
+        LightUnits
+            .CutoffIrradiance(auto)
+            .Should()
+            .Be(LightUnits.CutoffIrradiance(new FixedExposure(7)), "its highest stops, not its lowest or its first");
     }
 
     [Fact]
@@ -211,6 +214,21 @@ public sealed class LightUnitsTests
         PreparedLight green = Light(intensity: 10, color: Vector3.UnitY, radius: 0, distance: 1);
 
         LightUnits.EyeIrradiance(green).Should().BeApproximately(7.152f, 1e-5f, "green's luminance weight is 0.7152");
+    }
+
+    [Fact]
+    public void TheRadiantIntensityOfAPowerfulNarrowSpotLightOfDimColorIsFinite()
+    {
+        // 3.5 × 10^38 W/sr is above the largest float, but its red channel, 3.5 × 10^33 W/sr, is within MaxIntensity.
+        double intensity = LightUnits.SpotIntensity(power: 1.1e33, outerConeAngle: LightUnits.MinConeAngle);
+
+        LightUnits
+            .RadiantIntensity(color: new(1e-5f, 0, 0), intensity: intensity)
+            .Should()
+            .Be(
+                new Vector3((float)(1e-5f * intensity), 0, 0),
+                "each channel is color × intensity, multiplied in doubles"
+            );
     }
 
     [Fact]

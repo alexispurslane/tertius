@@ -5,12 +5,38 @@ namespace Tertius.Rendering;
 /// <summary>A point light's spread: every direction.</summary>
 internal readonly record struct EveryDirection;
 
-/// <summary>A spot light's spread: a cone around the unit <paramref name="Axis"/>, CosInner ≥ CosOuter + 1e-4.</summary>
+/// <summary>
+/// A spot light's spread: a cone around a unit axis. Build it with <see cref="Of"/>, which keeps its invariants:
+/// <list type="bullet">
+/// <item><see cref="OuterAngle"/> is in [LightUnits.MinConeAngle, π].</item>
+/// <item>CosInner ≥ CosOuter + min(10^−4, (1 − CosOuter) / 2), so smoothstep's edges differ and the axis is inside the inner edge.</item>
+/// </list>
+/// </summary>
 /// <param name="Axis">The unit axis of the cone, camera-relative, interpolated.</param>
 /// <param name="CosInner">The cosine of the inner half-angle, inside which the light is full.</param>
 /// <param name="CosOuter">The cosine of the outer half-angle, outside which the light adds nothing.</param>
 /// <param name="OuterAngle">The outer half-angle, in rad.</param>
-internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOuter, float OuterAngle);
+internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOuter, float OuterAngle)
+{
+    /// <summary>The widest fade between the two edges, in cosine: today's edge for a cone wider than about 0.014 rad.</summary>
+    private const float WidestFade = 1e-4f;
+
+    /// <summary>
+    /// The cone of a spot light with the unit <paramref name="axis"/>, its half-angles clamped, and its inner edge moved
+    /// inward where it lies too near the outer edge or beyond it (docs/plans/local-light-shadows.md, "Portable Vulkan").
+    /// </summary>
+    public static Cone Of(Vector3 axis, float innerAngle, float outerAngle)
+    {
+        Contract.Requires(MathF.Abs(axis.LengthSquared() - 1) < 1e-4f);
+        float outer = Math.Clamp(outerAngle, LightUnits.MinConeAngle, MathF.PI);
+        float cosOuter = MathF.Cos(outer);
+        // The fade takes at most half of the cone's cosines, so the axis, at cosine 1, gets the whole intensity, which
+        // SpotIntensity spreads over the whole cone.
+        float fade = MathF.Min(WidestFade, (1 - cosOuter) / 2);
+        float cosInner = MathF.Max(MathF.Cos(Math.Clamp(innerAngle, 0f, MathF.PI)), cosOuter + fade);
+        return new(Axis: axis, CosInner: cosInner, CosOuter: cosOuter, OuterAngle: outer);
+    }
+}
 
 /// <summary>
 /// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point light, a <see cref="Cone"/> for a
@@ -27,10 +53,8 @@ internal struct PreparedLight
     /// <summary>Camera-relative position, interpolated.</summary>
     public Vector3 Position;
 
-    public Vector3 Color;
-
-    /// <summary>W/sr.</summary>
-    public float Intensity;
+    /// <summary>The color × intensity, in W/sr per channel, from <see cref="LightUnits.RadiantIntensity"/>.</summary>
+    public Vector3 RadiantIntensity;
 
     /// <summary>The radius of the emitting sphere, in m.</summary>
     public float Radius;

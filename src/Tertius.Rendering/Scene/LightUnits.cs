@@ -57,6 +57,13 @@ internal static class LightUnits
     }
 
     /// <summary>
+    /// The radiant intensity per channel, in W/sr: <paramref name="color"/> × <paramref name="intensity"/>, multiplied in
+    /// doubles, so that an intensity above the largest float still gives a finite channel within MaxIntensity.
+    /// </summary>
+    public static Vector3 RadiantIntensity(Vector3 color, double intensity) =>
+        new(x: (float)(color.X * intensity), y: (float)(color.Y * intensity), z: (float)(color.Z * intensity));
+
+    /// <summary>
     /// Where a light's brightest channel, of <paramref name="peakIntensity"/> W/sr, falls to
     /// <paramref name="cutoffIrradiance"/>: √(peak / cutoff), in m, at most MaxReach.
     /// </summary>
@@ -71,7 +78,7 @@ internal static class LightUnits
         MathF.Asin(MathF.Min(radius / MathF.Max(distance, 1e-6f), 1));
 
     /// <summary>
-    /// The irradiance at the eye, in W/m²: the luminance of color × intensity over max(d², R², NearestDistance²). Lights
+    /// The irradiance at the eye, in W/m²: the luminance of the radiant intensity over max(d², R², NearestDistance²). Lights
     /// rank for shadows by it.
     /// </summary>
     public static float EyeIrradiance(in PreparedLight light)
@@ -81,7 +88,7 @@ internal static class LightUnits
             Math.Max(light.Distance * light.Distance, radius * radius),
             NearestDistance * NearestDistance
         );
-        return (float)(ExposureMeter.Luminance(light.Color) * light.Intensity / distanceSquared);
+        return (float)(ExposureMeter.Luminance(light.RadiantIntensity) / distanceSquared);
     }
 
     /// <summary>
