@@ -20,8 +20,9 @@ public sealed class PortableFloatTests
     private const float LargestHalf = 65504;
 
     /// <summary>
-    /// The most that a pixel of the HDR image holds: the surfaces' cap and the puffs' budget, 32,256 each. It lies 992,
-    /// 31 steps of the half float there, below the largest half float, for the rounding of the blends.
+    /// The most that a pixel of the HDR image holds: the surfaces' cap, 32,256, and twice the puffs' budget of 16,128, the
+    /// most that their rounded blends add. It lies 992, 31 steps of the half float there, below the largest half float,
+    /// for the rounding of the glass blend and of the bloom's summed levels.
     /// </summary>
     private const float HdrBound = 64512;
 
@@ -378,6 +379,31 @@ public sealed class PortableFloatTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(63)]
+    [InlineData(106)]
+    [InlineData(1024)]
+    [InlineData(4096)]
+    public void PuffsAtTheirCapOverASurfaceAtTheCapStayWithinTheHdrBoundInABlendThatRoundsToNearest(int puffs)
+    {
+        // The Vulkan spec does not fix how a blend rounds, and Metal here rounds toward zero, so no GPU here shows a
+        // blend that rounds up. .NET's Half rounds each sum to the nearest half float, ties to even, as such a blend does.
+        // Every puff covers the pixel and adds its full share.
+        var share = (Half)ShaderInput.PuffRadianceCap(puffs);
+        var pixel = (Half)ShaderInput.MaxRadiance;
+        for (int i = 0; i < puffs; i++)
+            pixel += share;
+
+        ((float)pixel)
+            .Should()
+            .BeLessThanOrEqualTo(
+                HdrBound,
+                "each rounded blend adds at most twice a puff's share, so {0} puffs add at most twice their budget",
+                puffs
+            );
+    }
+
+    [Theory]
     [InlineData(63)]
     [InlineData(4096)]
     public void PuffsAtTheirCapOverASurfaceAtTheCapKeepEveryPixelWithinTheHdrBound(int puffs)
@@ -416,9 +442,10 @@ public sealed class PortableFloatTests
             hdr.Should()
                 .OnlyContain(
                     value => float.IsFinite(value) && value <= HdrBound,
-                    "the wall holds at most {0}, and the {1} puffs over a pixel add at most {0} in all",
+                    "the wall holds at most {0}, and the {1} puffs over a pixel add at most {2} in all before the blend rounds",
                     ShaderInput.MaxRadiance,
-                    puffs
+                    puffs,
+                    ShaderInput.PuffBudget
                 );
         }
         finally

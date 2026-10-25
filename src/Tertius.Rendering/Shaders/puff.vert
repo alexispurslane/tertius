@@ -42,7 +42,8 @@ void main()
     // (lighting.glsl, scatteredLight), so each of its six vertices computes the same value.
     vec3 radiance = puff.colorKind.w < 0.5 ? puff.colorKind.rgb : scatteredLight(puff.colorKind.rgb, center);
     // Puffs that overlap add in the blend unit, so each takes an equal share of the puffs' budget, and all the puffs over
-    // a pixel add at most MaxRadiance (ARCHITECTURE.md, "Portable Vulkan").
+    // a pixel add at most ShaderInput.PuffBudget, half of MaxRadiance, before the blend rounds (ARCHITECTURE.md,
+    // "Portable Vulkan").
     outRadiance = exposed(radiance, exposureScale(), frame.params.x);
     outRadius = radius;
     gl_Position = draw.viewProj * vec4(world, 1.0);

@@ -177,15 +177,13 @@ public sealed class ShaderInputTests
     }
 
     [Theory]
-    [InlineData(0, 1)]
-    [InlineData(1, 1)]
-    [InlineData(4096, 4096)]
-    public void EachPuffOfAFrameMayAddAnEqualShareOfThePuffsBudget(int puffs, int shares) =>
-        // The puffs over one pixel add in the blend, so together they may add at most the budget, whatever their number.
-        ShaderInput
-            .PuffRadianceCap(puffs)
-            .Should()
-            .Be(ShaderInput.MaxRadiance / shares, "{0} puffs share the budget of {1}", puffs, ShaderInput.MaxRadiance);
+    [InlineData(0, 16128f)]
+    [InlineData(1, 16128f)]
+    [InlineData(4096, 3.9375f)]
+    public void EachPuffOfAFrameMayAddAnEqualShareOfThePuffsBudget(int puffs, float share) =>
+        // The puffs over one pixel add in the blend, so together they may add at most their budget, half the surfaces'
+        // cap, whatever their number. The other half takes the rounding of their blends.
+        ShaderInput.PuffRadianceCap(puffs).Should().Be(share, "{0} puffs share the budget of 16,128", puffs);
 
     [Fact]
     public void TheFrameGivesTheShadersTheShareOfEachPuffThatItDraws()
@@ -200,7 +198,7 @@ public sealed class ShaderInputTests
         PreparedScene scene = Prepare(snapshot);
 
         scene.PuffCount.Should().Be(2);
-        scene.Constants.Params.X.Should().Be(ShaderInput.MaxRadiance / 2, "the two puffs drawn share the budget");
+        scene.Constants.Params.X.Should().Be(ShaderInput.PuffBudget / 2, "the two puffs drawn share the budget");
     }
 
     [Theory]

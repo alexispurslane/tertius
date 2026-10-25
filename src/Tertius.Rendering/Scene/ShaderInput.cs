@@ -10,11 +10,18 @@ namespace Tertius.Rendering;
 internal static class ShaderInput
 {
     /// <summary>
-    /// The most light per channel that the surfaces write into one pixel of the HDR image, and the most that all the
-    /// puffs over a pixel add to it together: 32,256, `MaxRadiance` in Shaders/exposure.glsl. The two shares keep each
+    /// The most light per channel that the surfaces write into one pixel of the HDR image, the emissive target or the
+    /// impostor atlas: 32,256, `MaxRadiance` in Shaders/exposure.glsl. With twice <see cref="PuffBudget"/> it keeps each
     /// pixel at or below 64,512, below the largest half float (ARCHITECTURE.md, "Portable Vulkan").
     /// </summary>
     public const float MaxRadiance = 32256;
+
+    /// <summary>
+    /// The most pre-exposed light per channel that all the puffs over a pixel add, in exact sums: half of
+    /// <see cref="MaxRadiance"/>, 16,128. A blend that rounds to nearest or toward zero at most doubles it, which keeps a
+    /// pixel at or below 64,512 (ARCHITECTURE.md, "Portable Vulkan").
+    /// </summary>
+    public const float PuffBudget = MaxRadiance / 2;
 
     /// <summary>
     /// The brightest radiance that the renderer reads from the CPU, 2^64, per channel. At the lowest exposure, −64 stops,
@@ -25,9 +32,9 @@ internal static class ShaderInput
 
     /// <summary>
     /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
-    /// <paramref name="puffCount"/> puffs: an equal share of <see cref="MaxRadiance"/>, the budget that the puffs share.
+    /// <paramref name="puffCount"/> puffs: an equal share of <see cref="PuffBudget"/>.
     /// </summary>
-    public static float PuffRadianceCap(int puffCount) => MaxRadiance / Math.Max(puffCount, 1);
+    public static float PuffRadianceCap(int puffCount) => PuffBudget / Math.Max(puffCount, 1);
 
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>

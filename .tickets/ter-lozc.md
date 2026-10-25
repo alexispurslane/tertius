@@ -39,3 +39,7 @@ Builder (2026-10-25). The rule: keep NaN and infinity from arising at their sour
 **2026-10-25T18:38:36Z**
 
 Puffs share a budget (user's design A, 2026-10-25). MaxRadiance is now 32,256: every writer of the HDR image but the puffs, and the emissive target and the atlas, cap there. Each puff caps at 32,256 / max(N, 1), N the puffs drawn this frame (ShaderInput.PuffRadianceCap, frame params.x). Exact sums stay at or below 64,512 (ARCHITECTURE.md, Portable Vulkan, the bound). Open: the rounding of many puff blends. A blend that rounds to nearest can add up to 16 per puff; a simulation finds infinity at 106 fully overlapping puffs at their share over a surface at the cap. Metal here rounds toward zero, so no test here shows it. A puff budget of 16,128 would bound the rounded sum for every N.
+
+**2026-10-25T18:51:45Z**
+
+The puffs' budget takes the rounding of their blends (2026-10-25, settled by the Linux rule and the user's preference for strong highlights). ShaderInput.PuffBudget is 16,128, half of MaxRadiance; each puff caps at 16,128 / max(N, 1). A blend that rounds to nearest or toward zero turns S + x into at most S + 2x, so every pixel stays at or below 32,256 + 2 · 16,128 = 64,512 for any N. A blend that rounds toward +infinity is not covered. A CPU test sums Half values for 1 to 4,096 puffs; under the old budget it gave infinity at 106 puffs.

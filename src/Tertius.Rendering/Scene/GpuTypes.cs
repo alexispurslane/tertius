@@ -197,7 +197,7 @@ internal struct GpuFrameConstants
 
     /// <summary>
     /// x: the most pre-exposed light that one puff adds to a pixel, <see cref="ShaderInput.PuffRadianceCap"/> of the puffs
-    /// drawn; y: time in s; z: angular size of one pixel; w: unused.
+    /// drawn, a share of <see cref="ShaderInput.PuffBudget"/>; y: time in s; z: angular size of one pixel; w: unused.
     /// </summary>
     public Vector4 Params;
     public uint LightCount;
