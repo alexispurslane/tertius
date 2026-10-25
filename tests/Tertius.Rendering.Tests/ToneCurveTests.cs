@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The tone curves of <see cref="RendererOptions.ToneCurve"/> on the GPU: an emissive square that no light reaches shows
 /// its emission through the curve at the exposure 1, and each shown color must match the published formula, which the
-/// test computes, followed by the sRGB encoding.
+/// test computes, followed by the sRGB encoding. Bloom is off, so that no glow adds to a square.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ToneCurveTests
@@ -29,6 +29,7 @@ public sealed class ToneCurveTests
                 Height = 360,
                 Impostors = false,
                 ToneCurve = curve,
+                Bloom = new NoBloom(),
             }
         );
 
@@ -128,6 +129,7 @@ public sealed class ToneCurveTests
                 Width = 640,
                 Height = 360,
                 Impostors = false,
+                Bloom = new NoBloom(),
             }
         );
         try

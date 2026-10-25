@@ -163,6 +163,7 @@ public sealed class GpuTimingTests
             {
                 Validation = true,
                 Width = Width,
+                Bloom = new NoBloom(),
                 Height = Height,
                 Impostors = false,
             },

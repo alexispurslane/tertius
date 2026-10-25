@@ -84,6 +84,7 @@ public static class GpuTesting
                 Width = width,
                 Height = height,
                 Impostors = false,
+                Bloom = new NoBloom(),
             }
         );
 
