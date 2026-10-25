@@ -24,6 +24,9 @@ struct GpuInstance
     vec4 hemisphere;
 };
 
+// GpuMaterial.NoMap: the map index of a material that has no such map.
+const uint NoMap = 0xFFFFFFFFu;
+
 struct GpuMaterial
 {
     vec4 baseColor;               // linear RGB, alpha for transparent objects
@@ -32,7 +35,7 @@ struct GpuMaterial
     float roughness;              // r₀, before the floor
     float reflectance;
     uint baseColorMap;            // bindless indices, already resolved to the default textures
-    uint normalMap;
+    uint normalMap;               // NoMap: none, so the shading normal is the vertex normal
     uint metallicRoughnessMap;    // glTF layout: roughness in G, metallic in B
 };                                // std430: 52 bytes of members, a stride of 64
 
@@ -70,7 +73,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientSky;          // rgb sky color × intensity
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
-    vec4 params;              // x unused, y time in seconds, z angular size of one pixel
+    vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
     uvec4 counts;             // x lights, y occluders, z shadow cascades to sample (0: no shadow maps this frame), w occluders of casters in the maps (first)
     // Sun shadow cascades (see ShadowCascades.cs). Light space: x = shadowAxisX, y = shadowAxisY, z = sunDirection.
     mat4 shadowViewProj[4];   // shadow clip space from world space; xy in [-1, 1], z reversed (1 nearest the sun)

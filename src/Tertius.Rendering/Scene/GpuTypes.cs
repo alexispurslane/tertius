@@ -60,13 +60,7 @@ internal struct GpuInstance
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: position.Z),
             InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
-            Hemisphere = hemisphere switch
-            {
-                UpAlong { Direction: var direction } => new(direction, 1),
-                // The center moves with the instance, so it is exact wherever the instance is interpolated to.
-                UpAwayFrom { Center: var center } => new(position + center, 2),
-                null => Vector4.Zero,
-            },
+            Hemisphere = HemisphereOf(position, hemisphere),
         };
     }
 
@@ -84,12 +78,31 @@ internal struct GpuInstance
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
+
+    /// <summary>
+    /// The hemisphere of an instance at <paramref name="position"/> as the shaders read it. One that holds a number that is
+    /// not finite mixes the sky and the ground evenly, as no hemisphere does.
+    /// </summary>
+    private static Vector4 HemisphereOf(Vector3 position, HemisphereUp hemisphere)
+    {
+        Vector4 gpu = hemisphere switch
+        {
+            UpAlong { Direction: var direction } => new(direction, 1),
+            // The center moves with the instance, so it is exact wherever the instance is interpolated to.
+            UpAwayFrom { Center: var center } => new(position + center, 2),
+            null => Vector4.Zero,
+        };
+        return ShaderInput.IsFinite(new(gpu.X, gpu.Y, gpu.Z)) ? gpu : Vector4.Zero;
+    }
 }
 
 /// <summary>One material in the material storage buffer (std430). 52 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
+    /// <summary>The <see cref="NormalMap"/> of a material without a normal map, which shades with its vertex normal.</summary>
+    public const uint NoMap = uint.MaxValue;
+
     public Vector4 BaseColor;
     public Vector3 Emissive;
     public float Metallic;
@@ -98,9 +111,16 @@ internal struct GpuMaterial
     public float Roughness;
     public float Reflectance;
 
-    /// <summary>Bindless indices, already resolved to the default textures.</summary>
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint BaseColorMap;
+
+    /// <summary>
+    /// Bindless index, or <see cref="NoMap"/> for a material without a normal map. No default texture stands in for
+    /// none, because no 8-bit UNORM texel decodes to +Z.
+    /// </summary>
     public uint NormalMap;
+
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint MetallicRoughnessMap;
 }
 
@@ -184,6 +204,11 @@ internal struct GpuFrameConstants
     public Vector4 AmbientSky;
     public Vector4 AmbientGround;
     public Vector4 Viewport;
+
+    /// <summary>
+    /// x: the most pre-exposed light that one puff adds to a pixel, <see cref="ShaderInput.PuffRadianceCap"/> of the puffs
+    /// drawn, a share of <see cref="ShaderInput.PuffBudget"/>; y: time in s; z: angular size of one pixel; w: unused.
+    /// </summary>
     public Vector4 Params;
     public uint LightCount;
     public uint OccluderCount;

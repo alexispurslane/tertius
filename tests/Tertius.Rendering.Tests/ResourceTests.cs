@@ -223,11 +223,13 @@ public sealed class ResourceTests
                 Gpu.Instance(mesh: last, material: lastMaterial, position: new(1.5f, 0, -6), scale: Vector3.One)
             );
 
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "buffer-growth");
+            // Not captured: a capture waits until its frame has finished, which would release the old buffers at once.
+            renderer.Render(snapshot, 1f);
             renderer.PendingReleases.Should().BePositive("the replaced buffers wait for the frames that use them");
             for (int i = 0; i < 4; i++)
                 renderer.Render(snapshot, 1f);
             renderer.PendingReleases.Should().Be(0, "every frame that used the old buffers has finished");
+            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "buffer-growth");
 
             // The first mesh survived the copy into the larger buffers, and the new mesh draws with the new material.
             Vector3 left = image.Color(Gpu.Project(point: new(-1.5f, 0, -5.5f), width: width, height: height));

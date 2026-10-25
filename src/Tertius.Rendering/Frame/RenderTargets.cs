@@ -180,7 +180,7 @@ internal sealed class RenderTargets : IDisposable
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
-        Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance");
+        Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
         Depth = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -194,6 +194,7 @@ internal sealed class RenderTargets : IDisposable
             extent: extent,
             format: HdrFormat,
             name: "hdr",
+            readable: true,
             extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
         );
         Occlusion = GpuImage.Create(
@@ -229,7 +230,7 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < Glow.Length; i++)
         {
             level = new((level.Width + 1) / 2, (level.Height + 1) / 2);
-            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}");
+            Glow[i] = ColorTarget(extent: level, format: HdrFormat, name: $"bloom level {i}", readable: true);
             layouts.WriteImage(set: GlowSources[i + 1], binding: 0, arrayElement: 0, image: Glow[i]);
         }
 
@@ -237,10 +238,16 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// An image of one level that passes draw into, later passes sample and the read hooks copy out, with
-    /// <paramref name="extraUsage"/> beside.
+    /// An image of one level that passes draw into and later passes sample. A <paramref name="readable"/> image can also
+    /// be copied out, for the renderer's read hooks. The image has <paramref name="extraUsage"/> beside.
     /// </summary>
-    private GpuImage ColorTarget(Extent2D extent, Format format, string name, ImageUsageFlags extraUsage = 0) =>
+    private GpuImage ColorTarget(
+        Extent2D extent,
+        Format format,
+        string name,
+        bool readable = false,
+        ImageUsageFlags extraUsage = 0
+    ) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -248,7 +255,7 @@ internal sealed class RenderTargets : IDisposable
             format: format,
             usage: ImageUsageFlags.ColorAttachmentBit
                 | ImageUsageFlags.SampledBit
-                | ImageUsageFlags.TransferSrcBit
+                | (readable ? ImageUsageFlags.TransferSrcBit : 0)
                 | extraUsage,
             mipLevels: 1,
             name: name

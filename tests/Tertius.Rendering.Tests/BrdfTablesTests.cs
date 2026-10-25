@@ -116,6 +116,18 @@ public sealed class BrdfTablesTests
         DfgTexel(BrdfTables.Shared, headOn, row: BrdfTables.DfgSize - 1).LobeAlbedo.Should().BeLessThan(0.35);
     }
 
+    [Fact]
+    public void EveryDfgTexelHoldsAPositiveLobeAlbedoSoTheShadersMayDivideByIt()
+    {
+        // lobesOf in lighting.glsl divides by E₁ for the energy compensation, with no floor (ARCHITECTURE.md, "Portable
+        // Vulkan"). A bilinear read between positive texels is positive too.
+        for (int row = 0; row < BrdfTables.DfgSize; row++)
+        for (int column = 0; column < BrdfTables.DfgSize; column++)
+            DfgTexel(BrdfTables.Shared, column, row)
+                .LobeAlbedo.Should()
+                .BeGreaterThan(0.1, "the texel at column {0} and row {1} holds a divisor", column, row);
+    }
+
     [Theory]
     [InlineData(20, 31)]
     [InlineData(28, 24)]

@@ -9,7 +9,7 @@
 // share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
 // (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient light reads it through
 // ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
-// lobesRadiance pre-exposes the sum and clamps it to the largest finite half float.
+// lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -120,7 +120,9 @@ float sunVisibility(vec3 position, float beyondMaps)
         float distanceToCenter = length(toCenter);
         if (distanceToCenter <= occluder.w)
             continue;
-        float occluderRadius = asin(occluder.w / distanceToCenter);
+        // The test above makes the ratio below 1 only in exact arithmetic: a division may be off by 2.5 ULP, and for a
+        // distance within 2 ULP of the radius, such as on a planet's own ground, the ratio can come out above 1.
+        float occluderRadius = asin(min(occluder.w / distanceToCenter, 1.0));
         // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
         float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
         visibility *= 1.0 - weight * discCoverage(sunRadius, occluderRadius, separation);
@@ -255,9 +257,11 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
     return color;
 }
 
-// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and clamped to what the HDR
-// target holds: the reflected light times `exposure`, plus `preExposedEmission`, which the caller has already
-// multiplied. The clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts.
+// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
+// surfaces' share of the HDR image (exposure.glsl): the reflected light times `exposure`, plus `preExposedEmission`,
+// which the caller has already exposed and capped. The cap applies to the whole sum, because the share bounds what a
+// surface writes, whatever the parts.
+// The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass shadowMaps false and an exposure of 1, because the atlas
 // stores radiance.
 vec3 lobesRadiance(
@@ -265,7 +269,7 @@ vec3 lobesRadiance(
 {
     vec3 reflected = ambientLight(s, lobes, V) + sunLight(s, lobes, position, V, shadowMaps)
         + localLights(s, lobes, position, V);
-    return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
+    return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
 // lobesRadiance with the lobes of the material itself: every opaque surface.

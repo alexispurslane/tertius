@@ -94,6 +94,19 @@ public sealed class GgxLobeTests
     }
 
     [Fact]
+    public void ADominantDirectionHalfwayFromTheNormalToItsOppositeIsTheNormal()
+    {
+        // A surface seen straight from behind its normal mirrors the view to −n, and the mix of the two at one half is
+        // the zero vector, which has no direction. brdf.glsl falls back to the normal there.
+        Double3 normal = Double3.UnitZ;
+
+        GgxLobe
+            .DominantDirection(normal: normal, mirror: -normal, towardMirror: 0.5)
+            .Should()
+            .Be(normal, "the C# copy falls back to the normal as the shader does");
+    }
+
+    [Fact]
     public void AtSixtyDegreesTheGgxTailIsOverAHundredTimesTheBlinnPhongTailOfTheSameHighlight()
     {
         var lobe = new GgxLobe(0.6);

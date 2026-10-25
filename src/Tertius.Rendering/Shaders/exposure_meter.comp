@@ -3,8 +3,10 @@
 #extension GL_GOOGLE_include_directive : require
 #include "meter.glsl"
 
-// The exposure's meter (docs/plans/auto-exposure.md, "The shaders of the exposure pass"): counts each surface pixel of
-// the HDR image in the bin of its pre-exposed luminance. Dispatched over ceil(width / 16) x ceil(height / 16) workgroups.
+// The exposure's meter (docs/plans/auto-exposure.md, "The shaders of the exposure pass"): reads the top-left pixel of
+// each 2 x 2 block of the HDR image, and counts it in the bin of its pre-exposed luminance when it is a surface pixel.
+// An odd image's last column or row is a block of its own. One invocation per block, dispatched over
+// ceil(ceil(width / 2) / 16) x ceil(ceil(height / 2) / 16) workgroups.
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
@@ -19,7 +21,9 @@ void main()
     uint i = gl_LocalInvocationIndex;
     localBins[i] = 0u;
     barrier();
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    // The block's top-left pixel: it lies inside the image exactly when the block does, so the test below keeps every
+    // fetch in range.
+    ivec2 pixel = 2 * ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = textureSize(hdrImage, 0);
     if (pixel.x < size.x && pixel.y < size.y && texelFetch(distanceImage, pixel, 0).r > 0.0)
         atomicAdd(localBins[binOf(luminance(texelFetch(hdrImage, pixel, 0).rgb))], 1u);

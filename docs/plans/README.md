@@ -31,4 +31,5 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Screen-space reflections](screen-space-reflections.md) | `ter-jxv9` |
 | [Spin gravity](spin-gravity.md) | `ter-s9m0` |
 | [Renderer snapshot tests](renderer-snapshot-tests.md) | `ter-rtxu` |
+| [Rendering performance](rendering-performance.md) | `ter-pq5y` |
 | [Test hardening](test-hardening.md) | `ter-7e55` |

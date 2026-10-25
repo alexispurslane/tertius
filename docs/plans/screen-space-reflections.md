@@ -348,10 +348,10 @@ The lighting pass already wrote k · T_s into the pixel. So the trace adds the d
 
 ```
 Δ = f · (W · C − a · k · T_s)
-HDR(p) = clamp(HDR(p) + Δ, 0, 65,504)          per channel, in 32-bit floats, then stored as half floats
+HDR(p) = clamp(HDR(p) + Δ, 0, 32,256)          per channel, in 32-bit floats, then stored as half floats
 ```
 
-The clamp keeps the stored value finite: a mirror that reflects a pixel of 65,504 adds up to that much again, and a half float above 65,520 rounds to infinity, which the tone curve turns into NaN.
+The clamp is `MaxRadiance`, 32,256, the surfaces' share of the HDR image (ARCHITECTURE.md, "Portable Vulkan"). It keeps the stored value finite: a mirror that reflects a pixel at the cap adds up to that much again, the puffs over the pixel add up to as much again, and a half float above 65,520 rounds to infinity, which the tone curve turns into NaN.
 
 ### Precision and determinism
 
@@ -366,7 +366,7 @@ The lighting pass writes the whole reflected light of a pixel into the HDR image
 
 | Design | What changes | Costs | Its problems |
 |---|---|---|---|
-| A. The trace adds the reflection delta f · (W · C − a · k · T_s) to the HDR image. | The trace pass. The lighting pass does not change. | Nothing stored. W and T_s are computed again in the trace, by the same functions. | A sum that the lighting pass clamped at 65,504 lacks its part above the clamp. Such a pixel is thousands of times display white, so it shows white with or without the delta. |
+| A. The trace adds the reflection delta f · (W · C − a · k · T_s) to the HDR image. | The trace pass. The lighting pass does not change. | Nothing stored. W and T_s are computed again in the trace, by the same functions. | A sum that the lighting pass capped at 32,256 lacks its part above the cap. Such a pixel is thousands of times display white, so it shows white with or without the delta. |
 | B. The lighting pass writes the ambient specular term into a target of its own and leaves it out of the HDR image. A resolve adds f · W · C + (1 − f · a) · k · T_s. | The lighting pass, in two shaders: with and without the term. A new full-size RGBA16F target, 16.6 MB at 1080p. | A second store of a part of the light. | The radiance pyramid must add the term back, because a reflected surface carries its own ambient specular light. With SSR off, the lighting pass needs its other shader. |
 | C. The lighting pass leaves the term out, and the trace computes it for every pixel. | The lighting pass, in two shaders, and the trace for every pixel. | Nothing stored. | The same problem with the radiance pyramid as B, and the trace must run for every pixel, also above the maximum roughness. |
 
@@ -375,7 +375,7 @@ This design takes A, by the project's rules:
 - One store for each piece of state. B stores a part of the light in a second target, beside the image that holds the sum.
 - The pure model first. The ambient specular term stays the model's answer for the light along the lobe. SSR says how much the light that its ray finds differs from that answer, under the same weight. In real numbers, f W C + (1 − f a) k T_s − k T_s = f · (W · C − a · k · T_s) exactly. In floats, the error is the HDR image's own rounding.
 - The automatic machinery lives in one place. The trace pass owns the whole replacement: the lighting pass, the transparent pass and the impostor capture keep one path each, and with the switch off nothing runs.
-- The clamp caveat of A applies only to a pixel whose pre-exposed light passes 65,504, which is thousands of times display white ([auto-exposure.md](auto-exposure.md), "Puffs and the clamp"). The trace clamps its result again.
+- The clamp caveat of A applies only to a pixel whose pre-exposed light passes 32,256, which is thousands of times display white ([auto-exposure.md](auto-exposure.md), "Puffs and the clamp"). The trace clamps its result again.
 
 ### The one place where SSR reads the ambient light
 
@@ -1382,7 +1382,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `AnImpostorKeepsItsBakedLightAndShowsInReflections`: with impostors on, a glossy object's billboard holds the same values with and without reflections, and its image shows in a mirror floor.
 - `AFarPlanetShowsInANearMirror`: a mirror floor whose rays reach a planet in the far range. The pixels show the planet.
 - `TwoRendersGiveTheSameBits`: two renderers draw the same snapshot, and `ReadHdr` gives the same bits.
-- Added by Part 5, for the hand mutations that the list above let survive: `AMirrorGivesNoWeightToASurfaceThatItsRayMeetsFromBehind` (a mirror wall whose rays come back toward the eye and enter a box's slab from behind), `ARayThatPointsIntoItsOwnSurfaceAddsNothing` (a normal map that leans every mirror ray into the floor), `AReflectionOnAFloorAtTheLargestRadianceStaysAtTheLargestHalfFloat`, and `TheTraceRunsAfterTheRadiancePyramidAndBeforeTheTransparentPass`. `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight` runs at 0 and 2 stops, so that it sees the pre-exposure of T_s, and `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt` puts the plate 6 m ahead, between the ray's origin and its hit. The edge fade test renders at 1280 × 720: at 640 × 360 the band is 36 px, and the smoothstep's steepest step is 4.2 % of the peak, above the 3 % of the test.
+- Added by Part 5, for the hand mutations that the list above let survive: `AMirrorGivesNoWeightToASurfaceThatItsRayMeetsFromBehind` (a mirror wall whose rays come back toward the eye and enter a box's slab from behind), `ARayThatPointsIntoItsOwnSurfaceAddsNothing` (a normal map that leans every mirror ray into the floor), `AReflectionOnAFloorAtTheCapStaysAtTheCap`, and `TheTraceRunsAfterTheRadiancePyramidAndBeforeTheTransparentPass`. `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight` runs at 0 and 2 stops, so that it sees the pre-exposure of T_s, and `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt` puts the plate 6 m ahead, between the ray's origin and its hit. The edge fade test renders at 1280 × 720: at 640 × 360 the band is 36 px, and the smoothstep's steepest step is 4.2 % of the peak, above the 3 % of the test.
 - `ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet` (Part 5): 3,613 floor rays toward a planet 10⁷ m away, which pins the carried slab bound of "Precision and determinism".
 
 `ReflectionShaderTests` pins the shader to the C# copy. Its floors take a normal map of the flat texel (128, 128, 255), whose lean of about 0.3° (`ter-v0yz`) the C# trace takes too, so that both start from the normal the G-buffer holds:

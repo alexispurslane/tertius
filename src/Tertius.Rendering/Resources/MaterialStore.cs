@@ -6,8 +6,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// All materials in one device-local storage buffer. Slot <see cref="DefaultSlot"/> holds the default material
-/// (a white non-metal of roughness 0.5 and reflectance 0.5, the default textures) that <see cref="MaterialId.None"/> and ids this renderer
-/// did not hand out resolve to. Material n from <see cref="VulkanRenderer.CreateMaterial"/> lives in slot
+/// (a white non-metal of roughness 0.5 and reflectance 0.5, the default textures and no normal map) that
+/// <see cref="MaterialId.None"/> and ids this renderer did not hand out resolve to. Material n from <see cref="VulkanRenderer.CreateMaterial"/> lives in slot
 /// n + <see cref="BuiltInCount"/>, so no <see cref="MaterialId"/> names the default and ids start at 0.
 /// The buffer grows by doubling like the geometry buffers.
 /// </summary>
@@ -63,13 +63,14 @@ internal sealed unsafe class MaterialStore : IDisposable
     public static GpuMaterial ToGpu(MaterialDesc desc) =>
         new()
         {
-            BaseColor = desc.BaseColor,
-            Emissive = Vector3.Max(desc.Emissive, Vector3.Zero),
-            Metallic = Math.Clamp(desc.Metallic, 0f, 1f),
-            Roughness = Math.Clamp(desc.Roughness, 0f, 1f),
-            Reflectance = Math.Clamp(desc.Reflectance, 0f, 1f),
+            // The colors and the factors reach the shaders in their ranges (ShaderInput), with a NaN as 0.
+            BaseColor = ShaderInput.Fraction(desc.BaseColor),
+            Emissive = ShaderInput.Radiance(desc.Emissive),
+            Metallic = ShaderInput.Fraction(desc.Metallic),
+            Roughness = ShaderInput.Fraction(desc.Roughness),
+            Reflectance = ShaderInput.Fraction(desc.Reflectance),
             BaseColorMap = TextureStore.Resolve(desc.BaseColorMap, TextureStore.White),
-            NormalMap = TextureStore.Resolve(desc.NormalMap, TextureStore.FlatNormal),
+            NormalMap = desc.NormalMap.IsNone ? GpuMaterial.NoMap : (uint)TextureStore.Slot(desc.NormalMap),
             MetallicRoughnessMap = TextureStore.Resolve(
                 desc.MetallicRoughnessMap,
                 TextureStore.DefaultMetallicRoughness

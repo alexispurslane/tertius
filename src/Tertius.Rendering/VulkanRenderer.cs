@@ -454,6 +454,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
         frame.Number = frameNumber;
         frameNumber++;
 
+        if (sink != null && capture != null)
+        {
+            WaitFor(fence);
+            // The frame has finished, so the stats below describe it (docs/plans/auto-exposure.md, "Writers and readers").
+            Collect(frame);
+            HandOver(sink, capture, image.Extent);
+        }
+
         LastFrameStats = StatsOf(
             scene: LastScene,
             impostors: Impostors,
@@ -461,23 +469,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
             gpuTimings: timer.Latest,
             exposure: exposure.Latest
         );
-
-        if (sink != null && capture != null)
-        {
-            WaitFor(fence);
-            HandOver(sink, capture, image.Extent);
-        }
-
         return true;
     }
 
-    /// <summary>
-    /// Waits for the last frame that <paramref name="frame"/>'s slot submitted, and collects what it left behind: the
-    /// releases it waited for, its GPU timings and its exposure.
-    /// </summary>
+    /// <summary>Waits for the last frame that <paramref name="frame"/>'s slot submitted, and collects what it left behind.</summary>
     private void FinishSlot(FrameResources frame)
     {
         WaitFor(frame.Fence);
+        Collect(frame);
+    }
+
+    /// <summary>
+    /// Collects what the last frame of <paramref name="frame"/>'s slot left behind, once its fence has signaled: the
+    /// releases it waited for, its GPU timings and its exposure. A slot collected twice changes nothing the second time.
+    /// </summary>
+    private void Collect(FrameResources frame)
+    {
         // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
         releases.Collect(frame.Number);
         timer.Collect(frame.Index, frame.Number);
@@ -853,6 +860,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
         float[] rgba = ReadLevel(image: atlas.Color, layer: tile, mip: 0).Values;
         float[] depth = ReadLevel(image: atlas.DepthOffset, layer: tile, mip: 0).Values;
         return (rgba, depth);
+    }
+
+    /// <summary>
+    /// One bloom level of the last frame, RGBA per pixel, row by row from the top. After a frame, level 0 holds every
+    /// level summed. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadGlowLevel(int level)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, (uint)targets.Glow.Length);
+        return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
     /// <summary>

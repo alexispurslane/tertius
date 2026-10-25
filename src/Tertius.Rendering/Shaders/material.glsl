@@ -2,6 +2,8 @@
 #ifndef TERTIUS_MATERIAL_GLSL
 #define TERTIUS_MATERIAL_GLSL
 
+#include "vectors.glsl"
+
 struct SurfaceSample
 {
     vec4 baseColor;       // linear RGB and alpha
@@ -25,22 +27,33 @@ vec4 sampleTexture(uint index, vec2 uv)
 }
 
 // Tangent space follows the vertex convention: tangent along +u, bitangent = cross(normal, tangent) × w.
-// Normal maps store the tangent-space normal as RGB = xyz × 0.5 + 0.5.
-SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent)
+// Normal maps store the tangent-space normal as RGB = xyz × 0.5 + 0.5, glTF's encoding. `n` is the unit vertex normal.
+vec3 normalMapped(uint normalMap, vec2 uv, vec3 n, vec4 vertexTangent)
+{
+    vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
+    float tangentLengthSq = dot(t, t);
+    t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);
+    vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
+    vec3 tangentNormal = sampleTexture(normalMap, uv).xyz * 2.0 - 1.0;
+    vec3 mapped = t * tangentNormal.x + b * tangentNormal.y + n * tangentNormal.z;
+    float mappedLengthSq = dot(mapped, mapped);
+    return mappedLengthSq > 1e-12 ? mapped * inversesqrt(mappedLengthSq) : n;
+}
+
+// `fallbackNormal` is the unit normal of a surface whose interpolated vertex normal has no direction.
+SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent, vec3 fallbackNormal)
 {
     GpuMaterial m = materials[materialIndex];
     SurfaceSample s;
     s.baseColor = m.baseColor * sampleTexture(m.baseColorMap, uv);
 
-    vec3 n = normalize(vertexNormal);
-    vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
-    float tangentLengthSq = dot(t, t);
-    t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);
-    vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 tangentNormal = sampleTexture(m.normalMap, uv).xyz * 2.0 - 1.0;
-    vec3 mapped = t * tangentNormal.x + b * tangentNormal.y + n * tangentNormal.z;
-    float mappedLengthSq = dot(mapped, mapped);
-    s.normal = mappedLengthSq > 1e-12 ? mapped * inversesqrt(mappedLengthSq) : n;
+    // A material without a normal map shades with its vertex normal exactly: no 8-bit UNORM texel decodes to a tangent
+    // normal of +Z. The branch reads no texture for NoMap, which names no slot. The material comes from a flat input,
+    // so every invocation of a quad takes the same branch, and the implicit derivatives of the sample inside it stay
+    // defined.
+    s.normal = normalizedOr(vertexNormal, fallbackNormal);
+    if (m.normalMap != NoMap)
+        s.normal = normalMapped(m.normalMap, uv, s.normal, vertexTangent);
 
     // glTF's layout: roughness in G, metallic in B. The reflectance has no map channel.
     vec4 metallicRoughness = sampleTexture(m.metallicRoughnessMap, uv);

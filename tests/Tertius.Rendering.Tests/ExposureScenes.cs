@@ -20,12 +20,6 @@ internal static class ExposureScenes
     /// <summary>The ramp's fall in reflectance from its bright edge to its dark edge, in stops.</summary>
     public const int RampStops = 8;
 
-    /// <summary>
-    /// The step, in s, of the frame after a film that reads its last frame's exposure. It is too short to meter, as a
-    /// step of 0 would, and it moves the exposure by far less than a float's precision.
-    /// </summary>
-    public const double ReadingStepSeconds = 1e-9;
-
     /// <summary>A square facing the camera, as the plane primitive faces +Y.</summary>
     public static readonly Quaternion FacingTheCamera = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
 
@@ -47,7 +41,10 @@ internal static class ExposureScenes
     /// <summary>The half size of a square that fills the view at 3 m.</summary>
     public const float FillsTheView = 5;
 
-    /// <summary>A validating headless renderer with one frame in flight, so each frame reports the exposure of the frame before.</summary>
+    /// <summary>
+    /// A validating headless renderer with one frame in flight, so each frame that is not captured reports the exposure of
+    /// the frame before. A captured frame reports its own.
+    /// </summary>
     public static VulkanRenderer Renderer(ExposureSetting exposure) =>
         Gpu.Headless(width: Width, height: Height, framesInFlight: 1, exposure: exposure);
 
@@ -134,9 +131,9 @@ internal static class ExposureScenes
     }
 
     /// <summary>
-    /// Films <paramref name="frames"/> drawn frames of <paramref name="snapshot"/>, the first at <paramref name="start"/> s of
-    /// snapshot time and each next one <paramref name="frameSeconds"/> later, and returns the exposure and the middle luma
-    /// of each. One more frame, <see cref="ReadingStepSeconds"/> after the last, reads the last frame's exposure.
+    /// Films <paramref name="frames"/> captured frames of <paramref name="snapshot"/>, the first at <paramref name="start"/> s
+    /// of snapshot time and each next one <paramref name="frameSeconds"/> later, and returns the exposure and the middle
+    /// luma of each.
     /// </summary>
     public static FilmFrame[] Film(
         VulkanRenderer renderer,
@@ -146,20 +143,16 @@ internal static class ExposureScenes
         int frames
     )
     {
-        float[] stops = new float[frames];
-        float[] lumas = new float[frames];
-        for (int frame = 0; frame <= frames; frame++)
+        var film = new FilmFrame[frames];
+        for (int frame = 0; frame < frames; frame++)
         {
-            snapshot.Time = frame < frames ? start + frame * frameSeconds : snapshot.Time + ReadingStepSeconds;
+            snapshot.Time = start + frame * frameSeconds;
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "auto exposure film");
-            // With one frame in flight, each frame reports the exposure of the frame before it.
-            if (frame > 0)
-                stops[frame - 1] = renderer.LastFrameStats.Exposure!.Value.Stops;
-            if (frame < frames)
-                lumas[frame] = image.Luma(Middle);
+            // The capture waits until its frame has finished, so the stats report the frame's own exposure.
+            film[frame] = new(Stops: renderer.LastFrameStats.Exposure!.Value.Stops, Luma: image.Luma(Middle));
         }
 
-        return [.. stops.Zip(lumas, (s, l) => new FilmFrame(Stops: s, Luma: l))];
+        return film;
     }
 
     /// <summary>The exposure and the luma of one frame of <paramref name="snapshot"/> at <paramref name="time"/>.</summary>

@@ -62,6 +62,12 @@ public static class ScriptCommand
     /// </summary>
     public const string GpuTimingsFile = "gpu-timings.json";
 
+    /// <summary>
+    /// The file in the output folder of a headless run with a renderer that holds the exposure of each shown frame, in the
+    /// order shown.
+    /// </summary>
+    public const string ExposureFile = "exposure.json";
+
     private const string Usage =
         "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
@@ -94,6 +100,7 @@ public static class ScriptCommand
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
     /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
     /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path and one line for each pass.
+    /// Every headless renderer adds <see cref="ExposureFile"/> and its path.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
         Run(args: args, scenes: scenes, output: output, error: error, createRenderer: VulkanRenderer.CreateHeadless);
@@ -221,36 +228,59 @@ public static class ScriptCommand
         }
 
         using VulkanRenderer? rendererToDispose = renderer;
+        return Play(
+            options: options,
+            script: script,
+            scene: scene,
+            outFolder: outFolder,
+            world: world,
+            renderer: renderer,
+            startVideo: startVideo,
+            output: output,
+            error: error
+        );
+    }
+
+    /// <summary>
+    /// Plays the script in <paramref name="world"/> with a playback on <paramref name="renderer"/>, or with none when it is
+    /// null, then writes the files of the run and the readings of the renderer. Returns the exit code.
+    /// </summary>
+    private static int Play(
+        Options options,
+        Script script,
+        Scene scene,
+        string outFolder,
+        World world,
+        VulkanRenderer? renderer,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
+        TextWriter output,
+        TextWriter error
+    )
+    {
         CaptureTarget target = options.Video is { } video ? video : new PngFolder(outFolder);
-        var timings = new GpuTimingSummary();
+        var readings = new FrameReadings();
         HeadlessPlayback? playback = null;
         if (renderer != null)
-            try
+        {
+            Result<HeadlessPlayback, PlaybackFailure> started = StartPlayback(
+                renderer: renderer,
+                size: script.Window,
+                target: target,
+                startVideo: startVideo,
+                readings: readings,
+                options: options
+            );
+            if (started.Problem is { Code: var code, Message: var message })
             {
-                playback = new(
-                    renderer: renderer,
-                    size: script.Window,
-                    target: target,
-                    startVideo: startVideo,
-                    rendered: () => timings.Add(renderer.LastFrameStats.GpuTimings)
-                );
-            }
-            // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
-            // search path or cannot start.
-            catch (Win32Exception ex) when (options.Video is { } file)
-            {
-                error.WriteLine($"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}");
-                return ToolError;
-            }
-            // The folder of the video cannot be made: a file problem, as for a dump or an image.
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
-            {
-                error.WriteLine($"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
-                return FileError;
+                error.WriteLine(message);
+                return code;
             }
 
-        // Disposed in reverse order: the playback, which ends the video on every way out, then the renderer, then the world
-        // and its physics.
+            playback = started.Ok;
+        }
+
+        // Disposed first, before RunHeadless disposes the renderer, then the world and its physics: the playback ends the
+        // video on every way out.
         using HeadlessPlayback? playbackToDispose = playback;
         // The log holds the errors, which the dumps also hold, and the engine's notes, such as a run that is no longer
         // deterministic, which only the log holds.
@@ -267,10 +297,11 @@ public static class ScriptCommand
             playback?.Finish();
             WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
             if (renderer != null)
-                WriteGpuTimings(
-                    timings: timings,
+                WriteReadings(
+                    readings: readings,
                     renderer: renderer,
                     size: script.Window,
+                    captures: result.Captures,
                     outputFolder: outFolder,
                     output: output
                 );
@@ -278,11 +309,76 @@ public static class ScriptCommand
         }
         catch (Exception ex)
         {
-            (int code, string message) = Failure(ex, options);
+            (int failure, string message) = Failure(ex, options);
             error.WriteLine(message);
-            return code;
+            return failure;
         }
     }
+
+    /// <summary>Writes <see cref="GpuTimingsFile"/> and <see cref="ExposureFile"/> from the readings of a run's shown frames.</summary>
+    private static void WriteReadings(
+        FrameReadings readings,
+        VulkanRenderer renderer,
+        ScriptWindow size,
+        IReadOnlyList<string> captures,
+        string outputFolder,
+        TextWriter output
+    )
+    {
+        WriteGpuTimings(
+            timings: readings.Timings,
+            renderer: renderer,
+            size: size,
+            outputFolder: outputFolder,
+            output: output
+        );
+        WriteExposures(stops: readings.Exposures, captures: captures, outputFolder: outputFolder, output: output);
+    }
+
+    /// <summary>
+    /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
+    /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder.
+    /// </summary>
+    private static Result<HeadlessPlayback, PlaybackFailure> StartPlayback(
+        VulkanRenderer renderer,
+        ScriptWindow size,
+        CaptureTarget target,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
+        FrameReadings readings,
+        Options options
+    )
+    {
+        try
+        {
+            return new HeadlessPlayback(
+                renderer: renderer,
+                size: size,
+                target: target,
+                startVideo: startVideo,
+                rendered: () => readings.Add(renderer.LastFrameStats)
+            );
+        }
+        // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
+        // search path or cannot start.
+        catch (Win32Exception ex) when (options.Video is { } file)
+        {
+            return new PlaybackFailure(
+                ToolError,
+                $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}"
+            );
+        }
+        // The folder of the video cannot be made: a file problem, as for a dump or an image.
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
+        {
+            return new PlaybackFailure(
+                FileError,
+                $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}"
+            );
+        }
+    }
+
+    /// <summary>Why the playback of a headless run cannot start: the exit code and the message.</summary>
+    private sealed record PlaybackFailure(int Code, string Message);
 
     /// <summary>The headless renderer, or null after writing why it cannot start to <paramref name="error"/>.</summary>
     private static VulkanRenderer? StartRenderer(
@@ -426,6 +522,41 @@ public static class ScriptCommand
                 )
             );
     }
+
+    /// <summary>
+    /// Writes <see cref="ExposureFile"/> into the output folder with one <see cref="ShownExposure"/> per shown frame, in the
+    /// order shown, then its path to <paramref name="output"/>.
+    /// </summary>
+    /// <param name="stops">The exposure in stops of each shown frame, in the order shown.</param>
+    /// <param name="captures">The name of each shown frame's capture, in the order shown.</param>
+    internal static void WriteExposures(
+        IReadOnlyList<float> stops,
+        IReadOnlyList<string> captures,
+        string outputFolder,
+        TextWriter output
+    )
+    {
+        if (stops.Count != captures.Count)
+            throw new UnreachableException(
+                $"Each of the {captures.Count} captures renders one shown frame, and {stops.Count} frames have an exposure."
+            );
+        string path = Path.Combine(outputFolder, ExposureFile);
+        Directory.CreateDirectory(outputFolder);
+        ShownExposure[] frames =
+        [
+            .. captures.Select(
+                (capture, frame) => new ShownExposure(Frame: frame, Capture: capture, Stops: stops[frame])
+            ),
+        ];
+        File.WriteAllText(path, JsonSerializer.Serialize(frames, ReportJson));
+        output.WriteLine(path);
+    }
+
+    /// <summary>One entry of <see cref="ExposureFile"/>.</summary>
+    /// <param name="Frame">The shown frame's number, counted from 0 over the run's captures: its frame number in a video.</param>
+    /// <param name="Capture">The capture's name, which is the name of its PNG file.</param>
+    /// <param name="Stops">The exposure in stops that the frame's passes used (<see cref="ExposureReading.Stops"/>).</param>
+    internal readonly record struct ShownExposure(int Frame, string Capture, float Stops);
 
     /// <summary>The content of <see cref="GpuTimingsFile"/>: the device, the size of the frames and each pass.</summary>
     internal sealed record GpuTimingReport(string Device, int Width, int Height, IReadOnlyList<PassSummary> Passes);

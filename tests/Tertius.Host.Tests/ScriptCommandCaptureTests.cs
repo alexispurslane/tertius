@@ -214,8 +214,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Select(pass => pass.GetProperty("frames").GetInt32())
             .Should()
             .AllBeEquivalentTo(
-                5,
-                "the first frame adds a metering draw, and the renderer reads a frame when it reuses its slot, so the last 2 frames in flight are never read"
+                6,
+                "each capture reads its own frame after its wait, and the first frame's metering draw is read after a newer frame"
             );
         passes
             .Should()

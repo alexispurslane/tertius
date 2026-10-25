@@ -531,23 +531,24 @@ public sealed class ReflectionRenderTests
     }
 
     [Fact]
-    public void AReflectionOnAFloorAtTheLargestRadianceStaysAtTheLargestHalfFloat()
+    public void AReflectionOnAFloorAtTheCapStaysAtTheCap()
     {
-        // The floor's own light plus the reflection of the box passes 65,504, which a half float above 65,520 holds only
-        // as infinity, and the tone curve turns infinity into NaN.
-        const float largest = 65504;
+        // The floor's own light plus the reflection of the box passes MaxRadiance, the surfaces' share of the HDR image.
+        // Past the share, the puffs over the pixel could carry its sum past 65,504, which a half float above 65,520 holds
+        // only as infinity, and the tone curve turns infinity into NaN.
+        const float cap = ShaderInput.MaxRadiance;
         float[] hdr = RenderHdr(
             Reflections,
             renderer =>
             {
                 RenderSnapshot snapshot = Dark();
-                snapshot.Instances.Add(Floor(renderer, Mirror() with { Emissive = new(60_000) }));
-                snapshot.Instances.Add(Box(renderer, Glow(renderer, new(largest))));
+                snapshot.Instances.Add(Floor(renderer, Mirror() with { Emissive = new(cap) }));
+                snapshot.Instances.Add(Box(renderer, Glow(renderer, new(cap))));
                 return snapshot;
             }
         ).Hdr;
 
-        At(hdr, MirrorPixel(BoxFace)).Should().Be(new Vector3(largest), "the trace caps its sum at MaxRadiance");
+        At(hdr, MirrorPixel(BoxFace)).Should().Be(new Vector3(cap), "the trace caps its sum at MaxRadiance");
         hdr.Should().OnlyContain(value => float.IsFinite(value), "no value of the frame is infinite");
     }
 
