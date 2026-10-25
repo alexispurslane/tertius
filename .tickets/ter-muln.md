@@ -1,6 +1,6 @@
 ---
 id: ter-muln
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-24T23:52:12Z
