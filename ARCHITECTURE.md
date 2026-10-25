@@ -1440,8 +1440,26 @@ Under `AutoExposure`, the exposure pass (`ExposurePass`, the only pass of `Frame
 The pass records:
 
 1. A fill that clears the histogram, so after a frame the histogram holds that frame's counts.
-2. The meter, `exposure_meter.comp`, in workgroups of 16 by 16 pixels over the whole image. It reads every pixel at full resolution. For each surface pixel it adds 1 to a bin of a histogram of the pixel's pre-exposed luminance. A surface pixel is a pixel whose G-buffer distance is above 0. A pixel at distance 0 is sky, and glass or a puff in front of the sky has distance 0 too, so no sky pixel counts at any exposure.
+2. The meter, `exposure_meter.comp`, one invocation for each 2 × 2 block of the image, in workgroups of 16 by 16 blocks. Each invocation reads one pixel, the block's top-left pixel, and when it is a surface pixel adds 1 to a bin of a histogram of the pixel's pre-exposed luminance. A surface pixel is a pixel whose G-buffer distance is above 0. A pixel at distance 0 is sky, and glass or a puff in front of the sky has distance 0 too, so no sky pixel counts at any exposure.
 3. The adapt step, `exposure_adapt.comp`, one workgroup of 256 invocations. It reads the histogram, computes the target and moves S toward it.
+
+The metered pixels. The meter reads the top-left pixel of each 2 × 2 block, so that the pass costs under 0.2 ms at 1920 × 1080 (see "Memory and cost"). The pixel's luminance and its distance come from one pixel, so they describe one surface point, as the occlusion's half resolution takes its depth and its normal from one pixel. An average of four pixels would mix a surface with the sky beside it. The top-left pixel lies inside the image exactly when its block does, so the meter's test `pixel < size` keeps every fetch in range:
+
+```glsl
+ivec2 pixel = 2 * ivec2(gl_GlobalInvocationID.xy);
+ivec2 size = textureSize(hdrImage, 0);
+if (pixel.x < size.x && pixel.y < size.y && texelFetch(distanceImage, pixel, 0).r > 0.0)
+    atomicAdd(localBins[binOf(luminance(texelFetch(hdrImage, pixel, 0).rgb))], 1u);
+```
+
+where
+
+- `gl_GlobalInvocationID.xy` = the block's column and row, from 0 to ceil(width / 2) − 1 and ceil(height / 2) − 1 inside the image. `ExposurePass` dispatches ceil(ceil(width / 2) / 16) by ceil(ceil(height / 2) / 16) workgroups, so the invocations of the last workgroups past the image read nothing.
+- `pixel` = the block's top-left pixel, in pixels from the image's top-left corner.
+- `size` = the HDR image's width and height in pixels.
+- `localBins` = the workgroup's histogram in shared memory, which the workgroup adds into the histogram at its end.
+
+An image of odd width or height keeps its last column or row: the block of that column or row holds only it, and its top-left pixel is in it. So a count is one metered pixel, and the histogram holds ceil(width / 2) · ceil(height / 2) counts for a view that only surfaces fill. Each count stands for its block, 4 pixels, or 2 or 1 at an odd image's last column or row. The trim's shares and the bright edge are shares of the counts, which sample the shares of the image's surface pixels. The sample has a small bias: the top-left pixel lies half a pixel up and to the left of its block's center. On a ramp that falls by 0.05 stops per pixel, at 160 × 90, the target moves by about 0.016 stops, and `ExposureShaderTests` hold it within 0.05 stops of a meter of every pixel.
 
 The luminance is Y = 0.2126 R + 0.7152 G + 0.0722 B of the linear Rec. 709 values of the pre-exposed light. The histogram has 256 bins of an eighth of a stop, from 2^−16 to 2^16 of pre-exposed luminance. The code of `meter.glsl` and `ExposureMeter` is:
 
@@ -1462,7 +1480,7 @@ where
 
 A luminance at or below 2^−16, black included, falls in the first bin. So a fully dark view drives the exposure up to `MaxStops`. A pre-exposed value never reaches 2^16, because the surfaces' cap and the puffs' budget keep every pixel at or below 64,512, and the meter's `max(y, 2^−16)` keeps the log2 of a black pixel finite.
 
-The trim. With N the number of surface pixels, the adapt step keeps the pixels from `DarkShare` · N to (1 − `BrightShare`) · N of the sorted order. A bin that straddles an edge counts only its share inside. The trimmed mean M is the mean of the bin centers, in stops, weighted by those shares. So a lamp or a glint alone does not set the exposure.
+The trim. With N the number of counts, the metered surface pixels, the adapt step keeps the pixels from `DarkShare` · N to (1 − `BrightShare`) · N of the sorted order. A bin that straddles an edge counts only its share inside. The trimmed mean M is the mean of the bin centers, in stops, weighted by those shares. So a lamp or a glint alone does not set the exposure.
 
 The bright edge. E is the pre-exposed luminance, in stops, at the upper end of the trim: the (1 − `BrightShare`) · N quantile. The one bin whose cumulative counts run from `start` < (1 − `BrightShare`) · N to `end` ≥ it holds the edge, and E lies inside that bin by the share of the bin's count below the edge. That is the trim's own rule for a bin that straddles an edge, so E moves smoothly through a bin as M does, and does not jump by an eighth of a stop at a bin's boundary.
 
@@ -1484,7 +1502,7 @@ where
 - `adapt.compensationStops` = C, the `CompensationStops` of the setting.
 - `adapt.minStops`, `adapt.maxStops` = the clamp of the setting.
 
-The highlight target is the lower one when the bright edge lies more than −log2(0.18), about 2.47 stops, above the mean. Then a bright area that covers `BrightShare` or more of the surface pixels sits at the start of the tone curve's shoulder and keeps its detail, and the dark part of the view falls into deep shadow, as the eye sees it. Over Earth's night side, the sunlit hull no longer clips to white. A view with no large bright area keeps the average target. At a steady view, M − S and E − S are the same for every S, so the target does not depend on the exposure that the frame used. That is why the meter can read pre-exposed values. The compensation applies after the lower of the two is taken and before the clamp, so S never leaves the clamp, and the lights plan's `E_cut` can take the highest exposure that any frame can use. When no pixel counts, the target is S, so a view with no surface keeps its exposure.
+The highlight target is the lower one when the bright edge lies more than −log2(0.18), about 2.47 stops, above the mean. Then a bright area that covers `BrightShare` or more of the metered surface pixels sits at the start of the tone curve's shoulder and keeps its detail, and the dark part of the view falls into deep shadow, as the eye sees it. Over Earth's night side, the sunlit hull no longer clips to white. A view with no large bright area keeps the average target. At a steady view, M − S and E − S are the same for every S, so the target does not depend on the exposure that the frame used. That is why the meter can read pre-exposed values. The compensation applies after the lower of the two is taken and before the clamp, so S never leaves the clamp, and the lights plan's `E_cut` can take the highest exposure that any frame can use. When no pixel counts, the target is S, so a view with no surface keeps its exposure.
 
 The approach. With Δt the step in seconds (see "The clock"), and τ the time constant of the direction:
 
@@ -1494,7 +1512,7 @@ S' = S + (target − S) · (1 − exp(−Δt / τ))
 
 The first frame. The seed is the first exposure. The clock's first step is endless, so the first frame's adapt step reaches its target at once. A window's first frame is still shaded with the seed. A headless first frame is a metering draw (see below), so it already shows its target.
 
-Determinism. The integer atomic adds commute, so the histogram does not depend on the order of the workgroups. The scan and the sum of the adapt step run in one workgroup over a fixed tree, and the CPU computes the factors. So the same frames give the same bits in every run on one GPU. Counts are exact as floats up to 2^24 pixels, so up to an 8K image.
+Determinism. The integer atomic adds commute, so the histogram does not depend on the order of the workgroups. The scan and the sum of the adapt step run in one workgroup over a fixed tree, and the CPU computes the factors. So the same frames give the same bits in every run on one GPU. Counts are exact as floats up to 2^24 counts. An 8K image, 7680 × 4320, gives about 8.3 million.
 
 #### The clock
 
@@ -1589,11 +1607,24 @@ The GPU timers (see "GPU timings") measured the cost in Release, at 1920 × 1080
 | Outlines | 0.038 ms | 0.024 ms | −0.013 ms |
 | Capture | 0.017 ms | 0.032 ms | +0.015 ms |
 
-- The exposure pass costs a mean of 0.311 ms, a median of 0.320 ms and a p95 of 0.422 ms. That is above the 0.2 ms line of the design doc, which says that a meter on every second pixel in each axis then becomes a ticket.
+- The exposure pass costs a mean of 0.311 ms, a median of 0.320 ms and a p95 of 0.422 ms. That is above the 0.2 ms line of the design doc, which says that a meter on every second pixel in each axis then becomes a ticket. That meter, on one pixel of each 2 × 2 block, is the meter today, and its cost is below.
 - The sum of the pass means is about 4.12 ms on the base and about 4.14 ms on the branch. So the whole feature costs about 0 ms within the noise. The lighting pass (−0.24 ms) and the transparent pass (−0.05 ms) got cheaper by about as much as the exposure pass costs. Why they did, and why the shadow maps and the G-buffer got dearer, is not explained. The timestamps may shift work between neighbors, because the exposure pass sits after the transparent pass.
 - The p95 of the G-buffer pass doubles in both branch runs, from 1.14 ms to about 2.24 ms, more than the spread. It is an unexplained cost of the worst frames.
 - The tone map costs 0.02 ms more, where it was expected to cost a multiply less. The change is within what the other passes show.
 - The cost of the metering draws, one more frame of GPU time for each still of a headless run and for each frame of a time-lapse film, was not measured.
+
+The meter on one pixel of each 2 × 2 block was measured the same way: Release, 1920 × 1080, `scripts/demo-exit.json`, 3,878 frames of the exposure pass in each run. "Every pixel" is main before the change, and "one of four" is the change. Each build ran twice, one run at a time: every pixel, every pixel, one of four, one of four. The 1-minute load of the machine before the four runs was 4.8, 3.4, 4.9 and 6.3. The exposure pass in each run:
+
+| Meter | Run | Mean | Median | p95 |
+|---|---|---|---|---|
+| Every pixel | 1 | 0.296 ms | 0.301 ms | 0.383 ms |
+| Every pixel | 2 | 0.300 ms | 0.303 ms | 0.408 ms |
+| One of four | 1 | 0.170 ms | 0.119 ms | 0.497 ms |
+| One of four | 2 | 0.131 ms | 0.118 ms | 0.218 ms |
+
+- The mean falls from 0.298 ms to 0.150 ms, the mean of the two runs of each build, and the median from 0.302 ms to 0.118 ms. Both are below the 0.2 ms line. The change of the mean, −0.148 ms, is about 4 times the spread between the two runs of one of four, 0.039 ms.
+- The median falls to about 0.39 of what it was, not to a quarter. A likely reason, not measured: the meter still fetches every second row in cache lines that also hold the odd columns, and the fill and the adapt step do not shrink.
+- The p95 of the first run of one of four, 0.497 ms, is above both runs of every pixel, and the p95 of the second run is 0.218 ms. The medians of the two runs agree to 0.001 ms. So some frames of the first run were slow for a cause outside the pass, such as other work on the GPU. The p95 is not reliable at this spread.
 
 ### Shadows
 
