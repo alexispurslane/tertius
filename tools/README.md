@@ -206,6 +206,8 @@ The script builds the solution in Release, because DocFX reads the compiled asse
 - `-p <port>` gives another port for `-s`.
 - `-n` skips the Release build and uses the assemblies that are there.
 
+No hook builds the site, so a DocFX error shows only when you run the script.
+
 The build prints a warning for each link that has no page in the site. For example, a link to a folder such as `src` works on the git host, but the site has no page for a folder.
 
 ## Benchmarks
@@ -275,11 +277,10 @@ The post-commit hook attaches the pending slop note to the new commit, under `re
 
 ### Before a push
 
-The pre-push hook does three things:
+The pre-push hook does two things:
 
 1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too. If the cleanup fails, or the cleaned code does not build, the push stops and the changes stay uncommitted.
-2. It builds the docs site with `tools/docs.sh`. A DocFX error stops the push, and a link warning does not.
-3. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the metrics at the last push against now, and the commits that raised a metric the most. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
+2. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the metrics at the last push against now, and the commits that raised a metric the most. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
 
 A sample of the summary:
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs on every commit that stages C# files or projects (see tools/README.md, "Git hooks"):
 #   1. An incremental build of the projects that the commit changes and of the test projects that test them. The
-#      build runs every analyzer, and an error stops the commit.
+#      build runs every analyzer, and an error stops the commit. The hook leaves out a project whose last successful
+#      Checked build was of exactly the staged code, as the stamp next to its output says (tools/code-tree.sh).
 #   2. A report of the duplicated blocks and the complex or long methods that the staged changes touch
 #      (tools/commit_report.py). The report never stops the commit.
 #   3. The tests of the changed code, in Checked (Debug's contracts with Release's optimized code): every test of a
@@ -81,21 +82,44 @@ done
 # the build almost nothing.
 build["tools/Tertius.Slop/Tertius.Slop.csproj"]=1
 
+# The code hash of the staged tree, which the build stamps and the test records hold. The script prints the hash, then
+# the git folder. A pipe to head would stop the script early, and pipefail would stop the hook, so the hook splits the
+# whole output.
+code_tree=$(bash tools/code-tree.sh --staged)
+staged_code=${code_tree%%$'\n'*}
+git_dir=${code_tree#*$'\n'}
+
+# A project whose last successful Checked build was of the staged code needs no build: its binaries, and the analyzer
+# results that the report reads, already describe the commit.
+built() {
+    local stamp
+    for stamp in "$(dirname "$1")"/bin/Checked/*/code-tree.txt; do
+        [[ -f "$stamp" && "$(head -c 40 "$stamp")" == "$staged_code" ]] && return 0
+    done
+    return 1
+}
+unbuilt=()
+for p in "${!build[@]}"; do built "$p" || unbuilt+=("$p"); done
+
 solution=.pre-commit.slnx
 slop_pid=
 trap 'rm -f "$root/$solution"; [[ -n "$slop_pid" ]] && kill "$slop_pid" 2> /dev/null; true' EXIT
-{
-    echo "<Solution>"
-    echo "  <Configurations><BuildType Name=\"Checked\" /></Configurations>"
-    for p in "${!build[@]}"; do echo "  <Project Path=\"$p\" />"; done
-    echo "</Solution>"
-} > "$solution"
-echo "pre-commit: building ${#build[@]} project(s)..." >&2
-log="${TMPDIR:-/tmp}/tertius-pre-commit-build.log"
-if ! dotnet build "$solution" -c Checked -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
-    grep -E ': error ' "$log" | sort -u | head -40 >&2
-    echo "pre-commit: the build failed, so the commit stopped. The full log: $log" >&2
-    exit 1
+if [[ ${#unbuilt[@]} -eq 0 ]]; then
+    echo "pre-commit: skipping the build: all ${#build[@]} project(s) were built from the staged code" >&2
+else
+    {
+        echo "<Solution>"
+        echo "  <Configurations><BuildType Name=\"Checked\" /></Configurations>"
+        for p in "${unbuilt[@]}"; do echo "  <Project Path=\"$p\" />"; done
+        echo "</Solution>"
+    } > "$solution"
+    echo "pre-commit: building ${#unbuilt[@]} of ${#build[@]} project(s)..." >&2
+    log="${TMPDIR:-/tmp}/tertius-pre-commit-build.log"
+    if ! dotnet build "$solution" -c Checked -v quiet -nologo -clp:ErrorsOnly > "$log" 2>&1; then
+        grep -E ': error ' "$log" | sort -u | head -40 >&2
+        echo "pre-commit: the build failed, so the commit stopped. The full log: $log" >&2
+        exit 1
+    fi
 fi
 
 python3 tools/commit_report.py >&2 || true
@@ -126,12 +150,7 @@ finish_slop() {
 }
 
 # A test project whose full Checked run passed on the staged code needs no run here. Its record holds the code hash
-# of the build that the run tested, and the staged code hash says what the commit holds.
-# The script prints the hash, then the git folder. A pipe to head would stop the script early, and pipefail would stop
-# the hook, so the hook splits the whole output.
-code_tree=$(bash tools/code-tree.sh --staged)
-staged_code=${code_tree%%$'\n'*}
-git_dir=${code_tree#*$'\n'}
+# of the build that the run tested.
 tested() {
     local record="$git_dir/tertius-tested/Checked/$(basename "$1" .csproj)"
     [[ -f "$record" && "$(cat "$record")" == "$staged_code" ]]
