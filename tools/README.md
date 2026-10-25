@@ -208,6 +208,18 @@ The script builds the solution in Release, because DocFX reads the compiled asse
 
 The build prints a warning for each link that has no page in the site. For example, a link to a folder such as `src` works on the git host, but the site has no page for a folder.
 
+## Benchmarks
+
+`benchmarks/Tertius.Benchmarks` holds the BenchmarkDotNet benchmarks. `Program.cs` gives every run one job: the short run, in the benchmark process, with the memory diagnoser. Do not add a `--job` option. It adds a second job outside the process, and that job fails on the preview runtime with "GetRuntimeVersion not implemented for NotRecognized".
+
+Run one benchmark method with a filter, in Release:
+
+```bash
+nix develop --command dotnet run -c Release --project benchmarks/Tertius.Benchmarks -- --filter '*RenderSnapshotBenchmarks.Build*'
+```
+
+The filter matches the full name of the method, with wildcards. A filter that names only the class runs every method of the class with every parameter value.
+
 ## Git hooks
 
 The folder `.githooks/` holds three git hooks. At its start, the dev shell sets `core.hooksPath` to that folder. Thus the hooks run after you enter the dev shell once. Outside the dev shell, the pre-commit and pre-push hooks run themselves again inside it. The post-commit hook needs only git, so it never enters the dev shell. To skip the pre-commit or the pre-push hook once, add `--no-verify` to `git commit` or `git push`.
@@ -218,7 +230,7 @@ The pre-commit hook runs on every commit that stages C# files or projects. A com
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). Test code gets the length limit only. If the report names anything, it ends with a prompt to refactor that code in the same commit. The report never stops the commit.
-3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit.
+3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit. The hook skips a test project that has a test record for the staged code ("The test record" below).
 4. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
 
 The tests of the changed code are:
@@ -238,6 +250,24 @@ The hook does not build or test the projects downstream of a change. Run `tools/
 If a staged file also holds unstaged changes, the hook says so. The build and the tests see the working tree, not only the staged changes.
 
 A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the complexity and length results from there. The limits are in `analyzers/CodeMetricsConfig.txt` (complexity) and `.editorconfig` (MA0051).
+
+### The test record
+
+A test record says that every test of one test project passed on one exact version of the code. With it, the pre-commit hook skips the tests that you ran just before the commit. Three parts make it:
+
+1. The code hash. `tools/code-tree.sh` prints the git tree hash of the code, then the git folder of the worktree. The code is every file under `src`, `tests`, `analyzers`, `tools`, `benchmarks`, `scripts`, `native` and `.config`, plus the build files at the root. Untracked files count, but Markdown files and ignored files do not. With `--staged`, the script hashes the staged code. It works on a copy of the index, so it never changes what is staged.
+2. The stamp. After each build of a test project, the target `StampCodeTree` in `Directory.Build.targets` writes the code hash to `code-tree.txt` next to the test assembly. A run with `--no-build` tests the binaries of the last build, and the stamp holds the code hash of that build.
+3. The record. Every test project loads the test platform extension in `tools/Tertius.TestRecord` (`Directory.Build.props`). After a full run with at least one passed test and no failed test, the extension copies the hash from the stamp to `tertius-tested/<configuration>/<test project>` in the git folder. A full run with a failed test deletes the record. A run with a `--filter-*`, `--treenode-filter`, `--list-tests` or `--explicit` option, or with a response file, is not full and leaves the record as it was.
+
+The pre-commit hook computes the staged code hash. For each test project that it must run, it reads the Checked record. If the record holds the staged code hash, the hook prints a line and skips that project. The build and the code report still run.
+
+So any full Checked run just before the commit lets the commit skip its tests:
+
+```bash
+nix develop --command dotnet test --solution Tertius.slnx -c Checked
+```
+
+A full run of one test project records only that project. `tools/test-all.sh` records every project in both configurations. If you edit code after the run, the hash changes, and the hook runs the tests again. An edit to a ticket or a Markdown file leaves the hash as it was.
 
 ### After a commit
 

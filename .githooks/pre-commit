@@ -5,7 +5,9 @@
 #   2. A report of the duplicated blocks and the complex or long methods that the staged changes touch
 #      (tools/commit_report.py). The report never stops the commit.
 #   3. The tests of the changed code, in Checked (Debug's contracts with Release's optimized code): every test of a
-#      changed module, and the test classes of a changed test file. A failed test stops the commit.
+#      changed module, and the test classes of a changed test file. A failed test stops the commit. The hook skips the
+#      tests of a test project when a full Checked run of that project passed on exactly the staged code, as the test
+#      record in the git folder says (tools/code-tree.sh, tools/Tertius.TestRecord).
 #   4. The slop metrics of the staged tree (tools/Tertius.Slop measure), in parallel with the tests. After the tests
 #      pass, it leaves the note in the pending file slop-pending of the worktree's git folder, and the post-commit hook
 #      attaches it to the new commit under refs/notes/slop. The metrics never stop the commit.
@@ -49,7 +51,7 @@ project_of() {
 # and the tests of tools/Tertius.Slop in tests/Tertius.Slop.Tests. A change in a test file runs only the test classes in that file,
 # unless its module already runs whole. tests/Tertius.Testing and the benchmarks only build: every module uses the
 # shared helpers, so a change there waits for the full run of tools/test-all.sh before the merge.
-declare -A build=() whole=() classes=()
+declare -A build=() whole=() classes=() run_seen=()
 for f in "${files[@]}"; do
     p=$(project_of "$f")
     [[ -z "$p" ]] && continue
@@ -123,12 +125,29 @@ finish_slop() {
     rm -f "$slop_out"
 }
 
+# A test project whose full Checked run passed on the staged code needs no run here. Its record holds the code hash
+# of the build that the run tested, and the staged code hash says what the commit holds.
+# The script prints the hash, then the git folder. A pipe to head would stop the script early, and pipefail would stop
+# the hook, so the hook splits the whole output.
+code_tree=$(bash tools/code-tree.sh --staged)
+staged_code=${code_tree%%$'\n'*}
+git_dir=${code_tree#*$'\n'}
+tested() {
+    local record="$git_dir/tertius-tested/Checked/$(basename "$1" .csproj)"
+    [[ -f "$record" && "$(cat "$record")" == "$staged_code" ]]
+}
+
 # The test runs go in parallel, one process per test project, each with its own log.
 runs=()
-for p in "${!whole[@]}"; do runs+=("$p|"); done
-for p in "${!classes[@]}"; do
-    [[ -n "${whole[$p]:-}" ]] && continue
-    runs+=("$p|${classes[$p]}")
+# A project can be in both lists. The whole run comes first and covers its classes.
+for p in "${!whole[@]}" "${!classes[@]}"; do
+    [[ -n "${run_seen[$p]:-}" ]] && continue
+    run_seen[$p]=1
+    if tested "$p"; then
+        echo "pre-commit: skipping $(basename "$p" .csproj): a full Checked run passed on the staged code" >&2
+        continue
+    fi
+    if [[ -n "${whole[$p]:-}" ]]; then runs+=("$p|"); else runs+=("$p|${classes[$p]}"); fi
 done
 if [[ ${#runs[@]} -eq 0 ]]; then
     finish_slop

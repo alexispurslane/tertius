@@ -60,4 +60,16 @@
     <None Include="$(TERTIUS_VULKAN_DIR)/libvulkan.so.1" Condition="Exists('$(TERTIUS_VULKAN_DIR)/libvulkan.so.1')"
           Link="libvulkan.so.1" CopyToOutputDirectory="Always" Visible="false" />
   </ItemGroup>
+
+  <!--
+    Every build of a test project stamps its output with the hash of the code that it was built from (tools/code-tree.sh).
+    The test record extension copies the stamp into the git folder after a full run passes. A run with no-build tests
+    the binaries of the last build, so the stamp describes them, not the files on disk now. Outside a git checkout, the
+    script fails and the build writes no stamp, so nothing is recorded.
+  -->
+  <Target Name="StampCodeTree" AfterTargets="Build" Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <Delete Files="$(OutDir)code-tree.txt" />
+    <Exec Command="bash &quot;$(MSBuildThisFileDirectory)tools/code-tree.sh&quot; &gt; &quot;$(OutDir)code-tree.txt.tmp&quot; &amp;&amp; mv &quot;$(OutDir)code-tree.txt.tmp&quot; &quot;$(OutDir)code-tree.txt&quot;"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+  </Target>
 </Project>
