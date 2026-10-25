@@ -96,73 +96,31 @@ public sealed class ReflectionShaderTests
         try
         {
             renderer.Render(CheckeredWall(renderer, roughness), 1f);
-            float[] reflected = renderer.ReadHdr();
-            float[] distance = renderer.ReadDistance();
-            DepthPyramid pyramid = PyramidOf(renderer);
-            CameraView camera = renderer.LastScene.Camera;
-            int topLevel = BitOperations.Log2(Width);
-            (float[] Rgba, int Width, int Height)[] levels =
-            [
-                .. Enumerable.Range(0, topLevel + 1).Select(renderer.ReadRadiancePyramidLevel),
-            ];
-            var cone = ReflectionCone.OfRoughness(roughness);
-            float roughnessFade = Reflections.RoughnessFade(roughness);
+            var frame = ConeFrame.Of(renderer);
 
-            int compared = 0;
             var coneLevels = new List<float>();
             for (int y = 232; y < Height; y += 4)
             for (int x = 130; x < 510; x += 3)
             {
-                (RayTrace trace, Vector3 point) = TraceFromFloor(
-                    camera: camera,
-                    distance: distance,
-                    pyramid: pyramid,
-                    pixel: (x, y),
-                    normal: FlatMapNormal,
-                    roughness: roughness,
-                    maxSteps: Reflections.MaxSteps
-                );
-                if (trace is not RayHit hit)
+                if (frame.ThroughCone(roughness, (x, y)) is not { } read)
                     continue;
-                float hitDistance = distance[hit.Pixel.Y * Width + hit.Pixel.X];
-                Vector3 hitPoint = Vector3.Normalize(camera.ViewRayThrough(hit.Position)) * hitDistance;
-                Vector3 origin =
-                    point
-                    + Vector3.UnitY
-                        * (ScreenRay.OriginOffsetPixels * Vector3.Dot(point, camera.Forward) * camera.PixelAngle);
-                float level = cone.Level(
-                    rayLength: (hitPoint - origin).Length(),
-                    hitDistance: hitDistance,
-                    pixelAngle: camera.PixelAngle,
-                    topLevel: topLevel
-                );
-                Vector4 traced = Trilinear(levels, hit.Position / new Vector2(Width, Height), level);
-                float fade = roughnessFade * camera.EdgeFade(hit.Position) * (1 - hit.EntryShare);
-                Vector3 weight = SpecularWeight(Mirror(roughness), camera, (x, y));
-                // Level 0 of the pyramid is the lit floor before the trace, with its ambient specular term W · gray,
-                // of which the trace replaces the share that the cone's coverage resolves.
-                Vector4 lit = Trilinear(levels, new Vector2(x + 0.5f, y + 0.5f) / new Vector2(Width, Height), 0);
-                Vector3 expected =
-                    new Vector3(lit.X, lit.Y, lit.Z)
-                    + fade * (weight * new Vector3(traced.X, traced.Y, traced.Z) - traced.W * weight * CheckeredGray);
-                Vector3 shown = At(reflected, (x, y));
+                Vector3 shown = At(frame.Reflected, (x, y));
                 BrdfTesting
-                    .LargestChannelDifference(shown, expected)
+                    .LargestChannelDifference(shown, read.Expected)
                     .Should()
                     .BeLessThanOrEqualTo(
-                        0.03f * weight.Y * BrightSquare,
+                        0.03f * read.Weight.Y * BrightSquare,
                         "floor pixel ({0}, {1}) reads the pyramid at level {2}: shown {3}, expected {4}",
                         x,
                         y,
-                        level,
+                        read.Level,
                         shown,
-                        expected
+                        read.Expected
                     );
-                coneLevels.Add(level);
-                compared++;
+                coneLevels.Add(read.Level);
             }
 
-            compared.Should().BeGreaterThan(1000, "most floor pixels below the wall reflect it");
+            coneLevels.Count.Should().BeGreaterThan(1000, "most floor pixels below the wall reflect it");
             coneLevels
                 .Average()
                 .Should()
@@ -239,6 +197,83 @@ public sealed class ReflectionShaderTests
         }
 
         return snapshot;
+    }
+
+    /// <summary>
+    /// What the C# cone expects at one floor pixel: the value that the GPU shows, the level of the radiance pyramid that
+    /// it reads and the floor's specular weight W.
+    /// </summary>
+    private readonly record struct ConeRead(Vector3 Expected, float Level, Vector3 Weight);
+
+    /// <summary>The images of one frame that the cone test reads back, with the radiance pyramid's levels.</summary>
+    private sealed record ConeFrame(
+        float[] Reflected,
+        float[] Distance,
+        DepthPyramid Pyramid,
+        CameraView Camera,
+        (float[] Rgba, int Width, int Height)[] Levels
+    )
+    {
+        private int TopLevel => Levels.Length - 1;
+
+        public static ConeFrame Of(VulkanRenderer renderer) =>
+            new(
+                Reflected: renderer.ReadHdr(),
+                Distance: renderer.ReadDistance(),
+                Pyramid: PyramidOf(renderer),
+                Camera: renderer.LastScene.Camera,
+                Levels:
+                [
+                    .. Enumerable.Range(0, BitOperations.Log2(Width) + 1).Select(renderer.ReadRadiancePyramidLevel),
+                ]
+            );
+
+        /// <summary>
+        /// The C# trace and cone from floor pixel <paramref name="pixel"/> of <paramref name="roughness"/>, or null when
+        /// its ray misses.
+        /// </summary>
+        public ConeRead? ThroughCone(float roughness, (int X, int Y) pixel)
+        {
+            (RayTrace trace, Vector3 point) = TraceFromFloor(
+                camera: Camera,
+                distance: Distance,
+                pyramid: Pyramid,
+                pixel: pixel,
+                normal: FlatMapNormal,
+                roughness: roughness,
+                maxSteps: Reflections.MaxSteps
+            );
+            if (trace is not RayHit hit)
+                return null;
+            float hitDistance = Distance[hit.Pixel.Y * Width + hit.Pixel.X];
+            Vector3 hitPoint = Vector3.Normalize(Camera.ViewRayThrough(hit.Position)) * hitDistance;
+            Vector3 origin =
+                point
+                + Vector3.UnitY
+                    * (ScreenRay.OriginOffsetPixels * Vector3.Dot(point, Camera.Forward) * Camera.PixelAngle);
+            float level = ReflectionCone
+                .OfRoughness(roughness)
+                .Level(
+                    rayLength: (hitPoint - origin).Length(),
+                    hitDistance: hitDistance,
+                    pixelAngle: Camera.PixelAngle,
+                    topLevel: TopLevel
+                );
+            Vector4 traced = Trilinear(Levels, hit.Position / new Vector2(Width, Height), level);
+            float fade = Reflections.RoughnessFade(roughness) * Camera.EdgeFade(hit.Position) * (1 - hit.EntryShare);
+            Vector3 weight = SpecularWeight(Mirror(roughness), Camera, pixel);
+            // Level 0 of the pyramid is the lit floor before the trace, with its ambient specular term W · gray, of
+            // which the trace replaces the share that the cone's coverage resolves.
+            Vector4 lit = Trilinear(
+                Levels,
+                new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f) / new Vector2(Width, Height),
+                0
+            );
+            Vector3 expected =
+                new Vector3(lit.X, lit.Y, lit.Z)
+                + fade * (weight * new Vector3(traced.X, traced.Y, traced.Z) - traced.W * weight * CheckeredGray);
+            return new(expected, level, weight);
+        }
     }
 
     /// <summary>Whether the 5 × 5 pixels around <paramref name="pixel"/> all hold one value: the inside of one tile.</summary>
