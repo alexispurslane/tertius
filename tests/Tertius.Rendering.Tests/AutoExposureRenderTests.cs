@@ -183,6 +183,7 @@ public sealed class AutoExposureRenderTests
                 Validation = true,
                 Width = Width,
                 Height = Height,
+                EnvironmentMap = new NoEnvironmentMap(),
             }
         );
         try

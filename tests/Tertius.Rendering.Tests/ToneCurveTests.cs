@@ -14,12 +14,6 @@ public sealed class ToneCurveTests
     /// <summary>One step of an 8-bit channel and a half step more, for the rounding of the target and of the half floats.</summary>
     private const float Tolerance = 1.5f / 255;
 
-    /// <summary>Hable's linear white point W: the input of his curve that shows as white.</summary>
-    private const double HableWhite = 11.2;
-
-    /// <summary>Hable's exposure bias, which his curve applies before the curve itself.</summary>
-    private const double HableExposureBias = 2;
-
     private static VulkanRenderer Headless(ToneCurve curve) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -31,23 +25,9 @@ public sealed class ToneCurveTests
                 ToneCurve = curve,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                EnvironmentMap = new NoEnvironmentMap(),
             }
         );
-
-    /// <summary>Hable's f(x) with his published constants (GDC 2010, "Uncharted 2: HDR Lighting").</summary>
-    private static double HableF(double x)
-    {
-        const double a = 0.15,
-            b = 0.50,
-            c = 0.10,
-            d = 0.20,
-            e = 0.02,
-            f = 0.30;
-        return (x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f) - e / f;
-    }
-
-    /// <summary>The linear color that Hable's curve gives a linear HDR channel, clamped to [0, 1].</summary>
-    private static double Hable(double x) => Math.Clamp(HableF(HableExposureBias * x) / HableF(HableWhite), 0, 1);
 
     /// <summary>
     /// The linear color that Stephen Hill's ACES fitted curve gives a linear HDR color: into ACES AP1 with the RRT's
@@ -96,7 +76,11 @@ public sealed class ToneCurveTests
 
     /// <summary>What Hable's curve shows for an emission, per channel, after the sRGB encoding.</summary>
     private static Vector3 HableShown(Vector3 emission) =>
-        new(Encoded(Hable(emission.X)), Encoded(Hable(emission.Y)), Encoded(Hable(emission.Z)));
+        new(
+            Encoded(HableCurve.Shown(emission.X)),
+            Encoded(HableCurve.Shown(emission.Y)),
+            Encoded(HableCurve.Shown(emission.Z))
+        );
 
     /// <summary>Requires each square to show what <paramref name="expected"/> gives for its emission.</summary>
     private static void ShouldShow(
@@ -132,6 +116,7 @@ public sealed class ToneCurveTests
                 Impostors = false,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                EnvironmentMap = new NoEnvironmentMap(),
             }
         );
         try
@@ -189,7 +174,7 @@ public sealed class ToneCurveTests
     public void HablesCurveShowsHalfItsWhitePointAsWhite()
     {
         // His exposure bias of 2 doubles the emission before the curve, so W / 2 reaches the white point W.
-        var emission = new Vector3((float)(HableWhite / HableExposureBias));
+        var emission = new Vector3((float)HableCurve.Brightest);
         VulkanRenderer renderer = Headless(ToneCurve.Hable);
         try
         {

@@ -144,12 +144,18 @@ float distanceAttenuation(float distanceSq, float range)
 // must be positive.
 float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, uint sunShadows)
 {
-    // SunShadowsHolding takes the far shadows alone until shadows.glsl gives the faces' cascade rule.
     if (sunShadows == SunShadowsMainView)
     {
         float visibility = sunVisibility(position, beyondShadowMaps(position));
         if (visibility > 0.0)
             visibility *= sunShadow(position, geometricNormal, geometricNdotL);
+        return visibility;
+    }
+    if (sunShadows == SunShadowsHolding)
+    {
+        float visibility = sunVisibility(position, beyondShadowMapsHolding(position));
+        if (visibility > 0.0)
+            visibility *= sunShadowHolding(position, geometricNormal, geometricNdotL);
         return visibility;
     }
     return sunVisibility(position, 1.0);
@@ -200,10 +206,16 @@ vec3 ambientSpecularDirection(ShadingInput s, vec3 V)
     return specularDominantDirection(s.normal, reflect(-V, s.normal), roughness * roughness);
 }
 
-// The map as the ambient source.
+// The map as the ambient source: the diffuse term from the irradiance at the normal, the specular term from the
+// specular map and the reflected stars at d.
 AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
-    return hemisphereAmbient(s, lobes);
+    AmbientTerms terms;
+    terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.normal);
+    vec3 incoming = environmentSpecular(
+        ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+    terms.specular = lobes.specularAlbedo * lobes.energyCompensation * incoming;
+    return terms;
 }
 
 // The ambient source of every shading pass: the map while it is on, the hemisphere while it is off.
@@ -276,12 +288,15 @@ vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint s
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
 // surface and no normal: it scatters the light that reaches its center equally in every direction, which is the mean over
 // every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so the sun and
-// each point and spot light give albedo / (4π) times their irradiance. The mean of the sky's share is one half, so the
-// ambient light gives the albedo times the mean of the sky and the ground color. The sun's visibility samples the
-// cascades with the sun's direction as the normal, which needs no normal offset and no receiver-plane slope.
+// each point and spot light give albedo / (4π) times their irradiance. The ambient light gives the albedo times the
+// mean radiance of its source: the map's without the stars, or the mean of the sky and the ground color, whose shares
+// average one half. The sun's visibility samples the cascades with the sun's direction as the normal, which needs no
+// normal offset and no receiver-plane slope.
 vec3 scatteredLight(vec3 albedo, vec3 position)
 {
-    vec3 meanAmbient = 0.5 * (frame.ambientSky.rgb + frame.ambientGround.rgb);
+    vec3 meanAmbient = environmentMapOn
+        ? environmentMeanRadiance()
+        : 0.5 * (frame.ambientSky.rgb + frame.ambientGround.rgb);
     vec3 irradiance = frame.sunRadiance.rgb * sunReaches(position, frame.sunDirection.xyz, 1.0, SunShadowsMainView);
     for (uint i = 0u; i < frame.counts.x; i++)
     {

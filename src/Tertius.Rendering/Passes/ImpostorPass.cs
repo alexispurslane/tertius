@@ -42,7 +42,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ImpostorAtlas atlas,
-        ImpostorManager manager
+        ImpostorManager manager,
+        ShaderConstants constants
     )
     {
         this.device = device;
@@ -61,6 +62,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
+            Constants = constants,
         }.Create(device, shaders);
         try
         {

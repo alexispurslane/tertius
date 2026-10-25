@@ -5,14 +5,15 @@
 #include "gbuffer_inputs.glsl"
 #include "material.glsl"
 #include "lighting.glsl"
+#include "reflection_footprint.glsl"
 
 // One object alone, rendered with mesh.vert into its impostor atlas tile (ImpostorPass.cs). draw.viewProj is a
 // perspective projection from the main view's eye, fitted to the bounding sphere's tangent cone, with clip w equal
 // to the view depth over the center's distance; draw.eye is that eye, so view-dependent shading matches what the
 // camera sees. Lighting is the lighting pass's
-// surfaceRadiance with the hemisphere ambient and its specular part, the sun with the analytic eclipse term, and the
-// point and spot lights, but not the shadow maps: they cover the main view, not the capture. ImpostorManager recaptures when any of that
-// light changes at the object.
+// surfaceRadiance with the ambient light of the frame's ambient source, the sun with the analytic eclipse term, and the
+// point and spot lights, but not the shadow maps: they cover the main view, not the capture. ImpostorManager recaptures
+// when any of that light changes at the object.
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -34,10 +35,12 @@ void main()
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
-    shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = normalize(draw.eye.xyz - inPosition);
-    shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    shading.reflectionFootprint = frame.params.z;
+    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
+    // Only the hemisphere reads the sky shares.
+    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
+    shading.lobeSkyFraction =
+        environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, SunShadowsNone, 1.0);
     outColor = vec4(color, 1.0);

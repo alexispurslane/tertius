@@ -26,7 +26,12 @@ internal sealed unsafe class GeometryPass : RenderPass
     private readonly VulkanDevice device;
     private readonly Pipeline pipeline;
 
-    public GeometryPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+    public GeometryPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ShaderConstants constants
+    )
     {
         this.device = device;
         pipeline = new GraphicsPipelineDesc
@@ -41,6 +46,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
+            Constants = constants,
         }.Create(device, shaders);
     }
 

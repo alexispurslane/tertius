@@ -17,7 +17,12 @@ internal sealed unsafe class TransparentPass : RenderPass
     private readonly Pipeline pipeline;
     private readonly Pipeline puffPipeline;
 
-    public TransparentPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+    public TransparentPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ShaderConstants constants
+    )
     {
         this.device = device;
         pipeline = new GraphicsPipelineDesc
@@ -30,6 +35,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
             Blend = BlendMode.Alpha,
+            Constants = constants,
         }.Create(device, shaders);
         puffPipeline = new GraphicsPipelineDesc
         {
@@ -43,6 +49,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             CullMode = CullModeFlags.None,
             DepthClamp = true,
             Blend = BlendMode.Additive,
+            Constants = constants,
         }.Create(device, shaders);
     }
 
