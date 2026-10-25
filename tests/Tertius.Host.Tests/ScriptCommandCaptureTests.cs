@@ -155,4 +155,71 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         end.IsOrange(640, 428).Should().BeTrue("the box rests on the floor");
         end.IsOrange(640, 256).Should().BeFalse("the box has left its start");
     }
+
+    [Fact]
+    public void AHeadlessFilmWritesTheGpuTimeOfEachPassOverItsFinishedFramesAndPrintsALineForEachPass()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        string file = Path.Combine(Out, ScriptCommand.GpuTimingsFile);
+        using var timings = JsonDocument.Parse(File.ReadAllText(file));
+        JsonElement[] passes = [.. timings.RootElement.GetProperty("passes").EnumerateArray()];
+        passes
+            .Select(pass => pass.GetProperty("pass").GetString())
+            .Should()
+            .Equal("shadow maps", "G-buffer", "lighting", "transparent", "tone map", "outlines", "capture");
+        passes
+            .Select(pass => pass.GetProperty("frames").GetInt32())
+            .Should()
+            .AllBeEquivalentTo(
+                4,
+                "the renderer reads a frame when it reuses its slot, so the last 2 frames in flight are never read"
+            );
+        passes
+            .Should()
+            .AllSatisfy(pass =>
+                pass.GetProperty("p95Ms")
+                    .GetDouble()
+                    .Should()
+                    .BeGreaterThanOrEqualTo(pass.GetProperty("medianMs").GetDouble())
+            );
+        output.ToString().Should().Contain(file).And.Contain("GPU G-buffer: mean ");
+    }
+
+    [Fact]
+    public void TheSizeOptionReplacesTheSizeOfTheScriptsWindow()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--size", "200x100"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        var front = Png.Load(Path.Combine(Out, "front.png"));
+        (front.Width, front.Height).Should().Be((200, 100));
+    }
 }

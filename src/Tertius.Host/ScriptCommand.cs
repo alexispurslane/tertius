@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using Tertius.Host.Scripting;
 using Tertius.Host.Windowing;
 using Tertius.Physics;
@@ -16,6 +17,8 @@ namespace Tertius.Host;
 /// no window, as fast as it can. With <c>--video</c>, its captures become the frames of one video, which ffmpeg encodes,
 /// at <c>--fps</c> frames per second, 30 without the option. Its dumps still go into the output folder.</item>
 /// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
+/// <item><c>--size &lt;width&gt;x&lt;height&gt;</c>, such as <c>--size 1920x1080</c>, replaces the size of a script's window
+/// in either run.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -44,13 +47,39 @@ public static class ScriptCommand
     /// </summary>
     public const int ToolError = 5;
 
+    /// <summary>
+    /// The file in the output folder of a headless run that holds the summary of the GPU time of each pass, when the
+    /// renderer times its passes.
+    /// </summary>
+    public const string GpuTimingsFile = "gpu-timings.json";
+
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]]  |  --script <file> --out <folder> [--speed <factor>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+
+    private static readonly JsonSerializerOptions ReportJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+    };
+
+    // The options that take a value. --headless is the one option without one.
+    private static readonly string[] ValueOptions =
+    [
+        "--script",
+        "--scene",
+        "--out",
+        "--speed",
+        "--record",
+        "--video",
+        "--fps",
+        "--size",
+    ];
 
     /// <summary>
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image, or of the video, to
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
     /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
+    /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path and one line for each pass.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
         Run(args: args, scenes: scenes, output: output, error: error, createRenderer: VulkanRenderer.CreateHeadless);
@@ -80,28 +109,7 @@ public static class ScriptCommand
         }
 
         if (options.Scene is { } sceneName)
-        {
-            // Free play: the scene is found before a window opens.
-            Scene? live = scenes.FirstOrDefault(s => s.Name == sceneName);
-            if (live is null)
-            {
-                error.WriteLine(
-                    $"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
-                );
-                return ScriptError;
-            }
-
-            return WindowHost.Run(
-                sceneToBuild: live,
-                script: null,
-                scriptPath: null,
-                outputFolder: null,
-                speed: options.Speed,
-                recordPath: options.Record,
-                output: output,
-                error: error
-            );
-        }
+            return RunFreePlay(options: options, sceneName: sceneName, scenes: scenes, output: output, error: error);
 
         // ReadOptions gives a run that is not free play its script and its output folder.
         if (options is not { Script: { } scriptPath, Out: { } outFolder })
@@ -110,6 +118,8 @@ public static class ScriptCommand
         try
         {
             script = Script.Load(scriptPath);
+            if (options.Size is { } size)
+                script = script with { Window = size };
         }
         catch (ScriptException ex)
         {
@@ -152,34 +162,53 @@ public static class ScriptCommand
                 output: output,
                 error: error
             );
+        return RunHeadless(
+            options: options,
+            script: script,
+            scene: scene,
+            outFolder: outFolder,
+            createRenderer: captures ? createRenderer : null,
+            startVideo: startVideo ?? FfmpegVideoSink.Start,
+            output: output,
+            error: error
+        );
+    }
 
+    /// <summary>
+    /// Runs a script with no window, as fast as it can. Makes a renderer with <paramref name="createRenderer"/>, which is
+    /// null for a script with no capture or film step, and a playback that draws the captures into the run's target.
+    /// </summary>
+    private static int RunHeadless(
+        Options options,
+        Script script,
+        Scene scene,
+        string outFolder,
+        Func<RendererOptions, VulkanRenderer>? createRenderer,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
+        TextWriter output,
+        TextWriter error
+    )
+    {
         using var world = new World(
             new() { DisposePhysics = true },
             new JoltPhysicsBackend(JoltBackendOptions.Unpaced)
         );
         VulkanRenderer? renderer = null;
-        if (captures)
-            try
-            {
-                renderer = createRenderer(
-                    new()
-                    {
-                        Width = script.Window.Width,
-                        Height = script.Window.Height,
-                        Impostors = false,
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                error.WriteLine(
-                    $"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}"
-                );
+        if (createRenderer != null)
+        {
+            renderer = StartRenderer(
+                createRenderer: createRenderer,
+                size: script.Window,
+                options: options,
+                error: error
+            );
+            if (renderer is null)
                 return ToolError;
-            }
+        }
 
         using VulkanRenderer? rendererToDispose = renderer;
         CaptureTarget target = options.Video is { } video ? video : new PngFolder(outFolder);
+        var timings = new GpuTimingSummary();
         HeadlessPlayback? playback = null;
         if (renderer != null)
             try
@@ -188,7 +217,8 @@ public static class ScriptCommand
                     renderer: renderer,
                     size: script.Window,
                     target: target,
-                    startVideo: startVideo ?? FfmpegVideoSink.Start
+                    startVideo: startVideo,
+                    rendered: () => timings.Add(renderer.LastFrameStats.GpuTimings)
                 );
             }
             // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
@@ -222,31 +252,91 @@ public static class ScriptCommand
             );
             playback?.Finish();
             WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
+            if (renderer != null)
+                WriteGpuTimings(
+                    timings: timings,
+                    renderer: renderer,
+                    size: script.Window,
+                    outputFolder: outFolder,
+                    output: output
+                );
             return Ok;
         }
-        catch (ScriptException ex)
-        {
-            error.WriteLine($"{options.Script}: {ex.Message}");
-            return ScriptError;
-        }
-        // ffmpeg failed, and the message gives the video, ffmpeg's exit code and its last error lines.
-        catch (VideoStreamException ex)
-        {
-            error.WriteLine($"Cannot write the video of {options.Script}: {ex.Message}");
-            return FileError;
-        }
-        // A dump or an image that cannot be written: the same words as in the window.
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"Cannot write into {options.Out}: {ex.Message}");
-            return FileError;
-        }
-        // A bug, such as a broken contract that escapes World.Tick: the same exit code as in the window.
         catch (Exception ex)
         {
-            error.WriteLine($"The run failed: {ex}");
-            return InternalError;
+            (int code, string message) = Failure(ex, options);
+            error.WriteLine(message);
+            return code;
         }
+    }
+
+    /// <summary>The headless renderer, or null after writing why it cannot start to <paramref name="error"/>.</summary>
+    private static VulkanRenderer? StartRenderer(
+        Func<RendererOptions, VulkanRenderer> createRenderer,
+        ScriptWindow size,
+        Options options,
+        TextWriter error
+    )
+    {
+        try
+        {
+            return createRenderer(
+                new()
+                {
+                    Width = size.Width,
+                    Height = size.Height,
+                    Impostors = false,
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            error.WriteLine($"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>The exit code and the message of an exception that stopped a headless run after it started.</summary>
+    private static (int Code, string Message) Failure(Exception ex, Options options) =>
+        ex switch
+        {
+            ScriptException => (ScriptError, $"{options.Script}: {ex.Message}"),
+            // ffmpeg failed, and the message gives the video, ffmpeg's exit code and its last error lines.
+            VideoStreamException => (FileError, $"Cannot write the video of {options.Script}: {ex.Message}"),
+            // A dump or an image that cannot be written: the same words as in the window.
+            IOException or UnauthorizedAccessException => (FileError, $"Cannot write into {options.Out}: {ex.Message}"),
+            // A bug, such as a broken contract that escapes World.Tick: the same exit code as in the window.
+            _ => (InternalError, $"The run failed: {ex}"),
+        };
+
+    /// <summary>Runs the scene named <paramref name="sceneName"/> live in a window, after it finds the scene before a window opens.</summary>
+    private static int RunFreePlay(
+        Options options,
+        string sceneName,
+        IReadOnlyList<Scene> scenes,
+        TextWriter output,
+        TextWriter error
+    )
+    {
+        Scene? live = scenes.FirstOrDefault(s => s.Name == sceneName);
+        if (live is null)
+        {
+            error.WriteLine(
+                $"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
+            );
+            return ScriptError;
+        }
+
+        return WindowHost.Run(
+            sceneToBuild: live,
+            script: null,
+            scriptPath: null,
+            outputFolder: null,
+            speed: options.Speed,
+            recordPath: options.Record,
+            output: output,
+            error: error
+        );
     }
 
     /// <summary>
@@ -276,6 +366,47 @@ public static class ScriptCommand
         }
     }
 
+    /// <summary>
+    /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of each pass, then its path and one line
+    /// for each pass to <paramref name="output"/>. Writes nothing when no frame was timed.
+    /// </summary>
+    internal static void WriteGpuTimings(
+        GpuTimingSummary timings,
+        VulkanRenderer renderer,
+        ScriptWindow size,
+        string outputFolder,
+        TextWriter output
+    )
+    {
+        IReadOnlyList<PassSummary> passes = timings.Passes();
+        if (passes.Count == 0)
+            return;
+        string path = Path.Combine(outputFolder, GpuTimingsFile);
+        Directory.CreateDirectory(outputFolder);
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(
+                new GpuTimingReport(
+                    Device: renderer.DeviceName,
+                    Width: size.Width,
+                    Height: size.Height,
+                    Passes: passes
+                ),
+                ReportJson
+            )
+        );
+        output.WriteLine(path);
+        foreach (PassSummary pass in passes)
+            output.WriteLine(
+                FormattableString.Invariant(
+                    $"GPU {pass.Pass}: mean {pass.MeanMs:F3} ms, median {pass.MedianMs:F3} ms, p95 {pass.P95Ms:F3} ms over {pass.Frames} frames"
+                )
+            );
+    }
+
+    /// <summary>The content of <see cref="GpuTimingsFile"/>: the device, the size of the frames and each pass.</summary>
+    internal sealed record GpuTimingReport(string Device, int Width, int Height, IReadOnlyList<PassSummary> Passes);
+
     /// <param name="Script">The script file, or null for free play.</param>
     /// <param name="Scene">The scene of free play, or null for a script.</param>
     /// <param name="Out">The output folder of a script.</param>
@@ -283,6 +414,7 @@ public static class ScriptCommand
     /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
     /// <param name="Record">The file that free play writes its session to as a script, or null to record nothing.</param>
     /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
+    /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -290,114 +422,177 @@ public static class ScriptCommand
         bool Headless,
         double Speed,
         string? Record = null,
-        VideoFile? Video = null
+        VideoFile? Video = null,
+        ScriptWindow? Size = null
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
     internal static Options? ReadOptions(string[] args, out string? problem)
     {
-        string? script = null,
-            scene = null,
-            output = null,
-            speedText = null,
-            record = null,
-            video = null,
-            fpsText = null;
+        if (Gather(args, out problem) is not { } given)
+            return null;
+        problem = PlayProblem(given) ?? ValueProblem(given);
+        if (problem is not null)
+            return null;
+        string? video = given.Value("--video");
+        return new Options(
+            Script: given.Value("--script"),
+            Scene: given.Value("--scene"),
+            Out: given.Value("--out"),
+            Headless: given.Headless,
+            Speed: SpeedOf(given.Value("--speed")) ?? 1,
+            Record: given.Value("--record"),
+            Video: video is null
+                ? null
+                : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
+            Size: SizeOf(given.Value("--size"))
+        );
+    }
+
+    /// <summary>The options of a command line as given, before the rules between them: the value of each option, and <c>--headless</c>.</summary>
+    private sealed record GivenOptions(IReadOnlyDictionary<string, string> Values, bool Headless)
+    {
+        public string? Value(string option) => Values.GetValueOrDefault(option);
+    }
+
+    /// <summary>The options as given, or null and the problem for an unknown option or a missing value.</summary>
+    private static GivenOptions? Gather(string[] args, out string? problem)
+    {
+        var values = new Dictionary<string, string>();
         bool headless = false;
+        problem = null;
         for (int i = 0; i < args.Length; i++)
-            switch (args[i])
+        {
+            string option = args[i];
+            if (option == "--headless")
             {
-                case "--headless":
-                    headless = true;
-                    break;
-                case "--script"
-                or "--scene"
-                or "--out"
-                or "--speed"
-                or "--record"
-                or "--video"
-                or "--fps" when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
-                    problem = $"{args[i]} needs a value.";
-                    return null;
-                case "--script":
-                    script = args[++i];
-                    break;
-                case "--scene":
-                    scene = args[++i];
-                    break;
-                case "--out":
-                    output = args[++i];
-                    break;
-                case "--speed":
-                    speedText = args[++i];
-                    break;
-                case "--record":
-                    record = args[++i];
-                    break;
-                case "--video":
-                    video = args[++i];
-                    break;
-                case "--fps":
-                    fpsText = args[++i];
-                    break;
-                default:
-                    problem = $"Unknown option '{args[i]}'.";
-                    return null;
+                headless = true;
+                continue;
             }
 
-        double speed = 1;
-        int fps = VideoFile.DefaultFramesPerSecond;
-        problem = (script, scene) switch
+            if (!ValueOptions.Contains(option))
+            {
+                problem = $"Unknown option '{option}'.";
+                return null;
+            }
+
+            if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
+            {
+                problem = $"{option} needs a value.";
+                return null;
+            }
+
+            values[option] = args[++i];
+        }
+
+        return new(values, headless);
+    }
+
+    /// <summary>The problem with the choice between a script and free play, and with the options that belong to one of them, or null.</summary>
+    private static string? PlayProblem(GivenOptions given) =>
+        (given.Value("--script"), given.Value("--scene")) switch
         {
             (null, null) => "Give --script or --scene.",
             (not null, not null) => "Give --script or --scene, not both.",
-            (null, not null) when headless =>
+            (null, not null) when given.Headless =>
                 "--scene is free play, and free play needs the window. Leave out --headless.",
-            (null, not null) when output != null =>
+            (null, not null) when given.Value("--out") != null =>
                 "--out applies to a script. Free play writes only the file that --record names.",
-            (not null, null) when record != null =>
+            (not null, null) when given.Value("--record") != null =>
                 "--record applies to free play, so give --scene. A script is a record already.",
-            (not null, null) when output is null => "The option --out is missing.",
-            _ when speedText != null && headless =>
-                "--speed applies to the window. A headless run runs its ticks back to back.",
-            _ when speedText != null
-                    && !(
-                        double.TryParse(
-                            s: speedText,
-                            style: NumberStyles.Float,
-                            provider: CultureInfo.InvariantCulture,
-                            result: out speed
-                        )
-                        && double.IsFinite(speed)
-                        && speed > 0
-                    ) => $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
-            _ when video != null && !headless =>
-                "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.",
-            _ when video != null && !VideoFile.HasVideoExtension(video) =>
-                $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.",
-            _ when fpsText != null && video is null => "--fps applies to a video, so give --video too.",
-            _ when fpsText != null
-                    && !(
-                        int.TryParse(
-                            s: fpsText,
-                            style: NumberStyles.None,
-                            provider: CultureInfo.InvariantCulture,
-                            result: out fps
-                        ) && fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond
-                    ) =>
-                $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fpsText}'.",
+            (not null, null) when given.Value("--out") is null => "The option --out is missing.",
             _ => null,
         };
-        return problem is null
-            ? new Options(
-                Script: script,
-                Scene: scene,
-                Out: output,
-                Headless: headless,
-                Speed: speed,
-                Record: record,
-                Video: video is null ? null : new VideoFile(video, fps)
+
+    /// <summary>The problem with the value of an option, or with an option that another option needs, or null.</summary>
+    private static string? ValueProblem(GivenOptions given) =>
+        SpeedProblem(given) ?? VideoProblem(given) ?? SizeProblem(given);
+
+    private static string? SpeedProblem(GivenOptions given)
+    {
+        if (given.Value("--speed") is not { } speed)
+            return null;
+        if (given.Headless)
+            return "--speed applies to the window. A headless run runs its ticks back to back.";
+        if (SpeedOf(speed) is null)
+            return $"--speed needs a positive number, such as 0.5 or 2, not '{speed}'.";
+        return null;
+    }
+
+    private static string? VideoProblem(GivenOptions given)
+    {
+        string? video = given.Value("--video"),
+            fps = given.Value("--fps");
+        if (video != null && !given.Headless)
+            return "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.";
+        if (video != null && !VideoFile.HasVideoExtension(video))
+            return $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.";
+        if (fps != null && video is null)
+            return "--fps applies to a video, so give --video too.";
+        if (fps != null && FpsOf(fps) is null)
+            return $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fps}'.";
+        return null;
+    }
+
+    private static string? SizeProblem(GivenOptions given)
+    {
+        if (given.Value("--size") is not { } size)
+            return null;
+        if (given.Value("--script") is null)
+            return "--size applies to a script, so give --script.";
+        if (SizeOf(size) is null)
+            return $"--size needs a width and a height of 1 to {ScriptWindow.MaxSide} pixels, such as 1920x1080, not '{size}'.";
+        return null;
+    }
+
+    /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
+    private static double? SpeedOf(string? text)
+    {
+        bool read = double.TryParse(
+            s: text,
+            style: NumberStyles.Float,
+            provider: CultureInfo.InvariantCulture,
+            result: out double speed
+        );
+        return read && double.IsFinite(speed) && speed > 0 ? speed : null;
+    }
+
+    /// <summary>The frame rate that the text gives, or null for no text or one that is not a whole number in the range of a video.</summary>
+    private static int? FpsOf(string? text)
+    {
+        bool read = int.TryParse(
+            s: text,
+            style: NumberStyles.None,
+            provider: CultureInfo.InvariantCulture,
+            result: out int fps
+        );
+        return read && fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond ? fps : null;
+    }
+
+    /// <summary>The size that the text <c>&lt;width&gt;x&lt;height&gt;</c> gives, or null for no text or when a side is not a whole number of 1 to <see cref="ScriptWindow.MaxSide"/>.</summary>
+    private static ScriptWindow? SizeOf(string? text)
+    {
+        if (text?.Split('x') is not [string widthText, string heightText])
+            return null;
+        if (
+            !int.TryParse(
+                s: widthText,
+                style: NumberStyles.None,
+                provider: CultureInfo.InvariantCulture,
+                result: out int width
             )
-            : null;
+        )
+            return null;
+        if (
+            !int.TryParse(
+                s: heightText,
+                style: NumberStyles.None,
+                provider: CultureInfo.InvariantCulture,
+                result: out int height
+            )
+        )
+            return null;
+        bool fits = width is >= 1 and <= ScriptWindow.MaxSide && height is >= 1 and <= ScriptWindow.MaxSide;
+        return fits ? new ScriptWindow(width, height) : null;
     }
 }

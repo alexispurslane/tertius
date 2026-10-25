@@ -37,6 +37,9 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     // The sink of the video target for the whole run, or null for a PNG folder.
     private readonly FfmpegVideoSink? video;
 
+    // What runs after each render, such as the command's read of the renderer's statistics, or null.
+    private readonly Action? rendered;
+
     /// <summary>
     /// Resizes <paramref name="renderer"/> to <paramref name="size"/>, whatever size it was made with. For a video target,
     /// starts ffmpeg (<see cref="FfmpegVideoSink.Start(VideoFile, ScriptWindow)"/>), and throws its exception if ffmpeg cannot start or the
@@ -44,17 +47,19 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="target"/> is the default value, which holds no case.</exception>
     public HeadlessPlayback(IRenderer renderer, ScriptWindow size, CaptureTarget target)
-        : this(renderer: renderer, size: size, target: target, startVideo: FfmpegVideoSink.Start) { }
+        : this(renderer: renderer, size: size, target: target, startVideo: FfmpegVideoSink.Start, rendered: null) { }
 
     /// <summary>
     /// <see cref="HeadlessPlayback(IRenderer, ScriptWindow, CaptureTarget)"/> with the function that starts the video's
-    /// ffmpeg, so that the command can take it from a test.
+    /// ffmpeg, so that the command can take it from a test, and <paramref name="rendered"/>, which runs after each
+    /// render, or null.
     /// </summary>
     internal HeadlessPlayback(
         IRenderer renderer,
         ScriptWindow size,
         CaptureTarget target,
-        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
+        Action? rendered
     )
     {
         ArgumentNullException.ThrowIfNull(renderer);
@@ -64,6 +69,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
             throw new ArgumentException("A headless playback needs a capture target.", nameof(target));
         this.renderer = renderer;
         this.target = target;
+        this.rendered = rendered;
         renderer.Resize(size.Width, size.Height);
         video = target is VideoFile file ? startVideo(file, size) : null;
     }
@@ -88,6 +94,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         RenderSnapshot snapshot = world.RenderSnapshots.AcquireLatest() ?? world.RenderSnapshots.ReadBuffer;
         renderer.CaptureNextFrame(sink);
         renderer.Render(snapshot, alpha: 1f);
+        rendered?.Invoke();
         return true;
     }
 

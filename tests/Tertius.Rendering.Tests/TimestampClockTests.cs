@@ -1,0 +1,68 @@
+namespace Tertius.Rendering.Tests;
+
+/// <summary>
+/// The clock of the graphics queue's timestamps, on the CPU: when it can time the passes at all, how it turns two ticks
+/// into milliseconds, and how it turns the query results of one frame into the time of each pass.
+/// </summary>
+public sealed class TimestampClockTests
+{
+    [Fact]
+    public void AQueueWithValidTimestampBitsAndAPositivePeriodTimesThePasses() =>
+        new TimestampClock(ValidBits: 64, Period: 1f).Supported.Should().BeTrue();
+
+    [Fact]
+    public void AQueueWithNoValidTimestampBitsCannotTimeThePasses() =>
+        new TimestampClock(ValidBits: 0, Period: 1f)
+            .Supported.Should()
+            .BeFalse("Vulkan gives 0 valid bits for a queue that does not write timestamps");
+
+    [Fact]
+    public void AClockWhosePeriodIsZeroCannotTimeThePasses() =>
+        new TimestampClock(ValidBits: 64, Period: 0f)
+            .Supported.Should()
+            .BeFalse("every pass would take 0 ms whatever it did");
+
+    [Fact]
+    public void TheTimeBetweenTwoTicksIsTheirDifferenceTimesThePeriodInMilliseconds() =>
+        new TimestampClock(ValidBits: 64, Period: 41.667f)
+            .Milliseconds(start: 1_000, end: 25_000)
+            .Should()
+            .BeApproximately(24_000 * (double)41.667f / 1e6, 1e-9);
+
+    [Fact]
+    public void ACounterWithFewerThan64BitsThatWrapsBetweenTwoTicksStillGivesTheTimeBetweenThem() =>
+        new TimestampClock(ValidBits: 36, Period: 1f)
+            .Milliseconds(start: (1UL << 36) - 500, end: 1_500)
+            .Should()
+            .BeApproximately(2_000 / 1e6, 1e-12, "the counter counts 500 ticks to its wrap and 1,500 after it");
+
+    [Fact]
+    public void ThePassesOfAFrameTakeTheTimeBetweenTheStampBeforeThemAndTheStampAfterThem()
+    {
+        var clock = new TimestampClock(ValidBits: 64, Period: 1f);
+        // Pairs of a timestamp in ticks and its availability, one pair for each query.
+        ulong[] results = [1_000_000, 1, 1_250_000, 1, 1_250_000, 1, 4_250_000, 1];
+        var timings = new PassTiming[3];
+
+        bool timed = clock.Fill(results: results, passes: ["shadow maps", "probe", "G-buffer"], timings: timings);
+
+        timed.Should().BeTrue();
+        timings
+            .Should()
+            .Equal(new PassTiming("shadow maps", 0.25), new PassTiming("probe", 0), new PassTiming("G-buffer", 3));
+    }
+
+    [Fact]
+    public void AFrameWithAQueryWhoseResultIsNotAvailableHasNoTimingsAndLeavesTheTimingsAsTheyWere()
+    {
+        var clock = new TimestampClock(ValidBits: 64, Period: 1f);
+        ulong[] results = [1_000_000, 1, 1_250_000, 0];
+        var earlier = new PassTiming("lighting", 0.5);
+        PassTiming[] timings = [earlier];
+
+        bool timed = clock.Fill(results: results, passes: ["lighting"], timings: timings);
+
+        timed.Should().BeFalse("a result that is not available is no timing, never a time of 0");
+        timings.Should().Equal(earlier);
+    }
+}

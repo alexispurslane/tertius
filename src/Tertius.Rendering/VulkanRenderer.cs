@@ -53,6 +53,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly BarrierBatch barriers = new();
+    private readonly GpuTimer timer;
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -141,6 +142,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             Graph.Add(FrameGraph.Stage.Readback, new CapturePass());
             Own(Graph);
+            timer = Own(new GpuTimer(device, options.FramesInFlight));
 
             context = new()
             {
@@ -151,6 +153,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 Materials = materials,
                 Barriers = barriers,
                 Shadows = ShadowMap,
+                Timer = timer,
             };
         }
         catch
@@ -177,6 +180,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     public (int Width, int Height) OutputSize => ((int)output.Extent.Width, (int)output.Extent.Height);
 
     internal DeviceAllocator Allocator { get; }
+
+    /// <summary>True when the device writes timestamps, so <see cref="RenderStats.GpuTimings"/> reports the passes.</summary>
+    public bool TimesPasses => timer.Supported;
 
     internal ShadowMap ShadowMap { get; }
 
@@ -374,16 +380,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Vk vk = device.Vk;
         FrameResources frame = frames[frameNumber % frames.Length];
         Fence fence = frame.Fence;
-        vk.WaitForFences(device: device.Device, fenceCount: 1, pFences: &fence, waitAll: true, timeout: ulong.MaxValue)
-            .Check("vkWaitForFences");
+        WaitFor(fence);
         // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
         releases.Collect(frame.Number);
+        timer.Collect(frame.Index, frame.Number);
         frame.Staging.Reset();
 
         GpuImage? image = output.Acquire(frame);
         if (image == null)
         {
-            LastFrameStats = new() { SubmittedInstances = snapshot.Instances.Count, Rendered = false };
+            LastFrameStats = new()
+            {
+                SubmittedInstances = snapshot.Instances.Count,
+                GpuTimings = timer.Latest,
+                Rendered = false,
+            };
             return;
         }
 
@@ -394,16 +405,99 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Resize(image.Extent);
         }
 
+        CommandBuffer commandBuffer = BeginCommands(frame);
+        Upload(frame, commandBuffer);
+        frame.UpdateSharedDescriptors(materials, textures);
+
+        Batcher.Prepare(
+            snapshot: snapshot,
+            alpha: alpha,
+            width: (int)targets.Extent.Width,
+            height: (int)targets.Extent.Height,
+            meshes: geometry.Meshes,
+            materialCount: materials.Count,
+            scene: LastScene
+        );
+
+        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
+        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
+
+        SetContext(frame: frame, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
+        Graph.Prepare(context);
+        frame.Write(LastScene, Exposure);
+        Graph.Record(context);
+        output.FinishRecording(barriers, commandBuffer);
+        vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
+        // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
+        vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
+        output.SubmitAndPresent(frame);
+        frame.Number = frameNumber;
+        frameNumber++;
+
+        LastFrameStats = StatsOf(
+            scene: LastScene,
+            impostors: Impostors,
+            indirectDrawCalls: context.IndirectDrawCalls,
+            gpuTimings: timer.Latest
+        );
+
+        if (sink != null && capture != null)
+        {
+            WaitFor(fence);
+            HandOver(sink, capture, image.Extent);
+        }
+    }
+
+    private void WaitFor(Fence fence) =>
+        device
+            .Vk.WaitForFences(
+                device: device.Device,
+                fenceCount: 1,
+                pFences: &fence,
+                waitAll: true,
+                timeout: ulong.MaxValue
+            )
+            .Check("vkWaitForFences");
+
+    /// <summary>Resets the command pool of <paramref name="frame"/> and begins its command buffer.</summary>
+    private CommandBuffer BeginCommands(FrameResources frame)
+    {
         // Resetting the pool also discards a command buffer left recording by an exception in an earlier frame.
-        vk.ResetCommandPool(device.Device, frame.CommandPool, 0).Check("vkResetCommandPool");
+        device.Vk.ResetCommandPool(device.Device, frame.CommandPool, 0).Check("vkResetCommandPool");
         CommandBuffer commandBuffer = frame.CommandBuffer;
         var begin = new CommandBufferBeginInfo
         {
             SType = StructureType.CommandBufferBeginInfo,
             Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
         };
-        vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
+        device.Vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
+        return commandBuffer;
+    }
 
+    /// <summary>Sets the values of this frame in the context that the passes read.</summary>
+    private void SetContext(
+        FrameResources frame,
+        RenderSnapshot snapshot,
+        float alpha,
+        GpuImage image,
+        GpuBuffer? capture
+    )
+    {
+        context.Frame = frame;
+        context.Snapshot = snapshot;
+        context.Alpha = alpha;
+        context.Scene = LastScene;
+        context.Output = image;
+        context.Number = frameNumber;
+        context.Exposure = Exposure;
+        context.EncodeSrgb = output.EncodeSrgbInShader;
+        context.CaptureBuffer = capture;
+        context.IndirectDrawCalls = 0;
+    }
+
+    /// <summary>Records the uploads that the Create methods queued, and the built-in defaults before the first frame.</summary>
+    private void Upload(FrameResources frame, CommandBuffer commandBuffer)
+    {
         UploadQueue.Pending pending = uploads.Drain();
         if (!pending.IsEmpty || textures.Count == 0 || materials.Count == 0)
         {
@@ -432,61 +526,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             device.EndLabel(commandBuffer);
         }
-
-        frame.UpdateSharedDescriptors(materials, textures);
-
-        Batcher.Prepare(
-            snapshot: snapshot,
-            alpha: alpha,
-            width: (int)targets.Extent.Width,
-            height: (int)targets.Extent.Height,
-            meshes: geometry.Meshes,
-            materialCount: materials.Count,
-            scene: LastScene
-        );
-
-        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
-        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
-
-        context.Frame = frame;
-        context.Snapshot = snapshot;
-        context.Alpha = alpha;
-        context.Scene = LastScene;
-        context.Output = image;
-        context.Number = frameNumber;
-        context.Exposure = Exposure;
-        context.EncodeSrgb = output.EncodeSrgbInShader;
-        context.CaptureBuffer = capture;
-        context.IndirectDrawCalls = 0;
-        Graph.Prepare(context);
-        frame.Write(LastScene, Exposure);
-        Graph.Record(context);
-        output.FinishRecording(barriers, commandBuffer);
-        vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
-        // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
-        vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
-        output.SubmitAndPresent(frame);
-        frame.Number = frameNumber;
-        frameNumber++;
-
-        LastFrameStats = StatsOf(LastScene, Impostors, context.IndirectDrawCalls);
-
-        if (sink != null && capture != null)
-        {
-            vk.WaitForFences(
-                    device: device.Device,
-                    fenceCount: 1,
-                    pFences: &fence,
-                    waitAll: true,
-                    timeout: ulong.MaxValue
-                )
-                .Check("vkWaitForFences");
-            HandOver(sink, capture, image.Extent);
-        }
     }
 
-    /// <summary>What a frame drew, from its prepared scene, its impostors and the indirect draws that its passes recorded.</summary>
-    internal static RenderStats StatsOf(PreparedScene scene, ImpostorManager? impostors, int indirectDrawCalls) =>
+    /// <summary>
+    /// What a frame drew, from its prepared scene, its impostors and the indirect draws that its passes recorded, with the
+    /// GPU timings of the last frame that finished.
+    /// </summary>
+    internal static RenderStats StatsOf(
+        PreparedScene scene,
+        ImpostorManager? impostors,
+        int indirectDrawCalls,
+        GpuTimings? gpuTimings
+    ) =>
         new()
         {
             SubmittedInstances = scene.SubmittedInstances,
@@ -512,6 +563,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Lights = scene.LightCount,
             Outlines = scene.OutlineCount,
             Puffs = scene.PuffCount,
+            GpuTimings = gpuTimings,
             Rendered = true,
         };
 
