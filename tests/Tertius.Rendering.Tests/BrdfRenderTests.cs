@@ -437,7 +437,7 @@ public sealed class BrdfRenderTests
 
         shown.Should().Be(Vector3.One, "the clamp keeps the value finite, and the tone curve turns it white");
         // 4 of 255, not 2: the mirror's peak at the pixel lies below the C# one, which the curve's shoulder nearly hides
-        // (measured 3 of 255). The clamp before the exposure would show 64,512 times the dimming, about 72 of 255 darker.
+        // (measured 3 of 255). The clamp before the exposure would show the cap, 32,256, times the dimming, far darker.
         LargestChannelDifference(dimmed, expected)
             .Should()
             .BeLessThanOrEqualTo(

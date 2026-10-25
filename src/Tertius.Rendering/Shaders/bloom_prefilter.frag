@@ -12,7 +12,8 @@
 // Unity's quadratic soft threshold (PostProcessing v2, QuadraticThreshold in Colors.hlsl): the brightness is the
 // largest channel of the HDR image, which the shading passes pre-exposed. Below threshold - knee width nothing glows, above threshold + knee width the light
 // above the threshold glows, and between them a quadratic joins the two, so the glow fades in.
-// The HDR image holds finite light from 0 to MaxRadiance (exposure.glsl), so the color needs no clamp.
+// The HDR image holds finite light from 0 to 2 · MaxRadiance, the surfaces' share and the puffs' (exposure.glsl), so
+// the color needs no clamp.
 vec3 thresholded(vec3 color)
 {
     float brightness = max(color.r, max(color.g, color.b));
@@ -43,7 +44,7 @@ void main()
             vec3 texel = texelFetch(source, clamp(first + ivec2(x, y), ivec2(0), last), 0).rgb;
             sum += texelWeights[y * 6 + x] * thresholded(texel);
         }
-    // Each level holds at most MaxRadiance over the levels, so their sum in level 0 stays at most MaxRadiance, with the
-    // rounding of each level's half floats inside the room below 65,504 that MaxRadiance leaves.
+    // Each level holds at most 2 · MaxRadiance over the levels, so their sum in level 0 stays at most 2 · MaxRadiance,
+    // 64,512, with the rounding of each level's half floats inside the room that it leaves below 65,504.
     outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
 }

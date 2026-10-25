@@ -46,9 +46,9 @@ void main()
     lobes.diffuseColor *= opacity;
     // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E · c), per channel.
     vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
-    // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that it plus a target of at most
-    // MaxRadiance times T stays a finite half float: past it, a device may store infinity, which the tone curve turns
-    // into NaN.
+    // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that over a target v the blend's
+    // MaxRadiance · (1 − T) + T · v keeps the surfaces' share and the puffs' inside the half float's range: past it, a
+    // device may store infinity, which the tone curve turns into NaN (ARCHITECTURE.md, "Portable Vulkan").
     float exposure = exposureScale();
     vec3 radiance = min(lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, true, exposure),
         MaxRadiance * (1.0 - transmittance));

@@ -10,11 +10,11 @@ namespace Tertius.Rendering;
 internal static class ShaderInput
 {
     /// <summary>
-    /// The most that a pass writes into the HDR image, the emissive target or the impostor atlas, per channel: 64,512,
-    /// `MaxRadiance` in Shaders/exposure.glsl. It is the largest finite half float, 65,504, less 1/64 of it, the room that
-    /// the rounding of the glass blend and of the summed bloom levels needs below the half float's largest value.
+    /// The most light per channel that the surfaces write into one pixel of the HDR image, and the most that all the
+    /// puffs over a pixel add to it together: 32,256, `MaxRadiance` in Shaders/exposure.glsl. The two shares keep each
+    /// pixel at or below 64,512, below the largest half float (ARCHITECTURE.md, "Portable Vulkan").
     /// </summary>
-    public const float MaxRadiance = 64512;
+    public const float MaxRadiance = 32256;
 
     /// <summary>
     /// The brightest radiance that the renderer reads from the CPU, 2^64, per channel. At the lowest exposure, −64 stops,
@@ -22,6 +22,12 @@ internal static class ShaderInput
     /// leaves the single float's range before the cap.
     /// </summary>
     public const float RadianceLimit = 18446744073709551616f;
+
+    /// <summary>
+    /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
+    /// <paramref name="puffCount"/> puffs: an equal share of <see cref="MaxRadiance"/>, the budget that the puffs share.
+    /// </summary>
+    public static float PuffRadianceCap(int puffCount) => MaxRadiance / Math.Max(puffCount, 1);
 
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>

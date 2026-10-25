@@ -415,12 +415,12 @@ public sealed class BloomTests
     }
 
     [Theory]
-    [InlineData(2)]
+    [InlineData(3)]
     [InlineData(4)]
     public void ALargeSquareAtTheCapGlowsByItsLightWithoutOverflowing(int levels)
     {
-        // At 0 stops the HDR image holds the square's light at the cap, 64,512, and so does each level inside the
-        // square, so a sum of the levels as they are overflows to infinity. The glow is linear in the light,
+        // At 0 stops the HDR image holds the square's light at the surfaces' cap, 32,256, and so does each level inside
+        // the square, so a sum of 3 or more levels as they are overflows to infinity. The glow is linear in the light,
         // so beside the square it equals the glow of a square 1,024 times dimmer under a bloom 1,024 times stronger. The
         // strength brings that glow into the range of the tone curve, as an exposure would before pre-exposure.
         const float dimmer = 1024;

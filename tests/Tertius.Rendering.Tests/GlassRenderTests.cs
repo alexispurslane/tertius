@@ -346,7 +346,7 @@ public sealed class GlassRenderTests
         );
         try
         {
-            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 64,512 over
+            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 32,256 over
             // the whole pane, so the cap binds on every pixel of the pane.
             ShownThroughPane(
                 renderer: renderer,

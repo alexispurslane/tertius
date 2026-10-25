@@ -19,6 +19,12 @@ public sealed class PortableFloatTests
     /// <summary>The largest finite half float. A blend that rounds past it stores infinity on a GPU that is not Metal.</summary>
     private const float LargestHalf = 65504;
 
+    /// <summary>
+    /// The most that a pixel of the HDR image holds: the surfaces' cap and the puffs' budget, 32,256 each. It lies 992,
+    /// 31 steps of the half float there, below the largest half float, for the rounding of the blends.
+    /// </summary>
+    private const float HdrBound = 64512;
+
     /// <summary>A plane facing the eye, 3 m ahead: the XZ plane turned so that its +Y faces +Z.</summary>
     private static readonly Quaternion Facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
 
@@ -364,6 +370,56 @@ public sealed class PortableFloatTests
             Center(hdr).Should().Be(new Vector3((float)(Half)0.2f), "the puff adds no light to the wall");
             hdr.Should()
                 .OnlyContain(value => float.IsFinite(value), "no pixel of the HDR image holds a NaN or an infinity");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(63)]
+    [InlineData(4096)]
+    public void PuffsAtTheirCapOverASurfaceAtTheCapKeepEveryPixelWithinTheHdrBound(int puffs)
+    {
+        // Every puff sits at one place, 5 m ahead and 5 m before the wall, so each adds its full share at the center.
+        // Each puff alone at the surfaces' cap would carry the sum of the blend past the largest half float.
+        VulkanRenderer renderer = Headless();
+        try
+        {
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
+            snapshot.PuffLooks.Add(
+                new(
+                    Life: 100,
+                    StartRadius: 1,
+                    EndRadius: 1,
+                    TemperatureRatio: 1,
+                    Shading: PuffShading.Glow(new(ShaderInput.RadianceLimit))
+                )
+            );
+            var position = new Vector3(0, 0, -5);
+            for (int i = 0; i < puffs; i++)
+                snapshot.Puffs.Add(
+                    new()
+                    {
+                        Position = position,
+                        PreviousPosition = position,
+                        Age = 1,
+                        Look = 0,
+                    }
+                );
+            renderer.Render(snapshot, 1f);
+
+            float[] hdr = renderer.ReadHdrImage();
+
+            hdr.Should()
+                .OnlyContain(
+                    value => float.IsFinite(value) && value <= HdrBound,
+                    "the wall holds at most {0}, and the {1} puffs over a pixel add at most {0} in all",
+                    ShaderInput.MaxRadiance,
+                    puffs
+                );
         }
         finally
         {

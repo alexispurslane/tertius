@@ -177,6 +177,33 @@ public sealed class ShaderInputTests
     }
 
     [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(4096, 4096)]
+    public void EachPuffOfAFrameMayAddAnEqualShareOfThePuffsBudget(int puffs, int shares) =>
+        // The puffs over one pixel add in the blend, so together they may add at most the budget, whatever their number.
+        ShaderInput
+            .PuffRadianceCap(puffs)
+            .Should()
+            .Be(ShaderInput.MaxRadiance / shares, "{0} puffs share the budget of {1}", puffs, ShaderInput.MaxRadiance);
+
+    [Fact]
+    public void TheFrameGivesTheShadersTheShareOfEachPuffThatItDraws()
+    {
+        // The puff behind the eye is culled, so it takes no share.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.PuffLooks.Add(Look(PuffShading.Glow(Vector3.One)));
+        snapshot.Puffs.Add(Puff(look: 0));
+        snapshot.Puffs.Add(Puff(look: 0));
+        snapshot.Puffs.Add(Puff(look: 0) with { Position = new(0, 0, 10), PreviousPosition = new(0, 0, 10) });
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.PuffCount.Should().Be(2);
+        scene.Constants.Params.X.Should().Be(ShaderInput.MaxRadiance / 2, "the two puffs drawn share the budget");
+    }
+
+    [Theory]
     [InlineData(float.NaN, false)]
     [InlineData(float.PositiveInfinity, false)]
     [InlineData(1e-20f, false)] // 1 / scale² is past the largest single float
