@@ -110,16 +110,15 @@ public static partial class DemoScenes
             scene.Add(
                 $"strip-{i}",
                 world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = new(new(x, EarthRadius + StripHalfExtents.Y, 0), DQuaternion.Identity),
-                        Render = Shaded(
+                    DrawnAt(
+                        frame: surface,
+                        position: new(x, EarthRadius + StripHalfExtents.Y, 0),
+                        render: Shaded(
                             mesh: mesh,
                             material: resources.CreateMaterial(StripMaterials[i]),
                             boundingRadius: StripHalfExtents.Length()
-                        ),
-                    }
+                        )
+                    )
                 )
             );
         }
@@ -141,44 +140,21 @@ public static partial class DemoScenes
         scene.Add(
             "red-box",
             world.Spawn(
-                new()
-                {
-                    Frame = surface,
-                    Pose = new(new(-4, ReflectionsFloor + boxHalfExtents.Y, -1), DQuaternion.Identity),
-                    Render = Shaded(
+                DrawnAt(
+                    frame: surface,
+                    position: new(-4, ReflectionsFloor + boxHalfExtents.Y, -1),
+                    render: Shaded(
                         mesh: resources.CreateMesh(Primitives.Box(boxHalfExtents)),
                         material: resources.CreateMaterial(
                             MaterialDesc.Color(new(x: 0.8f, y: 0.05f, z: 0.05f, w: 1), UsualRoughness)
                         ),
                         boundingRadius: boxHalfExtents.Length()
-                    ),
-                }
+                    )
+                )
             )
         );
 
-        var barHalfExtents = new Vector3(0.1f, 1, 0.1f);
-        scene.Add(
-            "bar",
-            world.Spawn(
-                new()
-                {
-                    Frame = surface,
-                    Pose = new(new(-1, ReflectionsFloor + barHalfExtents.Y, -2), DQuaternion.Identity),
-                    Render = Shaded(
-                        mesh: resources.CreateMesh(Primitives.Box(barHalfExtents)),
-                        material: resources.CreateMaterial(
-                            new(
-                                BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                                Roughness: UsualRoughness,
-                                Reflectance: 0,
-                                Emissive: new(5)
-                            )
-                        ),
-                        boundingRadius: barHalfExtents.Length()
-                    ),
-                }
-            )
-        );
+        scene.Add("bar", world.Spawn(GlowingBar(surface: surface, resources: resources)));
 
         scene.Add(
             "lamp",
@@ -189,21 +165,57 @@ public static partial class DemoScenes
         scene.Add(
             "blue-sphere",
             world.Spawn(
-                new()
-                {
-                    Frame = surface,
-                    Pose = new(new(5, ReflectionsFloor + sphereRadius, 0), DQuaternion.Identity),
-                    Render = Shaded(
+                DrawnAt(
+                    frame: surface,
+                    position: new(5, ReflectionsFloor + sphereRadius, 0),
+                    render: Shaded(
                         mesh: resources.CreateMesh(Primitives.Sphere(sphereRadius, segments: 96, rings: 48)),
                         material: resources.CreateMaterial(
                             MaterialDesc.Color(new(x: 0.05f, y: 0.12f, z: 0.8f, w: 1), UsualRoughness)
                         ),
                         boundingRadius: sphereRadius
-                    ),
-                }
+                    )
+                )
             )
         );
     }
+
+    /// <summary>
+    /// The <c>bar</c> of the reflections scene in <paramref name="surface"/>: a white glowing box 2 m tall and 0.2 m
+    /// square, on the strip of roughness 0.2, whose bright edges show how far each reflection blurs.
+    /// </summary>
+    private static SpawnDesc GlowingBar(FrameHandle surface, IRenderResources resources)
+    {
+        var halfExtents = new Vector3(0.1f, 1, 0.1f);
+        return DrawnAt(
+            frame: surface,
+            position: new(-1, ReflectionsFloor + halfExtents.Y, -2),
+            render: Shaded(
+                mesh: resources.CreateMesh(Primitives.Box(halfExtents)),
+                material: resources.CreateMaterial(
+                    new(
+                        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                        Roughness: UsualRoughness,
+                        Reflectance: 0,
+                        Emissive: new(5)
+                    )
+                ),
+                boundingRadius: halfExtents.Length()
+            )
+        );
+    }
+
+    /// <summary>
+    /// An entity with no body in <paramref name="frame"/> at <paramref name="position"/>, unturned, that draws
+    /// <paramref name="render"/>.
+    /// </summary>
+    private static SpawnDesc DrawnAt(FrameHandle frame, Double3 position, RenderData render) =>
+        new()
+        {
+            Frame = frame,
+            Pose = new(position, DQuaternion.Identity),
+            Render = render,
+        };
 
     /// <summary>
     /// A drawn object of the reflections scene that casts shadows and is never an impostor, so it receives the
