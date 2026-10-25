@@ -18,3 +18,9 @@ The cost runs of ter-jxv9's Part 6 (2026-10-25, demo-exit at 1920x1080, Release,
 
 A profile of each pass, the changes that it justifies, and the cost measured again on a quiet machine, with the numbers in ARCHITECTURE.md.
 
+
+## Notes
+
+**2026-10-25T23:20:19Z**
+
+2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.

@@ -18,3 +18,9 @@ Part 3 of docs/plans/rendering-performance.md, "Order of the work". After every 
 
 The GPU span of demo-exit at 1920x1080, Release, on the M1 Max, at most 12 ms in two runs on a quiet machine, and the budget table of each pass in ARCHITECTURE.md.
 
+
+## Notes
+
+**2026-10-25T23:20:19Z**
+
+2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.

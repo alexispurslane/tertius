@@ -24,3 +24,7 @@ A profile of each pass, the changes that it justifies, and the cost measured aga
 **2026-10-25T20:07:18Z**
 
 2026-10-25: the user chose 'build, then cut' for the bounce light, whose passes replace and extend these four (4.0 to 8.4 ms by arithmetic at 1080p). So this ticket now profiles the screen-space light passes after the bounce light's Part 6, and tries the three levers of docs/plans/screen-space-illumination.md, 'Cost' (fewer far rays, a half-resolution copy of the direct light, and what the profile finds, the upsample first), each with captures, before Part 7 picks the defaults.
+
+**2026-10-25T23:20:19Z**
+
+2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.
