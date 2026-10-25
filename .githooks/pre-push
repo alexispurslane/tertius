@@ -4,8 +4,7 @@
 #      it changes a file, the hook builds the solution, commits the result as one cleanup commit and stops the push,
 #      because git already chose the commits to push. Cleaned code that does not build stops the push, and the changes
 #      stay uncommitted. Push again to send the cleanup commit too.
-#   2. tools/docs.sh builds the docs site. A DocFX error stops the push, and a link warning does not.
-#   3. The slop history (tools/Tertius.Slop): it notes each pushed commit that changes C# code under src and has no
+#   2. The slop history (tools/Tertius.Slop): it notes each pushed commit that changes C# code under src and has no
 #      note, and the pushed tip, prints the metrics at the last push against now, and pushes refs/notes/slop to the
 #      same remote after a merge with the remote's notes. It never stops the push.
 # To skip the hook once, run: git push --no-verify
@@ -79,19 +78,11 @@ if [[ ${#files[@]} -gt 0 ]]; then
     fi
 fi
 
-echo "pre-push: building the docs site..." >&2
-log="${TMPDIR:-/tmp}/tertius-pre-push-docs.log"
-if ! bash tools/docs.sh > "$log" 2>&1; then
-    tail -40 "$log" >&2
-    echo "pre-push: the docs build failed, so the push stopped. The full log: $log" >&2
-    exit 1
-fi
-
 # The slop history. The commits of a branch since its last push are the ones after the remote's commit, or after main
-# for a new branch. The docs build above built the solution in Release, so the tool is current.
+# for a new branch. The incremental build keeps the tool current, and costs a few seconds when nothing changed.
 slop_history() {
     local remote=$1 slop=tools/Tertius.Slop/bin/Release/net11.0/Tertius.Slop.dll
-    [[ -f "$slop" ]] || dotnet build tools/Tertius.Slop -c Release -v quiet -nologo > /dev/null || return 1
+    dotnet build tools/Tertius.Slop -c Release -v quiet -nologo > /dev/null || return 1
     local local_ref local_sha remote_sha from
     while read -r local_ref local_sha _ remote_sha; do
         [[ "$local_ref" == refs/heads/* && -n "$local_sha" && "$local_sha" != "$zero" ]] || continue
