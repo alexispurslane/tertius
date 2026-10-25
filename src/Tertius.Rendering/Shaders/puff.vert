@@ -4,6 +4,7 @@
 #include "draw.glsl"
 #include "gbuffer_inputs.glsl"
 #include "lighting.glsl"
+#include "exposure.glsl"
 
 // Puffs in the transparent pass (TransparentPass.cs). Each instance is one GpuPuff, drawn as a square centered on the
 // puff that faces the eye, with the puff's radius as half its side. Six vertices make the square's two triangles.
@@ -39,7 +40,10 @@ void main()
     outCorner = corner;
     // The case: 0 glow, 1 lit. A glow puff emits its color and takes no light. A lit puff is lit once, at its center
     // (lighting.glsl, scatteredLight), so each of its six vertices computes the same value.
-    outRadiance = puff.colorKind.w < 0.5 ? puff.colorKind.rgb : scatteredLight(puff.colorKind.rgb, center);
+    vec3 radiance = puff.colorKind.w < 0.5 ? puff.colorKind.rgb : scatteredLight(puff.colorKind.rgb, center);
+    // Each puff clamps its own light; puffs that overlap add in the blend unit (docs/plans/auto-exposure.md,
+    // "Puffs and the clamp").
+    outRadiance = preExposed(radiance);
     outRadius = radius;
     gl_Position = draw.viewProj * vec4(world, 1.0);
 }

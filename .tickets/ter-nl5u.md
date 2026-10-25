@@ -1,7 +1,7 @@
 ---
 id: ter-nl5u
-status: open
-deps: []
+status: in_progress
+deps: [ter-zzyr]
 links: []
 created: 2026-10-25T13:40:27Z
 type: feature
@@ -24,3 +24,9 @@ Per the project rules: a RendererOptions switch, its cost measured at 1080p, GPU
 
 Chrome and polished steel reflect the star field and the far bodies in every direction, sharp when smooth and blurred when rough. SSR falls back to the map. Its cost is measured, and captures show it.
 
+
+## Notes
+
+**2026-10-25T13:46:18Z**
+
+Design decisions (user, 2026-10-25): design A, the scene map. The map holds the whole scene seen from the camera: all three depth ranges, lit by the sun, and the star field, at 128 px per face. It updates one face per frame, so all six every six frames, and a headless still refreshes all six first. The diffuse ambient light also comes from the map, and the hemisphere goes away while the map is on. Settled with both offered designs: the map sits at the camera; a compute pass prefilters it into its mip levels with the GGX lobe of the split-sum method whose DFG table exists, so the build waits for the compute pipelines of ter-zzyr; it replaces the hemisphere as the ambient specular light and as SSR's fallback, and glass reflects it; a union switch NoEnvironmentMap or SceneEnvironmentMap(FaceSize, FacesPerFrame) in RendererOptions, on by default, off in the test fixtures, the hemisphere when off; GPU pixel tests (a mirror sphere reflects a bright object behind the camera, a rough sphere shows it blurred); cost measured at 1080p; captures for the user. The per-frame sky and ground colors (ter-hro7) are no longer needed: the user chose this knowing it.

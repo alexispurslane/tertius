@@ -65,6 +65,7 @@ internal sealed unsafe class TransparentPass : RenderPass
         barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         barriers.Image(targets.Distance, ImageUse.SampledFragment);
         // The vertex shader of the lit puffs samples the cascades at each puff's center.
         barriers.Image(context.Shadows.Image, ImageUse.SampledVertexFragment);

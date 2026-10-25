@@ -318,7 +318,6 @@ public sealed class GlassRenderTests
     {
         const float largestHalf = 65504;
         const float opacity = 0.2f;
-        const float exposure = 1e-5f;
         var backdrop = new Vector3(1000);
         var glass = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0.3, Reflectance: 1);
         Double3 transmittance = glass.Transmittance(
@@ -330,28 +329,78 @@ public sealed class GlassRenderTests
         // The pane's own light fills what the target holds beyond the share that the glow behind may take, so the sum
         // stays at most the largest half float. Past it, a device may store infinity, which the tone curve turns to NaN.
         Double3 stored = largestHalf * (new Double3(1, 1, 1) - transmittance) + transmittance * backdrop;
+        int expectedBin = ExposureMeter.BinOf(ExposureMeter.Luminance(stored.ToVector3()));
 
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        // The shading passes write pre-exposed light, and the tone curve shows anything this bright as white, so the
+        // meter's histogram reads the stored value. A clamp of 0 to 0 holds the exposure at 0 stops, so the stored
+        // value is the radiance.
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            framesInFlight: 1,
+            exposure: AutoExposure.Default with { MinStops = 0, MaxStops = 0 }
+        );
         try
         {
-            // Turned down by the exposure, the stored value shows: the sun behind the eye puts a highlight of about
-            // 150,000 at the pane's center, far past what the target holds.
-            renderer.Exposure = exposure;
-            Vector3 shown = ShownThroughPane(
+            // The sun behind the eye puts a highlight of about 1,500,000 at the pane's center and more than 65,504 over
+            // the whole pane, so the cap binds on every pixel of the pane.
+            ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 1e5f),
+                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 1e6f),
                 pane: BlackGlass(opacity: opacity, roughness: 0.3f),
                 tilt: 0,
                 backdrop: backdrop,
                 name: "glass-saturated"
             );
-            Vector3 glow = Displayed(renderer, [stored.ToVector3()], "glass-saturated-glow")[0];
+            uint[] histogram = renderer.ReadExposureHistogram();
+            int brightestBin = Array.FindLastIndex(histogram, count => count > 0);
 
-            ShouldShow(shown, glow, $"the target holds {stored}, at most {largestHalf}, scaled by {exposure}");
+            // One bin either way: the pane's transmittance varies a little with the view angle across it.
+            brightestBin
+                .Should()
+                .BeInRange(
+                    expectedBin - 1,
+                    expectedBin + 1,
+                    "the target holds {0}, at most {1}, not the highlight of the uncapped pane",
+                    stored,
+                    largestHalf
+                );
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnExposureScalesWhatAPaneLetsThroughOnceAsItScalesTheLightBehind()
+    {
+        // 2 stops of exposure on a backdrop of 0.05 show as 0 stops on a backdrop 4 times as bright, because the
+        // backdrop's light takes the exposure once, before the pane lets through its share. An unlit black pane adds
+        // no light of its own.
+        Vector3 Shown(VulkanRenderer renderer, Vector3 backdrop, string name) =>
+            ShownThroughPane(
+                renderer: renderer,
+                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                pane: BlackGlass(opacity: 0.2f, roughness: GlassRoughness),
+                tilt: 0,
+                backdrop: backdrop,
+                name: name
+            );
+        VulkanRenderer exposedRenderer = Gpu.Headless(width: Width, height: Height, exposure: new FixedExposure(2));
+        VulkanRenderer brighterRenderer = Gpu.Headless(width: Width, height: Height, exposure: new FixedExposure(0));
+        try
+        {
+            Vector3 exposed = Shown(exposedRenderer, new(0.05f), "glass-exposed");
+            Vector3 brighter = Shown(brighterRenderer, new(0.2f), "glass-brighter");
+
+            exposed.X.Should().BeGreaterThan(0.1f, "the pane lets through most of the backdrop");
+            ShouldShow(exposed, brighter, "the transmittance is a fraction, so the exposure never scales it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(exposedRenderer);
+            Gpu.DisposeAndAssertClean(brighterRenderer);
         }
     }
 
