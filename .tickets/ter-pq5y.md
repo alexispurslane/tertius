@@ -1,6 +1,6 @@
 ---
 id: ter-pq5y
-status: open
+status: in_progress
 deps: [ter-nydu, ter-izsu, ter-ff6y, ter-of1p, ter-3g1g]
 links: []
 created: 2026-10-25T22:29:46Z

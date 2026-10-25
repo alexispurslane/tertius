@@ -1,6 +1,6 @@
 ---
 id: ter-nydu
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-25T22:29:46Z
