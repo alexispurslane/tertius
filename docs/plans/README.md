@@ -28,6 +28,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |
+| [Screen-space reflections](screen-space-reflections.md) | `ter-jxv9` |
 | [Spin gravity](spin-gravity.md) | `ter-s9m0` |
 | [Renderer snapshot tests](renderer-snapshot-tests.md) | `ter-rtxu` |
 | [Test hardening](test-hardening.md) | `ter-7e55` |
