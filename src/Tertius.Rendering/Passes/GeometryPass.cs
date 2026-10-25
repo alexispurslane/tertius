@@ -60,48 +60,13 @@ internal sealed unsafe class GeometryPass : RenderPass
         barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
 
-        GpuImage[] gbuffer = targets.GBuffer;
-        RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[gbuffer.Length];
+        RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[targets.GBuffer.Length];
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
         {
             bool first = range == DepthRanges.Far;
-            foreach (GpuImage image in gbuffer)
-                barriers.Image(image, ImageUse.ColorAttachment, discard: first);
-            barriers.Image(targets.Depth, ImageUse.DepthAttachment, discard: true);
-            barriers.Flush(vk, commandBuffer);
-
-            for (int i = 0; i < gbuffer.Length; i++)
-                colors[i] = new()
-                {
-                    SType = StructureType.RenderingAttachmentInfo,
-                    ImageView = gbuffer[i].View,
-                    ImageLayout = ImageLayout.ColorAttachmentOptimal,
-                    LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
-                    StoreOp = AttachmentStoreOp.Store,
-                    // Zero everywhere: distance 0 marks sky for the lighting pass.
-                    ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
-                };
-            var depth = new RenderingAttachmentInfo
-            {
-                SType = StructureType.RenderingAttachmentInfo,
-                ImageView = targets.Depth.View,
-                ImageLayout = ImageLayout.DepthAttachmentOptimal,
-                LoadOp = AttachmentLoadOp.Clear,
-                // The next range clears depth again and later passes use the G-buffer distance instead.
-                StoreOp = AttachmentStoreOp.DontCare,
-                ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
-            };
-            var rendering = new RenderingInfo
-            {
-                SType = StructureType.RenderingInfo,
-                RenderArea = new(new Offset2D(0, 0), targets.Extent),
-                LayerCount = 1,
-                ColorAttachmentCount = (uint)gbuffer.Length,
-                PColorAttachments = colors,
-                PDepthAttachment = &depth,
-            };
-            vk.CmdBeginRendering(commandBuffer, &rendering);
+            BeginRange(context: context, range: range, colors: colors);
             // Every range: a range drawer may have bound its own pipeline. Sets and dynamic state stay.
             vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
             if (first)
@@ -122,6 +87,56 @@ internal sealed unsafe class GeometryPass : RenderPass
                 drawer.DrawRange(context, range);
             vk.CmdEndRendering(commandBuffer);
         }
+    }
+
+    /// <summary>
+    /// Begins the rendering instance of <paramref name="range"/>: clears the G-buffer before the far range and the depth
+    /// before every range. <paramref name="colors"/> has room for one attachment per G-buffer target.
+    /// </summary>
+    private static void BeginRange(FrameContext context, int range, RenderingAttachmentInfo* colors)
+    {
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
+        RenderTargets targets = context.Targets;
+        BarrierBatch barriers = context.Barriers;
+        GpuImage[] gbuffer = targets.GBuffer;
+        bool first = range == DepthRanges.Far;
+        foreach (GpuImage image in gbuffer)
+            barriers.Image(image, ImageUse.ColorAttachment, discard: first);
+        barriers.Image(targets.Depth, ImageUse.DepthAttachment, discard: true);
+        barriers.Flush(vk, commandBuffer);
+
+        for (int i = 0; i < gbuffer.Length; i++)
+            colors[i] = new()
+            {
+                SType = StructureType.RenderingAttachmentInfo,
+                ImageView = gbuffer[i].View,
+                ImageLayout = ImageLayout.ColorAttachmentOptimal,
+                LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
+                StoreOp = AttachmentStoreOp.Store,
+                // Zero everywhere: distance 0 marks sky for the lighting pass.
+                ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
+            };
+        var depth = new RenderingAttachmentInfo
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = targets.Depth.View,
+            ImageLayout = ImageLayout.DepthAttachmentOptimal,
+            LoadOp = AttachmentLoadOp.Clear,
+            // The next range clears depth again and later passes use the G-buffer distance instead.
+            StoreOp = AttachmentStoreOp.DontCare,
+            ClearValue = new(depthStencil: new ClearDepthStencilValue(DepthRanges.ClearDepth(range), 0)),
+        };
+        var rendering = new RenderingInfo
+        {
+            SType = StructureType.RenderingInfo,
+            RenderArea = new(new Offset2D(0, 0), targets.Extent),
+            LayerCount = 1,
+            ColorAttachmentCount = (uint)gbuffer.Length,
+            PColorAttachments = colors,
+            PDepthAttachment = &depth,
+        };
+        vk.CmdBeginRendering(commandBuffer, &rendering);
     }
 
     /// <summary>Binds the global vertex and index buffers. Pipeline and binding state survive across rendering instances.</summary>

@@ -38,5 +38,7 @@ void main()
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
-    outColor = vec4(surfaceRadiance(shading, s.emissive, inPosition, V, true), clamp(s.baseColor.a, 0.0, 1.0));
+    float exposure = exposureScale();
+    vec3 radiance = surfaceRadiance(shading, s.emissive * exposure, inPosition, V, true, exposure);
+    outColor = vec4(radiance, clamp(s.baseColor.a, 0.0, 1.0));
 }

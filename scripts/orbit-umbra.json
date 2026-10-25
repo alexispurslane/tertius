@@ -1,0 +1,14 @@
+{
+  "scene": "orbit",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "chase" },
+    { "do": "capture", "name": "day" },
+    { "do": "run", "ticks": 100270 },
+    { "do": "film", "name": "entry", "frames": 400, "every": 6 },
+    { "do": "run", "ticks": 134830 },
+    { "do": "film", "name": "exit", "frames": 1000, "every": 6 },
+    { "do": "run", "ticks": 3000 },
+    { "do": "capture", "name": "settled" }
+  ]
+}

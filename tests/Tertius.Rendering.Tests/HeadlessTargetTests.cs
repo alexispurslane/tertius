@@ -13,6 +13,7 @@ public sealed class HeadlessTargetTests
             {
                 Validation = true,
                 Width = 64,
+                Bloom = new NoBloom(),
                 Height = 32,
                 Impostors = false,
                 AntiAliasing = AntiAliasing.None,

@@ -70,7 +70,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientSky;          // rgb sky color × intensity
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
-    vec4 params;              // x exposure, y time in seconds, z angular size of one pixel
+    vec4 params;              // x unused, y time in seconds, z angular size of one pixel
     uvec4 counts;             // x lights, y occluders, z shadow cascades to sample (0: no shadow maps this frame), w occluders of casters in the maps (first)
     // Sun shadow cascades (see ShadowCascades.cs). Light space: x = shadowAxisX, y = shadowAxisY, z = sunDirection.
     mat4 shadowViewProj[4];   // shadow clip space from world space; xy in [-1, 1], z reversed (1 nearest the sun)
@@ -91,6 +91,8 @@ layout(set = 0, binding = 4, std430) readonly buffer OccluderBlock { vec4 occlud
 layout(set = 0, binding = 5) uniform sampler materialSampler;
 layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline outlines[]; };
 layout(set = 0, binding = 7, std430) readonly buffer PuffBlock { GpuPuff puffs[]; };
+// The exposure in stops that this frame's passes use (ExposureResources.cs). The adapt step of the frame before wrote it.
+layout(set = 0, binding = 11, std430) readonly buffer ExposureBlock { float exposureStops; };
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 

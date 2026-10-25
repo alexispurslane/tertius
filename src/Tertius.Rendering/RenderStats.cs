@@ -79,6 +79,12 @@ public readonly record struct RenderStats
     /// </summary>
     public GpuTimings? GpuTimings { get; init; }
 
+    /// <summary>
+    /// The exposure that the passes of the last frame whose GPU work finished used, which is a few frames before this one,
+    /// or null before one has. A frame that the output skips keeps the reading that its wait found.
+    /// </summary>
+    public ExposureReading? Exposure { get; init; }
+
     /// <summary>False when the frame was skipped, for example because the swapchain was out of date.</summary>
     public bool Rendered { get; init; }
 

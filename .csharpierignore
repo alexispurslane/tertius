@@ -5,3 +5,4 @@ src/Tertius.Core/Seams/PhysicsSeam.cs
 src/Tertius.Host/Scripting/CaptureTarget.cs
 src/Tertius.Host/Scripting/Script.cs
 src/Tertius.Host/Scripting/ScriptRunner.cs
+src/Tertius.Rendering/BloomSetting.cs

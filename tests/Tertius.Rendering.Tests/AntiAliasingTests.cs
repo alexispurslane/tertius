@@ -301,6 +301,9 @@ public sealed class AntiAliasingTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                // As Gpu.Headless does, so that only the output format differs from the sRGB image.
+                Exposure = new FixedExposure(0),
+                Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.Smaa,
             },
             (device, allocator, extent) => new UnormOutput(device: device, allocator: allocator, extent: extent)

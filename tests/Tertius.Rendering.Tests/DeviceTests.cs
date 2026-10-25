@@ -145,6 +145,7 @@ public sealed class DeviceTests
                 Width = 160,
                 Height = 90,
                 ShadowMapSize = 1024,
+                Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,
             }
         );

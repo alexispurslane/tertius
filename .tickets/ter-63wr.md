@@ -1,6 +1,6 @@
 ---
 id: ter-63wr
-status: in_progress
+status: closed
 deps: [ter-ptft]
 links: []
 created: 2026-10-11T20:44:45Z
