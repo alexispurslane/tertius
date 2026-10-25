@@ -296,7 +296,7 @@ mean radiance = E_00 · Y_00 / π
 
 where
 
-- `Ω(texel)` = the exact solid angle of a texel of a cube face: A(x₀, y₀) − A(x₀, y₁) − A(x₁, y₀) + A(x₁, y₁), with A(x, y) = atan2(x · y, √(x² + y² + 1)) and the texel's corners x₀, x₁, y₀, y₁ in [−1, 1] (Driscoll 2012, "Cubemap Texel Solid Angle"). The texels of one face add up to 4π / 6 exactly.
+- `Ω(texel)` = the exact solid angle of a texel of a cube face: A(x₀, y₀) − A(x₀, y₁) − A(x₁, y₀) + A(x₁, y₁), with A(x, y) = atan2(x · y, √(x² + y² + 1)) and the texel's corners x₀, x₁, y₀, y₁ in [−1, 1] (Driscoll 2012, "Cubemap Texel Solid Angle"). The texels of one face add up to 4π / 6 exactly. The C# copy evaluates this formula in double. The shaders evaluate the same value as two spherical triangles, each by Van Oosterom and Strackee 1983, tan(Ω / 2) = |A · (B × C)| / (|A| |B| |C| + (A · B) |C| + (A · C) |B| + (B · C) |A|), whose triple product is exact and whose divisor has only positive terms. In float, the difference of four nearly equal values A loses most of its bits toward a face's corner: up to 12 % at W = 1024 with a correctly rounded atan, against 2 · 10⁻⁷ for the triangles.
 - `Y_lm` = the real basis in world axes, in this order. Band 0: 0.282095. Band 1: 0.488603 y, 0.488603 z, 0.488603 x. Band 2: 1.092548 xy, 1.092548 yz, 0.315392 (3z² − 1), 1.092548 xz, 0.546274 (x² − y²).
 - `E_lm` = what the irradiance buffer stores, coefficient i in `vec4` i, with w 0. The open-sky share is not projected, and the stars stay out of the irradiance (decision 32).
 - `D(n)` = the ambient diffuse radiance: a Lambert surface sends c_diff · D(n), as it sends c_diff times the hemisphere's mix today.
@@ -644,11 +644,12 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 
 | Requirement | Why every driver has it |
 |---|---|
-| `R16G16B16A16_SFLOAT` as a sampled image with linear filtering, a color attachment, and a storage image that a shader reads and writes | The specification's table of mandatory format support for 16-bit formats requires all of them. The storage images declare `rgba16f` in the shader, which needs no `shaderStorageImageExtendedFormats`, no `shaderStorageImageReadWithoutFormat` and no `shaderStorageImageWriteWithoutFormat`. The arrays of storage images are indexed only by constants, through a switch, which needs no `shaderStorageImageArrayDynamicIndexing`. |
+| `R16G16B16A16_SFLOAT` as a sampled image with linear filtering, a color attachment, and a storage image that a shader reads and writes | The specification's table of mandatory format support for 16-bit formats requires all of them. The storage images declare `rgba16f` in the shader, which needs no `shaderStorageImageExtendedFormats`, no `shaderStorageImageReadWithoutFormat` and no `shaderStorageImageWriteWithoutFormat`. Each storage image is a binding of its own, with no array, so `shaderStorageImageArrayDynamicIndexing` is not needed. |
 | `D32_SFLOAT` as a depth attachment | The renderer's other depth targets already use it. |
 | A cube-compatible image of 6 layers, one cube view, a 2D view of each layer and a 2D-array view of each level | Core Vulkan. One cube, no cube array, so `imageCubeArray` is not needed. Vulkan filters every cube map across its faces, with no switch. |
 | `FaceSize` up to 1024 | The specification's least `maxImageDimensionCube` is 4096. `CheckOptions` still reads the device's limit. |
 | Partially bound descriptors in the frame set | `descriptorBindingPartiallyBound`, which the bindless texture set already requires |
+| Two storage images in one compute pipeline, and three bound descriptor sets | The specification's least `maxPerStageDescriptorStorageImages` is 4, its least `maxDescriptorSetStorageImages` 24, and its least `maxBoundDescriptorSets` 4. Each level of each cube has a level set of its own, written once, so a dispatch binds the level that it reads as set 1 and the level that it writes as set 2, and no set holds an array of levels. The layout is made at every start, with the map on or off. A test counts its storage images. |
 | A workgroup of 128 invocations and 13,824 B of shared memory for the irradiance | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B |
 | Specialization constants, `dFdx` and `dFdy` in fragment shaders, storage buffers read in the vertex stage | Core Vulkan. Reading a storage buffer in the vertex stage needs no `vertexPipelineStoresAndAtomics`, which only writes need. |
 
@@ -658,6 +659,7 @@ No pass of the map blends into a half-float target, so no result depends on a bl
 - The prefilter's first Hammersley point is (0, 0), whose half vector is n, so l = n and the weight sum is at least 1. Its division never divides by 0.
 - The reflected stars compute k(w) only where t < 1. There a ≥ 0.25, where the closed form is finite and loses under 10⁻⁵ to cancellation. Where t = 1, the shader adds M alone and never multiplies an unused k by 0.
 - The width w is at least p > 0, so a = c² / w² and the star Gaussians are finite.
+- The lighting pass clamps the pixel of the fetches before its sky test to the image. Their values feed the derivatives of d, and in an image of odd size a helper invocation of a 2 × 2 quad lies past the last column or row, where a fetch is undefined without `robustImageAccess`.
 
 
 The descriptors:
@@ -669,18 +671,19 @@ The descriptors:
 | 0 | 14 | Storage buffer, partially bound | Vertex, fragment, compute | The irradiance buffer | Once by `FrameResources`, when the map is on |
 | 0 of `EnvironmentPrefilterLayout`, the prefilter set | 0 | Sampled image, cube | Compute | The radiance map, all levels | Once by `EnvironmentMap` |
 | The prefilter set | 1 | Sampler, immutable | Compute | `EnvironmentSampler` | At layout creation |
-| The prefilter set | 2 | Storage image, an array of 16, partially bound | Compute | The specular level views, levels 0 to L − 1 | Once by `EnvironmentMap` |
-| The prefilter set | 3 | Storage buffer | Compute | The irradiance buffer | Once by `EnvironmentMap` |
+| The prefilter set | 2 | Storage buffer | Compute | The irradiance buffer | Once by `EnvironmentMap` |
+| 1 and 2 of `EnvironmentPrefilterLayout`, a level set (`EnvironmentLevelSet`) | 0 | Storage image, one | Compute | One level view of one cube: one set per level of the radiance map, read as set 1 and written as set 2 by `environment_downsample.comp`, and one per level of the specular map, written as set 2 by `environment_prefilter.comp` | Once by `EnvironmentMap` |
 
-The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
+The descriptor pool holds the level sets of the largest map, 11 + 9 at W = 1024. The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
 
 Push constants:
 
 | Pipeline | Block | Size | Fields |
 |---|---|---|---|
 | Environment face (`mesh.vert`, `environment_face.frag`) | `DrawPushConstants`, as every mesh pass | 80 B | `viewProj`: the face's view-projection of the range. `eye`: 0 |
-| Environment sky (`fullscreen.vert`, `environment_sky.frag`) | `SkyFacePushConstants`, inside the scene layout's 80-byte range | 48 B | `Forward`, `Right`, `Up`: the face's basis as `Vector4`, w 0 |
-| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`) | `EnvironmentPrefilterPushConstants` | 16 B | `Level`, `LevelSize` (W_k), `Roughness` (r_k), `Samples`. The irradiance shader reads none. |
+| Environment sky (`fullscreen.vert`, `environment_sky.frag`) | `SkyFacePushConstants`, inside the scene layout's 80-byte range | 48 B | `Forward`, `Right`, `Up`: the face's basis as `Vector4`. `Forward.w` holds 1 / W, which turns the fragment's pixel coordinate into the face's st. The w of the others is 0 |
+| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`) | `EnvironmentPrefilterPushConstants` | 12 B | `LevelSize` (W_k), `Roughness` (r_k), `Samples`. Set 2 says which level k the dispatch writes. The irradiance shader reads none. |
+| Mips (`environment_downsample.comp`) | `EnvironmentDownsamplePushConstants`, inside the prefilter's range | 4 B | `LevelSize`, W_k of the level k ≥ 1 that set 2 holds, made from level k − 1 in set 1 |
 
 ### Every reader and writer
 
@@ -888,6 +891,11 @@ internal enum EnvironmentImage { Radiance, Specular }
 
 ### GPU tests of the map itself
 
+`EnvironmentMapPlumbingTests` (the review of Part 4), on a validating device with no renderer:
+
+- `TheMapsComputeLayoutNeedsNoMoreStorageImagesThanEveryVulkanDeviceOffers`: `EnvironmentPrefilterLayout` holds at most the 4 storage images per stage that the specification guarantees.
+- `AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade`: with the descriptor pool full, making a map throws, and no device allocation stays live.
+
 `EnvironmentFaceTests` (Part 4), each with the map on:
 
 - `EachFaceHoldsWhatLiesInItsDirection`: six emissive squares of six colors on the six axes around the camera. After the first frame, each face's center texel holds its square's color. A square toward +X and a little toward +Y shows in the upper half of face +X, which pins the up and the right of the table.
@@ -910,6 +918,7 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `TheMirrorLevelIsTheRadianceMap`: level 0 of the specular map equals level 0 of the radiance map, texel for texel.
 - `AUniformMapStaysUniformAtEveryLevel`: the weights add up to one.
 - `ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLightWhereverItLies`: for a spot at the center of a face, halfway out along its diagonal and toward a corner of the cube, the spot's width grows level by level, and its light, the sum of radiance times solid angle, stays within 5 %.
+- `OnTheLargestMapAMipTexelWeightsItsChildrenByTheirExactSolidAnglesUpToTheCorner`: at W = 1024, a strip of emission 0.6 texels wide lights the second column from the right of face +Z, from its middle row down past its corner. Each texel of level 1 along it holds its lit children's share of its solid angle, by `CubeFaces.TexelSolidAngle`, within 10⁻³.
 - `TheIrradianceIsTheProjectionOfTheMapsTexels`: the reading equals `Irradiance.Project` of the read-back level 0 within 10⁻⁴ of the total. This pins the shader to the C# copy.
 - `TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor`: an emissive wall of radiance 1 covers part of the map, and the rest is open sky. Color and share then add up to 1 in every texel of level 0, so they add up to 1 within 10⁻³ in every texel of every level.
 - `UnderAWhiteSkyAndABlackGroundTheIrradianceIsTheHemispheres`: an emissive dome of radiance 1 above the camera's horizon and a black floor below give E(n) = π (1 + n_y) / 2 within 1 % at ±X, ±Y and ±Z.
@@ -930,6 +939,7 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AMirrorReflectsAStarSharpAndSteadyWhileTheCamerasFrameTurns` (User): a flat white metal mirror of roughness 0 faces the camera, under open sky. The test first renders the sky behind the camera, takes its brightest pixel as the star, and turns the snapshot's root rotation so that the mirror's center reflects it. In the mirror, that star's blob is under 8 pixels wide at half its peak, and its peak is within 20 % of b · (p / w)² · E · c from `StarField`. Then the snapshot's root rotation turns by a fifth of a pixel per frame for 20 frames. The sum of the blob's pixels stays within 2 % of its mean, and its center moves by the same angle as the star in the sky.
 - `AWallInFrontOfTheSkyHidesTheStarsInTheMirror` (User): the same mirror and star, then a black wall that no light reaches, behind the camera, across the reflected direction. After a refresh, the blob's pixels are within 1 of 255 of the mirror without the star.
 - `ARoughSurfaceShowsNoSingleStars` (User): a white metal sphere of roughness 0.5 under open sky, with no sun and no lamps. Every pixel of the sphere differs from the mean of the 5 × 5 pixels around it by at most 2 %, and the sphere's mean is within 10 % of E · c · M from `StarField`. The same sphere at roughness 0 fails the first rule, which shows that the test can fail.
+- `AMirrorShowsTheSameStarsInTheLastColumnOfAnOddWidthImageAsInsideAWiderOne`: the flat mirror under open sky at 10 stops, 321 and 323 pixels wide. The last column of the narrow image, whose 2 × 2 quads reach past its edge, shows the same light as the same rays inside the wide one, within 2 of 255. The lighting pass clamps the fetches before its sky test to the image, so a helper invocation past the edge reads no undefined texel.
 - `TheSkyLooksTheSameWithTheMapOnAndOff`: every sky pixel of a scene has the same bytes under `SceneEnvironmentMap.Default` and `NoEnvironmentMap`.
 
 `PreExposureTests.EachWriterOfTheHdrImageMultipliesItsLightByTheExposure` (the exposure branch) gains a case: a matte surface lit only by the map shows four times the light at `FixedExposure(2)`.

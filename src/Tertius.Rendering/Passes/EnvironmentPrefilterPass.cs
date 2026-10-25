@@ -63,17 +63,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
-        DescriptorSet set = map.PrefilterSet;
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Compute,
-            layout: layouts.EnvironmentPrefilterLayout,
-            firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 0, sets: [map.PrefilterSet]);
         // The mips first, because the prefilter's samples read them.
         RecordMips(vk: vk, commandBuffer: commandBuffer, barriers: barriers);
         // Every texel of every level is written anew, after the readers of the frame before.
@@ -120,7 +110,13 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         for (uint level = 1; level < levels; level++)
         {
             uint size = (uint)Math.Max(1, map.Setting.FaceSize >> (int)level);
-            var push = new EnvironmentDownsamplePushConstants { Level = level, LevelSize = size };
+            BindSets(
+                vk: vk,
+                commandBuffer: commandBuffer,
+                firstSet: 1,
+                sets: [map.RadianceLevelSet((int)level - 1), map.RadianceLevelSet((int)level)]
+            );
+            var push = new EnvironmentDownsamplePushConstants { LevelSize = size };
             vk.CmdPushConstants(
                 commandBuffer: commandBuffer,
                 layout: layouts.EnvironmentPrefilterLayout,
@@ -195,9 +191,10 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     private void DispatchLevel(Vk vk, CommandBuffer commandBuffer, int level)
     {
         uint size = (uint)(map.Setting.FaceSize >> level);
+        // The prefilter writes set 2 and reads no level set, so set 1 keeps what the mips left there.
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 2, sets: [map.SpecularLevelSet(level)]);
         var push = new EnvironmentPrefilterPushConstants
         {
-            Level = (uint)level,
             LevelSize = size,
             Roughness = PrefilterLevels.Roughness(level, map.Levels),
             Samples = PrefilterLevels.SamplesPerTexel,
@@ -211,5 +208,21 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             pValues: &push
         );
         Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
+    }
+
+    /// <summary>Binds <paramref name="sets"/> to the prefilter layout from set <paramref name="firstSet"/> on.</summary>
+    private void BindSets(Vk vk, CommandBuffer commandBuffer, uint firstSet, ReadOnlySpan<DescriptorSet> sets)
+    {
+        fixed (DescriptorSet* bound = sets)
+            vk.CmdBindDescriptorSets(
+                commandBuffer: commandBuffer,
+                pipelineBindPoint: PipelineBindPoint.Compute,
+                layout: layouts.EnvironmentPrefilterLayout,
+                firstSet: firstSet,
+                descriptorSetCount: (uint)sets.Length,
+                pDescriptorSets: bound,
+                dynamicOffsetCount: 0,
+                pDynamicOffsets: null
+            );
     }
 }

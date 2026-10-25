@@ -606,12 +606,12 @@ public sealed class EnvironmentLightingTests
         /// <summary>p, the angle of one pixel in rad, as PreparedScene.PixelAngle gives it.</summary>
         private static readonly float PixelAngle = 2 * MathF.Tan(Fov / 2) / Height;
 
-        private static VulkanRenderer StarRenderer(float exposureStops) =>
+        private static VulkanRenderer StarRenderer(float exposureStops, int width = Width) =>
             VulkanRenderer.CreateHeadless(
                 new()
                 {
                     Validation = true,
-                    Width = Width,
+                    Width = width,
                     Height = Height,
                     Impostors = false,
                     ToneCurve = ToneCurve.Hable,
@@ -862,6 +862,47 @@ public sealed class EnvironmentLightingTests
             {
                 Gpu.DisposeAndAssertClean(renderer);
             }
+        }
+
+        [Fact]
+        public void AMirrorShowsTheSameStarsInTheLastColumnOfAnOddWidthImageAsInsideAWiderOne()
+        {
+            // 10 stops show M in the middle of the curve, so a footprint that fades the stars into their mean shows.
+            const float stops = 10;
+            static Capture Mirror(int width)
+            {
+                VulkanRenderer renderer = StarRenderer(exposureStops: stops, width: width);
+                try
+                {
+                    RenderSnapshot snapshot = OpenSky(Quaternion.Identity);
+                    AddMirror(renderer, snapshot);
+                    return Gpu.RenderAndCapture(
+                        renderer: renderer,
+                        snapshot: snapshot,
+                        name: $"environment-mirror-{width}"
+                    );
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+
+            // The last column of the odd image shares its 2 × 2 quads with helper invocations past the image's edge. Two
+            // more pixels of width keep the height and the pixel angle and shift the view by one column, so its column
+            // Width + 1 shows the same rays inside the image.
+            Capture odd = Mirror(Width + 1);
+            Capture wider = Mirror(Width + 3);
+
+            for (int y = 0; y < Height; y++)
+                BrdfTesting
+                    .LargestChannelDifference(odd.Color(Width, y), wider.Color(Width + 1, y))
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        Tolerance,
+                        "the mirror's footprint at the image's edge is the one inside, row {0}",
+                        y
+                    );
         }
 
         [Fact]

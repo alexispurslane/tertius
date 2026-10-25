@@ -10,62 +10,16 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-const uint LevelSlots = 16u;   // DescriptorLayouts.EnvironmentPrefilterLevelSlots
-
-layout(set = 0, binding = 4, rgba16f) uniform image2DArray radianceLevels[LevelSlots];
+// Set 1 holds level k − 1 and set 2 level k, each a storage image of six layers, so the pipeline needs two storage images
+// (DescriptorLayouts.EnvironmentPrefilterLayout).
+layout(set = 1, binding = 0, rgba16f) uniform readonly image2DArray children;
+layout(set = 2, binding = 0, rgba16f) uniform writeonly image2DArray texels;
 
 // EnvironmentDownsamplePushConstants in GpuTypes.cs.
 layout(push_constant, std430) uniform DownsamplePush
 {
-    uint level;       // k ≥ 1, the level written
-    uint levelSize;   // W_k
+    uint levelSize;   // W_k, of level k ≥ 1
 } downsample;
-
-// Reads one texel of level k − 1. Each array element is indexed by a constant, which needs no dynamic indexing feature.
-vec4 loadChild(ivec3 texel)
-{
-    switch (downsample.level - 1u)
-    {
-        case 0u: return imageLoad(radianceLevels[0], texel);
-        case 1u: return imageLoad(radianceLevels[1], texel);
-        case 2u: return imageLoad(radianceLevels[2], texel);
-        case 3u: return imageLoad(radianceLevels[3], texel);
-        case 4u: return imageLoad(radianceLevels[4], texel);
-        case 5u: return imageLoad(radianceLevels[5], texel);
-        case 6u: return imageLoad(radianceLevels[6], texel);
-        case 7u: return imageLoad(radianceLevels[7], texel);
-        case 8u: return imageLoad(radianceLevels[8], texel);
-        case 9u: return imageLoad(radianceLevels[9], texel);
-        case 10u: return imageLoad(radianceLevels[10], texel);
-        case 11u: return imageLoad(radianceLevels[11], texel);
-        case 12u: return imageLoad(radianceLevels[12], texel);
-        case 13u: return imageLoad(radianceLevels[13], texel);
-        default: return imageLoad(radianceLevels[14], texel);
-    }
-}
-
-// Writes one texel of level k.
-void store(ivec3 texel, vec4 value)
-{
-    switch (downsample.level)
-    {
-        case 1u: imageStore(radianceLevels[1], texel, value); break;
-        case 2u: imageStore(radianceLevels[2], texel, value); break;
-        case 3u: imageStore(radianceLevels[3], texel, value); break;
-        case 4u: imageStore(radianceLevels[4], texel, value); break;
-        case 5u: imageStore(radianceLevels[5], texel, value); break;
-        case 6u: imageStore(radianceLevels[6], texel, value); break;
-        case 7u: imageStore(radianceLevels[7], texel, value); break;
-        case 8u: imageStore(radianceLevels[8], texel, value); break;
-        case 9u: imageStore(radianceLevels[9], texel, value); break;
-        case 10u: imageStore(radianceLevels[10], texel, value); break;
-        case 11u: imageStore(radianceLevels[11], texel, value); break;
-        case 12u: imageStore(radianceLevels[12], texel, value); break;
-        case 13u: imageStore(radianceLevels[13], texel, value); break;
-        case 14u: imageStore(radianceLevels[14], texel, value); break;
-        default: imageStore(radianceLevels[15], texel, value); break;
-    }
-}
 
 void main()
 {
@@ -81,9 +35,9 @@ void main()
         {
             uvec2 child = 2u * id.xy + uvec2(dx, dy);
             float childAngle = texelSolidAngle(child, childSize);
-            light += loadChild(ivec3(child, id.z)) * childAngle;
+            light += imageLoad(children, ivec3(child, id.z)) * childAngle;
             solidAngle += childAngle;
         }
     // The children's solid angles add up to the texel's own, so this is the mean over the texel.
-    store(ivec3(id), light / solidAngle);
+    imageStore(texels, ivec3(id), light / solidAngle);
 }

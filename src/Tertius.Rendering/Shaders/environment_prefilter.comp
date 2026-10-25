@@ -14,16 +14,14 @@ const float PI = 3.14159265358979323846;
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-const uint LevelSlots = 16u;   // DescriptorLayouts.EnvironmentPrefilterLevelSlots
-
 layout(set = 0, binding = 0) uniform textureCube radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-layout(set = 0, binding = 2, rgba16f) uniform writeonly image2DArray specularLevels[LevelSlots];
+// Level k of the specular map, six layers.
+layout(set = 2, binding = 0, rgba16f) uniform writeonly image2DArray specularLevel;
 
 // EnvironmentPrefilterPushConstants in GpuTypes.cs.
 layout(push_constant, std430) uniform PrefilterPush
 {
-    uint level;       // k
     uint levelSize;   // W_k
     float roughness;  // r_k = k / (L − 1)
     uint samples;     // N
@@ -77,30 +75,6 @@ vec4 prefiltered(vec3 n)
     return sum / weight;
 }
 
-// Writes one texel of the level. Each array element is indexed by a constant, which needs no dynamic indexing feature.
-void store(ivec3 texel, vec4 value)
-{
-    switch (prefilter.level)
-    {
-        case 0u: imageStore(specularLevels[0], texel, value); break;
-        case 1u: imageStore(specularLevels[1], texel, value); break;
-        case 2u: imageStore(specularLevels[2], texel, value); break;
-        case 3u: imageStore(specularLevels[3], texel, value); break;
-        case 4u: imageStore(specularLevels[4], texel, value); break;
-        case 5u: imageStore(specularLevels[5], texel, value); break;
-        case 6u: imageStore(specularLevels[6], texel, value); break;
-        case 7u: imageStore(specularLevels[7], texel, value); break;
-        case 8u: imageStore(specularLevels[8], texel, value); break;
-        case 9u: imageStore(specularLevels[9], texel, value); break;
-        case 10u: imageStore(specularLevels[10], texel, value); break;
-        case 11u: imageStore(specularLevels[11], texel, value); break;
-        case 12u: imageStore(specularLevels[12], texel, value); break;
-        case 13u: imageStore(specularLevels[13], texel, value); break;
-        case 14u: imageStore(specularLevels[14], texel, value); break;
-        default: imageStore(specularLevels[15], texel, value); break;
-    }
-}
-
 void main()
 {
     uvec3 id = gl_GlobalInvocationID;
@@ -112,5 +86,5 @@ void main()
     vec4 value = prefilter.roughness == 0.0
         ? textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0)
         : prefiltered(normalize(ray));
-    store(ivec3(id), value);
+    imageStore(specularLevel, ivec3(id), value);
 }

@@ -17,7 +17,7 @@ layout(local_size_x = 128) in;
 layout(set = 0, binding = 0) uniform textureCube radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
 // Coefficient i in vec4 i: xyz E_lm, w 0 (Irradiance.cs).
-layout(set = 0, binding = 3, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
+layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
 
 // 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B.
 shared float partials[Sums * Invocations];

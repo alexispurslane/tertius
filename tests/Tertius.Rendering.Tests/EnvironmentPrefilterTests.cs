@@ -183,6 +183,88 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// A strip of emission 1 on the plane z = 10, where the +Z face's coordinates are x / 10 and y / 10. It is 0.6 texels
+    /// wide around the centers of <paramref name="column"/> of a face of <paramref name="size"/>, and runs from the face's
+    /// middle row down past its corner.
+    /// </summary>
+    private static RenderSnapshot StripDownColumn(VulkanRenderer renderer, int column, int size)
+    {
+        const float distance = 10;
+        float u = 2f * (column + 0.5f) / size - 1;
+        RenderSnapshot snapshot = EnvironmentScenes.Dark();
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, Vector3.One),
+                position: new(u * distance, -0.6f * distance, distance),
+                scale: new(0.6f / size * distance, 1, 0.6f * distance),
+                rotation: EnvironmentScenes.FrontToward(-Vector3.UnitZ)
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>The share of the solid angle of mip texel (x / 2, y) that its two children in column x cover.</summary>
+    private static double LeftChildrenShare(int x, int y, int size)
+    {
+        double left = CubeFaces.TexelSolidAngle(x, 2 * y, size) + CubeFaces.TexelSolidAngle(x, 2 * y + 1, size);
+        double right =
+            CubeFaces.TexelSolidAngle(x + 1, 2 * y, size) + CubeFaces.TexelSolidAngle(x + 1, 2 * y + 1, size);
+        return left / (left + right);
+    }
+
+    [Fact]
+    public void OnTheLargestMapAMipTexelWeightsItsChildrenByTheirExactSolidAnglesUpToTheCorner()
+    {
+        const int size = EnvironmentMapSetting.MaxFaceSize;
+        const int column = size - 2;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 160,
+            height: 90,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = size,
+            }
+        );
+        try
+        {
+            // The strip lights the left half of each mip texel along the column's lower half.
+            renderer.Render(StripDownColumn(renderer: renderer, column: column, size: size), 1f);
+
+            Half[] children = renderer.ReadEnvironmentFace(
+                face: CubeFace.PositiveZ,
+                level: 0,
+                image: EnvironmentImage.Radiance
+            );
+            Half[] parents = renderer.ReadEnvironmentFace(
+                face: CubeFace.PositiveZ,
+                level: 1,
+                image: EnvironmentImage.Radiance
+            );
+            for (int y = size / 4; y < size / 2; y++)
+            {
+                float lit = EnvironmentScenes.Texel(face: children, size: size, x: column, y: 2 * y).X;
+                float dark = EnvironmentScenes.Texel(face: children, size: size, x: column + 1, y: 2 * y).X;
+                lit.Should().BeGreaterThan(0.5f, "the strip covers the column's texel centers");
+                dark.Should().Be(0, "the strip misses the column to its right");
+                float parent = EnvironmentScenes.Texel(face: parents, size: size / 2, x: column / 2, y: y).X;
+                parent
+                    .Should()
+                    .BeApproximately(
+                        (float)(lit * LeftChildrenShare(x: column, y: y, size: size)),
+                        1e-3f,
+                        "the mip texel of row {0} is its children's mean by their exact solid angles",
+                        y
+                    );
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheIrradianceIsTheProjectionOfTheMapsTexels()
     {

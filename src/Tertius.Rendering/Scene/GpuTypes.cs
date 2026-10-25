@@ -339,23 +339,28 @@ internal struct OutlinePushConstants
 
 /// <summary>
 /// The push constants of the environment sky pass (Shaders/environment_sky.frag): the basis of the face it draws, each
-/// axis a <see cref="Vector4"/> with w 0. 48 bytes, inside the scene layout's 80-byte range.
+/// axis a <see cref="Vector4"/>. 48 bytes, inside the scene layout's 80-byte range.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct SkyFacePushConstants
 {
+    /// <summary>xyz the face's forward axis, w 1 / W, which turns a pixel coordinate into the face's st.</summary>
     public Vector4 Forward;
+
+    /// <summary>xyz the face's right, w 0.</summary>
     public Vector4 Right;
+
+    /// <summary>xyz the face's up, w 0.</summary>
     public Vector4 Up;
 }
 
-/// <summary>The push constants of environment_prefilter.comp. 16 bytes. environment_irradiance.comp reads none.</summary>
+/// <summary>
+/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k. 12 bytes.
+/// environment_irradiance.comp reads none.
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentPrefilterPushConstants
 {
-    /// <summary>The level of the specular map that the dispatch writes, k.</summary>
-    public uint Level;
-
     /// <summary>W_k = W / 2^k: the texels along one side of each face of that level.</summary>
     public uint LevelSize;
 
@@ -367,15 +372,13 @@ internal struct EnvironmentPrefilterPushConstants
 }
 
 /// <summary>
-/// The push constants of environment_downsample.comp, 8 bytes, which fit in the prefilter layout's range of
+/// The push constants of environment_downsample.comp, for the level of the radiance map that set 2 holds, k ≥ 1, made
+/// from level k − 1 in set 1. 4 bytes, which fit in the prefilter layout's range of
 /// <see cref="EnvironmentPrefilterPushConstants"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentDownsamplePushConstants
 {
-    /// <summary>The level of the radiance map that the dispatch writes, k ≥ 1, from level k − 1.</summary>
-    public uint Level;
-
     /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
     public uint LevelSize;
 }

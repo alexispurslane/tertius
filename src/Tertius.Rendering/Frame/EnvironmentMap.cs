@@ -38,6 +38,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly ImageView[] faceViews = new ImageView[CubeFaces.Count];
     private readonly ImageView[] levelViews;
     private readonly ImageView[] radianceLevelViews;
+    private readonly DescriptorSet[] specularLevelSets;
+    private readonly DescriptorSet[] radianceLevelSets;
     private readonly GpuBuffer[] readbacks;
 
     public EnvironmentMap(
@@ -53,6 +55,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         Levels = PrefilterLevels.Count(setting.FaceSize);
         levelViews = new ImageView[Levels];
         radianceLevelViews = new ImageView[PrefilterLevels.RadianceLevels(setting.FaceSize)];
+        specularLevelSets = new DescriptorSet[levelViews.Length];
+        radianceLevelSets = new DescriptorSet[radianceLevelViews.Length];
         readbacks = new GpuBuffer[framesInFlight];
         try
         {
@@ -64,16 +68,15 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                 levelViews[level] = Specular.CreateLevelView((uint)level);
             for (int level = 0; level < radianceLevelViews.Length; level++)
                 radianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
+            // The pool frees the sets when the descriptor layouts are disposed.
+            PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
+            WriteSets(layouts);
         }
         catch
         {
             Dispose();
             throw;
         }
-
-        // The pool frees the set when the descriptor layouts are disposed.
-        PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
-        WritePrefilterSet(layouts);
     }
 
     public SceneEnvironmentMap Setting { get; }
@@ -95,6 +98,12 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written once.</summary>
     public DescriptorSet PrefilterSet { get; }
+
+    /// <summary>The level set of <paramref name="level"/> of the specular map, written once.</summary>
+    public DescriptorSet SpecularLevelSet(int level) => specularLevelSets[level];
+
+    /// <summary>The level set of <paramref name="level"/> of the radiance map, written once.</summary>
+    public DescriptorSet RadianceLevelSet(int level) => radianceLevelSets[level];
 
     /// <summary>The map's frame: the camera frame whose axes the faces were drawn in, or null before the first drawn frame.</summary>
     public long? FrameId { get; private set; }
@@ -246,27 +255,31 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         );
     }
 
-    /// <summary>Writes the prefilter set once: the radiance map, the level views of both cubes and the irradiance.</summary>
-    private void WritePrefilterSet(DescriptorLayouts layouts)
+    /// <summary>
+    /// Allocates the level sets and writes every set once: the radiance map and the irradiance in the prefilter set, and
+    /// each level view of both cubes in its own level set.
+    /// </summary>
+    private void WriteSets(DescriptorLayouts layouts)
     {
         layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
-        for (int level = 0; level < levelViews.Length; level++)
+        layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+        WriteLevelSets(layouts: layouts, views: levelViews, sets: specularLevelSets);
+        WriteLevelSets(layouts: layouts, views: radianceLevelViews, sets: radianceLevelSets);
+    }
+
+    private static void WriteLevelSets(DescriptorLayouts layouts, ImageView[] views, DescriptorSet[] sets)
+    {
+        for (int level = 0; level < views.Length; level++)
+        {
+            sets[level] = layouts.AllocateEnvironmentLevelSet();
             layouts.WriteView(
-                set: PrefilterSet,
-                binding: 2,
-                arrayElement: (uint)level,
-                view: levelViews[level],
+                set: sets[level],
+                binding: 0,
+                arrayElement: 0,
+                view: views[level],
                 type: DescriptorType.StorageImage
             );
-        layouts.WriteBuffer(set: PrefilterSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Irradiance);
-        for (int level = 0; level < radianceLevelViews.Length; level++)
-            layouts.WriteView(
-                set: PrefilterSet,
-                binding: 4,
-                arrayElement: (uint)level,
-                view: radianceLevelViews[level],
-                type: DescriptorType.StorageImage
-            );
+        }
     }
 
     public void Dispose()

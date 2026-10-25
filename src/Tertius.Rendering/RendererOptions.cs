@@ -71,7 +71,7 @@ public sealed class RendererOptions
     /// <summary>
     /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of
     /// World.Ambient. The default is <see cref="SceneEnvironmentMap.Default"/>: 128 texels per face, one face per frame, about
-    /// 2 MB (ARCHITECTURE.md, "The environment map").
+    /// 2 MB (docs/plans/environment-map.md, "The setting").
     /// </summary>
     public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
 }
