@@ -1,6 +1,6 @@
 ---
 id: ter-ptft
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-22T00:25:05Z
