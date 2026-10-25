@@ -19,7 +19,7 @@ internal readonly record struct SpanSummary(int Frames, double MeanMs, double Me
 
 /// <summary>
 /// Collects the GPU timings that a run's renderer reports after each frame, once per finished frame, and summarizes each
-/// pass (docs/plans/rendering-upgrade.md, "Rules for every member").
+/// pass and the frames' GPU span (docs/plans/rendering-upgrade.md, "Rules for every member").
 /// </summary>
 internal sealed class GpuTimingSummary
 {

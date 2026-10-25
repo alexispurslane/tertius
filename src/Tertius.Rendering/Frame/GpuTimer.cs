@@ -108,13 +108,12 @@ internal sealed unsafe class GpuTimer : IDisposable
             read.Check("vkGetQueryPoolResults");
         }
 
-        if (!device.Timestamps.Fill(results: data, passes: queries.PassNames.AsSpan(0, passes), timings: timings))
+        if (
+            device.Timestamps.Fill(results: data, passes: queries.PassNames.AsSpan(0, passes), timings: timings)
+            is not { } span
+        )
             return;
-        Latest = new GpuTimings(
-            Frame: frame,
-            Passes: timings.AsMemory(0, passes),
-            SpanMilliseconds: device.Timestamps.SpanMilliseconds(data)
-        );
+        Latest = new GpuTimings(Frame: frame, Passes: timings.AsMemory(0, passes), SpanMilliseconds: span);
     }
 
     /// <summary>Resets the queries of <paramref name="slot"/> and writes the stamp before the first pass.</summary>

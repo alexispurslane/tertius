@@ -8,7 +8,7 @@ tools/gpu-trace.sh records the trace and calls this script. Mac only: it reads t
     python3 tools/gpu-trace.py report <trace> <gpu-timings.json> <out-dir> [--process Tertius.Demo]
 
 trim keeps the frames from frame <start> (counted from 0 over the script's captures and film frames) to <start> +
-<frames>. A film frame before <start> becomes a run step of its ticks, so the world reaches the same state without a
+<frames>, or to the end of the script when <frames> is 0. A film frame before <start> becomes a run step of its ticks, so the world reaches the same state without a
 render. The steps after the last kept frame go.
 
 How the encoders map to the passes (tools/README.md, "GPU trace"): MoltenVK turns each vkCmdWriteTimestamp2 into an
@@ -23,6 +23,7 @@ table. It exports the trace's tables to <out-dir>/export first, unless they are 
 import argparse
 import bisect
 import json
+import math
 import statistics
 import subprocess
 import sys
@@ -136,22 +137,47 @@ def gpu_intervals(intervals: Path, process: str, named):
     return {key: union(spans) for key, spans in by_pass.items()}
 
 
+def open_segments(windows: dict[tuple[str, str], list[tuple[int, int]]]):
+    """Cuts the timeline at every start and end of the passes' intervals, and names the passes open in each segment.
+
+    Returns the sorted cuts and, for the segment from cut i to cut i + 1, the passes whose intervals hold it. The
+    intervals of two passes can overlap, and a long pass can hold a short one, so a time can lie in several passes.
+    """
+    events = sorted(
+        (time, step, name)
+        for (_, name), spans in windows.items()
+        for start, end in spans
+        for time, step in ((start, 1), (end, -1))
+    )
+    cuts: list[int] = []
+    segments: list[frozenset[str]] = []
+    open_count: dict[str, int] = defaultdict(int)
+    for time, step, name in events:
+        if not cuts or time != cuts[-1]:
+            cuts.append(time)
+            segments.append(frozenset())
+        open_count[name] += step
+        segments[-1] = frozenset(name for name, count in open_count.items() if count > 0)
+    return cuts, segments
+
+
 def counter_means(info: Path, values: Path, windows: dict[tuple[str, str], list[tuple[int, int]]]):
-    """The mean of each counter over the samples that fall inside each pass's GPU intervals: {pass: {counter: mean}}."""
+    """The mean of each counter over the samples that fall inside each pass's GPU intervals: {pass: {counter: mean}}.
+
+    A sample inside the intervals of several passes counts for each of them.
+    """
     names = {row["counter-id"][1]: row["name"][1] for row in rows(info)}
-    flat = sorted((start, end, name) for (_, name), spans in windows.items() for start, end in spans)
-    starts = [start for start, _, _ in flat]
+    cuts, segments = open_segments(windows)
     sums: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for row in rows(values):
-        time = int(row["timestamp"][1])
-        at = bisect.bisect_right(starts, time) - 1
-        if at < 0 or time >= flat[at][1]:
+        at = bisect.bisect_right(cuts, int(row["timestamp"][1])) - 1
+        if at < 0:
             continue
-        name = flat[at][2]
         counter = names[row["counter-id"][1]]
-        sums[name][counter] += float(row["value"][1])
-        counts[name][counter] += 1
+        for name in segments[at]:
+            sums[name][counter] += float(row["value"][1])
+            counts[name][counter] += 1
     return {name: {counter: sums[name][counter] / counts[name][counter] for counter in sums[name]} for name in sums}
 
 
@@ -177,7 +203,7 @@ def trim(args) -> int:
     script = json.loads(args.script.read_text())
     steps = []
     frame = 0
-    end = args.start + args.frames
+    end = args.start + args.frames if args.frames > 0 else math.inf
     for step in script["steps"]:
         if frame >= end:
             break
@@ -218,6 +244,9 @@ def report(args) -> int:
         print(f"No command buffer of {args.process} holds {len(passes) + 1} timestamp encoders.", file=sys.stderr)
         return 1
     windows = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
+    if not any(name in passes for _, name in windows):
+        print(f"The trace holds no GPU intervals for the passes of {args.process}.", file=sys.stderr)
+        return 1
 
     order = [BEFORE, *passes, AFTER]
     busy: dict[str, list[float]] = defaultdict(list)

@@ -23,26 +23,22 @@ internal readonly record struct TimestampClock(uint ValidBits, float Period)
     }
 
     /// <summary>
-    /// The frame's GPU span in milliseconds: the time from the stamp before its first pass to the stamp after its last
-    /// (docs/plans/rendering-performance.md, "Terms"). The results are those that <see cref="Fill"/> found available.
-    /// </summary>
-    /// <param name="results">A timestamp and its availability for each query: one before the first pass, one after each pass.</param>
-    public double SpanMilliseconds(ReadOnlySpan<ulong> results) => Milliseconds(results[0], results[^2]);
-
-    /// <summary>
-    /// Writes the time of each pass into <paramref name="timings"/>: pass i takes the time from timestamp i to timestamp
-    /// i + 1. Writes nothing and returns false when a result is not available, which is no timing, never a time of 0.
+    /// Writes the time of each pass into <paramref name="timings"/>, and returns the frame's GPU span: pass i takes the
+    /// time from timestamp i to timestamp i + 1, and the span is the time from the stamp before the first pass to the
+    /// stamp after the last (docs/plans/rendering-performance.md, "Terms"). Writes nothing and returns null when a result
+    /// is not available, which is no timing, never a time of 0.
     /// </summary>
     /// <param name="results">A timestamp and its availability for each query: one before the first pass, one after each pass.</param>
     /// <param name="passes">The name of each pass, in recording order.</param>
     /// <param name="timings">One entry per pass.</param>
-    public bool Fill(ReadOnlySpan<ulong> results, ReadOnlySpan<string> passes, Span<PassTiming> timings)
+    /// <returns>The frame's GPU span in milliseconds, or null when the frame has no timings.</returns>
+    public double? Fill(ReadOnlySpan<ulong> results, ReadOnlySpan<string> passes, Span<PassTiming> timings)
     {
         for (int query = 0; query <= passes.Length; query++)
             if (results[2 * query + 1] == 0)
-                return false;
+                return null;
         for (int pass = 0; pass < passes.Length; pass++)
             timings[pass] = new(passes[pass], Milliseconds(results[2 * pass], results[2 * pass + 2]));
-        return true;
+        return Milliseconds(results[0], results[2 * passes.Length]);
     }
 }

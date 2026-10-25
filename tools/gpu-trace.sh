@@ -7,8 +7,8 @@
 # Options:
 #   --start <frame>   the first frame to trace, counted from 0 over the script's frames (default 0); the frames
 #                     before it run without a render
-#   --frames <count>  how many frames to trace (default 120; 0 traces the whole script, whose counters can export to
-#                     many gigabytes)
+#   --frames <count>  how many frames to trace (default 120; 0 traces every frame from --start to the end of the
+#                     script, whose counters can export to many gigabytes)
 #   --size <WxH>      the size of the frames (default 1920x1080)
 #   --out <dir>       the folder of the trace (default captures/gpu-trace/<script>-<start>)
 #   --no-counters     records no GPU counters: a smaller trace with times and no limiters
@@ -26,6 +26,10 @@ if [[ -z "${TERTIUS_VULKAN_DIR:-}" ]]; then
 fi
 # The dev shell puts xcbuild's xcrun first on the PATH, and it has no xctrace.
 xcrun=/usr/bin/xcrun
+if ! "$xcrun" --find xctrace > /dev/null 2>&1; then
+  echo "gpu-trace.sh needs Xcode's xctrace, which the Command Line Tools lack (xcode-select -s /Applications/Xcode.app)." >&2
+  exit 2
+fi
 start=0
 frames=120
 size=1920x1080
@@ -59,11 +63,8 @@ mkdir -p "$out"
 dotnet build src/Tertius.Demo -c Release -v quiet -nologo > "$out/build.log" 2>&1 || { tail -20 "$out/build.log" >&2; exit 1; }
 demo=src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo
 
-traced=$script
-if [[ "$frames" -gt 0 ]]; then
-  traced="$out/script.json"
-  python3 -I tools/gpu-trace.py trim "$script" "$start" "$frames" "$traced"
-fi
+traced="$out/script.json"
+python3 -I tools/gpu-trace.py trim "$script" "$start" "$frames" "$traced"
 
 # xctrace starts the demo from a clean environment, and macOS strips DYLD_* from a process that /usr/bin starts, so
 # each variable that the demo needs from the dev shell goes through --env.
@@ -76,12 +77,24 @@ if [[ "$counters" -eq 1 ]]; then
   # The counter set "Performance Limiters", sampled about every 10 µs across the whole GPU.
   instruments=(--instrument "Metal GPU Counters")
 fi
+record_code=0
 load=$(uptime | sed 's/.*load averages*: *//')
 echo "Load averages at the start (1, 5 and 15 minutes): $load"
 "$xcrun" xctrace record --template "Metal System Trace" "${instruments[@]}" --no-prompt --output "$out/run.trace" \
   "${env_args[@]}" --target-stdout "$out/run.log" \
   --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" > "$out/record.log" 2>&1 \
-  || { tail -20 "$out/record.log" >&2; exit 1; }
+  || record_code=$?
+if [[ "$record_code" -ne 0 ]]; then
+  # xctrace saves the trace and exits with a code other than 0 when the demo fails, and the demo's errors go to run.log.
+  if [[ -e "$out/run.trace" ]]; then
+    echo "The demo run failed (xctrace exited with $record_code). The end of $out/run.log:" >&2
+    tail -20 "$out/run.log" >&2
+  else
+    echo "xctrace recorded no trace (exit code $record_code). The end of $out/record.log:" >&2
+    tail -20 "$out/record.log" >&2
+  fi
+  exit 1
+fi
 if [[ ! -f "$out/run/gpu-timings.json" ]]; then
   echo "The run wrote no gpu-timings.json. Its output is in $out/run.log." >&2
   exit 1

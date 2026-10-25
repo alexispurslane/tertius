@@ -250,11 +250,18 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
         using var timings = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, ScriptCommand.GpuTimingsFile)));
         JsonElement frame = timings.RootElement.GetProperty("frame");
-        frame.GetProperty("frames").GetInt32().Should().Be(6, "the span counts the same frames as the passes");
-        double longestPass = timings
-            .RootElement.GetProperty("passes")
-            .EnumerateArray()
-            .Max(pass => pass.GetProperty("meanMs").GetDouble());
+        int spans = frame.GetProperty("frames").GetInt32();
+        spans.Should().Be(6, "the film times one span per film frame");
+        JsonElement[] passes = [.. timings.RootElement.GetProperty("passes").EnumerateArray()];
+        passes
+            .Should()
+            .AllSatisfy(pass =>
+                pass.GetProperty("frames")
+                    .GetInt32()
+                    .Should()
+                    .Be(spans, "the span counts the same frames as the passes")
+            );
+        double longestPass = passes.Max(pass => pass.GetProperty("meanMs").GetDouble());
         frame
             .GetProperty("meanMs")
             .GetDouble()
