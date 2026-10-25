@@ -1,0 +1,58 @@
+--- a/src/joltc.cpp
++++ b/src/joltc.cpp
+@@ -3,6 +3,8 @@
+ 
+ #include "joltc.h"
+ 
++#include <mutex>
++
+ #include <Jolt/Core/Core.h>
+ 
+ JPH_SUPPRESS_WARNING_PUSH
+@@ -1009,6 +1011,10 @@ struct JPH_PhysicsSystem final
+ 	JPH::ObjectVsBroadPhaseLayerFilter* objectVsBroadPhaseLayerFilter = nullptr;
+ 	JPH::PhysicsSystem* physicsSystem = nullptr;
+ };
++// Tertius patch: one lock for the process-wide map from each Jolt physics system to its joltc wrapper. Create and
++// destroy change the map, and the step listener reads it, on whatever thread calls them. Without the lock, systems that
++// are created on several threads at the same time corrupt the map, and a later insert probes it forever or crashes.
++static std::mutex s_PhysicsSystemsMutex;
+ static JPH::UnorderedMap<JPH::PhysicsSystem*, JPH_PhysicsSystem*> s_PhysicsSystems;
+ 
+ JPH_PhysicsSystem* JPH_PhysicsSystem_Create(const JPH_PhysicsSystemSettings* settings)
+@@ -1032,7 +1038,10 @@ JPH_PhysicsSystem* JPH_PhysicsSystem_Create(const JPH_PhysicsSystemSettings* set
+ 		*system->objectVsBroadPhaseLayerFilter,
+ 		*system->objectLayerPairFilter);
+ 
+-	s_PhysicsSystems[system->physicsSystem] = system;
++	{
++		std::lock_guard<std::mutex> lock(s_PhysicsSystemsMutex);
++		s_PhysicsSystems[system->physicsSystem] = system;
++	}
+ 	return system;
+ }
+ 
+@@ -1040,7 +1049,10 @@ void JPH_PhysicsSystem_Destroy(JPH_PhysicsSystem* system)
+ {
+ 	if (system)
+ 	{
+-		s_PhysicsSystems.erase(system->physicsSystem);
++		{
++			std::lock_guard<std::mutex> lock(s_PhysicsSystemsMutex);
++			s_PhysicsSystems.erase(system->physicsSystem);
++		}
+ 		delete system->physicsSystem;
+ 		delete system->broadPhaseLayerInterface;
+ 		delete system->objectVsBroadPhaseLayerFilter;
+@@ -5887,7 +5899,10 @@ public:
+ 			context.deltaTime = inContext.mDeltaTime;
+ 			context.isFirstStep = inContext.mIsFirstStep;
+ 			context.isLastStep = inContext.mIsLastStep;
+-			context.physicsSystem = s_PhysicsSystems[inContext.mPhysicsSystem];
++			{
++				std::lock_guard<std::mutex> lock(s_PhysicsSystemsMutex);
++				context.physicsSystem = s_PhysicsSystems[inContext.mPhysicsSystem];
++			}
+ 			return s_Procs->OnStep(userData, &context);
+ 		}
+ 	}

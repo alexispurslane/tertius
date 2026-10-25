@@ -15,8 +15,9 @@ if [ ! -d "$work/joltc" ]; then
 fi
 git -C "$work/joltc" fetch --quiet origin "$JOLTC_REV" || true
 git -C "$work/joltc" checkout --quiet --force "$JOLTC_REV"
-# The same patches as native/joltc.nix: one joltc temp allocator per calling thread.
+# The same patches as native/joltc.nix: one joltc temp allocator per calling thread, and a lock for the map of systems.
 git -C "$work/joltc" apply "$here/joltc-thread-temp-allocator.patch"
+git -C "$work/joltc" apply "$here/joltc-system-map-lock.patch"
 
 if [ ! -d "$work/JoltPhysics" ]; then
   git clone --quiet --depth 1 --branch "$JOLT_TAG" https://github.com/jrouwe/JoltPhysics "$work/JoltPhysics"
