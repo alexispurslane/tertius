@@ -8,7 +8,7 @@ namespace Tertius.Style.Tests;
 
 /// <summary>
 /// The folders where the repository's <c>.editorconfig</c> turns a rule off: TS0006 in <c>benchmarks</c>, whose classes
-/// BenchmarkDotNet derives from, and TS0009 in <c>tests</c>, whose names may start with the Try method that they pin.
+/// BenchmarkDotNet derives from, and TS0009 in <c>tests</c>, which keep their own shapes.
 /// </summary>
 public sealed class RuleScopeTests
 {
@@ -25,11 +25,12 @@ public sealed class RuleScopeTests
         (
             await FoldersThatReport(
                 "TS0009",
-                folder => $"public static class In_{folder} {{ public static void TryFirstFindsTheMatch() {{ }} }}"
+                folder =>
+                    $"public static class In_{folder} {{ public static bool Find(out int v) {{ v = 0; return true; }} }}"
             )
         )
             .Should()
-            .Equal(["src", "benchmarks", "analyzers"], "a test name may start with the Try method that it pins");
+            .Equal(["src", "benchmarks", "analyzers"], "the tests keep their own shapes");
 
     /// <summary>
     /// The folders, of <see cref="Folders"/>, in which <paramref name="rule"/> reports the source that

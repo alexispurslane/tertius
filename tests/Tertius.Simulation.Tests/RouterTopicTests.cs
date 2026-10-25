@@ -62,7 +62,7 @@ public class RouterTopicTests
         Entity inside = h.Spawn(EventMask.Of<Ping>(), bay);
         Entity watcher = h.Spawn(EventMask.Of<Ping>());
         h.Subscribe(watcher, bay.Topic);
-        h.Topics.MoveMember(inside, FrameHandle.Null, out _);
+        h.Topics.MoveMember(inside, FrameHandle.Null);
         h.Topics.RemoveFrame(bay);
         h.Send(0, bay.Topic, new Ping { Value = 1 });
 
@@ -80,11 +80,11 @@ public class RouterTopicTests
         FrameHandle first = RouterHarness.Frame(index: 3, generation: 1);
         h.Topics.AddFrame(first);
         Entity inside = h.Spawn(EventMask.Of<Ping>(), first);
-        h.Topics.MoveMember(inside, FrameHandle.Null, out _);
+        h.Topics.MoveMember(inside, FrameHandle.Null);
         h.Topics.RemoveFrame(first);
         FrameHandle second = RouterHarness.Frame(index: 3, generation: 2);
         h.Topics.AddFrame(second);
-        h.Topics.MoveMember(inside, second, out _);
+        h.Topics.MoveMember(inside, second);
         second.Topic.Id.Should().Be(first.Topic.Id);
 
         h.Send(0, first.Topic, new Ping { Value = 2 });

@@ -394,8 +394,8 @@ dotnet_diagnostic.CA1859.severity = none
 dotnet_diagnostic.CA1707.severity = none
 # The null-forgiving operator: the rule against it (STYLE.md, "Nulls") holds for the engine code in src only.
 dotnet_diagnostic.TS0003.severity = none
-# Try methods: a test name is a statement that may start with the name of the Try method that it pins, such as
-# TryGetValueOfAnotherCaseIsFalseAndGivesTheDefault (tests/STYLE.md, "Names").
+# The Try shape: a test helper or fake may return bool and give its result in an out parameter, as the Try methods of
+# .NET do, because the rule against the shape (STYLE.md, "Expected failures") holds for the engine code in src only.
 dotnet_diagnostic.TS0009.severity = none
 
 [benchmarks/**.cs]

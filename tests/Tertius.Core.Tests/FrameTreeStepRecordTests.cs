@@ -62,15 +62,8 @@ public sealed class FrameTreeStepRecordTests
             AngularAcceleration: Double3.Zero
         );
 
-        frames
-            .StepRecordInStep(
-                frame: frame,
-                stepIntents: Moving(new(sample)),
-                step: Step,
-                record: out MotionSample record
-            )
-            .Should()
-            .BeTrue();
+        MotionSample? record = frames.StepRecordInStep(frame: frame, stepIntents: Moving(new(sample)), step: Step);
+        record.Should().NotBeNull();
 
         record.Should().Be(sample);
     }
@@ -80,15 +73,12 @@ public sealed class FrameTreeStepRecordTests
     {
         var end = new DPose(new(101, 0, 0), DQuaternion.Identity);
 
-        frames
-            .StepRecordInStep(
-                frame: frame,
-                stepIntents: Moving(new(new EndPose(end))),
-                step: Step,
-                record: out MotionSample record
-            )
-            .Should()
-            .BeTrue();
+        MotionSample? record = frames.StepRecordInStep(
+            frame: frame,
+            stepIntents: Moving(new(new EndPose(end))),
+            step: Step
+        );
+        record.Should().NotBeNull();
 
         Double3 chord = (end.Position - new Double3(100, 0, 0)) / Step;
         record
@@ -111,17 +101,14 @@ public sealed class FrameTreeStepRecordTests
         var end = new DPose(new(51, 0, 0), DQuaternion.Identity);
         var teleport = new DPose(new(50, 0, 0), DQuaternion.Identity);
 
-        frames
-            .StepRecordInStep(
-                frame: frame,
-                stepIntents: Moving(new(new EndPose(end)), IntentFlags.Teleport, teleport),
-                step: Step,
-                record: out MotionSample record
-            )
-            .Should()
-            .BeTrue();
+        MotionSample? record = frames.StepRecordInStep(
+            frame: frame,
+            stepIntents: Moving(new(new EndPose(end)), IntentFlags.Teleport, teleport),
+            step: Step
+        );
+        record.Should().NotBeNull();
 
-        record.ChordVelocity.Should().Be(new Double3(1, 0, 0) / Step);
+        record!.Value.ChordVelocity.Should().Be(new Double3(1, 0, 0) / Step);
     }
 
     [Fact]
@@ -130,30 +117,20 @@ public sealed class FrameTreeStepRecordTests
         var target = new DPose(new(101, 0, 0), DQuaternion.Identity);
 
         frames
-            .StepRecordInStep(
-                frame: frame,
-                stepIntents: Moving(new(new SteerTarget(target))),
-                step: Step,
-                record: out _
-            )
+            .StepRecordInStep(frame: frame, stepIntents: Moving(new(new SteerTarget(target))), step: Step)
             .Should()
-            .BeFalse("a steer target only steers a body");
+            .BeNull("a steer target only steers a body");
         frames
-            .StepRecordInStep(frame: frame, stepIntents: Moving(default), step: Step, record: out _)
+            .StepRecordInStep(frame: frame, stepIntents: Moving(default), step: Step)
             .Should()
-            .BeFalse();
+            .BeNull();
         frames
-            .StepRecordInStep(frame: frame, stepIntents: [], step: Step, record: out _)
+            .StepRecordInStep(frame: frame, stepIntents: [], step: Step)
             .Should()
-            .BeFalse("a slot past the end of the intents holds none");
+            .BeNull("a slot past the end of the intents holds none");
         frames
-            .StepRecordInStep(
-                frame: frame,
-                stepIntents: new PhysicsIntent[frame.Entity.Index],
-                step: Step,
-                record: out _
-            )
+            .StepRecordInStep(frame: frame, stepIntents: new PhysicsIntent[frame.Entity.Index], step: Step)
             .Should()
-            .BeFalse("nor does the slot at their end");
+            .BeNull("nor does the slot at their end");
     }
 }

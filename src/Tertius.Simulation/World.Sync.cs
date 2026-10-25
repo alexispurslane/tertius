@@ -486,7 +486,7 @@ public sealed partial class World
             Contract.Assert(intent.Frame == row.Frame && row.PhysicsHome == row.Frame);
             if (
                 Entities.GameplayWroteTransform(entity)
-                || !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record)
+                || intent.StepRecord(row.Pose, DeltaTime) is not { } record
             )
                 continue;
             Entities.SetBackTransform(

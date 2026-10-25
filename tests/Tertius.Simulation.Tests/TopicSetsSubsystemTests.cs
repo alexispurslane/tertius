@@ -44,12 +44,14 @@ public sealed class TopicSetsSubsystemTests
         Entity a = entities.SpawnLive(),
             b = entities.SpawnLive();
 
-        topics.MoveMember(b, bay, out FrameHandle from).Should().BeTrue();
-        from.IsNull.Should().BeTrue("the entity was in no frame before");
+        FrameChanged? change = topics.MoveMember(b, bay);
+        change.Should().NotBeNull();
+        change!.Value.From.IsNull.Should().BeTrue("the entity was in no frame before");
+        change.Value.To.Should().Be(bay);
         topics.MembersOf(bay).ToArray().Should().Equal(b);
 
-        topics.MoveMember(a, bay, out _).Should().BeTrue();
-        topics.MoveMember(a, bay, out _).Should().BeFalse("it is a member already, so nothing changes");
+        topics.MoveMember(a, bay).Should().NotBeNull();
+        topics.MoveMember(a, bay).Should().BeNull("it is a member already, so nothing changes");
         topics.MembersOf(bay).ToArray().Should().Equal(a, b);
         topics.AssertInvariants();
     }
@@ -82,11 +84,11 @@ public sealed class TopicSetsSubsystemTests
         topics.AddFrame(bay);
         Entity a = entities.SpawnLive(),
             b = entities.SpawnLive();
-        topics.MoveMember(a, bay, out _);
-        topics.MoveMember(b, bay, out _);
+        topics.MoveMember(a, bay);
+        topics.MoveMember(b, bay);
 
         ReadOnlySpan<Entity> members = topics.MembersOf(bay);
-        topics.MoveMember(a, FrameHandle.Null, out _);
+        topics.MoveMember(a, FrameHandle.Null);
 
         members.ToArray().Should().Equal(a, b);
         topics.MembersOf(bay).ToArray().Should().Equal(b);
@@ -106,7 +108,7 @@ public sealed class TopicSetsSubsystemTests
 
         // Moved in this order, with no read between the moves, so that all six changes are queued together.
         foreach (int slot in new[] { 4, 1, 5, 0, 3, 2 })
-            topics.MoveMember(e[slot], bay, out _);
+            topics.MoveMember(e[slot], bay);
 
         topics.MembersOf(bay).ToArray().Should().Equal(e);
     }
@@ -135,19 +137,19 @@ public sealed class TopicSetsSubsystemTests
             FrameHandle bay = Frame(0, 1);
             topics.AddFrame(bay);
             Entity[] e = SpawnLiveInSlotOrder(entities, 4);
-            topics.MoveMember(e[1], bay, out _);
-            topics.MoveMember(e[3], bay, out _);
+            topics.MoveMember(e[1], bay);
+            topics.MoveMember(e[3], bay);
             topics.MembersOf(bay).ToArray().Should().Equal(e[1], e[3]);
 
             if (leaverFirst)
             {
-                topics.MoveMember(e[1], FrameHandle.Null, out _);
-                topics.MoveMember(e[0], bay, out _);
+                topics.MoveMember(e[1], FrameHandle.Null);
+                topics.MoveMember(e[0], bay);
             }
             else
             {
-                topics.MoveMember(e[0], bay, out _);
-                topics.MoveMember(e[1], FrameHandle.Null, out _);
+                topics.MoveMember(e[0], bay);
+                topics.MoveMember(e[1], FrameHandle.Null);
             }
 
             topics.MembersOf(bay).ToArray().Should().Equal([e[0], e[3]], $"leaver first: {leaverFirst}");
@@ -192,12 +194,12 @@ public sealed class TopicSetsSubsystemTests
             topics.AddFrame(frame);
         Entity entity = entities.SpawnLive();
 
-        topics.MoveMember(entity, bay, out _);
-        topics.MoveMember(entity, hold, out FrameHandle fromHold).Should().BeTrue();
-        topics.MoveMember(entity, deck, out FrameHandle fromDeck).Should().BeTrue();
+        topics.MoveMember(entity, bay);
+        FrameChanged? toHold = topics.MoveMember(entity, hold);
+        FrameChanged? toDeck = topics.MoveMember(entity, deck);
 
-        fromHold.Should().Be(bay, "each move reports the frame the entity was in just before it");
-        fromDeck.Should().Be(hold);
+        toHold!.Value.From.Should().Be(bay, "each move reports the frame the entity was in just before it");
+        toDeck!.Value.From.Should().Be(hold);
         topics.MembersOf(bay).ToArray().Should().BeEmpty();
         topics.MembersOf(hold).ToArray().Should().BeEmpty();
         topics.MembersOf(deck).ToArray().Should().Equal(entity);
@@ -227,7 +229,7 @@ public sealed class TopicSetsSubsystemTests
         topics.AddFrame(bay);
         Entity[] e = SpawnLiveInSlotOrder(entities, 8);
         foreach (int slot in memberSlots)
-            topics.MoveMember(e[slot], bay, out _);
+            topics.MoveMember(e[slot], bay);
         foreach (int slot in subscriberSlots)
             topics.Subscribe(e[slot], bay.Topic);
 
@@ -244,7 +246,7 @@ public sealed class TopicSetsSubsystemTests
         topics.AddFrame(bay);
         Entity inside = entities.SpawnLive(),
             watcher = entities.SpawnLive();
-        topics.MoveMember(inside, bay, out _);
+        topics.MoveMember(inside, bay);
         topics.Subscribe(watcher, bay.Topic);
 
         Recipients(topics, bay.Topic).Should().Equal(inside, watcher);
@@ -260,10 +262,10 @@ public sealed class TopicSetsSubsystemTests
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
         Entity entity = entities.SpawnLive();
-        topics.MoveMember(entity, bay, out _);
+        topics.MoveMember(entity, bay);
         topics.Subscribe(entity, bay.Topic);
 
-        topics.MoveMember(entity, FrameHandle.Null, out _);
+        topics.MoveMember(entity, FrameHandle.Null);
 
         topics.MembersOf(bay).ToArray().Should().BeEmpty();
         Recipients(topics, bay.Topic).Should().Equal(entity);
@@ -277,7 +279,7 @@ public sealed class TopicSetsSubsystemTests
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
         Entity entity = entities.SpawnLive();
-        topics.MoveMember(entity, bay, out _);
+        topics.MoveMember(entity, bay);
         topics.Subscribe(entity, bay.Topic);
 
         topics.Unsubscribe(entity, bay.Topic).Should().BeTrue();
@@ -324,7 +326,7 @@ public sealed class TopicSetsSubsystemTests
         topics.AddFrame(bay);
         Entity watcher = entities.SpawnLive();
         Entity doomed = entities.SpawnLive();
-        topics.MoveMember(doomed, bay, out _);
+        topics.MoveMember(doomed, bay);
         topics.Subscribe(doomed, Squad);
         topics.Subscribe(doomed, bay.Topic);
         topics.Subscribe(watcher, Squad);
@@ -369,11 +371,11 @@ public sealed class TopicSetsSubsystemTests
         topics.AddFrame(bay);
         Entity inside = entities.SpawnLive(),
             watcher = entities.SpawnLive();
-        topics.MoveMember(inside, bay, out _);
+        topics.MoveMember(inside, bay);
         topics.Subscribe(watcher, bay.Topic);
         topics.Subscribe(watcher, Squad);
 
-        topics.MoveMember(inside, FrameHandle.Null, out _);
+        topics.MoveMember(inside, FrameHandle.Null);
         topics.RemoveFrame(bay);
 
         topics.IsLive(bay).Should().BeFalse();
@@ -401,7 +403,7 @@ public sealed class TopicSetsSubsystemTests
         FrameHandle next = Frame(2, 2);
         topics.AddFrame(next);
         Recipients(topics, next.Topic).Should().BeEmpty("a new frame starts with no members or subscribers");
-        topics.MoveMember(inside, next, out _);
+        topics.MoveMember(inside, next);
 
         Recipients(topics, old.Topic)
             .Should()
@@ -450,13 +452,14 @@ public sealed class TopicSetsSubsystemTests
         FrameHandle bay = Frame(0, 1);
         topics.AddFrame(bay);
         Entity entity = entities.SpawnLive();
-        topics.MoveMember(entity, bay, out _);
+        topics.MoveMember(entity, bay);
 
-        topics.MoveMember(entity, FrameHandle.Null, out FrameHandle from).Should().BeTrue();
+        FrameChanged? left = topics.MoveMember(entity, FrameHandle.Null);
 
-        from.Should().Be(bay);
+        left!.Value.From.Should().Be(bay);
+        left.Value.To.IsNull.Should().BeTrue();
         topics.MembersOf(bay).ToArray().Should().BeEmpty();
-        topics.MoveMember(entity, FrameHandle.Null, out _).Should().BeFalse("it is in no frame already");
+        topics.MoveMember(entity, FrameHandle.Null).Should().BeNull("it is in no frame already");
     }
 
     [Fact]
@@ -549,10 +552,11 @@ public sealed class TopicSetsSubsystemTests
                 FrameHandle to = pick == frames.Length ? FrameHandle.Null : frames[pick];
                 memberOf.TryGetValue(entity, out FrameHandle before);
 
-                bool changed = topics.MoveMember(entity, to, out FrameHandle from);
+                FrameChanged? change = topics.MoveMember(entity, to);
 
-                changed.Should().Be(before != to, $"seed {seed}, step {step}");
-                from.Should().Be(before, $"seed {seed}, step {step}");
+                change.HasValue.Should().Be(before != to, $"seed {seed}, step {step}");
+                if (change is { } moved)
+                    moved.From.Should().Be(before, $"seed {seed}, step {step}");
                 if (to.IsNull)
                     memberOf.Remove(entity);
                 else
@@ -584,7 +588,7 @@ public sealed class TopicSetsSubsystemTests
                 FrameHandle dying = frames[index];
                 foreach (Entity member in ModelMembers(dying))
                 {
-                    topics.MoveMember(member, FrameHandle.Null, out _).Should().BeTrue();
+                    topics.MoveMember(member, FrameHandle.Null).Should().NotBeNull();
                     memberOf.Remove(member);
                 }
 

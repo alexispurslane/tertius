@@ -131,15 +131,7 @@ public sealed partial class FrameTree
         BodyMotion? stored = treeParent.IsNull ? null : hullMotion[id];
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DPose start = tree;
-        if (
-            TeleportsAt(
-                slot: slot,
-                stepIntents: stepIntents,
-                hull: stored.HasValue,
-                kind: kind,
-                pose: out DPose teleport
-            )
-        )
+        if (TeleportsAt(slot: slot, stepIntents: stepIntents, hull: stored.HasValue, kind: kind) is { } teleport)
             // The teleport is relative to the owner's frame, the semantic parent, and the numeric frames between never turn.
             start = new(
                 treeParent == parent ? teleport.Position : teleport.Position - HomeOffset(treeParent, parent),
@@ -150,7 +142,7 @@ public sealed partial class FrameTree
         switch (kind)
         {
             case FollowKind.Rails or FollowKind.Kinematic:
-                StepRecordInStep(frame: frame, stepIntents: stepIntents, step: step, record: out MotionSample record);
+                MotionSample record = StepRecordInStep(frame: frame, stepIntents: stepIntents, step: step) ?? default;
                 end = InTreeParent(
                     treeParent: treeParent,
                     parent: parent,

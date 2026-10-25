@@ -81,7 +81,7 @@ public sealed class StaleHandleTopicSetsTests
         var bay = new FrameHandle(new(7, 1), 0, 1);
         topics.AddFrame(bay);
         Entity stale = table.ReuseSlot(out Entity successor);
-        topics.MoveMember(successor, bay, out _);
+        topics.MoveMember(successor, bay);
 
         topics.MembersOf(bay).ToArray().Should().Equal(successor);
         Recipients(topics, bay.Topic).Should().Equal(successor);
@@ -136,7 +136,7 @@ public sealed class StaleHandleTopicSetsTests
         topics.AddFrame(bay);
         Entity stale = table.ReuseSlot(out _);
 
-        Action move = () => topics.MoveMember(stale, bay, out _);
+        Action move = () => topics.MoveMember(stale, bay);
 
         move.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
         topics.MembersOf(bay).IsEmpty.Should().BeTrue();

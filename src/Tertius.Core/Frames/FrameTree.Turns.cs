@@ -172,13 +172,7 @@ public sealed partial class FrameTree
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DQuaternion start = treeRotation;
         if (
-            TeleportsAt(
-                slot: slot,
-                stepIntents: stepIntents,
-                hull: stored.HasValue,
-                kind: kind,
-                pose: out DPose teleport
-            )
+            TeleportsAt(slot: slot, stepIntents: stepIntents, hull: stored.HasValue, kind: kind) is { } teleport
             && teleport.Rotation != treeRotation
         )
         {
@@ -222,29 +216,14 @@ public sealed partial class FrameTree
     /// (<paramref name="hull"/>), which physics teleports, and a frame without a hull whose owner's motion intent gives a
     /// record (<paramref name="kind"/> rails or kinematic), which starts at the teleport (see
     /// <see cref="PhysicsIntent.StepRecord"/>). A frame without a hull and without such a motion intent holds still where it
-    /// stands. False when the frame takes no teleport.
+    /// stands. Null when the frame takes no teleport.
     /// </summary>
-    private static bool TeleportsAt(
-        uint slot,
-        ReadOnlySpan<PhysicsIntent> stepIntents,
-        bool hull,
-        FollowKind kind,
-        out DPose pose
-    )
-    {
-        if (
-            slot < (uint)stepIntents.Length
-            && (stepIntents[(int)slot].Flags & IntentFlags.Teleport) != 0
-            && (hull || kind is FollowKind.Rails or FollowKind.Kinematic)
-        )
-        {
-            pose = stepIntents[(int)slot].TeleportPose;
-            return true;
-        }
-
-        pose = default;
-        return false;
-    }
+    private static DPose? TeleportsAt(uint slot, ReadOnlySpan<PhysicsIntent> stepIntents, bool hull, FollowKind kind) =>
+        slot < (uint)stepIntents.Length
+        && (stepIntents[(int)slot].Flags & IntentFlags.Teleport) != 0
+        && (hull || kind is FollowKind.Rails or FollowKind.Kinematic)
+            ? stepIntents[(int)slot].TeleportPose
+            : null;
 
     /// <summary>
     /// <paramref name="linear"/>, the linear gravity on a body at <paramref name="place"/> in the semantic frame with stable

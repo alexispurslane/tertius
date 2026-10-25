@@ -469,7 +469,7 @@ public sealed partial class World
             );
 
         // A new entity joins the members of its frame. That is no change of frame, so it hears no FrameChanged.
-        topics.MoveMember(entity, row.Frame, out _);
+        _ = topics.MoveMember(entity, row.Frame);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
     }
@@ -914,11 +914,9 @@ public sealed partial class World
     /// </summary>
     private void MoveMembership(Entity entity, FrameHandle to)
     {
-        if (!topics.MoveMember(entity, to, out FrameHandle from))
+        if (topics.MoveMember(entity, to) is not { } change)
             return;
-        router.AddEngineEvent(
-            Event.Create(target: new(entity), sender: Entity.Null, payload: new FrameChanged { From = from, To = to })
-        );
+        router.AddEngineEvent(Event.Create(target: new(entity), sender: Entity.Null, payload: change));
     }
 
     /// <summary>Subscribes an entity, or reports why the topic's frame cannot take it. Throws

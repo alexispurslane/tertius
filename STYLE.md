@@ -367,7 +367,7 @@ string report = loaded switch
 Script script = Script.Load(path).Ok ?? Script.Empty;
 ```
 
-Write no `Try` method of your own, with one exception. If a benchmark shows that the copy of a large struct in a `T?` costs real time ("Priorities"), a `Try` method with an `out` parameter may stay, with a comment that names the benchmark. The `Try` methods of .NET itself, such as `int.TryParse` and `Dictionary.TryGetValue`, stay usable at the shell. A method that cannot fail in correct code throws on a bad argument, and its doc comment names the exception.
+Write no `Try` method of your own, with one exception (tool: TS0009 for a method that returns `bool` and has an `out` parameter, whatever its name). If a benchmark shows that the copy of a large struct in a `T?` costs real time ("Priorities"), a `Try` method with an `out` parameter may stay, with a comment above it that names the benchmark. The rule skips `TryGetValue` on a union, which the compiler calls by name, an override or an implementation of an interface member, which take the shape of the member that they implement, and a method with such a comment. The `Try` methods of .NET itself, such as `int.TryParse` and `Dictionary.TryGetValue`, stay usable at the shell. A method that cannot fail in correct code throws on a bad argument, and its doc comment names the exception.
 
 ### Disposal and ownership
 

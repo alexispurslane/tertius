@@ -1626,26 +1626,20 @@ public sealed partial class FrameTree
     /// <summary>
     /// The step record of <paramref name="frame"/> in a step of <paramref name="step"/> seconds that applies
     /// <paramref name="stepIntents"/>: the record of its owner's motion intent there, in the frame's semantic parent, from the
-    /// frame's pose in that parent where the step starts (see <see cref="PhysicsIntent.StepRecord"/>). False when the owner
+    /// frame's pose in that parent where the step starts (see <see cref="PhysicsIntent.StepRecord"/>). Null when the owner
     /// has no motion intent, or a steer target, which gives no record. Valid only while the tree stands where the step starts:
     /// before the step, during it, and at step 2 for a frame without a hull, which nothing moves between the two. The
     /// intents are by entity slot, as <see cref="PhysicsStepContext.Intents"/> holds them; a slot past their end holds none.
     /// Step 2 derives the record of a frame without a hull by the same rule (see <see cref="StepRecordOfIntent"/>), so the
     /// record that physics predicts for such a frame and the one that the frame takes agree to the last bit.
     /// </summary>
-    internal bool StepRecordInStep(
-        FrameHandle frame,
-        ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step,
-        out MotionSample record
-    ) =>
+    internal MotionSample? StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step) =>
         StepRecordOfIntent(
             slot: frame.Entity.Index,
             parent: Parent(frame),
             standing: LocalPose(frame),
             stepIntents: stepIntents,
-            step: step,
-            record: out record
+            step: step
         );
 
     /// <summary>
@@ -1653,27 +1647,23 @@ public sealed partial class FrameTree
     /// semantic parent is <paramref name="parent"/>, and which stands at <paramref name="standing"/> in that parent where the
     /// step starts. Step 2 calls it for a frame without a hull (see <see cref="TakeStepRecords"/>).
     /// </summary>
-    private static bool StepRecordOfIntent(
+    private static MotionSample? StepRecordOfIntent(
         uint slot,
         FrameHandle parent,
         in DPose standing,
         ReadOnlySpan<PhysicsIntent> stepIntents,
-        double step,
-        out MotionSample record
+        double step
     )
     {
         if (slot >= (uint)stepIntents.Length || !stepIntents[(int)slot].Move.HasValue)
-        {
-            record = default;
-            return false;
-        }
+            return null;
 
         ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
         // The World converts every intent into its entity's frame at step 7b, the semantic parent of a frame that it owns,
         // and only a dynamic hull hands off during a step. The assertion takes no message of its own, which a Debug build
         // would build for every frame with a motion intent in every step.
         Contract.Assert(intent.Frame == parent);
-        return intent.StepRecord(standing, step, out record);
+        return intent.StepRecord(standing, step);
     }
 
     /// <summary>
