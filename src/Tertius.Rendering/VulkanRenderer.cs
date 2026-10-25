@@ -281,6 +281,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 $"ShadowMapSize must be at least {ShadowMap.MinimumSize}."
             );
+        if (options.CascadedLights is < 0 or > RendererOptions.MaxCascadedLights)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"CascadedLights must be 0 to {RendererOptions.MaxCascadedLights}, not {options.CascadedLights}."
+            );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
@@ -291,6 +296,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), occlusionProblem);
         if (options.Bloom.Problem is { } bloomProblem)
             throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
+        if (options.LocalShadows.Problem is { } localShadowProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), localShadowProblem);
         if (!Enum.IsDefined(options.AntiAliasing))
             throw new ArgumentOutOfRangeException(
                 nameof(options),

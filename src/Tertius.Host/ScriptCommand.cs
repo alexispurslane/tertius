@@ -26,6 +26,9 @@ namespace Tertius.Host;
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
 /// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
 /// option.</item>
+/// <item><c>--local-shadows off|on</c> turns the headless renderer's <see cref="RendererOptions.LocalShadows"/> off, or
+/// keeps the default atlas. <c>--local-shadow-tiles N</c> gives that atlas N tiles.</item>
+/// <item><c>--cascaded-lights N</c> sets the headless renderer's <see cref="RendererOptions.CascadedLights"/>, 0 to 4.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -61,7 +64,7 @@ public static class ScriptCommand
     public const string GpuTimingsFile = "gpu-timings.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -84,6 +87,9 @@ public static class ScriptCommand
         "--ambient-occlusion",
         "--bloom",
         "--anti-aliasing",
+        "--local-shadows",
+        "--local-shadow-tiles",
+        "--cascaded-lights",
     ];
 
     /// <summary>
@@ -303,6 +309,10 @@ public static class ScriptCommand
             rendererOptions.Bloom = new NoBloom();
         if (options.AntiAliasing is { } antiAliasing)
             rendererOptions.AntiAliasing = antiAliasing;
+        if (options.LocalShadows is { } localShadows)
+            rendererOptions.LocalShadows = localShadows;
+        if (options.CascadedLights is { } cascadedLights)
+            rendererOptions.CascadedLights = cascadedLights;
         try
         {
             return createRenderer(rendererOptions);
@@ -437,6 +447,8 @@ public static class ScriptCommand
     /// <param name="AmbientOcclusion">The setting that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="LocalShadows">The local shadows that replace the headless renderer's default, or null to keep it.</param>
+    /// <param name="CascadedLights">The count of far lights with cascades that replaces the renderer's default, or null.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -449,7 +461,9 @@ public static class ScriptCommand
         ToneCurve? ToneCurve = null,
         AmbientOcclusionSetting? AmbientOcclusion = null,
         bool BloomOff = false,
-        AntiAliasing? AntiAliasing = null
+        AntiAliasing? AntiAliasing = null,
+        LocalShadowSetting? LocalShadows = null,
+        int? CascadedLights = null
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -475,7 +489,9 @@ public static class ScriptCommand
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
             AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
             BloomOff: given.Value("--bloom") == "off",
-            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing"))
+            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
+            LocalShadows: LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
+            CascadedLights: CascadedLightsOf(given.Value("--cascaded-lights"))
         );
     }
 
@@ -542,7 +558,9 @@ public static class ScriptCommand
         ?? ToneCurveProblem(given)
         ?? AmbientOcclusionProblem(given)
         ?? BloomProblem(given)
-        ?? AntiAliasingProblem(given);
+        ?? AntiAliasingProblem(given)
+        ?? LocalShadowsProblem(given)
+        ?? CascadedLightsProblem(given);
 
     private static string? SpeedProblem(GivenOptions given)
     {
@@ -625,6 +643,38 @@ public static class ScriptCommand
         return null;
     }
 
+    private static string? LocalShadowsProblem(GivenOptions given)
+    {
+        string? localShadows = given.Value("--local-shadows"),
+            tiles = given.Value("--local-shadow-tiles");
+        if (localShadows is null && tiles is null)
+            return null;
+        if (!given.Headless)
+        {
+            string option = localShadows is null ? "--local-shadow-tiles" : "--local-shadows";
+            return $"{option} applies to a headless run, so add --headless.";
+        }
+
+        if (localShadows is not (null or "off" or "on"))
+            return $"--local-shadows needs off or on, not '{localShadows}'.";
+        if (tiles is not null && TilesOf(tiles) is null)
+            return $"--local-shadow-tiles needs a whole number of 1 or more, not '{tiles}'.";
+        if (tiles is not null && localShadows == "off")
+            return "--local-shadow-tiles sets the budget of local shadows, so leave out --local-shadows off.";
+        return null;
+    }
+
+    private static string? CascadedLightsProblem(GivenOptions given)
+    {
+        if (given.Value("--cascaded-lights") is not { } count)
+            return null;
+        if (!given.Headless)
+            return "--cascaded-lights applies to a headless run, so add --headless.";
+        if (CascadedLightsOf(count) is null)
+            return $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'.";
+        return null;
+    }
+
     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
     private static double? SpeedOf(string? text)
     {
@@ -674,6 +724,43 @@ public static class ScriptCommand
         );
         bool positive = read && float.IsFinite(radius) && radius > 0;
         return positive ? GroundTruthOcclusion.Default with { RadiusMeters = radius } : null;
+    }
+
+    /// <summary>
+    /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of
+    /// tiles alone, with that count, and null when neither option is given. The renderer refuses more tiles than the device holds.
+    /// </summary>
+    private static LocalShadowSetting? LocalShadowsOf(string? localShadows, string? tiles)
+    {
+        if (localShadows == "off")
+            return new NoLocalShadows();
+        if (TilesOf(tiles) is { } count)
+            return LocalShadowAtlas.Default with { Tiles = count };
+        return localShadows == "on" ? LocalShadowAtlas.Default : null;
+    }
+
+    /// <summary>The count of tiles that the text gives, or null for no text or one that is not a whole number of 1 or more.</summary>
+    private static int? TilesOf(string? text)
+    {
+        bool read = int.TryParse(
+            s: text,
+            style: NumberStyles.None,
+            provider: CultureInfo.InvariantCulture,
+            result: out int tiles
+        );
+        return read && tiles >= 1 ? tiles : null;
+    }
+
+    /// <summary>The count of far lights with cascades that the text gives, or null for no text or one outside 0 to 4.</summary>
+    private static int? CascadedLightsOf(string? text)
+    {
+        bool read = int.TryParse(
+            s: text,
+            style: NumberStyles.None,
+            provider: CultureInfo.InvariantCulture,
+            result: out int count
+        );
+        return read && count <= RendererOptions.MaxCascadedLights ? count : null;
     }
 
     /// <summary>The anti-aliasing that the text names, or null for no text or a name that is not off or smaa.</summary>

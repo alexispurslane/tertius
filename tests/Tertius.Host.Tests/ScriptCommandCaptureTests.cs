@@ -397,4 +397,48 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         chosen.Should().Equal(expected);
     }
+
+    public static TheoryData<string[], LocalShadowSetting, int> ShadowOptions =>
+        new()
+        {
+            { [], LocalShadowAtlas.Default, 1 },
+            { ["--local-shadows", "off"], new NoLocalShadows(), 1 },
+            {
+                ["--local-shadow-tiles", "384", "--cascaded-lights", "2"],
+                LocalShadowAtlas.Default with
+                {
+                    Tiles = 384,
+                },
+                2
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(ShadowOptions))]
+    public void TheShadowOptionsChooseTheShadowsOfTheHeadlessRendererWhichAreTheRenderersDefaultWithoutThem(
+        string[] shadows,
+        LocalShadowSetting expectedLocalShadows,
+        int expectedCascadedLights
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<(LocalShadowSetting LocalShadows, int CascadedLights)>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. shadows],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add((options.LocalShadows, options.CascadedLights));
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        chosen.Should().Equal((expectedLocalShadows, expectedCascadedLights));
+    }
 }
