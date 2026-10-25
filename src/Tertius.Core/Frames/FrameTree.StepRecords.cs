@@ -164,7 +164,8 @@ public sealed partial class FrameTree
                 standing: locals[taker.Dense],
                 stepIntents: stepIntents,
                 step: step
-            ) is { } move
+            )
+                is { } move
         )
             FollowAt(
                 taker: taker,

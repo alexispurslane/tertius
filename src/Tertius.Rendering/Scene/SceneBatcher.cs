@@ -440,7 +440,8 @@ internal sealed class SceneBatcher
                             worldPosition: worldPosition,
                             intensity: intensity,
                             range: range
-                        ) is not { } position
+                        )
+                        is not { } position
                     )
                         continue;
                     // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
@@ -468,7 +469,8 @@ internal sealed class SceneBatcher
                             worldPosition: worldPosition,
                             intensity: intensity,
                             range: range
-                        ) is not { } position
+                        )
+                        is not { } position
                     )
                         continue;
                     Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;

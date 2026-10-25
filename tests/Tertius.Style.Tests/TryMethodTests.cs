@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Tertius.Style.Tests;
 
@@ -136,9 +137,7 @@ public sealed class TryMethodTests
                 }
                 """
             )
-        )
-            .Single()
-            .GetMessage();
+        ).Single().GetMessage();
 
         message
             .Should()
@@ -334,12 +333,12 @@ public sealed class TryMethodTests
     [Fact]
     public async Task AnImplementationOfAnInterfaceOfAnotherAssemblyOfTheSolutionIsNotReported()
     {
-        var library = TestCompilation.Of(
+        CSharpCompilation library = TestCompilation.Of(
             "public interface ICounter { bool Count(out int count); }",
             assembly: "Tertius.Library",
             libraries: []
         );
-        var probe = TestCompilation.Of(
+        CSharpCompilation probe = TestCompilation.Of(
             "public sealed class Counter : ICounter { public bool Count(out int count) { count = 1; return true; } }",
             assembly: "Probe",
             libraries: [library]

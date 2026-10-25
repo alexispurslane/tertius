@@ -120,10 +120,7 @@ public sealed class FrameTreeStepRecordTests
             .StepRecordInStep(frame: frame, stepIntents: Moving(new(new SteerTarget(target))), step: Step)
             .Should()
             .BeNull("a steer target only steers a body");
-        frames
-            .StepRecordInStep(frame: frame, stepIntents: Moving(default), step: Step)
-            .Should()
-            .BeNull();
+        frames.StepRecordInStep(frame: frame, stepIntents: Moving(default), step: Step).Should().BeNull();
         frames
             .StepRecordInStep(frame: frame, stepIntents: [], step: Step)
             .Should()

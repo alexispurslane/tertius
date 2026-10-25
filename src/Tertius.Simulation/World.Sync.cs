@@ -484,10 +484,7 @@ public sealed partial class World
             // The guard lets no attached entity write a motion intent, and step 7b of the last sync point converted the intent
             // into the entity's frame, which is its home.
             Contract.Assert(intent.Frame == row.Frame && row.PhysicsHome == row.Frame);
-            if (
-                Entities.GameplayWroteTransform(entity)
-                || intent.StepRecord(row.Pose, DeltaTime) is not { } record
-            )
+            if (Entities.GameplayWroteTransform(entity) || intent.StepRecord(row.Pose, DeltaTime) is not { } record)
                 continue;
             Entities.SetBackTransform(
                 entity,
