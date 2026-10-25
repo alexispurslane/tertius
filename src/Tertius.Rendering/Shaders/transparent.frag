@@ -44,11 +44,15 @@ void main()
     float opacity = clamp(s.baseColor.a, 0.0, 1.0);
     SurfaceLobes lobes = lobesOf(shading, V);
     lobes.diffuseColor *= opacity;
-    // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E), per channel.
+    // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E · c), per channel.
     vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
+    // The pane's radiance takes at most MaxRadiance · (1 − T), so that it plus a target of at most MaxRadiance times T
+    // stays a finite half float: past it, a device may store infinity, which the tone curve turns into NaN.
+    vec3 radiance = min(
+        lobesRadiance(shading, lobes, s.emissive, inPosition, V, true), MaxRadiance * (1.0 - transmittance));
     // outColor is radiance: a factor that scales every pass's radiance, such as an exposure, applies to it. The
     // transmittance is a fraction of the radiance behind, and never takes such a factor. The blend keeps the target's
-    // alpha, so neither alpha matters. A clamped radiance plus a finite target times at most 1 stays finite.
-    outColor = vec4(lobesRadiance(shading, lobes, s.emissive, inPosition, V, true), 0.0);
+    // alpha, so neither alpha matters.
+    outColor = vec4(radiance, 0.0);
     outTransmittance = vec4(transmittance, 0.0);
 }

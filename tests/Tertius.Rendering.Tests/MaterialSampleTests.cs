@@ -10,6 +10,14 @@ public sealed class MaterialSampleTests
     private static readonly double[] ViewCosines = [0.1, 0.3, 0.5, 0.8, 1];
     private static readonly double[] Roughnesses = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
+    /// <summary>The canopy glass of the demo shuttle, without its opacity: a reflectance of 1 gives an F0 of 0.16.</summary>
+    private static readonly MaterialSample Glass = new(
+        BaseColor: new(0.45, 0.65, 1),
+        Metallic: 0,
+        Roughness: 0.18,
+        Reflectance: 1
+    );
+
     private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance, string because)
     {
         actual.X.Should().BeApproximately(expected.X, tolerance, because);
@@ -398,14 +406,6 @@ public sealed class MaterialSampleTests
         specularOnly.X.Should().BeInRange(0.03, 0.2, "a non-metal's specular albedo is a few percent");
     }
 
-    /// <summary>The canopy glass of the demo shuttle, without its opacity: a reflectance of 1 gives an F0 of 0.16.</summary>
-    private static readonly MaterialSample Glass = new(
-        BaseColor: new(0.45, 0.65, 1),
-        Metallic: 0,
-        Roughness: 0.18,
-        Reflectance: 1
-    );
-
     private static Double3 GlassAlbedo(double nDotV) =>
         Glass.CompensatedSpecularAlbedo(
             normal: Double3.UnitZ,
@@ -439,7 +439,7 @@ public sealed class MaterialSampleTests
     public void TheSpecularAlbedoIsTheShareOfAUniformWhiteLightThatTheSpecularPartReflects()
     {
         // No diffuse color, so the whole BRDF is its specular part.
-        var blackGlass = Glass with
+        MaterialSample blackGlass = Glass with
         {
             BaseColor = Double3.Zero,
         };
@@ -490,7 +490,7 @@ public sealed class MaterialSampleTests
             actual: transmittance,
             expected: (1 - opacity) * (White - GlassAlbedo(nDotV)),
             tolerance: 1e-15,
-            because: "T = (1 − opacity)(1 − E) per channel"
+            because: "T = (1 − opacity)(1 − E · c) per channel"
         );
     }
 

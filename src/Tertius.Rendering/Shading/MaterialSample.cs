@@ -62,7 +62,7 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     }
 
     /// <summary>
-    /// E, the compensated specular albedo per channel: the share of a uniform light that the specular part sends
+    /// E · c, the compensated specular albedo per channel: the share of a uniform light that the specular part sends
     /// toward <paramref name="toView"/>. It weights the ambient specular term, and a pane lets through what it leaves.
     /// </summary>
     public Double3 CompensatedSpecularAlbedo(Double3 normal, Double3 toView, BrdfTables tables)
@@ -75,7 +75,7 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     }
 
     /// <summary>
-    /// T = (1 − opacity)(1 − E), per channel and clamped to [0, 1]: the share of the light behind a pane of this
+    /// T = (1 − opacity)(1 − E · c), per channel and clamped to [0, 1]: the share of the light behind a pane of this
     /// material that passes through it toward <paramref name="toView"/> (ARCHITECTURE.md, "Transparent objects").
     /// </summary>
     /// <param name="opacity">The base color's alpha, clamped to [0, 1] as the transparent pass clamps it.</param>

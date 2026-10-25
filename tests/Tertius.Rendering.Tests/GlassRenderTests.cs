@@ -5,8 +5,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The blend of the transparent pass (ARCHITECTURE.md, "Transparent objects"): a pane's specular light and emission add
-/// in full, its diffuse light scales by its opacity, and it lets through (1 − opacity)(1 − E) of what lies behind it.
-/// A pane 1 m wide faces the camera 3 m ahead, turned up by a tilt, in front of a square 3 m behind it that emits a
+/// in full, its diffuse light scales by its opacity, and it lets through (1 − opacity)(1 − E · c) of what lies behind
+/// it. A pane 1 m wide faces the camera 3 m ahead, turned up by a tilt, in front of a square 3 m behind it that emits a
 /// known radiance. Each test reads the pixel at the pane's center.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -59,7 +59,7 @@ public sealed class GlassRenderTests
     )
     {
         MeshId square = renderer.CreateMesh(Primitives.Plane(1));
-        Quaternion facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: square,
@@ -133,7 +133,7 @@ public sealed class GlassRenderTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            RenderSnapshot WhiteSky()
+            static RenderSnapshot WhiteSky()
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
                 snapshot.Ambient = new()
@@ -175,7 +175,7 @@ public sealed class GlassRenderTests
     public void APaneShowsItsDiffuseLightTimesItsOpacity()
     {
         const float opacity = 0.4f;
-        Vector3 sunDirection = Vector3.Normalize(new(0, 0.6f, 0.8f));
+        var sunDirection = Vector3.Normalize(new(0, 0.6f, 0.8f));
         var white = new MaterialSample(BaseColor: new(0.8, 0.8, 0.8), Metallic: 0, Roughness: 0.5, Reflectance: 0);
         Double3 full = white.Reflected(
             normal: NormalOf(0),
@@ -306,6 +306,48 @@ public sealed class GlassRenderTests
                 Vector3.Zero,
                 "an unlit black pane of opacity 1 shows nothing of the bright square behind"
             );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void APaneWhoseHighlightFillsTheTargetLeavesRoomForWhatItLetsThrough()
+    {
+        const float largestHalf = 65504;
+        const float opacity = 0.2f;
+        const float exposure = 1e-5f;
+        var backdrop = new Vector3(1000);
+        var glass = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0.3, Reflectance: 1);
+        Double3 transmittance = glass.Transmittance(
+            opacity: opacity,
+            normal: NormalOf(0),
+            toView: ToView,
+            tables: BrdfTables.Shared
+        );
+        // The pane's own light fills what the target holds beyond the share that the glow behind may take, so the sum
+        // stays at most the largest half float. Past it, a device may store infinity, which the tone curve turns to NaN.
+        Double3 stored = largestHalf * (new Double3(1, 1, 1) - transmittance) + transmittance * backdrop;
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            // Turned down by the exposure, the stored value shows: the sun behind the eye puts a highlight of about
+            // 150,000 at the pane's center, far past what the target holds.
+            renderer.Exposure = exposure;
+            Vector3 shown = ShownThroughPane(
+                renderer: renderer,
+                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 1e5f),
+                pane: BlackGlass(opacity: opacity, roughness: 0.3f),
+                tilt: 0,
+                backdrop: backdrop,
+                name: "glass-saturated"
+            );
+            Vector3 glow = Displayed(renderer, [stored.ToVector3()], "glass-saturated-glow")[0];
+
+            ShouldShow(shown, glow, $"the target holds {stored}, at most {largestHalf}, scaled by {exposure}");
         }
         finally
         {

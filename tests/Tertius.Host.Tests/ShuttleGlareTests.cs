@@ -28,17 +28,18 @@ public sealed class ShuttleGlareTests : IDisposable
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
     /// <summary>
-    /// In <c>demo-surface</c>, the camera of a window film sees the mirror image of a lamp in the inner face of the pane
-    /// that the film looks through. The test renders the view with the real renderer and reads the pixel of the mirror
-    /// image, where the lamp's reflection is brightest. Its brightest channel stays below 224 of 255, so the reflection
-    /// does not hide the view. The coated glass gives 186 at the nose pane and 200 at the port pane. Glass that reflects
-    /// 16 % head-on, as the orbit scene's glass does, gives 254 at all three: a white blob.
+    /// In <c>demo-surface</c>, the camera of a window film sees the mirror image of a lamp in the inner face of the
+    /// pane that the film looks through. The test renders the view with the real renderer and reads the pixel of the
+    /// mirror image, where the lamp's reflection is brightest. Its brightest channel stays below 224 of 255, short of
+    /// the white that hides the view. It does not check that the reflection or the view shows. The coated glass gives
+    /// 186 at the nose pane and 200 at the port pane. Glass that reflects 16 % head-on, as the orbit scene's glass
+    /// does, gives 254 at all three: a white blob.
     /// </summary>
     [Theory]
     [InlineData("window-camera", "pane-nose", "lamp-port-fore")]
     [InlineData("window-camera", "pane-nose", "lamp-starboard-fore")]
     [InlineData("port-window-camera", "pane-port-7", "lamp-starboard-aft")]
-    public void ALampsReflectionInTheGlassThatAWindowFilmLooksThroughDoesNotHideTheView(
+    public void ALampsReflectionInTheGlassThatAWindowFilmLooksThroughStaysShortOfWhite(
         string camera,
         string paneId,
         string lampId
