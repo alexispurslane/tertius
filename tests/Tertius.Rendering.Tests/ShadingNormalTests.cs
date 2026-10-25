@@ -41,7 +41,7 @@ public sealed class ShadingNormalTests
             most = MathF.Max(most, image.Luma(x, y));
         most.Should().BePositive("the sun's mirror image must lie in view");
 
-        var sum = Vector2.Zero;
+        Vector2 sum = Vector2.Zero;
         float weight = 0;
         for (int y = 0; y < image.Height; y++)
         for (int x = 0; x < image.Width; x++)
