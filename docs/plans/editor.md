@@ -675,7 +675,7 @@ Profiler:
 
 Debug panel:
 
-- Renderer, per view: impostors, shadows, exposure, and a display mode. The modes are lit, albedo, normals, specular and gloss, emissive, distance, depth range, and impostor tint. Each mode is a switch of the tone map shader, computed from the G-buffer.
+- Renderer, per view: impostors, shadows, exposure, and a display mode. The modes are lit, base color, normals, specular, emissive, distance, depth range, and impostor tint. The specular mode shows the four channels of the specular target: metallic, roughness, reflectance and the lobe's sky share. Each mode is a switch of the tone map shader, computed from the G-buffer.
 - Overlays: bubbles, orbits, frame axes, grid, light ranges and collision shapes.
 - Physics: the collision shapes with a color per motion type (static grey, kinematic blue, dynamic green, character yellow).
 
@@ -871,7 +871,7 @@ public sealed class RenderView : IDisposable
 
 public sealed record ViewOptions(bool Impostors = false, bool Shadows = true, DisplayMode Display = DisplayMode.Lit, float Exposure = 1f);
 
-public enum DisplayMode { Lit, Albedo, Normals, SpecularGloss, Emissive, Distance, DepthRange, ImpostorTint }
+public enum DisplayMode { Lit, BaseColor, Normals, Specular, Emissive, Distance, DepthRange, ImpostorTint }
 
 /// <summary>A picked object. Entity.Null means that the pixel showed no object.</summary>
 public readonly record struct PickResult(Entity Entity, ushort Part);
