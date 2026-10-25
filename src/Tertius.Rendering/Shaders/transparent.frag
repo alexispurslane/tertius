@@ -13,7 +13,9 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) flat in uint inMaterial;
 layout(location = 5) flat in vec4 inHemisphere;
 
-layout(location = 0) out vec4 outColor;
+// Dual-source blending (BlendMode.Transmittance): the target becomes outColor + target · outTransmittance.
+layout(location = 0, index = 0) out vec4 outColor;
+layout(location = 0, index = 1) out vec4 outTransmittance;
 
 void main()
 {
@@ -37,8 +39,22 @@ void main()
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
+    // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
+    // in full. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales.
+    float opacity = clamp(s.baseColor.a, 0.0, 1.0);
+    SurfaceLobes lobes = lobesOf(shading, V);
+    lobes.diffuseColor *= opacity;
+    // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E · c), per channel.
+    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
+    // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that it plus a target of at most
+    // MaxRadiance times T stays a finite half float: past it, a device may store infinity, which the tone curve turns
+    // into NaN.
     float exposure = exposureScale();
-    vec3 radiance = surfaceRadiance(shading, s.emissive * exposure, inPosition, V, true, exposure);
-    outColor = vec4(radiance, clamp(s.baseColor.a, 0.0, 1.0));
+    vec3 radiance = min(lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, true, exposure),
+        MaxRadiance * (1.0 - transmittance));
+    // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
+    // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha
+    // matters.
+    outColor = vec4(radiance, 0.0);
+    outTransmittance = vec4(transmittance, 0.0);
 }
