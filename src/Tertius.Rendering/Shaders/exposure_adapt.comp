@@ -2,8 +2,8 @@
 #extension GL_GOOGLE_include_directive : require
 #include "meter.glsl"
 
-// The exposure's adapt step (docs/plans/auto-exposure.md, "The math"): the trimmed mean of the histogram, the target,
-// and the approach of the exposure toward it. Dispatched as one workgroup.
+// The exposure's adapt step (docs/plans/auto-exposure.md, "The math"): the trimmed mean and the bright edge of the
+// histogram, the target, and the approach of the exposure toward it. Dispatched as one workgroup.
 
 layout(local_size_x = 256) in;
 
@@ -24,6 +24,7 @@ layout(push_constant, std430) uniform AdaptPush
 shared uint cumulative[HistogramBins];
 shared float weighted[HistogramBins];
 shared float weights[HistogramBins];
+shared float brightEdge;   // written by the one bin that holds the bright edge, read only when the histogram has a count
 
 void main()
 {
@@ -43,9 +44,13 @@ void main()
     float low = adapt.darkShare * total;
     float high = (1.0 - adapt.brightShare) * total;
     float end = float(cumulative[i]);
-    float inside = max(min(end, high) - max(end - float(count), low), 0.0);
+    float start = end - float(count);
+    float inside = max(min(end, high) - max(start, low), 0.0);
     weighted[i] = inside * binCenterStops(i);
     weights[i] = inside;
+    // high lies above 0 and at most total, so exactly one bin with a count holds it.
+    if (start < high && high <= end)
+        brightEdge = LowestStops + (float(i) + (high - start) / float(count)) / BinsPerStop;
     barrier();
     // A fixed tree, so the sums round the same way on every run.
     for (uint stride = HistogramBins / 2u; stride > 0u; stride >>= 1u)
@@ -64,7 +69,10 @@ void main()
         if (total > 0.0)
         {
             float mean = weighted[0] / weights[0];
-            target = clamp(log2(MiddleGray) - (mean - used) + adapt.compensationStops, adapt.minStops, adapt.maxStops);
+            float averageTarget = log2(MiddleGray) - (mean - used);
+            float highlightTarget = -(brightEdge - used);
+            float compensated = min(averageTarget, highlightTarget) + adapt.compensationStops;
+            target = clamp(compensated, adapt.minStops, adapt.maxStops);
         }
         float factor = target > used ? adapt.intoDarkFactor : adapt.intoLightFactor;
         exposureStops = used + (target - used) * factor;

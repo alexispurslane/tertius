@@ -1349,21 +1349,27 @@ A luminance at or below 2^−16, black included, falls in the first bin. So a fu
 
 The trim. With N the number of surface pixels, the adapt step keeps the pixels from `DarkShare` · N to (1 − `BrightShare`) · N of the sorted order. A bin that straddles an edge counts only its share inside. The trimmed mean M is the mean of the bin centers, in stops, weighted by those shares. So a lamp or a glint alone does not set the exposure.
 
-The target. The frame was shaded with S, so its pre-exposed log luminance is the radiance's plus S. The adapt step divides S out, then maps the mean to middle gray, 0.18, with the compensation C, inside the clamp:
+The bright edge. E is the pre-exposed luminance, in stops, at the upper end of the trim: the (1 − `BrightShare`) · N quantile. The one bin whose cumulative counts run from `start` < (1 − `BrightShare`) · N to `end` ≥ it holds the edge, and E lies inside that bin by the share of the bin's count below the edge. That is the trim's own rule for a bin that straddles an edge, so E moves smoothly through a bin as M does, and does not jump by an eighth of a stop at a bin's boundary.
+
+The target, with highlight priority (User, 2026-10-25). The frame was shaded with S, so its pre-exposed log luminance is the radiance's plus S. The adapt step divides S out and takes the lower of two exposures: the average target, which maps the mean to middle gray, 0.18, and the highlight target, which maps the bright edge to 1.0 before the tone curve. Then it adds the compensation C and clamps:
 
 ```glsl
-target = clamp(log2(MiddleGray) - (mean - used) + adapt.compensationStops, adapt.minStops, adapt.maxStops);
+float averageTarget = log2(MiddleGray) - (mean - used);
+float highlightTarget = -(brightEdge - used);
+float compensated = min(averageTarget, highlightTarget) + adapt.compensationStops;
+target = clamp(compensated, adapt.minStops, adapt.maxStops);
 ```
 
 where
 
 - `mean` = M, the trimmed mean in stops of pre-exposed luminance.
+- `brightEdge` = E, the bright edge in stops of pre-exposed luminance.
 - `used` = S, the `exposureStops` that the frame used. It is read before it is written, and nothing writes the buffer between the frame's start and the adapt step.
 - `MiddleGray` = 0.18.
 - `adapt.compensationStops` = C, the `CompensationStops` of the setting.
 - `adapt.minStops`, `adapt.maxStops` = the clamp of the setting.
 
-At a steady view, M − S is the same for every S, so the target does not depend on the exposure that the frame used. That is why the meter can read pre-exposed values. The compensation applies before the clamp, so S never leaves the clamp, and the lights plan's `E_cut` can take the highest exposure that any frame can use. When no pixel counts, the target is S, so a view with no surface keeps its exposure.
+The highlight target is the lower one when the bright edge lies more than −log2(0.18), about 2.47 stops, above the mean. Then a bright area that covers `BrightShare` or more of the surface pixels sits at the start of the tone curve's shoulder and keeps its detail, and the dark part of the view falls into deep shadow, as the eye sees it. Over Earth's night side, the sunlit hull no longer clips to white. A view with no large bright area keeps the average target. At a steady view, M − S and E − S are the same for every S, so the target does not depend on the exposure that the frame used. That is why the meter can read pre-exposed values. The compensation applies after the lower of the two is taken and before the clamp, so S never leaves the clamp, and the lights plan's `E_cut` can take the highest exposure that any frame can use. When no pixel counts, the target is S, so a view with no surface keeps its exposure.
 
 The approach. With Δt the step in seconds (see "The clock"), and τ the time constant of the direction:
 
