@@ -8,6 +8,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 
 | Design doc | Epic ticket |
 |---|---|
+| [Ambient occlusion](ambient-occlusion.md) | `ter-b3h5` |
 | [Anti-aliasing](anti-aliasing.md) | `ter-gcm3` |
 | [Asset pipeline](asset-pipeline.md) | `ter-kge6` |
 | [Automatic exposure](auto-exposure.md) | `ter-zzyr` |

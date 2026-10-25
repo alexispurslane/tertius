@@ -829,19 +829,20 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
-1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading") and seeds the exposure buffer with the setting's first exposure (see "Exposure").
+1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading") and seeds the exposure buffer with the setting's first exposure (see "Exposure"). The first frame after a creation of the render targets also clears the occlusion target to 1 (see "Ambient occlusion").
 2. The exposure readback: a copy of the exposure buffer into the frame slot's readback buffer, before any pass reads the exposure. So the reading is the exposure that the passes of this frame use.
 3. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
 4. The shadow maps of the sun.
 5. Impostor captures.
 6. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
-7. The lighting pass, into the HDR target.
-8. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
-9. The exposure pass, under `AutoExposure`: the meter of the HDR image and the adapt step, which writes the exposure of the next frame (see "Exposure"). `FixedExposure` adds no exposure pass.
-10. Bloom, when `RendererOptions.Bloom` is on: the glow of the light brighter than white, in the bloom levels (see "Bloom" below). It comes after the last pass that writes the HDR image, so that every bright thing glows, the transparent ones and the puffs too. It comes after the exposure pass because both only read the HDR image, and this order changes the image's use once, from the meter's compute read to the fragment reads of the bloom and the tone map.
-11. Tone mapping: the glow added by its strength, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding. The shading passes pre-expose the light that they write, so the tone map multiplies by no exposure.
-12. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
-13. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
+7. The occlusion passes, under `GroundTruthOcclusion`: occlusion depth, occlusion horizons, occlusion denoise (two dispatches) and occlusion upsample. They read the distance and normals targets that step 6 finished, and write the occlusion target (see "Ambient occlusion").
+8. The lighting pass, into the HDR target. It reads the occlusion target.
+9. The transparent forward pass: the transparent instances, alpha-blended, and the puffs, added, in one order from back to front.
+10. The exposure pass, under `AutoExposure`: the meter of the HDR image and the adapt step, which writes the exposure of the next frame (see "Exposure"). `FixedExposure` adds no exposure pass.
+11. Bloom, when `RendererOptions.Bloom` is on: the glow of the light brighter than white, in the bloom levels (see "Bloom" below). It comes after the last pass that writes the HDR image, so that every bright thing glows, the transparent ones and the puffs too. It comes after the exposure pass because both only read the HDR image, and this order changes the image's use once, from the meter's compute read to the fragment reads of the bloom and the tone map.
+12. Tone mapping: the glow added by its strength, then the tone curve of `RendererOptions.ToneCurve` (see "Tone mapping" below), then the sRGB encoding. The shading passes pre-expose the light that they write, so the tone map multiplies by no exposure.
+13. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
+14. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
 
 One call of `Render` normally draws one frame. A headless renderer under `AutoExposure` draws two when the step since the frame before is long enough to need a metering draw first (see "Exposure"). The metering draw takes no capture, and the shown draw takes it.
 
@@ -1164,7 +1165,7 @@ The hemisphere ambient light has a specular part:
 
 ambient = c_diff · mix(ground, sky, s_n) + E(μ, r) · c(μ, r) · mix(ground, sky, s_l)
 
-where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum. (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
+where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum, in two steps: an ambient source returns the two terms as `AmbientTerms` (`hemisphereAmbient` today), and `occludedAmbient` scales the diffuse term by the occlusion V and the specular term by the specular occlusion V_s (see "Ambient occlusion"). (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
 
 `surfaceRadiance` in `lighting.glsl` returns pre-exposed light: min(k · (ambient + sun + lights) + emission, 65,504) per channel, where k is the scale of the frame's exposure (see "Exposure"). The emission term is already pre-exposed by the caller. The lighting pass, the transparent pass and the impostor capture write its result, and the impostor capture passes a k of 1, so the atlas stores radiance (see "Exposure"). 65,504 is the largest finite half float, and `MaxRadiance` in `exposure.glsl` holds it. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
 
@@ -1177,6 +1178,8 @@ The G-buffer has these targets:
 | Specular | RGBA8 UNORM | R metallic, G roughness r₀, B reflectance, A the lobe's sky share s_l. An impostor billboard writes zero. |
 | Emissive | RGBA16F | Pre-exposed emitted light: the emission times the frame's exposure scale, clamped to 65,504. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked radiance here, pre-exposed by the billboard. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
+
+The G-buffer set has a binding 7 beside these five targets: the occlusion target, R8, the share V of the ambient hemisphere that nothing hides. The occlusion passes write it (cleared to 1 under `NoAmbientOcclusion`), and the lighting pass reads it.
 
 The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, binding 10 an immutable sampler with linear filtering, clamping and one level, and binding 11 the exposure buffer (see "Exposure"). The `params.x` of the frame constants once held a copy of the exposure that no shader read. It is unused now, because a second store can disagree with the first.
 
@@ -1260,6 +1263,76 @@ Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load o
 | 4,096 | 2.16 ms | 2.30 ms |
 
 With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
+
+### Ambient occlusion
+
+Ambient occlusion darkens the ambient light where nearby geometry hides the sky. The design is `docs/plans/ambient-occlusion.md` (ticket `ter-b3h5`), which holds the reasons and the formulas. The user chose the method on 2026-10-25: ground-truth ambient occlusion, GTAO (Jimenez and others 2016), in Intel's XeGTAO port to GLSL, at half resolution, in compute passes. (User)
+
+**The model.** The occlusion V of a surface point is the share of the cosine-weighted hemisphere above it, around its shading normal, that no geometry within the radius R hides: V = (1/π) ∫ v(ω) (n·ω)⁺ dω. 1 means that nothing hides the hemisphere. Only geometry that the screen shows counts. The occlusion scales only the ambient light: the ambient diffuse term by V, and the ambient specular term by the specular occlusion V_s, Lagarde and de Rousiers's fit, V_s = clamp((μ + V)^(2^(−16α − 1)) − 1 + V, 0, 1), with μ the view cosine and α the floored roughness squared. The sun, the point and spot lights and emission do not change. There is no multi-bounce brightening. (User)
+
+**The setting.** `RendererOptions.AmbientOcclusion` is an `AmbientOcclusionSetting`, a generated union of `NoAmbientOcclusion` and `GroundTruthOcclusion(RadiusMeters, Slices, StepsPerSide)`. Its zero case is `NoAmbientOcclusion`, today's look. The default in `RendererOptions` is `GroundTruthOcclusion.Default`: a radius of 1 m, 3 slices and 3 steps on each side (XeGTAO's default quality). The radius default stays until the user picks one from captures. `VulkanRenderer.CheckOptions` refuses a radius that is not above 0 or is above 10⁶ m, and slices or steps outside 1 to 16, with `ArgumentOutOfRangeException`. The setting is fixed for the renderer's life. The test helpers set `NoAmbientOcclusion`, as they set `FixedExposure(0)`.
+
+**The passes.** Four compute passes, in the stage `FrameGraph.Stage.AmbientOcclusion` between the G-buffer pass and the lighting pass. Each is a `RenderPass`, so the GPU timings report each one. Every shader has a local size of 8 × 8. The inputs are the distance target and the G-buffer normals, so one set of passes serves all three depth ranges.
+
+```mermaid
+flowchart TD
+    GB["G-buffer pass: distance target and normals, full resolution"] --> D["occlusion depth: view depth image, half resolution"]
+    D --> H["occlusion horizons: edges image and occlusion term A"]
+    GB --> H
+    H --> N1["occlusion denoise, first dispatch: term A to term B"]
+    N1 --> N2["occlusion denoise, last dispatch: term B to term A"]
+    N2 --> U["occlusion upsample: term A to the occlusion target, full resolution"]
+    D --> U
+    GB --> U
+    U --> L["lighting pass: occludedAmbient"]
+```
+
+1. Occlusion depth (`occlusion_depth.comp`). A half-resolution texel (i, j) stands for the 2 × 2 block of pixels from (2i, 2j) to (2i + 1, 2j + 1), and its representative pixel is (2i, 2j), so its depth and its normal describe one surface point. The pass writes the view depth z = d / |r|, where d is the distance of the representative pixel and r its view ray in XeGTAO's view space (x right, y up, z forward). Sky gets `SkyDepth`, 10¹⁸ m, beyond every radius and finite in three squared 32-bit coordinates.
+2. Occlusion horizons (`occlusion_horizons.comp`, `gtao.glsl`). XeGTAO's main pass at its physical constants, with exact `acos` and `sqrt`. For each texel it writes the packed depth edges and the estimate. The slice directions come from XeGTAO's Hilbert-curve index driving the R2 sequence, at temporal index 0, computed in the shader. A slice takes `StepsPerSide` steps on each side, each reading the exact depth of the texel it lands on. A step outside the screen, or farther than R from the center, hides nothing. The integral uses the shading normal. Each slice adds the cosine-weighted arc between its two horizons, weighted by the length of the projected normal. The pass fades the estimate to 1 as the radius spans from two to one half-resolution texels: with R = 1 m at 1080p and a vertical field of view of 60°, the fade starts at 234 m and ends at 468 m. Beyond 468 m the pass writes 1 and takes no slices.
+3. Occlusion denoise (`occlusion_denoise.comp`). XeGTAO's 3 × 3 edge-aware blur, run twice, from term A to term B and back. Fixed spatial noise and this blur are the whole filter: nothing accumulates over frames. (User) XeGTAO's default of one pass assumes temporal accumulation, which this design does not have.
+4. Occlusion upsample (`occlusion_upsample.comp`). A joint bilateral upsample of term A to full resolution. The weight of each of the up to four texels is the bilinear weight times max(0, 1 − h / p), where h is the distance of the texel's position from the pixel's tangent plane (by the geometric normal) and p the width of one half-resolution texel at the pixel's depth. If every weight is 0, the texel nearest the plane gives the value. The result is clamped to [0, 1]. The half-resolution terms stay unclamped, because one slice of an open tilted surface can exceed 1 and the mean comes back to 1.
+
+The heuristics of XeGTAO all stay at the physical constants (design doc, "XeGTAO's heuristics"): a radius factor of 1, a hard edge at R, even steps, no final power, no thin-occluder compensation, no depth chain, no floor. The user chose GTAO so that creases darken by the physical amount. The 1 m radius and the constants wait for the user's look at captures.
+
+**The images.** `OcclusionImages` owns four half-resolution storage images in the `General` layout, ⌈W / 2⌉ × ⌈H / 2⌉: the view depth image (R32F, because the middle and far ranges hold depths beyond the largest half float), the edges image (R8), and occlusion terms A and B (R16F). `RenderTargets` owns the occlusion target, R8 at full size. Under `GroundTruthOcclusion` they take 6.74 MB at 1920 × 1080, and under `NoAmbientOcclusion` only the target, 2.07 MB. The device must support storage images of these formats (`shaderStorageImageExtendedFormats`); the renderer throws `NotSupportedException` naming the format otherwise. All four pipelines share `DescriptorLayouts.OcclusionLayout`: set 0 holds the distance and normals targets and the four storage images, set 1 the source and destination terms of one denoise dispatch, and the push constants (`OcclusionPushConstants`, 64 bytes) carry the camera and the setting, because a compute pipeline cannot bind the frame set. The G-buffer set gains binding 7, the occlusion target, for the lighting pass.
+
+**The barriers.** Every use goes through `BarrierBatch`. `ImageUse.StorageCompute` (General, compute stage, storage read and write) puts a barrier between any two storage uses, which each pass needs. A pass that overwrites an image declares the use with `discard`. The denoise pass flushes between its two dispatches, because the last dispatch writes term A only after the first has read it.
+
+**The lighting pass.** `lighting.frag` reads V with `texelFetch` from the occlusion target and passes it in `ShadingInput.occlusion`. `lighting.glsl` splits the ambient light into an ambient source that returns the two terms (`AmbientTerms`, from `hemisphereAmbient` today) and `occludedAmbient`, the one function that applies V and V_s to them. It reads nothing about the source, so the environment map of `ter-nl5u` changes only the source that `ambientLight` calls. The transparent pass and the impostor capture pass V = 1: transparent objects are not in the G-buffer, and a capture has no screen around it.
+
+**The occlusion target in both cases.** The target exists under `NoAmbientOcclusion` too. The first frame after each creation clears it to 1 (`RenderTargets.RecordOcclusionClear`, before the frame graph), and under `GroundTruthOcclusion` the upsample writes it in every frame, so the lighting shader has one path. Under `NoAmbientOcclusion` the renderer makes no `OcclusionImages` and no occlusion pass, and the lighting pass multiplies by exactly 1. The analogue is the exposure buffer under `FixedExposure`. A resize (`VulkanRenderer.ResizeTargets`) recreates the target and the four images and rewrites their sets.
+
+**The flow of each kind of pixel.**
+
+| Kind | Occlusion estimate | What the lighting pass does |
+|---|---|---|
+| Opaque mesh within the fade, about 234 m at 1080p | Computed from its representative pixel | Scales the ambient diffuse term by V and the ambient specular term by V_s |
+| Opaque mesh beyond about 468 m, middle and far ranges | The fade writes 1 | Scales by 1 |
+| Emissive surface | As an opaque mesh | Emission is not ambient light and keeps its value |
+| Impostor billboard | Estimated from its distance, which has the object's shape, so it darkens the ground around it | Passes the captured light, which holds no occlusion (open fork 3) |
+| Sky | `SkyDepth` hides nothing; the pass writes 1 | Draws the star field and reads no occlusion |
+| Transparent object, puff | None | The transparent pass uses V = 1 |
+
+**Determinism.** Each value describes the frame that the G-buffer pass of this frame finished. The noise is a fixed function of the texel's coordinates, no pass uses atomics, and every sum runs in a fixed order. So a still scene gives the same image in every frame, and one GPU gives the same bits on every run.
+
+**Cost.** At 1920 × 1080 on the development Mac (Apple M1 Max), Release, over the 3,877 frames of `scripts/demo-exit.json`, one run at a time, each run started with the machine's one-minute load below 8 (2026-10-25, ticket `ter-b3h5`). The four occlusion passes appear only in the branch. Mean time per pass in ms, run 1 / run 2 of each setting, with the load before each run:
+
+| Pass | 0.5 m | 1 m (default) | 2 m |
+|---|---|---|---|
+| Occlusion depth | 0.171 / 0.129 | 0.137 / 0.129 | 0.139 / 0.129 |
+| Occlusion horizons | 0.601 / 0.659 | 0.695 / 0.698 | 0.701 / 0.707 |
+| Occlusion denoise | 0.157 / 0.161 | 0.154 / 0.154 | 0.156 / 0.157 |
+| Occlusion upsample | 0.752 / 0.783 | 0.780 / 0.803 | 0.768 / 0.777 |
+| The four together | 1.681 / 1.732 | 1.766 / 1.784 | 1.764 / 1.770 |
+| Load before the run | 5.69 / 5.89 | 5.07 / 4.42 | 5.13 / 7.30 |
+
+Two more runs with the default setting gave 1.793 and 1.636 ms together (load 3.65 and 3.92). So the occlusion passes cost about 1.7 ms per frame at 1080p, 1.6 to 1.8 ms between runs. The medians are 0.12 ms (depth), 0.61 to 0.70 ms (horizons), 0.15 to 0.17 ms (denoise) and 0.64 to 0.69 ms (upsample). The 95th percentiles are 0.29 to 0.49 ms (depth), 0.82 to 0.91 ms (horizons), 0.19 ms (denoise) and 1.0 to 2.2 ms (upsample) (the upsample's worst frames take about three times its median). The radius moves the cost little in this script: the horizons pass at 0.5 m is about 0.05 ms cheaper than at 1 m and 2 m, and the other passes do not depend on it. The measurement does not show why. The four passes together take more than 1 ms, so option B of open fork 2 (XeGTAO's depth chain) is the next measurement, and the report to the user says so.
+
+The lighting pass takes 1.64 to 1.67 ms with occlusion on, and 1.62 and 1.86 ms with `NoAmbientOcclusion`. The two runs of the base before the ticket gave 1.67 and 1.54 ms. So its extra R8 read and `pow` per lit pixel stay within the spread between runs of one build. The G-buffer pass varied from 0.54 to 1.02 ms between runs of the same build, so only its large spread is a result: this script's GPU times are noisy while other work shares the machine. Memory: 6.74 MB under `GroundTruthOcclusion` and 2.07 MB under `NoAmbientOcclusion`.
+
+The tests: `tests/Tertius.Rendering.Tests` holds CPU tests of the C# copy of the math (`Shading/HorizonSlice`, `HorizonSearch`, `OcclusionNoise`, `OcclusionUpsample`, `AmbientTerms`) and GPU pixel tests of the acceptance criteria: an inner corner darker than an open floor, an open floor unchanged, and no dark halo beside a near silhouette. No reference images exist (`ter-rtxu`).
+
+The code of the port carries XeGTAO's MIT notice (`Shaders/gtao.glsl`), and the game carries `THIRD-PARTY-NOTICES.md` (see `src/Tertius.Rendering/ThirdParty/XeGTAO/README.md`).
 
 ### Exposure
 
@@ -1499,7 +1572,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 - If error × h is more than 2, about one pixel, the capture is stale. For the view direction, that is a change of more than 2 / h radians.
 - Each rendered frame makes the 4 captures of highest priority. They come from two binary heaps, one of recaptures and one of first captures, merged by priority. A recapture of an impostor that the last rendered frame drew has the priority error × h. That impostor draws its stale capture until the recapture. Any other capture has the priority π × h, the error of the worst view. Its object draws as geometry until the capture.
 - A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
-- A capture bakes the sun, the ambient light with its specular part, far shadows and point and spot lights, but not shadow-map shadows.
+- A capture bakes the sun, the ambient light with its specular part, far shadows and point and spot lights, but not shadow-map shadows and not ambient occlusion: the capture passes V = 1, because it has no screen around it. So an object loses its own crease darkening when it becomes an impostor. The billboard's distance still hides the ground around it in the occlusion passes (see "Ambient occlusion"). A later ticket may bake occlusion into the capture (open fork 3 of `docs/plans/ambient-occlusion.md`).
 - The atlas stores radiance, clamped to 65,504, not pre-exposed light: a capture passes a scale of 1 to `surfaceRadiance`. The billboard (`impostor.frag`) pre-exposes the atlas's color with the exposure of the frame that draws it, when it writes the emissive target. So a capture follows the exposure with no recapture, and the impostor's signature of the light holds no exposure (see "Exposure").
 - A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
 - The renderer keys impostor state on the entity index, the render part, the mesh and the resolved material slot (`ImpostorKey`). So a part that changes its mesh or its material gets a new key, and it never draws an old capture.
@@ -1519,6 +1592,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
 | `Exposure` | `AutoExposure.Default` | How the renderer chooses the exposure: `AutoExposure(...)` follows the surfaces in view over time, and `FixedExposure(Stops)` never moves (see "Exposure"). It is fixed for the renderer's life, so the lights plan's one constant `E_cut` stays one constant. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `FixedExposure(0)`, as they turn impostors off, so that a pixel does not depend on the frames before it. A deterministic switch that overrode the setting would be a second store of it. |
 | `ToneCurve` | `AcesFitted` | The curve of the tone map pass: ACES fitted or Hable's (see "Tone mapping"). |
+| `AmbientOcclusion` | `GroundTruthOcclusion.Default` | The ambient occlusion of the ambient light: `GroundTruthOcclusion(RadiusMeters, Slices, StepsPerSide)`, by default 1 m, 3 and 3, or `NoAmbientOcclusion` (see "Ambient occlusion"). The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoAmbientOcclusion`. It costs about 1.7 ms per frame at 1080p and 6.74 MB. |
 | `Bloom` | On | The glow around light brighter than white after the exposure: `Bloom(Threshold, Knee, Strength, Levels)`, by default a threshold of 1, a knee of 0.5, a strength of 0.25 and 6 levels, or `NoBloom` (see "Bloom"). It costs about 0.7 ms per frame at 1080p and 5.5 MB. |
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
@@ -1568,7 +1642,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 
 | Run | Command line | What it does |
 |---|---|---|
-| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--bloom on\|off]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
+| Headless script | `--script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces\|hable] [--ambient-occlusion off\|<meters>] [--bloom on\|off]` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture or film step. So a script with dumps only runs on a machine with no GPU. With `--video`, every capture becomes the next frame of one video, at `--fps` frames per second (1 to 240, 30 without the option). The dumps still go into the output folder. |
 | Script in the window | `--script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]` | The same script in a window. The simulation thread paces the ticks by the wall clock, times the speed factor. |
 | Free play | `--scene <name> [--speed <factor>] [--record <file>]` | The scene in a window, until the window closes. With `--record`, the host writes the session to the file as a script that replays it. |
 
@@ -1580,6 +1654,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A `capture` step renders the current state at the size of the window of the script, and gives the image to the run's capture target by the name of the step.
 - `--size <width>x<height>`, such as `--size 1920x1080`, replaces the size of the script's window in either run of a script, so any script can render at the size of a measurement. Each side is a whole number from 1 to 16,384. The command refuses `--size` in free play.
 - `--tone-curve aces|hable` sets `RendererOptions.ToneCurve` of the headless renderer, so a headless run can capture either curve. Without it the renderer keeps its default. The command refuses it without `--headless`.
+- `--ambient-occlusion off|<meters>` sets `RendererOptions.AmbientOcclusion` of the headless renderer: `off` gives `NoAmbientOcclusion`, and a number above 0 gives `GroundTruthOcclusion.Default with { RadiusMeters = number }`. Without it the renderer keeps its default. The command refuses it without `--headless`. A headless run also turns impostors off (`Impostors = false`), so a scripted run shows no impostors.
 - `--bloom off` sets `RendererOptions.Bloom` of the headless renderer to `NoBloom`, so a headless run can capture a frame without the glow. `--bloom on`, like no option, keeps the renderer's default bloom. The command refuses it without `--headless`.
 - A headless run whose renderer times its passes (see "GPU timings") collects `RenderStats.GpuTimings` after each capture, once per finished frame, and writes `gpu-timings.json` into the output folder after its last step (`ScriptCommand.WriteGpuTimings`). The file names the device and the size of the frames, and gives for each pass the frames that timed it and the mean, median and 95th percentile (by nearest rank) of its times in milliseconds. The command then writes the file's path and one line for each pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`. A headless run never turns on the validation layers, so its times are those of the renderer alone. A headless renderer made with the default options runs `AutoExposure`, so the file also holds the pass "exposure", and a still after a long step draws twice (see "Exposure").
 - A run has one capture target for its whole life. `CaptureTarget` is a built-in C# 15 union with two cases, built as `ScriptStep` is, and the headless playback refuses its default value. `PngFolder` writes the capture named `name` into `<folder>/<name>.png` (`PngFolder.PathOf`). `VideoFile` makes each capture the next frame of one video, in the order taken, and drops the names. The playback holds the target, and the runner gives it only the name of each capture (`IPlayback.Capture(world, name)`). So the runner builds no paths, and `RunResult.Captures` lists the names, in the order taken. A capture needs a live camera and a playback before the first tick. It needs no check for its folder, because a `PngFolder` cannot exist without one. The command writes the path of each dump, then the path of each PNG file, or the path of the video.
