@@ -349,6 +349,10 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "drawIndirectFirstInstance";
         if (!f.DepthClamp)
             return "depthClamp";
+        if (!f.DualSrcBlend)
+            return "dualSrcBlend";
+        if (!f.ShaderStorageImageExtendedFormats)
+            return "shaderStorageImageExtendedFormats";
         if (!f12.RuntimeDescriptorArray)
             return "runtimeDescriptorArray";
         if (!f12.DescriptorBindingPartiallyBound)
@@ -368,6 +372,44 @@ internal sealed unsafe class VulkanDevice : IDisposable
         return null;
     }
 
+    /// <summary>The Vulkan 1.3 features that the renderer enables, with no next structure.</summary>
+    private static PhysicalDeviceVulkan13Features EnabledVulkan13Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan13Features,
+            DynamicRendering = true,
+            Synchronization2 = true,
+            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
+            ShaderDemoteToHelperInvocation = true,
+        };
+
+    /// <summary>The Vulkan 1.2 features that the renderer enables, for the bindless textures, with no next structure.</summary>
+    private static PhysicalDeviceVulkan12Features EnabledVulkan12Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan12Features,
+            DescriptorIndexing = true,
+            RuntimeDescriptorArray = true,
+            DescriptorBindingPartiallyBound = true,
+            DescriptorBindingVariableDescriptorCount = true,
+            DescriptorBindingSampledImageUpdateAfterBind = true,
+            ShaderSampledImageArrayNonUniformIndexing = true,
+        };
+
+    /// <summary>The Vulkan 1.0 features that the renderer enables.</summary>
+    private static PhysicalDeviceFeatures EnabledCoreFeatures() =>
+        new()
+        {
+            MultiDrawIndirect = true,
+            DrawIndirectFirstInstance = true,
+            DepthClamp = true,
+            // The transparent pass blends with a second output: what a pane lets through.
+            DualSrcBlend = true,
+            SamplerAnisotropy = true,
+            // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
+            ShaderStorageImageExtendedFormats = true,
+        };
+
     private static Device CreateLogicalDevice(
         Vk vk,
         PhysicalDevice physicalDevice,
@@ -381,57 +423,60 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (swapchain)
             extensions.Add(KhrSwapchain.ExtensionName);
 
-        var f13 = new PhysicalDeviceVulkan13Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan13Features,
-            DynamicRendering = true,
-            Synchronization2 = true,
-            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
-            ShaderDemoteToHelperInvocation = true,
-        };
-        var f12 = new PhysicalDeviceVulkan12Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan12Features,
-            PNext = &f13,
-            DescriptorIndexing = true,
-            RuntimeDescriptorArray = true,
-            DescriptorBindingPartiallyBound = true,
-            DescriptorBindingVariableDescriptorCount = true,
-            DescriptorBindingSampledImageUpdateAfterBind = true,
-            ShaderSampledImageArrayNonUniformIndexing = true,
-        };
+        PhysicalDeviceVulkan13Features f13 = EnabledVulkan13Features();
+        PhysicalDeviceVulkan12Features f12 = EnabledVulkan12Features();
+        f12.PNext = &f13;
         var features = new PhysicalDeviceFeatures2
         {
             SType = StructureType.PhysicalDeviceFeatures2,
             PNext = &f12,
-            Features = new()
-            {
-                MultiDrawIndirect = true,
-                DrawIndirectFirstInstance = true,
-                DepthClamp = true,
-                SamplerAnisotropy = true,
-            },
+            Features = EnabledCoreFeatures(),
         };
 
         // MoltenVK is a portability implementation: it must be enabled, and its subset features are enabled as
         // reported so that validation knows exactly what the device can do.
-        var portabilityFeatures = new PhysicalDevicePortabilitySubsetFeaturesKHR
-        {
-            SType = StructureType.PhysicalDevicePortabilitySubsetFeaturesKhr,
-        };
+        PhysicalDevicePortabilitySubsetFeaturesKHR portabilityFeatures;
         if (available.Contains("VK_KHR_portability_subset"))
         {
             extensions.Add("VK_KHR_portability_subset");
-            var query = new PhysicalDeviceFeatures2
-            {
-                SType = StructureType.PhysicalDeviceFeatures2,
-                PNext = &portabilityFeatures,
-            };
-            vk.GetPhysicalDeviceFeatures2(physicalDevice, &query);
-            portabilityFeatures.PNext = null;
+            portabilityFeatures = PortabilitySubset(vk, physicalDevice);
             f13.PNext = &portabilityFeatures;
         }
 
+        return CreateDevice(
+            vk: vk,
+            physicalDevice: physicalDevice,
+            queueFamily: queueFamily,
+            features: &features,
+            extensions: extensions,
+            strings: strings
+        );
+    }
+
+    /// <summary>The portability subset features that the device reports, unlinked from any chain.</summary>
+    private static PhysicalDevicePortabilitySubsetFeaturesKHR PortabilitySubset(Vk vk, PhysicalDevice physicalDevice)
+    {
+        var portability = new PhysicalDevicePortabilitySubsetFeaturesKHR
+        {
+            SType = StructureType.PhysicalDevicePortabilitySubsetFeaturesKhr,
+        };
+        var query = new PhysicalDeviceFeatures2 { SType = StructureType.PhysicalDeviceFeatures2, PNext = &portability };
+        vk.GetPhysicalDeviceFeatures2(physicalDevice, &query);
+        portability.PNext = null;
+        return portability;
+    }
+
+    /// <summary>Creates the logical device with one queue of <paramref name="queueFamily"/>, the feature chain that
+    /// starts at <paramref name="features"/>, and <paramref name="extensions"/>.</summary>
+    private static Device CreateDevice(
+        Vk vk,
+        PhysicalDevice physicalDevice,
+        uint queueFamily,
+        PhysicalDeviceFeatures2* features,
+        List<string> extensions,
+        NativeStrings strings
+    )
+    {
         float priority = 1f;
         var queueInfo = new DeviceQueueCreateInfo
         {
@@ -443,7 +488,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
         var deviceInfo = new DeviceCreateInfo
         {
             SType = StructureType.DeviceCreateInfo,
-            PNext = &features,
+            PNext = features,
             QueueCreateInfoCount = 1,
             PQueueCreateInfos = &queueInfo,
             EnabledExtensionCount = (uint)extensions.Count,

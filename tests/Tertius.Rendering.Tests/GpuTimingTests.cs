@@ -12,9 +12,17 @@ public sealed class GpuTimingTests
         Height = 180;
 
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
-    private static VulkanRenderer TimedRenderer(int framesInFlight = 2)
+    private static VulkanRenderer TimedRenderer(
+        int framesInFlight = 2,
+        AmbientOcclusionSetting ambientOcclusion = default
+    )
     {
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, framesInFlight: framesInFlight);
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            framesInFlight: framesInFlight,
+            ambientOcclusion: ambientOcclusion
+        );
         if (!renderer.TimesPasses)
         {
             Gpu.DisposeAndAssertClean(renderer);
@@ -101,6 +109,60 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
+    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheGBufferPassAndTheLightingPass()
+    {
+        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: GroundTruthOcclusion.Default);
+        try
+        {
+            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+            for (int i = 0; i < 3; i++)
+                renderer.Render(snapshot, 1f);
+
+            string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
+            passes
+                .SkipWhile(pass => pass != "G-buffer")
+                .Take(6)
+                .Should()
+                .Equal(
+                    [
+                        "G-buffer",
+                        "occlusion depth",
+                        "occlusion horizons",
+                        "occlusion denoise",
+                        "occlusion upsample",
+                        "lighting",
+                    ],
+                    "the occlusion passes read the finished G-buffer, and the lighting pass reads their occlusion target"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WithNoAmbientOcclusionTheFrameHasNoOcclusionPass()
+    {
+        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: new NoAmbientOcclusion());
+        try
+        {
+            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+            for (int i = 0; i < 3; i++)
+                renderer.Render(snapshot, 1f);
+
+            renderer
+                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+                .Should()
+                .NotContain(pass => pass.Pass.StartsWith("occlusion"), "the lighting pass reads the cleared target");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ThePassesThatDrawTheReferenceSceneTakeGpuTime()
     {
         VulkanRenderer renderer = TimedRenderer();
@@ -168,6 +230,7 @@ public sealed class GpuTimingTests
                 Impostors = false,
                 // A fixed exposure draws no metering draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
+                AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

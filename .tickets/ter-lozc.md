@@ -1,6 +1,6 @@
 ---
 id: ter-lozc
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T15:27:48Z
@@ -31,3 +31,11 @@ No shader relies on a result that the Vulkan spec leaves undefined. Each fixed s
 **2026-10-25T15:53:10Z**
 
 From the exposure branch (2026-10-25): pre-exposure's clamp, min(radiance * exposureScale(), vec3(MaxRadiance)), turns a NaN light into 65,504 on MoltenVK, so a NaN glow puff shows white where main showed black. GLSL leaves min undefined for a NaN. Surfaces were already clamped this way on main. Include this site.
+
+**2026-10-25T18:24:29Z**
+
+User, 2026-10-25: the puffs' additive sum stays finite by a shared budget (design A). Every writer except the puffs caps at 32,256; each puff caps at 32,256 / N for the N puffs drawn this frame; so every pixel stays at or below 64,512. Design B, a 32-bit float image for puffs, was rejected: 32 MB at 1080p, one more pass, and an optional Vulkan feature.
+
+**2026-10-25T18:45:08Z**
+
+2026-10-25: the settle agent built the shared budget (a2f6bfcb) and found that the 992 of room below 65,504 does not take the rounding of many puff blends on a GPU that rounds to nearest (infinity at 106 puffs fully overlapping at their share, by simulation). The orchestrator settled it by the Linux rule (Metal's rounding toward zero hides it) and the user's preference for strong highlights: the puffs' budget becomes 16,128, half the surfaces' 32,256. A blend that rounds to nearest or toward zero makes S + x at most S + 2x, so every pixel stays at or below 64,512 for any N. Cost: in a frame that draws many puffs, each bright puff dims to half the share of the first shared budget.

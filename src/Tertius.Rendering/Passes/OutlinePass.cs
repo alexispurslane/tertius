@@ -33,7 +33,7 @@ internal static class OutlineColors
 
 /// <summary>
 /// The overlay pass (stage <see cref="FrameGraph.Stage.Overlay"/>): draws the frame outlines of the snapshot over the
-/// tone-mapped image, before the capture readback, so a capture includes them.
+/// output image, before the capture readback, so a capture includes them.
 /// </summary>
 /// <remarks>
 /// <para><see cref="Prepare"/>, on the CPU, turns each <see cref="FrameOutline"/> into one <see cref="GpuOutline"/> (see

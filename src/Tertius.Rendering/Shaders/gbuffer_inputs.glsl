@@ -16,5 +16,6 @@ layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
 layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: one layer per cascade, reversed depth
 layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)
+layout(set = 2, binding = 7) uniform texture2D gbufferOcclusion;       // R8: the occlusion V of each pixel, 1 when off
 
 #endif

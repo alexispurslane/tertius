@@ -10,6 +10,14 @@ public sealed class MaterialSampleTests
     private static readonly double[] ViewCosines = [0.1, 0.3, 0.5, 0.8, 1];
     private static readonly double[] Roughnesses = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
+    /// <summary>The canopy glass of the demo shuttle, without its opacity: a reflectance of 1 gives an F0 of 0.16.</summary>
+    private static readonly MaterialSample Glass = new(
+        BaseColor: new(0.45, 0.65, 1),
+        Metallic: 0,
+        Roughness: 0.18,
+        Reflectance: 1
+    );
+
     private static void ShouldBeNear(Double3 actual, Double3 expected, double tolerance, string because)
     {
         actual.X.Should().BeApproximately(expected.X, tolerance, because);
@@ -344,6 +352,7 @@ public sealed class MaterialSampleTests
                 ground: sky,
                 normalSkyShare: 0.3,
                 lobeSkyShare: 0.8,
+                occlusion: 1,
                 tables: BrdfTables.Shared
             );
             Double3 integrated = HalfVectorQuadrature.ColorIntegral(
@@ -376,6 +385,7 @@ public sealed class MaterialSampleTests
                 ground: Double3.Zero,
                 normalSkyShare: normalSkyShare,
                 lobeSkyShare: lobeSkyShare,
+                occlusion: 1,
                 tables: BrdfTables.Shared
             );
 
@@ -396,5 +406,241 @@ public sealed class MaterialSampleTests
             because: "the two parts add"
         );
         specularOnly.X.Should().BeInRange(0.03, 0.2, "a non-metal's specular albedo is a few percent");
+    }
+
+    [Fact]
+    public void TheHemisphereTermsAreTheDiffuseAndTheSpecularPartsOfTheHemisphereAmbientLight()
+    {
+        MaterialSample[] materials =
+        [
+            new(BaseColor: new(0.7, 0.4, 0.2), Metallic: 0, Roughness: 0.6, Reflectance: 0.5),
+            new(BaseColor: new(0.3, 0.6, 0.8), Metallic: 0, Roughness: 1, Reflectance: 1),
+            new(BaseColor: new(0.9, 0.6, 0.3), Metallic: 1, Roughness: 0.3, Reflectance: 0.5),
+            new(BaseColor: new(0.5, 0.5, 0.5), Metallic: 1, Roughness: 0, Reflectance: 0.5),
+        ];
+        Double3 sky = new(0.6, 0.8, 1.2);
+
+        foreach (MaterialSample material in materials)
+        foreach (double nDotV in ViewCosines)
+        {
+            Double3 toView = HalfVectorQuadrature.View(nDotV);
+            // Under a black ground, a sky share of 0 removes one part of the ambient light and leaves the other.
+            Double3 Ambient(double normalSkyShare, double lobeSkyShare) =>
+                material.ReflectedHemisphere(
+                    normal: Double3.UnitZ,
+                    toView: toView,
+                    sky: sky,
+                    ground: Double3.Zero,
+                    normalSkyShare: normalSkyShare,
+                    lobeSkyShare: lobeSkyShare,
+                    occlusion: 1,
+                    tables: BrdfTables.Shared
+                );
+
+            AmbientTerms terms = material.HemisphereTerms(
+                normal: Double3.UnitZ,
+                toView: toView,
+                sky: sky,
+                ground: Double3.Zero,
+                normalSkyShare: 0.3,
+                lobeSkyShare: 0.8,
+                tables: BrdfTables.Shared
+            );
+
+            string because = $"{material}, n·v = {nDotV}";
+            ShouldBeNear(
+                actual: terms.Diffuse,
+                expected: Ambient(normalSkyShare: 0.3, lobeSkyShare: 0),
+                tolerance: 1e-15,
+                because: because
+            );
+            ShouldBeNear(
+                actual: terms.Specular,
+                expected: Ambient(normalSkyShare: 0, lobeSkyShare: 0.8),
+                tolerance: 1e-15,
+                because: because
+            );
+        }
+    }
+
+    [Fact]
+    public void TheHemisphereAmbientLightIsTheSumOfItsOccludedTerms()
+    {
+        var plastic = new MaterialSample(BaseColor: new(0.7, 0.4, 0.2), Metallic: 0, Roughness: 0.3, Reflectance: 0.5);
+        Double3 toView = HalfVectorQuadrature.View(0.7);
+        Double3 sky = new(0.6, 0.8, 1.2);
+        Double3 ground = new(0.3, 0.2, 0.1);
+        AmbientTerms terms = plastic.HemisphereTerms(
+            normal: Double3.UnitZ,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: 0.4,
+            lobeSkyShare: 0.9,
+            tables: BrdfTables.Shared
+        );
+        AmbientTerms occluded = terms.Occluded(occlusion: 0.35, nDotV: 0.7, lobe: plastic.Lobe);
+
+        Double3 ambient = plastic.ReflectedHemisphere(
+            normal: Double3.UnitZ,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: 0.4,
+            lobeSkyShare: 0.9,
+            occlusion: 0.35,
+            tables: BrdfTables.Shared
+        );
+
+        ShouldBeNear(
+            actual: ambient,
+            expected: occluded.Diffuse + occluded.Specular,
+            tolerance: 1e-15,
+            because: "the hemisphere is one ambient source, and the occlusion applies to its two terms"
+        );
+    }
+
+    private static Double3 GlassAlbedo(double nDotV) =>
+        Glass.CompensatedSpecularAlbedo(
+            normal: Double3.UnitZ,
+            toView: HalfVectorQuadrature.View(nDotV),
+            tables: BrdfTables.Shared
+        );
+
+    [Fact]
+    public void HeadOnGlassReflectsAboutItsF0()
+    {
+        Double3 albedo = GlassAlbedo(1);
+
+        ShouldBeNear(
+            actual: albedo,
+            expected: Glass.F0,
+            tolerance: 0.01,
+            because: "a smooth surface seen head on reflects F0 of a uniform light"
+        );
+    }
+
+    [Fact]
+    public void GlassReflectsSeveralTimesAsMuchAtAGrazingAngleAsHeadOn()
+    {
+        Double3 headOn = GlassAlbedo(1);
+        Double3 grazing = GlassAlbedo(0.1);
+
+        grazing.X.Should().BeGreaterThan(3 * headOn.X, "Fresnel's term rises toward one at grazing angles");
+    }
+
+    [Fact]
+    public void TheSpecularAlbedoIsTheShareOfAUniformWhiteLightThatTheSpecularPartReflects()
+    {
+        // No diffuse color, so the whole BRDF is its specular part.
+        MaterialSample blackGlass = Glass with
+        {
+            BaseColor = Double3.Zero,
+        };
+        var gold = new MaterialSample(BaseColor: new(1, 0.78, 0.34), Metallic: 1, Roughness: 0.3, Reflectance: 0.5);
+
+        foreach (MaterialSample material in new[] { blackGlass, gold })
+        foreach (double nDotV in ViewCosines)
+        {
+            Double3 toView = HalfVectorQuadrature.View(nDotV);
+            Double3 albedo = material.CompensatedSpecularAlbedo(
+                normal: Double3.UnitZ,
+                toView: toView,
+                tables: BrdfTables.Shared
+            );
+            Double3 integrated = HalfVectorQuadrature.ColorIntegral(
+                toView: toView,
+                width: material.Lobe.Alpha,
+                integrand: toLight =>
+                    material.Reflected(
+                        normal: Double3.UnitZ,
+                        toView: toView,
+                        toLight: toLight,
+                        tables: BrdfTables.Shared
+                    )
+            );
+
+            ShouldBeNear(actual: albedo, expected: integrated, tolerance: 0.01, because: $"{material}, n·v = {nDotV}");
+        }
+    }
+
+    [Theory]
+    [InlineData(0.2, 1)]
+    [InlineData(0.2, 0.1)]
+    [InlineData(0, 0.5)]
+    [InlineData(0.7, 0.5)]
+    public void APaneLetsThroughOneMinusItsOpacityOfTheLightThatItsSurfaceDoesNotReflect(double opacity, double nDotV)
+    {
+        Double3 toView = HalfVectorQuadrature.View(nDotV);
+
+        Double3 transmittance = Glass.Transmittance(
+            opacity: opacity,
+            normal: Double3.UnitZ,
+            toView: toView,
+            tables: BrdfTables.Shared
+        );
+
+        ShouldBeNear(
+            actual: transmittance,
+            expected: (1 - opacity) * (White - GlassAlbedo(nDotV)),
+            tolerance: 1e-15,
+            because: "T = (1 − opacity)(1 − E · c) per channel"
+        );
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1.5)]
+    public void AnOpaquePaneLetsNothingThrough(double opacity)
+    {
+        Double3 transmittance = Glass.Transmittance(
+            opacity: opacity,
+            normal: Double3.UnitZ,
+            toView: HalfVectorQuadrature.View(0.5),
+            tables: BrdfTables.Shared
+        );
+
+        transmittance.Should().Be(Double3.Zero, "an opacity of one or more hides what lies behind");
+    }
+
+    [Fact]
+    public void AClearPaneOfANegativeOpacityLetsThroughWhatAClearPaneOfOpacityZeroDoes()
+    {
+        Double3 toView = HalfVectorQuadrature.View(0.5);
+
+        Double3 negative = Glass.Transmittance(
+            opacity: -0.5,
+            normal: Double3.UnitZ,
+            toView: toView,
+            tables: BrdfTables.Shared
+        );
+        Double3 clear = Glass.Transmittance(
+            opacity: 0,
+            normal: Double3.UnitZ,
+            toView: toView,
+            tables: BrdfTables.Shared
+        );
+
+        negative.Should().Be(clear, "the shader clamps the opacity to [0, 1]");
+    }
+
+    [Fact]
+    public void AClearWhiteMetalPaneLetsNothingThroughAtAnyAngle()
+    {
+        var mirror = new MaterialSample(BaseColor: White, Metallic: 1, Roughness: 0.4, Reflectance: 0.5);
+
+        foreach (double nDotV in ViewCosines)
+        {
+            Double3 transmittance = mirror.Transmittance(
+                opacity: 0,
+                normal: Double3.UnitZ,
+                toView: HalfVectorQuadrature.View(nDotV),
+                tables: BrdfTables.Shared
+            );
+
+            transmittance.X.Should().BeInRange(0, 1e-12, "a white metal reflects all the light, n·v = {0}", nDotV);
+            transmittance.Y.Should().BeInRange(0, 1e-12);
+            transmittance.Z.Should().BeInRange(0, 1e-12);
+        }
     }
 }

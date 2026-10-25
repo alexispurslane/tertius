@@ -15,7 +15,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-2t5o` | The Hable tone curve | PBR | Two designs, in the ticket |
 | `ter-63wr` | Bloom | PBR | Two designs, in the ticket |
 | `ter-gcm3` | Anti-aliasing with SMAA 1x | PBR | In the ticket |
-| `ter-b3h5` | Screen-space ambient occlusion | PBR | Two designs, in the ticket |
+| `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
 | `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
 | `ter-jxv9` | Screen-space reflections | PBR | Two designs, in the ticket |
 | `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |

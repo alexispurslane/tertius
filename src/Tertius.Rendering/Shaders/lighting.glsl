@@ -6,7 +6,9 @@
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
 // color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
-// share (hemisphere.glsl). surfaceRadiance pre-exposes the sum and clamps it to the largest finite half float.
+// share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
+// (docs/plans/ambient-occlusion.md, "The lighting pass"). lobesRadiance pre-exposes the sum and clamps it to the
+// largest finite half float.
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -28,6 +30,7 @@ struct ShadingInput
     float reflectance;
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
+    float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
 };
 
 // The values that every light at one pixel shares, computed once per pixel.
@@ -162,15 +165,54 @@ float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
     return attenuation;
 }
 
-// The hemisphere ambient light reflected toward the eye: its diffuse part by the normal's sky share, and its specular
-// part by the lobe's.
-vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
+// The compensated specular albedo E · c: the share of a uniform light that the specular part reflects toward the eye.
+// It weights the ambient specular term, and a pane of glass lets through what it leaves (transparent.frag).
+vec3 compensatedSpecularAlbedo(SurfaceLobes lobes)
+{
+    return lobes.specularAlbedo * lobes.energyCompensation;
+}
+
+// The ambient light that a surface point sends toward the eye, before ambient occlusion, in two terms: the diffuse
+// color times the incoming diffuse light, and the compensated specular albedo times the incoming specular light.
+struct AmbientTerms
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+// The hemisphere as the ambient source: the diffuse term by the normal's sky share, the specular term by the lobe's.
+AmbientTerms hemisphereAmbient(ShadingInput s, SurfaceLobes lobes)
 {
     vec3 ground = frame.ambientGround.rgb;
     vec3 sky = frame.ambientSky.rgb;
-    vec3 diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
-    vec3 specular = lobes.specularAlbedo * lobes.energyCompensation * mix(ground, sky, s.lobeSkyFraction);
-    return diffuse + specular;
+    AmbientTerms terms;
+    terms.diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
+    terms.specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
+    return terms;
+}
+
+// Lagarde and de Rousiers 2014, "Moving Frostbite to Physically Based Rendering 3.0", section 4.10.2,
+// listing 26. The notes call α "roughness".
+float specularOcclusion(float NdotV, float occlusion, float alpha)
+{
+    return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
+}
+
+// The one place where ambient occlusion applies (docs/plans/ambient-occlusion.md): the diffuse term by V, the
+// specular term by V_s. It reads nothing about the source of the terms, and keeps them apart, because SSR replaces
+// the occluded specular term where its ray hits.
+AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
+{
+    AmbientTerms occluded;
+    occluded.diffuse = terms.diffuse * s.occlusion;
+    occluded.specular = terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    return occluded;
+}
+
+vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
+{
+    AmbientTerms occluded = occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
+    return occluded.diffuse + occluded.specular;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.
@@ -203,16 +245,23 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
     return color;
 }
 
-// All light that leaves a surface point toward the eye, pre-exposed and clamped to what the HDR target holds: the
-// reflected light times `exposure`, plus `preExposedEmission`, which the caller has already multiplied. The clamp
-// applies to the whole sum. V points from the surface to the eye. Impostor captures pass shadowMaps false and an
-// exposure of 1, because the atlas stores radiance.
-vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
+// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and clamped to what the HDR
+// target holds: the reflected light times `exposure`, plus `preExposedEmission`, which the caller has already
+// multiplied. The clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts.
+// V points from the surface to the eye. Impostor captures pass shadowMaps false and an exposure of 1, because the atlas
+// stores radiance.
+vec3 lobesRadiance(
+    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
 {
-    SurfaceLobes lobes = lobesOf(s, V);
     vec3 reflected = ambientLight(s, lobes) + sunLight(s, lobes, position, V, shadowMaps)
         + localLights(s, lobes, position, V);
     return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
+}
+
+// lobesRadiance with the lobes of the material itself: every opaque surface.
+vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
+{
+    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, shadowMaps, exposure);
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no

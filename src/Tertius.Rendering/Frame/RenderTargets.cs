@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target and the bloom
-/// levels.
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target, the bloom
+/// levels, the occlusion target and, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -22,7 +22,8 @@ namespace Tertius.Rendering;
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// </list>
-/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER).
+/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The occlusion target is
+/// R8_UNORM: the occlusion V of each pixel, 1 when ambient occlusion is off (docs/plans/ambient-occlusion.md, "Images").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
@@ -34,6 +35,18 @@ internal sealed class RenderTargets : IDisposable
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
+    public const Format OcclusionFormat = Format.R8Unorm;
+
+    /// <summary>The binding of the occlusion target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
+    public const uint OcclusionBinding = 7;
+
+    // The upsample pass writes the target as a storage image, the clear as a transfer, and the lighting pass samples it.
+    // VulkanRenderer.ReadOcclusion copies it out.
+    private const FormatFeatureFlags OcclusionFeatures =
+        FormatFeatureFlags.SampledImageBit
+        | FormatFeatureFlags.StorageImageBit
+        | FormatFeatureFlags.TransferDstBit
+        | FormatFeatureFlags.TransferSrcBit;
 
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
@@ -49,13 +62,18 @@ internal sealed class RenderTargets : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
+    // True from the creation of the occlusion target until the first frame after it records the clear to 1.
+    private bool occlusionNeedsClear;
+
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
+    /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
-        int glowLevels
+        int glowLevels,
+        SmaaTables? smaaTables
     )
     {
         this.device = device;
@@ -70,6 +88,8 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
+        if (smaaTables is not null)
+            Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
     }
 
     public Extent2D Extent { get; private set; }
@@ -80,6 +100,12 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Distance { get; private set; }
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
+
+    /// <summary>The occlusion target: V of each pixel, full size. Cleared to 1 in the first frame after each creation.</summary>
+    public GpuImage Occlusion { get; private set; }
+
+    /// <summary>The images of SMAA, or null when SMAA is off.</summary>
+    public SmaaTargets? Smaa { get; }
 
     /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -109,6 +135,7 @@ internal sealed class RenderTargets : IDisposable
             return;
         DestroyImages();
         Create(extent);
+        Smaa?.Resize(extent);
     }
 
     [MemberNotNull(
@@ -118,7 +145,8 @@ internal sealed class RenderTargets : IDisposable
         nameof(Emissive),
         nameof(Distance),
         nameof(Depth),
-        nameof(Hdr)
+        nameof(Hdr),
+        nameof(Occlusion)
     )]
     private void Create(Extent2D extent)
     {
@@ -138,9 +166,23 @@ internal sealed class RenderTargets : IDisposable
             name: "depth"
         );
         Hdr = ColorTarget(extent: extent, format: HdrFormat, name: "hdr");
+        Occlusion = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: OcclusionFormat,
+            usage: ImageUsageFlags.SampledBit
+                | ImageUsageFlags.StorageBit
+                | ImageUsageFlags.TransferDstBit
+                | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: "occlusion"
+        );
+        occlusionNeedsClear = true;
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+        layouts.WriteImage(set: GBufferSet, binding: OcclusionBinding, arrayElement: 0, image: Occlusion);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
@@ -176,6 +218,32 @@ internal sealed class RenderTargets : IDisposable
             name: name
         );
 
+    /// <summary>Clears the occlusion target to 1 if this is the first frame since its creation, and does nothing otherwise.</summary>
+    public void RecordOcclusionClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
+    {
+        if (!occlusionNeedsClear)
+            return;
+        barriers.Image(Occlusion, ImageUse.TransferDestination, discard: true);
+        barriers.Flush(vk, commandBuffer);
+        var fullVisibility = new ClearColorValue(float32_0: 1, float32_1: 1, float32_2: 1, float32_3: 1);
+        var whole = new ImageSubresourceRange(
+            aspectMask: ImageAspectFlags.ColorBit,
+            baseMipLevel: 0,
+            levelCount: 1,
+            baseArrayLayer: 0,
+            layerCount: 1
+        );
+        vk.CmdClearColorImage(
+            commandBuffer: commandBuffer,
+            image: Occlusion.Handle,
+            imageLayout: ImageLayout.TransferDstOptimal,
+            pColor: in fullVisibility,
+            rangeCount: 1,
+            pRanges: in whole
+        );
+        occlusionNeedsClear = false;
+    }
+
     private static void CheckFormats(VulkanDevice device)
     {
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
@@ -199,6 +267,10 @@ internal sealed class RenderTargets : IDisposable
             == 0
         )
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
+        if ((device.FormatProperties(OcclusionFormat).OptimalTilingFeatures & OcclusionFeatures) != OcclusionFeatures)
+            throw new NotSupportedException(
+                $"{OcclusionFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
+            );
     }
 
     private void DestroyImages()
@@ -207,10 +279,15 @@ internal sealed class RenderTargets : IDisposable
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
+        Occlusion?.Dispose();
         foreach (GpuImage? level in Glow)
             level?.Dispose();
         GBuffer = [];
     }
 
-    public void Dispose() => DestroyImages();
+    public void Dispose()
+    {
+        Smaa?.Dispose();
+        DestroyImages();
+    }
 }

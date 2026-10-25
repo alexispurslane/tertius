@@ -1,0 +1,36 @@
+#version 460
+// The occlusion horizons pass (docs/plans/ambient-occlusion.md, "The occlusion horizons pass"): the edges image, and
+// occlusion term A from the slices and steps of GTAO, faded below one texel. Engine glue after the shape of
+// vaGTAO.hlsl. XeGTAO's copyright and permission notice are in gtao.glsl.
+#extension GL_GOOGLE_include_directive : require
+#include "gtao.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(texel))
+        return;
+    float z = viewDepthAt(texel);
+    // The denoise reads the edges of every texel, sky too, so they come before the early returns.
+    vec4 edges = gtaoEdges(z, viewDepthAt(texel + ivec2(-1, 0)), viewDepthAt(texel + ivec2(1, 0)),
+                           viewDepthAt(texel + ivec2(0, -1)), viewDepthAt(texel + ivec2(0, 1)));
+    imageStore(occlusionEdges, texel, vec4(gtaoPackEdges(edges)));
+    if (z >= SkyDepth)
+    {
+        imageStore(occlusionTermA, texel, vec4(1.0));
+        return;
+    }
+    float radiusInTexels = occlusion.radiusMeters / texelWidth(z);
+    // The fade below one pixel (the user's decision 6): from ρ = 1 to ρ = 2 texels. At 0 the slices hold no information.
+    float fade = clamp(radiusInTexels - 1.0, 0.0, 1.0);
+    if (fade == 0.0)
+    {
+        imageStore(occlusionTermA, texel, vec4(1.0));
+        return;
+    }
+    float estimate = gtaoEstimate(texel, z, radiusInTexels);
+    // Unclamped: one slice of an open tilted surface can exceed 1, and the upsample clamps (decision 31).
+    imageStore(occlusionTermA, texel, vec4(1.0 - fade * (1.0 - estimate)));
+}

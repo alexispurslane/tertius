@@ -57,7 +57,8 @@ internal sealed unsafe class GpuImage : IDisposable
 
     /// <summary>
     /// Creates an image with its own memory. Its view is a 2D array view when it has more than one layer or when
-    /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too.
+    /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too. With
+    /// <paramref name="mutableFormat"/>, <see cref="CreateFormatView"/> can view it in another format of its class.
     /// </summary>
     public static GpuImage Create(
         VulkanDevice device,
@@ -68,30 +69,23 @@ internal sealed unsafe class GpuImage : IDisposable
         uint mipLevels,
         string name,
         uint arrayLayers = 1,
-        bool arrayView = false
+        bool arrayView = false,
+        bool mutableFormat = false
     )
     {
         if (extent.Width == 0 || extent.Height == 0)
             throw new ArgumentOutOfRangeException(nameof(extent), "Images must be at least 1x1.");
         ArgumentOutOfRangeException.ThrowIfZero(arrayLayers);
         ImageAspectFlags aspect = IsDepth(format) ? ImageAspectFlags.DepthBit : ImageAspectFlags.ColorBit;
-        var info = new ImageCreateInfo
-        {
-            SType = StructureType.ImageCreateInfo,
-            ImageType = ImageType.Type2D,
-            Format = format,
-            Extent = new(extent.Width, extent.Height, 1),
-            MipLevels = mipLevels,
-            ArrayLayers = arrayLayers,
-            Samples = SampleCountFlags.Count1Bit,
-            Tiling = ImageTiling.Optimal,
-            Usage = usage,
-            SharingMode = SharingMode.Exclusive,
-            InitialLayout = ImageLayout.Undefined,
-        };
-        device
-            .Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image)
-            .Check("vkCreateImage");
+        Image image = CreateHandle(
+            device: device,
+            extent: extent,
+            format: format,
+            usage: usage,
+            mipLevels: mipLevels,
+            arrayLayers: arrayLayers,
+            mutableFormat: mutableFormat
+        );
         MemoryAllocation memory = default;
         bool allocated = false;
         try
@@ -149,6 +143,38 @@ internal sealed unsafe class GpuImage : IDisposable
         }
     }
 
+    /// <summary>A 2D image with optimal tiling and no memory yet.</summary>
+    private static Image CreateHandle(
+        VulkanDevice device,
+        Extent2D extent,
+        Format format,
+        ImageUsageFlags usage,
+        uint mipLevels,
+        uint arrayLayers,
+        bool mutableFormat
+    )
+    {
+        var info = new ImageCreateInfo
+        {
+            SType = StructureType.ImageCreateInfo,
+            Flags = mutableFormat ? ImageCreateFlags.CreateMutableFormatBit : 0,
+            ImageType = ImageType.Type2D,
+            Format = format,
+            Extent = new(extent.Width, extent.Height, 1),
+            MipLevels = mipLevels,
+            ArrayLayers = arrayLayers,
+            Samples = SampleCountFlags.Count1Bit,
+            Tiling = ImageTiling.Optimal,
+            Usage = usage,
+            SharingMode = SharingMode.Exclusive,
+            InitialLayout = ImageLayout.Undefined,
+        };
+        device
+            .Vk.CreateImage(device: device.Device, pCreateInfo: &info, pAllocator: null, pImage: out Image image)
+            .Check("vkCreateImage");
+        return image;
+    }
+
     /// <summary>Wraps an image owned by someone else, such as a swapchain image. Only the view is destroyed on dispose.</summary>
     public static GpuImage Wrap(VulkanDevice device, Image image, Format format, Extent2D extent, string name)
     {
@@ -199,6 +225,27 @@ internal sealed unsafe class GpuImage : IDisposable
             layers: 1
         );
         device.SetName(ObjectType.ImageView, view.Handle, $"{Name} layer {layer}");
+        return view;
+    }
+
+    /// <summary>
+    /// A 2D view of level 0 and layer 0 in another format of the same class, such as the UNORM twin of an sRGB image.
+    /// The image must have been created with a mutable format. The caller destroys the view before the image.
+    /// </summary>
+    public ImageView CreateFormatView(Format format)
+    {
+        ImageView view = CreateView(
+            device: device,
+            image: Handle,
+            format: format,
+            aspect: Aspect,
+            type: ImageViewType.Type2D,
+            baseMip: 0,
+            mipLevels: 1,
+            baseLayer: 0,
+            layers: 1
+        );
+        device.SetName(ObjectType.ImageView, view.Handle, $"{Name} as {format}");
         return view;
     }
 
