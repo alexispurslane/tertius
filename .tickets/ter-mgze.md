@@ -1,6 +1,6 @@
 ---
 id: ter-mgze
-status: in_progress
+status: closed
 deps: [ter-ptft]
 links: []
 created: 2026-10-25T02:19:43Z
@@ -32,3 +32,7 @@ Built on branch ter-mgze-glass: dual-source glass blend (BlendMode.Transmittance
 **2026-10-25T14:12:49Z**
 
 Decision (2026-10-25): with the highlight at full strength, each cabin lamp shows in the nose pane as a soft bright spot in the window films, as in a train window at night. The user saw that view and kept it: the shuttle's glass keeps its coating (AntiReflective 0.18) and the cabin lamps keep their strength. ShuttleGlareTests now guards only what the user does not want, a lamp's reflection that hides the view: the brightest channel at the lamp's mirror image stays below 224 of 255. The coated glass gives 186 (nose pane) and 200 (port pane); glass at Reflectance 1 (16 % head-on, as the orbit scene's glass) gives 254 in all three cases, a white blob.
+
+**2026-10-25T17:08:19Z**
+
+Merged into main on 2026-10-25, after main was merged into the branch (90cef8e7): output 0 is pre-exposed and capped at 65,504 (1 - T); T never takes the exposure, which a new test pins. Coverage of the changed lines before: 98.2 %.
