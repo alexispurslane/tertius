@@ -50,6 +50,7 @@ public sealed class DemoFrameCostMeasurement
                     Height = script.Window.Height,
                     Impostors = false,
                     Validation = false,
+                    AntiAliasing = AntiAliasing.None,
                 }
             );
             var timed = new TimedRenderer(vulkan);

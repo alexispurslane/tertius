@@ -3,13 +3,16 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace Tertius.Rendering;
 
-/// <summary>Where the tone mapper writes: an offscreen image or a swapchain.</summary>
+/// <summary>
+/// Where the frame ends: an offscreen image or a swapchain, written by the tone map or, with SMAA on, by the SMAA
+/// blending.
+/// </summary>
 internal interface IOutputTarget : IDisposable
 {
     Format Format { get; }
     Extent2D Extent { get; }
 
-    /// <summary>The format is UNORM, so the tone mapper must apply the sRGB curve itself.</summary>
+    /// <summary>The format is UNORM, so the pass that writes the output must apply the sRGB curve itself.</summary>
     bool EncodeSrgbInShader { get; }
 
     /// <summary>Pixels are stored as BGRA, so a capture must swap red and blue.</summary>

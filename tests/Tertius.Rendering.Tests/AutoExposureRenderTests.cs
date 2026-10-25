@@ -111,6 +111,23 @@ public sealed class AutoExposureRenderTests
     }
 
     [Fact]
+    public void ALargeSunlitObjectOverADarkGroundSettlesWithTheObjectNotClipped()
+    {
+        VulkanRenderer renderer = Renderer(AutoExposure.Default);
+        try
+        {
+            // The first frame is a metering draw, so the image already shows the settled exposure.
+            FilmFrame settled = Still(renderer: renderer, snapshot: BrightObjectOverDarkGround(renderer), time: 0);
+
+            settled.Luma.Should().BeLessThan(250f / 255, "the square in the middle of the view keeps its detail");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void InTotalDarknessTheExposureStopsAtTheHighestStops()
     {
         float settled = SettledOnTheGraySquare(

@@ -235,7 +235,7 @@ s_l = lobeSky(d·up, r)                                the lobe-sky table
 
 ### The clamp
 
-`surfaceRadiance` in `lighting.glsl` returns min(ambient + sun + lights + emission, 65,504) per channel. The lighting pass, the transparent pass and the impostor capture write its result. The transparent pass blends the clamped value, and alpha blending of two finite values stays finite.
+`surfaceRadiance` in `lighting.glsl` returns min(ambient + sun + lights + emission, 65,504) per channel. The lighting pass, the transparent pass and the impostor capture write its result. The transparent pass blends the clamped value, and alpha blending of two finite values stays finite. (2026-10-25: the transparent pass now keeps its specular part and emission at full strength and blends dual-source, see ARCHITECTURE.md, "Transparent objects".)
 
 ## The material model
 
@@ -550,7 +550,7 @@ flowchart TD
 |---|---|---|---|---|
 | Opaque geometry | The G-buffer pass | The G-buffer pass, stored | `surfaceRadiance`, shadow maps on, in the lighting pass | The HDR target |
 | Emissive-only lamps and the sun's sphere | As opaque geometry: a black base color and a reflectance of 0 | As opaque geometry | As opaque geometry | The HDR target |
-| Transparent geometry | The transparent pass | The transparent pass | `surfaceRadiance`, shadow maps on, then alpha blending | The HDR target |
+| Transparent geometry | The transparent pass | The transparent pass | `surfaceRadiance`, shadow maps on, then alpha blending (2026-10-25: the transparent pass now keeps its specular part and emission at full strength and blends dual-source, see ARCHITECTURE.md, "Transparent objects".) | The HDR target |
 | Impostor captures | The capture pass | The capture pass | `surfaceRadiance`, shadow maps off | The impostor atlas |
 | Impostor billboards | None: the capture holds the light | None | Nothing: the lighting pass passes the emission through, because the base color alpha is 0 | The G-buffer, then the HDR target |
 | Lit puffs | None: a puff has an albedo and no surface | None | `scatteredLight`, unchanged | The HDR target, added |
@@ -568,7 +568,7 @@ A deferred renderer built from scratch around this BRDF would have the same mate
 | Environment maps or probes, prefiltered along the lobe, and irradiance for the diffuse part | The two colors of the hemisphere ambient light, with the lobe-sky table in place of the prefiltered map | Probes and image-based lighting are out of the epic's scope. The table is the same split sum over the environment that the scenes define. |
 | The fourth channel of the material target holds a material value, such as occlusion or a shading model | It holds s_l, a value of the environment | Only the G-buffer pass knows the instance's up. The normal's share sits in the emissive alpha for the same reason. |
 | Lights with a size: a smooth surface shows the sun's disc and a lamp's bulb, and the radiance stays bounded | Points and a direction, so a very smooth surface shows a pinpoint, and the clamp bounds the stored value | The lights plan gives each light an emitter radius (`ter-bpvl`). A widened lobe for a sized light then fits into `brdf`. The demo's smoothest material has r = 0.18, whose lobe is wider than the sun. |
-| Glass that blends its diffuse part by opacity and keeps its specular part (Filament's transparent mode) | Alpha blending fades the whole color, the specular part too, as today | It is the blend of the transparent pass, not the BRDF. A change brightens both glasses' highlights about fivefold and undoes the canopy's tuning. It belongs to a later decision about glass. |
+| Glass that blends its diffuse part by opacity and keeps its specular part (Filament's transparent mode) | Alpha blending fades the whole color, the specular part too, as today | It is the blend of the transparent pass, not the BRDF. A change brightens both glasses' highlights about fivefold and undoes the canopy's tuning. It belongs to a later decision about glass. (2026-10-25: decided and built, see ARCHITECTURE.md, "Transparent objects".) |
 | A DFG table baked offline as an asset | Computed at start by the C# copy | (User) No asset pipeline exists yet, and the C# copy is the reference that the tests pin. |
 | Specular anti-aliasing on normal maps | None in the renderer | The asset pipeline widens the roughness of bumpy mips (Toksvig), and the demo has no normal maps. The anti-aliasing plan keeps it optional. |
 | SI units and pre-exposed radiance | Today's units | `ter-bpvl` and `ter-zzyr`. The ticket keeps the units. |

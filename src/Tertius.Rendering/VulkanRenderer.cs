@@ -29,8 +29,11 @@ namespace Tertius.Rendering;
 /// which writes the exposure of the next frame.</item>
 /// <item>Bloom (<see cref="BloomPass"/>), when <see cref="RendererOptions.Bloom"/> is on: the glow of the bright light
 /// in the bloom levels.</item>
-/// <item>Tone mapping into the swapchain image or the offscreen output, with the glow added before the tone curve.</item>
-/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
+/// <item>Tone mapping into the swapchain image or the offscreen output, or, with SMAA on, into the SMAA tone-mapped image,
+/// with the glow added before the tone curve.</item>
+/// <item>SMAA, when it is on (<see cref="SmaaPass"/>): edge detection, blending weights, and neighborhood blending into the
+/// output.</item>
+/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the output image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
@@ -108,16 +111,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materials = Own(new MaterialStore(device, Allocator));
             brdfTables = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
-            Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
-            targets = Own(
-                new RenderTargets(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    extent: extent,
-                    glowLevels: glowLevels
-                )
-            );
+            targets = CreateTargets(glowLevels: glowLevels, antiAliasing: options.AntiAliasing);
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
                 new ExposureResources(
@@ -291,6 +285,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), problem);
         if (options.Bloom.Problem is { } bloomProblem)
             throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
+        if (!Enum.IsDefined(options.AntiAliasing))
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
+            );
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
@@ -580,6 +579,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
                 exposure.RecordSeed(
@@ -937,6 +937,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Exposure = exposure,
         };
 
+    /// <summary>
+    /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
+    /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
+    /// </summary>
+    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing)
+    {
+        SmaaTables? smaaTables = antiAliasing switch
+        {
+            AntiAliasing.None => null,
+            AntiAliasing.Smaa => Own(new SmaaTables(device, Allocator)),
+        };
+        Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
+        return Own(
+            new RenderTargets(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                extent: extent,
+                glowLevels: glowLevels,
+                smaaTables: smaaTables
+            )
+        );
+    }
+
     /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
     private FrameResources[] CreateFrames(int framesInFlight)
     {
@@ -1013,7 +1037,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Adds the passes from lighting to the readback to the graph, each in its own stage, the exposure pass only under
-    /// <see cref="AutoExposure"/> and the bloom pass only with a <see cref="Bloom"/>.
+    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
+    /// on.
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
@@ -1037,9 +1062,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 outputFormat: output.Format,
                 curve: options.ToneCurve,
-                bloom: options.Bloom
+                bloom: options.Bloom,
+                smaa: targets.Smaa
             )
         );
+        if (targets.Smaa is { } smaa)
+            foreach (SmaaStep step in (SmaaStep[])[SmaaStep.Edges, SmaaStep.Weights, SmaaStep.Blending])
+                Graph.Add(
+                    FrameGraph.Stage.AntiAliasing,
+                    new SmaaPass(
+                        device: device,
+                        shaders: shaders,
+                        layouts: layouts,
+                        targets: smaa,
+                        step: step,
+                        outputFormat: output.Format
+                    )
+                );
         Graph.Add(
             FrameGraph.Stage.Overlay,
             new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)

@@ -193,6 +193,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 "exposure",
                 "bloom",
                 "tone map",
+                "SMAA edges",
+                "SMAA weights",
+                "SMAA blending",
                 "outlines",
                 "capture"
             );
@@ -251,6 +254,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
                 "GPU exposure",
                 "GPU bloom",
                 "GPU tone map",
+                "GPU SMAA edges",
+                "GPU SMAA weights",
+                "GPU SMAA blending",
                 "GPU outlines",
                 "GPU capture"
             );
@@ -330,5 +336,34 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         object expected = off ? new NoBloom() : new RendererOptions().Bloom.Value!;
         settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
+    }
+
+    [Theory]
+    [InlineData(new string[0], AntiAliasing.Smaa)]
+    [InlineData(new[] { "--anti-aliasing", "off" }, AntiAliasing.None)]
+    public void TheAntiAliasingOptionChoosesTheAntiAliasingOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(
+        string[] antiAliasing,
+        AntiAliasing expected
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<AntiAliasing>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. antiAliasing],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add(options.AntiAliasing);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        chosen.Should().Equal(expected);
     }
 }

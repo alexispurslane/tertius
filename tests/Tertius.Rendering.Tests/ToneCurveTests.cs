@@ -31,6 +31,7 @@ public sealed class ToneCurveTests
                 ToneCurve = curve,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
             }
         );
 
@@ -132,6 +133,7 @@ public sealed class ToneCurveTests
                 Impostors = false,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
             }
         );
         try
@@ -213,6 +215,7 @@ public sealed class ToneCurveTests
                         Width = 64,
                         Height = 64,
                         ToneCurve = (ToneCurve)2,
+                        AntiAliasing = AntiAliasing.None,
                     }
                 )
             )
