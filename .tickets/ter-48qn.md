@@ -1,6 +1,6 @@
 ---
 id: ter-48qn
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-63wr]
 links: []
 created: 2026-10-25T14:21:50Z
