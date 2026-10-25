@@ -12,6 +12,8 @@ tags: [rendering]
 ---
 # Switch the BRDF to PBR: GGX with metallic-roughness materials
 
+Design: docs/plans/pbr-brdf.md
+
 Today the lighting model is energy-normalized Blinn-Phong with Schlick Fresnel (blinnPhong in lighting.glsl): F0 = 0.16 * specular^2, so F0 is at most 0.16, specular is always white, and the diffuse term is always present. Metals cannot look right, and highlights on rough surfaces have the short tail of Blinn-Phong. On 2026-10-21 the user decided to move to a PBR BRDF, and every other rendering feature waits for it, because its look and its tuning depend on the BRDF.
 
 What changes: the BRDF in lighting.glsl, which the lighting pass, the transparent pass, the impostor captures and the lit puffs share; the material model (MaterialDesc, GpuMaterial, material.glsl, the specular-gloss texture); the meaning of the R8G8 specular-gloss target of the G-buffer, which holds two values in either model; every demo material; ARCHITECTURE.md, "Shading"; and the scope line in CLAUDE.md that names Blinn-Phong.
