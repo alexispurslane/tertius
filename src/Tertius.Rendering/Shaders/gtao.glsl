@@ -178,6 +178,9 @@ float gtaoEstimate(ivec2 texel, float z, float radiusInTexels)
     float minS = NearestStepTexels / radiusInTexels;
     int slices = int(occlusion.slices);
     int stepsPerSide = int(occlusion.stepsPerSide);
+    // A step beyond the image stays one texel past its longer side, where it still hides nothing (decision 21): the
+    // conversion of a float past the range of an int is undefined, and ρ reaches 10^10 at the largest radius.
+    vec2 stepBound = vec2(float(max(halfSize().x, halfSize().y) + 1));
     float visibility = 0.0;
     for (int slice = 0; slice < slices; slice++)
     {
@@ -206,13 +209,14 @@ float gtaoEstimate(ivec2 texel, float z, float radiusInTexels)
             float stepNoise = fract(noise.y + stepBaseNoise);
             float s = (float(stepIndex) + stepNoise) / float(stepsPerSide) + minS;
             // Snapped to a texel center (line 440).
-            ivec2 sampleOffset = ivec2(round(s * omega));
+            ivec2 sampleOffset = ivec2(round(clamp(s * omega, -stepBound, stepBound)));
             horizonCos0 = max(horizonCos0, gtaoSampleHorizon(texel + sampleOffset, center, toEye));
             horizonCos1 = max(horizonCos1, gtaoSampleHorizon(texel - sampleOffset, center, toEye));
         }
-        // Line 27 of the paper's Algorithm 1, with the exact acos (decision 22).
-        float h0 = -acos(horizonCos1);
-        float h1 = acos(horizonCos0);
+        // Line 27 of the paper's Algorithm 1, with the exact acos (decision 22). The clamp keeps acos defined where cos
+        // puts a tangent-plane cosine past ±1, as the Vulkan precision rule lets it.
+        float h0 = -acos(clamp(horizonCos1, -1.0, 1.0));
+        float h1 = acos(clamp(horizonCos0, -1.0, 1.0));
         visibility += projectedNormalVecLength * (gtaoSliceArc(h0, n) + gtaoSliceArc(h1, n));
     }
     return visibility / float(slices);

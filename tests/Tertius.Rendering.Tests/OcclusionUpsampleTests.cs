@@ -12,139 +12,137 @@ public sealed class OcclusionUpsampleTests
     private static readonly Double3 Pixel = new(0, -1, 2);
     private static readonly Double3 Up = Double3.UnitY;
 
-    /// <summary>The bilinear weight of the texel (a, b) of the block above and left of full-resolution pixel (x, y).</summary>
-    private static double Bilinear(int x, int y, int a, int b)
-    {
-        (double low, double high) = OcclusionUpsample.AxisWeights(x);
-        (double top, double bottom) = OcclusionUpsample.AxisWeights(y);
-        return (a == 0 ? low : high) * (b == 0 ? top : bottom);
-    }
+    // The half-resolution image of a 1,920 × 1,080 image.
+    private static readonly (int Width, int Height) HalfSize = (Width: 960, Height: 540);
+
+    /// <summary>The occlusion of the full-resolution <paramref name="pixel"/> at <see cref="Pixel"/>, over <paramref name="texels"/>.</summary>
+    private static double OcclusionOf((int X, int Y) pixel, Dictionary<(int X, int Y), UpsampleTexel> texels) =>
+        OcclusionUpsample.Occlusion(
+            pixel: pixel,
+            position: Pixel,
+            geometricNormal: Up,
+            texelWidth: TexelWidth,
+            halfSize: HalfSize,
+            texelAt: coordinates => texels[coordinates]
+        );
 
     [Fact]
     public void ARepresentativePixelTakesItsOwnTexel()
     {
         // Pixel (6, 10) is the top-left pixel of texel (3, 5), so its other three texels have a bilinear weight of 0.
-        UpsampleTexel[] texels =
-        [
-            new(Position: Pixel, Occlusion: 0.4, BilinearWeight: Bilinear(x: 6, y: 10, a: 0, b: 0)),
-            new(
-                Position: Pixel + new Double3(TexelWidth, 0, 0),
-                Occlusion: 0.9,
-                BilinearWeight: Bilinear(x: 6, y: 10, a: 1, b: 0)
-            ),
-            new(
-                Position: Pixel + new Double3(0, 0, TexelWidth),
-                Occlusion: 0.9,
-                BilinearWeight: Bilinear(x: 6, y: 10, a: 0, b: 1)
-            ),
-            new(
-                Position: Pixel + new Double3(TexelWidth, 0, TexelWidth),
-                Occlusion: 0.9,
-                BilinearWeight: Bilinear(x: 6, y: 10, a: 1, b: 1)
-            ),
-        ];
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel, Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(TexelWidth, 0, 0), Occlusion: 0.9),
+            [(X: 3, Y: 6)] = new(Position: Pixel + new Double3(0, 0, TexelWidth), Occlusion: 0.9),
+            [(X: 4, Y: 6)] = new(Position: Pixel + new Double3(TexelWidth, 0, TexelWidth), Occlusion: 0.9),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
+        OcclusionOf(pixel: (X: 6, Y: 10), texels: texels).Should().Be(0.4);
+    }
+
+    [Fact]
+    public void ATexelOfNoBilinearWeightIsNeverTheTexelNearestThePlane()
+    {
+        // Pixel (6, 10) takes only texel (3, 5), here on a box two texel widths above the floor. Texel (4, 5) lies on
+        // the floor, but its bilinear weight is 0.
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel + new Double3(0, 2 * TexelWidth, 0), Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(TexelWidth, 0, 0), Occlusion: 0.9),
+            [(X: 3, Y: 6)] = new(Position: Pixel + new Double3(0, 0, TexelWidth), Occlusion: 0.9),
+            [(X: 4, Y: 6)] = new(Position: Pixel + new Double3(TexelWidth, 0, TexelWidth), Occlusion: 0.9),
+        };
+
+        OcclusionOf(pixel: (X: 6, Y: 10), texels: texels)
             .Should()
-            .Be(0.4);
+            .Be(0.4, "the pass skips a texel of no bilinear weight before it measures the texel's distance");
     }
 
     [Fact]
     public void APixelBetweenTwoTexelsOnItsPlaneTakesTheirMean()
     {
         // Pixel (7, 10) lies between texels (3, 5) and (4, 5), both on the floor.
-        UpsampleTexel[] texels =
-        [
-            new(
-                Position: Pixel - new Double3(TexelWidth / 2, 0, 0),
-                Occlusion: 0.4,
-                BilinearWeight: Bilinear(x: 7, y: 10, a: 0, b: 0)
-            ),
-            new(
-                Position: Pixel + new Double3(TexelWidth / 2, 0, 0),
-                Occlusion: 0.8,
-                BilinearWeight: Bilinear(x: 7, y: 10, a: 1, b: 0)
-            ),
-        ];
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel - new Double3(TexelWidth / 2, 0, 0), Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(TexelWidth / 2, 0, 0), Occlusion: 0.8),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
-            .Should()
-            .BeApproximately(0.6, 1e-15);
+        OcclusionOf(pixel: (X: 7, Y: 10), texels: texels).Should().BeApproximately(0.6, 1e-15);
     }
 
     [Fact]
     public void ATexelOffThePixelsPlaneByATexelWidthOrMoreGetsNoWeight()
     {
         // The second texel lies on a box one texel width above the floor: behind a silhouette, as the pixel sees it.
-        UpsampleTexel[] texels =
-        [
-            new(Position: Pixel - new Double3(TexelWidth / 2, 0, 0), Occlusion: 0.4, BilinearWeight: 0.5),
-            new(Position: Pixel + new Double3(TexelWidth / 2, TexelWidth, 0), Occlusion: 0.8, BilinearWeight: 0.5),
-        ];
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel - new Double3(TexelWidth / 2, 0, 0), Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(TexelWidth / 2, TexelWidth, 0), Occlusion: 0.8),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
-            .Should()
-            .Be(0.4);
+        OcclusionOf(pixel: (X: 7, Y: 10), texels: texels).Should().Be(0.4);
     }
 
     [Fact]
     public void ATexelNearerThePixelsPlaneGetsMoreWeight()
     {
         // A quarter of a texel width off the plane keeps three quarters of the bilinear weight.
-        UpsampleTexel[] texels =
-        [
-            new(Position: Pixel, Occlusion: 0.4, BilinearWeight: 0.5),
-            new(Position: Pixel + new Double3(TexelWidth, TexelWidth / 4, 0), Occlusion: 0.8, BilinearWeight: 0.5),
-        ];
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel, Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(TexelWidth, TexelWidth / 4, 0), Occlusion: 0.8),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
-            .Should()
-            .BeApproximately((0.4 + 0.75 * 0.8) / 1.75, 1e-12);
+        OcclusionOf(pixel: (X: 7, Y: 10), texels: texels).Should().BeApproximately((0.4 + 0.75 * 0.8) / 1.75, 1e-12);
     }
 
     [Fact]
     public void WhenNoTexelLiesOnThePlaneThePixelTakesTheTexelNearestToIt()
     {
-        UpsampleTexel[] texels =
-        [
-            new(Position: Pixel + new Double3(0, 3 * TexelWidth, 0), Occlusion: 0.4, BilinearWeight: 0.25),
-            new(Position: Pixel + new Double3(0, -2 * TexelWidth, 0), Occlusion: 0.7, BilinearWeight: 0.25),
-            new(Position: Pixel + new Double3(0, 5 * TexelWidth, 0), Occlusion: 0.9, BilinearWeight: 0.5),
-        ];
+        // Pixel (7, 11) lies between the four texels of its block.
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel + new Double3(0, 3 * TexelWidth, 0), Occlusion: 0.4),
+            [(X: 4, Y: 5)] = new(Position: Pixel + new Double3(0, -2 * TexelWidth, 0), Occlusion: 0.7),
+            [(X: 3, Y: 6)] = new(Position: Pixel + new Double3(0, 5 * TexelWidth, 0), Occlusion: 0.9),
+            [(X: 4, Y: 6)] = new(Position: Pixel + new Double3(0, 4 * TexelWidth, 0), Occlusion: 0.6),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
+        OcclusionOf(pixel: (X: 7, Y: 11), texels: texels)
             .Should()
-            .Be(0.7, "the texel 2 widths below the plane is nearer than the ones 3 and 5 widths above it");
+            .Be(0.7, "the texel 2 widths below the plane is nearer than the ones 3 to 5 widths above it");
     }
 
     [Fact]
     public void ATexelBeyondTheEdgeOfTheHalfResolutionImageGetsNoWeight()
     {
-        // On an image 1,920 pixels wide, pixel 1,919 lies between texel 959 and texel 960, which the 960 texels of the
-        // half-resolution image do not hold. The pass leaves texel 960 out, and the one texel left keeps its value.
-        UpsampleTexel[] texels =
-        [
-            new(Position: Pixel, Occlusion: 0.4, BilinearWeight: Bilinear(x: 1919, y: 10, a: 0, b: 0)),
-        ];
+        // The corner pixel (1,919, 1,079) lies between texel (959, 539) and three texels past the right and the bottom
+        // edges of the 960 × 540 half-resolution image. The lookup gives those three values on the plane, as an image
+        // read past its edge may.
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 959, Y: 539)] = new(Position: Pixel, Occlusion: 0.4),
+            [(X: 960, Y: 539)] = new(Position: Pixel + new Double3(TexelWidth / 2, 0, 0), Occlusion: 0.8),
+            [(X: 959, Y: 540)] = new(Position: Pixel + new Double3(0, 0, TexelWidth / 2), Occlusion: 0.8),
+            [(X: 960, Y: 540)] = new(Position: Pixel + new Double3(TexelWidth / 2, 0, TexelWidth / 2), Occlusion: 0.8),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
+        OcclusionOf(pixel: (X: 1919, Y: 1079), texels: texels)
             .Should()
-            .BeApproximately(0.4, 1e-15, "the weights are normalized over the texels that the image holds");
+            .Be(0.4, "the pass reads no texel outside the image, and the one texel left keeps its value");
     }
 
     [Fact]
     public void AnEstimateAboveOneIsClampedToOne()
     {
-        UpsampleTexel[] texels = [new(Position: Pixel, Occlusion: 1.2, BilinearWeight: 1)];
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(Position: Pixel, Occlusion: 1.2),
+        };
 
-        OcclusionUpsample
-            .Occlusion(position: Pixel, geometricNormal: Up, texelWidth: TexelWidth, texels: texels)
+        OcclusionOf(pixel: (X: 6, Y: 10), texels: texels)
             .Should()
             .Be(1, "the half-resolution terms keep the overshoot of a single slice, and the upsample clamps it");
     }

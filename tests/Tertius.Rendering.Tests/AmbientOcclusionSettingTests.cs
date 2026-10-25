@@ -75,7 +75,8 @@ public sealed class AmbientOcclusionSettingTests
             .Problem.Should()
             .Contain("StepsPerSide");
 
-    // A renderer that made its device first would not throw here: the size is valid, and the device would be made.
+    // CreateHeadless refuses a width of 0 just before it makes the device. So the message names the slices only when
+    // the setting's refusal comes before that, and so before the device.
     [Fact]
     public void CreateHeadlessRefusesAnInvalidSettingBeforeItMakesADevice() =>
         FluentActions
@@ -83,7 +84,7 @@ public sealed class AmbientOcclusionSettingTests
                 VulkanRenderer.CreateHeadless(
                     new()
                     {
-                        Width = 64,
+                        Width = 0,
                         Height = 64,
                         Impostors = false,
                         AmbientOcclusion = GroundTruthOcclusion.Default with { Slices = 0 },

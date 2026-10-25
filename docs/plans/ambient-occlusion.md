@@ -145,6 +145,7 @@ vec3 V = normalize(-center);                              // the view vector, to
 vec3 n = the view-space shading normal at (2c);
 vec2 xi = spatialNoise(c);                                // see "The noise"
 float sMin = NearestStepPixels / rho;                     // NearestStepPixels = 1.3 (line 367)
+vec2 bound = vec2(float(max(halfWidth, halfHeight) + 1));  // one texel past the image's longer side
 float sum = 0.0;
 for (int k = 0; k < Slices; k++)
 {
@@ -162,12 +163,12 @@ for (int k = 0; k < Slices; k++)
     {
         float eta = fract(xi.y + float(k + j * StepsPerSide) * 0.6180339887498949);   // R1 (line 420)
         float s = (float(j) + eta) / float(StepsPerSide) + sMin;
-        ivec2 offset = ivec2(round(s * rho * vec2(cos(phi), -sin(phi))));          // screen y is down
+        ivec2 offset = ivec2(round(clamp(s * rho * vec2(cos(phi), -sin(phi)), -bound, bound)));   // screen y is down
         horizonPlus = max(horizonPlus, sampleHorizon(c + offset, center, V));
         horizonMinus = max(horizonMinus, sampleHorizon(c - offset, center, V));
     }
-    float h0 = -acos(horizonMinus);
-    float h1 = acos(horizonPlus);
+    float h0 = -acos(clamp(horizonMinus, -1.0, 1.0));
+    float h1 = acos(clamp(horizonPlus, -1.0, 1.0));
     sum += projectedLength * (sliceArc(h0, nAngle) + sliceArc(h1, nAngle));
 }
 float estimate = sum / float(Slices);
@@ -175,6 +176,11 @@ store termA(c) = 1.0 - fade * (1.0 - estimate);
 ```
 
 where `sampleHorizon(t, center, V)` returns −1, which never raises a horizon, when t lies outside the half-resolution image or when |P(t) − center| ≥ R, and returns dot(normalize(P(t) − center), V) otherwise. XeGTAO lerps each sample's cosine toward the tangent-plane cosine by a falloff weight (lines 486 to 498). With the physical hard edge at R, that weight is 1 or 0, so the lerp is this choice.
+
+Two clamps keep the conversions and the `acos` defined, where Vulkan leaves them undefined, and change no result:
+
+- The offset of a step stays within one texel past the longer side of the half-resolution image. At the largest radius, 10⁶ m, on a surface at the 0.05 m near plane, ρ is about 10¹⁰ texels at 1080p, past the range of an `int`, and the conversion of a float out of that range is undefined. Every step that far out lies outside the image and hides nothing (decision 21), and so does the clamped step.
+- The two horizon cosines are clamped to [−1, 1] before `acos`. The sample cosines are clamped already, but the tangent-plane cosines come from `cos`, which the Vulkan precision rule lets come out 2⁻¹¹ past ±1, at a silhouette where γ = ±π/2. The exact `acos` of decision 22 is undefined past ±1, and a NaN there would spread through both denoise dispatches. `HorizonSlice.Visibility` clamps the same way.
 
 The division by `max(projectedLength, 1e-6)` replaces XeGTAO's plain division. HLSL's `saturate` of the NaN of 0 / 0 gives 0, and GLSL's `clamp` of NaN is undefined. The guard gives the same 0 for a normal that is perpendicular to the slice plane, whose slice then adds `projectedLength` · ... ≈ 0.
 
@@ -292,15 +298,20 @@ float specularOcclusion(float NdotV, float occlusion, float alpha)
 }
 
 // The one place where ambient occlusion applies (docs/plans/ambient-occlusion.md): the diffuse term by V, the
-// specular term by V_s. It reads nothing about the source of the terms.
-vec3 occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
+// specular term by V_s. It reads nothing about the source of the terms, and keeps them apart, because SSR replaces
+// the occluded specular term where its ray hits.
+AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
 {
-    return terms.diffuse * s.occlusion + terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    AmbientTerms occluded;
+    occluded.diffuse = terms.diffuse * s.occlusion;
+    occluded.specular = terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    return occluded;
 }
 
 vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
 {
-    return occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
+    AmbientTerms occluded = occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
+    return occluded.diffuse + occluded.specular;
 }
 ```
 
@@ -432,9 +443,9 @@ The headless host gains `--ambient-occlusion off|<meters>` (`ScriptCommand`): `o
 | The edges image | R8_UNORM | Half | 518,400 B | Storage | `OcclusionImages` |
 | Occlusion term A | R16_SFLOAT | Half | 1,036,800 B | Storage | `OcclusionImages` |
 | Occlusion term B | R16_SFLOAT | Half | 1,036,800 B | Storage | `OcclusionImages` |
-| The occlusion target | R8_UNORM | Full: 1920 × 1080 | 2,073,600 B | Sampled, storage, transfer destination | `RenderTargets` |
+| The occlusion target | R8_UNORM | Full: 1920 × 1080 | 2,073,600 B | Sampled, storage, transfer source and destination | `RenderTargets` |
 
-Under `GroundTruthOcclusion` they take 6.74 MB, 4.67 MB of them at half resolution. Under `NoAmbientOcclusion` only the occlusion target exists, 2.07 MB. The working images stay in the `General` layout. The occlusion target moves between `General` for the upsample and the clear and `ShaderReadOnlyOptimal` for the lighting pass. `RenderTargets` checks at creation that R8_UNORM supports sampling, storage and transfer, as it checks the G-buffer formats. `OcclusionImages` checks storage for R32_SFLOAT, R8_UNORM and R16_SFLOAT. Each throws `NotSupportedException` with the format's name.
+Under `GroundTruthOcclusion` they take 6.74 MB, 4.67 MB of them at half resolution. Under `NoAmbientOcclusion` only the occlusion target exists, 2.07 MB. The working images stay in the `General` layout. The occlusion target moves between `General` for the upsample and the clear and `ShaderReadOnlyOptimal` for the lighting pass. `RenderTargets` checks at creation that R8_UNORM supports sampling, storage, and transfer as a source and as a destination, as it checks the G-buffer formats. The transfer source is for `VulkanRenderer.ReadOcclusion`, which copies the target out for the tests. `OcclusionImages` checks storage for R32_SFLOAT, R8_UNORM and R16_SFLOAT. Each throws `NotSupportedException` with the format's name.
 
 Who writes and reads each image, in the order of a frame:
 
@@ -588,6 +599,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `ASampleAtTheRadiusOrBeyondItHidesNothing`: the hard edge.
 - `HorizonsAtTheNormalHideTheWholeSlice`: h0 = h1 = γ gives 0.
 - `ANormalPerpendicularToTheSlicePlaneAddsNothing`: the guard against 0 / 0.
+- `AHorizonCosineThatRoundingPutsOutsideItsRangeCountsAsTheNearestBound`: cosines 2⁻¹¹ past ±1 give the visibility of ±1, not NaN.
 
 `HorizonSearchTests`:
 
@@ -597,6 +609,8 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `TheRadiusInTexelsHalvesWhenTheViewDepthDoubles`.
 - `TheStepsOfASliceFillTheRadiusEvenlyBeyondTheNearestStep`: step j lies in [j / N, (j + 1) / N) + 1.3 / ρ.
 - `ADistanceBecomesTheViewDepthAlongItsRay`: z = d / |r| at the center and at a corner of the screen.
+- `AStepSnapsToTheNearestTexelAlongItsSlice`.
+- `AStepFarBeyondTheImageLandsJustPastItsFarthestEdge`: ρ = 10¹⁰ gives an offset of 961 on a 960 × 540 image.
 
 `OcclusionNoiseTests`:
 
@@ -607,10 +621,11 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 `OcclusionUpsampleTests`:
 
 - `ARepresentativePixelTakesItsOwnTexel`.
+- `ATexelOfNoBilinearWeightIsNeverTheTexelNearestThePlane`: the fallback skips it, as the pass does.
 - `APixelBetweenTwoTexelsOnItsPlaneTakesTheirMean`.
 - `ATexelOffThePixelsPlaneByATexelWidthOrMoreGetsNoWeight`.
 - `WhenNoTexelLiesOnThePlaneThePixelTakesTheTexelNearestToIt`.
-- `ATexelBeyondTheEdgeOfTheHalfResolutionImageGetsNoWeight`.
+- `ATexelBeyondTheEdgeOfTheHalfResolutionImageGetsNoWeight`: at the corner pixel, past the right and the bottom edges.
 
 In `GgxLobeTests`:
 
@@ -621,8 +636,9 @@ In `GgxLobeTests`:
 
 `AmbientTermsTests`, of the one function that applies the occlusion, with terms that no hemisphere gives (a different color in each channel of each term), so that the tests hold for any source:
 
-- `TheOccludedAmbientLightIsTheDiffuseTermTimesTheOcclusionPlusTheSpecularTermTimesItsSpecularOcclusion`.
-- `AtFullVisibilityTheOccludedAmbientLightIsTheSumOfTheTwoTerms`: the same bits as `Diffuse + Specular`.
+- `TheOccludedDiffuseTermIsTheDiffuseTermTimesTheOcclusion`.
+- `TheOccludedSpecularTermIsTheSpecularTermTimesItsSpecularOcclusion`.
+- `AtFullVisibilityTheOccludedTermsAreTheTerms`: the same bits in both terms.
 
 In `MaterialSampleTests`:
 
@@ -804,6 +820,7 @@ internal static class HorizonSearch
     public static double Faded(double estimate, double fade);                            // 1 − fade (1 − estimate)
     public static double SliceAngle(int slice, int slices, float sliceNoise);
     public static double StepFraction(int step, int slice, int stepsPerSide, float stepNoise, double radiusInTexels);
+    public static (int X, int Y) StepOffset(double stepFraction, double sliceAngle, double radiusInTexels, (int Width, int Height) halfSize);
 }
 
 internal static class OcclusionNoise
@@ -813,12 +830,13 @@ internal static class OcclusionNoise
     public static (float Slice, float Step) At(uint x, uint y);
 }
 
-internal readonly record struct UpsampleTexel(Double3 Position, double Occlusion, double BilinearWeight);
+internal readonly record struct UpsampleTexel(Double3 Position, double Occlusion);
 
 internal static class OcclusionUpsample
 {
     public static (double Low, double High) AxisWeights(int fullResolutionCoordinate);   // even (1, 0), odd (0.5, 0.5)
-    public static double Occlusion(Double3 position, Double3 geometricNormal, double texelWidth, ReadOnlySpan<UpsampleTexel> texels);
+    // The pixel's 2 × 2 block, as the pass reads it: texelAt runs only for a texel inside the image whose bilinear weight is above 0.
+    public static double Occlusion((int X, int Y) pixel, Double3 position, Double3 geometricNormal, double texelWidth, (int Width, int Height) halfSize, Func<(int X, int Y), UpsampleTexel> texelAt);
 }
 ```
 
@@ -833,8 +851,11 @@ internal static class OcclusionUpsample
 internal readonly record struct AmbientTerms(Double3 Diffuse, Double3 Specular)
 {
     /// <summary>The C# copy of occludedAmbient: the diffuse term by the occlusion, the specular term by its specular occlusion.</summary>
-    public Double3 Occluded(double occlusion, double nDotV, GgxLobe lobe) =>
-        Diffuse * occlusion + Specular * lobe.SpecularOcclusion(nDotV: nDotV, occlusion: occlusion);
+    public AmbientTerms Occluded(double occlusion, double nDotV, GgxLobe lobe) =>
+        new(
+            Diffuse: Diffuse * occlusion,
+            Specular: Specular * lobe.SpecularOcclusion(nDotV: nDotV, occlusion: occlusion)
+        );
 }
 
 // Shading/GgxLobe.cs: Lagarde's listing 26, with the lobe's α.
@@ -844,7 +865,7 @@ public double SpecularOcclusion(double nDotV, double occlusion);
 /// <summary>The C# copy of hemisphereAmbient: today's diffuse and specular parts of ReflectedHemisphere, apart.</summary>
 public AmbientTerms HemisphereTerms(Double3 normal, Double3 toView, Double3 sky, Double3 ground, double normalSkyShare, double lobeSkyShare, BrdfTables tables);
 
-/// <summary>The C# copy of ambientLight: the hemisphere terms, occluded.</summary>
+/// <summary>The C# copy of ambientLight: the hemisphere terms, occluded, summed.</summary>
 public Double3 ReflectedHemisphere(Double3 normal, Double3 toView, Double3 sky, Double3 ground, double normalSkyShare, double lobeSkyShare, double occlusion, BrdfTables tables);
 ```
 

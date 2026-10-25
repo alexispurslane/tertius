@@ -116,6 +116,25 @@ public sealed class HorizonSliceTests
     }
 
     [Fact]
+    public void AHorizonCosineThatRoundingPutsOutsideItsRangeCountsAsTheNearestBound()
+    {
+        // At a silhouette the projected normal lies perpendicular to the view vector, γ = π/2, so the tangent planes
+        // lie along the view vector and against it. The Vulkan precision rule lets a GPU's cos(0) and cos(π) come out
+        // 2^-11 past 1 and −1.
+        var slice = new HorizonSlice(toEye: TowardTheEye, normal: Double3.UnitX, angle: 0);
+        const double rounding = 1.0 / 2048;
+
+        double visibility = slice.Visibility(horizonCosinePlus: -1 - rounding, horizonCosineMinus: 1 + rounding);
+
+        visibility
+            .Should()
+            .Be(
+                slice.Visibility(horizonCosinePlus: -1, horizonCosineMinus: 1),
+                "acos of a cosine past 1 is NaN, which the denoise would spread"
+            );
+    }
+
+    [Fact]
     public void ANormalPerpendicularToTheSlicePlaneAddsNothing()
     {
         // The slice of φ = 0 holds the x and z axes, so a normal along y has no part in it.

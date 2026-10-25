@@ -40,11 +40,14 @@ internal readonly record struct HorizonSlice
     /// <summary>The horizon cosine of the tangent plane: cos(γ + π/2) for <paramref name="side"/> +1, cos(γ − π/2) for −1.</summary>
     public double TangentHorizonCosine(int side) => Math.Cos(NormalAngle + side * Math.PI / 2);
 
-    /// <summary>|n_p| · â: the cosine-weighted visibility of the slice between the horizons of its two sides.</summary>
+    /// <summary>
+    /// |n_p| · â: the cosine-weighted visibility of the slice between the horizons of its two sides. A cosine that
+    /// rounding puts past ±1 counts as ±1, so acos stays defined.
+    /// </summary>
     public double Visibility(double horizonCosinePlus, double horizonCosineMinus)
     {
-        double h0 = -Math.Acos(horizonCosineMinus);
-        double h1 = Math.Acos(horizonCosinePlus);
+        double h0 = -Math.Acos(Math.Clamp(horizonCosineMinus, -1, 1));
+        double h1 = Math.Acos(Math.Clamp(horizonCosinePlus, -1, 1));
         return ProjectedNormalLength * (SliceArc(h0, NormalAngle) + SliceArc(h1, NormalAngle));
     }
 

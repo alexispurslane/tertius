@@ -87,6 +87,35 @@ public sealed class HorizonSearchTests
     }
 
     [Fact]
+    public void AStepSnapsToTheNearestTexelAlongItsSlice() =>
+        HorizonSearch
+            .StepOffset(
+                stepFraction: 1,
+                sliceAngle: Math.PI / 4,
+                radiusInTexels: 10,
+                halfSize: (Width: 960, Height: 540)
+            )
+            .Should()
+            .Be((7, -7), "the slice at 45° runs right and up the screen, whose rows run down");
+
+    [Fact]
+    public void AStepFarBeyondTheImageLandsJustPastItsFarthestEdge()
+    {
+        // A radius of 10^6 m on a surface at the 0.05 m near plane is about 10^10 texels at 1080p, past the range of an
+        // int, whose conversion from a float out of range Vulkan leaves undefined.
+        (int Width, int Height) halfSize = (Width: 960, Height: 540);
+
+        HorizonSearch
+            .StepOffset(stepFraction: 1, sliceAngle: 0, radiusInTexels: 1e10, halfSize: halfSize)
+            .Should()
+            .Be((961, 0), "one texel past the longer side lies outside the image from every texel in it");
+        HorizonSearch
+            .StepOffset(stepFraction: 1, sliceAngle: Math.PI / 2, radiusInTexels: 1e10, halfSize: halfSize)
+            .Should()
+            .Be((0, -961));
+    }
+
+    [Fact]
     public void TheSlicesTurnEvenlyThroughHalfATurn()
     {
         const int slices = 3;

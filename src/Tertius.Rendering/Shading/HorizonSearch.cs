@@ -47,4 +47,22 @@ internal static class HorizonSearch
         double withinShare = shift - Math.Floor(shift);
         return (step + withinShare) / stepsPerSide + NearestStepTexels / radiusInTexels;
     }
+
+    /// <summary>
+    /// The offset in half-resolution texels of the step at <paramref name="stepFraction"/> of the radius along the slice
+    /// at <paramref name="sliceAngle"/>, snapped to a texel. Screen rows run down, so y is −sin φ. A step beyond the
+    /// image stays one texel past its longer side, where it still hides nothing, so that it fits an int.
+    /// </summary>
+    public static (int X, int Y) StepOffset(
+        double stepFraction,
+        double sliceAngle,
+        double radiusInTexels,
+        (int Width, int Height) halfSize
+    )
+    {
+        double bound = Math.Max(halfSize.Width, halfSize.Height) + 1;
+        double x = Math.Clamp(stepFraction * radiusInTexels * Math.Cos(sliceAngle), -bound, bound);
+        double y = Math.Clamp(-stepFraction * radiusInTexels * Math.Sin(sliceAngle), -bound, bound);
+        return (X: (int)Math.Round(x), Y: (int)Math.Round(y));
+    }
 }
