@@ -351,6 +351,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "depthClamp";
         if (!f.DualSrcBlend)
             return "dualSrcBlend";
+        if (!f.ShaderStorageImageExtendedFormats)
+            return "shaderStorageImageExtendedFormats";
         if (!f12.RuntimeDescriptorArray)
             return "runtimeDescriptorArray";
         if (!f12.DescriptorBindingPartiallyBound)
@@ -370,6 +372,44 @@ internal sealed unsafe class VulkanDevice : IDisposable
         return null;
     }
 
+    /// <summary>The Vulkan 1.3 features that the renderer enables, with no next structure.</summary>
+    private static PhysicalDeviceVulkan13Features EnabledVulkan13Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan13Features,
+            DynamicRendering = true,
+            Synchronization2 = true,
+            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
+            ShaderDemoteToHelperInvocation = true,
+        };
+
+    /// <summary>The Vulkan 1.2 features that the renderer enables, for the bindless textures, with no next structure.</summary>
+    private static PhysicalDeviceVulkan12Features EnabledVulkan12Features() =>
+        new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan12Features,
+            DescriptorIndexing = true,
+            RuntimeDescriptorArray = true,
+            DescriptorBindingPartiallyBound = true,
+            DescriptorBindingVariableDescriptorCount = true,
+            DescriptorBindingSampledImageUpdateAfterBind = true,
+            ShaderSampledImageArrayNonUniformIndexing = true,
+        };
+
+    /// <summary>The Vulkan 1.0 features that the renderer enables.</summary>
+    private static PhysicalDeviceFeatures EnabledCoreFeatures() =>
+        new()
+        {
+            MultiDrawIndirect = true,
+            DrawIndirectFirstInstance = true,
+            DepthClamp = true,
+            // The transparent pass blends with a second output: what a pane lets through.
+            DualSrcBlend = true,
+            SamplerAnisotropy = true,
+            // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
+            ShaderStorageImageExtendedFormats = true,
+        };
+
     private static Device CreateLogicalDevice(
         Vk vk,
         PhysicalDevice physicalDevice,
@@ -383,38 +423,14 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (swapchain)
             extensions.Add(KhrSwapchain.ExtensionName);
 
-        var f13 = new PhysicalDeviceVulkan13Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan13Features,
-            DynamicRendering = true,
-            Synchronization2 = true,
-            // glslc maps `discard` to OpDemoteToHelperInvocation for SPIR-V 1.6 (the Vulkan 1.3 target).
-            ShaderDemoteToHelperInvocation = true,
-        };
-        var f12 = new PhysicalDeviceVulkan12Features
-        {
-            SType = StructureType.PhysicalDeviceVulkan12Features,
-            PNext = &f13,
-            DescriptorIndexing = true,
-            RuntimeDescriptorArray = true,
-            DescriptorBindingPartiallyBound = true,
-            DescriptorBindingVariableDescriptorCount = true,
-            DescriptorBindingSampledImageUpdateAfterBind = true,
-            ShaderSampledImageArrayNonUniformIndexing = true,
-        };
+        PhysicalDeviceVulkan13Features f13 = EnabledVulkan13Features();
+        PhysicalDeviceVulkan12Features f12 = EnabledVulkan12Features();
+        f12.PNext = &f13;
         var features = new PhysicalDeviceFeatures2
         {
             SType = StructureType.PhysicalDeviceFeatures2,
             PNext = &f12,
-            Features = new()
-            {
-                MultiDrawIndirect = true,
-                DrawIndirectFirstInstance = true,
-                DepthClamp = true,
-                // The transparent pass blends with a second output: what a pane lets through.
-                DualSrcBlend = true,
-                SamplerAnisotropy = true,
-            },
+            Features = EnabledCoreFeatures(),
         };
 
         // MoltenVK is a portability implementation: it must be enabled, and its subset features are enabled as

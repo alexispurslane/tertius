@@ -1,8 +1,9 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The GGX lobe of the C# BRDF: its distribution, its visibility term, its roughness floor and its dominant direction
-/// (docs/plans/pbr-brdf.md, "The terms").
+/// The GGX lobe of the C# BRDF: its distribution, its visibility term, its roughness floor, its dominant direction
+/// (docs/plans/pbr-brdf.md, "The terms") and its specular occlusion (docs/plans/ambient-occlusion.md, "The lighting
+/// pass").
 /// </summary>
 public sealed class GgxLobeTests
 {
@@ -126,6 +127,50 @@ public sealed class GgxLobeTests
         h.Y.Should().BeGreaterThan(0);
         double tanSquared = (h.X * h.X + h.Y * h.Y) / (h.Z * h.Z);
         tanSquared.Should().BeApproximately(lobe.Alpha * lobe.Alpha, 1e-12);
+    }
+
+    [Fact]
+    public void AnUnoccludedPointHasNoSpecularOcclusion()
+    {
+        foreach (double roughness in new[] { 0, 0.2, 0.5, 1 })
+        foreach (double nDotV in new[] { 1e-4, 0.1, 0.5, 1 })
+            new GgxLobe(roughness)
+                .SpecularOcclusion(nDotV: nDotV, occlusion: 1)
+                .Should()
+                .Be(1, $"r = {roughness}, μ = {nDotV}");
+    }
+
+    [Fact]
+    public void AFullyOccludedPointHasFullSpecularOcclusion()
+    {
+        foreach (double roughness in new[] { 0, 0.2, 0.5, 1 })
+        foreach (double nDotV in new[] { 1e-4, 0.1, 0.5, 1 })
+            new GgxLobe(roughness)
+                .SpecularOcclusion(nDotV: nDotV, occlusion: 0)
+                .Should()
+                .Be(0, $"r = {roughness}, μ = {nDotV}");
+    }
+
+    [Fact]
+    public void ARoughLobesSpecularOcclusionIsItsOcclusion()
+    {
+        var rough = new GgxLobe(1);
+        foreach (double occlusion in new[] { 0.1, 0.4, 0.7, 0.95 })
+        foreach (double nDotV in new[] { 0.05, 0.5, 1 })
+            rough
+                .SpecularOcclusion(nDotV: nDotV, occlusion: occlusion)
+                .Should()
+                .BeApproximately(occlusion, 1e-4, $"V = {occlusion}, μ = {nDotV}: α = 1 makes the exponent 2⁻¹⁷");
+    }
+
+    [Fact]
+    public void ASmoothLobeSeenHeadOnLosesLessThanItsOcclusionAndAtAGrazingAngleMore()
+    {
+        var smooth = new GgxLobe(0.1);
+        const double occlusion = 0.5;
+
+        smooth.SpecularOcclusion(nDotV: 1, occlusion: occlusion).Should().BeGreaterThan(occlusion);
+        smooth.SpecularOcclusion(nDotV: 0.05, occlusion: occlusion).Should().BeLessThan(occlusion);
     }
 }
 

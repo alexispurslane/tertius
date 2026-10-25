@@ -299,6 +299,22 @@ public sealed class ScriptCommandTests : IDisposable
         "filmic"
     )]
     [InlineData(
+        "--ambient-occlusion applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--ambient-occlusion",
+        "off"
+    )]
+    [InlineData(
+        "--ambient-occlusion applies to a headless run",
+        "--scene",
+        "no-such-scene",
+        "--ambient-occlusion",
+        "off"
+    )]
+    [InlineData(
         "--anti-aliasing needs a value",
         "--script",
         "script.json",
@@ -336,6 +352,20 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain(rule);
+    }
+
+    [Theory]
+    [InlineData("on")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public void AnAmbientOcclusionOptionThatIsNeitherOffNorAPositiveNumberIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--ambient-occlusion", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--ambient-occlusion needs off or a radius").And.Contain($"'{value}'");
     }
 
     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the

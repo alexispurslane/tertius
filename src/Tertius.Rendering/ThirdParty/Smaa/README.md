@@ -10,3 +10,5 @@ These files come from iryoku/smaa (https://github.com/iryoku/smaa), commit `71c8
 | `LICENSE.txt` | `LICENSE.txt` | Line ends changed from CRLF to LF. |
 
 The design is in `docs/plans/anti-aliasing.md`.
+
+The notice for the distributed game is in `THIRD-PARTY-NOTICES.md` at the repository root. `Tertius.Demo.csproj` copies it into every build and publish output.

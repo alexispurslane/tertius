@@ -57,4 +57,11 @@ internal readonly record struct GgxLobe
         double towardMirror = (1 - Alpha) * (Math.Sqrt(1 - Alpha) + Alpha);
         return Double3.Lerp(normal, mirror, towardMirror).Normalized();
     }
+
+    /// <summary>
+    /// V_s, the share of the ambient specular light that the occlusion <paramref name="occlusion"/> leaves at the view
+    /// cosine <paramref name="nDotV"/> (Lagarde and de Rousiers 2014, section 4.10.2, listing 26).
+    /// </summary>
+    public double SpecularOcclusion(double nDotV, double occlusion) =>
+        Math.Clamp(Math.Pow(nDotV + occlusion, Math.Pow(2, -16 * Alpha - 1)) - 1 + occlusion, 0, 1);
 }

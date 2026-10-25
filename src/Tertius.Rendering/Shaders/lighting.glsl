@@ -6,7 +6,9 @@
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
 // color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
-// share (hemisphere.glsl). lobesRadiance pre-exposes the sum and clamps it to the largest finite half float.
+// share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
+// (docs/plans/ambient-occlusion.md, "The lighting pass"). lobesRadiance pre-exposes the sum and clamps it to the
+// largest finite half float.
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -28,6 +30,7 @@ struct ShadingInput
     float reflectance;
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
+    float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
 };
 
 // The values that every light at one pixel shares, computed once per pixel.
@@ -169,15 +172,47 @@ vec3 compensatedSpecularAlbedo(SurfaceLobes lobes)
     return lobes.specularAlbedo * lobes.energyCompensation;
 }
 
-// The hemisphere ambient light reflected toward the eye: its diffuse part by the normal's sky share, and its specular
-// part by the lobe's.
-vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
+// The ambient light that a surface point sends toward the eye, before ambient occlusion, in two terms: the diffuse
+// color times the incoming diffuse light, and the compensated specular albedo times the incoming specular light.
+struct AmbientTerms
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+// The hemisphere as the ambient source: the diffuse term by the normal's sky share, the specular term by the lobe's.
+AmbientTerms hemisphereAmbient(ShadingInput s, SurfaceLobes lobes)
 {
     vec3 ground = frame.ambientGround.rgb;
     vec3 sky = frame.ambientSky.rgb;
-    vec3 diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
-    vec3 specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
-    return diffuse + specular;
+    AmbientTerms terms;
+    terms.diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
+    terms.specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
+    return terms;
+}
+
+// Lagarde and de Rousiers 2014, "Moving Frostbite to Physically Based Rendering 3.0", section 4.10.2,
+// listing 26. The notes call α "roughness".
+float specularOcclusion(float NdotV, float occlusion, float alpha)
+{
+    return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
+}
+
+// The one place where ambient occlusion applies (docs/plans/ambient-occlusion.md): the diffuse term by V, the
+// specular term by V_s. It reads nothing about the source of the terms, and keeps them apart, because SSR replaces
+// the occluded specular term where its ray hits.
+AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
+{
+    AmbientTerms occluded;
+    occluded.diffuse = terms.diffuse * s.occlusion;
+    occluded.specular = terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    return occluded;
+}
+
+vec3 ambientLight(ShadingInput s, SurfaceLobes lobes)
+{
+    AmbientTerms occluded = occludedAmbient(hemisphereAmbient(s, lobes), s, lobes);
+    return occluded.diffuse + occluded.specular;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.
