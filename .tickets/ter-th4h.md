@@ -17,3 +17,9 @@ A headless run writes no exposure readings: gpu-timings.json holds only the devi
 
 A headless film writes the exposure in stops of every shown frame, and a test reads it back.
 
+
+## Notes
+
+**2026-10-25T21:32:45Z**
+
+2026-10-25: the builder found that the host alone cannot match readings to shown frames (the renderer collects a frame's exposure only when its slot is reused, and a metering draw's reading overwrites the shown one). The orchestrator settled its fork as design A: every fence wait collects, so after a capture RenderStats describes the captured frame, by auto-exposure.md's 'after the slot's fence wait', one store for the exposure, and stored state describing the last finished step. Design B (the capture carries its own reading) would give the engine two readings that can disagree. The readings go to exposure.json beside gpu-timings.json.
