@@ -103,7 +103,7 @@ public sealed class ScreenRayTests
         var target = new Vector3(0.3f, 0.1f, -10);
         Vector2 meeting = camera.PixelOf(target);
 
-        var ray = RayOf(origin, Vector3.Normalize(target - origin), camera);
+        ScreenRay ray = RayOf(origin, Vector3.Normalize(target - origin), camera);
         RayTrace trace = ray.Trace(ScreenTesting.Pyramid(camera, wall), MaxSteps);
 
         ray.Start.X.Should().BeLessThan(-16);
@@ -167,7 +167,7 @@ public sealed class ScreenRayTests
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
         DepthPyramid sky = ScreenTesting.Pyramid(camera, []);
 
-        var ray = RayOf(new(-1, 0.2f, -4), Vector3.UnitX, camera);
+        ScreenRay ray = RayOf(new(-1, 0.2f, -4), Vector3.UnitX, camera);
         RayTrace trace = ray.Trace(sky, MaxSteps);
 
         trace.TryGetValue(out RayLeftTheSegment left).Should().BeTrue($"nothing lies in its way, not {trace}");
@@ -183,7 +183,7 @@ public sealed class ScreenRayTests
         // Past the near plane, 5 cm away, close to the middle of the screen.
         var target = new Vector3(0.01f, 0.003f, -0.04f);
 
-        var ray = RayOf(origin, Vector3.Normalize(target - origin), camera);
+        ScreenRay ray = RayOf(origin, Vector3.Normalize(target - origin), camera);
 
         ray.EndsAt.Should().Be(SegmentEnd.NearPlane);
         (ray.StartInverseDepth + ray.StepInverseDepth * ray.End)
@@ -198,7 +198,7 @@ public sealed class ScreenRayTests
         var direction = Vector3.Normalize(new(0.2f, 0.1f, -1));
         Vector2 vanishingPoint = camera.PixelOf(direction);
 
-        var ray = RayOf(new(-1, 0, -3), direction, camera);
+        ScreenRay ray = RayOf(new(-1, 0, -3), direction, camera);
         Vector2 end = ray.Start + ray.Step * ray.End;
 
         ray.EndsAt.Should().Be(SegmentEnd.VanishingPoint);
@@ -228,7 +228,7 @@ public sealed class ScreenRayTests
                 continue;
             tested++;
 
-            var ray = RayOf(origin, direction, camera);
+            ScreenRay ray = RayOf(origin, direction, camera);
             Vector2 image = camera.PixelOf(origin + direction * 0.1f) - ray.Start;
 
             Vector2
@@ -352,7 +352,7 @@ public sealed class ScreenRayTests
             Vector3 viewRay = camera.ViewRayThrough(new(random.NextSingle() * 128, random.NextSingle() * 96));
             double surfaceDepth = ScreenTesting.DepthAlong(viewRay, scene) ?? 40;
             Vector3 origin = viewRay * (float)(surfaceDepth * (0.2 + 0.8 * random.NextDouble()));
-            var ray = RayOf(origin, RandomDirection(random), camera);
+            ScreenRay ray = RayOf(origin, RandomDirection(random), camera);
 
             RayTrace traced = ray.Trace(pyramid, maxSteps: 1_000_000);
             (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
@@ -406,7 +406,7 @@ public sealed class ScreenRayTests
         foreach (int[] bits in rays)
         {
             float[] values = [.. bits.Select(BitConverter.Int32BitsToSingle)];
-            var ray = RayOf(new(values[0], values[1], values[2]), new(values[3], values[4], values[5]), camera);
+            ScreenRay ray = RayOf(new(values[0], values[1], values[2]), new(values[3], values[4], values[5]), camera);
             RayTrace traced = ray.Trace(pyramid, MaxSteps);
             (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
             if (!Agrees(traced, marched))
