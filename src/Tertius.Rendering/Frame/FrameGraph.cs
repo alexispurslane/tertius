@@ -108,8 +108,9 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the exposure pass (<see cref="ExposurePass"/>, under
-/// <see cref="AutoExposure"/>) and the overlay (<see cref="OutlinePass"/>) included. Draws
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
+/// <see cref="GroundTruthOcclusion"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>)
+/// and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>

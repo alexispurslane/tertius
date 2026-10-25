@@ -41,8 +41,12 @@ internal sealed class RenderTargets : IDisposable
     public const uint OcclusionBinding = 7;
 
     // The upsample pass writes the target as a storage image, the clear as a transfer, and the lighting pass samples it.
+    // VulkanRenderer.ReadOcclusion copies it out.
     private const FormatFeatureFlags OcclusionFeatures =
-        FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit | FormatFeatureFlags.TransferDstBit;
+        FormatFeatureFlags.SampledImageBit
+        | FormatFeatureFlags.StorageImageBit
+        | FormatFeatureFlags.TransferDstBit
+        | FormatFeatureFlags.TransferSrcBit;
 
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
@@ -159,7 +163,10 @@ internal sealed class RenderTargets : IDisposable
             allocator: allocator,
             extent: extent,
             format: OcclusionFormat,
-            usage: ImageUsageFlags.SampledBit | ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
+            usage: ImageUsageFlags.SampledBit
+                | ImageUsageFlags.StorageBit
+                | ImageUsageFlags.TransferDstBit
+                | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
             name: "occlusion"
         );
@@ -254,7 +261,7 @@ internal sealed class RenderTargets : IDisposable
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
         if ((device.FormatProperties(OcclusionFormat).OptimalTilingFeatures & OcclusionFeatures) != OcclusionFeatures)
             throw new NotSupportedException(
-                $"{OcclusionFormat} cannot be sampled, stored and cleared by a transfer on {device.DeviceName}."
+                $"{OcclusionFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
             );
     }
 

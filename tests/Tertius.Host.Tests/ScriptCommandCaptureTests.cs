@@ -188,6 +188,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Equal(
                 "shadow maps",
                 "G-buffer",
+                "occlusion depth",
+                "occlusion horizons",
+                "occlusion denoise",
+                "occlusion upsample",
                 "lighting",
                 "transparent",
                 "exposure",
@@ -246,6 +250,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Equal(
                 "GPU shadow maps",
                 "GPU G-buffer",
+                "GPU occlusion depth",
+                "GPU occlusion horizons",
+                "GPU occlusion denoise",
+                "GPU occlusion upsample",
                 "GPU lighting",
                 "GPU transparent",
                 "GPU exposure",

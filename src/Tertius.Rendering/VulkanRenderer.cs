@@ -23,7 +23,9 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
-/// <item>Lighting: one fullscreen pass into the HDR target.</item>
+/// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
+/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
+/// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
@@ -67,6 +69,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly BrdfTableImages brdfTables;
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
+    private readonly OcclusionImages? occlusionImages;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureResources exposure;
@@ -132,6 +135,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
+            occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -414,7 +418,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
             device.WaitIdle();
-            targets.Resize(image.Extent);
+            ResizeTargets(image.Extent);
         }
 
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
@@ -648,7 +652,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         device.WaitIdle();
         output.Resize(extent);
         if (output.Extent.Width > 0 && output.Extent.Height > 0)
-            targets.Resize(output.Extent);
+            ResizeTargets(output.Extent);
+    }
+
+    /// <summary>
+    /// Resizes the render targets and the occlusion images, whose sets point at the targets, to
+    /// <paramref name="extent"/>. The device must be idle.
+    /// </summary>
+    private void ResizeTargets(Extent2D extent)
+    {
+        if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
+            return;
+        targets.Resize(extent);
+        occlusionImages?.Resize(targets);
     }
 
     /// <summary>
@@ -675,7 +691,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
                 layer: cascade,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -693,6 +709,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
 
         return depths;
+    }
+
+    /// <summary>
+    /// The occlusion target of the last frame, V from 0 to 1 per pixel, row by row from the top. A test hook: it waits for
+    /// the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadOcclusion()
+    {
+        GpuImage image = targets.Occlusion;
+        Extent2D extent = targets.Extent;
+        int count = (int)(extent.Width * extent.Height);
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: (ulong)count,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "occlusion readback"
+        );
+        SubmitAndWait(commandBuffer =>
+            CopyLayer(
+                commandBuffer: commandBuffer,
+                image: image,
+                aspect: ImageAspectFlags.ColorBit,
+                layer: 0,
+                extent: extent,
+                buffer: buffer
+            )
+        );
+
+        float[] occlusion = new float[count];
+        var stored = new ReadOnlySpan<byte>(buffer.Mapped, count);
+        for (int i = 0; i < count; i++)
+            occlusion[i] = stored[i] / 255f;
+        return occlusion;
     }
 
     /// <summary>
@@ -764,7 +815,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 image: image,
                 aspect: ImageAspectFlags.ColorBit,
                 layer: layer,
-                size: size,
+                extent: new((uint)size, (uint)size),
                 buffer: buffer
             )
         );
@@ -777,15 +828,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Records the copy of level 0 of one layer of <paramref name="image"/> into <paramref name="buffer"/>, and leaves
-    /// the image in the state that the renderer's own barriers continue from.
+    /// Records the copy of level 0 of one layer of <paramref name="image"/>, of <paramref name="extent"/>, into
+    /// <paramref name="buffer"/>, and leaves the image in the state that the renderer's own barriers continue from.
     /// </summary>
     private void CopyLayer(
         CommandBuffer commandBuffer,
         GpuImage image,
         ImageAspectFlags aspect,
         int layer,
-        int size,
+        Extent2D extent,
         GpuBuffer buffer
     )
     {
@@ -798,7 +849,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         var region = new BufferImageCopy
         {
             ImageSubresource = new(aspectMask: aspect, mipLevel: 0, baseArrayLayer: (uint)layer, layerCount: 1),
-            ImageExtent = new((uint)size, (uint)size, 1),
+            ImageExtent = new(extent.Width, extent.Height, 1),
         };
         vk.CmdCopyImageToBuffer(
             commandBuffer: commandBuffer,
@@ -1008,6 +1059,63 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Graph.Add(FrameGraph.Stage.ImpostorCaptures, impostorPass);
         geometryPass.RangeDrawers.Add(impostorPass);
         return (atlas, manager);
+    }
+
+    /// <summary>
+    /// Under <see cref="GroundTruthOcclusion"/>, makes the occlusion images, which the renderer owns, and adds the four
+    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoAmbientOcclusion"/>.
+    /// </summary>
+    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, AmbientOcclusionSetting setting) =>
+        setting switch
+        {
+            GroundTruthOcclusion occlusion => AddOcclusionPasses(shaders: shaders, setting: occlusion),
+            NoAmbientOcclusion => null,
+        };
+
+    /// <summary>
+    /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
+    /// <paramref name="setting"/> to the graph. Returns the images.
+    /// </summary>
+    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, GroundTruthOcclusion setting)
+    {
+        OcclusionImages images = Own(
+            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionDepthPass(device: device, shaders: shaders, layouts: layouts, images: images, setting: setting)
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionHorizonsPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionDenoisePass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientOcclusion,
+            new OcclusionUpsamplePass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            )
+        );
+        return images;
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>
