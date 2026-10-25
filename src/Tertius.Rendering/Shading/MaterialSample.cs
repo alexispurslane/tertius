@@ -41,10 +41,10 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     }
 
     /// <summary>
-    /// The light that the hemisphere ambient light sends toward <paramref name="toView"/>: the diffuse color by the
-    /// normal's sky share, plus the compensated specular albedo by the lobe's sky share.
+    /// The C# copy of hemisphereAmbient: the diffuse color by the normal's sky share, and the compensated specular albedo
+    /// by the lobe's sky share.
     /// </summary>
-    public Double3 ReflectedHemisphere(
+    public AmbientTerms HemisphereTerms(
         Double3 normal,
         Double3 toView,
         Double3 sky,
@@ -54,12 +54,43 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         BrdfTables tables
     )
     {
-        double nDotV = ViewCosine(normal, toView);
-        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(nDotV: nDotV, roughness: Lobe.Roughness);
+        (double schlickPart, double lobeAlbedo) = tables.SampleDfg(
+            nDotV: ViewCosine(normal, toView),
+            roughness: Lobe.Roughness
+        );
         Double3 specularAlbedo = One * schlickPart + F0 * (lobeAlbedo - schlickPart);
-        Double3 diffuse = DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare);
-        Double3 specular = specularAlbedo * EnergyCompensation(lobeAlbedo) * Double3.Lerp(ground, sky, lobeSkyShare);
-        return diffuse + specular;
+        return new(
+            Diffuse: DiffuseColor * Double3.Lerp(ground, sky, normalSkyShare),
+            Specular: specularAlbedo * EnergyCompensation(lobeAlbedo) * Double3.Lerp(ground, sky, lobeSkyShare)
+        );
+    }
+
+    /// <summary>
+    /// The C# copy of ambientLight: the light that the hemisphere ambient light sends toward <paramref name="toView"/>,
+    /// with the ambient <paramref name="occlusion"/> V applied to its two terms.
+    /// </summary>
+    public Double3 ReflectedHemisphere(
+        Double3 normal,
+        Double3 toView,
+        Double3 sky,
+        Double3 ground,
+        double normalSkyShare,
+        double lobeSkyShare,
+        double occlusion,
+        BrdfTables tables
+    )
+    {
+        AmbientTerms terms = HemisphereTerms(
+            normal: normal,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: normalSkyShare,
+            lobeSkyShare: lobeSkyShare,
+            tables: tables
+        );
+        AmbientTerms occluded = terms.Occluded(occlusion: occlusion, nDotV: ViewCosine(normal, toView), lobe: Lobe);
+        return occluded.Diffuse + occluded.Specular;
     }
 
     /// <summary>μ, the cosine of the view direction to the normal, with its floor.</summary>
