@@ -29,6 +29,26 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 6. The budget is measured on the Mac, but the user plays on a Linux PC (CLAUDE.md, Design preferences). An optimization must cut memory traffic, work or passes, which helps on every GPU. A change that helps only Apple's tile-based GPU needs a reason that holds on NVIDIA, AMD and Intel GPUs. The report gives that reason. Workgroup sizes stay multiples of 64, so that they fill both 32-wide and 64-wide waves.
 7. An optimization that keeps the image the same is checked by a pixel comparison of the captures before and after it, not by eye alone. The snapshot tests have no reference images yet. So the comparison uses the demo captures that each feature reviewed.
 
+### Made by the user, later
+
+8. No technique blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). The user wants each frame's image from that frame alone, as a design challenge. So the image has no grain that settles over frames, no ghosting and no smearing. Every other technique of "The techniques" is allowed, half-resolution reflections included.
+
+## The techniques
+
+A profile chooses from these, by the limiter of each pass:
+
+| Technique | What it does |
+|---|---|
+| A lower resolution per effect | The effect traces at half or quarter resolution. An upsample that respects depth and normal edges brings it back to full size. |
+| Tile classification | A cheap pass sorts tiles of 8 × 8 or 16 × 16 pixels by what they need. The expensive shader runs only on the tiles that need it, by an indirect dispatch. |
+| Pass fusion | Two passes that read the same images become one, so the data goes through memory once. |
+| Half-precision math and compact formats | Math in 16-bit floats where the precision allows it, and smaller image formats. Each use goes through the portable float rules of ARCHITECTURE.md. |
+| Async compute | Compute passes run on a second queue beside raster passes that leave the GPU idle, such as the shadow maps. A device with one queue family runs them on one queue as today. |
+| Caching | A result is computed again only when its inputs change, and it is the same result that a new computation gives: a shadow tile, a face of the environment map. |
+| Clustered lights | Each tile or cluster of the screen holds a list of the lights that reach it. |
+
+Two existing mechanisms reuse results of earlier frames without a blend, and decision 8 does not change them. The environment map redraws one face per frame, so a reflection can show surroundings up to 83 ms old at 60 Hz ([environment-map.md](environment-map.md), decision 3, a user decision). The automatic exposure follows the view over time on purpose, as an eye does ([auto-exposure.md](auto-exposure.md)).
+
 ## The tools
 
 - The GPU timestamps of each pass exist (ARCHITECTURE.md, "GPU timings"). A headless run writes their summary to `gpu-timings.json`.
@@ -74,5 +94,6 @@ The feature's design gives the target: 1 to 3 ms for the reflections' trace ([sc
 ## Out of scope
 
 - A check of the budget before each merge (decision 3).
+- Temporal accumulation, TAA and temporal upscaling (decision 8).
 - Dynamic resolution and quality presets. A preset waits until a user needs one.
 - The CPU side of the frame. The demo's CPU takes about 2.2 ms per frame ([blue-danube-demo.md](blue-danube-demo.md)), well under the GPU's time.
