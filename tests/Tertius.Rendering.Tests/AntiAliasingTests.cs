@@ -164,8 +164,34 @@ public sealed class AntiAliasingTests
     }
 
     [Fact]
-    public void SmaaIsTheDefault() =>
-        new RendererOptions().AntiAliasing.Should().Be(AntiAliasing.Smaa, "the user chose SMAA 1x as the default");
+    public void ARendererWhoseOptionsDoNotNameAnAntiAliasingRunsTheThreeSmaaPassesBetweenTheToneMapAndTheOverlay()
+    {
+        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Width = Width,
+                Height = Height,
+                Impostors = false,
+            }
+        );
+        try
+        {
+            string[] passes = [.. renderer.Graph.Passes.Select(pass => pass.Name)];
+
+            passes
+                .SkipWhile(pass => pass != "tone map")
+                .Take(5)
+                .Should()
+                .Equal(
+                    ["tone map", "SMAA edges", "SMAA weights", "SMAA blending", "outlines"],
+                    "the user chose SMAA 1x as the default"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 
     [Fact]
     public void AnAntiAliasingOutsideTheEnumIsRefused() =>
@@ -274,6 +300,39 @@ public sealed class AntiAliasingTests
         Differences(smaa, off, counts: (x, y) => Math.Abs(x - EdgeX(y)) > Reach)
             .Should()
             .Be(0, "SMAA changes only the pixels next to an edge");
+    }
+
+    [Fact]
+    public void OnAUnormOutputSmaaAppliesTheSrgbCurveOnceSoThePixelsFarFromTheEdgeMatchThoseOfAnSrgbOutput()
+    {
+        Capture srgb = Render(AntiAliasing.Smaa, "aa-smaa-srgb-output", DiagonalEdge);
+        VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
+            new()
+            {
+                Validation = true,
+                Width = Width,
+                Height = Height,
+                Impostors = false,
+                AntiAliasing = AntiAliasing.Smaa,
+            },
+            (device, allocator, extent) => new UnormOutput(device: device, allocator: allocator, extent: extent)
+        );
+        try
+        {
+            Capture unorm = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: DiagonalEdge(renderer),
+                name: "aa-smaa-unorm-output"
+            );
+
+            Differences(unorm, srgb, counts: (x, y) => Math.Abs(x - EdgeX(y)) > Reach)
+                .Should()
+                .Be(0, "the SMAA blending encodes a UNORM output in its shader as the hardware encodes an sRGB one");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     [Fact]

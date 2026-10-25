@@ -40,12 +40,16 @@ internal sealed class SmaaTargets : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        Tables = tables;
         Set = layouts.AllocateSmaaSet();
         // Written once: the tables never change, and resizing rewrites only the screen-sized bindings.
         layouts.WriteSampledView(set: Set, binding: 2, view: tables.Area.View);
         layouts.WriteSampledView(set: Set, binding: 3, view: tables.Search.View);
         Create(extent);
     }
+
+    /// <summary>The two tables of the weight pass. The renderer owns them; these targets only read them.</summary>
+    public SmaaTables Tables { get; }
 
     public GpuImage ToneMapped { get; private set; }
     public GpuImage Edges { get; private set; }

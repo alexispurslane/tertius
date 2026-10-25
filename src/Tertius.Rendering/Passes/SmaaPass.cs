@@ -18,14 +18,14 @@ internal enum SmaaStep
 
 /// <summary>
 /// One full-screen pass of SMAA 1x, with the reference header's vertex and pixel functions (Shaders/smaa.glsl). The edge
-/// and weight passes clear their image to zero first, because their shaders write only the pixels with an edge.
+/// and weight passes clear their image to zero first: the edge shader discards the pixels with no edge, and the header
+/// asks for both clears so that a later stencil mask can skip pixels in the weight pass.
 /// </summary>
 internal sealed unsafe class SmaaPass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly SmaaTargets targets;
-    private readonly SmaaTables tables;
     private readonly SmaaStep step;
     private readonly Pipeline pipeline;
 
@@ -34,7 +34,6 @@ internal sealed unsafe class SmaaPass : RenderPass
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         SmaaTargets targets,
-        SmaaTables tables,
         SmaaStep step,
         Format outputFormat
     )
@@ -42,7 +41,6 @@ internal sealed unsafe class SmaaPass : RenderPass
         this.device = device;
         this.layouts = layouts;
         this.targets = targets;
-        this.tables = tables;
         this.step = step;
         string shader = step switch
         {
@@ -82,8 +80,9 @@ internal sealed unsafe class SmaaPass : RenderPass
         GpuImage target = DeclareUses(context.Barriers, context.Output);
         context.Barriers.Flush(vk, commandBuffer);
 
-        // The blending pass writes every pixel of the output; the other two write only the pixels with an edge, so they
-        // clear their image to zero, which means no edge and no weight.
+        // Zero means no edge and no weight. The edge shader discards the pixels with no edge, so its image needs the
+        // clear. The weight shader writes every pixel, but the header's step 2 clears its image too, for the stencil mask
+        // that may come later. The blending pass writes every pixel of the output.
         context.BeginFullScreen(
             target: target,
             loadOp: step == SmaaStep.Blending ? AttachmentLoadOp.DontCare : AttachmentLoadOp.Clear,
@@ -120,8 +119,8 @@ internal sealed unsafe class SmaaPass : RenderPass
                 return targets.Edges;
             case SmaaStep.Weights:
                 barriers.Image(targets.Edges, ImageUse.SampledFragment);
-                barriers.Image(tables.Area, ImageUse.SampledFragment);
-                barriers.Image(tables.Search, ImageUse.SampledFragment);
+                barriers.Image(targets.Tables.Area, ImageUse.SampledFragment);
+                barriers.Image(targets.Tables.Search, ImageUse.SampledFragment);
                 barriers.Image(targets.Weights, ImageUse.ColorAttachment, discard: true);
                 return targets.Weights;
             case SmaaStep.Blending:

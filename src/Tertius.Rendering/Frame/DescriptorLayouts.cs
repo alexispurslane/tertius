@@ -487,8 +487,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The layout of the SMAA set (<see cref="SmaaSet"/>). Every binding has an immutable sampler: point for binding 0, as
-    /// the header's SMAASamplePoint asks, and linear for the others.
+    /// The layout of the SMAA set (<see cref="SmaaSet"/>). Every binding has an immutable sampler: point for binding 0,
+    /// which the header allows as an option and which gives the linear values at the texel centers that the edge pass
+    /// reads, and linear for the others.
     /// </summary>
     private DescriptorSetLayout CreateSmaaSetLayout()
     {

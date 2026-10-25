@@ -21,7 +21,10 @@ internal sealed class FrameContext
     public long Number { get; set; }
     public float Exposure { get; set; } = 1f;
 
-    /// <summary>The output format stores linear values and the tone mapper must apply the sRGB curve.</summary>
+    /// <summary>
+    /// The output format stores linear values, so the pass that writes the output applies the sRGB curve: the tone map
+    /// with SMAA off, the SMAA blending with SMAA on.
+    /// </summary>
     public bool EncodeSrgb { get; set; }
 
     /// <summary>Set when this frame must also be copied to the capture buffer.</summary>
@@ -51,8 +54,9 @@ internal sealed class FrameContext
     }
 
     /// <summary>
-    /// Begins rendering into <paramref name="target"/> alone, which a clear sets to zero, binds a full-screen
-    /// <paramref name="pipeline"/> with its one descriptor set, and sets the full viewport.
+    /// Begins rendering into <paramref name="target"/> alone, binds a full-screen <paramref name="pipeline"/> with its one
+    /// descriptor set, and sets the full viewport. The target starts at zero when <paramref name="loadOp"/> is Clear;
+    /// DontCare leaves it undefined, for a pass that writes every pixel.
     /// </summary>
     public unsafe void BeginFullScreen(
         GpuImage target,
@@ -173,7 +177,7 @@ internal sealed class FrameGraph : IDisposable
         /// </summary>
         AntiAliasing,
 
-        /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
+        /// <summary>Debug drawing over the output image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,
         Readback,
     }

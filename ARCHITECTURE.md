@@ -873,7 +873,7 @@ SMAA runs after the tone map and before the overlay, as the three passes of the 
 
 The stage files are thin GLSL 4.60 files around the unchanged reference header, which `Shaders/smaa.glsl` includes with `SMAA_GLSL_4`, `SMAA_PRESET_HIGH` and `SMAA_RT_METRICS` from a push constant. The high preset is fixed: a threshold of 0.1, 16 search steps, 8 diagonal search steps and corner rounding of 25 %. The edge detection uses luma and no predication.
 
-`SmaaTargets`, which `RenderTargets` owns when SMAA is on, holds the screen-sized images, and `RenderTargets.Resize` makes them again at the new size:
+`SmaaTargets`, which `RenderTargets` owns when SMAA is on, holds the screen-sized images and a reference to the two tables, and `RenderTargets.Resize` makes the images again at the new size. Whether `RenderTargets.Smaa` is null is the one store of whether SMAA is on: the tone map's target, the three passes and the upload of the tables all follow from it.
 
 | Image | Format | Use |
 |---|---|---|
@@ -881,9 +881,9 @@ The stage files are thin GLSL 4.60 files around the unchanged reference header, 
 | edges | R8G8_UNORM | An edge on the left side of the pixel in r, on the top side in g. |
 | weights | R8G8B8A8_UNORM | The blending weights of the pixel's four sides. |
 
-The edge and weight passes clear their image to zero first, because their shaders write only the pixels with an edge. The three images take 10 bytes per output pixel: about 21 MB at 1920 × 1080 and 83 MB at 3840 × 2160. `SmaaTables` uploads the two tables from the embedded reference files in the first frame, as `BrdfTableImages` does: the area table, R8G8_UNORM, 160 × 560 texels, and the search table, R8_UNORM, 64 × 16 texels, each in memory order, top row first, as Vulkan's top-left texture origin reads them.
+The edge and weight passes clear their image to zero first. The edge shader discards the pixels with no edge, so its image needs the clear. The weight shader writes every pixel, but the header asks for both clears, so that a stencil mask can later skip the pixels with no edge in the weight pass. The three images take 10 bytes per output pixel: about 21 MB at 1920 × 1080 and 83 MB at 3840 × 2160. `SmaaTables` uploads the two tables from the embedded reference files in the first frame, as `BrdfTableImages` does: the area table, R8G8_UNORM, 160 × 560 texels, and the search table, R8_UNORM, 64 × 16 texels, each in memory order, top row first, as Vulkan's top-left texture origin reads them.
 
-The SMAA descriptor set holds six combined image samplers with immutable samplers. The edge pass reads its color with point sampling, where the header's `SMAASamplePoint` asks for it. Every other input uses the linear, clamp-to-edge `TableSampler`. With SMAA off, the tone map writes the output, and the graph holds no SMAA pass, image or table.
+The SMAA descriptor set holds six combined image samplers with immutable samplers. The edge pass reads its color with point sampling, which the header allows as an option at its `SMAASamplePoint` reads. It reads only texel centers, where point and linear sampling give the same values. Every other input uses the linear, clamp-to-edge `TableSampler`, as the header asks. With SMAA off, the tone map writes the output, and the graph holds no SMAA pass, image or table.
 
 At 1920 × 1080 on the development Mac, the three passes take about 0.29 ms per frame together, and the tone map pass takes 0.035 ms less when it writes the SMAA image than when it writes the output. At 3840 × 2160 they take about 0.91 ms (`scripts/demo-exit.json`, 2026-10-25, `docs/plans/anti-aliasing.md`, "Measured cost").
 
@@ -1087,7 +1087,7 @@ On the GPU, the pass makes one instanced draw of 1,536 vertices for each record.
 
 Each segment is a quad 2 pixels wide on the screen, made of two triangles. A line list would draw lines 1 pixel wide on MoltenVK, because Metal has no wide lines. The two quads that meet at a corner of a ring compute its two vertices from the same three points of the ring. So they share one edge exactly, mitered across the bend, and no pixel draws twice there. A miter is at most 2 half widths long, so a ring seen almost edge-on ends at its tip without a spike. The vertex shader cuts each segment at the near plane, 5 cm ahead of the eye, as the geometry passes cut a triangle. So a camera inside a bubble sees the parts of its rings in front of it.
 
-The fragment shader compares its distance from the eye with the distance target of the G-buffer. A fragment behind geometry draws at 30 % alpha. A fragment in front of geometry or against the sky draws at full alpha. The pass blends into the output, which it loads. The headless output has an sRGB format, so the hardware applies the sRGB curve, and the pass blends in linear light. On an output that stores linear values, the shader applies the curve itself, as the tone mapper does. There the hardware blends a dimmed ring on encoded values, not in linear light, so a ring behind geometry looks a little different in the window than in a capture.
+The fragment shader compares its distance from the eye with the distance target of the G-buffer. A fragment behind geometry draws at 30 % alpha. A fragment in front of geometry or against the sky draws at full alpha. The pass blends into the output, which it loads. The headless output has an sRGB format, so the hardware applies the sRGB curve, and the pass blends in linear light. On an output that stores linear values, the shader applies the curve itself, as the pass that writes the output does. There the hardware blends a dimmed ring on encoded values, not in linear light, so a ring behind geometry looks a little different in the window than in a capture.
 
 Each kind of frame has one fixed color, from the frame bubble colors of the editor palette (`docs/plans/editor.md`). The engine draws no text, so a title card of the video gives the legend.
 
