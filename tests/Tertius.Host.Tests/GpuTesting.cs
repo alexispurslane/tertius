@@ -75,6 +75,8 @@ public static class GpuTesting
 
     public static readonly Scene LitDropScene = new("lit-drop", LitDrop);
 
+    public static readonly Scene DarkAndBrightScene = new("dark-and-bright", DarkAndBright);
+
     /// <summary>
     /// A validating headless renderer with no impostors, as a scripted run makes one, with no ambient occlusion, so that
     /// the tests see the ambient light in full, and with a fixed exposure of 0 stops, so that a pixel does not depend on
@@ -146,6 +148,35 @@ public static class GpuTesting
         scene.Add("front", front);
         scene.Add("away", Camera(world, space, new(new(0, 0, 4), TurnAboutY(180))));
         world.Camera = front;
+        LightEvenly(world);
+        return scene;
+    }
+
+    /// <summary>
+    /// The scene "dark-and-bright", with no physics. In the root frame <c>space</c>, a nearly black 1 m <c>dark-box</c>
+    /// sits at the origin, and a nearly white 1 m <c>bright-box</c> at (0, 0, 8). The camera <c>dark</c> stands at
+    /// (0, 0, 4) and looks along -Z at the dark box. The camera <c>bright</c> stands at the same place, turned 180 degrees
+    /// about +Y, so it looks at the bright box, about 5 stops brighter. The scene starts with <c>dark</c> as the camera,
+    /// and lights every face evenly.
+    /// </summary>
+    public static SceneInstance DarkAndBright(World world, IRenderResources resources)
+    {
+        var scene = new SceneInstance();
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        scene.Add("space", space);
+        MeshId box = resources.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId black = resources.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.03f, y: 0.03f, z: 0.03f, w: 1), roughness: 0.38f)
+        );
+        MaterialId white = resources.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), roughness: 0.38f)
+        );
+        scene.Add("dark-box", world.Spawn(new() { Frame = space, Render = Drawn(box, black) }));
+        scene.Add("bright-box", world.Spawn(new() { Frame = space, Pose = At(0, 0, 8), Render = Drawn(box, white) }));
+        Entity dark = Camera(world, space, At(0, 0, 4));
+        scene.Add("dark", dark);
+        scene.Add("bright", Camera(world, space, new(new(0, 0, 4), TurnAboutY(180))));
+        world.Camera = dark;
         LightEvenly(world);
         return scene;
     }
