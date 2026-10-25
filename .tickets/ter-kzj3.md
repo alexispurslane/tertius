@@ -5,7 +5,7 @@ deps: []
 links: []
 created: 2026-10-25T15:25:29Z
 type: feature
-priority: 1
+priority: 3
 assignee: Alexis Purslane
 tags: [platform, linux, rendering]
 ---
@@ -26,3 +26,9 @@ The user requires that the game runs on regular Vulkan on Linux, not only on Mol
 
 The full Checked and Release suites pass on Linux with lavapipe. The validation layers report no errors. The demo runs in a window on Linux. ARCHITECTURE.md lists the supported platforms and the required device features.
 
+
+## Notes
+
+**2026-10-25T15:27:48Z**
+
+User, 2026-10-25: skip the Linux runs for now. Design with Linux in mind, to the Vulkan spec. So this ticket waits, at priority 3. The shader audit (steps 3 and 4) moved to its own ticket, because it is spec work that needs no Linux machine.
