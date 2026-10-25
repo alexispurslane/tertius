@@ -869,9 +869,11 @@ public sealed class RenderView : IDisposable
     public void Dispose();
 }
 
-public sealed record ViewOptions(bool Impostors = false, bool Shadows = true, DisplayMode Display = DisplayMode.Lit, float Exposure = 1f);
+public sealed record ViewOptions(bool Impostors = false, bool Shadows = true, DisplayMode Display = DisplayMode.Lit, ExposureSetting Exposure = default);
 
 public enum DisplayMode { Lit, BaseColor, Normals, Specular, Emissive, Distance, DepthRange, ImpostorTint }
+
+`ViewOptions.Exposure` is an `ExposureSetting` (`FixedExposure` or `AutoExposure`, [auto-exposure.md](auto-exposure.md), "The setting"). The view passes it to `RendererOptions.Exposure`, as it passes its impostor switch. The setting is fixed for the life of a renderer (decision 12 of that doc), so a view that changes it needs a renderer made with the new setting. The default value of the record is `FixedExposure(0)`, which multiplies by exactly 1, as the former `1f` did. A view that follows the surfaces in view passes `AutoExposure.Default`.
 
 /// <summary>A picked object. Entity.Null means that the pixel showed no object.</summary>
 public readonly record struct PickResult(Entity Entity, ushort Part);

@@ -41,6 +41,30 @@ public sealed class RendererOptions
     /// </summary>
     public int ImpostorTiles { get; set; } = ImpostorAtlas.DefaultTiles;
 
+    /// <summary>
+    /// How the renderer chooses the exposure: <see cref="AutoExposure"/> follows the surfaces in view over time, and
+    /// <see cref="FixedExposure"/> never moves, for tests. The default is <see cref="AutoExposure.Default"/>.
+    /// </summary>
+    public ExposureSetting Exposure { get; set; } = AutoExposure.Default;
+
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
+
+    /// <summary>
+    /// Whether ambient occlusion darkens the ambient light: <see cref="GroundTruthOcclusion"/> or
+    /// <see cref="NoAmbientOcclusion"/>. The default is <see cref="GroundTruthOcclusion.Default"/>.
+    /// </summary>
+    public AmbientOcclusionSetting AmbientOcclusion { get; set; } = GroundTruthOcclusion.Default;
+
+    /// <summary>
+    /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
+    /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
+    /// </summary>
+    public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
+
+    /// <summary>
+    /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
+    /// (about 21 MB at 1920 × 1080) and three full-screen passes.
+    /// </summary>
+    public AntiAliasing AntiAliasing { get; set; } = AntiAliasing.Smaa;
 }

@@ -237,15 +237,96 @@ internal struct DrawPushConstants
     public Vector4 Eye;
 }
 
+/// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl). 64 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct OcclusionPushConstants
+{
+    /// <summary>xyz the unit right of the camera in world axes, w the tangent of half the horizontal field of view.</summary>
+    public Vector4 CameraRight;
+
+    /// <summary>xyz the unit up, w the tangent of half the vertical field of view.</summary>
+    public Vector4 CameraUp;
+
+    /// <summary>xyz the unit forward, w 0.</summary>
+    public Vector4 CameraForward;
+
+    public float RadiusMeters;
+    public uint Slices;
+    public uint StepsPerSide;
+
+    /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
+    public uint LastDenoise;
+
+    /// <summary>
+    /// The push constants of one dispatch. The camera is the one that the frame constants hold, so the passes and the
+    /// lighting pass never disagree about it.
+    /// </summary>
+    public static OcclusionPushConstants For(in CameraView camera, GroundTruthOcclusion setting, bool lastDenoise) =>
+        new()
+        {
+            CameraRight = new(camera.Right, camera.TanHalfX),
+            CameraUp = new(camera.Up, camera.TanHalfY),
+            CameraForward = new(camera.Forward, 0),
+            RadiusMeters = setting.RadiusMeters,
+            Slices = (uint)setting.Slices,
+            StepsPerSide = (uint)setting.StepsPerSide,
+            LastDenoise = lastDenoise ? 1u : 0u,
+        };
+}
+
 /// <summary>The push constants of the tone mapping pass.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants
 {
-    public float Exposure;
     public uint EncodeSrgb;
 
     /// <summary>The renderer's <see cref="Rendering.ToneCurve"/> as its number.</summary>
     public uint ToneCurve;
+
+    /// <summary>The factor of the summed bloom levels, <see cref="Bloom.Strength"/>. Unread without bloom.</summary>
+    public float GlowStrength;
+}
+
+/// <summary>The push constants of the bloom pass (Shaders/bloom_*.frag). Only its first draw reads them.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct BloomPushConstants
+{
+    /// <summary><see cref="Bloom.Threshold"/>, in the pre-exposed light of the HDR image.</summary>
+    public float Threshold;
+
+    /// <summary><see cref="Bloom.Knee"/>, a fraction of the threshold.</summary>
+    public float Knee;
+
+    /// <summary><see cref="Bloom.Levels"/>, which the prefilter divides the light by, so that the sum of the levels stays finite.</summary>
+    public uint Levels;
+}
+
+/// <summary>The push constants of exposure_adapt.comp: the setting and the two approach factors of this draw, padded to 32 bytes.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 32)]
+internal struct ExposureAdaptPushConstants
+{
+    public float DarkShare;
+    public float BrightShare;
+    public float MinStops;
+    public float MaxStops;
+    public float CompensationStops;
+
+    /// <summary>f(Δt, IntoDarkSeconds): the share of the gap to the target that the exposure closes when it rises.</summary>
+    public float IntoDarkFactor;
+
+    /// <summary>f(Δt, IntoLightSeconds): the share when it falls.</summary>
+    public float IntoLightFactor;
+}
+
+/// <summary>The push constants of the three SMAA passes (Shaders/smaa.glsl).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct SmaaPushConstants
+{
+    /// <summary>1 / width, 1 / height, width and height of the output, in pixels: the header's SMAA_RT_METRICS.</summary>
+    public Vector4 Metrics;
+
+    /// <summary>1 when the output format is UNORM and the blending pass must apply the sRGB curve itself.</summary>
+    public uint EncodeSrgb;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

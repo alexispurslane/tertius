@@ -37,3 +37,22 @@ The reference implementation is iryoku/smaa, commit `71c806a838bdd7d517df19192a2
 2. Port the three passes to GLSL 4.60 with the reference header, and upload the two tables.
 3. Measure the GPU time of the three passes at 1920 × 1080, 2560 × 1440 and 3840 × 2160. Report the numbers here and in the ticket.
 4. Take headless captures with SMAA off and on, and review them by eye.
+
+## Measured cost
+
+Measured on 2026-10-25 on the development Mac (Apple M1 Max, MoltenVK), in a Release build, with `scripts/demo-exit.json` and `--video`, by the recipe of [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature". Each run reports 3,877 frames. The one-minute load was between 6.0 and 7.2 at the start of each run. The three passes exist only with SMAA on, so their times are the cost. The times are in milliseconds per frame.
+
+| Size | Run | Edges mean / median / p95 | Weights mean / median / p95 | Blending mean / median / p95 | Sum of the means | Sum of the medians |
+|---|---|---|---|---|---|---|
+| 1920 × 1080 | 1 | 0.067 / 0.066 / 0.124 | 0.117 / 0.115 / 0.180 | 0.105 / 0.101 / 0.141 | 0.289 | 0.282 |
+| 1920 × 1080 | 2 | 0.064 / 0.065 / 0.124 | 0.116 / 0.109 / 0.181 | 0.107 / 0.110 / 0.142 | 0.287 | 0.284 |
+| 2560 × 1440 | 1 | 0.119 / 0.121 / 0.198 | 0.164 / 0.163 / 0.250 | 0.191 / 0.218 / 0.236 | 0.474 | 0.502 |
+| 3840 × 2160 | 1 | 0.236 / 0.234 / 0.324 | 0.260 / 0.256 / 0.384 | 0.417 / 0.412 / 0.540 | 0.913 | 0.902 |
+
+A first run at 3840 × 2160 gave the same times within 0.01 ms per pass, but the load rose to 16 during it, so the table shows the second run.
+
+The tone map pass takes 0.088 ms (median 0.096 ms, p95 0.137 ms) at 1920 × 1080 with SMAA off, and 0.051 to 0.053 ms (median 0.045 to 0.046 ms, p95 0.093 to 0.094 ms) with SMAA on, when it writes the SMAA tone-mapped image instead of the output. So SMAA costs about 0.25 ms per frame at 1920 × 1080 in all: 0.29 ms for its passes, less 0.035 ms that the tone map saves.
+
+The three passes take less than 0.5 ms together at 1920 × 1080, so the stencil mask that skips the pixels with no edge in the weight pass stays out.
+
+The SMAA images take 10 bytes of device memory per output pixel: 20.7 MB at 1920 × 1080, 36.9 MB at 2560 × 1440 and 82.9 MB at 3840 × 2160. The two tables take 180 KB.

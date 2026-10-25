@@ -25,6 +25,12 @@ internal enum ImageUse
 
     /// <summary>Sampled or fetched in the vertex and the fragment shaders, as the lit puffs sample the shadow cascades.</summary>
     SampledVertexFragment,
+
+    /// <summary>Sampled or fetched in a compute shader, as the exposure's meter reads the HDR image.</summary>
+    SampledCompute,
+
+    /// <summary>Read and written as a storage image in a compute shader, as the occlusion passes use their images.</summary>
+    StorageCompute,
     TransferSource,
     TransferDestination,
     Present,
@@ -38,6 +44,12 @@ internal enum BufferUse
 
     /// <summary>Read as a storage buffer in the vertex and fragment shaders.</summary>
     ShaderRead,
+
+    /// <summary>Read as a storage buffer in a compute shader.</summary>
+    ComputeRead,
+
+    /// <summary>Read and written as a storage buffer in a compute shader, as by atomic adds.</summary>
+    ComputeWrite,
     TransferSource,
     TransferDestination,
 
@@ -80,6 +92,18 @@ internal static class ResourceUses
                 PipelineStageFlags2.VertexShaderBit | PipelineStageFlags2.FragmentShaderBit,
                 AccessFlags2.ShaderSampledReadBit
             ),
+            ImageUse.SampledCompute => new(
+                ImageLayout.ShaderReadOnlyOptimal,
+                PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.ShaderSampledReadBit
+            ),
+            // Storage images are read and written only in the General layout. Both bits, so that any two storage uses
+            // get a barrier: each occlusion pass reads what the one before it wrote.
+            ImageUse.StorageCompute => new(
+                ImageLayout.General,
+                PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
+            ),
             ImageUse.TransferSource => new(
                 ImageLayout.TransferSrcOptimal,
                 PipelineStageFlags2.AllTransferBit,
@@ -106,6 +130,16 @@ internal static class ResourceUses
                 ImageLayout.Undefined,
                 PipelineStageFlags2.VertexShaderBit | PipelineStageFlags2.FragmentShaderBit,
                 AccessFlags2.ShaderStorageReadBit
+            ),
+            BufferUse.ComputeRead => new(
+                ImageLayout.Undefined,
+                PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.ShaderStorageReadBit
+            ),
+            BufferUse.ComputeWrite => new(
+                ImageLayout.Undefined,
+                PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
             ),
             BufferUse.TransferSource => new(
                 ImageLayout.Undefined,

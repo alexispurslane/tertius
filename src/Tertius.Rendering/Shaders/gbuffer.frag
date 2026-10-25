@@ -5,6 +5,7 @@
 #include "material.glsl"
 #include "octahedral.glsl"
 #include "hemisphere.glsl"
+#include "exposure.glsl"
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -31,7 +32,7 @@ void main()
     vec3 V = normalize(draw.eye.xyz - inPosition);
     float lobeSky = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     outSpecular = vec4(s.metallic, s.roughness, s.reflectance, lobeSky);
-    outEmissive = vec4(s.emissive, skyFraction(inHemisphere, inPosition, s.normal));
+    outEmissive = vec4(preExposed(s.emissive), skyFraction(inHemisphere, inPosition, s.normal));
     // Euclidean distance, not depth: the lighting pass rebuilds the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);

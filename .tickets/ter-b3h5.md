@@ -1,6 +1,6 @@
 ---
 id: ter-b3h5
-status: in_progress
+status: closed
 deps: [ter-ptft, ter-zzyr]
 links: []
 created: 2026-10-11T20:51:00Z
@@ -34,3 +34,11 @@ With SSAO on, creases, inner corners and the ground under objects get darker amb
 **2026-10-25T13:13:15Z**
 
 Design decisions (user, 2026-10-25): GTAO (Jimenez 2016), the cosine-weighted visibility integral, at half resolution with an edge-aware upsample to full resolution. Compute passes, so the build waits for the compute pipelines of ter-zzyr. The reference is Intel's XeGTAO (MIT), whose download the user allowed. Shared by both offered designs and settled: it scales only the ambient light, the diffuse by the occlusion and the ambient specular by a specular occlusion derived from it (Lagarde 2014); it reads the distance target and the normals, so one pass serves all three depth ranges, and a radius of about 1 m fades out where it covers less than a pixel; fixed spatial noise and an edge-aware blur, no accumulation over frames; no multi-bounce brightening, because SSGI adds real bounced light; a union switch NoAmbientOcclusion or GroundTruthOcclusion(RadiusMeters, Slices, StepsPerSide) in RendererOptions, on by default, off in the test fixtures; GPU pixel tests (an inner corner darker than an open floor, an open floor unchanged, no dark halo beside a near silhouette); cost measured at 1080p; the default radius chosen from captures that the user sees.
+
+**2026-10-25T18:34:36Z**
+
+The user's decisions after the captures, 2026-10-25: fork 1 B, XeGTAO's tuned set (ter-sdks builds it after this ticket merges). The radius: the user could not tell the radii apart on a phone and asked the orchestrator to choose whatever feels most dramatic, but not overly so; ter-sdks picks it from captures of the tuned set. The cost of 1.7 ms: merge, then profile (ter-izsu). Fork 3 A, settled by the orchestrator by the rule to leave out a feature that is not needed yet: impostors get no occlusion, as they get no shadows.
+
+**2026-10-25T18:57:47Z**
+
+Merged into main as 086f096e on 2026-10-25. Coverage of the changed lines in src: 629 of 636 lines (98.9 %), 99 of 106 branches. The uncovered lines are the refusals of a device that lacks a format or a feature (RenderTargets 271-273, OcclusionImages 106, VulkanDevice 355), and the windowed-only swapchain paths (VulkanDevice 424, VulkanRenderer 420), which no headless test on this Mac reaches. The union switch's default arm is the partial branch at VulkanRenderer 1093. Under coverage, three Physics allocation tests fail in both configurations (ContactAllocationTests twice, RefusedRailsAllocationTests), because the instrumentation allocates; this branch does not touch Physics, and they pass in the plain runs.
