@@ -1,7 +1,7 @@
 ---
 id: ter-jxv9
-status: open
-deps: [ter-ptft]
+status: in_progress
+deps: [ter-ptft, ter-zzyr]
 links: [ter-a24f]
 created: 2026-10-22T00:22:07Z
 type: feature
@@ -30,3 +30,7 @@ With SSR on, a glossy floor reflects the objects on screen above it, the reflect
 **2026-10-22T00:25:39Z**
 
 2026-10-21: this ticket now waits for the PBR BRDF (ter-ptft). Its note on Blinn-Phong and the F0 cap of 0.16 describes the renderer before that ticket. After it, reflections weight by the Fresnel term of the PBR material and blur by its roughness, and metals reflect with their color.
+
+**2026-10-25T13:28:35Z**
+
+Design decisions (user, 2026-10-25): Hi-Z tracing over a min-max pyramid of depth, which SSGI can reuse; the rays read this frame's lit HDR image, before the transparent pass, so glass and puffs do not show in reflections; rough surfaces blur by a cone over a mip chain of that image, sized by the roughness, with no noise; tracing at full resolution. Settled with both offered designs: where a ray hits, its radiance replaces the hemisphere ambient specular term, with the same weight from the BRDF tables and the same energy compensation, and where it leaves the screen, hits nothing or reaches the sky, it fades back to the hemisphere term with no hard edge; above a maximum roughness SSR fades out; rays read the distance target, so one pass serves all three depth ranges, and the assumed thickness grows with distance; compute passes, so the build waits for the compute pipelines of ter-zzyr; a union switch NoReflections or ConeTracedReflections(MaxRoughness, MaxSteps) in RendererOptions, on by default, off in the test fixtures; GPU pixel tests (a bright object above a mirror floor shows in the floor, a rougher floor blurs it, the reflection fades at the screen edge); cost measured at 1080p; captures for the user before the merge.
