@@ -19,6 +19,8 @@ namespace Tertius.Host;
 /// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
 /// <item><c>--size &lt;width&gt;x&lt;height&gt;</c>, such as <c>--size 1920x1080</c>, replaces the size of a script's window
 /// in either run.</item>
+/// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
+/// option.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -54,7 +56,7 @@ public static class ScriptCommand
     public const string GpuTimingsFile = "gpu-timings.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -73,6 +75,7 @@ public static class ScriptCommand
         "--video",
         "--fps",
         "--size",
+        "--tone-curve",
     ];
 
     /// <summary>
@@ -278,16 +281,17 @@ public static class ScriptCommand
         TextWriter error
     )
     {
+        var rendererOptions = new RendererOptions
+        {
+            Width = size.Width,
+            Height = size.Height,
+            Impostors = false,
+        };
+        if (options.ToneCurve is { } curve)
+            rendererOptions.ToneCurve = curve;
         try
         {
-            return createRenderer(
-                new()
-                {
-                    Width = size.Width,
-                    Height = size.Height,
-                    Impostors = false,
-                }
-            );
+            return createRenderer(rendererOptions);
         }
         catch (Exception ex)
         {
@@ -415,6 +419,7 @@ public static class ScriptCommand
     /// <param name="Record">The file that free play writes its session to as a script, or null to record nothing.</param>
     /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
+    /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -423,7 +428,8 @@ public static class ScriptCommand
         double Speed,
         string? Record = null,
         VideoFile? Video = null,
-        ScriptWindow? Size = null
+        ScriptWindow? Size = null,
+        ToneCurve? ToneCurve = null
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -445,7 +451,8 @@ public static class ScriptCommand
             Video: video is null
                 ? null
                 : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
-            Size: SizeOf(given.Value("--size"))
+            Size: SizeOf(given.Value("--size")),
+            ToneCurve: ToneCurveOf(given.Value("--tone-curve"))
         );
     }
 
@@ -506,7 +513,7 @@ public static class ScriptCommand
 
     /// <summary>The problem with the value of an option, or with an option that another option needs, or null.</summary>
     private static string? ValueProblem(GivenOptions given) =>
-        SpeedProblem(given) ?? VideoProblem(given) ?? SizeProblem(given);
+        SpeedProblem(given) ?? VideoProblem(given) ?? SizeProblem(given) ?? ToneCurveProblem(given);
 
     private static string? SpeedProblem(GivenOptions given)
     {
@@ -545,6 +552,17 @@ public static class ScriptCommand
         return null;
     }
 
+    private static string? ToneCurveProblem(GivenOptions given)
+    {
+        if (given.Value("--tone-curve") is not { } curve)
+            return null;
+        if (!given.Headless)
+            return "--tone-curve applies to a headless run, so add --headless.";
+        if (ToneCurveOf(curve) is null)
+            return $"--tone-curve needs aces or hable, not '{curve}'.";
+        return null;
+    }
+
     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
     private static double? SpeedOf(string? text)
     {
@@ -568,6 +586,15 @@ public static class ScriptCommand
         );
         return read && fps is >= VideoFile.MinFramesPerSecond and <= VideoFile.MaxFramesPerSecond ? fps : null;
     }
+
+    /// <summary>The tone curve that the text names, or null for no text or a name that is not aces or hable.</summary>
+    private static ToneCurve? ToneCurveOf(string? text) =>
+        text switch
+        {
+            "aces" => ToneCurve.AcesFitted,
+            "hable" => ToneCurve.Hable,
+            _ => null,
+        };
 
     /// <summary>The size that the text <c>&lt;width&gt;x&lt;height&gt;</c> gives, or null for no text or when a side is not a whole number of 1 to <see cref="ScriptWindow.MaxSide"/>.</summary>
     private static ScriptWindow? SizeOf(string? text)

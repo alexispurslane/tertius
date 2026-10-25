@@ -91,18 +91,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
             layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
-            frames = new FrameResources[options.FramesInFlight];
-            for (int i = 0; i < frames.Length; i++)
-                frames[i] = Own(
-                    new FrameResources(
-                        device: device,
-                        allocator: Allocator,
-                        layouts: layouts,
-                        textures: textures,
-                        tables: brdfTables,
-                        index: i
-                    )
-                );
+            frames = CreateFrames(options.FramesInFlight);
 
             Graph.Add(
                 FrameGraph.Stage.ShadowMaps,
@@ -111,39 +100,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             var geometryPass = new GeometryPass(device, shaders, layouts);
             Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
             if (options.Impostors)
-            {
-                impostorAtlas = Own(
-                    new ImpostorAtlas(
-                        device: device,
-                        allocator: Allocator,
-                        layouts: layouts,
-                        tiles: options.ImpostorTiles
-                    )
-                );
-                Impostors = new(options.ImpostorTiles);
-                Batcher.Processors.Add(Impostors);
-                var impostorPass = new ImpostorPass(
-                    device: device,
+                (impostorAtlas, Impostors) = AddImpostors(
                     shaders: shaders,
-                    layouts: layouts,
-                    atlas: impostorAtlas,
-                    manager: Impostors
+                    geometryPass: geometryPass,
+                    tiles: options.ImpostorTiles
                 );
-                Graph.Add(FrameGraph.Stage.ImpostorCaptures, impostorPass);
-                geometryPass.RangeDrawers.Add(impostorPass);
-            }
 
-            Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
-            Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
-            Graph.Add(
-                FrameGraph.Stage.ToneMap,
-                new ToneMapPass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)
-            );
-            Graph.Add(
-                FrameGraph.Stage.Overlay,
-                new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)
-            );
-            Graph.Add(FrameGraph.Stage.Readback, new CapturePass());
+            AddPassesAfterGeometry(shaders, options.ToneCurve);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
 
@@ -310,6 +273,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
+        if (!Enum.IsDefined(options.ToneCurve))
+            throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
@@ -897,6 +862,73 @@ public sealed unsafe class VulkanRenderer : IRenderer
             for (int i = 0; i < pixels.Length; i += 4)
                 (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
         sink.Take(new(pixels, width, height));
+    }
+
+    /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
+    private FrameResources[] CreateFrames(int framesInFlight)
+    {
+        var made = new FrameResources[framesInFlight];
+        for (int i = 0; i < made.Length; i++)
+            made[i] = Own(
+                new FrameResources(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    textures: textures,
+                    tables: brdfTables,
+                    index: i
+                )
+            );
+        return made;
+    }
+
+    /// <summary>
+    /// Makes the impostor atlas, which the renderer owns, and the manager, and adds their capture pass to the graph and
+    /// their billboards to the ranges of <paramref name="geometryPass"/>.
+    /// </summary>
+    private (ImpostorAtlas Atlas, ImpostorManager Manager) AddImpostors(
+        ShaderLibrary shaders,
+        GeometryPass geometryPass,
+        int tiles
+    )
+    {
+        ImpostorAtlas atlas = Own(
+            new ImpostorAtlas(device: device, allocator: Allocator, layouts: layouts, tiles: tiles)
+        );
+        var manager = new ImpostorManager(tiles);
+        Batcher.Processors.Add(manager);
+        var impostorPass = new ImpostorPass(
+            device: device,
+            shaders: shaders,
+            layouts: layouts,
+            atlas: atlas,
+            manager: manager
+        );
+        Graph.Add(FrameGraph.Stage.ImpostorCaptures, impostorPass);
+        geometryPass.RangeDrawers.Add(impostorPass);
+        return (atlas, manager);
+    }
+
+    /// <summary>Adds the passes from lighting to the readback to the graph, each in its own stage.</summary>
+    private void AddPassesAfterGeometry(ShaderLibrary shaders, ToneCurve curve)
+    {
+        Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
+        Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
+        Graph.Add(
+            FrameGraph.Stage.ToneMap,
+            new ToneMapPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                outputFormat: output.Format,
+                curve: curve
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.Overlay,
+            new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)
+        );
+        Graph.Add(FrameGraph.Stage.Readback, new CapturePass());
     }
 
     private T Own<T>(T resource)

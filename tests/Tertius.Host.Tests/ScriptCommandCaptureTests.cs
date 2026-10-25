@@ -262,4 +262,33 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         var front = Png.Load(Path.Combine(Out, "front.png"));
         (front.Width, front.Height).Should().Be((200, 100));
     }
+
+    [Theory]
+    [InlineData(new string[0], ToneCurve.AcesFitted)]
+    [InlineData(new[] { "--tone-curve", "hable" }, ToneCurve.Hable)]
+    public void TheToneCurveOptionChoosesTheCurveOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(
+        string[] toneCurve,
+        ToneCurve expected
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var curves = new List<ToneCurve>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. toneCurve],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                curves.Add(options.ToneCurve);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        curves.Should().Equal(expected);
+    }
 }
