@@ -1,13 +1,13 @@
 ---
 id: ter-of1p
 status: open
-deps: [ter-nl5u]
+deps: [ter-nl5u, ter-nydu]
 links: []
 created: 2026-10-25T22:22:45Z
 type: task
 priority: 2
 assignee: Alexis Purslane
-parent: ter-sglu
+parent: ter-pq5y
 tags: [rendering, performance]
 ---
 # Profile the environment map's prefilter and bring it to its expected 0.1 to 0.2 ms

@@ -1,13 +1,13 @@
 ---
 id: ter-ff6y
 status: open
-deps: [ter-jxv9]
+deps: [ter-jxv9, ter-nydu]
 links: []
 created: 2026-10-25T22:22:45Z
 type: task
 priority: 2
 assignee: Alexis Purslane
-parent: ter-sglu
+parent: ter-pq5y
 tags: [rendering, performance]
 ---
 # Profile the reflection passes and bring screen-space reflections to their expected 1 to 3 ms at 1080p
