@@ -31,7 +31,7 @@ internal sealed class GpuTimingSummary
     private readonly List<(string Pass, List<double> Milliseconds)> passes = [];
 
     // The GPU span of each frame, in the order added.
-    private readonly List<double> spans = new(FramesPerPass);
+    private readonly List<double> spans = [with(FramesPerPass)];
     private long lastFrame = -1;
 
     /// <summary>
