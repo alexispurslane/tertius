@@ -103,7 +103,9 @@ public sealed class DeviceTests
             try
             {
                 MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-                MaterialId material = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.3f, z: 0.2f, w: 1)));
+                MaterialId material = renderer.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.8f, y: 0.3f, z: 0.2f, w: 1), roughness: 0.38f)
+                );
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1, 0.5f));
                 snapshot.Instances.Add(
                     Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4), scale: Vector3.One)
@@ -149,7 +151,7 @@ public sealed class DeviceTests
             renderer.ShadowMap.Size.Should().Be(1024);
             renderer.ShadowMap.Image.ArrayLayers.Should().Be(ShadowCascades.Count);
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.38f));
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
             snapshot.Instances.Add(
                 Gpu.Instance(

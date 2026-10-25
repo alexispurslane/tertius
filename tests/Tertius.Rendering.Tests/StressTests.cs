@@ -13,10 +13,10 @@ public sealed class StressTests(ITestOutputHelper output)
         MeshId sphere = renderer.CreateMesh(Primitives.Sphere(0.5f, 16, 8));
         MaterialId[] materials =
         [
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1), gloss: 0.7f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), gloss: 0.3f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.3f, z: 0.8f, w: 1), gloss: 0.5f)),
-            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.7f, z: 0.2f, w: 1), gloss: 0.9f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.2f, z: 0.2f, w: 1), roughness: 0.26f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.7f, z: 0.3f, w: 1), roughness: 0.55f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.2f, y: 0.3f, z: 0.8f, w: 1), roughness: 0.38f)),
+            renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.7f, z: 0.2f, w: 1), roughness: 0.18f)),
         ];
         RenderSnapshot snapshot = Gpu.Snapshot(sun ?? new Vector3(0.4f, 0.8f, 0.45f));
         const int columns = 200,
@@ -218,7 +218,7 @@ public sealed class StressTests(ITestOutputHelper output)
             RenderSnapshot snapshot = Field(renderer, RenderFlags.CastsShadow, new Vector3(0.6f, 0.45f, -0.5f));
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MaterialId ground = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), gloss: 0.2f)
+                MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.65f)
             );
             snapshot.Instances.Add(
                 Gpu.Instance(

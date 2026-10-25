@@ -25,12 +25,14 @@ public sealed class ShadowTests
                 Plane = renderer.CreateMesh(Primitives.Plane(1f)),
                 Sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24)),
                 Ground = renderer.CreateMaterial(
-                    MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), gloss: 0.15f) with
+                    MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), roughness: 0.7f) with
                     {
-                        SpecularIntensity = 0.3f,
+                        Reflectance = 0.3f,
                     }
                 ),
-                White = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.3f)),
+                White = renderer.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.55f)
+                ),
             };
     }
 

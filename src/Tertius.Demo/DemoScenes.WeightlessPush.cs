@@ -49,7 +49,9 @@ public static partial class DemoScenes
                 Render = new RenderData
                 {
                     Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                    Material = resources.CreateMaterial(new(BaseColor: suit, Emissive: MarkerGlow(suit))),
+                    Material = resources.CreateMaterial(
+                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
+                    ),
                     BoundingRadius = 1,
                     Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
                 },
@@ -64,7 +66,9 @@ public static partial class DemoScenes
             HalfExtents: PushedCrateHalfExtents,
             Mass: PushedCrateMass,
             Mesh: resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
-            Material: resources.CreateMaterial(new(BaseColor: orange, Emissive: MarkerGlow(orange)))
+            Material: resources.CreateMaterial(
+                new(BaseColor: orange, Roughness: UsualRoughness, Emissive: MarkerGlow(orange))
+            )
         );
         var cratePose = new DPose(
             AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),

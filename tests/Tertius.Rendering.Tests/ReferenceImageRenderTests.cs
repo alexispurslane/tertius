@@ -33,7 +33,7 @@ public sealed class ReferenceImageRenderTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.38f)
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
             snapshot.Instances.Add(

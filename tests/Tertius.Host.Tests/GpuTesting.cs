@@ -129,7 +129,7 @@ public static class GpuTesting
         var scene = new SceneInstance();
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         scene.Add("space", space);
-        MaterialId red = resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0, z: 0, w: 1)));
+        MaterialId red = resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0, z: 0, w: 1), roughness: 0.38f));
         scene.Add(
             "box",
             world.Spawn(new() { Frame = space, Render = Drawn(resources.CreateMesh(Primitives.Box(new(0.5f))), red) })
@@ -164,7 +164,9 @@ public static class GpuTesting
                     Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
                     Render = Drawn(
                         resources.CreateMesh(Primitives.Box(new(50, 0.5f, 50))),
-                        resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1)))
+                        resources.CreateMaterial(
+                            MaterialDesc.Color(new(x: 0.3f, y: 0.3f, z: 0.3f, w: 1), roughness: 0.38f)
+                        )
                     ) with
                     {
                         BoundingRadius = 71,
@@ -182,7 +184,7 @@ public static class GpuTesting
                     Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10),
                     Render = Drawn(
                         resources.CreateMesh(Primitives.Box(new(0.5f))),
-                        resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0, z: 0, w: 1)))
+                        resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0, z: 0, w: 1), roughness: 0.38f))
                     ),
                 }
             )

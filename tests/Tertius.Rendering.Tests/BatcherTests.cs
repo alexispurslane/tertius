@@ -1132,7 +1132,9 @@ public sealed class BatcherTests
     public void GpuStructsMatchTheShaderLayouts()
     {
         Unsafe.SizeOf<GpuInstance>().Should().Be(80);
-        Unsafe.SizeOf<GpuMaterial>().Should().Be(48);
+        Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
+        ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
+        ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);

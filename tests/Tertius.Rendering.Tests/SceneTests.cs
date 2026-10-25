@@ -103,7 +103,7 @@ public sealed class SceneTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             MaterialId rock = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), gloss: 0.1f)
+                MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1), roughness: 0.75f)
             );
             // The sun is due +X. The planet's shadow points to −X; one moon sits in it, the other on the day side.
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
@@ -148,7 +148,7 @@ public sealed class SceneTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 32, 16));
             MaterialId ground = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1), gloss: 0.2f)
+                MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1), roughness: 0.65f)
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0));
             snapshot.Instances.Add(

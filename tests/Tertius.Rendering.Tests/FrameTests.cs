@@ -16,7 +16,9 @@ public sealed class FrameTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1)));
+            MaterialId white = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), roughness: 0.38f)
+            );
             RenderSnapshot snapshot = LitFromBehind();
             var left = new Vector3(-2.5f, 0, -8);
             var right = new Vector3(2.5f, 0, -8);
@@ -106,7 +108,9 @@ public sealed class FrameTests
         try
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1)));
+            MaterialId white = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), roughness: 0.38f)
+            );
             RenderSnapshot snapshot = LitFromBehind();
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: box, material: white, position: new(0, 0, -6), scale: Vector3.One)
@@ -150,7 +154,9 @@ public sealed class FrameTests
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
-            MaterialId orange = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.45f, z: 0.1f, w: 1)));
+            MaterialId orange = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.9f, y: 0.45f, z: 0.1f, w: 1), roughness: 0.38f)
+            );
             RenderSnapshot snapshot = LitFromBehind();
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: sphere, material: orange, position: new(0, 0, -5), scale: Vector3.One)
@@ -200,12 +206,12 @@ public sealed class FrameTests
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f));
             MaterialId white = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), gloss: 0.1f)
+                MaterialDesc.Color(new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), roughness: 0.75f)
             );
             MaterialId redGlass = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 1f, y: 0.05f, z: 0.05f, w: 0.5f), gloss: 0.1f) with
+                MaterialDesc.Color(new(x: 1f, y: 0.05f, z: 0.05f, w: 0.5f), roughness: 0.75f) with
                 {
-                    SpecularIntensity = 0f,
+                    Reflectance = 0f,
                 }
             );
             RenderSnapshot snapshot = LitFromBehind();
@@ -270,7 +276,7 @@ public sealed class FrameTests
         {
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.1f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.75f)
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0.2f));
             // A rail 200 m below the eye from 1 km to 3 km, across the near/middle boundary at 2 km, and a slab
@@ -346,10 +352,10 @@ public sealed class FrameTests
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MaterialId white = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.3f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.55f)
             );
             MaterialId red = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), gloss: 0.3f)
+                MaterialDesc.Color(new(x: 0.8f, y: 0.1f, z: 0.1f, w: 1), roughness: 0.55f)
             );
             // Looking 20 degrees down at a red box 1.5 km away. The ground's two triangles reach 1 km behind the camera
             // and 4 km ahead, past the near range's far boundary: with a far clipping plane, MoltenVK drew the ground

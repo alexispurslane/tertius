@@ -73,13 +73,17 @@ public static partial class DemoScenes
             HalfExtents: new(YardCrateHalfSize),
             Mass: HeavyCrateMass,
             Mesh: crateMesh,
-            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.45f, y: 0.3f, z: 0.15f, w: 1)))
+            Material: resources.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.45f, y: 0.3f, z: 0.15f, w: 1), UsualRoughness)
+            )
         );
         var light = new CrateSpec(
             HalfExtents: new(YardCrateHalfSize),
             Mass: LightCrateMass,
             Mesh: crateMesh,
-            Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1)))
+            Material: resources.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.95f, y: 0.5f, z: 0.1f, w: 1), UsualRoughness)
+            )
         );
 
         // The crates start just touching: the bottom of each on the top of the one below.

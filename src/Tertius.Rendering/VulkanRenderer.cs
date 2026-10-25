@@ -32,8 +32,8 @@ namespace Tertius.Rendering;
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
-/// <see cref="MeshId.None"/> draws nothing and <see cref="MaterialId.None"/> draws with the default material (white,
-/// specular 0.5, gloss 0.5). In a material, a <see cref="TextureId.None"/> slot uses the built-in default for that
+/// <see cref="MeshId.None"/> draws nothing and <see cref="MaterialId.None"/> draws with the default material (a white
+/// non-metal of roughness 0.5). In a material, a <see cref="TextureId.None"/> slot uses the built-in default for that
 /// slot. These defaults live in slots that no id can name.</para>
 /// </remarks>
 public sealed unsafe class VulkanRenderer : IRenderer
@@ -50,6 +50,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly GeometryStore geometry;
     private readonly TextureStore textures;
     private readonly MaterialStore materials;
+    private readonly BrdfTableImages brdfTables;
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly BarrierBatch barriers = new();
@@ -83,6 +84,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             geometry = Own(new GeometryStore(device, Allocator));
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
+            brdfTables = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
             Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
             targets = Own(new RenderTargets(device: device, allocator: Allocator, layouts: layouts, extent: extent));
@@ -97,6 +99,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                         allocator: Allocator,
                         layouts: layouts,
                         textures: textures,
+                        tables: brdfTables,
                         index: i
                     )
                 );
@@ -329,8 +332,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Queues a material. Base and emissive colors are linear. A texture slot holding <see cref="TextureId.None"/>, its
-    /// default, uses the built-in default for that slot: white albedo, a flat normal map, and a specular-gloss map
-    /// that keeps <see cref="MaterialDesc.SpecularIntensity"/> and <see cref="MaterialDesc.Gloss"/> as they are.
+    /// default, uses the built-in default for that slot: a white base color map, a flat normal map, and a
+    /// metallic-roughness map that keeps <see cref="MaterialDesc.Metallic"/> and <see cref="MaterialDesc.Roughness"/> as they are.
     /// </summary>
     /// <exception cref="ArgumentException">A texture slot holds an id that this renderer did not create.</exception>
     public MaterialId CreateMaterial(MaterialDesc material)
@@ -524,6 +527,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 releases: releases,
                 frame: frameNumber
             );
+            // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
+            brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             device.EndLabel(commandBuffer);
         }
     }

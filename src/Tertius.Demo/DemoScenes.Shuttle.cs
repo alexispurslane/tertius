@@ -78,7 +78,7 @@ public static partial class DemoScenes
         private const int HatchBay = 6;
 
         /// <summary>
-        /// The specular intensity of the canopy's glass: that of glass with an anti-reflection coating, which reflects about
+        /// The reflectance of the canopy's glass: that of glass with an anti-reflection coating, which reflects about
         /// 0.5 % of the light that meets it head-on (F0 = 0.16 times its square, ARCHITECTURE.md, "Shading"), where the orbit
         /// scene's glass reflects 16 %. The window films look head-on through the glass, and the cabin's lamps lie in front
         /// of it. With 16 %, each lamp's highlight in the glass is a white blob beside the station. At a grazing angle, glass
@@ -430,7 +430,11 @@ public static partial class DemoScenes
         )
         {
             MaterialId glass = resources.CreateMaterial(
-                new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), SpecularIntensity: AntiReflective, Gloss: 0.9f)
+                new(
+                    BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
+                    Roughness: GlassRoughness,
+                    Reflectance: AntiReflective
+                )
             );
             foreach (HullPane pane in Glass)
             {
@@ -462,7 +466,12 @@ public static partial class DemoScenes
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
             MaterialId material = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(6, 5.4f, 4.5f)
+                )
             );
             foreach ((string id, BoundingBox panel) in Lamps)
                 scene.Add(

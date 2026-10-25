@@ -15,14 +15,14 @@ internal sealed unsafe class TextureStore : IDisposable
     /// <summary>The size of the bindless array. The descriptor binding has a variable count of this many.</summary>
     public const int Capacity = 4096;
 
-    /// <summary>The slot of opaque white in sRGB: the default albedo.</summary>
+    /// <summary>The slot of opaque white in sRGB: the default base color map.</summary>
     public const int White = 0;
 
     /// <summary>The slot of (0.5, 0.5, 1) in UNORM: the default normal map, a tangent-space normal of +Z.</summary>
     public const int FlatNormal = 1;
 
-    /// <summary>The slot of (1, 1) in UNORM: the default specular-gloss map, which leaves the material's scalars as they are.</summary>
-    public const int DefaultSpecularGloss = 2;
+    /// <summary>The slot of opaque white in UNORM: the default metallic-roughness map, which leaves both factors as they are.</summary>
+    public const int DefaultMetallicRoughness = 2;
 
     /// <summary>The slots the built-in defaults take, before the first texture that the renderer hands out.</summary>
     public const int BuiltInCount = 3;
@@ -97,7 +97,7 @@ internal sealed unsafe class TextureStore : IDisposable
     {
         if (images.Count == 0)
         {
-            // In slot order: White, FlatNormal, DefaultSpecularGloss.
+            // In slot order: White, FlatNormal, DefaultMetallicRoughness.
             Add(
                 commandBuffer: commandBuffer,
                 data: new(Width: 1, Height: 1, Rgba: [255, 255, 255, 255], Srgb: true),
@@ -114,8 +114,8 @@ internal sealed unsafe class TextureStore : IDisposable
             );
             Add(
                 commandBuffer: commandBuffer,
-                data: new(Width: 1, Height: 1, Rgba: [255, 255, 0, 255], Srgb: false),
-                name: "default specular-gloss",
+                data: new(Width: 1, Height: 1, Rgba: [255, 255, 255, 255], Srgb: false),
+                name: "default metallic-roughness",
                 staging: staging,
                 barriers: barriers
             );

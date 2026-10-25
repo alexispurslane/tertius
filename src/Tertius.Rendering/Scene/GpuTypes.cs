@@ -86,17 +86,22 @@ internal struct GpuInstance
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
 }
 
-/// <summary>One material in the material storage buffer. 48 bytes.</summary>
-[StructLayout(LayoutKind.Sequential)]
+/// <summary>One material in the material storage buffer (std430). 52 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
     public Vector4 BaseColor;
     public Vector3 Emissive;
-    public float SpecularIntensity;
-    public float Gloss;
-    public uint AlbedoTexture;
-    public uint NormalTexture;
-    public uint SpecularGlossTexture;
+    public float Metallic;
+
+    /// <summary>r₀, before the floor: the floor is the BRDF's.</summary>
+    public float Roughness;
+    public float Reflectance;
+
+    /// <summary>Bindless indices, already resolved to the default textures.</summary>
+    public uint BaseColorMap;
+    public uint NormalMap;
+    public uint MetallicRoughnessMap;
 }
 
 /// <summary>One point or spot light in the light storage buffer. 64 bytes.</summary>

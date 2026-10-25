@@ -29,7 +29,9 @@ public sealed class ResourceTests
                         TestTextures.Checker(size: 16, tiles: 2, a: ((byte)i, 0, 0), b: (0, (byte)i, 0))
                     );
                     textures.Add(texture);
-                    materials.Add(renderer.CreateMaterial(new(BaseColor: Vector4.One, Albedo: texture)));
+                    materials.Add(
+                        renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: texture))
+                    );
                 }
             );
 
@@ -87,23 +89,37 @@ public sealed class ResourceTests
             // A material may name only None or textures this renderer created. Texture 0 does not exist yet, and a
             // negative id other than None is never handed out.
             FluentActions
-                .Invoking(() => renderer.CreateMaterial(new(BaseColor: Vector4.One, Albedo: new(500))))
+                .Invoking(() =>
+                    renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: new(500)))
+                )
                 .Should()
                 .ThrowExactly<ArgumentException>();
             FluentActions
-                .Invoking(() => renderer.CreateMaterial(new(BaseColor: Vector4.One, Normal: new(0))))
+                .Invoking(() =>
+                    renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, NormalMap: new(0)))
+                )
                 .Should()
                 .ThrowExactly<ArgumentException>();
             FluentActions
-                .Invoking(() => renderer.CreateMaterial(new(BaseColor: Vector4.One, SpecularGloss: new(-3))))
+                .Invoking(() =>
+                    renderer.CreateMaterial(
+                        new(BaseColor: Vector4.One, Roughness: 0.38f, MetallicRoughnessMap: new(-3))
+                    )
+                )
                 .Should()
                 .ThrowExactly<ArgumentException>();
-            renderer.CreateMaterial(new(BaseColor: Vector4.One, Albedo: TextureId.None)).IsNone.Should().BeFalse();
+            renderer
+                .CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: TextureId.None))
+                .IsNone.Should()
+                .BeFalse();
             TextureId first = renderer.CreateTexture(
                 TestTextures.Checker(size: 4, tiles: 2, a: (255, 0, 0), b: (0, 255, 0))
             );
             first.Should().Be(new TextureId(0));
-            renderer.CreateMaterial(new(BaseColor: Vector4.One, Normal: first)).Value.Should().Be(1);
+            renderer
+                .CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, NormalMap: first))
+                .Value.Should()
+                .Be(1);
             FluentActions
                 .Invoking(() => renderer.Resize(0, 10))
                 .Should()
@@ -144,10 +160,10 @@ public sealed class ResourceTests
                 .Should()
                 .ThrowExactly<InvalidOperationException>();
 
-            // The texture in the array's last slot draws. No specular, whose white highlight would wash the green out:
-            // the sun is straight behind the camera.
+            // The texture in the array's last slot draws. A reflectance of 0 gives an F0 of 0, so no white highlight
+            // washes the green out: the sun is straight behind the camera.
             MaterialId material = renderer.CreateMaterial(
-                new(BaseColor: Vector4.One, SpecularIntensity: 0f, Albedo: green)
+                new(BaseColor: Vector4.One, Roughness: 0.38f, Reflectance: 0f, BaseColorMap: green)
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0, 1));
             snapshot.Instances.Add(
@@ -183,7 +199,9 @@ public sealed class ResourceTests
         try
         {
             MeshId first = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId green = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.1f, y: 0.8f, z: 0.2f, w: 1)));
+            MaterialId green = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.1f, y: 0.8f, z: 0.2f, w: 1), roughness: 0.38f)
+            );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 0.5f, 1f));
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: first, material: green, position: new(-1.5f, 0, -6), scale: Vector3.One)
@@ -199,7 +217,7 @@ public sealed class ResourceTests
             MaterialId lastMaterial = MaterialId.None;
             for (int i = 0; i < 300; i++)
                 lastMaterial = renderer.CreateMaterial(
-                    MaterialDesc.Color(new(x: 0.9f, y: 0.1f + i / 1000f, z: 0.1f, w: 1))
+                    MaterialDesc.Color(new(x: 0.9f, y: 0.1f + i / 1000f, z: 0.1f, w: 1), roughness: 0.38f)
                 );
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: last, material: lastMaterial, position: new(1.5f, 0, -6), scale: Vector3.One)
@@ -235,7 +253,9 @@ public sealed class ResourceTests
             TextureId red = renderer.CreateTexture(
                 TestTextures.Checker(size: 8, tiles: 2, a: (255, 0, 0), b: (255, 0, 0))
             );
-            MaterialId gray = renderer.CreateMaterial(new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1)));
+            MaterialId gray = renderer.CreateMaterial(
+                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 0.38f)
+            );
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             (red.Value, gray.Value, box.Value).Should().Be((0, 0, 0));
             red.IsNone.Should().BeFalse();
@@ -243,11 +263,16 @@ public sealed class ResourceTests
             box.IsNone.Should().BeFalse();
             // A material whose texture slots are left at None uses the default textures, not texture 0.
             MaterialId explicitNone = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Albedo: TextureId.None)
+                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 0.38f, BaseColorMap: TextureId.None)
             );
-            // No specular here, so that the sun straight behind the camera leaves the texture's red unwashed.
+            // A reflectance of 0 here, so that the sun straight behind the camera leaves the texture's red unwashed.
             MaterialId textured = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), SpecularIntensity: 0f, Albedo: red)
+                new(
+                    BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1),
+                    Roughness: 0.38f,
+                    Reflectance: 0f,
+                    BaseColorMap: red
+                )
             );
 
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0, 1));

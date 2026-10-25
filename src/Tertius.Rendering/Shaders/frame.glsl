@@ -26,14 +26,15 @@ struct GpuInstance
 
 struct GpuMaterial
 {
-    vec4 baseColor;           // linear RGB, alpha for transparent objects
-    vec3 emissive;            // linear RGB radiance
-    float specularIntensity;
-    float gloss;
-    uint albedoTexture;       // bindless indices, already resolved to the default textures
-    uint normalTexture;
-    uint specularGlossTexture;
-};
+    vec4 baseColor;               // linear RGB, alpha for transparent objects
+    vec3 emissive;                // linear RGB radiance
+    float metallic;
+    float roughness;              // r₀, before the floor
+    float reflectance;
+    uint baseColorMap;            // bindless indices, already resolved to the default textures
+    uint normalMap;
+    uint metallicRoughnessMap;    // glTF layout: roughness in G, metallic in B
+};                                // std430: 52 bytes of members, a stride of 64
 
 struct GpuLight
 {

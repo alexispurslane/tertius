@@ -53,9 +53,9 @@ void main()
 
     vec4 emissiveSky = texelFetch(gbufferEmissive, pixel, 0);
     vec3 emissive = emissiveSky.rgb;
-    vec4 albedo = texelFetch(gbufferAlbedo, pixel, 0);
-    // Albedo alpha 0 marks an unlit pixel: an impostor, whose lighting is baked into its emission.
-    if (albedo.a == 0.0)
+    vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
+    // Base color alpha 0 marks an unlit pixel: an impostor, whose lighting is baked into its emission.
+    if (baseColor.a == 0.0)
     {
         outColor = vec4(emissive, 1.0);
         return;
@@ -65,14 +65,16 @@ void main()
     // depth range that drew the pixel.
     vec3 position = direction * distanceToEye;
     ShadingInput s;
-    s.albedo = albedo.rgb;
+    s.baseColor = baseColor.rgb;
     vec4 normals = texelFetch(gbufferNormal, pixel, 0);
     s.normal = octDecode(normals.rg);
     s.geometricNormal = octDecode(normals.ba);
-    vec2 specularGloss = texelFetch(gbufferSpecularGloss, pixel, 0).rg;
-    s.specular = specularGloss.x;
-    s.gloss = specularGloss.y;
+    vec4 specular = texelFetch(gbufferSpecular, pixel, 0);
+    s.metallic = specular.r;
+    s.roughness = specular.g;
+    s.reflectance = specular.b;
+    s.lobeSkyFraction = specular.a;
     s.skyFraction = emissiveSky.a;
 
-    outColor = vec4(shadeSurface(s, position, -direction) + emissive, 1.0);
+    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true), 1.0);
 }

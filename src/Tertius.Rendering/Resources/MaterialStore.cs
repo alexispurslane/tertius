@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// All materials in one device-local storage buffer. Slot <see cref="DefaultSlot"/> holds the default material
-/// (white, specular 0.5, gloss 0.5, the default textures) that <see cref="MaterialId.None"/> and ids this renderer
+/// (a white non-metal of roughness 0.5 and reflectance 0.5, the default textures) that <see cref="MaterialId.None"/> and ids this renderer
 /// did not hand out resolve to. Material n from <see cref="VulkanRenderer.CreateMaterial"/> lives in slot
 /// n + <see cref="BuiltInCount"/>, so no <see cref="MaterialId"/> names the default and ids start at 0.
 /// The buffer grows by doubling like the geometry buffers.
@@ -65,11 +65,15 @@ internal sealed unsafe class MaterialStore : IDisposable
         {
             BaseColor = desc.BaseColor,
             Emissive = Vector3.Max(desc.Emissive, Vector3.Zero),
-            SpecularIntensity = Math.Clamp(desc.SpecularIntensity, 0f, 1f),
-            Gloss = Math.Clamp(desc.Gloss, 0f, 1f),
-            AlbedoTexture = TextureStore.Resolve(desc.Albedo, TextureStore.White),
-            NormalTexture = TextureStore.Resolve(desc.Normal, TextureStore.FlatNormal),
-            SpecularGlossTexture = TextureStore.Resolve(desc.SpecularGloss, TextureStore.DefaultSpecularGloss),
+            Metallic = Math.Clamp(desc.Metallic, 0f, 1f),
+            Roughness = Math.Clamp(desc.Roughness, 0f, 1f),
+            Reflectance = Math.Clamp(desc.Reflectance, 0f, 1f),
+            BaseColorMap = TextureStore.Resolve(desc.BaseColorMap, TextureStore.White),
+            NormalMap = TextureStore.Resolve(desc.NormalMap, TextureStore.FlatNormal),
+            MetallicRoughnessMap = TextureStore.Resolve(
+                desc.MetallicRoughnessMap,
+                TextureStore.DefaultMetallicRoughness
+            ),
         };
 
     /// <summary>Records the upload of queued materials, creating the default on the first call.</summary>
@@ -118,7 +122,7 @@ internal sealed unsafe class MaterialStore : IDisposable
         Span<GpuMaterial> staged = MemoryMarshal.Cast<byte, GpuMaterial>(stage.Bytes);
         int cursor = 0;
         if (Count == 0)
-            staged[cursor++] = ToGpu(new(BaseColor: Vector4.One));
+            staged[cursor++] = ToGpu(new(BaseColor: Vector4.One, Roughness: 0.5f));
         foreach ((MaterialId id, MaterialDesc desc) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next

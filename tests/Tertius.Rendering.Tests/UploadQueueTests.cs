@@ -18,7 +18,11 @@ public sealed class UploadQueueTests
         TextureId[] textures = [.. Enumerable.Range(0, 3).Select(_ => queue.AddTexture(Pixels(2, 2)))];
         MaterialId[] materials =
         [
-            .. Enumerable.Range(0, 3).Select(i => queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: textures[i]))),
+            .. Enumerable
+                .Range(0, 3)
+                .Select(i =>
+                    queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: textures[i]))
+                ),
         ];
 
         meshes.Select(m => m.Value).Should().Equal(0, 1, 2);
@@ -35,7 +39,7 @@ public sealed class UploadQueueTests
         var queue = new UploadQueue(MaxTextureSize);
         TextureId first = queue.AddTexture(Pixels(1, 1));
         MeshId mesh = queue.AddMesh(Primitives.Box(Vector3.One));
-        MaterialId material = queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: first));
+        MaterialId material = queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: first));
         UploadQueue.Pending batch = queue.Drain();
         batch.Textures.Select(t => t.Id).Should().Equal(first);
         batch.Meshes.Select(m => m.Id).Should().Equal(mesh);
@@ -114,7 +118,7 @@ public sealed class UploadQueueTests
 
         queue.AddMesh(Primitives.Box(Vector3.One)).Value.Should().Be(0);
         queue.AddTexture(Pixels(1, 1)).Value.Should().Be(0);
-        queue.AddMaterial(new(BaseColor: Vector4.One)).Value.Should().Be(0);
+        queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f)).Value.Should().Be(0);
         queue.Drain().Meshes.Should().ContainSingle("rejected meshes are not queued");
     }
 
@@ -123,24 +127,34 @@ public sealed class UploadQueueTests
     {
         var queue = new UploadQueue(MaxTextureSize);
         FluentActions
-            .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Albedo: new(0))))
+            .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: new(0))))
             .Should()
             .ThrowExactly<ArgumentException>("texture 0 does not exist yet");
         TextureId texture = queue.AddTexture(Pixels(1, 1));
         queue
-            .AddMaterial(new(BaseColor: Vector4.One, Albedo: texture, Normal: TextureId.None, SpecularGloss: texture))
+            .AddMaterial(
+                new(
+                    BaseColor: Vector4.One,
+                    Roughness: 0.38f,
+                    BaseColorMap: texture,
+                    NormalMap: TextureId.None,
+                    MetallicRoughnessMap: texture
+                )
+            )
             .Value.Should()
             .Be(0);
         FluentActions
-            .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Normal: new(1))))
+            .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, NormalMap: new(1))))
             .Should()
             .ThrowExactly<ArgumentException>();
         FluentActions
-            .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, SpecularGloss: new(-2))))
+            .Invoking(() =>
+                queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, MetallicRoughnessMap: new(-2)))
+            )
             .Should()
             .ThrowExactly<ArgumentException>("no texture has a negative id");
         // A rejected material takes no id.
-        queue.AddMaterial(new(BaseColor: Vector4.One)).Value.Should().Be(1);
+        queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f)).Value.Should().Be(1);
     }
 
     [Fact]

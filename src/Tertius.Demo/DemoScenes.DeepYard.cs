@@ -101,11 +101,15 @@ public static partial class DemoScenes
                 HalfExtents: new(CrateHalfSize),
                 Mass: CrateMass,
                 Mesh: crateMesh,
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1)))
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1), UsualRoughness)
+                )
             );
             CrateSpec green = orange with
             {
-                Material = resources.CreateMaterial(MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1))),
+                Material = resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1), UsualRoughness)
+                ),
             };
             scene.Add(
                 "crate-a",

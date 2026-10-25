@@ -4,10 +4,11 @@
 
 struct SurfaceSample
 {
-    vec4 albedo;          // linear RGB and alpha
+    vec4 baseColor;       // linear RGB and alpha
     vec3 normal;          // unit world-space normal after normal mapping
-    float specular;       // specular intensity in [0, 1]
-    float gloss;          // gloss in [0, 1]
+    float metallic;       // 0 to 1
+    float roughness;      // r₀, 0 to 1, before the BRDF's floor
+    float reflectance;    // 0 to 1: a non-metal's F0 is 0.16 times its square
     vec3 emissive;
 };
 
@@ -29,21 +30,23 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
 {
     GpuMaterial m = materials[materialIndex];
     SurfaceSample s;
-    s.albedo = m.baseColor * sampleTexture(m.albedoTexture, uv);
+    s.baseColor = m.baseColor * sampleTexture(m.baseColorMap, uv);
 
     vec3 n = normalize(vertexNormal);
     vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
     float tangentLengthSq = dot(t, t);
     t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);
     vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 tangentNormal = sampleTexture(m.normalTexture, uv).xyz * 2.0 - 1.0;
+    vec3 tangentNormal = sampleTexture(m.normalMap, uv).xyz * 2.0 - 1.0;
     vec3 mapped = t * tangentNormal.x + b * tangentNormal.y + n * tangentNormal.z;
     float mappedLengthSq = dot(mapped, mapped);
     s.normal = mappedLengthSq > 1e-12 ? mapped * inversesqrt(mappedLengthSq) : n;
 
-    vec2 specularGloss = sampleTexture(m.specularGlossTexture, uv).rg;
-    s.specular = m.specularIntensity * specularGloss.x;
-    s.gloss = m.gloss * specularGloss.y;
+    // glTF's layout: roughness in G, metallic in B. The reflectance has no map channel.
+    vec4 metallicRoughness = sampleTexture(m.metallicRoughnessMap, uv);
+    s.metallic = m.metallic * metallicRoughness.b;
+    s.roughness = m.roughness * metallicRoughness.g;
+    s.reflectance = m.reflectance;
     s.emissive = m.emissive;
     return s;
 }

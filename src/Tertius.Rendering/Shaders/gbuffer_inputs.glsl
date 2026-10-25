@@ -5,12 +5,14 @@
 
 #extension GL_EXT_samplerless_texture_functions : require
 
-layout(set = 2, binding = 0) uniform texture2D gbufferAlbedo;          // RGBA8 sRGB: linear albedo on read; alpha 1
+layout(set = 2, binding = 0) uniform texture2D gbufferBaseColor;       // RGBA8 sRGB: linear base color on read; alpha 1
                                                                        // lit, 0 unlit (impostors: emission only)
 layout(set = 2, binding = 1) uniform texture2D gbufferNormal;          // RGBA16 SNORM: octahedral world normals,
                                                                        // rg shading (normal-mapped), ba geometric
-layout(set = 2, binding = 2) uniform texture2D gbufferSpecularGloss;   // RG8: specular intensity, gloss
-layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16F: emitted radiance
+layout(set = 2, binding = 2) uniform texture2D gbufferSpecular;        // RGBA8: metallic, roughness r₀, reflectance,
+                                                                       // the lobe's sky share
+layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16F: emitted radiance, the normal's sky
+                                                                       // share
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
 layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: one layer per cascade, reversed depth
 layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)

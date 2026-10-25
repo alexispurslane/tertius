@@ -462,7 +462,12 @@ public static partial class DemoScenes
 
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
             MaterialId lampMaterial = resources.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), SpecularIntensity: 0, Emissive: new(6, 5.4f, 4.5f))
+                new(
+                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                    Roughness: UsualRoughness,
+                    Reflectance: 0,
+                    Emissive: new(6, 5.4f, 4.5f)
+                )
             );
 
             SpawnDesc Lamp(FrameHandle frame, Double3 position, float range) =>
@@ -597,7 +602,9 @@ public static partial class DemoScenes
                 HalfExtents: PenHalf,
                 Mass: PenMass,
                 Mesh: resources.CreateMesh(Primitives.Box(PenHalf)),
-                Material: resources.CreateMaterial(MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1)))
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.85f, y: 0.1f, z: 0.08f, w: 1), UsualRoughness)
+                )
             );
             Entity pen = world.Spawn(ClippedPen(penSpec, cabin));
             scene.Add("pen", pen);

@@ -28,12 +28,15 @@ void main()
         discard;
 
     ShadingInput shading;
-    shading.albedo = s.albedo.rgb;
+    shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
     shading.geometricNormal = normalize(inNormal);
-    shading.specular = s.specular;
-    shading.gloss = s.gloss;
+    shading.metallic = s.metallic;
+    shading.roughness = s.roughness;
+    shading.reflectance = s.reflectance;
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
-    outColor = vec4(shadeSurface(shading, inPosition, V) + s.emissive, clamp(s.albedo.a, 0.0, 1.0));
+    shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
+    outColor = vec4(surfaceRadiance(shading, s.emissive, inPosition, V, true), clamp(s.baseColor.a, 0.0, 1.0));
 }

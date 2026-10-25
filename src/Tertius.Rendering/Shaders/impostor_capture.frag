@@ -10,8 +10,8 @@
 // perspective projection from the main view's eye, fitted to the bounding sphere's tangent cone, with clip w equal
 // to the view depth over the center's distance; draw.eye is that eye, so view-dependent shading matches what the
 // camera sees. Lighting is the lighting pass's
-// Blinn-Phong with the hemisphere ambient, the sun with the analytic eclipse term, and the point and spot lights,
-// but not the shadow maps: they cover the main view, not the capture. ImpostorManager recaptures when any of that
+// surfaceRadiance with the hemisphere ambient and its specular part, the sun with the analytic eclipse term, and the
+// point and spot lights, but not the shadow maps: they cover the main view, not the capture. ImpostorManager recaptures when any of that
 // light changes at the object.
 
 layout(location = 0) in vec3 inPosition;
@@ -28,14 +28,16 @@ void main()
 {
     SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
     ShadingInput shading;
-    shading.albedo = s.albedo.rgb;
+    shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
     shading.geometricNormal = normalize(inNormal);
-    shading.specular = s.specular;
-    shading.gloss = s.gloss;
+    shading.metallic = s.metallic;
+    shading.roughness = s.roughness;
+    shading.reflectance = s.reflectance;
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = normalize(draw.eye.xyz - inPosition);
-    vec3 color = ambientLight(shading) + sunLight(shading, inPosition, V, false) + localLights(shading, inPosition, V) + s.emissive;
+    shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, false);
     outColor = vec4(color, 1.0);
     // gl_FragCoord.w is 1 / clip w, and clip w is the view depth over the center's depth. Negative in front of the
     // center's plane.

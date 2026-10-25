@@ -197,7 +197,7 @@ public static partial class DemoScenes
                     HalfExtents: new(BoxHalf),
                     Mass: BoxMass,
                     Mesh: mesh,
-                    Material: resources.CreateMaterial(MaterialDesc.Color(color)),
+                    Material: resources.CreateMaterial(MaterialDesc.Color(color, UsualRoughness)),
                     NoImpostor: true
                 );
 

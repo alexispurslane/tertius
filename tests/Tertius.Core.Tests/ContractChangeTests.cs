@@ -135,8 +135,8 @@ public sealed class ContractChangeTests
         Assert.True(default(TextureId).IsNone);
         Assert.Equal(0, new MeshId(0).Value);
         Assert.False(new MeshId(0).IsNone);
-        var material = MaterialDesc.Color(Vector4.One);
-        Assert.True(material.Albedo.IsNone && material.Normal.IsNone && material.SpecularGloss.IsNone);
+        var material = MaterialDesc.Color(Vector4.One, roughness: 0.38f);
+        Assert.True(material.BaseColorMap.IsNone && material.NormalMap.IsNone && material.MetallicRoughnessMap.IsNone);
     }
 
     [Fact]

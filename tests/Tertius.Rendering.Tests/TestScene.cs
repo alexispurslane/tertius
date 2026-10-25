@@ -63,47 +63,55 @@ internal sealed class TestScene
         scene.Ground = renderer.CreateMaterial(
             new(
                 BaseColor: Vector4.One,
-                SpecularIntensity: 0.5f,
-                Gloss: 0.45f,
-                Albedo: groundChecker,
-                Normal: tiles,
-                SpecularGloss: TextureId.None
+                Reflectance: 0.5f,
+                Roughness: 0.42f,
+                BaseColorMap: groundChecker,
+                NormalMap: tiles,
+                MetallicRoughnessMap: TextureId.None
             )
         );
         scene.Textured = renderer.CreateMaterial(
             new(
                 BaseColor: Vector4.One,
-                SpecularIntensity: 0.6f,
-                Gloss: 0.6f,
-                Albedo: boxChecker,
-                Normal: boxTiles,
-                SpecularGloss: TextureId.None
+                Reflectance: 0.6f,
+                Roughness: 0.32f,
+                BaseColorMap: boxChecker,
+                NormalMap: boxTiles,
+                MetallicRoughnessMap: TextureId.None
             )
         );
         scene.Red = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), gloss: 0.85f) with
+            MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), roughness: 0.2f) with
             {
-                SpecularIntensity = 1f,
+                Reflectance = 1f,
             }
         );
-        scene.Blue = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.1f, y: 0.25f, z: 0.8f, w: 1), gloss: 0.2f));
-        scene.White = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), gloss: 0.5f));
-        scene.Orange = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.4f, z: 0.08f, w: 1), gloss: 0.7f));
+        scene.Blue = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.1f, y: 0.25f, z: 0.8f, w: 1), roughness: 0.65f)
+        );
+        scene.White = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.38f)
+        );
+        scene.Orange = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.9f, y: 0.4f, z: 0.08f, w: 1), roughness: 0.26f)
+        );
         scene.Glass = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), gloss: 0.9f) with
+            MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), roughness: 0.18f) with
             {
-                SpecularIntensity = 1f,
+                Reflectance = 1f,
             }
         );
-        scene.Station = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), gloss: 0.3f));
+        scene.Station = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), roughness: 0.55f)
+        );
         scene.PlanetMaterial = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), gloss: 0.1f) with
+            MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), roughness: 0.75f) with
             {
-                SpecularIntensity = 0.2f,
+                Reflectance = 0.2f,
             }
         );
         scene.StarMaterial = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1)) with
+            MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.38f) with
             {
                 Emissive = new(60f, 55f, 45f),
             }
