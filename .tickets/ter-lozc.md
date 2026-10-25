@@ -1,6 +1,6 @@
 ---
 id: ter-lozc
-status: in_progress
+status: closed
 deps: [ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T15:27:48Z
@@ -61,3 +61,7 @@ Review fixes (2026-10-25). Fixed: the pane's emission capped before the exposure
 **2026-10-25T20:18:04Z**
 
 Main merged with ambient occlusion (2026-10-25), and its sites audited under the rule. Fixed: gtaoSampleHorizon tests a sample's depth before it measures the sample, because a sky position (SkyDepth times a long view ray) squares past the float range above about 167 degrees in 16:9 or in a window wider than about 32:1; HorizonSearch.SamplePosition is the C# copy, and Metal hides the fault. Safe with reasons: the depth pass, the texel width, the edges, the slice axis, the denoise and upsample divisions, the R16F terms, specularOcclusion. The occlusion scales only the ambient terms inside lobesRadiance, before its one cap. shaderStorageImageExtendedFormats is in the required features.
+
+**2026-10-25T20:32:53Z**
+
+Merged into main as 52bd1d4b on 2026-10-25. Coverage of the changed C# lines: 219 of 220 (99.5 %), 110 of 112 branches. The one uncovered line is VulkanDevice.MissingCoreFeature's refusal of a device without samplerAnisotropy (line 372): DeviceFeatureTests names the other features' refusals but not this one, a one-line gap left for the next change to that file. The shaders have no line coverage; their sites are in ARCHITECTURE.md, 'Portable Vulkan'. Under coverage, the three Physics allocation tests fail as before, because the instrumentation allocates. No screenshots: the look changes only in frames with very many bright puffs.
