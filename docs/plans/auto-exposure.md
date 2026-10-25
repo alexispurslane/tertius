@@ -1,10 +1,10 @@
 # Automatic exposure
 
-Ticket: `ter-zzyr`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's "Design decisions". This doc fills in the details. One point is open, see "Open fork: a headless still after a long step".
+Ticket: `ter-zzyr`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's "Design decisions". This doc fills in the details. The one open point, a headless still after a long step, is settled for the metering draw (User), see "A headless still after a long step". Part 4 measured the cost, and the results are in "Cost".
 
 ## Goal
 
-Today the exposure is a fixed linear scale, `VulkanRenderer.Exposure`, which `tonemap.frag` applies before the ACES curve. After this ticket:
+Before this ticket the exposure was a fixed linear scale, `VulkanRenderer.Exposure`, which `tonemap.frag` applies before the ACES curve. After this ticket:
 
 - The exposure follows the brightness of the surfaces in view over time. When the camera enters the dark, the image brightens over seconds until dark things show detail. When the camera leaves into bright light, the image is blown out at first, and then it settles. Into the light is faster than into the dark.
 - The GPU decides the exposure. One compute dispatch builds a histogram of log luminance, and a second one moves the exposure in a GPU buffer. The CPU reads the exposure only to report it.
@@ -905,6 +905,39 @@ Memory, by arithmetic:
 | Two descriptor sets, two compute pipelines | Small |
 
 The HDR image, the G-buffer and the atlas keep their formats and sizes.
+
+### The measured cost
+
+Part 4 measured it by the recipe above: Release, `scripts/demo-exit.json`, 1920 × 1080, Apple M1 Max, 3,877 frames for each pass (3,878 for the new exposure pass). Each build ran twice, one run at a time, interleaved: base, branch, base, branch. The 1-minute load of the machine before the runs was 5.87, 6.91, 8.68 and 7.06. Only the second base run started above the line of 8, and it agrees with the first base run to 0.013 ms on every mean. The whole `dotnet run`, build included, took 39.4 s and 38.4 s on the base and 38.7 s and 35.2 s on the branch. The means of the two runs of a build:
+
+| Pass | Mean base | Mean branch | Change of the mean | Spread between two runs, base and branch |
+|---|---|---|---|---|
+| Exposure (new) | none | 0.311 ms | +0.311 ms | none, 0.001 ms |
+| Shadow maps | 0.198 ms | 0.285 ms | +0.087 ms | 0.002 ms, 0.003 ms |
+| G-buffer | 0.886 ms | 1.005 ms | +0.120 ms | 0.005 ms, 0.048 ms |
+| Lighting | 1.854 ms | 1.611 ms | −0.242 ms | 0.013 ms, 0.025 ms |
+| Transparent | 0.387 ms | 0.332 ms | −0.054 ms | 0.007 ms, 0.001 ms |
+| Bloom | 0.459 ms | 0.478 ms | +0.018 ms | 0.005 ms, 0.006 ms |
+| Tone map | 0.267 ms | 0.289 ms | +0.021 ms | 0.003 ms, 0.001 ms |
+| Outlines | 0.038 ms | 0.024 ms | −0.013 ms | 0.001 ms, 0.000 ms |
+| Capture | 0.017 ms | 0.032 ms | +0.015 ms | 0.001 ms, 0.002 ms |
+
+- The exposure pass: a mean of 0.311 ms, a median of 0.320 ms and a p95 of 0.422 ms. That is above the 0.2 ms line, so the rule above applies: a meter on every second pixel in each axis becomes a ticket.
+- The sum of the pass means is about 4.12 ms on the base and about 4.14 ms on the branch. So the whole feature costs about 0 ms, within the noise. The lighting pass (−0.24 ms) and the transparent pass (−0.05 ms) paid back the exposure pass. Nobody has explained why. The timestamps may shift work between neighbors, because the exposure pass sits after the transparent pass.
+- Every change in the table is larger than the spread between two runs of one build, except the G-buffer mean, which is only about 2.5 times the spread of the branch runs. The p95 of the capture pass is not reliable, because the base spread is 0.022 ms.
+- The G-buffer, lighting and transparent passes were expected to change within the spread. The tone map was expected to cost a multiply less, and it costs 0.02 ms more. The shadow maps do not change in this ticket, and they cost 0.09 ms more. These rises have no known cause.
+- The p95 of the G-buffer pass doubles in both branch runs, from 1.14 ms to about 2.24 ms, more than any spread. It is an unexplained cost of the worst frames, and it deserves a look.
+- The metering draws of `scripts/demo-surface.json` and `scripts/blue-danube.json` were not timed. The cost per draw is about one frame of GPU time, by arithmetic.
+
+### What the umbra film showed
+
+`scripts/orbit-umbra.json` films the chase camera entering and leaving Earth's shadow in the orbit scene. It captures a day still, runs to tick 100,270, films 40 s of the entry at 10 frames per second, runs to tick 237,500, films 100 s of the exit at 10 frames per second, and captures a settled still. The exit film is 100 s, not the 20 s of Part 4, because the sunrise lasts that long: the shadow lasts from about tick 101,500 to about 242,000, which is 0.42 of an orbit, not the half orbit that a symmetric 140 degree geometry suggests. The run reported no exposure readings, because the headless run writes only the pass timings, so the film shows the exposure only through its pixels.
+
+- The hull loses the sun at about tick 101,500, and its front face falls from white to mid gray in 7 s while the mean luma falls from 45.7 to 34.8. The Earth pixels do not move. So this is the hull losing light, not an exposure change.
+- No dark frame and no slow brightening appear. The meter counts surface pixels, and these are mostly the night side of the Earth, which is as bright after the entry as before it. So the exposure stays put. The design's picture, dark first and then detail slowly appearing, does not happen in this scene. This is a property of the scene and the camera. It does not show a fault of the meter.
+- In the sunrise, the mean luma creeps from 34.9 to 38.7, with no overexposed flash. The sun comes over the limb as a glare patch, not as a lit hull. Once the sun disc is in view at tick 246,500, the hull falls to about 120, half a stop or so darker, as an automatic exposure should do.
+- The sunlit hull clips white with a large bloom halo before the entry. By the rules of the meter, the metered pixels are mostly Earth, so the hull is not what sets the exposure.
+- About 1,400 frames show no isolated jump of brightness, no NaN, no black blocks and no banding. A film that shows the adaptation needs a scene whose metered surfaces change, and the exposure in stops for each frame, which needs a column in the headless run's output. Both are follow-up work.
 
 ## Doc changes
 

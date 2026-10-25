@@ -16,7 +16,7 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 - One switch in `RendererOptions` makes rendering deterministic for tests: interpolation alpha 1, fixed seeds, impostor captures forced or off, and no temporal effects.
 - A snapshot test locks in a look, so it comes after the look is what we want. A snapshot cannot drive red-green TDD, because its reference image exists only after the feature works. So this epic waits for the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)), which holds every rendering feature that changes the look.
 - The user decided this order on 2026-10-21.
-- Automatic exposure comes first, so the deterministic switch also turns it off, and every other temporal effect that lands before this epic.
+- Automatic exposure comes first (`ter-zzyr`, [auto-exposure.md](auto-exposure.md)). The snapshot tests set `FixedExposure`, so the deterministic switch has no exposure of its own to turn off. A switch that overrode the setting would be a second store of it. Every other temporal effect that lands before this epic is still turned off by the switch.
 
 ## Steps
 
