@@ -67,7 +67,7 @@ internal sealed class RouterHarness
             bodyCenterOfMass: Vector3.Zero,
             ownedFrame: FrameHandle.Null
         );
-        Topics.MoveMember(entity, frame, out _);
+        Topics.MoveMember(entity, frame);
         return entity;
     }
 

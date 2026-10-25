@@ -105,9 +105,10 @@ public sealed class MotionIntentTests
             Flags = IntentFlags.Teleport,
         };
 
-        intent.StepRecord(Start, Step, out MotionSample record).Should().BeTrue();
+        MotionSample? record = intent.StepRecord(Start, Step);
 
         MotionSample? fromTeleport = new MotionIntent(new EndPose(End)).RecordFrom(teleport, Step);
+        record.Should().NotBeNull();
         record.Should().Be(fromTeleport, "the teleport puts the entity at its pose before the step moves it");
     }
 
@@ -120,9 +121,10 @@ public sealed class MotionIntentTests
             TeleportPose = new(new(-5, 2, 1), DQuaternion.Identity),
         };
 
-        intent.StepRecord(Start, Step, out MotionSample record).Should().BeTrue();
+        MotionSample? record = intent.StepRecord(Start, Step);
 
         MotionSample? fromStanding = new MotionIntent(new EndPose(End)).RecordFrom(Start, Step);
+        record.Should().NotBeNull();
         record.Should().Be(fromStanding, "a teleport pose without its flag is no teleport");
     }
 

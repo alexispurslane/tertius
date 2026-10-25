@@ -231,6 +231,24 @@ public sealed class FrameTreeMotionInStepTests
     }
 
     [Fact]
+    public void ALevelWhoseOwnerSlotIsAtTheEndOfTheIntentsEndsTheStepAtRestWhereItStarts()
+    {
+        FrameHandle room = Frame(space, Double3.Zero);
+        RunStep(Intents((room, EndingAt(new(1, 0, 0)))));
+
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(
+            of: room,
+            to: space,
+            stepIntents: new PhysicsIntent[room.Entity.Index],
+            step: Step
+        );
+
+        ExpectNear(actual: start.Pose.Position, expected: new(1, 0, 0), tolerance: 1e-12, what: "the start's place");
+        ExpectNear(actual: end.Pose.Position, expected: new(1, 0, 0), tolerance: 1e-12, what: "the end's place");
+        ExpectNear(actual: end.Velocity, expected: Double3.Zero, tolerance: 1e-12, what: "the end's velocity");
+    }
+
+    [Fact]
     public void ALevelThatTeleportsStartsTheStepAtTheTeleportsPose()
     {
         FrameHandle cart = Frame(space, Double3.Zero);

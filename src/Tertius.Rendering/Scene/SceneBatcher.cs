@@ -423,7 +423,7 @@ internal sealed class SceneBatcher
         CameraView camera = scene.Camera;
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
             // The default light holds no case, so it adds no light. A light of either case is left out when it cannot reach
-            // a visible surface (see Reaches).
+            // a visible surface (see PositionInReach).
             switch (light)
             {
                 case PointRenderLight
@@ -435,13 +435,12 @@ internal sealed class SceneBatcher
                 }:
                 {
                     if (
-                        !Reaches(
+                        PositionInReach(
                             camera: camera,
                             worldPosition: worldPosition,
                             intensity: intensity,
-                            range: range,
-                            position: out Vector3 position
-                        )
+                            range: range
+                        ) is not { } position
                     )
                         continue;
                     // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
@@ -464,13 +463,12 @@ internal sealed class SceneBatcher
                 }:
                 {
                     if (
-                        !Reaches(
+                        PositionInReach(
                             camera: camera,
                             worldPosition: worldPosition,
                             intensity: intensity,
-                            range: range,
-                            position: out Vector3 position
-                        )
+                            range: range
+                        ) is not { } position
                     )
                         continue;
                     Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
@@ -498,20 +496,14 @@ internal sealed class SceneBatcher
     }
 
     /// <summary>
-    /// True if a light of this intensity and range at <paramref name="worldPosition"/> can reach a visible surface: both are
-    /// above zero, and the light's sphere of influence is not outside the frustum. Also gives the position relative to the
-    /// camera, which is what the GPU light holds.
+    /// The position relative to the camera, which is what the GPU light holds, of a light of this intensity and range at
+    /// <paramref name="worldPosition"/> that can reach a visible surface: both are above zero, and the light's sphere of
+    /// influence is not outside the frustum. Null for a light that cannot reach one.
     /// </summary>
-    private static bool Reaches(
-        in CameraView camera,
-        Vector3 worldPosition,
-        float intensity,
-        float range,
-        out Vector3 position
-    )
+    private static Vector3? PositionInReach(in CameraView camera, Vector3 worldPosition, float intensity, float range)
     {
-        position = worldPosition - camera.Offset;
-        return !(range <= 0f || intensity <= 0f) && !camera.Culls(position, range);
+        Vector3 position = worldPosition - camera.Offset;
+        return !(range <= 0f || intensity <= 0f) && !camera.Culls(position, range) ? position : null;
     }
 
     private static void Append(PreparedScene scene, in GpuLight light)

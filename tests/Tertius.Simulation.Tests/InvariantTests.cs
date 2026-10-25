@@ -213,7 +213,7 @@ public sealed class InvariantTests(ITestOutputHelper output)
         Entity victim = LiveEntitiesOf(world).First(e => !world.GetFrame(e).IsNull && world.GetOwnedFrame(e).IsNull);
         FrameHandle right = world.GetFrame(victim);
         FrameHandle wrong = FramesOf(world).First(f => f != right);
-        Inside.TopicsOf(world).MoveMember(victim, wrong, out _).Should().BeTrue();
+        Inside.TopicsOf(world).MoveMember(victim, wrong).Should().NotBeNull();
         return (victim, right, wrong);
     }
 

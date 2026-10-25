@@ -163,9 +163,8 @@ public sealed partial class FrameTree
                 parent: taker.Parent,
                 standing: locals[taker.Dense],
                 stepIntents: stepIntents,
-                step: step,
-                record: out MotionSample move
-            )
+                step: step
+            ) is { } move
         )
             FollowAt(
                 taker: taker,

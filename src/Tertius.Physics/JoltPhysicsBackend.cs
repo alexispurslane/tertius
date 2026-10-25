@@ -980,12 +980,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         BodyRecord? hull = OwnerRecord(frame);
         if (
             (hull is null || hull.Motion == BodyMotion.Kinematic)
-            && frames.StepRecordInStep(
-                frame: frame,
-                stepIntents: stepIntents.Span,
-                step: stepDt,
-                record: out MotionSample move
-            )
+            && frames.StepRecordInStep(frame: frame, stepIntents: stepIntents.Span, step: stepDt) is { } move
         )
         {
             if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))

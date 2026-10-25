@@ -99,9 +99,9 @@ internal static class StyleRules
 
     public static readonly DiagnosticDescriptor TryMethodShape = new(
         id: "TS0009",
-        title: "A Try method returns bool and gives its result in an out parameter",
-        messageFormat: "'{0}' is named as a Try method, so it returns bool and gives its result in an out parameter. Rename it, "
-            + "or give it that shape (STYLE.md, \"Expected failures\").",
+        title: "A method that returns bool and has an out parameter has the Try shape",
+        messageFormat: "'{0}' returns bool and has an out parameter, the Try shape. Return T? and let null be the "
+            + "failure. If the caller needs the reason, return Result<T, TProblem> (STYLE.md, \"Expected failures\").",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true

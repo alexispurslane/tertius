@@ -122,22 +122,23 @@ internal sealed class TopicSets
 
     /// <summary>
     /// Moves an entity to the member set of <paramref name="to"/>, which must be a live frame, or out of every member
-    /// set for a null frame. Returns false, and changes nothing, when the entity is already a member of
+    /// set for a null frame. Returns the change, from the frame that the entity was a member of (the null handle for
+    /// none) to <paramref name="to"/>. Returns null, and changes nothing, when the entity is already a member of
     /// <paramref name="to"/>. Throws <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
-    public bool MoveMember(Entity entity, FrameHandle to, out FrameHandle from)
+    public FrameChanged? MoveMember(Entity entity, FrameHandle to)
     {
         Contract.Requires(to.IsNull || IsLive(to));
         ref EntityTopics entry = ref byEntity[entity];
-        from = entry.Member;
+        FrameHandle from = entry.Member;
         if (from == to)
-            return false;
+            return null;
         if (IsLive(from))
             frameMembers[from.Index]?.Queue(entity, false);
         if (!to.IsNull)
             (frameMembers[to.Index] ??= new()).Queue(entity, true);
         entry.Member = to;
-        return true;
+        return new FrameChanged { From = from, To = to };
     }
 
     /// <summary>
