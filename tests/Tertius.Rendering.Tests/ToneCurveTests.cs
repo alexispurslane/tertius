@@ -29,6 +29,7 @@ public sealed class ToneCurveTests
                 Height = 360,
                 Impostors = false,
                 ToneCurve = curve,
+                Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
             }
         );
@@ -129,6 +130,7 @@ public sealed class ToneCurveTests
                 Width = 640,
                 Height = 360,
                 Impostors = false,
+                Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
             }
         );

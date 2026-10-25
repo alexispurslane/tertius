@@ -12,6 +12,8 @@ tags: [rendering, long-term]
 ---
 # Add automatic exposure that adapts over time, like an eye entering and leaving the dark
 
+Design: docs/plans/auto-exposure.md
+
 The user asked for eye adaptation in the HDR to SDR pass. Today the exposure is fixed: VulkanRenderer.Exposure (default 1) multiplies the HDR image in tonemap.frag before the ACES fitted curve, and nothing changes it from frame to frame.
 
 Wanted: an exposure that follows the scene's brightness over time. When the camera enters the dark, for example the orbit scene's night pass or a dim ship interior, the exposure rises slowly, so dark things become distinguishable. When the camera leaves into bright light, the image is blown out at first, and then the exposure falls until it settles. Eyes adapt faster to light than to dark, so the two directions can use different time constants.

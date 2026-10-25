@@ -10,6 +10,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 |---|---|
 | [Anti-aliasing](anti-aliasing.md) | `ter-gcm3` |
 | [Asset pipeline](asset-pipeline.md) | `ter-kge6` |
+| [Automatic exposure](auto-exposure.md) | `ter-zzyr` |
 | [Code quality tooling](code-quality-tooling.md) | `ter-9gj5` |
 | [Complete ghosts between semantic frames](complete-ghosts.md) | `ter-imi5` |
 | [Content formats: blueprints and scenes](content-formats.md) | `ter-jwzd` |

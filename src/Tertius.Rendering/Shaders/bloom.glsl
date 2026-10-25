@@ -6,9 +6,8 @@ layout(set = 0, binding = 1) uniform sampler linearClamp;
 
 layout(push_constant, std430) uniform BloomPush
 {
-    float threshold;   // the brightness after the exposure, as the largest channel, at the center of the soft knee
+    float threshold;   // the brightness of the pre-exposed HDR image, as the largest channel, at the center of the soft knee
     float knee;        // the half-width of the soft knee around the threshold, as a fraction of it
-    float exposure;    // the factor from the HDR image's values to the light after the exposure
     uint levels;       // how many levels the up chain sums into level 0
 } bloom;
 

@@ -20,7 +20,16 @@ public sealed class BloomTests
     private static Bloom Shaped(float strength = 0.25f, int levels = 6, float threshold = 1, float knee = 0.5f) =>
         new(threshold: threshold, knee: knee, strength: strength, levels: levels);
 
+    /// <summary>A renderer under <see cref="FixedExposure"/> at 0 stops, so the HDR image holds the light as it is.</summary>
     private static VulkanRenderer Headless(BloomSetting bloom, int width = Width, int height = Height) =>
+        Headless(bloom: bloom, exposure: new FixedExposure(0), width: width, height: height);
+
+    private static VulkanRenderer Headless(
+        BloomSetting bloom,
+        ExposureSetting exposure,
+        int width = Width,
+        int height = Height
+    ) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
@@ -29,6 +38,7 @@ public sealed class BloomTests
                 Height = height,
                 Impostors = false,
                 Bloom = bloom,
+                Exposure = exposure,
             }
         );
 
@@ -102,6 +112,8 @@ public sealed class BloomTests
     [Fact]
     public void ByDefaultABrightSquareGlowsWithAGlowThatFadesWithDistance()
     {
+        // The default bloom at 0 stops: under the automatic exposure, the black wall would raise the exposure until
+        // the whole image shows white.
         var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
@@ -109,6 +121,7 @@ public sealed class BloomTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                Exposure = new FixedExposure(0),
             }
         );
         try
@@ -177,13 +190,10 @@ public sealed class BloomTests
     public void LightBelowTheKneeAfterTheExposureAddsNoGlow()
     {
         Square[] dim = [Centered(side: 40, radiance: 0.12f)];
-        VulkanRenderer withBloom = Headless(Shaped(strength: 4));
-        VulkanRenderer without = Headless(new NoBloom());
+        VulkanRenderer withBloom = Headless(bloom: Shaped(strength: 4), exposure: new FixedExposure(2));
+        VulkanRenderer without = Headless(bloom: new NoBloom(), exposure: new FixedExposure(2));
         try
         {
-            withBloom.Exposure = 4;
-            without.Exposure = 4;
-
             Capture bloomed = Render(withBloom, "bloom-exposed-below-knee", dim);
             Capture plain = Render(without, "bloom-exposed-below-knee-off", dim);
 
@@ -226,19 +236,24 @@ public sealed class BloomTests
         }
     }
 
-    [Fact]
-    public void TheThresholdAppliesToTheLightAfterTheExposure()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheThresholdAppliesToTheLightAfterTheExposure(bool automatic)
     {
-        VulkanRenderer renderer = Headless(Shaped());
+        // A radiance of 0.5 lies at the knee's start, so it glows only when the exposure brightens it. Under the
+        // automatic exposure, the black wall fills the view, so the exposure rises to its highest stops.
+        ExposureSetting exposure = automatic ? AutoExposure.Default : new FixedExposure(2);
+        VulkanRenderer renderer = Headless(bloom: Shaped(), exposure: exposure);
         try
         {
-            renderer.Exposure = 4;
-
             Capture image = Render(renderer, "bloom-exposure", Centered(side: 16, radiance: 0.5f));
 
             RightOf(image, 16, 3)
                 .Should()
-                .BePositive("a radiance of 0.5 under the exposure 4 shows as 2, twice the threshold, so it glows");
+                .BePositive(
+                    "a radiance of 0.5 under an exposure of 2 stops or more shows as 2 or more, above the threshold"
+                );
         }
         finally
         {
@@ -402,43 +417,46 @@ public sealed class BloomTests
     [InlineData(4)]
     public void ALargeSquareAtTheLargestHalfFloatGlowsByItsLightWithoutOverflowing(int levels)
     {
-        // As in the test above, the middle of the square shows its light plus the strength times its light. Each level
-        // holds the largest half float there, so a sum of the levels as they are overflows to infinity. A tiny exposure
-        // shows the light in the range of the tone curve.
+        // At 0 stops the HDR image holds the square's light as it is, the largest half float, and so does each level
+        // inside the square, so a sum of the levels as they are overflows to infinity. The glow is linear in the light,
+        // so beside the square it equals the glow of a square 1,024 times dimmer under a bloom 1,024 times stronger. The
+        // strength brings that glow into the range of the tone curve, as an exposure would before pre-exposure.
+        const float dimmer = 1024;
+        const int side = 200;
         float largest = (float)Half.MaxValue,
-            exposure = 0.25f / largest;
-        VulkanRenderer bloomed = Headless(Shaped(strength: 1, levels: levels, threshold: 0, knee: 0));
-        VulkanRenderer plain = Headless(new NoBloom());
+            strength = 1f / 65536;
+        VulkanRenderer bright = Headless(Shaped(strength: strength, levels: levels, threshold: 0, knee: 0));
+        VulkanRenderer dim = Headless(Shaped(strength: strength * dimmer, levels: levels, threshold: 0, knee: 0));
         try
         {
-            bloomed.Exposure = exposure;
-            plain.Exposure = 2 * exposure;
+            Capture brightImage = Render(bright, "bloom-largest", Centered(side: side, radiance: largest));
+            Capture dimImage = Render(dim, "bloom-largest-dimmer", Centered(side: side, radiance: largest / dimmer));
+            Vector3 glow = brightImage.Color(Width / 2 + side / 2 + 4, Height / 2);
+            Vector3 expected = dimImage.Color(Width / 2 + side / 2 + 4, Height / 2);
 
-            Vector3 middle = Render(bloomed, "bloom-largest", Centered(side: 200, radiance: largest))
-                .Color(Width / 2, Height / 2);
-            Vector3 doubled = Render(plain, "bloom-largest-doubled", Centered(side: 200, radiance: largest))
-                .Color(Width / 2, Height / 2);
-
-            LargestChannelDifference(middle, doubled)
+            expected.X.Should().BeInRange(0.1f, 0.9f, "the glow beside the square lies inside the tone curve's range");
+            LargestChannelDifference(glow, expected)
                 .Should()
                 .BeLessThanOrEqualTo(
                     1 / 255f,
-                    "the {0} levels hold the glow of the largest half float without overflowing, and add it once",
+                    "the {0} levels hold the glow of the largest half float without overflowing",
                     levels
                 );
         }
         finally
         {
-            Gpu.DisposeAndAssertClean(bloomed);
-            Gpu.DisposeAndAssertClean(plain);
+            Gpu.DisposeAndAssertClean(bright);
+            Gpu.DisposeAndAssertClean(dim);
         }
     }
 
     [Fact]
     public void ANaNInTheHdrImageAddsNoGlow()
     {
-        // A glow puff of NaN radiance writes NaN into the HDR image over a dim wall that is below the knee. If the NaN
-        // reached the bloom levels, their filters would spread it over the wall around the puff.
+        // A glow puff of radiance −∞ writes −∞ into the HDR image over a dim wall that is below the knee, and NaN in the
+        // corners of its square, where its profile of 0 multiplies −∞. Its light is negative infinite, not NaN, because
+        // pre-exposure clamps the light from above with min, which GLSL leaves undefined for a NaN. If the NaN reached the
+        // bloom levels, their filters would spread it over the wall around the puff.
         VulkanRenderer withBloom = Headless(Shaped());
         VulkanRenderer without = Headless(new NoBloom());
         try
@@ -450,7 +468,7 @@ public sealed class BloomTests
             );
             Capture plain = Gpu.RenderAndCapture(renderer: without, snapshot: NaNPuff(without), name: "bloom-nan-off");
 
-            plain.Color(Width / 2, Height / 2).Should().Be(Vector3.Zero, "the puff's NaN shows black without bloom");
+            plain.Color(Width / 2, Height / 2).Should().Be(Vector3.Zero, "the puff's −∞ shows black without bloom");
             bloomed.Rgba.Should().Equal(plain.Rgba, "the NaN stays in its own pixels and adds no glow");
         }
         finally
@@ -468,7 +486,7 @@ public sealed class BloomTests
                     StartRadius: 0.1f,
                     EndRadius: 0.1f,
                     TemperatureRatio: 1,
-                    Shading: PuffShading.Glow(new(float.NaN))
+                    Shading: PuffShading.Glow(new(float.NegativeInfinity))
                 )
             );
             var position = new Vector3(0, 0, -Depth / 2);

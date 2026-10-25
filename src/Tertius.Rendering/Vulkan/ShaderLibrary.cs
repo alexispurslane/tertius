@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Loads the SPIR-V modules that the build compiled from Shaders/*.vert and Shaders/*.frag and embedded as
+/// Loads the SPIR-V modules that the build compiled from Shaders/*.vert, Shaders/*.frag and Shaders/*.comp and embedded as
 /// resources named <c>Tertius.Rendering.Shaders.&lt;file&gt;.spv</c>. Modules are created once and cached.
 /// </summary>
 internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable

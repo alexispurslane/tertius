@@ -31,13 +31,11 @@ internal sealed unsafe class BloomPass : RenderPass
     {
         RenderTargets targets = context.Targets;
         GpuImage[] levels = targets.Glow;
-        // The exposure that the threshold applies to, in its one place. When every shading pass writes light that is
-        // already exposed (ticket ter-zzyr), this factor becomes 1.
+        // The threshold compares the pre-exposed HDR image directly, so the exposure enters it nowhere.
         var push = new BloomPushConstants
         {
             Threshold = bloom.Threshold,
             Knee = bloom.Knee,
-            Exposure = context.Exposure,
             Levels = (uint)bloom.Levels,
         };
         context.Vk.CmdPushConstants(
