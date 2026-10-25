@@ -1,6 +1,6 @@
 ---
 id: ter-zi4i
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-25T19:06:16Z
