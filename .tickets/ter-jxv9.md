@@ -50,3 +50,7 @@ Part 1 committed as 12576004 (43 tests, 50 hand mutations). Settled by the orche
 **2026-10-25T22:42:15Z**
 
 2026-10-25, later: the user prefers 64 steps if the difference does not show to the naked eye. It shows: at 64 steps the edge view's glossy box face has horizontal streaks at actual size, where rays run out of steps and their neighbors hit (3,935 pixels off by more than 10 levels from 512). At 128 steps the streaks are gone: 0 such pixels in the front and edge views and 50 in the low view's horizon strip. So the default is 128, the fewest steps that do not show, by the user's own condition. This replaces the note's 256.
+
+**2026-10-25T22:44:36Z**
+
+Coverage of the changed C# lines on 1527af45: 769 of 919 lines, 166 of 178 branches. Uncovered: the demo scenes of the review (DemoScenes.Reflections.cs, DemoScenes.PbrSpheres.cs), which the captures review; RenderTargets.CheckReflectionFormats' two throws for a device without the formats; DepthPyramid.FromInverseDepths' size guard; ReadLevel's arm for a format that no hook reads; and ReflectionTargets.Dispose, which nothing calls, because RenderTargets calls DestroyImages. The Physics allocation tests fail under coverage, as always.
