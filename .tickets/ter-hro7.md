@@ -1,16 +1,30 @@
 ---
 id: ter-hro7
 status: open
-deps: [ter-dd9z, ter-y0e5]
+deps: []
 links: []
-created: 2026-10-20T18:45:50Z
-type: task
+created: 2026-10-25T12:01:26Z
+type: feature
 priority: 2
 assignee: Alexis Purslane
-parent: ter-xr2b
-tags: [demo]
+tags: [rendering, frames]
 ---
-# Live world part 10: the lift and free play on the wheel
+# Each semantic frame sets the sky and ground colors of the hemisphere ambient light
 
-Part 10 of docs/plans/live-world.md. Build the Lift on a fixed cycle in the spoke at theta = 0, wheel-camera, and the start live-wheel. The test ARiderStandsOnTheLiftFromTheWheelToTheHub covers an engine claim that no test covers today: a standing character on a kinematic platform in a turning frame. If it fails, the failure is an engine bug for its own ticket. See "The lift". Tests: "Part 10: the lift and free play on the wheel".
+Today the world holds one pair of ambient colors, World.Ambient (SkyColor, GroundColor, Intensity), and the render snapshot copies it each tick. Each instance takes only its up from the gravity field of its own frame (RenderSnapshotBuilder.HemisphereOfFrame and HemisphereOf). So a world that holds a planet's surface and deep space gives both the same sky and ground colors, and the demo works around this by setting the pair per scene. The user decided on 2026-10-25 that each semantic frame determines its own sky and ground colors, as it determines its gravity field and its medium (FrameSpec(Bounds, Gravity, Medium)).
+
+Design to decide (two designs, then the user chooses):
+- Where the colors live: a field of the frame beside Gravity and Medium, or a component of the frame's owner.
+- Which frame's colors an object takes: its own semantic frame's, or those of the nearest semantic ancestor that sets colors, for example a ship's interior inside a planet's frame. A numeric frame takes its semantic frame's, as it does for its turns.
+- What a frame that sets no colors gives, and whether World.Ambient stays as the root's value or goes.
+- Whether the colors hold only inside a region, as a uniform gravity field does.
+- How the snapshot carries them: per instance (GpuInstance is 80 bytes today) or as a small table per frame that each instance indexes.
+- The impostor manager keys a capture's record of the light on the colors, so a change of colors captures again.
+- The ambient light's specular part (ter-ptft) uses the same colors as its diffuse part.
+
+The colors are stored state: they describe the last finished step, like the gravity field.
+
+## Acceptance Criteria
+
+In a GPU test, a world with a planet's surface frame that has a blue sky and a brown ground, and a space frame with dim even colors, shades each object with its own frame's colors. The demo scenes set their colors on their frames. ARCHITECTURE.md describes the rule.
 
