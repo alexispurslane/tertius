@@ -1,6 +1,6 @@
 ---
 id: ter-lozc
-status: open
+status: in_progress
 deps: [ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T15:27:48Z
