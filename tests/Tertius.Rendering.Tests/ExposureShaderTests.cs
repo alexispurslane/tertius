@@ -94,8 +94,8 @@ public sealed class ExposureShaderTests
             renderer.Render(snapshot, 1f);
             float next = renderer.LastFrameStats.Exposure!.Value.Stops;
 
-            // The frame before it read the still's exposure a moment after time 0.
-            float step = (float)(frameTime - ReadingStepSeconds);
+            // The still before it lies at time 0.
+            const float step = (float)frameTime;
             float target = ExposureMeter.TargetStops(
                 reading: ExposureMeter.Reading(histogram, setting.DarkShare, setting.BrightShare),
                 usedStops: used,
@@ -149,7 +149,7 @@ public sealed class ExposureShaderTests
             renderer.Render(snapshot, 1f);
             float next = renderer.LastFrameStats.Exposure!.Value.Stops;
 
-            float step = (float)(frameTime - ReadingStepSeconds);
+            const float step = (float)frameTime;
             (float TrimmedMeanStops, float BrightEdgeStops) reading = ExposureMeter
                 .Reading(histogram, setting.DarkShare, setting.BrightShare)!
                 .Value;

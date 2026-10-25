@@ -246,7 +246,7 @@ There is one exposure buffer and one histogram for the renderer, not one per fra
 | The start of every drawn frame, before the first pass | `ExposureResources.RecordReadback` | Copies the exposure buffer into the slot's readback buffer. |
 | The G-buffer, lighting and transparent passes | Their shaders | Read `exposureStops` (see "Pre-exposure"). |
 | The exposure pass, under `AutoExposure` | The adapt step | Reads `exposureStops`, the S that the frame used, and writes S'. |
-| After the slot's fence wait, in `Render` | `ExposureResources.Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. |
+| After each wait on a slot's fence, in `Render`: the wait before the slot records again, and a capture's wait for its own frame | `ExposureResources.Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. It keeps only a newer frame, so the wait on an older slot after a capture does not take the reading back. So a captured frame reports its own exposure, and any other frame the exposure of a frame a few frames before. |
 
 Under `FixedExposure`, the renderer adds no exposure pass, so after the seed nothing writes the buffer. The shaders take one path for both cases.
 

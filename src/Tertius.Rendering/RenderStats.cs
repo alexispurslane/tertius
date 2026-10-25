@@ -73,15 +73,16 @@ public readonly record struct RenderStats
     public int Puffs { get; init; }
 
     /// <summary>
-    /// The GPU time of each pass of the last frame whose GPU work finished, which is a few frames before this one, or
-    /// null before one has, or on a device that writes no timestamps. A later frame rewrites the passes in place, so a
-    /// reader copies what it keeps.
+    /// The GPU time of each pass of the last frame whose GPU work finished: this frame when it was captured, because the
+    /// capture waits for it, and a few frames before otherwise. Null before one has, or on a device that writes no
+    /// timestamps. A later frame rewrites the passes in place, so a reader copies what it keeps.
     /// </summary>
     public GpuTimings? GpuTimings { get; init; }
 
     /// <summary>
-    /// The exposure that the passes of the last frame whose GPU work finished used, which is a few frames before this one,
-    /// or null before one has. A frame that the output skips keeps the reading that its wait found.
+    /// The exposure that the passes of the last frame whose GPU work finished used: this frame when it was captured,
+    /// because the capture waits for it, and a few frames before otherwise. Null before one has. A frame that the output
+    /// skips keeps the reading that its wait found.
     /// </summary>
     public ExposureReading? Exposure { get; init; }
 
