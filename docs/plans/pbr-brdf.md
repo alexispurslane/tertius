@@ -690,14 +690,41 @@ Two demo constants hold the converted values: `DemoScenes.UsualRoughness = 0.38f
 
 ## Cost
 
-The GPU timers come from ticket `ter-yiii`, which another builder writes now. The measurement is the last code step, after that ticket merges into main and main into this branch.
+The GPU timers of `ter-yiii` measured the switch. Release, validation off, 1920 × 1080, one run at a time, with the 1-minute load of the machine from 6.59 to 7.34 before each run. Before is main at `cbb1f190` with Blinn-Phong, in a scratch worktree. After is this branch at `8c08908c`. Each build ran each script twice. Times are in ms.
 
-What to measure, in Release, with validation off, headless at 1920 × 1080, as the median of 200 frames after 30 frames of warm-up, with the load of the machine noted:
+`demo-exit.json`, 3,877 frames. The two runs of one build agree to 0.001 to 0.003 ms on the means. In a cell with two numbers, the first is run 1 and the second run 2.
 
-- The GPU time of the G-buffer pass, the lighting pass, the transparent pass and the impostor captures, from the per-pass times that `ter-yiii` adds to `RenderStats`.
-- Two scenes. The frame of `LitPuffRenderBenchmarks` without puffs: the ground, 100 boxes, and eight point and spot lights. And the shuttle cabin of `demo-surface` from its window camera: lamps, glass and many surfaces.
-- Before and after. Before is main at the merge of the timers, with Blinn-Phong. After is this branch. The benchmark file is new in this ticket, so the "before" run uses a copy of it with the old field names in a scratch worktree of main.
-- The time of `BrdfTables.Compute` on one thread, and with rows in parallel if Part 1 chose that.
+| Pass | Mean before | Mean after | Change of the means | Median before | Median after | p95 before | p95 after |
+|---|---|---|---|---|---|---|---|
+| Shadow maps | 0.199 / 0.198 | 0.198 / 0.198 | 0.000 | 0.187 | 0.187 | 0.240 / 0.239 | 0.239 / 0.239 |
+| G-buffer | 0.852 / 0.854 | 0.899 / 0.896 | +0.045 | 0.865 / 0.860 | 0.897 / 0.902 | 1.041 / 1.052 | 1.149 / 1.125 |
+| Lighting | 1.544 / 1.543 | 1.798 / 1.796 | +0.254 | 1.518 / 1.517 | 1.770 / 1.763 | 1.985 / 1.988 | 2.282 / 2.314 |
+| Transparent | 0.311 / 0.311 | 0.335 / 0.332 | +0.023 | 0.037 / 0.041 | 0.049 / 0.040 | 1.215 / 1.218 | 1.322 / 1.315 |
+| Tone map | 0.087 / 0.088 | 0.083 / 0.085 | -0.004, inside the spread | 0.091 / 0.094 | 0.091 / 0.091 | 0.133 / 0.133 | 0.133 / 0.133 |
+| Outlines | 0.025 / 0.024 | 0.022 / 0.024 | about 0 | 0.023 / 0.022 | 0.020 / 0.021 | 0.042 / 0.040 | 0.038 / 0.040 |
+| Capture | 0.022 / 0.020 | 0.022 / 0.022 | 0 | 0.015 / 0.015 | 0.017 / 0.017 | 0.052 / 0.051 | 0.051 / 0.051 |
+
+The feature costs about +0.32 ms per frame on `demo-exit`, summed over the G-buffer (+0.045), lighting (+0.254) and transparent (+0.023) passes. Lighting is the main cost: +16 % on the mean and +15 % on the p95, from 1.99 to 2.30 ms. The new code added no pass, and no new line appears in the timings.
+
+`demo-surface.json` times only 5 frames per run, so its p95 is just the largest frame and its figures are noisy.
+
+| Pass | Mean before | Mean after | Change of the means | Spread between runs, before / after |
+|---|---|---|---|---|
+| Shadow maps | 0.512 / 0.517 | 0.504 / 0.529 | about 0 | 0.005 / 0.025 |
+| G-buffer | 0.810 / 0.886 | 0.939 / 0.988 | +0.12 | 0.076 / 0.049 |
+| Lighting | 1.083 / 1.021 | 1.226 / 1.172 | +0.15 | 0.062 / 0.054 |
+| Transparent | 0.337 / 0.336 | 0.370 / 0.367 | +0.03 | 0.001 / 0.003 |
+| Tone map | 0.108 / 0.105 | 0.087 / 0.095 | -0.015 | 0.003 / 0.008 |
+| Outlines | 0.032 / 0.035 | 0.028 / 0.031 | about 0 | 0.003 / 0.003 |
+| Capture | 0.022 / 0.014 | 0.028 / 0.020 | about 0 | 0.008 / 0.008 |
+
+On `demo-surface` the rises of the lighting and transparent passes are larger than the spread in both runs. The rise of the G-buffer pass is about the size of the spread, so it is weak evidence. The direction matches `demo-exit`. The p95 of the 5 frames, after against before: lighting 1.36 / 1.33 against 1.19 / 1.15, G-buffer 2.21 / 2.17 against 2.02 / 2.12.
+
+Not measured:
+
+- `scripts/pbr-spheres.json` printed no GPU lines and wrote no `gpu-timings.json`, with or without `--video`. It films 20 ticks with two captures, and its scene is new, so it has no base to compare with.
+- The time of `BrdfTables.Compute` was not printed by any run. The figure in "Computing them" is from Part 1.
+- The scenes the plan named, the frame of `LitPuffRenderBenchmarks` and the impostor captures, were not timed. The two demo scripts replaced them.
 
 Memory and bandwidth, by arithmetic:
 

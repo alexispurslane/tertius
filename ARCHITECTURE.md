@@ -829,7 +829,7 @@ The renderer is a deferred Vulkan renderer. It gets a flat list of instances, ea
 
 The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
 
-1. Uploads of new meshes, textures and materials.
+1. Uploads of new meshes, textures and materials. The first frame also uploads the BRDF tables (see "Shading").
 2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame. The batcher also collects the puffs of the snapshot at the render age and sorts them with the transparent instances (see "Puffs in the renderer" below).
 3. The shadow maps of the sun.
 4. Impostor captures.
@@ -1084,25 +1084,51 @@ The G-buffer stores the distance from the eye in an R32F target, so one lighting
 
 ### Shading
 
-The lighting model is energy-normalized Blinn-Phong, not PBR:
+The lighting model is a physically based BRDF with the metallic-roughness parameters of glTF. A BRDF (bidirectional reflectance distribution function) says how much of the light that arrives from one direction a surface sends toward another. The design is `docs/plans/pbr-brdf.md`, which holds the reasons and the formulas. Lighting is in linear color space, into an HDR target, with tone mapping at the end. Lighting works in world axes centered on the camera. At one surface point, after the maps, the inputs are the base color b, the metallic m, the roughness r₀ and the reflectance ρ. The derived values are:
 
-- The specular term is multiplied by (n + 8) / 8π.
-- Schlick Fresnel.
-- Normal maps.
-- A gloss map that sets the exponent.
-- Hemisphere ambient light: the sky color from above and the ground color from below.
+- The roughness r = clamp(r₀, 0.045, 1). The floor is applied in one place in each copy of the BRDF: `flooredRoughness` in `brdf.glsl` and the constructor of `GgxLobe` in C#. The G-buffer stores r₀, not r. (User)
+- α = r².
+- The diffuse color c_diff = b · (1 − m). A metal has no diffuse color.
+- The Fresnel F0 = (1 − m) · 0.16 ρ² + m · b. A reflectance of 0.5 gives 0.04. (User)
 
-Lighting is in linear color space, into an HDR target, with tone mapping at the end. Lighting works in world axes centered on the camera. The specular exponent is n = 2^(1 + 11 · gloss), from 2 to 4096. The Fresnel F0 is 0.16 · specular².
+The BRDF is f(l, v) = c_diff / π + D · Vis · F · c, with these terms:
+
+- Diffuse: Lambert. (User)
+- D: the GGX distribution of microfacet normals. (User)
+- Vis: the height-correlated Smith visibility term of Heitz 2014, which includes the 1 / (4 (n·l) (n·v)) factor. (User)
+- F: Schlick's Fresnel term. It reaches 1 at a grazing angle for every F0. (User)
+- c: the energy compensation, c = 1 + F0 · (1 / E₁ − 1) per channel, after Filament. E₁ is the lobe albedo of the DFG table below. A white metal then loses no light at any angle or roughness, and c is 1 for a non-metal with F0 = 0. (User)
+
+The diffuse and the specular parts add with no coupling, so there is no factor (1 − F) on the diffuse part. The direct lights and the ambient light share one model. The sun and each point and spot light add f(l, v) · E · (n·l), where E is the light that `sunReaches` or `lightReaches` gives. The sun still adds nothing where the geometric normal faces away from it.
+
+The renderer uses two tables, computed by the C# copy of the BRDF (`BrdfTables`) and uploaded in the first frame. (User)
+
+| Table | Size | Format | Across | Down | Holds |
+|---|---|---|---|---|---|
+| DFG | 32 × 32 | R16G16_SFLOAT | μ = n·v | r | R the Schlick part S, G the lobe albedo E₁ |
+| Lobe-sky | 64 × 32 | R16_SFLOAT | (cos + 1) / 2, with cos = d·up | r | The share of the GGX lobe that points above the horizon of the up |
+
+A table has the texel i hold the value i / (size − 1) on each axis, so the ends are exact. The shaders read a table at the coordinate ((size − 1) · x + 0.5) / size, `BrdfTables.TexelCoordinate` in C# and `tableCoordinate` in `brdf.glsl`, with linear filtering and clamping at the edge. `BrdfTables.Compute` integrates the GGX lobe with `SamplesPerTexel` = 16,384 Hammersley samples per texel, in doubles. Each texel sums its samples in the order of the sample index and writes only its own slot, so the tables are the same bits on every run, and the rows run in parallel. `BrdfTables.Shared` computes them once per process, on first use, because a test process makes many renderers.
+
+The hemisphere ambient light has a specular part:
+
+ambient = c_diff · mix(ground, sky, s_n) + E(μ, r) · c(μ, r) · mix(ground, sky, s_l)
+
+where s_n is the normal's sky share, as before, and E(μ, r) = S + F0 · (E₁ − S) is the specular albedo from the DFG table. s_l is the lobe's sky share, read from the lobe-sky table at d·up, where d is the specular dominant direction of Lagarde and de Rousiers 2014. `ambientLight` in `lighting.glsl` computes the sum. (User) Only the G-buffer pass knows the up of the instance, so it computes s_l and stores it in the alpha of the specular target. The transparent pass and the impostor capture compute both shares themselves. With the even mix, both shares are one half. Later screen-space reflections fade their off-screen rays to this specular part.
+
+`surfaceRadiance` in `lighting.glsl` returns min(ambient + sun + lights + emission, 65,504) per channel. The lighting pass, the transparent pass and the impostor capture write its result. 65,504 is the largest finite half float. GGX can reflect far more than that at the mirror image of a lamp, and the HDR target would store infinity, which the tone curve turns into NaN. (User)
 
 The G-buffer has these targets:
 
 | Target | Format | Contents |
 |---|---|---|
-| Albedo | RGBA8 sRGB | Base color. Alpha 0 marks an unlit impostor pixel. |
+| Base color | RGBA8 sRGB | The base color b. Alpha 0 marks an unlit impostor pixel. |
 | Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
-| Specular | RG8 | Specular intensity and gloss. |
+| Specular | RGBA8 UNORM | R metallic, G roughness r₀, B reflectance, A the lobe's sky share s_l. An impostor billboard writes zero. |
 | Emissive | RGBA16F | Emitted light. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked color here. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
+
+The material is a `MaterialDesc` with the fields `BaseColor` (linear RGBA, alpha is opacity for transparent objects), `Roughness` (required), `Metallic` (default 0), `Reflectance` (default 0.5), `Emissive`, `BaseColorMap`, `NormalMap` and `MetallicRoughnessMap`. `Roughness` is required because no roughness is neutral. `MaterialDesc.Color(color, roughness)` makes a plain material. The default material, which `MaterialId.None` resolves to, is a white non-metal of roughness 0.5. The metallic-roughness map has glTF's layout: roughness in G, metallic in B, and each channel multiplies its factor. The reflectance has no map. `MaterialStore.ToGpu` clamps the factors and writes a `GpuMaterial` of 64 bytes in std430: 52 bytes of fields (`baseColor`, `emissive`, `metallic`, `roughness`, `reflectance` and the three map indices) padded to the alignment of 16. A map left at its default resolves to one of the built-in textures of `TextureStore`: `White` (slot 0, sRGB), `FlatNormal` (slot 1) and `DefaultMetallicRoughness` (slot 2, all white, so both factors stay as they are). A metallic-roughness map must be created with `TextureData.Srgb` false. The tables go into the frame set (set 0), because the impostor capture binds only sets 0 and 1: binding 8 is the DFG table, binding 9 the lobe-sky table, and binding 10 an immutable sampler with linear filtering, clamping and one level.
 
 Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
@@ -1118,7 +1144,25 @@ The hemisphere ambient light needs an up, and each instance takes it from the gr
 
 The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
 
-The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes. The renderer has no GPU timer to measure that yet (ticket `ter-yiii`).
+The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes.
+
+#### Cost of the BRDF
+
+The GPU timers (see "GPU timings") measured the switch in Release, at 1920 × 1080, with one run at a time and the 1-minute load of the machine from 6.6 to 7.4. "Before" is main with Blinn-Phong, "after" is the branch. Each build ran each script twice, and the two runs of one build agree to 0.001 to 0.003 ms on the means. The script `demo-exit.json` times 3,877 frames:
+
+| Pass | Mean before | Mean after | Change of the mean | p95 before | p95 after |
+|---|---|---|---|---|---|
+| Shadow maps | 0.199 ms | 0.198 ms | 0 | 0.240 ms | 0.239 ms |
+| G-buffer | 0.853 ms | 0.898 ms | +0.045 ms | 1.04 ms | 1.13 ms |
+| Lighting | 1.544 ms | 1.797 ms | +0.254 ms | 1.99 ms | 2.30 ms |
+| Transparent | 0.311 ms | 0.334 ms | +0.023 ms | 1.22 ms | 1.32 ms |
+| Tone map | 0.088 ms | 0.084 ms | within the spread | 0.133 ms | 0.133 ms |
+| Outlines | 0.025 ms | 0.023 ms | about 0 | 0.04 ms | 0.04 ms |
+| Capture | 0.021 ms | 0.022 ms | 0 | 0.05 ms | 0.05 ms |
+
+The BRDF costs about 0.32 ms per frame, summed over the G-buffer, lighting and transparent passes. The lighting pass is the main cost: +16 % on the mean and +15 % on the p95. The new code adds no pass. The script `demo-surface.json` times only 5 frames per run, so its figures are noisy. Its direction is the same: the lighting pass rises by about 0.15 ms and the transparent pass by about 0.03 ms, both more than the spread between runs, and the G-buffer pass rises by about 0.12 ms, which is only about the size of the spread. The script `pbr-spheres.json` is new, films 20 ticks and prints no GPU timings, so it has no cost figure. The time of `BrdfTables.Compute` was not measured in this run. The design doc measured 130 ms with parallel rows once per process, at a load of 8.4.
+
+The memory changes are small. The specular target grows from RG8 to RGBA8, which is 4.1 MB more at 1920 × 1080. The tables take 4 KB each. A material takes 64 bytes, not 48.
 
 #### Puffs in the renderer
 
@@ -1137,7 +1181,7 @@ color × (1 − ρ²)² × clamp((D − d) / r, 0, 1) × clamp(d / r, 0, 1)
 
 where ρ is the distance of the fragment's point from the puff's center over the radius r, d is the distance of the point from the eye, and D is the G-buffer distance at the pixel. Sky, with D = 0, counts as no surface, so its factor is 1. So a puff fades within one radius of anything opaque, and the eye counts as an opaque point at distance 0. A puff behind a wall draws nothing, a puff that cuts into a wall or a floor shows no hard line, and a puff around the eye fades. The fade is one radius along the line of sight, so on a floor seen at a low angle it is shorter on the screen: a floor seen at 17° fades a puff of 1.2 m over 5 to 8 px at 10 m. Additive blending commutes up to the rounding of the target, so the puffs of one run need no order among themselves, and glass dims only the puffs behind it.
 
-A glow puff emits its color and takes no light. A lit puff is lit once, at its center, in the vertex shader (`docs/plans/particles.md`, "Lit puffs"). It has no surface and no normal. It scatters the light that reaches its center equally in every direction, which is the mean over every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, and the mean of the sky's share of the ambient light is one half. So `scatteredLight` in `lighting.glsl` gives
+A glow puff emits its color and takes no light. A lit puff is lit once, at its center, in the vertex shader (`docs/plans/particles.md`, "Lit puffs"). It has no surface and no normal. It scatters the light that reaches its center equally in every direction, which is the mean over every facing of a matte surface lit by the same lights. That surface is the Lambert part of the BRDF, so the formula did not change when the renderer switched to the PBR BRDF. The mean of the cosine over every facing is 1/4, and the mean of the sky's share of the ambient light is one half. So `scatteredLight` in `lighting.glsl` gives
 
 L = color × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π))
 
@@ -1190,7 +1234,7 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 - If error × h is more than 2, about one pixel, the capture is stale. For the view direction, that is a change of more than 2 / h radians.
 - Each rendered frame makes the 4 captures of highest priority. They come from two binary heaps, one of recaptures and one of first captures, merged by priority. A recapture of an impostor that the last rendered frame drew has the priority error × h. That impostor draws its stale capture until the recapture. Any other capture has the priority π × h, the error of the worst view. Its object draws as geometry until the capture.
 - A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
-- A capture bakes the sun, ambient light, far shadows and point and spot lights, but not shadow-map shadows.
+- A capture bakes the sun, the ambient light with its specular part, far shadows and point and spot lights, but not shadow-map shadows.
 - A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
 - The renderer keys impostor state on the entity index, the render part, the mesh and the resolved material slot (`ImpostorKey`). So a part that changes its mesh or its material gets a new key, and it never draws an old capture.
 
@@ -1209,6 +1253,8 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
 
 The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
+
+The BRDF has no switch back to the earlier Blinn-Phong model, because the material model changes with it. (User)
 
 The puffs have one switch, `WorldOptions.PuffCapacity`: the most puffs that live at once, 4,096 by default. A capacity of 0 turns puffs off. No emitter makes a puff, the snapshot holds none, and the renderer draws none. It is a world option, not a renderer switch, because the simulation owns the puffs and steps them in every tick, also in a headless rehearsal without a renderer. A second switch beside it could disagree with it. A negative capacity throws `ArgumentOutOfRangeException` when the World is made.
 
