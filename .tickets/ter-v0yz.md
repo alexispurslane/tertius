@@ -1,6 +1,6 @@
 ---
 id: ter-v0yz
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-25T19:42:22Z
