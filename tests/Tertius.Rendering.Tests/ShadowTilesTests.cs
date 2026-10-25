@@ -112,9 +112,12 @@ public sealed class ShadowTilesTests
         return Frame(tiles, [Spot(entity: 1)], [change(caster)]).Draws;
     }
 
-    /// <summary>A quarter of a texel of the test spot light's tile at the test caster's nearest point, 9 m away, in m.</summary>
+    /// <summary>
+    /// A quarter of a texel of the test spot light's tile at the test caster's nearest point, 9 m away, in m. The caster's
+    /// sphere shows out to asin 0.1 off the axis, where a texel spans cos² = 0.99 of a texel on the axis.
+    /// </summary>
     private static float QuarterTexelAtTheCaster =>
-        0.25f * ShadowTiles.TexelPerMeter(Spot(entity: 1), new ConeAim(), TileSize) * 9;
+        0.25f * ShadowTiles.TexelPerMeter(Spot(entity: 1), new ConeAim(), TileSize) * 9 * 0.99f;
 
     /// <summary>The normalized device coordinates of <paramref name="point"/>, camera-relative, in a tile's clip space.</summary>
     private static Vector3 Ndc(Matrix4x4 viewProjection, Vector3 point)
@@ -140,6 +143,27 @@ public sealed class ShadowTilesTests
             .Select(light => light.Shadow)
             .Should()
             .Equal(NoSlot, Tiles(first: 0, count: 1), Tiles(first: 1, count: 1));
+    }
+
+    [Fact]
+    public void ANearLightNearerTheEyeOutranksAMoreIntenseOneFartherAway()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 4, position: new(10, 0, 0)),
+            Spot(entity: 2, intensity: 1, position: new(2, 0, 0)),
+        ];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [NoSlot, Tiles(first: 0, count: 1)],
+                "at the eye the nearer light gives 1/4 W/m², the farther one 4/100 W/m²"
+            );
     }
 
     [Fact]
@@ -407,6 +431,172 @@ public sealed class ShadowTilesTests
             .BeEmpty("the threshold at a caster around the light is a quarter of a texel at the near plane");
     }
 
+    [Theory]
+    [InlineData(1.02f, false, true)]
+    [InlineData(0.98f, false, false)]
+    [InlineData(1.02f, true, true)]
+    [InlineData(0.98f, true, false)]
+    public void ACasterAroundTheLightThatMovesAQuarterOfAnEdgeTexelAtTheNearPlaneDrawsItsTilesAgain(
+        float share,
+        bool point,
+        bool stale
+    )
+    {
+        var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
+        PreparedLight light = point ? Point(entity: 1) : Spot(entity: 1);
+        TileAim aim = point ? new(new FaceAim(CubeFace.PositiveX)) : new(new ConeAim());
+        float texelPerMeter = ShadowTiles.TexelPerMeter(light, aim, TileSize);
+        float tanHalf = texelPerMeter * TileSize / 2;
+        // The sphere holds the light, so it shows out to the tile's edge: the cone's rim, or the corner of a face.
+        float edgeTanSquared = point ? 2 * tanHalf * tanHalf : tanHalf * tanHalf;
+        float quarter = 0.25f * texelPerMeter * DepthRanges.NearPlane / (1 + edgeTanSquared);
+        ShadowCaster caster = Caster(entity: 7, position: new(0.5f, 0, 0), radius: 1);
+        Frame(tiles, [light], [caster]);
+
+        List<TileDraw> draws = Frame(
+            tiles,
+            [light],
+            [caster with { Position = caster.Position + new Vector3(0, share * quarter, 0) }]
+        ).Draws;
+
+        draws.Should().HaveCount(stale ? ShadowTiles.TilesOf(light) : 0);
+    }
+
+    [Theory]
+    [InlineData(1.02f, 1)]
+    [InlineData(0.98f, 0)]
+    public void ACasterNearTheRimOfAWideConeThatMovesAQuarterOfARimTexelDrawsItsTileAgain(
+        float share,
+        int expectedDraws
+    )
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight light = Spot(entity: 1, outerAngle: ShadowTiles.WidestCone);
+        const float angle = 0.95f;
+        const float distance = 5;
+        // 0.95 rad off the axis, a texel spans cos² 0.95 = 0.34 of a texel on the axis at the same distance.
+        float quarter =
+            0.25f
+            * ShadowTiles.TexelPerMeter(light, new ConeAim(), TileSize)
+            * distance
+            * MathF.Cos(angle)
+            * MathF.Cos(angle);
+        Vector3 position = distance * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
+        var across = new Vector3(-MathF.Sin(angle), MathF.Cos(angle), 0);
+        ShadowCaster caster = Caster(entity: 7, position: position, radius: 1e-3f);
+        Frame(tiles, [light], [caster]);
+
+        List<TileDraw> draws = Frame(
+            tiles,
+            [light],
+            [caster with { Position = position + share * quarter * across }]
+        ).Draws;
+
+        draws.Should().HaveCount(expectedDraws);
+    }
+
+    [Theory]
+    [InlineData(700, 150, -220)]
+    [InlineData(3, -2, 1)]
+    public void AHullAroundTheLampWhoseFloatsOnlyRoundDifferentlyKeepsItsTiles(double x, double y, double z)
+    {
+        var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
+        Double3 lamp = new(5.3, 1.7, -2.2);
+        Double3 hull = new(x, y, z);
+        // The batcher's slerp and normalization round this rotation differently at each alpha below, by about 7e-8.
+        var turned = Quaternion.CreateFromYawPitchRoll(-2, -0.8f, 1.1f);
+        (Double3 Camera, float Alpha)[] frames =
+        [
+            (new(0, 0, 0), 0.13f),
+            (new(1.9, -1.6, 1.7), 1),
+            (new(-3.1, 0.4, 2.6), 0.91f),
+            (new(0.7, 2.2, -1.4), 0.36f),
+        ];
+
+        List<TileDraw>[] draws =
+        [
+            .. frames.Select(frame =>
+                Frame(
+                    tiles,
+                    [Point(entity: 1, position: (lamp - frame.Camera).ToVector3())],
+                    [
+                        Caster(entity: 7, position: (hull - frame.Camera).ToVector3(), radius: 800) with
+                        {
+                            // The batcher interpolates a hull that stays between two equal rotations.
+                            Rotation = SceneBatcher.Interpolate(turned, turned, frame.Alpha),
+                        },
+                    ]
+                ).Draws
+            ),
+        ];
+
+        draws
+            .Skip(1)
+            .Should()
+            .AllSatisfy(frame =>
+                frame
+                    .Should()
+                    .BeEmpty(
+                        "the hull and the lamp stay; only the float rounding of their camera-relative pose changes, "
+                            + "by up to a few ulps of the hull's distance or radius"
+                    )
+            );
+    }
+
+    [Theory]
+    [InlineData(1.02f, 1)]
+    [InlineData(0.98f, 0)]
+    public void ACasterThatShowsOutToTheRimDrawsItsTileAgainWhenItMovesAQuarterOfARimTexel(
+        float share,
+        int expectedDraws
+    )
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight light = Spot(entity: 1);
+        float texelPerMeter = ShadowTiles.TexelPerMeter(light, new ConeAim(), TileSize);
+        float tanHalf = texelPerMeter * TileSize / 2;
+        // The sphere spans asin(2 / 3) = 0.73 rad off the axis, past the rim of the widened cone at 0.507 rad.
+        ShadowCaster caster = Caster(entity: 7, position: new(3, 0, 0), radius: 2);
+        float quarter = 0.25f * texelPerMeter * 1 / (1 + tanHalf * tanHalf);
+        Frame(tiles, [light], [caster]);
+
+        List<TileDraw> draws = Frame(
+            tiles,
+            [light],
+            [caster with { Position = caster.Position + new Vector3(0, share * quarter, 0) }]
+        ).Draws;
+
+        draws.Should().HaveCount(expectedDraws, "the nearest point is 1 m away, and the rim's texel is the smallest");
+    }
+
+    [Fact]
+    public void TwoLightsInOnePlaceKeepTheirOwnCachedTiles()
+    {
+        var tiles = new ShadowTiles(layers: 2, tileSize: TileSize);
+        ShadowCaster[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
+        Frame(tiles, [Spot(entity: 1), Spot(entity: 2)], casters);
+
+        List<TileDraw> draws = Frame(tiles, [Spot(entity: 1), Spot(entity: 2)], casters).Draws;
+
+        draws.Should().BeEmpty("each light finds its own record, which the invariants check against its entity");
+    }
+
+    [Fact]
+    public void TheInvariantsHoldAfterTheCallerReusesItsViewList()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight[] lights = [Spot(entity: 1)];
+        List<TileView> views = [];
+        tiles.Update(lights: lights, casters: [], originFrameId: 1, views: views, draws: []);
+
+        views.Clear();
+
+        tiles
+            .Invoking(checkedTiles => checkedTiles.AssertInvariants())
+            .Should()
+            .NotThrow("the tiles check their own copy of the frame's views");
+    }
+
     [Fact]
     public void ASpotLightThatWidensPastSixtyDegreesTakesSixLayersForItsOne()
     {
@@ -421,12 +611,13 @@ public sealed class ShadowTilesTests
     [Theory]
     [InlineData(1.02f, 1)]
     [InlineData(0.98f, 0)]
-    public void ASpotLightThatTurnsAQuarterOfATexelsAngleDrawsItsTileAgain(float share, int expectedDraws)
+    public void ASpotLightThatTurnsAQuarterOfARimTexelsAngleDrawsItsTileAgain(float share, int expectedDraws)
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
         PreparedLight light = Spot(entity: 1);
         float tangent = ShadowTiles.TexelPerMeter(light, new ConeAim(), TileSize) * TileSize / 2;
-        float angle = share * 0.5f * tangent / TileSize;
+        // A turn moves the image at the rim, where tan = tangent, by 1 + tangent² times as much as at the axis.
+        float angle = share * 0.5f * tangent / TileSize / (1 + tangent * tangent);
         Frame(tiles, [light]);
 
         List<TileDraw> draws = Frame(
@@ -784,6 +975,17 @@ public sealed class ShadowTilesTests
             .TexelPerMeter(Point(entity: 1), new FaceAim(CubeFace.NegativeY), TileSize)
             .Should()
             .BeApproximately(2f * TileSize / (TileSize - 2 * ShadowTiles.MarginTexels) / TileSize, 1e-8f);
+
+    [Fact]
+    public void ATileAlongTheConeOfASpotLightWiderThanSixtyDegreesIsRefused()
+    {
+        PreparedLight light = Spot(entity: 1, outerAngle: 2);
+
+        FluentActions
+            .Invoking(() => ShadowTiles.ViewProjection(light, new ConeAim(), TileSize))
+            .Should()
+            .Throw<ArgumentException>("such a light takes six faces, and the tangent of its half-angle is negative");
+    }
 
     [Fact]
     public void NoTwoTileViewsOfAFrameShareALayer()

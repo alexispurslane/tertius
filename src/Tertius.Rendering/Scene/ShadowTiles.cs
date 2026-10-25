@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Tertius.Rendering;
 
@@ -24,8 +25,9 @@ internal readonly record struct TileDraw(int View, int First, int Count);
 /// <list type="bullet">
 /// <item>A layer belongs to at most one light.</item>
 /// <item>A light holds 1 or 6 layers.</item>
-/// <item>A layer's record names the light that holds it.</item>
+/// <item>A layer's record names the entity of the light whose view holds it.</item>
 /// <item>No two views of a frame share a layer.</item>
+/// <item>A layer without a view of the last frame holds no record.</item>
 /// </list>
 /// </summary>
 internal sealed class ShadowTiles
@@ -36,6 +38,12 @@ internal sealed class ShadowTiles
 
     /// <summary>The value of a layer of no light in <see cref="layerLights"/>.</summary>
     private const int NoLight = -1;
+
+    /// <summary>
+    /// How far float rounding of a caster's camera-relative pose can move it, as a share of its largest input: 8 × 2⁻²³
+    /// (docs/plans/local-light-shadows.md, "The cache").
+    /// </summary>
+    private const float RoundingShare = 8f / (1 << 23);
 
     /// <summary>What each layer holds, from the frame that drew it, or null for a free layer.</summary>
     private readonly TileRecord?[] records;
@@ -50,11 +58,11 @@ internal sealed class ShadowTiles
     private readonly List<int> tileCounts = [];
     private readonly int[] layerLights;
     private readonly List<int> reachable = [];
-    private readonly List<int> seen = [];
+    private readonly List<int> tileCasters = [];
     private readonly List<(int Mesh, int Caster)> meshOrder = [];
 
-    /// <summary>The views of the last Update, for AssertInvariants.</summary>
-    private List<TileView> frameViews = [];
+    /// <summary>The layer of each view of the last Update and its light's entity, for AssertInvariants.</summary>
+    private readonly List<(int Layer, uint LightEntity)> frameTiles = [];
 
     public ShadowTiles(int layers, int tileSize)
     {
@@ -87,7 +95,7 @@ internal sealed class ShadowTiles
         views.Clear();
         draws.Clear();
         casterIndices.Clear();
-        frameViews = views;
+        frameTiles.Clear();
         Grant(lights);
         Allot(lights);
 
@@ -118,6 +126,7 @@ internal sealed class ShadowTiles
         };
 
     /// <summary>Camera-relative world space to the tile's clip space, row-vector form: reversed-Z, infinite far plane.</summary>
+    /// <exception cref="ArgumentException">A cone aim for a point light or a spot light wider than WidestCone.</exception>
     internal static Matrix4x4 ViewProjection(in PreparedLight light, TileAim aim, int tileSize)
     {
         var frustum = TileFrustum.Of(light: light, aim: aim, tileSize: tileSize);
@@ -150,29 +159,23 @@ internal sealed class ShadowTiles
         return Matrix4x4.CreateTranslation(-light.Position) * view * projection;
     }
 
-    /// <summary>The world size of one texel at 1 m from the light: 2 tan(half-angle) / tileSize.</summary>
+    /// <summary>The world size of one texel at 1 m from the light along the view axis: 2 tan(half-angle) / tileSize.</summary>
+    /// <exception cref="ArgumentException">A cone aim for a point light or a spot light wider than WidestCone.</exception>
     internal static float TexelPerMeter(in PreparedLight light, TileAim aim, int tileSize) =>
         TileFrustum.Of(light: light, aim: aim, tileSize: tileSize).TexelPerMeter(tileSize);
 
     internal void AssertInvariants()
     {
         // One record per layer, so a layer belongs to at most one light by the form of the array.
-        foreach (IGrouping<uint, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.Light))
+        foreach (IGrouping<uint, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity))
             Contract.Invariant(held.Count() is 1 or CubeFaces.Count);
 
-        Contract.Invariant(frameViews.Select(view => view.Layer).Distinct().Count() == frameViews.Count);
-        Contract.Invariant(frameViews.Count == records.Count(record => record is not null));
+        Contract.Invariant(frameTiles.Select(tile => tile.Layer).Distinct().Count() == frameTiles.Count);
+        foreach ((int layer, uint lightEntity) in frameTiles)
+            Contract.Invariant(records[layer]?.LightEntity == lightEntity);
 
-        // The views of one light find one entity in their records, and two lights two entities.
-        var entities = new Dictionary<int, uint>();
-        foreach (TileView view in frameViews)
-        {
-            Contract.Invariant(records[view.Layer] is not null);
-            uint entity = records[view.Layer]?.Light ?? 0;
-            Contract.Invariant(entities.TryAdd(view.Light, entity) || entities[view.Light] == entity);
-        }
-
-        Contract.Invariant(entities.Values.Distinct().Count() == entities.Count);
+        // Each view's layer holds a record, so as many records as views leave none on a layer without a view.
+        Contract.Invariant(frameTiles.Count == records.Count(record => record is not null));
     }
 
     /// <summary>How far the farthest axis of one basis lies from its counterpart in the other: the chord, about the angle.</summary>
@@ -267,12 +270,12 @@ internal sealed class ShadowTiles
     {
         int held = 0;
         foreach (TileRecord? record in records)
-            if (record?.Light == entity)
+            if (record?.LightEntity == entity)
                 held++;
         if (held != tileCounts[light])
             return;
         for (int layer = 0; layer < Layers; layer++)
-            if (records[layer]?.Light == entity)
+            if (records[layer]?.LightEntity == entity)
                 layerLights[layer] = light;
     }
 
@@ -319,8 +322,10 @@ internal sealed class ShadowTiles
             // The faces take the light's layers in ascending order, so a light that keeps its layers keeps its faces.
             TileAim aim = cone ? new(new ConeAim()) : new(new FaceAim((CubeFace)face++));
             views.Add(new(Layer: layer, Light: light, Aim: aim));
+            frameTiles.Add((layer, LightEntity: lights[light].EntityIndex));
             var frustum = TileFrustum.Of(light: lights[light], aim: aim, tileSize: TileSize);
             CollectSeen(frustum: frustum, light: lights[light], casters: casters);
+            ReadOnlySpan<int> seen = CollectionsMarshal.AsSpan(tileCasters);
             bool cached =
                 records[layer] is { } record
                 && !IsStale(
@@ -328,6 +333,8 @@ internal sealed class ShadowTiles
                     frustum: frustum,
                     light: lights[light],
                     casters: casters,
+                    seen: seen,
+                    tileSize: TileSize,
                     originFrameId: originFrameId
                 );
             if (cached)
@@ -337,31 +344,35 @@ internal sealed class ShadowTiles
                 frustum: frustum,
                 light: lights[light],
                 casters: casters,
+                seen: seen,
                 originFrameId: originFrameId
             );
-            draws.Add(new(View: views.Count - 1, First: casterIndices.Count, Count: seen.Count));
-            AppendInMeshOrder(casters);
+            draws.Add(new(View: views.Count - 1, First: casterIndices.Count, Count: seen.Length));
+            AppendInMeshOrder(casters: casters, seen: seen);
         }
     }
 
-    /// <summary>The reachable casters that the tile's frustum holds, in list order, into <see cref="seen"/>.</summary>
+    /// <summary>The reachable casters that the tile's frustum holds, in list order, into <see cref="tileCasters"/>.</summary>
     private void CollectSeen(in TileFrustum frustum, in PreparedLight light, ReadOnlySpan<ShadowCaster> casters)
     {
-        seen.Clear();
+        tileCasters.Clear();
         foreach (int index in reachable)
             if (frustum.Holds(offset: casters[index].Position - light.Position, radius: casters[index].Radius))
-                seen.Add(index);
+                tileCasters.Add(index);
     }
 
     /// <summary>
-    /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34): another camera
-    /// frame, another projection, a turn of the aim, other casters, or a caster that moved by a quarter of a texel.
+    /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
+    /// another camera frame, another projection, a turn of the aim, other casters, or a caster that moved by a quarter
+    /// of a texel where it shows, or by more than float rounding of its pose.
     /// </summary>
-    private bool IsStale(
+    private static bool IsStale(
         TileRecord record,
         in TileFrustum frustum,
         in PreparedLight light,
         ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<int> seen,
+        int tileSize,
         long originFrameId
     )
     {
@@ -369,12 +380,14 @@ internal sealed class ShadowTiles
         if (record.OriginFrameId != originFrameId || !sameProjection)
             return true;
 
-        // A quarter of a texel at 1 m from the light, which is also a quarter of a texel's angle.
-        float quarter = StaleTexels * frustum.TexelPerMeter(TileSize);
-        if (Turn(record.Frustum.Basis, frustum.Basis) >= quarter || record.Casters.Count != seen.Count)
+        // A quarter of a texel at 1 m from the light along the axis, which is also a quarter of a texel's angle there.
+        float axisQuarter = StaleTexels * frustum.TexelPerMeter(tileSize);
+        // A turn of the aim moves the image at the tile's edge the most.
+        bool turned = Turn(record.Frustum.Basis, frustum.Basis) >= axisQuarter * frustum.EdgeTexelShare;
+        if (turned || record.Casters.Count != seen.Length)
             return true;
 
-        for (int i = 0; i < seen.Count; i++)
+        for (int i = 0; i < seen.Length; i++)
         {
             RecordedCaster was = record.Casters[i];
             ref readonly ShadowCaster now = ref casters[seen[i]];
@@ -383,24 +396,28 @@ internal sealed class ShadowTiles
                 return true;
             Vector3 offset = now.Position - light.Position;
             float nearest = MathF.Max(offset.Length() - now.Radius, frustum.Near);
-            if (Movement(was: was, now: now, offset: offset) >= quarter * nearest)
+            float quarter = axisQuarter * nearest * frustum.TexelShareOver(offset: offset, radius: now.Radius);
+            float largestInput = MathF.Max(MathF.Max(now.Position.Length(), light.Position.Length()), now.Radius);
+            float rounding = RoundingShare * largestInput;
+            if (Movement(was: was, now: now, offset: offset) >= MathF.Max(quarter, rounding))
                 return true;
         }
 
         return false;
     }
 
-    /// <summary>Replaces the layer's record with the tile of this frame and its seen casters.</summary>
+    /// <summary>Replaces the layer's record with the tile of this frame and its <paramref name="seen"/> casters.</summary>
     private void Record(
         int layer,
         in TileFrustum frustum,
         in PreparedLight light,
         ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<int> seen,
         long originFrameId
     )
     {
         TileRecord record = records[layer] ?? (spareRecords.TryPop(out TileRecord? spare) ? spare : new());
-        record.Light = light.EntityIndex;
+        record.LightEntity = light.EntityIndex;
         record.OriginFrameId = originFrameId;
         record.Frustum = frustum;
         record.Casters.Clear();
@@ -422,8 +439,8 @@ internal sealed class ShadowTiles
         records[layer] = record;
     }
 
-    /// <summary>Appends the seen casters to <see cref="casterIndices"/> by mesh, and in list order within a mesh.</summary>
-    private void AppendInMeshOrder(ReadOnlySpan<ShadowCaster> casters)
+    /// <summary>Appends the <paramref name="seen"/> casters to <see cref="casterIndices"/> by mesh, and in list order within a mesh.</summary>
+    private void AppendInMeshOrder(ReadOnlySpan<ShadowCaster> casters, ReadOnlySpan<int> seen)
     {
         meshOrder.Clear();
         foreach (int index in seen)
@@ -459,6 +476,7 @@ internal sealed class ShadowTiles
     private readonly record struct TileFrustum(LightBasis Basis, float Near, float TanHalf, TileAim Aim)
     {
         /// <summary>The frustum of the tile of <paramref name="light"/> that looks along <paramref name="aim"/>.</summary>
+        /// <exception cref="ArgumentException">A cone aim for a point light or a spot light wider than WidestCone.</exception>
         public static TileFrustum Of(in PreparedLight light, TileAim aim, int tileSize)
         {
             float widening = (float)tileSize / (tileSize - 2 * MarginTexels);
@@ -466,18 +484,50 @@ internal sealed class ShadowTiles
             return (aim, light.Spread) switch
             {
                 (FaceAim(var face), _) => new(Basis: FaceBasisOf(face), Near: near, TanHalf: widening, Aim: aim),
-                (ConeAim, Cone cone) => new(
+                (ConeAim, Cone { OuterAngle: <= WidestCone } cone) => new(
                     Basis: LightBasis.FromSunDirection(-cone.Axis),
                     Near: near,
                     TanHalf: MathF.Tan(cone.OuterAngle) * widening,
                     Aim: aim
                 ),
+                (ConeAim, Cone) => throw new ArgumentException(
+                    "A spot light wider than WidestCone takes six faces, not a cone.",
+                    nameof(aim)
+                ),
                 (ConeAim, EveryDirection) => throw new ArgumentException("A point light has no cone.", nameof(aim)),
             };
         }
 
-        /// <summary>The world size of one texel at 1 m from the light.</summary>
+        /// <summary>The tangent of the widest angle off the axis that the tile shows: its cone's rim, or a face's corner.</summary>
+        public float EdgeTan =>
+            Aim switch
+            {
+                ConeAim => TanHalf,
+                FaceAim => MathF.Sqrt(2) * TanHalf,
+            };
+
+        /// <summary>The share of a texel on the axis that a texel at the tile's edge spans at the same distance: cos² of the edge.</summary>
+        public float EdgeTexelShare => 1 / (1 + EdgeTan * EdgeTan);
+
+        /// <summary>The world size of one texel at 1 m from the light along the axis.</summary>
         public float TexelPerMeter(int tileSize) => 2 * TanHalf / tileSize;
+
+        /// <summary>
+        /// The share of a texel on the axis that a texel spans at the same distance, cos² of the angle off the axis, at
+        /// the widest angle at which the sphere at <paramref name="offset"/> from the light shows in the tile.
+        /// </summary>
+        public float TexelShareOver(Vector3 offset, float radius)
+        {
+            float distance = offset.Length();
+            // A sphere that holds the light shows out to the tile's edge.
+            if (radius >= distance)
+                return EdgeTexelShare;
+            float depth = -Vector3.Dot(offset, Basis.Z);
+            float center = MathF.Acos(Math.Clamp(depth / distance, -1, 1));
+            float widest = MathF.Min(center + MathF.Asin(radius / distance), MathF.Atan(EdgeTan));
+            float cos = MathF.Cos(widest);
+            return cos * cos;
+        }
 
         /// <summary>
         /// False when the sphere at <paramref name="offset"/> from the light lies wholly behind the light, or outside the
@@ -524,7 +574,7 @@ internal sealed class ShadowTiles
     /// <summary>What a layer holds: the tile of the frame that drew it, and its casters in list order.</summary>
     private sealed class TileRecord
     {
-        public uint Light;
+        public uint LightEntity;
         public long OriginFrameId;
         public TileFrustum Frustum;
         public readonly List<RecordedCaster> Casters = [];

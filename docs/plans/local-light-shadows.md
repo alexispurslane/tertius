@@ -82,7 +82,7 @@ The user made the decisions marked (User). This design settled the others by the
 31. A point light's six tiles follow the cube faces of the environment map, `CubeFace` and `CubeFaces.Basis` in Vulkan's layer order, one convention for every cube in the renderer. Each tile widens its 90° by `MarginTexels` = 4 texels on every side, as each cascade keeps 4 texels free, so the PCF footprint and the normal offset stay inside the tile at the seams.
 32. A spot light whose outer half-angle is above `ShadowTiles.WidestCone`, 60°, takes six tiles, as a point light does. A perspective tile needs tan θ_o, which grows without bound toward 90° and does not exist beyond it. At 60° the texels at the edge are 4 times the size of those at the center.
 33. A tile uses a reversed-Z perspective projection with an infinite far plane from the light, near plane max(R, 5 cm), and depth clamping, so a caster nearer than the near plane pancakes onto it, as casters in front of a cascade box do. The tile pass adds the cascades' slope-scaled bias. The lookup moves along the geometric normal by one texel at the receiver's distance times sin(angle to the light). A tile has no receiver-plane term, because its depth is not linear across the tile.
-34. A tile record is stale when its layer passed to another light, the camera's frame changed (`RenderSnapshot.OriginFrameId`), a caster entered or left the tile, the light's aim turned, or a caster moved, turned or scaled against the light by a quarter of a texel at its nearest point or more. Positions near the camera are camera-relative floats, so their low bits change as the camera moves. A bitwise key misses every frame, and the impostor captures already compare by an error against a threshold.
+34. A tile record is stale when its layer passed to another light, the camera's frame changed (`RenderSnapshot.OriginFrameId`), a caster entered or left the tile, the light's aim turned, or a caster moved, turned or scaled against the light by a quarter of the smallest texel where it shows, at its nearest point, or more, and by more than float rounding of its pose (see "The cache"). Positions near the camera are camera-relative floats, so their low bits change as the camera moves. A bitwise key misses every frame, and the impostor captures already compare by an error against a threshold.
 35. A light keeps its layers while it stays within the budget, and a light new to the budget takes the lowest free layers. The set of lights with tiles is a pure function of the frame's ranking. Only the mapping to layers keeps state, which the cache needs.
 36. The batcher prepares the frame's casters once, interpolated, as `ShadowCaster`s. The cascade sets, the far shadows and the tiles read them. Today `ShadowPass` and `CollectFarShadows` each interpolate every caster.
 37. The batcher chooses the far slots. `LocalShadowPass.Prepare` chooses the tiles. `FrameResources.Write` turns each `PreparedLight` into a `GpuLight` after every pass's `Prepare`. A light is prepared once, as an instance is (`PreparedInstance`), and its GPU form is written once, after its slot is complete.
@@ -444,8 +444,12 @@ The pass counts the casters into mesh order with the counting sort of `ShadowPas
 
 - The layer passed to another light, or the camera's frame changed.
 - The list of casters differs: one entered or left, or its mesh changed.
-- The aim turned by a quarter of a texel's angle, 0.5 tan(half-angle) / TileSize, or more.
-- A caster's position relative to the light moved by a quarter of a texel at its nearest point, 0.25 × texelPerMeter × max(|c − l| − r, near), or more, or its rotation turned it by that much at its radius, or its scale changed it by that much.
+- The aim turned by a quarter of a texel's angle at the tile's edge, 0.5 tan(half-angle) / TileSize × cos²(edge), or more.
+- A caster's position relative to the light moved by a quarter of a texel at its nearest point, 0.25 × texelPerMeter × max(|c − l| − r, near) × cos²(widest), or more, or its rotation turned it by that much at its radius, or its scale changed it by that much.
+
+A texel at the angle α off the view axis spans cos²α of a texel on the axis at the same distance, because the projection stretches the image there by 1 / cos²α. So the rule takes the smallest texel where the caster shows. The angle "widest" is the widest angle off the axis at which the sphere shows in the tile: the angle of c − l plus asin(r / |c − l|), at most the edge, and the edge for a sphere that holds the light. The edge is the cone's rim, tan(edge) = tan(half-angle), or a face's corner, tan(edge) = √2 tan(half-angle). cos²(edge) is 1 / (1 + tan²(edge)).
+
+The movement's threshold is at least 8 × 2⁻²³ × max(|c|, |l|, r), camera-relative: float rounding moves a caster by about that much while nothing moves. A hull of a few hundred metres around a lamp shows it. Its camera-relative center rounds to a few ulps of its distance as the camera moves, and the batcher's slerp of two equal rotations differs by about 10⁻⁷ between alphas, which turns its surface by 2 r × 10⁻⁷. Against a quarter of a texel at the near plane, about 5 × 10⁻⁵ m, either one alone would redraw every tile in every frame.
 
 A drawn view replaces its layer's record. A cached view keeps its layer and its record, and its matrix takes the light's current place, which differs from the drawn one by less than a quarter of a texel. Like an impostor capture, the record describes the frame that drew the layer.
 
@@ -686,7 +690,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 `ShadowTilesTests` (Part 3):
 
-- `TheBrightestNearLightsAtTheEyeGetTiles`.
+- `TheBrightestNearLightsAtTheEyeGetTiles`, and `ANearLightNearerTheEyeOutranksAMoreIntenseOneFartherAway`.
 - `APointLightTakesSixTilesAndASpotLightOne`.
 - `ASpotLightWiderThanSixtyDegreesTakesSixTiles`.
 - `ALightThatDoesNotFitIsSkippedAndALaterOneThatFitsGetsItsTiles`.
@@ -697,6 +701,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ATileWhoseLightAndCastersStayIsNotDrawnAgain`.
 - `ACameraThatMovesLeavesTheTilesCached`: the same world, the camera 3 m away, float rounding and all.
 - `ACasterThatMovesAQuarterOfATexelDrawsItsTileAgain`, and `ACasterThatMovesLessKeepsTheTile`.
+- `ACasterNearTheRimOfAWideConeThatMovesAQuarterOfARimTexelDrawsItsTileAgain`, `ACasterThatShowsOutToTheRimDrawsItsTileAgainWhenItMovesAQuarterOfARimTexel`, `ACasterAroundTheLightThatMovesAQuarterOfAnEdgeTexelAtTheNearPlaneDrawsItsTilesAgain` and `ASpotLightThatTurnsAQuarterOfARimTexelsAngleDrawsItsTileAgain`: the cos² of the smallest texel.
+- `AHullAroundTheLampWhoseFloatsOnlyRoundDifferentlyKeepsItsTiles`: the threshold's floor at float rounding, by the hull's distance and by its radius.
 - `ACasterThatEntersOrLeavesTheReachDrawsTheTileAgain`.
 - `ACameraThatChangesFrameDrawsEveryTileAgain`.
 - `ALayerThatPassesToAnotherLightIsDrawnAgain`.
@@ -705,7 +711,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ACasterOutsideASpotLightsConeIsNotDrawn`.
 - `EachFaceOfAPointLightLooksAlongItsCubeFace`.
 - `ATileWidensByItsMarginOnEverySide`.
-- `NoTwoTileViewsOfAFrameShareALayer`, through `AssertInvariants`.
+- `NoTwoTileViewsOfAFrameShareALayer`, `TwoLightsInOnePlaceKeepTheirOwnCachedTiles` and `TheInvariantsHoldAfterTheCallerReusesItsViewList`, through `AssertInvariants`.
+- `ATileAlongTheConeOfASpotLightWiderThanSixtyDegreesIsRefused`.
 
 Part 4, in Core, Simulation and Rendering:
 
@@ -949,7 +956,8 @@ internal readonly record struct TileDraw(int View, int First, int Count);
 /// <summary>
 /// The CPU side of the local shadow atlas (docs/plans/local-light-shadows.md, "The budget", "The cache"): which light holds
 /// which layer, and what each layer holds. Invariants, checked by AssertInvariants: a layer belongs to at most one light;
-/// a light holds 1 or 6 layers; a layer's record names the light that holds it; no two views of a frame share a layer.
+/// a light holds 1 or 6 layers; a layer's record names the entity of the light whose view holds it; no two views of a
+/// frame share a layer; a layer without a view of the last frame holds no record.
 /// </summary>
 internal sealed class ShadowTiles
 {
@@ -981,9 +989,11 @@ internal sealed class ShadowTiles
     internal static int TilesOf(in PreparedLight light);
 
     /// <summary>Camera-relative world space to the tile's clip space, row-vector form: reversed-Z, infinite far plane.</summary>
+    /// <exception cref="ArgumentException">A cone aim for a point light or a spot light wider than WidestCone.</exception>
     internal static Matrix4x4 ViewProjection(in PreparedLight light, TileAim aim, int tileSize);
 
-    /// <summary>The world size of one texel at 1 m from the light: 2 tan(half-angle) / tileSize.</summary>
+    /// <summary>The world size of one texel at 1 m from the light along the view axis: 2 tan(half-angle) / tileSize.</summary>
+    /// <exception cref="ArgumentException">A cone aim for a point light or a spot light wider than WidestCone.</exception>
     internal static float TexelPerMeter(in PreparedLight light, TileAim aim, int tileSize);
 
     internal void AssertInvariants();
