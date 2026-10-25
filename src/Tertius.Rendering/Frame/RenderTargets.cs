@@ -81,6 +81,8 @@ internal sealed class RenderTargets : IDisposable
         bool reflections
     )
     {
+        if (reflections)
+            CheckReflectedScreen(extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
@@ -139,14 +141,24 @@ internal sealed class RenderTargets : IDisposable
     public DescriptorSet[] GlowSources { get; }
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
     public void Resize(Extent2D extent)
     {
         if (extent.Width == Extent.Width && extent.Height == Extent.Height)
             return;
+        // Before anything is destroyed, so that a refused size leaves every target as it was.
+        if (Reflections is not null)
+            CheckReflectedScreen(extent);
         DestroyImages();
         Create(extent: extent, hdrStorage: Reflections is not null);
         Reflections?.Create(extent, Hdr);
         Smaa?.Resize(extent);
+    }
+
+    private static void CheckReflectedScreen(Extent2D extent)
+    {
+        if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(extent), problem);
     }
 
     /// <summary>Makes every target at <paramref name="extent"/> and writes the sets that read them.</summary>

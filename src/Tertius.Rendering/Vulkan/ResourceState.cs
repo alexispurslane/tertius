@@ -29,6 +29,9 @@ internal enum ImageUse
     /// <summary>Sampled or fetched in a compute shader, as the exposure's meter reads the HDR image.</summary>
     SampledCompute,
 
+    /// <summary>Sampled in the fragment and the compute shaders, as the lighting pass and the reflections' trace read the BRDF tables.</summary>
+    SampledFragmentCompute,
+
     /// <summary>
     /// Read and written as a storage image in a compute shader, as the occlusion passes use their images, and sampled in
     /// the same dispatch, as a pyramid's build samples the level below the one that it writes.
@@ -101,6 +104,11 @@ internal static class ResourceUses
             ImageUse.SampledCompute => new(
                 ImageLayout.ShaderReadOnlyOptimal,
                 PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.ShaderSampledReadBit
+            ),
+            ImageUse.SampledFragmentCompute => new(
+                ImageLayout.ShaderReadOnlyOptimal,
+                PipelineStageFlags2.FragmentShaderBit | PipelineStageFlags2.ComputeShaderBit,
                 AccessFlags2.ShaderSampledReadBit
             ),
             // Storage images are read and written only in the General layout. Both storage bits, so that any two storage

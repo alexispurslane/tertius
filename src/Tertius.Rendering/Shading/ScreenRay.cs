@@ -50,9 +50,10 @@ internal readonly record struct ScreenRay(
     {
         float originDepth = Vector3.Dot(origin, camera.Forward);
         float towardDepth = Vector3.Dot(direction, camera.Forward);
-        // A second point in front of the eye, so that both projections are finite: one view depth along the ray, or
-        // halfway to the eye's plane.
-        float along = towardDepth >= 0 ? originDepth : 0.5f * originDepth / -towardDepth;
+        // A second point in front of the eye and within one view depth of the origin, so that both projections are
+        // finite and its depth does not cancel: one view depth along the ray, or halfway to the eye's plane for a ray
+        // that comes toward it faster than half its length. Either way the second point lies at least half as deep.
+        float along = towardDepth >= -0.5f ? originDepth : 0.5f * originDepth / -towardDepth;
         Vector3 second = origin + direction * along;
         Vector2 start = camera.PixelOf(origin);
         Vector2 step = camera.PixelOf(second) - start;

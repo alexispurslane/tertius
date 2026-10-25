@@ -78,6 +78,31 @@ public sealed class ReflectionSettingTests
             .ThrowExactly<ArgumentOutOfRangeException>()
             .WithMessage("*MaxRoughness*");
 
+    // The pyramids' sets are allocated for a side of 16,384 px. A device may allow a larger image, so the refusal comes
+    // before the device, where no driver limit can refuse the size first.
+    [Theory]
+    [InlineData(16_385, 64)]
+    [InlineData(64, 32_768)]
+    public void TheRendererRefusesReflectionsOnAScreenWithASideAbove16384PxBeforeItMakesADevice(
+        int width,
+        int height
+    ) =>
+        FluentActions
+            .Invoking(() =>
+                VulkanRenderer.CreateHeadless(
+                    new()
+                    {
+                        Width = width,
+                        Height = height,
+                        Impostors = false,
+                        Reflections = ConeTracedReflections.Default,
+                    }
+                )
+            )
+            .Should()
+            .ThrowExactly<ArgumentOutOfRangeException>()
+            .WithMessage("*16384 px a side*");
+
     [Theory]
     [InlineData(0.045f, 1f)]
     [InlineData(0.3f, 1f)]

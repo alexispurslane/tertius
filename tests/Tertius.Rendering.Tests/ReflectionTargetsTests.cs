@@ -4,9 +4,10 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The size of the depth pyramid image (docs/plans/screen-space-reflections.md, "Images"), with no GPU. A Vulkan mip
-/// halves its image and rounds down, and a level of the depth pyramid halves the screen and rounds up, so the image is
-/// padded until each of its mips holds its level.
+/// The size of the depth pyramid image and the largest screen that the pyramids cover
+/// (docs/plans/screen-space-reflections.md, "Images"), with no GPU. A Vulkan mip halves its image and rounds down, and a
+/// level of the depth pyramid halves the screen and rounds up, so the image is padded until each of its mips holds its
+/// level.
 /// </summary>
 public sealed class ReflectionTargetsTests
 {
@@ -25,6 +26,25 @@ public sealed class ReflectionTargetsTests
             { 1025, 3 },
             { 16384, 16384 },
         };
+
+    [Theory]
+    [InlineData(16_384, 16_384, true)]
+    [InlineData(16_384, 1, true)]
+    [InlineData(16_385, 1, false)]
+    [InlineData(1, 16_385, false)]
+    public void TheReflectionsCoverAScreenOfUpTo16384PxASide(uint width, uint height, bool covered) =>
+        (ReflectionTargets.ScreenProblem(width, height) is null).Should().Be(covered);
+
+    [Fact]
+    public void AScreenOfTheLongestSideNeedsAsManyLevelsAsTheSetsHold()
+    {
+        int side = ReflectionTargets.MaxSide;
+
+        DepthPyramid.LevelCount(side, side).Should().Be(DepthPyramid.MaxLevels, "one depth level set per level");
+        (BitOperations.Log2((uint)side) + 1)
+            .Should()
+            .Be(DepthPyramid.MaxLevels + 1, "one radiance level set per mip, from the screen's size to 1 × 1");
+    }
 
     [Theory]
     [MemberData(nameof(Screens))]

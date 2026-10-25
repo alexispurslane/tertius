@@ -22,6 +22,9 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     /// <summary>The radiance pyramid's format: premultiplied pre-exposed radiance and the surface coverage.</summary>
     public const Format RadianceFormat = Format.R16G16B16A16Sfloat;
 
+    /// <summary>The longest side of a screen with reflections, in px: the sets are allocated for <see cref="DepthPyramid.MaxLevels"/> levels.</summary>
+    public const int MaxSide = 1 << DepthPyramid.MaxLevels;
+
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
@@ -70,6 +73,12 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids and the HDR image.</summary>
     public DescriptorSet TraceSet { get; }
+
+    /// <summary>Why the pyramids cannot cover a screen of <paramref name="width"/> by <paramref name="height"/> px, or null when they can.</summary>
+    internal static string? ScreenProblem(long width, long height) =>
+        Math.Max(width, height) > MaxSide
+            ? $"Reflections cover a screen of at most {MaxSide} px a side, not {width} × {height}."
+            : null;
 
     /// <summary>
     /// The smallest extent whose Vulkan mip chain holds each level of the depth pyramid of a screen of

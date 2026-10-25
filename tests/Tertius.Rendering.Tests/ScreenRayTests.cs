@@ -202,6 +202,48 @@ public sealed class ScreenRayTests
     }
 
     [Fact]
+    public void ARayNearlyParallelToTheImagePlaneKeepsItsDepthAndRunsTheWayItsImageRuns()
+    {
+        // A camera off the axes, so that the camera-relative components of a point far along the ray round.
+        CameraView camera = ScreenTesting.Camera(width: 640, height: 360, yaw: 0.7f, pitchDown: 0.4f);
+        Vector3 origin = camera.Forward * 5 - camera.Right - camera.Up * 0.5f;
+        float originInverseDepth = camera.InverseDepthOf(origin);
+        int tested = 0;
+
+        for (int turn = 0; turn < 64; turn++)
+        for (int tilt = 1; tilt <= 16; tilt++)
+        {
+            float angle = turn * MathF.Tau / 64;
+            var direction = Vector3.Normalize(
+                camera.Right * MathF.Cos(angle) + camera.Up * MathF.Sin(angle) - camera.Forward * (tilt * 4e-8f)
+            );
+            // Toward the eye by less than 10⁻⁶ of the ray's length: the second point of the old rule lay over 2.5 · 10⁶ m out.
+            if (Vector3.Dot(direction, camera.Forward) is >= 0 or < -1e-6f)
+                continue;
+            tested++;
+
+            var ray = ScreenRay.Of(origin, direction, camera);
+            Vector2 image = camera.PixelOf(origin + direction * 0.1f) - ray.Start;
+
+            Vector2
+                .Dot(ray.Step, image)
+                .Should()
+                .BePositive("the segment runs the way the ray's image runs, at {0} rad and tilt {1}", angle, tilt);
+            (ray.StartInverseDepth + ray.StepInverseDepth * ray.End)
+                .Should()
+                .BeApproximately(
+                    originInverseDepth,
+                    1e-4f * originInverseDepth,
+                    "the ray keeps its depth across the screen, at {0} rad and tilt {1}",
+                    angle,
+                    tilt
+                );
+        }
+
+        tested.Should().BeGreaterThan(100, "most of the directions come toward the eye by a hair");
+    }
+
+    [Fact]
     public void ARayFromANearFloorHitsAPlanetAtItsVanishingPoint()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -7,7 +8,7 @@ namespace Tertius.Rendering.Tests;
 /// The screen-space reflections on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the reflections"): what
 /// a floor shows where its rays hit, blur, fade or miss, read as linear HDR values. Unless a test says otherwise, the
 /// floor is white metal and the scene is dark, so the floor shows only what the trace adds. The first three tests are
-/// the user's (decision 10).
+/// the user's (decision 10). One test checks that the trace may read the BRDF tables after their upload.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionRenderTests
@@ -132,6 +133,77 @@ public sealed class ReflectionRenderTests
                 .LargestChannelDifference(At(with, pixel), expected)
                 .Should()
                 .BeLessThanOrEqualTo(0.01f * expected.Y, "{0} reflects the wall: {1}", pixel, At(with, pixel));
+        }
+    }
+
+    [Fact]
+    public void UnderAmbientOcclusionAHitReplacesTheOccludedAmbientSpecularTerm()
+    {
+        // The floor within half a metre of the wall's base, where GTAO's V and so V_s lie well below 1. A gray of 1 makes
+        // the occluded term k · V_s · T_s large beside the 1 % tolerance, so a trace that took the unoccluded term fails.
+        const float gray = 1;
+        var floor = new MaterialDesc(
+            BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1),
+            Roughness: 26 / 255f,
+            Reflectance: 153 / 255f
+        );
+        RenderSnapshot Scene(VulkanRenderer renderer)
+        {
+            RenderSnapshot snapshot = Gray(gray);
+            snapshot.Instances.Add(Floor(renderer, floor));
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            snapshot.Instances.Add(
+                Block(box: box, material: Glow(renderer, new(3)), center: new(0, 3, -10), size: new(40, 9, 1))
+            );
+            return snapshot;
+        }
+
+        (float[] with, float[] occlusion, CameraView camera) = RenderUnderOcclusion(Reflections, Scene);
+        float[] without = RenderUnderOcclusion(new NoReflections(), Scene).Hdr;
+
+        foreach (float x in (float[])[-2, 0, 2])
+        foreach (float height in (float[])[0.02f, 0.04f, 0.08f])
+        {
+            var onWall = new Vector3(x, FloorHeight + height, -9.5f);
+            (int X, int Y) pixel = MirrorPixel(onWall);
+            Vector3 toView = -Vector3.Normalize(camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f)));
+            float nDotV = Math.Clamp(Vector3.Dot(FlatMapNormal, toView), 1e-4f, 1);
+            float specularOcclusion = (float)
+                new GgxLobe(floor.Roughness).SpecularOcclusion(
+                    nDotV: nDotV,
+                    occlusion: occlusion[pixel.Y * Width + pixel.X]
+                );
+            specularOcclusion.Should().BeLessThan(0.9f, "the floor at {0} lies in the wall's occlusion", pixel);
+            Vector3 weight = SpecularWeight(floor, camera, pixel);
+            Vector3 occludedSpecular = specularOcclusion * weight * gray;
+            Vector3 expected = At(without, pixel) - occludedSpecular + weight * At(without, PixelOf(onWall));
+            BrdfTesting
+                .LargestChannelDifference(At(with, pixel), expected)
+                .Should()
+                .BeLessThanOrEqualTo(0.01f * expected.Y, "{0} reflects the wall: {1}", pixel, At(with, pixel));
+        }
+    }
+
+    // No pass declares the tables after their upload, so the barrier after the copy is the only one that can make the
+    // copy visible to the trace, which reads the DFG table in a compute shader through lobesOf.
+    [Fact]
+    public void AfterTheFirstFrameTheBrdfTablesAreVisibleToTheComputeShaderOfTheTrace()
+    {
+        VulkanRenderer renderer = Headless(Reflections);
+        try
+        {
+            renderer.Render(BoxAbove(renderer, Mirror()), 1f);
+
+            foreach (GpuImage table in (GpuImage[])[renderer.BrdfTableImages.Dfg, renderer.BrdfTableImages.LobeSky])
+            {
+                table.State.Stages.Should().HaveFlag(PipelineStageFlags2.ComputeShaderBit, "the trace reads it");
+                table.State.Stages.Should().HaveFlag(PipelineStageFlags2.FragmentShaderBit, "and so does the lighting");
+                table.State.Access.Should().Be(AccessFlags2.ShaderSampledReadBit);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
         }
     }
 
@@ -498,6 +570,29 @@ public sealed class ReflectionRenderTests
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
                 .ContainInOrder(["lighting", "radiance pyramid", "reflections", "transparent"]);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, under GTAO's default.</summary>
+    /// <returns>The frame's HDR image, its occlusion target and its camera.</returns>
+    private static (float[] Hdr, float[] Occlusion, CameraView Camera) RenderUnderOcclusion(
+        ReflectionSetting reflections,
+        Func<VulkanRenderer, RenderSnapshot> scene
+    )
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            ambientOcclusion: GroundTruthOcclusion.Default,
+            exposure: new FixedExposure(0),
+            reflections: reflections
+        );
+        try
+        {
+            renderer.Render(scene(renderer), 1f);
+            return (renderer.ReadHdr(), renderer.ReadOcclusion(), renderer.LastScene.Camera);
         }
         finally
         {

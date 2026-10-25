@@ -250,6 +250,29 @@ public sealed class PyramidRenderTests
         }
     }
 
+    // ResizeTargets, not Resize: the output of a device whose largest image is 16,384 px would refuse the size first.
+    [Fact]
+    public void AResizePastTheLongestSideIsRefusedAndKeepsThePyramids()
+    {
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            FluentActions
+                .Invoking(() => renderer.ResizeTargets(new(16_385, 16)))
+                .Should()
+                .ThrowExactly<ArgumentOutOfRangeException>()
+                .WithMessage("*16384 px a side*");
+
+            renderer.Render(Scene(renderer), 1f);
+            (_, int radianceWidth, int radianceHeight) = renderer.ReadRadiancePyramidLevel(0);
+            (radianceWidth, radianceHeight).Should().Be((Width, Height), "the refused size destroyed nothing");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void NoReflectionsAddsNoPyramidPass()
     {

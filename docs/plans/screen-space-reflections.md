@@ -143,7 +143,7 @@ size_k = ⌈size_{k−1} / 2⌉ per axis      so cell (i, j) of level k covers e
 - With the sizes rounded up, the pixels of a cell are the pixels whose coordinates shifted right by k give the cell. So the trace finds the cell of a screen position by a division, and the last row and column of an odd level have one or two children. Uludag rounds down and adds a row and a column at odd sizes. Rounding up needs no special case.
 - The merge of an empty cell with anything gives the other: max(0, n) = n and min(10^30, f) = f.
 - The image's mip m holds level m + 1, RG32F: R is w_near and G is w_far.
-- At 1920 × 1080, level 1 is 960 × 540 and level 11 is 1 × 1.
+- At 1920 × 1080, level 1 is 960 × 540 and level 11 is 1 × 1. The image is padded to 1024 × 1024, so that each mip holds its level (see "Images").
 
 The pass dispatches once per level, each level reading the one before. `depth_pyramid_first.comp` reads the distance target for level 1, and `depth_pyramid_down.comp` reads level k − 1 for each later level.
 
@@ -184,14 +184,14 @@ Along the ray X(t) = O + t d, the screen position moves on a straight line, and 
 
 ```
 z₀ = z(O);  dz = d · forward
-t₁ = z₀                        when dz ≥ 0
-t₁ = z₀ / (2 (−dz))            when dz < 0, so that z(X(t₁)) = z₀ / 2 > 0
+t₁ = z₀                        when dz ≥ −1/2, so that z(X(t₁)) = z₀ (1 + dz) ≥ z₀ / 2
+t₁ = z₀ / (2 (−dz))            when dz < −1/2, so that z(X(t₁)) = z₀ / 2 > 0
 S₀ = pixel(O);   ΔS = pixel(O + t₁ d) − S₀            pixels per unit of s
 w₀ = 1 / z₀;     Δw = 1 / z(O + t₁ d) − w₀            1/m per unit of s
 S(s) = S₀ + s ΔS;   w(s) = w₀ + s Δw
 ```
 
-The second point always lies in front of the eye, so both projections are finite. The segment ends at the first of three places:
+The second point always lies in front of the eye, at least half as deep as the origin and at most z₀ from it, so both projections are finite and its depth does not cancel. A rule of z₀ / (2 (−dz)) for every ray toward the eye would put the second point of a ray nearly parallel to the image plane millions of z₀ away, where the rounding of its components exceeds its depth, and its image could flip. The segment ends at the first of three places:
 
 ```
 s_screen  where S(s) leaves the screen, [0, width] × [0, height]
@@ -268,12 +268,12 @@ The trace starts at level 0 at the exit of the origin pixel. Uludag starts at le
 
 ```
 level 0:  R(p) = (L(p) · m(p), m(p))                        L the HDR image, m the surface coverage
-level k:  R_k(q) = jimenez13(R_{k−1}) at the source texel corner 2q + 1      k from 1 to L, sizes as the depth pyramid's
+level k:  R_k(q) = jimenez13(R_{k−1}) at the center of texel q              k from 1 to the top mip, Vulkan's mip sizes
 ```
 
 - L is the lit image after the lighting pass: pre-exposed radiance with the ambient specular term of every surface, before the transparent pass and before any reflection. So the reflected surfaces carry their own ambient light, and a reflection shows no reflection of a reflection. A metal object in a mirror is therefore not black: its ambient specular term is in its pixels.
 - jimenez13 is the filter of `bloom_down.frag`: 13 bilinear taps of the level below at offsets of 0, ±1 and ±2 texels, five boxes of four taps, the inner box weighted 0.5 and the four corner boxes 0.125 each (Jimenez 2014). It applies to the four channels alike. Premultiplied, a texel of sky adds nothing to the color and nothing to the coverage, so the color of level k over its coverage is the mean radiance of its surface pixels.
-- The level sizes round up, as the depth pyramid's do. The taps clamp to the edge.
+- The levels are the image's mips, so their sizes halve and round down, from the screen's size to 1 × 1: mips 0 to 10 at 1080p. The center of texel q lies on the source texel corner 2q + 1 where the source has an even size, as in `bloom_down.frag`. The taps clamp to the edge.
 
 `radiance_pyramid_first.comp` writes level 0, and `radiance_pyramid_down.comp` writes each later level with one dispatch per level.
 
@@ -448,60 +448,62 @@ The physical reason: the source's light stands for distant light, the sky or the
 
 ## The setting
 
-`src/Tertius.Rendering/ReflectionSetting.cs` (new, public), the analogue of `BloomSetting`:
+`src/Tertius.Rendering/ReflectionSetting.cs` (new, public) takes the form of the other settings with an off case, `ExposureSetting`, `AmbientOcclusionSetting` and `BloomSetting`: a generated union of positional record structs with a valid zero case, a static `Default` on the case that carries data, and a `Problem` that `CheckOptions` throws (open fork 3, settled by the orchestrator on 2026-10-25):
 
 ```csharp
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Whether glossy surfaces reflect what is on the screen, and how (ARCHITECTURE.md, "Screen-space reflections"). A
-/// built-in C# 15 union of two class cases, so it allocates nothing beyond its case. The default value holds no case, and
-/// the renderer refuses it.
-/// </summary>
-public union ReflectionSetting(NoReflections, ConeTracedReflections)
-{
-    // The built-in union's ToString gives only the name of the union.
-    public override readonly string ToString() => Value?.ToString() ?? "ReflectionSetting(none)";
-}
-
-/// <summary>
 /// No screen-space reflections: the renderer builds no pyramids and no reflection pass, and every glossy surface keeps
 /// the ambient specular term.
 /// </summary>
-public sealed record NoReflections;
+public readonly record struct NoReflections;
 
 /// <summary>
 /// Reflections of what is on the screen, traced through a min-max depth pyramid and blurred by a cone sized by the
 /// roughness (docs/plans/screen-space-reflections.md). Where a ray finds nothing on the screen, the surface keeps the
 /// ambient specular term.
 /// </summary>
-public sealed record ConeTracedReflections
+/// <param name="MaxRoughness">The roughness at which reflections have faded out, above 0.045 and at most 1. Surfaces up to half of it reflect in full.</param>
+/// <param name="MaxSteps">The most cells that one ray examines, 1 to <see cref="MaxStepsLimit"/>. A ray that uses them all misses.</param>
+public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps)
 {
     /// <summary>The most steps a ray takes. 16 times the default, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
-    /// <param name="maxRoughness">The roughness at which reflections have faded out, above 0.045 and at most 1. Surfaces up to half of it reflect in full.</param>
-    /// <param name="maxSteps">The most cells that one ray examines, 1 to <see cref="MaxStepsLimit"/>. A ray that uses them all misses.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A value is outside its range, or not finite.</exception>
-    public ConeTracedReflections(float maxRoughness, int maxSteps)
-    {
-        if (!(maxRoughness > (float)GgxLobe.MinRoughness && maxRoughness <= 1))
-            throw new ArgumentOutOfRangeException(
-                nameof(maxRoughness), maxRoughness, "A maximum roughness lies above the roughness floor 0.045 and at most 1.");
-        if (maxSteps is < 1 or > MaxStepsLimit)
-            throw new ArgumentOutOfRangeException(nameof(maxSteps), maxSteps, $"A ray takes 1 to {MaxStepsLimit} steps.");
-        MaxRoughness = maxRoughness;
-        MaxSteps = maxSteps;
-    }
-
-    /// <summary>The roughness at which reflections have faded out. Surfaces up to half of it reflect in full.</summary>
-    public float MaxRoughness { get; }
-
-    /// <summary>The most cells that one ray examines. A ray that uses them all misses.</summary>
-    public int MaxSteps { get; }
+    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 64 steps.</summary>
+    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 64);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);
+}
+
+/// <summary>
+/// Whether glossy surfaces reflect what is on the screen, and how (docs/plans/screen-space-reflections.md, "The
+/// setting"): <see cref="NoReflections"/> or <see cref="ConeTracedReflections"/>. The default value is NoReflections,
+/// the look from before the reflections. It is a generated union (see <see cref="GeneratedUnionAttribute"/>).
+/// </summary>
+[GeneratedUnion(typeof(NoReflections), typeof(ConeTracedReflections), ZeroCase = typeof(NoReflections))]
+public readonly partial struct ReflectionSetting
+{
+    /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
+    internal string? Problem =>
+        this switch
+        {
+            NoReflections => null,
+            ConeTracedReflections reflections => ProblemOf(reflections),
+        };
+
+    private static string? ProblemOf(ConeTracedReflections reflections)
+    {
+        // Below the floor no surface reflects, which is NoReflections. The negated comparison also refuses NaN.
+        bool roughnessInRange = reflections.MaxRoughness is > ((float)GgxLobe.MinRoughness) and <= 1;
+        if (!roughnessInRange)
+            return $"ConeTracedReflections.MaxRoughness must lie above the roughness floor {GgxLobe.MinRoughness} and at most 1, not {reflections.MaxRoughness}.";
+        if (reflections.MaxSteps is < 1 or > ConeTracedReflections.MaxStepsLimit)
+            return $"ConeTracedReflections.MaxSteps must be 1 to {ConeTracedReflections.MaxStepsLimit}, not {reflections.MaxSteps}.";
+        return null;
+    }
 }
 ```
 
@@ -509,33 +511,34 @@ public sealed record ConeTracedReflections
 
 ```csharp
 /// <summary>
-/// Reflections of what is on the screen in glossy surfaces, or <see cref="NoReflections"/>. On by default. The pyramids
-/// take about 28 MB at 1920 × 1080 (ARCHITECTURE.md, "Screen-space reflections").
+/// Reflections of what is on the screen in glossy surfaces, or <see cref="NoReflections"/>. On by default. The
+/// pyramids take about 33 MB at 1920 × 1080 (docs/plans/screen-space-reflections.md, "Images").
 /// </summary>
-public ReflectionSetting Reflections { get; set; } = new ConeTracedReflections(maxRoughness: 0.6f, maxSteps: 64);
+public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Default;
 ```
 
 | Field | Unit | Valid range | Default | Validated by |
 |---|---|---|---|---|
-| `MaxRoughness` | Perceptual roughness, the floored r | Finite, above 0.045, at most 1 | 0.6 (open fork 2) | The constructor, `ArgumentOutOfRangeException` |
-| `MaxSteps` | Examined cells per ray | 1 to 1,024 | 64 | The constructor, `ArgumentOutOfRangeException` |
-| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections(0.6, 64)` | `VulkanRenderer.CheckOptions`: `ArgumentException` for the default value, which holds no case |
+| `MaxRoughness` | Perceptual roughness, the floored r | Finite, above 0.045, at most 1 | 0.6 (open fork 2) | `Problem`, which `VulkanRenderer.CheckOptions` throws as `ArgumentOutOfRangeException` |
+| `MaxSteps` | Examined cells per ray | 1 to 1,024 | 64 | The same |
+| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections.Default`, (0.6, 64) | None needed: its default value is `NoReflections`, a valid case |
+| The screen under `ConeTracedReflections` | px per side | At most 16,384 (`ReflectionTargets.MaxSide`) | | `CheckOptions` for an explicit `Width` and `Height`, and `RenderTargets` at creation and on each resize, as `ArgumentOutOfRangeException` (see "Descriptor sets") |
 
-The analogues. The exposure's setting is built on its branch, bloom's is built on its branch, and SSAO's is designed:
+`new ConeTracedReflections()` gives zeros, which only `CheckOptions` refuses, as for the other settings.
 
-| Property | `ToneCurve` | `ExposureSetting` | `BloomSetting` | `AmbientOcclusionSetting` (designed) | `ReflectionSetting` |
+The analogues:
+
+| Property | `ToneCurve` | `ExposureSetting` | `BloomSetting` | `AmbientOcclusionSetting` | `ReflectionSetting` |
 |---|---|---|---|---|---|
-| Form | An enum: no case carries data | A generated union of two record structs, with `FixedExposure` as its zero case | A built-in union of two sealed records | A generated union of two record structs, with `NoAmbientOcclusion` as its zero case | A built-in union of two sealed records, as bloom's |
+| Form | An enum: no case carries data | A generated union of two record structs, with `FixedExposure` as its zero case | A generated union of two record structs, with `NoBloom` as its zero case | A generated union of two record structs, with `NoAmbientOcclusion` as its zero case | A generated union of two record structs, with `NoReflections` as its zero case |
 | Stored in | `RendererOptions.ToneCurve` | `RendererOptions.Exposure` | `RendererOptions.Bloom` | `RendererOptions.AmbientOcclusion` | `RendererOptions.Reflections` |
 | When it changes | Before the renderer is made, fixed for its life | The same | The same | The same | The same |
 | What reads it | `ToneMapPass`, as a push constant | `VulkanRenderer` and the exposure pass | `VulkanRenderer`, which adds the bloom pass and its levels only for `Bloom`, and `BloomPass` | `VulkanRenderer`, which adds the occlusion passes only for `GroundTruthOcclusion`, and the passes' push constants | `VulkanRenderer`, which adds the pyramids and the three passes only for `ConeTracedReflections`, and `ReflectionPass`, which pushes `MaxRoughness` and `MaxSteps` |
-| Validation | None needed | `Problem`, which `CheckOptions` throws | The constructor, and `CheckOptions`, which refuses the empty union | `Problem`, which `CheckOptions` throws | The constructor, and `CheckOptions`, which refuses the empty union |
+| Validation | None needed | `Problem`, which `CheckOptions` throws | `Problem`, which `CheckOptions` throws | `Problem`, which `CheckOptions` throws | `Problem`, which `CheckOptions` throws, and the side of the screen |
 | Off | No off | No off | `NoBloom`: no levels, no pass | `NoAmbientOcclusion`: no passes, the occlusion target cleared to 1 | `NoReflections`: no images, no sets, no passes, no storage usage on the HDR image |
-| Default | `AcesFitted` | `AutoExposure.Default` | On | `GroundTruthOcclusion.Default` | On |
+| Default | `AcesFitted` | `AutoExposure.Default` | `Bloom.Default` | `GroundTruthOcclusion.Default` | `ConeTracedReflections.Default` |
 | Test fixtures | The default | `FixedExposure(0)` | `NoBloom` | `NoAmbientOcclusion` | `NoReflections` |
 | Headless flag | `--tone-curve aces\|hable` | None | `--bloom on\|off` | `--ambient-occlusion off\|<meters>` | `--reflections on\|off` |
-
-The epic has two forms for a setting with an off case. The brief of this design names bloom's as the analogue, and the doc follows it. SSAO's design follows the exposure's. Open fork 3 asks the user for one form. The change from one form to the other stays inside `ReflectionSetting.cs`, `RendererOptions.cs`, `CheckOptions` and the setting's tests.
 
 ## Images, sets and constants
 
@@ -543,11 +546,11 @@ The epic has two forms for a setting with an off case. The brief of this design 
 
 | Image | Format | Size at 1920 × 1080 | Levels | Memory | Usage | Owner |
 |---|---|---|---|---|---|---|
-| The depth pyramid image | RG32F: R w_near, G w_far, in 1/m | 960 × 540 at its mip 0 | Mips 0 to 10 hold levels 1 to 11 | 5.5 MB | Sampled, storage | `ReflectionTargets.DepthImage` |
-| The radiance pyramid | RGBA16F: premultiplied pre-exposed radiance, coverage | 1920 × 1080 at mip 0 | Mips 0 to 11 hold levels 0 to 11 | 22.1 MB | Sampled, storage | `ReflectionTargets.RadianceImage` |
+| The depth pyramid image | RG32F: R w_near, G w_far, in 1/m | 1024 × 1024 at its mip 0, padded (`ReflectionTargets.DepthImageExtent`); level 1, 960 × 540, fills its top left | Mips 0 to 10 hold levels 1 to 11 | 11.2 MB | Sampled, storage, transfer source | `ReflectionTargets.DepthImage` |
+| The radiance pyramid | RGBA16F: premultiplied pre-exposed radiance, coverage | 1920 × 1080 at mip 0 | Vulkan's full chain, each mip halved and rounded down: mips 0 to 10 hold levels 0 to 10, the last 1 × 1 | 22.1 MB | Sampled, storage, transfer source | `ReflectionTargets.RadianceImage` |
 | The HDR image | RGBA16F, unchanged | Unchanged | 1 | 0 more | Gains storage, only while reflections are on | `RenderTargets.Hdr` |
 
-Both pyramids take 27.6 MB at 1080p. Both live in the `General` layout for their whole life, because each dispatch of a build reads one mip and writes the next, and `BarrierBatch` keeps one state per image. Each has a sampled view of all its mips, for the trace, and a view of each mip, for the builds. `ReflectionTargets` makes the view of each mip with `GpuImage.CreateLayerView(0, mip)` and destroys it before the image, as `ShadowMap` does with its layer views. The view of all mips is the image's own `View`.
+Both pyramids take 33.3 MB at 1080p. A Vulkan mip halves its image and rounds down, but a level of the depth pyramid halves the screen and rounds up (see "The depth pyramid"). So `DepthImageExtent` gives the smallest image whose mip m holds level m + 1 on each axis, with one mip per level, and the builds fill the padding with the empty bounds. At 1080p, level 10 is 2 × 2, which only a mip 9 of 2 × 2, from an image 1024 px a side, holds. The radiance pyramid's levels need no padding: its levels are the mips. Both live in the `General` layout for their whole life, because each dispatch of a build reads one mip and writes the next, and `BarrierBatch` keeps one state per image. Each has a sampled view of all its mips, for the trace, and a view of each mip, for the builds. `ReflectionTargets` makes the view of each mip with `GpuImage.CreateLayerView(0, mip)` and destroys it before the image, as `ShadowMap` does with its layer views. The view of all mips is the image's own `View`.
 
 `ReflectionTargets` (`src/Tertius.Rendering/Frame/ReflectionTargets.cs`, new) owns the two pyramids, their level sets and the trace set. `RenderTargets` owns one when reflections are on, makes its images in `Create` and destroys them in `DestroyImages`, so a resize remakes them with the other targets. Without reflections there is none: a valid absence, handled once in `VulkanRenderer`, which passes the `ReflectionTargets` to the passes it makes.
 
@@ -571,7 +574,7 @@ The trace set, set 3 of `ReflectionLayout`, with the push constants `ReflectionP
 | 2 | Sampler, immutable | The impostor atlas's sampler: linear, linear between mips, clamped to the edge, no LOD clamp |
 | 3 | Storage image, compute | The HDR image, `General`, read and written at each invocation's own pixel |
 
-`ReflectionTargets` allocates its sets once, for the largest pyramid: 14 depth level sets (levels 1 to 14), 15 radiance level sets (levels 0 to 14) and one trace set. A 16,384 px side, the largest image the renderer allows, halves to 1 px in 14 levels. A resize rewrites the sets in use. The descriptor pool grows by 30 sets, 31 sampled images, 30 storage images and 1 sampler.
+`ReflectionTargets` allocates its sets once, for the largest pyramid: 14 depth level sets (levels 1 to 14), 15 radiance level sets (levels 0 to 14) and one trace set. A 16,384 px side halves to 1 px in 14 levels. A device may allow a larger image, so under `ConeTracedReflections` the renderer refuses a side above `ReflectionTargets.MaxSide`, 16,384 px, with an `ArgumentOutOfRangeException`: `CheckOptions` for an explicit `Width` and `Height`, before the device, and `RenderTargets` at creation and at each resize, before it destroys a target. A resize rewrites the sets in use. The descriptor pool grows by 30 sets, 31 sampled images, 30 storage images and 1 sampler.
 
 The push constants of the trace:
 
@@ -603,6 +606,7 @@ Each constant has its C# twin, as `brdf.glsl`'s constants have.
 | Empty far bound | 10^30 /m | `CellBounds.EmptyFar` | `EmptyFar` |
 | Near plane | 0.05 m | `DepthRanges.NearPlane` | `NearPlane` |
 | Largest pyramid | 14 levels | `DepthPyramid.MaxLevels` | None |
+| Longest screen side with reflections | 2^14 = 16,384 px | `ReflectionTargets.MaxSide` | None |
 
 ### Every reader and writer
 
@@ -703,21 +707,22 @@ The frame with SSR on, from the steps of ARCHITECTURE.md, "The order of a render
 
 `ReflectionPass` (`Passes/ReflectionPass.cs`, new), named "reflections":
 
-1. Both pyramids: `SampledComputeGeneral`. The base color, normal, specular and distance targets: `SampledCompute`. The HDR image: `StorageCompute`. The exposure buffer: `BufferUse.ComputeRead`. Flush.
+1. Both pyramids: `SampledComputeGeneral`. The base color, normal, specular and distance targets: `SampledCompute`. The HDR image: `StorageCompute`. The exposure buffer: `BufferUse.ComputeRead`. The BRDF tables need no use here: the upload left them in `SampledFragmentCompute` (see "Barriers"). Flush.
 2. Bind `reflection_trace`, sets 0 to 3, and push `ReflectionPushConstants` from the setting. Dispatch ⌈width / 8⌉ × ⌈height / 8⌉.
 
 All workgroups are 8 × 8 invocations.
 
 ### Barriers
 
-`BarrierBatch` derives each barrier from the uses above. Two uses join the closed set of `ResourceState.cs`:
+`BarrierBatch` derives each barrier from the uses above. SSR uses three uses of the closed set of `ResourceState.cs`, one that SSAO added and two of its own:
 
 | Use | Layout | Stages | Access |
 |---|---|---|---|
-| `ImageUse.StorageCompute` | `General` | `ComputeShaderBit` | `ShaderStorageReadBit`, `ShaderStorageWriteBit`, `ShaderSampledReadBit` |
+| `ImageUse.StorageCompute` (SSAO's) | `General` | `ComputeShaderBit` | `ShaderStorageReadBit`, `ShaderStorageWriteBit`, `ShaderSampledReadBit` |
 | `ImageUse.SampledComputeGeneral` | `General` | `ComputeShaderBit` | `ShaderSampledReadBit` |
+| `ImageUse.SampledFragmentCompute` | `ShaderReadOnlyOptimal` | `FragmentShaderBit`, `ComputeShaderBit` | `ShaderSampledReadBit` |
 
-`StorageCompute` carries the sampled read too, because a pyramid's build reads one mip through a sampled view while it writes the next. SSAO's design defines the same use with the two storage bits only. Whichever merges second keeps one definition with all three bits: SSAO's passes lose nothing by a wider access mask. `SampledComputeGeneral` is the exposure branch's `SampledCompute` in the `General` layout, for an image that is also a storage image.
+`StorageCompute` gains the sampled read, because a pyramid's build reads one mip through a sampled view while it writes the next. SSAO defined it with the two storage bits only, and its passes lose nothing by a wider access mask. `SampledComputeGeneral` is the exposure branch's `SampledCompute` in the `General` layout, for an image that is also a storage image. `SampledFragmentCompute` is the use of the BRDF tables after their upload: the lighting reads them in fragment shaders and the trace in a compute shader, and no pass declares them again.
 
 | Image or buffer | From | To | Kind | Reason |
 |---|---|---|---|---|
@@ -733,6 +738,7 @@ All workgroups are 8 × 8 invocations.
 | HDR image | Radiance level 0 (`SampledCompute`) | Trace (`StorageCompute`) | Read to write, a layout change to `General` | The trace writes the image that the pyramid read. |
 | HDR image | Trace (compute write) | Transparent pass (color attachment) | Write to write, a layout change | The glass blends over the reflections. |
 | Base color, normal, specular | Lighting pass (fragment read) | Trace (`SampledCompute`) | Read to read | A chain to the compute stage. |
+| BRDF tables | The first frame's copy (transfer write) | `SampledFragmentCompute`, in `BrdfTableImages.Upload` | Write to read, a layout change | Every later reader, the lighting passes and the trace alike, reads tables that no pass writes again. So the one barrier after the copy makes them visible to both stages, and no pass declares them. |
 | Exposure buffer | The frame's shading reads | Trace (`BufferUse.ComputeRead`) | Read to read | `BarrierBatch` adds the compute stage to the buffer's read stages. So the barrier of the adapt step, which writes the buffer after the transparent pass, waits for the trace's read. |
 
 ### GPU timings
@@ -741,7 +747,7 @@ All workgroups are 8 × 8 invocations.
 
 ### Resize
 
-`RenderTargets.Resize` destroys and makes again every target, and with them the two pyramids, at the sizes of `DepthPyramid.LevelSize`, with `DepthPyramid.LevelCount` levels. `ReflectionTargets` then writes the level sets in use and the trace set, with the new views and the new HDR image. The sets stay allocated. The device is idle during a resize, as for every target.
+`RenderTargets.Resize` refuses a side above `ReflectionTargets.MaxSide` under `ConeTracedReflections` before it destroys anything. Then it destroys and makes again every target, and with them the two pyramids: the depth image at `DepthImageExtent`, with `DepthPyramid.LevelCount` mips, and the radiance pyramid at the screen's size, with Vulkan's full chain. `ReflectionTargets` then writes the level sets in use and the trace set, with the new views and the new HDR image. The sets stay allocated. The device is idle during a resize, as for every target.
 
 ### When the switch is off
 
@@ -899,9 +905,10 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction)
     vec3 forward = frame.cameraForward.xyz;
     float originDepth = dot(origin, forward);
     float towardDepth = dot(direction, forward);
-    // A second point in front of the eye, so that both projections are finite: one view depth along the ray, or
-    // halfway to the eye's plane.
-    float along = towardDepth >= 0.0 ? originDepth : 0.5 * originDepth / -towardDepth;
+    // A second point in front of the eye and within one view depth of the origin, so that both projections are
+    // finite and its depth does not cancel: one view depth along the ray, or halfway to the eye's plane for a ray
+    // that comes toward it faster than half its length. Either way the second point lies at least half as deep.
+    float along = towardDepth >= -0.5 ? originDepth : 0.5 * originDepth / -towardDepth;
     vec3 second = origin + direction * along;
     ScreenRay ray;
     ray.start = pixelOf(origin);
@@ -1337,9 +1344,13 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 `ReflectionSettingTests`:
 
-- `ConeTracedReflectionsRefuseAMaximumRoughnessAtOrBelowTheFloorAboveOneOrNotFinite`: a theory.
-- `ConeTracedReflectionsRefuseStepsOutsideOneTo1024`: a theory.
-- `TheRendererRefusesASettingThatHoldsNoCase`.
+- `TheDefaultValueIsNoReflections`.
+- `TheDefaultTracesUpToARoughnessOf0Point6In64Steps`.
+- `TheDefaultAndTheLimitsOfEveryFieldAreAccepted`.
+- `AMaximumRoughnessAtOrBelowTheFloorAboveOneOrNotFiniteIsRefused`: a theory of `Problem`.
+- `StepsOutsideOneTo1024AreRefused`: a theory of `Problem`.
+- `TheRendererRefusesAConeTracedReflectionsOfZerosBeforeItMakesADevice`.
+- `TheRendererRefusesReflectionsOnAScreenWithASideAbove16384PxBeforeItMakesADevice`: a theory.
 - `TheDefaultTracesUpToARoughnessOf0Point6In64Steps`.
 - `TheRoughnessFadeIsFullUpToHalfTheMaximumAndZeroAtIt`.
 
@@ -1411,13 +1422,13 @@ Each builder breaks the line that each new test protects, watches the test fail,
 
 To measure in Part 6, by the recipe of [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": `scripts/demo-exit.json` at 1920 × 1080 in Release, the branch against its base, each build twice, one run at a time, with the 1-minute load of the machine in the report.
 
-- The three new passes: mean, median and p95. Expected: the depth pyramid near 0.1 ms (it reads 8.3 MB of distance and writes 5.5 MB in 11 dispatches), the radiance pyramid near 0.2 ms (16.6 MB of the HDR image and 8.3 MB of distance read, 22.1 MB written), the reflections 1 to 3 ms. The demo's painted surfaces have a roughness of 0.38, under the default maximum of 0.6, so nearly every surface pixel traces a ray. If the reflections take more than 3 ms, the report says so, beside the fork on the default maximum.
+- The three new passes: mean, median and p95. Expected: the depth pyramid near 0.1 ms (it reads 8.3 MB of distance and writes 5.5 MB of levels into its padded image in 11 dispatches), the radiance pyramid near 0.2 ms (16.6 MB of the HDR image and 8.3 MB of distance read, 22.1 MB written), the reflections 1 to 3 ms. The demo's painted surfaces have a roughness of 0.38, under the default maximum of 0.6, so nearly every surface pixel traces a ray. If the reflections take more than 3 ms, the report says so, beside the fork on the default maximum.
 - The lighting, transparent and tone map passes: expected within the spread between runs. The HDR image's storage usage can cost them time on some GPUs, and the report says whether it does.
 - A second branch run with `--reflections off` against the base: no new pass, and every pass within the spread, which checks "When the switch is off".
 - The trace's cost against the share of pixels that trace: one run of `demo-exit.json` with the default maximum set to 0.3 in a scratch commit, not committed, so the user can weigh fork 2 by its cost.
 - `MaxSteps`: the review captures at 64 and at 512 steps. If any reflection differs by more than 2 of 255, the default rises to the smallest of 128 and 256 whose captures match 512.
 
-Memory, by arithmetic: 5.5 MB for the depth pyramid and 22.1 MB for the radiance pyramid at 1080p, 27.6 MB in all, and nothing with the switch off. The sets and pipelines are small.
+Memory, by arithmetic: 11.2 MB for the padded depth pyramid image and 22.1 MB for the radiance pyramid at 1080p, 33.3 MB in all, and nothing with the switch off. The sets and pipelines are small.
 
 ## Doc changes
 
@@ -1500,7 +1511,7 @@ If that branch merges without one of them, Part 4 adds it as the exposure doc sp
     - `src/Tertius.Host/ScriptCommand.cs`: `--reflections on|off`.
   - Tests new: `ReflectionSettingTests.cs` and `PyramidRenderTests.cs`.
   - Tests changed: `TestSupport.cs` (`Reflections = new NoReflections()`), `tests/Tertius.Host.Tests/GpuTesting.cs` (the same), `ScriptCommandCaptureTests.cs` (the two pyramid passes in the list), and `ScriptCommandTests.cs` (the flag).
-- `CheckOptions` refuses the empty union with an `ArgumentException`. `RenderTargets.CheckFormats`, with reflections on, refuses a device whose R32G32_SFLOAT lacks sampled or storage use or whose R16G16B16A16_SFLOAT lacks storage use or linear filtering, with a `NotSupportedException`, as for the other formats.
+- `CheckOptions` throws the setting's `Problem`, and a screen side above `ReflectionTargets.MaxSide`, as an `ArgumentOutOfRangeException`. `RenderTargets.CheckFormats`, with reflections on, refuses a device whose R32G32_SFLOAT lacks sampled or storage use or whose R16G16B16A16_SFLOAT lacks storage use or linear filtering, with a `NotSupportedException`, as for the other formats.
 - Gives, exactly:
 
 ```csharp
@@ -1560,6 +1571,8 @@ internal sealed unsafe class ReflectionPass(
 
 ## Open forks
 
+The orchestrator settled forks 1 and 3 on 2026-10-25 (the ticket's notes). Fork 2 waits for the captures of Part 6, and the code is built with 0.6 until then.
+
 ### 1. One sample at the hit, or Uludag's march of circles
 
 The decisions say "a cone over a mip chain", which both options are.
@@ -1583,6 +1596,8 @@ The demo paints every part with a roughness of 0.38, and has no metal. So the de
 Recommended: choose from the captures of Part 6, which show both, with the cost of each, as SSAO's radius is chosen from captures. The doc is written for A until then. Either way, the field stays in `ConeTracedReflections`, and the choice changes one default.
 
 ### 3. The form of the setting
+
+Settled by the orchestrator on 2026-10-25: option B, the form of STYLE.md's table for struct cases, which the exposure, SSAO and bloom settings now share. "The setting" shows the code. The fork as it was asked:
 
 The epic has two forms for a setting with an off case. Bloom's branch built one, and the exposure's branch built the other, which SSAO's design follows. The brief of this design names bloom's as the analogue, so the doc is written for A.
 

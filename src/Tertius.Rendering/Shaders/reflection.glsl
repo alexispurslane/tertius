@@ -44,9 +44,10 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction)
     vec3 forward = frame.cameraForward.xyz;
     float originDepth = dot(origin, forward);
     float towardDepth = dot(direction, forward);
-    // A second point in front of the eye, so that both projections are finite: one view depth along the ray, or
-    // halfway to the eye's plane.
-    float along = towardDepth >= 0.0 ? originDepth : 0.5 * originDepth / -towardDepth;
+    // A second point in front of the eye and within one view depth of the origin, so that both projections are
+    // finite and its depth does not cancel: one view depth along the ray, or halfway to the eye's plane for a ray
+    // that comes toward it faster than half its length. Either way the second point lies at least half as deep.
+    float along = towardDepth >= -0.5 ? originDepth : 0.5 * originDepth / -towardDepth;
     vec3 second = origin + direction * along;
     ScreenRay ray;
     ray.start = pixelOf(origin);

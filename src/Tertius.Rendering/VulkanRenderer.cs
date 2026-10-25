@@ -75,7 +75,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly GeometryStore geometry;
     private readonly TextureStore textures;
     private readonly MaterialStore materials;
-    private readonly BrdfTableImages brdfTables;
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
@@ -118,7 +117,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             geometry = Own(new GeometryStore(device, Allocator));
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
-            brdfTables = Own(new BrdfTableImages(device, Allocator));
+            BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
             uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
             targets = CreateTargets(
                 glowLevels: glowLevels,
@@ -172,6 +171,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     public bool TimesPasses => timer.Supported;
 
     internal ShadowMap ShadowMap { get; }
+
+    /// <summary>The BRDF tables on the GPU. A test hook.</summary>
+    internal BrdfTableImages BrdfTableImages { get; }
 
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
@@ -304,6 +306,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
         if (options.Reflections.Problem is { } reflectionProblem)
             throw new ArgumentOutOfRangeException(nameof(options), reflectionProblem);
+        bool reflections = options.Reflections is ConeTracedReflections;
+        if (reflections && ReflectionTargets.ScreenProblem(options.Width, options.Height) is { } screenProblem)
+            throw new ArgumentOutOfRangeException(nameof(options), screenProblem);
         if (!Enum.IsDefined(options.AntiAliasing))
             throw new ArgumentOutOfRangeException(
                 nameof(options),
@@ -602,7 +607,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 frame: frameNumber
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
-            brdfTables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            BrdfTableImages.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
@@ -670,9 +675,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Resizes the render targets and the occlusion images, whose sets point at the targets, to
-    /// <paramref name="extent"/>. The device must be idle.
+    /// <paramref name="extent"/>. The device must be idle. Internal for the tests of a size that no output takes.
     /// </summary>
-    private void ResizeTargets(Extent2D extent)
+    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
+    internal void ResizeTargets(Extent2D extent)
     {
         if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
             return;
@@ -1108,7 +1114,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     allocator: Allocator,
                     layouts: layouts,
                     textures: textures,
-                    tables: brdfTables,
+                    tables: BrdfTableImages,
                     exposure: exposure.Buffer,
                     index: i
                 )
