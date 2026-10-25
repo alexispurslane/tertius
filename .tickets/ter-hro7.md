@@ -1,7 +1,7 @@
 ---
 id: ter-hro7
-status: open
-deps: [ter-2t5o, ter-63wr, ter-a24f, ter-b3h5, ter-gcm3, ter-jxv9, ter-s9cv, ter-zzyr, ter-mgze, ter-nl5u]
+status: closed
+deps: [ter-2t5o, ter-63wr, ter-a24f, ter-b3h5, ter-gcm3, ter-jxv9, ter-s9cv, ter-zzyr, ter-mgze]
 links: []
 created: 2026-10-25T12:01:26Z
 type: feature
@@ -29,3 +29,9 @@ The colors are stored state: they describe the last finished step, like the grav
 
 In a GPU test, a world with a planet's surface frame that has a blue sky and a brown ground, and a space frame with dim even colors, shades each object with its own frame's colors. The demo scenes set their colors on their frames. ARCHITECTURE.md describes the rule.
 
+
+## Notes
+
+**2026-10-25T13:46:18Z**
+
+Closed on 2026-10-25 without work: the user chose the scene environment map (ter-nl5u), which takes the ambient light, diffuse and specular, from what really surrounds the camera, indoors and outdoors. The hemisphere stays only as the light with the map off.

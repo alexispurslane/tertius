@@ -20,16 +20,17 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-jxv9` | Screen-space reflections | PBR | Two designs, in the ticket |
 | `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
-| `ter-nl5u` | A prefiltered environment map of the sky backdrop for the ambient specular light and SSR's fallback | PBR | Two designs, in the ticket |
-| `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light | Every member above | Two designs, in the ticket |
-| `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | The per-frame colors | Two designs, in the ticket |
+| `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | Two designs, in the ticket |
+| `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
+| `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
 
 ## Order
 
 - PBR comes first. The look and the tuning of every other feature depend on the BRDF. SSR weights its reflections by the Fresnel term and blurs them by the roughness. SSAO and SSGI scale the diffuse and ambient light. Exposure, the tone curve and bloom are tuned against the radiance that the BRDF sends.
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
 - SSGI waits for SSAO, as before.
-- The per-frame ambient colors and the atmosphere color come last, after every other member. The user decided this on 2026-10-25. The atmosphere color waits for the per-frame colors, because its sky color can set the ambient sky color.
+- The atmosphere color comes last, after every other member. The user decided this on 2026-10-25. It waits for the environment map, which captures the sky and so carries the atmosphere's color into the ambient light.
+- The environment map replaces the per-frame sky and ground colors (user, 2026-10-25). It holds the whole scene seen from the camera, so the ambient light comes from what really surrounds the camera, indoors and outdoors.
 - The snapshot tests (`ter-rtxu`) wait for this whole epic. A snapshot locks in a look, and it cannot drive red-green TDD, because its reference image exists only after the feature works.
 - The asset pipeline (`ter-kge6`) waits for this whole epic. Its decisions 12 and 13 took glTF metallic-roughness materials as they are, once the PBR BRDF exists (changed on 2026-10-24, see [pbr-brdf.md](pbr-brdf.md)).
 
