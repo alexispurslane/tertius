@@ -76,6 +76,7 @@ void main()
     s.reflectance = specular.b;
     s.lobeSkyFraction = specular.a;
     s.skyFraction = emissiveSky.a;
+    s.reflectionFootprint = frame.params.z;
 
-    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true, exposureScale()), 1.0);
+    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, SunShadowsMainView, exposureScale()), 1.0);
 }

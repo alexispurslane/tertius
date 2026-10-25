@@ -37,8 +37,9 @@ void main()
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    shading.reflectionFootprint = frame.params.z;
     // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
     float exposure = exposureScale();
-    vec3 radiance = surfaceRadiance(shading, s.emissive * exposure, inPosition, V, true, exposure);
+    vec3 radiance = surfaceRadiance(shading, s.emissive * exposure, inPosition, V, SunShadowsMainView, exposure);
     outColor = vec4(radiance, clamp(s.baseColor.a, 0.0, 1.0));
 }
