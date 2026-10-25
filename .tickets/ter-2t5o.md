@@ -36,3 +36,7 @@ Settled together with automatic exposure (ter-zzyr), which shares the tone map s
 - Hable's constants are fixed, as published, so the setting has no data per case. His exposure bias of 2 is part of his curve, so the curve looks as he published it.
 - The default stays ACES until the user picks one from captures of both curves.
 - After ter-zzyr, the tone map pass multiplies by no exposure: the shading passes write pre-exposed light. Whichever of the two tickets merges second resolves the overlap in tonemap.frag.
+
+## The default (user, 2026-10-25)
+
+The user compared captures of both curves side by side (the spheres, the cabin and the orbit) and kept ACES as the default: they prefer its contrast, deep shadows and strong colors. Hable stays as an option.
