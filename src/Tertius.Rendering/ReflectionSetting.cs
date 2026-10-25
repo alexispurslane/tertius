@@ -15,11 +15,11 @@ public readonly record struct NoReflections;
 /// <param name="MaxSteps">The most cells that one ray examines, 1 to <see cref="MaxStepsLimit"/>. A ray that uses them all misses.</param>
 public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps)
 {
-    /// <summary>The most steps a ray takes. 16 times the default, far past any measured need; it bounds the worst frame.</summary>
+    /// <summary>The most steps a ray takes. 8 times the default, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
-    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 64 steps.</summary>
-    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 64);
+    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 128 steps.</summary>
+    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 128);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);

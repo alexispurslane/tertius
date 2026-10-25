@@ -81,7 +81,7 @@ The user made the decisions marked (User). This design settled the others by the
 28. SSAO's specular occlusion multiplies the ambient specular term, never the traced radiance. See "How SSR meets SSAO".
 29. Two new stages: `DepthPyramid` after `GBuffer`, and `Reflections` after `Lighting`. Three passes: "depth pyramid", "radiance pyramid" and "reflections". So the GPU timings show each part, and SSGI can use the depth pyramid without the reflections.
 30. The HDR image gets the storage usage only while reflections are on. Then a frame without reflections is the frame from before, image for image.
-31. The defaults: `MaxRoughness` 0.6, Unreal Engine 4's default (open fork 2), and `MaxSteps` 64, which Part 6 checks against 512 in the review captures.
+31. The defaults: `MaxRoughness` 0.6, Unreal Engine 4's default, which the user chose from the captures of Part 6 (open fork 2), with the profile ticket `ter-ff6y` for its cost; and `MaxSteps` 128. Part 6 checked 64, 128 and 256 steps against 512 in the review captures. At 64 steps the edge view's glossy box face shows horizontal streaks, where rays run out of steps and their neighbors hit. At 128 the streaks are gone. The user wanted the fewest steps whose difference does not show to the naked eye (2026-10-25), and that is 128. See "Cost", "Results of Part 6".
 32. The validation: `MaxRoughness` above the roughness floor 0.045 and at most 1, and `MaxSteps` from 1 to 1,024. Below the floor no surface reflects, and that setting is `NoReflections`, as bloom refuses a strength of 0.
 33. A review scene, `reflections`, and the headless flag `--reflections on|off`, as the PBR ticket added `pbr-spheres` and bloom added `--bloom`. The demo's surfaces have the roughness 0.38 and no metal, so no other scene shows the acceptance criteria.
 34. An impostor pixel starts no ray, because its light is baked into the atlas and the G-buffer holds no material for it. It is a valid hit.
@@ -468,11 +468,11 @@ public readonly record struct NoReflections;
 /// <param name="MaxSteps">The most cells that one ray examines, 1 to <see cref="MaxStepsLimit"/>. A ray that uses them all misses.</param>
 public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps)
 {
-    /// <summary>The most steps a ray takes. 16 times the default, far past any measured need; it bounds the worst frame.</summary>
+    /// <summary>The most steps a ray takes. 8 times the default, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
-    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 64 steps.</summary>
-    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 64);
+    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 128 steps.</summary>
+    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 128);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);
@@ -520,8 +520,8 @@ public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Defau
 | Field | Unit | Valid range | Default | Validated by |
 |---|---|---|---|---|
 | `MaxRoughness` | Perceptual roughness, the floored r | Finite, above 0.045, at most 1 | 0.6 (open fork 2) | `Problem`, which `VulkanRenderer.CheckOptions` throws as `ArgumentOutOfRangeException` |
-| `MaxSteps` | Examined cells per ray | 1 to 1,024 | 64 | The same |
-| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections.Default`, (0.6, 64) | None needed: its default value is `NoReflections`, a valid case |
+| `MaxSteps` | Examined cells per ray | 1 to 1,024 | 128 | The same |
+| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections.Default`, (0.6, 128) | None needed: its default value is `NoReflections`, a valid case |
 | The screen under `ConeTracedReflections` | px per side | At most 16,384 (`ReflectionTargets.MaxSide`) | | `CheckOptions` for an explicit `Width` and `Height`, and `RenderTargets` at creation and on each resize, as `ArgumentOutOfRangeException` (see "Descriptor sets") |
 
 `new ConeTracedReflections()` gives zeros, which only `CheckOptions` refuses, as for the other settings.
@@ -1426,9 +1426,17 @@ To measure in Part 6, by the recipe of [rendering-upgrade.md](rendering-upgrade.
 - The lighting, transparent and tone map passes: expected within the spread between runs. The HDR image's storage usage can cost them time on some GPUs, and the report says whether it does.
 - A second branch run with `--reflections off` against the base: no new pass, and every pass within the spread, which checks "When the switch is off".
 - The trace's cost against the share of pixels that trace: one run of `demo-exit.json` with the default maximum set to 0.3 in a scratch commit, not committed, so the user can weigh fork 2 by its cost.
-- `MaxSteps`: the review captures at 64 and at 512 steps. If any reflection differs by more than 2 of 255, the default rises to the smallest of 128 and 256 whose captures match 512.
+- `MaxSteps`: the review captures at 64 and at 512 steps. If any reflection differs by more than 2 of 255, the default rises to the smallest of 128 and 256 whose captures match 512. The user replaced this rule on 2026-10-25: the default is the fewest steps whose difference does not show to the naked eye ("Results of Part 6").
 
 Memory, by arithmetic: 11.2 MB for the padded depth pyramid image and 22.1 MB for the radiance pyramid at 1080p, 33.3 MB in all, and nothing with the switch off. The sets and pipelines are small.
+
+### Results of Part 6
+
+Measured on 2026-10-25 at 1920 × 1080 on the development Mac (Apple M1 Max, MoltenVK 1.4.2), in Release, on `scripts/demo-exit.json`. ARCHITECTURE.md, "Screen-space reflections", "The cost", holds the full tables with the load of the machine. The times are the means of two runs, in ms.
+
+- At 64 steps and a maximum roughness of 0.6: the depth pyramid 0.29 and 0.30, the radiance pyramid 0.93 and 0.92, the reflections 5.86 and 5.76. The sum of the means of all passes is 12.00 and 11.86, against 5.88 and 5.80 for the base. The reflections are above the 3 ms that this design expected at most.
+- At a maximum roughness of 0.3 (a scratch change), the reflections take 0.25 and 0.28 ms, because the demo's paint, of roughness 0.38, then traces nothing, and the demo shows no reflection. The user chose 0.6 from the captures (fork 2), and the profile ticket `ter-ff6y` takes the cost.
+- `MaxSteps`: the three views of the `reflections` scene at 64, 128 and 256 steps against 512, as the largest difference of any pixel in levels of 255: at 64 steps 36 (front), 57 (low) and 41 (edge); at 128 steps 10, 39 and 1; at 256 steps 0, 0 and 0. At 64 steps the edge view's glossy box face has horizontal streaks at actual size, where rays run out of steps and their neighbors hit: 3,935 pixels differ by more than 10 levels. At 128 steps the streaks are gone: no pixel of the front and the edge views differs by more than 10 levels, and 50 pixels in a strip at the low view's horizon do. The design's rule of 2 levels gives 256. The user's condition, the fewest steps whose difference does not show to the naked eye (2026-10-25), gives 128, the default.
 
 ## Doc changes
 
@@ -1439,7 +1447,7 @@ Memory, by arithmetic: 11.2 MB for the padded depth pyramid image and 22.1 MB fo
 | ARCHITECTURE.md, "Shading" | The ambient specular term, `ambientTerms` as the one place where the shaders read the ambient light, `specularWeight`, and `surfaceAt`. The sentence "Later screen-space reflections fade their off-screen rays to this specular part" becomes a link to the new section. |
 | ARCHITECTURE.md, "Depth ranges" | The depth pyramid serves all three ranges in inverse depth. |
 | ARCHITECTURE.md, "GPU timings" | The three pass names. |
-| ARCHITECTURE.md, "Switches" | A row for `Reflections`: `ConeTracedReflections(0.6, 64)` by default, `NoReflections` for tests, its cost and memory. |
+| ARCHITECTURE.md, "Switches" | A row for `Reflections`: `ConeTracedReflections(0.6, 128)` by default, `NoReflections` for tests, its cost and memory. |
 | ARCHITECTURE.md, "Snapshot tests" | The reference scenes render with reflections off. |
 | ARCHITECTURE.md, "Host and scripted runs" | `--reflections on\|off`, and its refusals. |
 | docs/plans/rendering-upgrade.md | The row of `ter-jxv9` links this doc. |
@@ -1571,7 +1579,7 @@ internal sealed unsafe class ReflectionPass(
 
 ## Open forks
 
-The orchestrator settled forks 1 and 3 on 2026-10-25 (the ticket's notes). Fork 2 waits for the captures of Part 6, and the code is built with 0.6 until then.
+The orchestrator settled forks 1 and 3 on 2026-10-25 (the ticket's notes). The user settled fork 2 on 2026-10-25 from the captures of Part 6.
 
 ### 1. One sample at the hit, or Uludag's march of circles
 
@@ -1585,6 +1593,8 @@ The decisions say "a cone over a mip chain", which both options are.
 Why A is recommended: it is the simpler mechanism, its result follows from one footprint that a CPU test pins, and the surface coverage handles the one depth edge that matters most, the sky. If the captures show a blur across a depth edge as a fault, B is a later ticket.
 
 ### 2. The default maximum roughness
+
+Settled by the user on 2026-10-25: option A, 0.6, from the captures of Part 6. The profile ticket `ter-ff6y` takes its cost ("Results of Part 6"). The fork as it was asked:
 
 The demo paints every part with a roughness of 0.38, and has no metal. So the default decides whether the demo's ordinary surfaces show SSR.
 

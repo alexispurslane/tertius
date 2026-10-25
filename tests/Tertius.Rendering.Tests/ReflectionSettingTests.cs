@@ -12,8 +12,8 @@ public sealed class ReflectionSettingTests
         (default(ReflectionSetting) is NoReflections).Should().BeTrue("the zero case is the look from before SSR");
 
     [Fact]
-    public void TheDefaultTracesUpToARoughnessOf0Point6In64Steps() =>
-        (new RendererOptions().Reflections is ConeTracedReflections { MaxRoughness: 0.6f, MaxSteps: 64 })
+    public void TheDefaultTracesUpToARoughnessOf0Point6In128Steps() =>
+        (new RendererOptions().Reflections is ConeTracedReflections { MaxRoughness: 0.6f, MaxSteps: 128 })
             .Should()
             .BeTrue("the renderer reflects by default, with Unreal Engine 4's maximum roughness");
 
