@@ -275,6 +275,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
+        if (options.AmbientOcclusion.Problem is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(options), problem);
     }
 
     /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
@@ -366,26 +368,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return;
         }
 
-        if (image.Extent.Width != targets.Extent.Width || image.Extent.Height != targets.Extent.Height)
-        {
-            // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
-            device.WaitIdle();
-            targets.Resize(image.Extent);
-        }
-
-        CommandBuffer commandBuffer = BeginCommands(frame);
-        Upload(frame, commandBuffer);
-        frame.UpdateSharedDescriptors(materials, textures);
-
-        Batcher.Prepare(
-            snapshot: snapshot,
-            alpha: alpha,
-            width: (int)targets.Extent.Width,
-            height: (int)targets.Extent.Height,
-            meshes: geometry.Meshes,
-            materialCount: materials.Count,
-            scene: LastScene
-        );
+        MatchTargetsTo(image);
+        CommandBuffer commandBuffer = BeginFrame(frame: frame, snapshot: snapshot, alpha: alpha);
 
         ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
         GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
@@ -414,6 +398,39 @@ public sealed unsafe class VulkanRenderer : IRenderer
             WaitFor(fence);
             HandOver(sink, capture, image.Extent);
         }
+    }
+
+    /// <summary>Resizes the targets to the acquired image when the swapchain changed size on its own (out of date).</summary>
+    private void MatchTargetsTo(GpuImage image)
+    {
+        if (image.Extent.Width == targets.Extent.Width && image.Extent.Height == targets.Extent.Height)
+            return;
+        // The targets are shared by frames in flight.
+        device.WaitIdle();
+        targets.Resize(image.Extent);
+    }
+
+    /// <summary>
+    /// Begins the commands of <paramref name="frame"/>: the uploads, the clear of a new occlusion target and the shared
+    /// descriptors. Then batches the snapshot.
+    /// </summary>
+    private CommandBuffer BeginFrame(FrameResources frame, RenderSnapshot snapshot, float alpha)
+    {
+        CommandBuffer commandBuffer = BeginCommands(frame);
+        Upload(frame, commandBuffer);
+        // Before the frame graph, whose lighting pass reads the target, and whose occlusion passes overwrite it.
+        targets.RecordOcclusionClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
+        frame.UpdateSharedDescriptors(materials, textures);
+        Batcher.Prepare(
+            snapshot: snapshot,
+            alpha: alpha,
+            width: (int)targets.Extent.Width,
+            height: (int)targets.Extent.Height,
+            meshes: geometry.Meshes,
+            materialCount: materials.Count,
+            scene: LastScene
+        );
+        return commandBuffer;
     }
 
     private void WaitFor(Fence fence) =>

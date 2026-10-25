@@ -4,7 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer and the HDR target.
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target and the
+/// occlusion target.
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -21,7 +22,8 @@ namespace Tertius.Rendering;
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// </list>
-/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER).
+/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The occlusion target is
+/// R8_UNORM: the occlusion V of each pixel, 1 when ambient occlusion is off (docs/plans/ambient-occlusion.md, "Images").
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -32,6 +34,14 @@ internal sealed class RenderTargets : IDisposable
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
+    public const Format OcclusionFormat = Format.R8Unorm;
+
+    /// <summary>The binding of the occlusion target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
+    public const uint OcclusionBinding = 7;
+
+    // The upsample pass writes the target as a storage image, the clear as a transfer, and the lighting pass samples it.
+    private const FormatFeatureFlags OcclusionFeatures =
+        FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit | FormatFeatureFlags.TransferDstBit;
 
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
@@ -46,6 +56,9 @@ internal sealed class RenderTargets : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+
+    // True from the creation of the occlusion target until the first frame after it records the clear to 1.
+    private bool occlusionNeedsClear;
 
     public RenderTargets(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, Extent2D extent)
     {
@@ -66,6 +79,9 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Distance { get; private set; }
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
+
+    /// <summary>The occlusion target: V of each pixel, full size. Cleared to 1 in the first frame after each creation.</summary>
+    public GpuImage Occlusion { get; private set; }
 
     /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -92,79 +108,74 @@ internal sealed class RenderTargets : IDisposable
         nameof(Emissive),
         nameof(Distance),
         nameof(Depth),
-        nameof(Hdr)
+        nameof(Hdr),
+        nameof(Occlusion)
     )]
     private void Create(Extent2D extent)
     {
         const ImageUsageFlags target = ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit;
         Extent = extent;
-        BaseColor = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: BaseColorFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer base color"
-        );
-        Normal = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: NormalFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer normal"
-        );
-        Specular = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: SpecularFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer specular"
-        );
-        Emissive = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: EmissiveFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer emissive"
-        );
-        Distance = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: DistanceFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "g-buffer distance"
-        );
-        Depth = GpuImage.Create(
-            device: device,
-            allocator: allocator,
+        BaseColor = CreateTarget(extent: extent, format: BaseColorFormat, usage: target, name: "g-buffer base color");
+        Normal = CreateTarget(extent: extent, format: NormalFormat, usage: target, name: "g-buffer normal");
+        Specular = CreateTarget(extent: extent, format: SpecularFormat, usage: target, name: "g-buffer specular");
+        Emissive = CreateTarget(extent: extent, format: EmissiveFormat, usage: target, name: "g-buffer emissive");
+        Distance = CreateTarget(extent: extent, format: DistanceFormat, usage: target, name: "g-buffer distance");
+        Depth = CreateTarget(
             extent: extent,
             format: DepthFormat,
             usage: ImageUsageFlags.DepthStencilAttachmentBit,
-            mipLevels: 1,
             name: "depth"
         );
-        Hdr = GpuImage.Create(
-            device: device,
-            allocator: allocator,
+        Hdr = CreateTarget(extent: extent, format: HdrFormat, usage: target, name: "hdr");
+        Occlusion = CreateTarget(
             extent: extent,
-            format: HdrFormat,
-            usage: target,
-            mipLevels: 1,
-            name: "hdr"
+            format: OcclusionFormat,
+            usage: ImageUsageFlags.SampledBit | ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit,
+            name: "occlusion"
         );
+        occlusionNeedsClear = true;
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+        layouts.WriteImage(set: GBufferSet, binding: OcclusionBinding, arrayElement: 0, image: Occlusion);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
+    }
+
+    private GpuImage CreateTarget(Extent2D extent, Format format, ImageUsageFlags usage, string name) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: format,
+            usage: usage,
+            mipLevels: 1,
+            name: name
+        );
+
+    /// <summary>Clears the occlusion target to 1 if this is the first frame since its creation, and does nothing otherwise.</summary>
+    public void RecordOcclusionClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
+    {
+        if (!occlusionNeedsClear)
+            return;
+        barriers.Image(Occlusion, ImageUse.TransferDestination, discard: true);
+        barriers.Flush(vk, commandBuffer);
+        var fullVisibility = new ClearColorValue(float32_0: 1, float32_1: 1, float32_2: 1, float32_3: 1);
+        var whole = new ImageSubresourceRange(
+            aspectMask: ImageAspectFlags.ColorBit,
+            baseMipLevel: 0,
+            levelCount: 1,
+            baseArrayLayer: 0,
+            layerCount: 1
+        );
+        vk.CmdClearColorImage(
+            commandBuffer: commandBuffer,
+            image: Occlusion.Handle,
+            imageLayout: ImageLayout.TransferDstOptimal,
+            pColor: in fullVisibility,
+            rangeCount: 1,
+            pRanges: in whole
+        );
+        occlusionNeedsClear = false;
     }
 
     private static void CheckFormats(VulkanDevice device)
@@ -190,6 +201,10 @@ internal sealed class RenderTargets : IDisposable
             == 0
         )
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
+        if ((device.FormatProperties(OcclusionFormat).OptimalTilingFeatures & OcclusionFeatures) != OcclusionFeatures)
+            throw new NotSupportedException(
+                $"{OcclusionFormat} cannot be sampled, stored and cleared by a transfer on {device.DeviceName}."
+            );
     }
 
     private void DestroyImages()
@@ -198,6 +213,7 @@ internal sealed class RenderTargets : IDisposable
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
+        Occlusion?.Dispose();
         GBuffer = [];
     }
 

@@ -37,6 +37,8 @@ void main()
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
+    // Transparent objects are not in the G-buffer, so the occlusion passes give them no V.
+    shading.occlusion = 1.0;
     // Alpha blending of two finite values stays finite, so the clamped radiance blends safely.
     outColor = vec4(surfaceRadiance(shading, s.emissive, inPosition, V, true), clamp(s.baseColor.a, 0.0, 1.0));
 }

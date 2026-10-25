@@ -43,4 +43,10 @@ public sealed class RendererOptions
 
     /// <summary>The curve that maps the HDR image to the output, after the exposure.</summary>
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
+
+    /// <summary>
+    /// Whether ambient occlusion darkens the ambient light: <see cref="GroundTruthOcclusion"/> or
+    /// <see cref="NoAmbientOcclusion"/>. The default is <see cref="GroundTruthOcclusion.Default"/>.
+    /// </summary>
+    public AmbientOcclusionSetting AmbientOcclusion { get; set; } = GroundTruthOcclusion.Default;
 }

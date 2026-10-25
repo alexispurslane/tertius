@@ -291,4 +291,40 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         curves.Should().Equal(expected);
     }
+
+    public static TheoryData<string[], AmbientOcclusionSetting> AmbientOcclusionOptions =>
+        new()
+        {
+            { [], GroundTruthOcclusion.Default },
+            { ["--ambient-occlusion", "off"], new NoAmbientOcclusion() },
+            { ["--ambient-occlusion", "0.25"], GroundTruthOcclusion.Default with { RadiusMeters = 0.25f } },
+        };
+
+    [Theory]
+    [MemberData(nameof(AmbientOcclusionOptions))]
+    public void TheAmbientOcclusionOptionTurnsOcclusionOffOrSetsItsRadius(
+        string[] ambientOcclusion,
+        AmbientOcclusionSetting expected
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<AmbientOcclusionSetting>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. ambientOcclusion],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.AmbientOcclusion);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        settings.Should().Equal(expected);
+    }
 }

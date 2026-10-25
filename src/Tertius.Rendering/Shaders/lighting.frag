@@ -75,6 +75,7 @@ void main()
     s.reflectance = specular.b;
     s.lobeSkyFraction = specular.a;
     s.skyFraction = emissiveSky.a;
+    s.occlusion = texelFetch(gbufferOcclusion, pixel, 0).r;
 
     outColor = vec4(surfaceRadiance(s, emissive, position, -direction, true), 1.0);
 }
