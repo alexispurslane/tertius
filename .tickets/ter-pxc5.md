@@ -1,6 +1,6 @@
 ---
 id: ter-pxc5
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T01:07:37Z
