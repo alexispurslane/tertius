@@ -317,3 +317,17 @@ internal struct EnvironmentPrefilterPushConstants
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
 }
+
+/// <summary>
+/// The push constants of environment_downsample.comp, 8 bytes, which fit in the prefilter layout's range of
+/// <see cref="EnvironmentPrefilterPushConstants"/>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct EnvironmentDownsamplePushConstants
+{
+    /// <summary>The level of the radiance map that the dispatch writes, k ≥ 1, from level k − 1.</summary>
+    public uint Level;
+
+    /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
+    public uint LevelSize;
+}

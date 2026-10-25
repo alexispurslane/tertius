@@ -29,8 +29,8 @@ namespace Tertius.Rendering;
 /// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
 /// written once.</description></item>
 /// <item><term>environment prefilter</term><description>the environment map's radiance map with its sampler, the specular
-/// map's levels as storage images and the irradiance buffer, for the prefilter's compute stage. One, written once, with the
-/// map on.</description></item>
+/// map's levels and the radiance map's levels as storage images, and the irradiance buffer, for the prefilter's compute
+/// stage. One, written once, with the map on.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
@@ -38,8 +38,8 @@ namespace Tertius.Rendering;
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
     /// <summary>
-    /// The storage image slots of the prefilter set, one per specular level: more than the 9 levels of the largest map,
-    /// <see cref="EnvironmentMapSetting.MaxFaceSize"/>.
+    /// The storage image slots of the prefilter set per cube, one per level: more than the 11 levels of the largest
+    /// radiance map, <see cref="EnvironmentMapSetting.MaxFaceSize"/>.
     /// </summary>
     public const uint EnvironmentPrefilterLevelSlots = 16;
 
@@ -52,14 +52,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         this.device = device;
         LinearClampSampler = CreateLinearClampSampler();
-        EnvironmentSampler = CreateEnvironmentSampler();
+        EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
         FrameSet = CreateFrameSetLayout(LinearClampSampler, EnvironmentSampler);
         TextureSet = CreateTextureSetLayout();
         ShadowSampler = CreateShadowSampler();
         GBufferSet = CreateGBufferSetLayout(ShadowSampler);
         PostSet = CreateImagesLayout(images: 2, sampler: LinearClampSampler, name: "post set");
         GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
-        AtlasSampler = CreateAtlasSampler();
+        AtlasSampler = CreateTrilinearClampSampler("impostor atlas sampler");
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         EnvironmentPrefilterSet = CreateEnvironmentPrefilterSetLayout(EnvironmentSampler);
@@ -122,8 +122,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout ExposureSet { get; }
 
     /// <summary>
-    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, the specular map's levels as
-    /// storage images, and the irradiance buffer (docs/plans/environment-map.md, "Images and buffers").
+    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, the specular map's levels
+    /// (binding 2) and the radiance map's levels (binding 4) as storage images, and the irradiance buffer
+    /// (docs/plans/environment-map.md, "Images and buffers").
     /// </summary>
     public DescriptorSetLayout EnvironmentPrefilterSet { get; }
 
@@ -176,7 +177,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The meter set and the exposure set plus <see cref="ExposureAdaptPushConstants"/>, for both compute pipelines.</summary>
     public PipelineLayout ExposureLayout { get; }
 
-    /// <summary>The prefilter set plus <see cref="EnvironmentPrefilterPushConstants"/>, for the prefilter and the irradiance.</summary>
+    /// <summary>
+    /// The prefilter set plus <see cref="EnvironmentPrefilterPushConstants"/>, for the radiance map's mips, the prefilter
+    /// and the irradiance.
+    /// </summary>
     public PipelineLayout EnvironmentPrefilterLayout { get; }
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
@@ -392,8 +396,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // 17 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
             // glow source set, two for the meter set and one for the prefilter set.
             new(DescriptorType.SampledImage, 17 + 3 * frames + glowSourceSets + 3),
-            // The specular levels of the prefilter set.
-            new(DescriptorType.StorageImage, EnvironmentPrefilterLevelSlots),
+            // The specular levels and the radiance levels of the prefilter set.
+            new(DescriptorType.StorageImage, 2 * EnvironmentPrefilterLevelSlots),
         ];
         // The frame sets, the G-buffer, post, atlas, meter, exposure and prefilter sets, and the glow source sets.
         DescriptorPool shared = CreatePool(
@@ -443,8 +447,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the prefilter set: the radiance map, <paramref name="environmentSampler"/> as its immutable sampler,
-    /// the specular levels as storage images, partially bound because a map has fewer levels than slots, and the
-    /// irradiance buffer.
+    /// the specular levels and the radiance levels as storage images, partially bound because a map has fewer levels than
+    /// slots, and the irradiance buffer.
     /// </summary>
     private DescriptorSetLayout CreateEnvironmentPrefilterSetLayout(Sampler environmentSampler)
     {
@@ -464,18 +468,19 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
             ),
+            new(
+                binding: 4,
+                descriptorType: DescriptorType.StorageImage,
+                descriptorCount: EnvironmentPrefilterLevelSlots,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
         ];
-        Span<DescriptorBindingFlags> flags = [0, 0, DescriptorBindingFlags.PartiallyBoundBit, 0];
-        fixed (DescriptorBindingFlags* p = flags)
-        {
-            var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
-            {
-                SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
-                BindingCount = (uint)flags.Length,
-                PBindingFlags = p,
-            };
-            return CreateLayout(bindings: prefilter, name: "environment prefilter set", next: &bindingFlags);
-        }
+        const DescriptorBindingFlags partial = DescriptorBindingFlags.PartiallyBoundBit;
+        return CreateLayout(
+            bindings: prefilter,
+            name: "environment prefilter set",
+            bindingFlags: [0, 0, partial, 0, partial]
+        );
     }
 
     private Sampler CreateShadowSampler()
@@ -559,20 +564,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         flags[12] = DescriptorBindingFlags.PartiallyBoundBit;
         flags[14] = DescriptorBindingFlags.PartiallyBoundBit;
-        fixed (DescriptorBindingFlags* p = flags)
-        {
-            var bindingFlags = new DescriptorSetLayoutBindingFlagsCreateInfo
-            {
-                SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
-                BindingCount = (uint)flags.Length,
-                PBindingFlags = p,
-            };
-            return CreateLayout(bindings: frame, name: "frame set", next: &bindingFlags);
-        }
+        return CreateLayout(bindings: frame, name: "frame set", bindingFlags: flags);
     }
 
-    /// <summary>Trilinear, clamped to the edge, over every level: the sampler of the environment map's cubes.</summary>
-    private Sampler CreateEnvironmentSampler()
+    /// <summary>Trilinear, clamped to the edge, over every level: the sampler of the impostor atlas and the environment map's cubes.</summary>
+    private Sampler CreateTrilinearClampSampler(string name)
     {
         var info = new SamplerCreateInfo
         {
@@ -594,7 +590,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 pSampler: out Sampler sampler
             )
             .Check("vkCreateSampler");
-        device.SetName(ObjectType.Sampler, sampler.Handle, "environment sampler");
+        device.SetName(ObjectType.Sampler, sampler.Handle, name);
         return sampler;
     }
 
@@ -624,30 +620,23 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return sampler;
     }
 
-    private Sampler CreateAtlasSampler()
+    /// <summary>A layout whose bindings carry <paramref name="bindingFlags"/>, one per binding, such as partially bound.</summary>
+    private DescriptorSetLayout CreateLayout(
+        Span<DescriptorSetLayoutBinding> bindings,
+        string name,
+        ReadOnlySpan<DescriptorBindingFlags> bindingFlags
+    )
     {
-        var info = new SamplerCreateInfo
+        fixed (DescriptorBindingFlags* p = bindingFlags)
         {
-            SType = StructureType.SamplerCreateInfo,
-            MagFilter = Filter.Linear,
-            MinFilter = Filter.Linear,
-            MipmapMode = SamplerMipmapMode.Linear,
-            AddressModeU = SamplerAddressMode.ClampToEdge,
-            AddressModeV = SamplerAddressMode.ClampToEdge,
-            AddressModeW = SamplerAddressMode.ClampToEdge,
-            MinLod = 0f,
-            MaxLod = Vk.LodClampNone,
-        };
-        device
-            .Vk.CreateSampler(
-                device: device.Device,
-                pCreateInfo: &info,
-                pAllocator: null,
-                pSampler: out Sampler sampler
-            )
-            .Check("vkCreateSampler");
-        device.SetName(ObjectType.Sampler, sampler.Handle, "impostor atlas sampler");
-        return sampler;
+            var info = new DescriptorSetLayoutBindingFlagsCreateInfo
+            {
+                SType = StructureType.DescriptorSetLayoutBindingFlagsCreateInfo,
+                BindingCount = (uint)bindingFlags.Length,
+                PBindingFlags = p,
+            };
+            return CreateLayout(bindings: bindings, name: name, next: &info);
+        }
     }
 
     private DescriptorSetLayout CreateLayout(

@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// Draws the faces of the environment map that this frame draws (stage <see cref="FrameGraph.Stage.EnvironmentFaces"/>,
-/// docs/plans/environment-map.md, "The capture"), then rebuilds each drawn face's mip chain in the radiance map.
+/// docs/plans/environment-map.md, "The capture"), into level 0 of the radiance map. The prefilter pass derives the mips.
 /// </summary>
 /// <remarks>
 /// <para>A face is one rendering per depth range into level 0 of its layer, far to near, each with the face's own
@@ -84,7 +84,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         PipelineStageFlags2 lastReaders = map.Radiance.State.Stages;
         for (int i = 0; i < faces.Count; i++)
             RecordFace(context: context, draw: faces[i], lastReaders: lastReaders, bindState: i == 0);
-        // Every drawn face ended read-only for the prefilter, and the faces not drawn stayed so since the last frame.
+        // Level 0 of every drawn face ended read-only for the prefilter, and the rest of the map stayed so since the last
+        // frame's prefilter.
         map.Radiance.State = ResourceUses.Describe(ImageUse.SampledCompute);
     }
 
@@ -95,7 +96,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>
-    /// Records one face: the sky and the three depth ranges into level 0 of its layer, then the blits of its mips. With
+    /// Records one face: the sky and the three depth ranges into level 0 of its layer, which ends read-only. With
     /// <paramref name="bindState"/>, it first binds the sets, the viewport and the geometry, which later faces keep.
     /// </summary>
     private void RecordFace(
@@ -135,15 +136,15 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             vk.CmdEndRendering(commandBuffer);
         }
 
-        GenerateMips(context: context, layer: layer);
+        ToPrefilter(context.Barriers, layer);
+        context.Barriers.Flush(vk, commandBuffer);
     }
 
     /// <summary>
-    /// Discards the old content of one face, every level: level 0 for the color attachment and the others for the blits.
-    /// The face is drawn anew, after the last frame's prefilter finished reading it.
+    /// Discards the old content of level 0 of one face, for the color attachment. The face is drawn anew, after the last
+    /// frame's prefilter finished reading it.
     /// </summary>
-    private void DiscardFace(BarrierBatch barriers, uint layer, PipelineStageFlags2 lastReaders)
-    {
+    private void DiscardFace(BarrierBatch barriers, uint layer, PipelineStageFlags2 lastReaders) =>
         barriers.ImageLevels(
             image: map.Radiance,
             baseMip: 0,
@@ -157,20 +158,6 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             baseLayer: layer,
             layerCount: 1
         );
-        barriers.ImageLevels(
-            image: map.Radiance,
-            baseMip: 1,
-            mipCount: map.Radiance.MipLevels - 1,
-            oldLayout: ImageLayout.Undefined,
-            newLayout: ImageLayout.TransferDstOptimal,
-            srcStages: lastReaders,
-            srcAccess: AccessFlags2.None,
-            dstStages: PipelineStageFlags2.AllTransferBit,
-            dstAccess: AccessFlags2.TransferWriteBit,
-            baseLayer: layer,
-            layerCount: 1
-        );
-    }
 
     /// <summary>Makes one range's color writes visible to the next range, which loads and writes the same texels.</summary>
     private void AfterRange(BarrierBatch barriers, uint layer) =>
@@ -265,105 +252,18 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
     }
 
-    /// <summary>
-    /// Rebuilds one face's mip chain from level 0 with linear blits, a box filter of all four channels, so the alpha of a
-    /// coarser level is the open-sky share of its larger texel. Then the whole face is read-only for the prefilter.
-    /// </summary>
-    private void GenerateMips(FrameContext context, uint layer)
-    {
-        Vk vk = context.Vk;
-        CommandBuffer commandBuffer = context.CommandBuffer;
-        BarrierBatch barriers = context.Barriers;
-        GpuImage radiance = map.Radiance;
-        uint levels = radiance.MipLevels;
-        LevelToSource(
-            barriers: barriers,
-            layer: layer,
-            level: 0,
-            from: ImageLayout.ColorAttachmentOptimal,
-            stages: PipelineStageFlags2.ColorAttachmentOutputBit,
-            access: AccessFlags2.ColorAttachmentWriteBit
-        );
-        barriers.Flush(vk, commandBuffer);
-        int size = map.Setting.FaceSize;
-        for (uint level = 1; level < levels; level++)
-        {
-            int next = Math.Max(1, size / 2);
-            var blit = new ImageBlit
-            {
-                SrcSubresource = new(
-                    aspectMask: ImageAspectFlags.ColorBit,
-                    mipLevel: level - 1,
-                    baseArrayLayer: layer,
-                    layerCount: 1
-                ),
-                DstSubresource = new(
-                    aspectMask: ImageAspectFlags.ColorBit,
-                    mipLevel: level,
-                    baseArrayLayer: layer,
-                    layerCount: 1
-                ),
-            };
-            blit.SrcOffsets[1] = new(size, size, 1);
-            blit.DstOffsets[1] = new(next, next, 1);
-            vk.CmdBlitImage(
-                commandBuffer: commandBuffer,
-                srcImage: radiance.Handle,
-                srcImageLayout: ImageLayout.TransferSrcOptimal,
-                dstImage: radiance.Handle,
-                dstImageLayout: ImageLayout.TransferDstOptimal,
-                regionCount: 1,
-                pRegions: &blit,
-                filter: Filter.Linear
-            );
-            // The level just written is the source of the next blit, and every level ends as a transfer source.
-            LevelToSource(
-                barriers: barriers,
-                layer: layer,
-                level: level,
-                from: ImageLayout.TransferDstOptimal,
-                stages: PipelineStageFlags2.AllTransferBit,
-                access: AccessFlags2.TransferWriteBit
-            );
-            barriers.Flush(vk, commandBuffer);
-            size = next;
-        }
-
-        barriers.ImageLevels(
-            image: radiance,
-            baseMip: 0,
-            mipCount: levels,
-            oldLayout: ImageLayout.TransferSrcOptimal,
-            newLayout: ImageLayout.ShaderReadOnlyOptimal,
-            srcStages: PipelineStageFlags2.AllTransferBit,
-            srcAccess: AccessFlags2.None,
-            dstStages: PipelineStageFlags2.ComputeShaderBit,
-            dstAccess: AccessFlags2.ShaderSampledReadBit,
-            baseLayer: layer,
-            layerCount: 1
-        );
-        barriers.Flush(vk, commandBuffer);
-    }
-
-    /// <summary>Makes one level of a face a transfer source, after the writes of <paramref name="stages"/>.</summary>
-    private void LevelToSource(
-        BarrierBatch barriers,
-        uint layer,
-        uint level,
-        ImageLayout from,
-        PipelineStageFlags2 stages,
-        AccessFlags2 access
-    ) =>
+    /// <summary>Makes level 0 of one face read-only for the prefilter, after the last range's color writes.</summary>
+    private void ToPrefilter(BarrierBatch barriers, uint layer) =>
         barriers.ImageLevels(
             image: map.Radiance,
-            baseMip: level,
+            baseMip: 0,
             mipCount: 1,
-            oldLayout: from,
-            newLayout: ImageLayout.TransferSrcOptimal,
-            srcStages: stages,
-            srcAccess: access,
-            dstStages: PipelineStageFlags2.AllTransferBit,
-            dstAccess: AccessFlags2.TransferReadBit,
+            oldLayout: ImageLayout.ColorAttachmentOptimal,
+            newLayout: ImageLayout.ShaderReadOnlyOptimal,
+            srcStages: PipelineStageFlags2.ColorAttachmentOutputBit,
+            srcAccess: AccessFlags2.ColorAttachmentWriteBit,
+            dstStages: PipelineStageFlags2.ComputeShaderBit,
+            dstAccess: AccessFlags2.ShaderSampledReadBit | AccessFlags2.ShaderStorageReadBit,
             baseLayer: layer,
             layerCount: 1
         );

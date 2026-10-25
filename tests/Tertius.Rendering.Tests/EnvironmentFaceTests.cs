@@ -47,7 +47,7 @@ internal static class EnvironmentScenes
         float cosine = Vector3.Dot(Vector3.UnitY, normal);
         if (cosine < -0.9999f)
             return Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
-        Vector3 axis = Vector3.Cross(Vector3.UnitY, normal);
+        var axis = Vector3.Cross(Vector3.UnitY, normal);
         if (axis.LengthSquared() < 1e-12f)
             return Quaternion.Identity;
         return Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(Math.Clamp(cosine, -1f, 1f)));
@@ -301,8 +301,15 @@ public sealed class EnvironmentFaceTests
             // The ground at (−10, −10, 29) and at (10, −10, 29).
             float shadowed = EnvironmentScenes.Texel(face: behind, size: Size, x: 10, y: 21).X;
             float lit = EnvironmentScenes.Texel(face: behind, size: Size, x: 21, y: 21).X;
+            // The ground at (−10, −10, 24.6): deep in the far shadow of the box's bounding sphere, which the cascades
+            // replace, but short of the box's own shadow, which begins at z = 25. The filter of the map's shadow edge,
+            // 0.4 m away, still darkens it by about a quarter.
+            float besideTheShadow = EnvironmentScenes.Texel(face: behind, size: Size, x: 9, y: 22).X;
             lit.Should().BeGreaterThan(0.2f, "the sun lights the ground beside the box");
             shadowed.Should().BeLessThan(0.1f * lit, "the box shadows the ground on its far side from the sun");
+            besideTheShadow
+                .Should()
+                .BeGreaterThan(0.5f * lit, "a face takes the sun's shadow from the cascade that holds the point");
         }
         finally
         {
@@ -455,7 +462,7 @@ public sealed class EnvironmentFaceTests
     [Fact]
     public void AFaceHoldsPlainRadianceWhateverTheExposure()
     {
-        Half[] Faces(float stops)
+        static Half[] Faces(float stops)
         {
             VulkanRenderer renderer = EnvironmentScenes.Renderer(exposure: new FixedExposure(stops));
             try

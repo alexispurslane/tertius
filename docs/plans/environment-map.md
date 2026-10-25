@@ -23,7 +23,7 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 | Face | One of the six views, 90° wide, along one axis of camera-relative world space. `CubeFace` names them in Vulkan's layer order: +X, −X, +Y, −Y, +Z, −Z. |
 | W | The face size: the texels along one side of a face. `SceneEnvironmentMap.FaceSize`, 128 by default. |
 | The main view | The camera's own view, which the G-buffer, lighting and transparent passes draw. |
-| The radiance map | The cube image that the faces are drawn into, with a box-filtered mip chain. |
+| The radiance map | The cube image that the faces are drawn into, with a mip chain weighted by solid angle. |
 | The specular map | The cube image of the GGX-prefiltered levels. Its level k holds the light along the lobe of roughness k / (L − 1). |
 | L | The number of levels of the specular map: log2(W / 4) + 1, so 6 at W = 128 (128 to 4 texels). |
 | The open-sky share | The share of a texel's directions through which the sky shows past every opaque surface: 1 where the sky pass shows, 0 where a surface covers it. The alpha of both cube images holds it. |
@@ -125,7 +125,7 @@ A face's view matrix takes x = q · right, y = q · up and z = −q · forward, 
 | Puffs | No | Decision 18 |
 | Frame outlines | No | The overlay is a debug drawing over the tone-mapped image, not light |
 
-The sky is drawn first, by a fullscreen triangle that writes `vec4(skyRadiance(direction), 1)` into every texel of the face, with no depth test. The three depth ranges then draw over it, and every surface writes an alpha of 0. So the alpha of level 0 is the open-sky share of each texel's center: 1 where the sky shows, 0 where a surface covers it. The radiance map's blits and the prefilter then average it into shares between 0 and 1.
+The sky is drawn first, by a fullscreen triangle that writes `vec4(skyRadiance(direction), 1)` into every texel of the face, with no depth test. The three depth ranges then draw over it, and every surface writes an alpha of 0. So the alpha of level 0 is the open-sky share of each texel's center: 1 where the sky shows, 0 where a surface covers it. The radiance map's mips and the prefilter then average it into shares between 0 and 1.
 
 `skyRadiance(direction)` in `sky.glsl` is the sky's light without the stars. It returns black until the atmosphere ticket (decision 14). The stars stay out of the map's color: the readers add them for each pixel, where the open-sky share lets them through (see "The reflected stars").
 
@@ -230,11 +230,21 @@ The cases:
 
 ## The prefilter
 
-Everything in this section runs on the GPU in one compute pass, `EnvironmentPrefilterPass`, after the faces of the frame are drawn and before any reader. It reads only the radiance map, never its own earlier output, so the specular map and the irradiance are a pure function of the six stored faces.
+Everything in this section runs on the GPU in one compute pass, `EnvironmentPrefilterPass`, after the faces of the frame are drawn and before any reader. It reads only level 0 of the radiance map, never its own earlier output, so the radiance map's mips, the specular map and the irradiance are a pure function of the six stored faces.
 
 ### The radiance map's mips
 
-After the face pass draws a face, it rebuilds that face's mip chain with linear blits, from level 0 down to 1 × 1, as `ImpostorPass.GenerateMips` rebuilds a tile. A blit's linear filter halves each axis, so each texel of level i + 1 is the mean of four texels of level i, in all four channels. So the alpha of a coarser level is the open-sky share of its larger texel. The chain is the source of filtered importance sampling below.
+The prefilter pass first rebuilds the mip chain of all six faces, from level 0 down to 1 × 1, with one dispatch per level of `environment_downsample.comp`. Each texel of level i + 1 is the mean of its four children in level i, weighted by each child's solid angle Ω (the formula of "The irradiance" below), in all four channels:
+
+```
+texel of level i + 1 = Σ over its 4 children: child · Ω(child)  /  Σ over its 4 children: Ω(child)
+```
+
+The children's solid angles add up to the texel's own. So a texel of any level holds the mean radiance over its own solid angle, and its alpha the open-sky share of that solid angle, wherever it lies on its face. The chain is the source of filtered importance sampling below, and a sample of level lod stands for the light of its solid angle, so a rough level keeps the light of the level-0 map within 5 % ("GPU tests of the map itself"), whether a bright spot lies at a face's center, where a texel spans about 1.9 times the mean solid angle, or toward a corner of the cube, where it spans about 0.2 times it.
+
+A box filter, such as the linear blits that `ImpostorPass.GenerateMips` uses for a tile, weights the four children equally, by count. On a cube face that loses about half the light of a spot at a face's center at roughness 1, and doubles that of a spot toward a corner, so the map does not use it.
+
+The chain is rebuilt in every drawn frame, for the faces that the frame did not draw too, which gives the same bits for them. That keeps one rule for the whole pass and costs little: 6 × (64² + 32² + … + 1) = 32,766 texels of four reads each at W = 128, against 2.1 million samples of the specular levels. Each level reads the one above it, so a barrier separates the levels. The levels are storage images in the `General` layout during the chain, and the whole map is then read-only for the prefilter's samples.
 
 ### The specular levels
 
@@ -307,8 +317,8 @@ The projection is one dispatch of one workgroup of 128 invocations, the largest 
 
 | Order in the frame | Work | Reads | Writes |
 |---|---|---|---|
-| After the shadow maps | The face pass: the sky and the three ranges of each face that the frame draws, then the blits of those faces' mips | This frame's cascades, light list and face commands | The radiance map: the drawn faces, every level |
-| Next | The prefilter pass: levels 0 to L − 1, then the irradiance, then the copy of the irradiance into the slot's readback buffer | The radiance map, all six faces | The specular map, the irradiance buffer, the readback buffer |
+| After the shadow maps | The face pass: the sky and the three ranges of each face that the frame draws | This frame's cascades, light list and face commands | The radiance map: level 0 of the drawn faces |
+| Next | The prefilter pass: the radiance map's mips, levels 0 to L − 1, then the irradiance, then the copy of the irradiance into the slot's readback buffer | The radiance map, all six faces | The radiance map's levels 1 and up, the specular map, the irradiance buffer, the readback buffer |
 | Then | The impostor captures, the G-buffer pass, the lighting pass, the transparent pass, and SSR when it exists | The specular map and the irradiance | |
 
 ## Reading the map
@@ -617,10 +627,11 @@ A face count of 6 makes the map draw every face from the frame that reads it, so
 
 | Image or buffer | Format and size | Memory at W = 128 | Usage | Written by | Read by |
 |---|---|---|---|---|---|
-| The radiance map | RGBA16F cube, W × W, 6 layers, log2(W) + 1 levels. RGB: plain radiance without the stars. A: the open-sky share. | 1.0 MB | Color attachment, sampled, transfer source and destination, cube-compatible | The face pass: level 0 of the drawn faces, then the blits of their levels | The prefilter pass |
+| The radiance map | RGBA16F cube, W × W, 6 layers, log2(W) + 1 levels. RGB: plain radiance without the stars. A: the open-sky share. | 1.0 MB | Color attachment, sampled, storage (for its mips), transfer source (for the test hook), cube-compatible | The face pass: level 0 of the drawn faces. The prefilter pass: levels 1 and up | The prefilter pass |
 | The face views | One 2D view of level 0 of each layer | | | | The face pass's color attachment |
 | The specular map | RGBA16F cube, W × W, 6 layers, L levels. RGB: the prefiltered radiance. A: the prefiltered open-sky share. | 1.0 MB | Storage, sampled, transfer source (for the test hook), cube-compatible | The prefilter pass, every level | The impostor capture, the lighting pass, the transparent pass, SSR |
 | The specular level views | One 2D-array view of 6 layers per level | | | The prefilter's storage images | |
+| The radiance level views | One 2D-array view of 6 layers per level | | | The mips' storage images | The mips' storage images |
 | The face depth | D32, W × W | 64 KB | Depth attachment | The face pass, cleared per range | The face pass |
 | The irradiance buffer | 9 `vec4`, 144 B, `GpuOnly`. xyz: E_lm. w: 0. | 144 B | Storage, transfer source | The prefilter pass | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
 | A readback buffer per frame slot | 144 B, `Readback` | 144 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
@@ -633,7 +644,7 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 
 | Requirement | Why every driver has it |
 |---|---|
-| `R16G16B16A16_SFLOAT` as a sampled image with linear filtering, a color attachment, a blit source and destination, and a storage image | The specification's table of mandatory format support for 16-bit formats requires all of them. The storage images declare `rgba16f` in the shader, which needs no `shaderStorageImageExtendedFormats` and no `shaderStorageImageWriteWithoutFormat`. |
+| `R16G16B16A16_SFLOAT` as a sampled image with linear filtering, a color attachment, and a storage image that a shader reads and writes | The specification's table of mandatory format support for 16-bit formats requires all of them. The storage images declare `rgba16f` in the shader, which needs no `shaderStorageImageExtendedFormats`, no `shaderStorageImageReadWithoutFormat` and no `shaderStorageImageWriteWithoutFormat`. The arrays of storage images are indexed only by constants, through a switch, which needs no `shaderStorageImageArrayDynamicIndexing`. |
 | `D32_SFLOAT` as a depth attachment | The renderer's other depth targets already use it. |
 | A cube-compatible image of 6 layers, one cube view, a 2D view of each layer and a 2D-array view of each level | Core Vulkan. One cube, no cube array, so `imageCubeArray` is not needed. Vulkan filters every cube map across its faces, with no switch. |
 | `FaceSize` up to 1024 | The specification's least `maxImageDimensionCube` is 4096. `CheckOptions` still reads the device's limit. |
@@ -681,10 +692,10 @@ Push constants:
 | The faces of a frame, a `FaceMask` | `FacesFor` | Step 2, before batching | `SceneBatcher` | Step 2 | `EnvironmentDraw.WithMap.Faces`, then `PreparedScene.EnvironmentFaces` | `ImpostorManager.Captures` |
 | A face's commands per range | `SceneBatcher` | Step 2 | `EnvironmentFacePass` | Step 3a | `PreparedScene.EnvironmentFaces`, `Instances`, `Commands` | The capture instances that `ImpostorPass.Prepare` appends |
 | The light list | `SceneBatcher` | Step 2 | Every pass that shades, the faces included | Steps 3a to 7 | `PreparedScene.Lights` | Today's list, with the faces' lights added |
-| The open-sky share of a face, level 0 | The sky pass writes 1, the face shader 0 | Step 3a of a frame that draws it | The blits, the prefilter | Steps 3a and 3b | The radiance map's alpha | The radiance of the same texel: one image, one frame |
+| The open-sky share of a face, level 0 | The sky pass writes 1, the face shader 0 | Step 3a of a frame that draws it | The mips, the prefilter | Steps 3a and 3b | The radiance map's alpha | The radiance of the same texel: one image, one frame |
 | The prefiltered open-sky share | `EnvironmentPrefilterPass` | Step 3b | `environmentSpecular`, as the mask of the reflected stars | Steps 4 to 7 | The specular map's alpha | The prefiltered radiance |
-| A face of the radiance map, level 0 | `EnvironmentFacePass` | Step 3a of a frame that draws it | Its blits and the prefilter | Steps 3a and 3b of the same frame and of every later frame until it is drawn again | `EnvironmentMap.Radiance` | An impostor atlas tile |
-| A face's mips in the radiance map | The blits | Step 3a, after the face | The prefilter | Step 3b | `EnvironmentMap.Radiance` | A tile's mips |
+| A face of the radiance map, level 0 | `EnvironmentFacePass` | Step 3a of a frame that draws it | The mips and the prefilter | Steps 3a and 3b of the same frame and of every later frame until it is drawn again | `EnvironmentMap.Radiance` | An impostor atlas tile |
+| The radiance map's mips | `EnvironmentPrefilterPass`, from level 0 of all six faces | Step 3b of each drawn frame, first | The prefilter | Step 3b | `EnvironmentMap.Radiance` | A tile's mips: derived from the stored image in the frame that reads them |
 | The specular map | `EnvironmentPrefilterPass` | Step 3b of each drawn frame | The impostor capture, lighting, transparent, SSR | Steps 4 to 7 | `EnvironmentMap.Specular` | A tile's mips: derived from the stored image in the frame that changes it |
 | The irradiance | `EnvironmentPrefilterPass` | Step 3b | The capture, lighting, transparent, the lit puffs, SSR, the readback copy | Steps 3b to 7 | `EnvironmentMap.Irradiance` | The exposure's histogram: a value derived on the GPU each frame |
 | The readback of a slot | The copy at the end of step 3b | Each drawn frame | `EnvironmentMap.Collect` | After the slot's fence, in `Render` | The readback buffers | The exposure's readback buffers |
@@ -718,8 +729,8 @@ flowchart TD
     K --> F["FacesFor: all six on a new frame of the camera or a long step, else F faces in turn"]
     F --> B["Batching: the main view, and one culled view per drawn face, and the lights of every view"]
     B --> S["Shadow maps"]
-    S --> EF["Environment faces: sky, then far, middle and near ranges per drawn face, then the blits of their mips"]
-    EF --> EP["Environment prefilter: specular levels 0 to L − 1 of all six faces, the irradiance, the readback copy"]
+    S --> EF["Environment faces: sky, then far, middle and near ranges per drawn face"]
+    EF --> EP["Environment prefilter: the radiance map's mips by solid angle, specular levels 0 to L − 1 of all six faces, the irradiance, the readback copy"]
     EP --> IC["Impostor captures: bake the ambient terms from the map"]
     IC --> G["G-buffer: the sky shares are 0 with the map on"]
     G --> L["Lighting: T_d + T_s, with the reflected stars masked by the open-sky share, pre-exposed"]
@@ -764,8 +775,11 @@ Each barrier goes through `BarrierBatch`, which keeps each image's and buffer's 
 | Shadow cascades | The shadow pass's depth writes | `SampledFragment` | Write to read | The face shader samples them |
 | Instances, materials, lights, occluders | The uploads | `ShaderRead` | Write to read | As the G-buffer pass |
 | Vertices and indices | The uploads | `VertexInput` | Write to read | As the G-buffer pass |
-| Radiance map, a drawn face's levels | `ColorAttachment` for level 0, discarded for the others | `TransferSource` and `TransferDestination`, level by level | Write to read | The blits build the chain, as `ImpostorPass.GenerateMips` does |
-| Radiance map, every layer and level | Transfer, or the last `SampledCompute` | `SampledCompute` | Write to read | The prefilter reads the whole map |
+| Radiance map, a drawn face's level 0 | `ColorAttachment` | `SampledCompute`, read as storage too | Write to read | The mips read it |
+| Radiance map, level 0 | `SampledCompute` | `General`, storage read | Read to read | The mips read it as a storage image |
+| Radiance map, levels 1 and up | The last `SampledCompute` | `General`, storage write, discarding | Read to write | The mips rewrite every texel |
+| Radiance map, level i ≥ 1 | Storage write | Storage read, `General` | Write to read | Level i + 1 reads it |
+| Radiance map, every layer and level | `General` | `SampledCompute` | Write to read | The prefilter reads the whole map |
 | Specular map, every level | `SampledFragment` of the frame before (`SampledCompute` too, once SSR exists) | `StorageCompute`, discarding | Read to write | The prefilter rewrites every texel, and must not overwrite a level that an earlier frame still reads |
 | Irradiance buffer | `ShaderRead` of the frame before | `ComputeWrite` | Read to write | The same |
 | Irradiance buffer | `ComputeWrite` | `TransferSource` | Write to read | The readback copy |
@@ -895,7 +909,7 @@ internal enum EnvironmentImage { Radiance, Specular }
 
 - `TheMirrorLevelIsTheRadianceMap`: level 0 of the specular map equals level 0 of the radiance map, texel for texel.
 - `AUniformMapStaysUniformAtEveryLevel`: the weights add up to one.
-- `ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLight`: the spot's width grows level by level, and its light, the sum of radiance times solid angle, stays within 5 %.
+- `ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLightWhereverItLies`: for a spot at the center of a face, halfway out along its diagonal and toward a corner of the cube, the spot's width grows level by level, and its light, the sum of radiance times solid angle, stays within 5 %.
 - `TheIrradianceIsTheProjectionOfTheMapsTexels`: the reading equals `Irradiance.Project` of the read-back level 0 within 10⁻⁴ of the total. This pins the shader to the C# copy.
 - `TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor`: an emissive wall of radiance 1 covers part of the map, and the rest is open sky. Color and share then add up to 1 in every texel of level 0, so they add up to 1 within 10⁻³ in every texel of every level.
 - `UnderAWhiteSkyAndABlackGroundTheIrradianceIsTheHemispheres`: an emissive dome of radiance 1 above the camera's horizon and a black floor below give E(n) = π (1 + n_y) / 2 within 1 % at ±X, ±Y and ±Z.

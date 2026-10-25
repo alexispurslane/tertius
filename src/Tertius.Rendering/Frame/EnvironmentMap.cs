@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// <summary>Which cube of the environment map a test hook reads.</summary>
 internal enum EnvironmentImage
 {
-    /// <summary>The radiance map: the drawn faces and their box-filtered mips.</summary>
+    /// <summary>The radiance map: the drawn faces and their mips, weighted by solid angle.</summary>
     Radiance,
 
     /// <summary>The specular map: the GGX-prefiltered levels.</summary>
@@ -21,7 +21,8 @@ internal enum EnvironmentImage
 /// <remarks>
 /// <list type="bullet">
 /// <item>Each face of the radiance map holds the frame that last drew it, in the axes of <see cref="FrameId"/>.</item>
-/// <item>The specular map and the irradiance are a pure function of the six faces, rebuilt in every drawn frame.</item>
+/// <item>The radiance map's mips, the specular map and the irradiance are a pure function of the six faces' level 0,
+/// rebuilt in every drawn frame.</item>
 /// <item>A slot's readback buffer holds the irradiance of the slot's last drawn frame, once its fence signals.</item>
 /// </list>
 /// </remarks>
@@ -36,6 +37,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly VulkanDevice device;
     private readonly ImageView[] faceViews = new ImageView[CubeFaces.Count];
     private readonly ImageView[] levelViews;
+    private readonly ImageView[] radianceLevelViews;
     private readonly GpuBuffer[] readbacks;
 
     public EnvironmentMap(
@@ -50,66 +52,18 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         Setting = setting;
         Levels = PrefilterLevels.Count(setting.FaceSize);
         levelViews = new ImageView[Levels];
+        radianceLevelViews = new ImageView[PrefilterLevels.RadianceLevels(setting.FaceSize)];
         readbacks = new GpuBuffer[framesInFlight];
-        var extent = new Extent2D((uint)setting.FaceSize, (uint)setting.FaceSize);
         try
         {
-            Radiance = GpuImage.Create(
-                device: device,
-                allocator: allocator,
-                extent: extent,
-                format: RadianceFormat,
-                usage: ImageUsageFlags.ColorAttachmentBit
-                    | ImageUsageFlags.SampledBit
-                    | ImageUsageFlags.TransferSrcBit
-                    | ImageUsageFlags.TransferDstBit,
-                mipLevels: (uint)PrefilterLevels.RadianceLevels(setting.FaceSize),
-                name: "environment radiance",
-                arrayLayers: CubeFaces.Count,
-                cube: true
-            );
-            // Transfer source for the test hook that reads a level back.
-            Specular = GpuImage.Create(
-                device: device,
-                allocator: allocator,
-                extent: extent,
-                format: RadianceFormat,
-                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
-                mipLevels: (uint)Levels,
-                name: "environment specular",
-                arrayLayers: CubeFaces.Count,
-                cube: true
-            );
-            FaceDepth = GpuImage.Create(
-                device: device,
-                allocator: allocator,
-                extent: extent,
-                format: FaceDepthFormat,
-                usage: ImageUsageFlags.DepthStencilAttachmentBit,
-                mipLevels: 1,
-                name: "environment face depth"
-            );
-            Irradiance = GpuBuffer.Create(
-                device: device,
-                allocator: allocator,
-                size: IrradianceBytes,
-                usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
-                memoryUsage: MemoryUsage.GpuOnly,
-                name: "environment irradiance"
-            );
-            for (int slot = 0; slot < framesInFlight; slot++)
-                readbacks[slot] = GpuBuffer.Create(
-                    device: device,
-                    allocator: allocator,
-                    size: IrradianceBytes,
-                    usage: BufferUsageFlags.TransferDstBit,
-                    memoryUsage: MemoryUsage.Readback,
-                    name: $"frame {slot} irradiance readback"
-                );
+            (Radiance, Specular, FaceDepth) = CreateImages(device: device, allocator: allocator, setting: setting);
+            Irradiance = CreateBuffers(device: device, allocator: allocator, readbacks: readbacks);
             for (int layer = 0; layer < CubeFaces.Count; layer++)
                 faceViews[layer] = Radiance.CreateLayerView((uint)layer);
             for (int level = 0; level < Levels; level++)
                 levelViews[level] = Specular.CreateLevelView((uint)level);
+            for (int level = 0; level < radianceLevelViews.Length; level++)
+                radianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
         }
         catch
         {
@@ -119,16 +73,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
         // The pool frees the set when the descriptor layouts are disposed.
         PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
-        layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
-        for (int level = 0; level < Levels; level++)
-            layouts.WriteView(
-                set: PrefilterSet,
-                binding: 2,
-                arrayElement: (uint)level,
-                view: levelViews[level],
-                type: DescriptorType.StorageImage
-            );
-        layouts.WriteBuffer(set: PrefilterSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+        WritePrefilterSet(layouts);
     }
 
     public SceneEnvironmentMap Setting { get; }
@@ -219,15 +164,124 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         return new(values);
     }
 
+    /// <summary>The radiance map, the specular map and the face depth of <paramref name="setting"/>'s face size.</summary>
+    private static (GpuImage Radiance, GpuImage Specular, GpuImage FaceDepth) CreateImages(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        SceneEnvironmentMap setting
+    )
+    {
+        var extent = new Extent2D((uint)setting.FaceSize, (uint)setting.FaceSize);
+        // Storage for its mips, and transfer source for the test hook that reads a level back.
+        var radiance = GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: RadianceFormat,
+            usage: ImageUsageFlags.ColorAttachmentBit
+                | ImageUsageFlags.SampledBit
+                | ImageUsageFlags.StorageBit
+                | ImageUsageFlags.TransferSrcBit,
+            mipLevels: (uint)PrefilterLevels.RadianceLevels(setting.FaceSize),
+            name: "environment radiance",
+            arrayLayers: CubeFaces.Count,
+            cube: true
+        );
+        GpuImage? specular = null;
+        try
+        {
+            // Transfer source for the test hook too.
+            specular = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: RadianceFormat,
+                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                mipLevels: (uint)PrefilterLevels.Count(setting.FaceSize),
+                name: "environment specular",
+                arrayLayers: CubeFaces.Count,
+                cube: true
+            );
+            var faceDepth = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: FaceDepthFormat,
+                usage: ImageUsageFlags.DepthStencilAttachmentBit,
+                mipLevels: 1,
+                name: "environment face depth"
+            );
+            return (radiance, specular, faceDepth);
+        }
+        catch
+        {
+            specular?.Dispose();
+            radiance.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Fills <paramref name="readbacks"/> with one readback buffer per frame slot, then makes the irradiance buffer. The
+    /// map's own disposal frees the buffers made before a failure.
+    /// </summary>
+    private static GpuBuffer CreateBuffers(VulkanDevice device, DeviceAllocator allocator, GpuBuffer[] readbacks)
+    {
+        for (int slot = 0; slot < readbacks.Length; slot++)
+            readbacks[slot] = GpuBuffer.Create(
+                device: device,
+                allocator: allocator,
+                size: IrradianceBytes,
+                usage: BufferUsageFlags.TransferDstBit,
+                memoryUsage: MemoryUsage.Readback,
+                name: $"frame {slot} irradiance readback"
+            );
+        return GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: IrradianceBytes,
+            usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "environment irradiance"
+        );
+    }
+
+    /// <summary>Writes the prefilter set once: the radiance map, the level views of both cubes and the irradiance.</summary>
+    private void WritePrefilterSet(DescriptorLayouts layouts)
+    {
+        layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
+        for (int level = 0; level < levelViews.Length; level++)
+            layouts.WriteView(
+                set: PrefilterSet,
+                binding: 2,
+                arrayElement: (uint)level,
+                view: levelViews[level],
+                type: DescriptorType.StorageImage
+            );
+        layouts.WriteBuffer(set: PrefilterSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+        for (int level = 0; level < radianceLevelViews.Length; level++)
+            layouts.WriteView(
+                set: PrefilterSet,
+                binding: 4,
+                arrayElement: (uint)level,
+                view: radianceLevelViews[level],
+                type: DescriptorType.StorageImage
+            );
+    }
+
     public void Dispose()
     {
         foreach (ImageView view in levelViews)
+            if (view.Handle != 0)
+                device.Vk.DestroyImageView(device.Device, view, null);
+        foreach (ImageView view in radianceLevelViews)
             if (view.Handle != 0)
                 device.Vk.DestroyImageView(device.Device, view, null);
         foreach (ImageView view in faceViews)
             if (view.Handle != 0)
                 device.Vk.DestroyImageView(device.Device, view, null);
         Array.Clear(levelViews);
+        Array.Clear(radianceLevelViews);
         Array.Clear(faceViews);
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();

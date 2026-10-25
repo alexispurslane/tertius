@@ -136,18 +136,22 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
-    [Fact]
-    public void ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLight()
+    /// <summary>
+    /// A spot at the center of the +Z face, where a texel spans the most solid angle, halfway out along the face's
+    /// diagonal, and toward a corner of the cube, where a texel spans the least. Its direction is (x, y, 1).
+    /// </summary>
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(0.5f, 0.5f)]
+    [InlineData(0.8f, 0.8f)]
+    public void ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLightWhereverItLies(float x, float y)
     {
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             RenderSnapshot snapshot = EnvironmentScenes.Dark();
-            // The radiance map's mips are box filtered, so they weight a face's texels by count, not by solid angle. A
-            // spot at a face's center loses light in the coarse mips that the rough levels read, and a spot toward a
-            // corner of the cube gains it. This spot lies where the two balance, halfway out along a face's diagonal.
-            Vector3 axis = Vector3.Normalize(new(0.52f, 0.52f, 1));
+            var axis = Vector3.Normalize(new(x, y, 1));
             snapshot.Instances.Add(
                 EnvironmentScenes.Facing(
                     plane: plane,
@@ -187,7 +191,7 @@ public sealed class EnvironmentPrefilterTests
         {
             renderer.Render(Colorful(renderer), 1f);
 
-            Irradiance expected = Irradiance.Project(
+            var expected = Irradiance.Project(
                 AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
                 Size
             );
@@ -230,13 +234,16 @@ public sealed class EnvironmentPrefilterTests
 
             renderer.Render(snapshot, 1f);
 
+            // The five coarser levels of the radiance map and the specular level each round the color and the share to
+            // half floats, by up to 2^-12 each below 1, so the sum may stray by 6 × 2^-11.
+            const float rounding = 6f / 2048;
             for (int level = 0; level < Levels; level++)
             {
                 Half[] faces = AllFaces(renderer: renderer, level: level, image: EnvironmentImage.Specular);
                 for (int i = 0; i < faces.Length; i += 4)
                     ((float)faces[i] + (float)faces[i + 3])
                         .Should()
-                        .BeApproximately(1f, 1e-3f, "color and share mix by the same weights at level {0}", level);
+                        .BeApproximately(1f, rounding, "color and share mix by the same weights at level {0}", level);
             }
         }
         finally
