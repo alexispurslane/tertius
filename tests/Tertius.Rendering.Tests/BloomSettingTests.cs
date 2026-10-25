@@ -39,8 +39,8 @@ public sealed class BloomSettingTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(17)]
-    public void ABloomRefusesLevelsOutsideOneToSixteen(int levels) =>
+    [InlineData(15)]
+    public void ABloomRefusesLevelsOutsideOneToFourteen(int levels) =>
         FluentActions
             .Invoking(() => new Bloom(threshold: 1, knee: 0.5f, strength: 1, levels: levels))
             .Should()
@@ -49,13 +49,13 @@ public sealed class BloomSettingTests
 
     [Theory]
     [InlineData(0f, 0f, 1)]
-    [InlineData(0f, 1f, 16)]
+    [InlineData(0f, 1f, 14)]
     public void ABloomTakesTheEndsOfEachRange(float threshold, float knee, int levels) =>
         FluentActions
             .Invoking(() => new Bloom(threshold: threshold, knee: knee, strength: float.Epsilon, levels: levels))
             .Should()
             .NotThrow(
-                "a threshold of 0, a knee of 0 or 1, the smallest positive strength, and 1 or 16 levels are valid"
+                "a threshold of 0, a knee of 0 or 1, the smallest positive strength, and 1 or 14 levels are valid"
             );
 
     [Fact]

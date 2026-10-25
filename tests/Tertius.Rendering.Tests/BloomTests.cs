@@ -20,20 +20,24 @@ public sealed class BloomTests
     private static Bloom Shaped(float strength = 0.25f, int levels = 6, float threshold = 1, float knee = 0.5f) =>
         new(threshold: threshold, knee: knee, strength: strength, levels: levels);
 
-    private static VulkanRenderer Headless(BloomSetting bloom) =>
+    private static VulkanRenderer Headless(BloomSetting bloom, int width = Width, int height = Height) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
                 Validation = true,
-                Width = Width,
-                Height = Height,
+                Width = width,
+                Height = height,
                 Impostors = false,
                 Bloom = bloom,
             }
         );
 
     /// <summary>The image of <paramref name="squares"/> in front of a black wall.</summary>
-    private static Capture Render(VulkanRenderer renderer, string name, params Square[] squares)
+    private static Capture Render(VulkanRenderer renderer, string name, params Square[] squares) =>
+        Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(renderer, squares), name: name);
+
+    /// <summary>The snapshot of <paramref name="squares"/> in front of a black wall, for a test that adds to it.</summary>
+    private static RenderSnapshot Scene(VulkanRenderer renderer, params Square[] squares)
     {
         (int width, int height) = renderer.OutputSize;
         float tanY = MathF.Tan(Gpu.Fov / 2);
@@ -84,7 +88,7 @@ public sealed class BloomTests
             );
         }
 
-        return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
+        return snapshot;
     }
 
     /// <summary>A white square that emits <paramref name="radiance"/>, <paramref name="side"/> px across, centered on the image.</summary>
@@ -166,6 +170,59 @@ public sealed class BloomTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void LightBelowTheKneeAfterTheExposureAddsNoGlow()
+    {
+        Square[] dim = [Centered(side: 40, radiance: 0.12f)];
+        VulkanRenderer withBloom = Headless(Shaped(strength: 4));
+        VulkanRenderer without = Headless(new NoBloom());
+        try
+        {
+            withBloom.Exposure = 4;
+            without.Exposure = 4;
+
+            Capture bloomed = Render(withBloom, "bloom-exposed-below-knee", dim);
+            Capture plain = Render(without, "bloom-exposed-below-knee-off", dim);
+
+            bloomed
+                .Rgba.Should()
+                .Equal(
+                    plain.Rgba,
+                    "a radiance of 0.12 under the exposure 4 shows as 0.48, below the knee's start at 0.5"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(withBloom);
+            Gpu.DisposeAndAssertClean(without);
+        }
+    }
+
+    [Fact]
+    public void LightAtTheThresholdGlowsByAQuarterOfTheKneesWidth()
+    {
+        // Unity's quadratic knee gives light at the threshold T the glow T × Knee / 4: here 0.25 × 0.5 / 4 = 0.03125,
+        // which a strength of 4 adds as 0.125 onto the middle of a square too large for any of the 4 levels to reach past.
+        VulkanRenderer bloomed = Headless(Shaped(strength: 4, levels: 4, threshold: 0.25f, knee: 0.5f));
+        VulkanRenderer plain = Headless(new NoBloom());
+        try
+        {
+            Vector3 middle = Render(bloomed, "bloom-knee-at-threshold", Centered(side: 200, radiance: 0.25f))
+                .Color(Width / 2, Height / 2);
+            Vector3 expected = Render(plain, "bloom-knee-at-threshold-off", Centered(side: 200, radiance: 0.375f))
+                .Color(Width / 2, Height / 2);
+
+            LargestChannelDifference(middle, expected)
+                .Should()
+                .BeLessThanOrEqualTo(1 / 255f, "the knee's glow at the threshold is a quarter of the knee's width");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(bloomed);
+            Gpu.DisposeAndAssertClean(plain);
         }
     }
 
@@ -337,6 +394,138 @@ public sealed class BloomTests
         {
             Gpu.DisposeAndAssertClean(bloomed);
             Gpu.DisposeAndAssertClean(plain);
+        }
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void ALargeSquareAtTheLargestHalfFloatGlowsByItsLightWithoutOverflowing(int levels)
+    {
+        // As in the test above, the middle of the square shows its light plus the strength times its light. Each level
+        // holds the largest half float there, so a sum of the levels as they are overflows to infinity. A tiny exposure
+        // shows the light in the range of the tone curve.
+        float largest = (float)Half.MaxValue,
+            exposure = 0.25f / largest;
+        VulkanRenderer bloomed = Headless(Shaped(strength: 1, levels: levels, threshold: 0, knee: 0));
+        VulkanRenderer plain = Headless(new NoBloom());
+        try
+        {
+            bloomed.Exposure = exposure;
+            plain.Exposure = 2 * exposure;
+
+            Vector3 middle = Render(bloomed, "bloom-largest", Centered(side: 200, radiance: largest))
+                .Color(Width / 2, Height / 2);
+            Vector3 doubled = Render(plain, "bloom-largest-doubled", Centered(side: 200, radiance: largest))
+                .Color(Width / 2, Height / 2);
+
+            LargestChannelDifference(middle, doubled)
+                .Should()
+                .BeLessThanOrEqualTo(
+                    1 / 255f,
+                    "the {0} levels hold the glow of the largest half float without overflowing, and add it once",
+                    levels
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(bloomed);
+            Gpu.DisposeAndAssertClean(plain);
+        }
+    }
+
+    [Fact]
+    public void ANaNInTheHdrImageAddsNoGlow()
+    {
+        // A glow puff of NaN radiance writes NaN into the HDR image over a dim wall that is below the knee. If the NaN
+        // reached the bloom levels, their filters would spread it over the wall around the puff.
+        VulkanRenderer withBloom = Headless(Shaped());
+        VulkanRenderer without = Headless(new NoBloom());
+        try
+        {
+            Capture bloomed = Gpu.RenderAndCapture(
+                renderer: withBloom,
+                snapshot: NaNPuff(withBloom),
+                name: "bloom-nan"
+            );
+            Capture plain = Gpu.RenderAndCapture(renderer: without, snapshot: NaNPuff(without), name: "bloom-nan-off");
+
+            plain.Color(Width / 2, Height / 2).Should().Be(Vector3.Zero, "the puff's NaN shows black without bloom");
+            bloomed.Rgba.Should().Equal(plain.Rgba, "the NaN stays in its own pixels and adds no glow");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(withBloom);
+            Gpu.DisposeAndAssertClean(without);
+        }
+
+        static RenderSnapshot NaNPuff(VulkanRenderer renderer)
+        {
+            RenderSnapshot snapshot = Scene(renderer, Centered(side: Width, radiance: 0.2f));
+            snapshot.PuffLooks.Add(
+                new(
+                    Life: 100,
+                    StartRadius: 0.1f,
+                    EndRadius: 0.1f,
+                    TemperatureRatio: 1,
+                    Shading: PuffShading.Glow(new(float.NaN))
+                )
+            );
+            var position = new Vector3(0, 0, -Depth / 2);
+            snapshot.Puffs.Add(
+                new()
+                {
+                    Position = position,
+                    PreviousPosition = position,
+                    Age = 1,
+                    Look = 0,
+                }
+            );
+            return snapshot;
+        }
+    }
+
+    [Fact]
+    public void AtAnOddSizeTheGlowIsCenteredOnItsSource()
+    {
+        // At 641x361 every level has an odd size. The square's center, (320, 192), is a pixel corner that halves to a
+        // texel corner in each of the 6 levels, so the glow of a chain whose levels line up is the same on opposite sides.
+        const int width = 641,
+            height = 361,
+            x = 320,
+            y = 192,
+            half = 8;
+        VulkanRenderer renderer = Headless(Shaped(strength: 2), width: width, height: height);
+        try
+        {
+            Capture image = Render(
+                renderer,
+                "bloom-odd-size",
+                new Square(X: x, Y: y, Side: 2 * half, Radiance: new(20))
+            );
+
+            foreach (int distance in new[] { 3, 12, 30 })
+            {
+                float left = image.Luma(x - half - 1 - distance, y),
+                    right = image.Luma(x + half + distance, y),
+                    above = image.Luma(x, y - half - 1 - distance),
+                    below = image.Luma(x, y + half + distance);
+
+                right
+                    .Should()
+                    .BeGreaterThan(
+                        2 / 255f,
+                        "the glow {0} px from the square must be large enough to compare",
+                        distance
+                    );
+                left.Should()
+                    .BeApproximately(right, 1 / 255f, "the glow {0} px left and right of the square", distance);
+                above.Should().BeApproximately(below, 1 / 255f, "the glow {0} px above and below the square", distance);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
         }
     }
 

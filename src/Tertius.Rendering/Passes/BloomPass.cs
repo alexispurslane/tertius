@@ -3,10 +3,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Builds the glow of the bright light in the bloom levels of <see cref="RenderTargets.Glow"/> (ARCHITECTURE.md, "Bloom").
-/// Down: the HDR image's light above the soft threshold into level 0, then each level into the next, with Jimenez's
-/// 13-tap filter. Up: each level, from the smallest, added into the one before with a 3x3 tent filter, so level 0 ends
-/// holding every level summed. The tone map pass adds it to the image.
+/// Builds the glow of the HDR image's bright light in the levels of <see cref="RenderTargets.Glow"/>, so that level 0
+/// ends holding every level summed, for the tone map to add. ARCHITECTURE.md, "Bloom", gives the steps.
 /// </summary>
 internal sealed unsafe class BloomPass : RenderPass
 {
@@ -40,6 +38,7 @@ internal sealed unsafe class BloomPass : RenderPass
             Threshold = bloom.Threshold,
             Knee = bloom.Knee,
             Exposure = context.Exposure,
+            Levels = (uint)bloom.Levels,
         };
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,

@@ -19,9 +19,9 @@ namespace Tertius.Rendering;
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
-/// table sampler (binding 2, immutable), which only the tone map with bloom reads. One, rewritten on resize.</description></item>
-/// <item><term>glow source</term><description>the image that one draw of the bloom pass reads, with the table sampler
-/// (binding 1, immutable): one for the HDR image and one per bloom level. Rewritten on resize.</description></item>
+/// linear clamp sampler (binding 2, immutable), which only the tone map with bloom reads. One, rewritten on resize.</description></item>
+/// <item><term>glow source</term><description>the image that one draw of the bloom pass reads, with the linear clamp
+/// sampler (binding 1, immutable): one for the HDR image and one per bloom level. Rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2.
@@ -36,13 +36,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
     {
         this.device = device;
-        TableSampler = CreateTableSampler();
-        FrameSet = CreateFrameSetLayout(TableSampler);
+        LinearClampSampler = CreateLinearClampSampler();
+        FrameSet = CreateFrameSetLayout(LinearClampSampler);
         TextureSet = CreateTextureSetLayout();
         ShadowSampler = CreateShadowSampler();
         GBufferSet = CreateGBufferSetLayout(ShadowSampler);
-        PostSet = CreateImagesLayout(images: 2, sampler: TableSampler, name: "post set");
-        GlowSourceSet = CreateImagesLayout(images: 1, sampler: TableSampler, name: "glow source set");
+        PostSet = CreateImagesLayout(images: 2, sampler: LinearClampSampler, name: "post set");
+        GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
         AtlasSampler = CreateAtlasSampler();
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
 
@@ -80,7 +80,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout GBufferSet { get; }
     public DescriptorSetLayout PostSet { get; }
 
-    /// <summary>The one image that a draw of the bloom pass reads, with the table sampler.</summary>
+    /// <summary>The one image that a draw of the bloom pass reads, with the linear clamp sampler.</summary>
     public DescriptorSetLayout GlowSourceSet { get; }
 
     /// <summary>
@@ -89,8 +89,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public Sampler ShadowSampler { get; }
 
-    /// <summary>Linear filtering, clamped to the edge, one level and no anisotropy, for the BRDF tables.</summary>
-    public Sampler TableSampler { get; }
+    /// <summary>
+    /// Linear filtering, clamped to the edge, one level and no anisotropy: the immutable sampler of the BRDF tables (frame
+    /// set, binding 10), the post set (binding 2) and every glow source set (binding 1).
+    /// </summary>
+    public Sampler LinearClampSampler { get; }
 
     /// <summary>The impostor atlas: color and depth offset (2D arrays) and <see cref="AtlasSampler"/>.</summary>
     public DescriptorSetLayout AtlasSet { get; }
@@ -305,8 +308,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             new(DescriptorType.UniformBuffer, frames),
             new(DescriptorType.StorageBuffer, 6 * frames),
-            // Two per frame set (the material sampler and the immutable table sampler), the immutable samplers of the
-            // G-buffer, atlas and post sets, and one per glow source set.
+            // Two per frame set (the material sampler and the immutable linear clamp sampler), the immutable samplers
+            // of the G-buffer, atlas and post sets, and one per glow source set.
             new(DescriptorType.Sampler, 2 * frames + 3 + glowSourceSets),
             new(DescriptorType.SampledImage, 17 + 2 * frames + glowSourceSets),
         ];
@@ -354,8 +357,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return sampler;
     }
 
-    /// <summary>The layout of set 0, whose binding 10 holds <paramref name="tableSampler"/> as its immutable sampler.</summary>
-    private DescriptorSetLayout CreateFrameSetLayout(Sampler tableSampler)
+    /// <summary>The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> as its immutable sampler.</summary>
+    private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         Span<DescriptorSetLayoutBinding> frame =
@@ -386,13 +389,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorType: DescriptorType.Sampler,
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.FragmentBit,
-                pImmutableSamplers: &tableSampler
+                pImmutableSamplers: &linearClamp
             ),
         ];
         return CreateLayout(bindings: frame, name: "frame set");
     }
 
-    private Sampler CreateTableSampler()
+    private Sampler CreateLinearClampSampler()
     {
         var info = new SamplerCreateInfo
         {
@@ -414,7 +417,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 pSampler: out Sampler sampler
             )
             .Check("vkCreateSampler");
-        device.SetName(ObjectType.Sampler, sampler.Handle, "brdf table sampler");
+        device.SetName(ObjectType.Sampler, sampler.Handle, "linear clamp sampler");
         return sampler;
     }
 
@@ -564,6 +567,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
-        vk.DestroySampler(device.Device, TableSampler, null);
+        vk.DestroySampler(device.Device, LinearClampSampler, null);
     }
 }

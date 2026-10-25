@@ -19,11 +19,14 @@ public sealed record NoBloom;
 /// </summary>
 public sealed record Bloom
 {
-    /// <summary>The most levels a bloom takes. A 16,384 px side halves to 1 px in 14 levels, so more add nothing.</summary>
-    public const int MaxLevels = 16;
+    /// <summary>
+    /// The most levels a bloom takes: enough to halve a 16,384 px side, the largest image, to 1 px. Past 1 px, each level
+    /// would add only the image's mean glow everywhere, a flat veil.
+    /// </summary>
+    public const int MaxLevels = 14;
 
-    /// <param name="threshold">The brightness after the exposure, as the largest channel, from which light glows in full. 0 or more.</param>
-    /// <param name="knee">The width of the soft knee below the threshold, as a fraction of it, from 0 to 1.</param>
+    /// <param name="threshold">The brightness after the exposure, as the largest channel, at the center of the soft knee. 0 or more.</param>
+    /// <param name="knee">The half-width of the soft knee around the threshold, as a fraction of it, from 0 to 1.</param>
     /// <param name="strength">The glow's energy as a fraction of the light above the threshold. Positive.</param>
     /// <param name="levels">How many half-size images the glow spreads through, 1 to <see cref="MaxLevels"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A value is outside its range, or not finite.</exception>
@@ -43,10 +46,16 @@ public sealed record Bloom
         Levels = levels;
     }
 
-    /// <summary>The brightness after the exposure, as the largest channel, from which light glows in full.</summary>
+    /// <summary>
+    /// The brightness after the exposure, as the largest channel, at the center of the soft knee. Above the knee's top,
+    /// (1 + Knee) × Threshold, the glow is the light above the threshold.
+    /// </summary>
     public float Threshold { get; }
 
-    /// <summary>The width of the soft knee below <see cref="Threshold"/>, as a fraction of it: light from (1 − Knee) × Threshold glows a little.</summary>
+    /// <summary>
+    /// The half-width of the soft knee around <see cref="Threshold"/>, as a fraction of it: light from (1 − Knee) ×
+    /// Threshold glows a little, and the glow grows smoothly to the light above the threshold at (1 + Knee) × Threshold.
+    /// </summary>
     public float Knee { get; }
 
     /// <summary>The glow's energy as a fraction of the light above the threshold.</summary>

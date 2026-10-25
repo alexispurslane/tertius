@@ -13,7 +13,7 @@ layout(push_constant, std430) uniform TonemapPush
     float exposure;
     uint encodeSrgb;   // 1 when the output format is UNORM and the shader must apply the sRGB curve itself
     uint toneCurve;    // the ToneCurve enum: 0 ACES fitted, 1 Hable
-    float glowStrength; // the bloom's strength over its levels; unread without bloom
+    float glowStrength; // the bloom's strength; unread without bloom
 } tonemap;
 
 const uint toneCurveAcesFitted = 0u;

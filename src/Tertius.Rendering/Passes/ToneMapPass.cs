@@ -14,9 +14,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
     private readonly Pipeline pipeline;
     private readonly ToneCurve curve;
 
-    // The factor of the summed bloom levels: the strength shared out over the levels, so that it is the glow's share of
-    // the light above the threshold, whatever the levels. 0 without bloom, whose shader reads no glow.
-    private readonly float glowStrength;
+    // The bloom whose glow the pass adds, or null with NoBloom: the one record of the setting, which chose the shader.
+    private readonly Bloom? glow;
 
     public ToneMapPass(
         VulkanDevice device,
@@ -30,10 +29,10 @@ internal sealed unsafe class ToneMapPass : RenderPass
         this.device = device;
         this.layouts = layouts;
         this.curve = curve;
-        (string shader, glowStrength) = bloom switch
+        (string shader, glow) = bloom switch
         {
-            Bloom on => ("tonemap_bloom.frag", on.Strength / on.Levels),
-            NoBloom => ("tonemap.frag", 0f),
+            Bloom on => ("tonemap_bloom.frag", on),
+            NoBloom => ("tonemap.frag", null),
             null => throw new ArgumentException("A bloom setting holds NoBloom or a Bloom.", nameof(bloom)),
         };
         pipeline = new GraphicsPipelineDesc
@@ -58,8 +57,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         barriers.Image(context.Targets.Hdr, ImageUse.SampledFragment);
-        if (context.Targets.Glow is [var summed, ..])
-            barriers.Image(summed, ImageUse.SampledFragment);
+        if (glow is not null)
+            barriers.Image(context.Targets.Glow[0], ImageUse.SampledFragment);
         barriers.Image(context.Output, ImageUse.ColorAttachment, discard: true);
         barriers.Flush(vk, commandBuffer);
 
@@ -98,7 +97,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             Exposure = context.Exposure,
             EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
             ToneCurve = (uint)curve,
-            GlowStrength = glowStrength,
+            GlowStrength = glow?.Strength ?? 0,
         };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

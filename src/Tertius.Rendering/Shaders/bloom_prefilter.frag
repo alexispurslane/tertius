@@ -46,5 +46,6 @@ void main()
             vec3 texel = texelFetch(source, clamp(first + ivec2(x, y), ivec2(0), last), 0).rgb;
             sum += texelWeights[y * 6 + x] * thresholded(texel);
         }
-    outColor = vec4(sum / 128.0, 1.0);
+    // Each level holds at most the largest half float over the levels, so their sum in level 0 stays finite.
+    outColor = vec4(sum / (128.0 * float(bloom.levels)), 1.0);
 }

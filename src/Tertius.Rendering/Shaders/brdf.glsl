@@ -12,7 +12,7 @@ const float LobeSkyHeight = 32.0;   // BrdfTables.LobeSkyHeight
 
 layout(set = 0, binding = 8) uniform texture2D dfgTable;       // RG16F: (S, E₁) over μ across and r down
 layout(set = 0, binding = 9) uniform texture2D lobeSkyTable;   // R16F: s_l over (d·up + 1) / 2 across and r down
-layout(set = 0, binding = 10) uniform sampler tableSampler;    // linear, clamped to the edge, one level
+layout(set = 0, binding = 10) uniform sampler linearClamp;    // linear, clamped to the edge, one level
 
 // GgxLobe's constructor: the one place of the roughness floor.
 float flooredRoughness(float roughness)
@@ -60,14 +60,14 @@ float tableCoordinate(float value, float texelCount)
 vec2 dfgAt(float NdotV, float roughness)
 {
     vec2 uv = vec2(tableCoordinate(NdotV, DfgSize), tableCoordinate(roughness, DfgSize));
-    return textureLod(sampler2D(dfgTable, tableSampler), uv, 0.0).rg;
+    return textureLod(sampler2D(dfgTable, linearClamp), uv, 0.0).rg;
 }
 
 // s_l at d·up and the floored roughness.
 float lobeSkyAt(float cosine, float roughness)
 {
     vec2 uv = vec2(tableCoordinate(cosine * 0.5 + 0.5, LobeSkyWidth), tableCoordinate(roughness, LobeSkyHeight));
-    return textureLod(sampler2D(lobeSkyTable, tableSampler), uv, 0.0).r;
+    return textureLod(sampler2D(lobeSkyTable, linearClamp), uv, 0.0).r;
 }
 
 #endif

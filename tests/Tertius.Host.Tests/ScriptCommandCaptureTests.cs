@@ -294,13 +294,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Theory]
-    [InlineData(new string[0], typeof(Bloom))]
-    [InlineData(new[] { "--bloom", "on" }, typeof(Bloom))]
-    [InlineData(new[] { "--bloom", "off" }, typeof(NoBloom))]
-    public void TheBloomOptionTurnsTheHeadlessRenderersBloomOffAndOnKeepsTheRenderersDefault(
-        string[] bloom,
-        Type expected
-    )
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--bloom", "on" }, false)]
+    [InlineData(new[] { "--bloom", "off" }, true)]
+    public void TheBloomOptionTurnsTheHeadlessRenderersBloomOffAndOnKeepsTheRenderersDefault(string[] bloom, bool off)
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
@@ -320,6 +317,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        settings.Should().ContainSingle().Which.Should().BeOfType(expected);
+        object expected = off ? new NoBloom() : new RendererOptions().Bloom.Value!;
+        settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 }

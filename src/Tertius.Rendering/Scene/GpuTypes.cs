@@ -247,7 +247,7 @@ internal struct ToneMapPushConstants
     /// <summary>The renderer's <see cref="Rendering.ToneCurve"/> as its number.</summary>
     public uint ToneCurve;
 
-    /// <summary>The factor of the summed bloom levels: <see cref="Bloom.Strength"/> / <see cref="Bloom.Levels"/>. Unread without bloom.</summary>
+    /// <summary>The factor of the summed bloom levels, <see cref="Bloom.Strength"/>. Unread without bloom.</summary>
     public float GlowStrength;
 }
 
@@ -263,6 +263,9 @@ internal struct BloomPushConstants
 
     /// <summary>The factor from the HDR image's values to the light after the exposure, which the threshold applies to.</summary>
     public float Exposure;
+
+    /// <summary><see cref="Bloom.Levels"/>, which the prefilter divides the light by, so that the sum of the levels stays finite.</summary>
+    public uint Levels;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

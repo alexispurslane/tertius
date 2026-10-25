@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Maths;
@@ -81,7 +82,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device));
-            int glowLevels = options.Bloom.Value is Bloom bloom ? bloom.Levels : 0;
+            int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
                 new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
             );
@@ -927,16 +928,36 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return (atlas, manager);
     }
 
+    /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>
+    private static int GlowLevelsOf(BloomSetting bloom) =>
+        bloom switch
+        {
+            Bloom on => on.Levels,
+            NoBloom => 0,
+            null => throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case."),
+        };
+
     /// <summary>Adds the passes from lighting to the readback to the graph, each in its own stage.</summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, ToneCurve curve, BloomSetting bloom)
     {
         Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
         Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
-        if (bloom.Value is Bloom on)
-            Graph.Add(
-                FrameGraph.Stage.Bloom,
-                new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
-            );
+        switch (bloom)
+        {
+            case Bloom on:
+                Graph.Add(
+                    FrameGraph.Stage.Bloom,
+                    new BloomPass(device: device, shaders: shaders, layouts: layouts, bloom: on)
+                );
+                break;
+            case NoBloom:
+                // No bloom pass: the tone map reads only the HDR image.
+                break;
+            case null:
+                throw new UnreachableException("CheckOptions refuses a bloom setting that holds no case.");
+            default:
+                throw new UnreachableException();
+        }
         Graph.Add(
             FrameGraph.Stage.ToneMap,
             new ToneMapPass(
