@@ -10,9 +10,15 @@ using Microsoft.CodeAnalysis.Operations;
 namespace Tertius.Style;
 
 /// <summary>
-/// TS0015 for one compilation: a switch statement over a closed set that does not name every case, or whose default
-/// section does more than throw <c>UnreachableException</c>. The compiler checks a switch expression for a missing
-/// case, but not a switch statement, and IDE0010 covers only enums.
+/// The rules of the switches over a closed set, for one compilation.
+/// <list type="bullet">
+/// <item>TS0015: a switch statement over a closed set that does not name every case, or whose default section does
+/// more than throw <c>UnreachableException</c>. The compiler checks a switch expression for a missing case, but not a
+/// switch statement, and IDE0010 covers only enums.</item>
+/// <item>TS0016: a switch expression over a closed set, or over an enum of this compilation, that has a discard arm. A discard arm hides a
+/// new case from the compiler.</item>
+/// </list>
+/// A closed set is one of these two. TS0016 also counts an enum that this compilation declares, which IDE0010 covers for a switch statement.
 /// <list type="bullet">
 /// <item>A union is a type marked <c>[Union]</c>, as a <c>[GeneratedUnion]</c> struct and a built-in union of another
 /// assembly are, or a type declared with the <c>union</c> keyword. Its cases are the parameter types of its public
@@ -22,10 +28,10 @@ namespace Tertius.Style;
 /// Microsoft.CodeAnalysis 4.14 cannot tell that a class of another assembly is closed, so such a hierarchy is out of
 /// sight.</item>
 /// </list>
-/// A label names a case when it has no guard and its pattern is the case's type: a type pattern, a declaration pattern
+/// For TS0015, a label names a case when it has no guard and its pattern is the case's type: a type pattern, a declaration pattern
 /// or a property or positional pattern whose subpatterns match every value, alone or in an <c>or</c> pattern.
 /// </summary>
-internal sealed class SwitchStatements
+internal sealed class ClosedSwitches
 {
     private const string UnionAttribute = "System.Runtime.CompilerServices.UnionAttribute";
     private const string GeneratedUnionAttribute = "Tertius.GeneratedUnionAttribute";
@@ -35,18 +41,23 @@ internal sealed class SwitchStatements
     // a closed hierarchy reads it, so the first such switch builds it.
     private readonly Lazy<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> subtypes;
 
-    private SwitchStatements(Compilation compilation)
+    // The assembly of the compilation, whose enums TS0016 counts.
+    private readonly IAssemblySymbol assembly;
+
+    private ClosedSwitches(Compilation compilation)
     {
+        assembly = compilation.Assembly;
         subtypes = new(() => DirectSubtypes(compilation));
     }
 
     public static void Start(CompilationStartAnalysisContext context)
     {
-        var rule = new SwitchStatements(context.Compilation);
-        context.RegisterOperationAction(rule.Analyze, OperationKind.Switch);
+        var rule = new ClosedSwitches(context.Compilation);
+        context.RegisterOperationAction(rule.AnalyzeStatement, OperationKind.Switch);
+        context.RegisterOperationAction(rule.AnalyzeExpression, OperationKind.SwitchExpression);
     }
 
-    private void Analyze(OperationAnalysisContext context)
+    private void AnalyzeStatement(OperationAnalysisContext context)
     {
         var statement = (ISwitchOperation)context.Operation;
         if (statement.Value.Type is not INamedTypeSymbol type || SetOf(type, context) is not { } set)
@@ -73,6 +84,36 @@ internal sealed class SwitchStatements
                 )
             );
     }
+
+    private void AnalyzeExpression(OperationAnalysisContext context)
+    {
+        var expression = (ISwitchExpressionOperation)context.Operation;
+        if (
+            expression.Value.Type is not INamedTypeSymbol type
+            || !(IsEnumOfThisAssembly(type) || SetOf(type, context) != null)
+        )
+            return;
+        string name = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+        foreach (ISwitchExpressionArmOperation arm in expression.Arms.Where(IsDiscardArm))
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    StyleRules.DiscardArm,
+                    ((SwitchExpressionArmSyntax)arm.Syntax).Pattern.GetLocation(),
+                    name
+                )
+            );
+    }
+
+    /// <summary>
+    /// True for an enum that this compilation declares. An enum of another assembly, such as <c>Key</c> of Silk.NET with
+    /// its 100 members, is an open set: the library adds members, and a switch over it names the few that it needs.
+    /// </summary>
+    private bool IsEnumOfThisAssembly(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Enum && SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, assembly);
+
+    /// <summary>True for an arm without a guard whose pattern, <c>_</c> or <c>var x</c>, matches every value.</summary>
+    private static bool IsDiscardArm(ISwitchExpressionArmOperation arm) =>
+        arm.Guard == null && arm.Pattern is IDiscardPatternOperation or IDeclarationPatternOperation { MatchesNull: true };
 
     /// <summary>The closed set that <paramref name="type"/> is, or null for a type that is no closed set.</summary>
     private ClosedSet? SetOf(INamedTypeSymbol type, OperationAnalysisContext context)

@@ -38,7 +38,7 @@ public sealed class FrameChangedTests
                     Body = WorldTesting.Ball(),
                     Components = [log],
                 },
-                _ => new()
+                Mover.FrameOwner => new()
                 {
                     Frame = frame,
                     Pose = pose,

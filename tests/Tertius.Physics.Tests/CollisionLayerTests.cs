@@ -46,7 +46,7 @@ public sealed class CollisionLayerTests
             Kind.Static => Layers.For(BodyLayer.Static, Solid, InAnySolid),
             Kind.Moving => Layers.For(BodyLayer.Moving, Solid, InAnySolid),
             Kind.FrameHull => Layers.FrameHull,
-            _ => Layers.For(BodyLayer.Ghost, Solid, InAnySolid),
+            Kind.Ghost => Layers.For(BodyLayer.Ghost, Solid, InAnySolid),
         };
 
     private static CollisionGroup[] MakeThreeGroups()

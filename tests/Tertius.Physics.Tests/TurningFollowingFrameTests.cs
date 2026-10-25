@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -100,7 +99,6 @@ public sealed class TurningFollowingFrameTests
         {
             SceneKind.Fast => Fast,
             SceneKind.Far => Far,
-            var other => throw new UnreachableException($"The scene {other} has no hull."),
         };
 
     /// <summary>How the hull's drift changes at the tick of the change.</summary>
@@ -133,7 +131,7 @@ public sealed class TurningFollowingFrameTests
             {
                 DriftChange.Stops => self.Tick < changeTick,
                 DriftChange.Starts => self.Tick >= changeTick,
-                _ => self.Tick != changeTick,
+                DriftChange.Skips => self.Tick != changeTick,
             };
             if (!drifts)
                 return;

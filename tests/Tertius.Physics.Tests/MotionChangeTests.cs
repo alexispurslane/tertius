@@ -38,7 +38,7 @@ public sealed class MotionChangeTests
         {
             BodyMotion.Dynamic => MotionType.Dynamic,
             BodyMotion.Kinematic => MotionType.Kinematic,
-            _ => MotionType.Static,
+            BodyMotion.Static or BodyMotion.Character => MotionType.Static,
         };
 
     /// <summary>

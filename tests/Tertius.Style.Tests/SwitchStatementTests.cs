@@ -15,7 +15,7 @@ public sealed class SwitchStatementTests
 {
     // The sets of the tests. Move is a [GeneratedUnion] as the generator writes it: the generated part carries [Union]
     // and a constructor per case. Step is a built-in union, and Shape a closed record hierarchy.
-    private const string Sets = """
+    internal const string Sets = """
         using System;
         using System.Diagnostics;
         using System.Runtime.CompilerServices;

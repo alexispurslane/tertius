@@ -159,9 +159,9 @@ csharp_style_prefer_range_operator = true
 # x[a..b]
 dotnet_diagnostic.IDE0057.severity = suggestion
 csharp_style_prefer_switch_expression = true
-# switch expressions: off, because its fix turns the default section of a switch statement into a discard arm,
-# which STYLE.md forbids over a closed set and which the compiler rejects as unreachable over a union (CS8510).
-dotnet_diagnostic.IDE0066.severity = none
+# switch expressions: the cleanup turns a switch statement into an expression, and TS0016's fix removes the leftover
+# `_ => throw new UnreachableException()` arm in the next pass.
+dotnet_diagnostic.IDE0066.severity = suggestion
 csharp_style_prefer_pattern_matching = true
 # x is 1 or 2
 dotnet_diagnostic.IDE0078.severity = suggestion

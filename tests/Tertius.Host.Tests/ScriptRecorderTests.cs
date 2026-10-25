@@ -21,7 +21,9 @@ public sealed class ScriptRecorderTests
             CameraStep camera => $"camera {camera.Entity}",
             DumpStep dump => $"dump {dump.Name}",
             PostStep { To: ToTopic topic } post => $"post {topic.Name} {post.Event} {Describe(PayloadOf(post))}",
-            _ => throw new InvalidOperationException($"The test does not describe the step {step}."),
+            PostStep or CaptureStep or FilmStep or OutlinesStep or null => throw new InvalidOperationException(
+                $"The test does not describe the step {step}."
+            ),
         };
 
     // An input event as a script names its kind, then its code or its delta: a key that went down is "keyDown 87".

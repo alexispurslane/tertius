@@ -191,7 +191,7 @@ public sealed class BodyFactsTests
                 new(0, 0.8f, 0),
             ]),
             ShapeKind.Mesh => new MeshShapeDesc([new(-1, 0, -1), new(1, 0, -1), new(0, 0, 1)], [0, 2, 1]),
-            _ => new CompoundShapeDesc([new(new SphereShapeDesc(0.3f), Pose.Identity)]),
+            ShapeKind.Compound => new CompoundShapeDesc([new(new SphereShapeDesc(0.3f), Pose.Identity)]),
         };
         Entity body = Spawn(world: world, frame: space, body: new(Shape: shape, Motion: BodyMotion.Static));
 
