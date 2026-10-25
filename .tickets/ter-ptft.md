@@ -24,3 +24,19 @@ Per the project rules: test-first CPU tests of the BRDF math (energy bounds, rec
 
 A metal shows a specular color and no diffuse light, a dielectric shows white specular with F0 near 0.04, and a rough surface shows the long highlight tail of GGX. Every demo material is converted, the scenes are reviewed in screenshots, and ARCHITECTURE.md and CLAUDE.md name the new model.
 
+
+## Design decisions (user, 2026-10-24)
+
+Two designs were shown in the chat: A, glTF core and lean, and B, Filament-like and complete. The user chose B with Lambert diffuse:
+
+- Metallic-roughness parameters: base color, metallic, perceptual roughness. Khronos archived glTF's specular-glossiness extension.
+- Non-metals keep a reflectance value: today's specular intensity, renamed Reflectance, with F0 = 0.16 · reflectance² (0.5 gives 0.04). The canopy keeps its anti-reflective coating.
+- Diffuse: Lambert, diffuse color / π, with diffuse color = base color × (1 − metallic).
+- Specular: GGX with the height-correlated Smith visibility term (Heitz 2014) and Schlick Fresnel. α = roughness², with a roughness floor of 0.045.
+- The light that single-bounce GGX loses at high roughness is restored with a DFG table that the renderer computes once at start.
+- The hemisphere ambient light gets a specular part: the hemisphere's colors along the specular lobe, weighted by the DFG table. SSR later fades its off-screen rays to it.
+- The G-buffer's specular-gloss target becomes RGBA8: metallic, roughness, reflectance, and the sky share along the specular lobe, which only the G-buffer pass can compute.
+- The C# copy of the BRDF is production code, because it computes the DFG table. The CPU tests test it, and one GPU test pins the shader to it.
+- The texture uses glTF's layout: roughness in G, metallic in B.
+- The demo materials convert by α = √(2 / (n + 2)) from the Blinn-Phong exponent n, so each highlight keeps about its size.
+- No RendererOptions switch back to Blinn-Phong, because the material model changes with the BRDF.
