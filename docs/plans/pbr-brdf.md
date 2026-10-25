@@ -703,9 +703,9 @@ The table reads hit 8 KB in all, so they stay in the texture cache. The lighting
 | docs/plans/README.md | A row for this doc and `ter-ptft`. |
 | CLAUDE.md | No change. No line there names Blinn-Phong any more. |
 
-## Open fork
+## The Fresnel term at grazing angles
 
-Schlick's term as the ticket names it reaches 1 at a grazing angle for every F0, even F0 = 0. The fork is whether a low F0 also dims the grazing reflection.
+Schlick's term as the ticket names it reaches 1 at a grazing angle for every F0, even F0 = 0. The design agent left open whether a low F0 also dims the grazing reflection. The orchestrator settled it for A on 2026-10-24, while the user slept, by the project rule "pure model first": plain Schlick is the ticket's model and today's, and B adds a special case for low F0 before the pure model has shown a fault. The user can still choose B. Under B, only the lines named below change.
 
 | Option | What it gives | What it costs |
 |---|---|---|
@@ -749,14 +749,14 @@ At most two builders run at once, by CLAUDE.md: Parts 1 and 2, then Parts 3 and 
   3. `BrdfTableImages`, the frame set bindings, `brdf.glsl`, the new `lighting.glsl`, the lobe's sky share and the specular target.
   4. Every test passes in Checked and Release.
   5. The six reference images are re-approved, each reviewed with the three images.
-  6. Hand mutations, and coverage of the changed lines.
+  6. Hand mutations. The orchestrator runs coverage of the changed lines after the last builder.
 - Takes: Part 1's C# interface.
 - Gives: the GLSL interface of "The shaders", and the material model of "The material model".
 - Done: the full Checked and Release runs pass. The report describes each re-approved reference image and names the hand mutations and the coverage of the changed lines.
 
 ### Part 3: the cost
 
-- Files: `benchmarks/Tertius.Benchmarks/ShadingRenderBenchmarks.cs` (new).
+- Files: none in `src`. The measurement uses the recipe of docs/plans/rendering-upgrade.md, "Measuring the cost of a feature": headless runs of `scripts/demo-surface.json` and `scripts/pbr-spheres.json` at `--size 1920x1080`, on main at the merge of the timers and on this branch, which write `gpu-timings.json`. The orchestrator chose the recipe over a new benchmark file on 2026-10-24, because it runs the real renderer on the real demo and needs no copy of a benchmark with the old field names. The "before" run of `pbr-spheres` uses a copy of the scene in the scratch worktree of main, with the old fields, since the scene is new in this ticket.
 - Takes: the per-pass GPU times of `ter-yiii`.
 - Gives: the numbers of "Cost", before and after, to Part 4.
 - Done: a table of the numbers in the report, with the load of the machine.
