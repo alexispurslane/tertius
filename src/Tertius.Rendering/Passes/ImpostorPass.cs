@@ -24,7 +24,7 @@ namespace Tertius.Rendering;
 /// GPU instance per depth range it is drawn in. Seen from the capture's eye, the quad shows exactly the captured
 /// perspective image. Its fragment shader alpha-tests the coverage at 0.5, rebuilds the surface point on the ray
 /// from the capture's eye through the quad, writes that point's depth (<c>gl_FragDepth</c>) and distance, and
-/// writes the captured color as emission with albedo alpha 0, so the lighting pass adds no light of its own.</para>
+/// writes the captured color as emission with base color alpha 0, so the lighting pass adds no light of its own.</para>
 /// </remarks>
 internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
 {

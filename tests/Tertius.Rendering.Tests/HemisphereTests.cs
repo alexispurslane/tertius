@@ -183,7 +183,7 @@ public sealed class HemisphereTests
     private static Vector2 WhereTheLobeRises(double elevation, double roughness)
     {
         var lobe = new GgxLobe(roughness);
-        Double3 center = BrdfTesting.ToDouble(Center);
+        Double3 center = Center;
         double RiseOf(double normalElevation)
         {
             var normal = new Double3(0, Math.Sin(normalElevation), Math.Cos(normalElevation));
@@ -203,7 +203,7 @@ public sealed class HemisphereTests
         }
 
         Double3 point = new Double3(0, Math.Sin(low), Math.Cos(low)) + center;
-        return Gpu.Project(point: BrdfTesting.ToVector(point), width: Width, height: Height);
+        return Gpu.Project(point: point.ToVector3(), width: Width, height: Height);
     }
 
     [Theory]
@@ -224,5 +224,40 @@ public sealed class HemisphereTests
 
         ExpectSkyward(colors[0], "point whose lobe rises 10° above the horizon");
         ExpectGroundward(colors[1], "point whose lobe sinks 10° below the horizon");
+    }
+
+    [Fact]
+    public void WithoutGravityAShinyMetalsLobeMixesTheSkyAndTheGroundEvenly()
+    {
+        const double roughness = 0.1;
+        Vector3[] colors = Render(
+            up: HemisphereUp.Even,
+            name: "hemisphere-metal-even",
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
+            flags: RenderFlags.None,
+            impostors: false
+        );
+
+        ExpectEven(colors[0], "point whose lobe rises 10° above the horizon");
+        ExpectEven(colors[1], "point whose lobe sinks 10° below the horizon");
+    }
+
+    [Fact]
+    public void AroundAPointAShinyMetalsLobeSeesTheSkyOnBothSidesOfTheHorizontal()
+    {
+        // Up leads away from the sphere's center, so every lobe that leaves the surface points into the sky.
+        const double roughness = 0.1;
+        Vector3[] colors = Render(
+            up: HemisphereUp.AwayFrom(Vector3.Zero),
+            name: "hemisphere-metal-away",
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
+            flags: RenderFlags.None,
+            impostors: false
+        );
+
+        ExpectSkyward(colors[0], "point whose lobe rises 10° above the horizon");
+        ExpectSkyward(colors[1], "point whose lobe sinks 10° below the horizon");
     }
 }

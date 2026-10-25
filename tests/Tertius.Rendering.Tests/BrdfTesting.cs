@@ -8,10 +8,6 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 internal static class BrdfTesting
 {
-    public static Double3 ToDouble(Vector3 v) => new(v.X, v.Y, v.Z);
-
-    public static Vector3 ToVector(Double3 v) => new((float)v.X, (float)v.Y, (float)v.Z);
-
     /// <summary>The linear value of an sRGB byte, as the GPU decodes it.</summary>
     public static double Decoded(byte srgb)
     {
@@ -62,6 +58,19 @@ internal static class BrdfTesting
         return BrdfTables.Shared.SampleLobeSky(cosine: dominant.Y, roughness: lobe.Roughness);
     }
 
+    /// <summary>The largest difference between two colors in any channel.</summary>
+    public static float LargestChannelDifference(Vector3 a, Vector3 b)
+    {
+        var difference = Vector3.Abs(a - b);
+        return MathF.Max(difference.X, MathF.Max(difference.Y, difference.Z));
+    }
+
+    /// <summary>A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light.</summary>
+    public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance) =>
+        renderer.CreateMaterial(
+            new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0.5f, Reflectance: 0, Emissive: radiance)
+        );
+
     /// <summary>
     /// The colors that <paramref name="radiances"/> show on screen: each is the emission of a black square that no light
     /// reaches, so it goes through the same HDR target and tone curve as a lit surface (as LitPuffRenderTests compares
@@ -78,13 +87,10 @@ internal static class BrdfTesting
         for (int i = 0; i < radiances.Count; i++)
         {
             centers[i] = new((i - (radiances.Count - 1) / 2f) * spacing, 0, -3);
-            MaterialId glow = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0.5f, Reflectance: 0, Emissive: radiances[i])
-            );
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: square,
-                    material: glow,
+                    material: Glow(renderer, radiances[i]),
                     position: centers[i],
                     scale: Vector3.One,
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),

@@ -629,6 +629,8 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 - The materials use values that the targets store exactly: roughness 0.2, 0.4, 0.6 and 0.8 are 51, 102, 153 and 204 of 255, and the base colors are decoded sRGB bytes. In the opaque case, the C# side rounds s_l to the nearest 1/255, as the specular target stores it.
 - The tilts and the roughnesses spread over both axes of both tables, so a flipped axis, a lost channel or a wrong row order fails.
 
+`BrdfShaderTests.AGrazingViewReadsTheSchlickPartAtTheTexelOfItsViewCosine` pins the shaders' texel coordinate to `BrdfTables.TexelCoordinate`. The grid above reads μ only from 0.34 to 1, where a read half a texel off moves the tables less than one 8-bit step. A black ground of reflectance 0 and roughness 0.2, under a sky and a ground of the same white and no sun, shows S(μ, r) alone. At the pixel where μ is nearest 2/31, the center of a texel, it matches an emissive square of the C# `ReflectedHemisphere` within 2 of 255.
+
 ### GPU tests of the acceptance criteria
 
 `BrdfRenderTests`:
@@ -636,12 +638,15 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 - `AMetalShowsAHighlightInItsBaseColorAndNoDiffuseLight`: a gold metal sphere, base color (1, 0.71, 0.29) and roughness 0.2, in sunlight from behind the camera, with no ambient light. The sun is dim enough that the highlight stays below 1 before the tone curve, which turns any bright color white. The highlight's red is above its green, and its green above its blue. A pixel 60° from the highlight, which the sun lights at n·l = 0.5 and where the C# lobe gives less than 10⁻⁵ of its peak, is black. A non-metal of that base color would show its diffuse light there.
 - `ANonMetalsHighlightIsWhiteWithAnF0NearFourPercent`: a red non-metal square, base color (1, 0, 0) and reflectance 0.5, head-on to the camera and the sun. Green and blue are equal, so the highlight is white. Its green lies between the greens of two emissive squares whose emission is the C# head-on highlight for F0 = 0.036 and for F0 = 0.044.
 - `ARoughSurfacesHighlightHasTheLongTailOfGgx`: a red non-metal ground of roughness 0.6 in sunlight, with no ambient light, so its green is the lobe alone. At the pixel where the C# lobe falls to a twentieth of its peak, about 46° between h and n, the green lies between emissive squares at 0.8 and 1.2 times the C# value. The Blinn-Phong lobe of the same highlight gives less than a fifth of it there. Nearer the peak the two lobes differ less, and GGX at this roughness never falls below 1.7 % of its peak.
-- `AMetalLitOnlyByTheAmbientLightIsNotBlack`: a metal sphere of roughness 0.2 under a red sky and a blue ground, with no sun. Its top is red and its bottom blue.
+- `AMetalLitOnlyByTheAmbientLightIsNotBlack`: a metal sphere of roughness 0.2 under a red sky and a blue ground, with no sun. Its top is red and its bottom blue, and its top matches an emissive square of the C# `ReflectedHemisphere` within 2 of 255, which a non-metal's diffuse light does not.
+- `ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor`: a white metal square of roughness 0, facing the camera, under a dim sun 0.6 rad above the view axis. The half vector leans 0.3 rad from the normal, where D scales with the fourth power of the floor. The pixel lies between emissive squares at 0.8 and 1.2 times the C# value. Nearer the peak, the rounding of 32-bit floats and the tilt of the flat normal map swamp D.
 - `AHighlightBrighterThanTheHdrTargetHoldsShowsWhite`: a smooth white metal square at the mirror image of a point light of intensity 1,000, 0.3 m away. The C# value is over 65,504, and the pixel is white, not NaN.
 
 In `HemisphereTests`, a theory over opaque, transparent and impostor:
 
 - `AShinyMetalReflectsTheSkyAboveItsHorizonAndTheGroundBelow`: a metal sphere of roughness 0.1 under a red sky and a blue ground with the up +Y. A point whose dominant direction rises 10° above the horizon is red, and one 10° below it is blue. Each of the three passes computes s_l, so each is tested.
+
+Two facts test the other two cases of the up at the same two points, in the opaque pass: `WithoutGravityAShinyMetalsLobeMixesTheSkyAndTheGroundEvenly` with `HemisphereUp.Even`, and `AroundAPointAShinyMetalsLobeSeesTheSkyOnBothSidesOfTheHorizontal` with `HemisphereUp.AwayFrom` the sphere's center.
 
 ### Existing tests
 

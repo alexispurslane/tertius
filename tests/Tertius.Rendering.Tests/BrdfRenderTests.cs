@@ -14,17 +14,30 @@ public sealed class BrdfRenderTests
     private const int Width = 640,
         Height = 360;
 
-    /// <summary>The sun of <see cref="Gpu.Snapshot"/>, whose color its intensity scales.</summary>
-    private static readonly Double3 SunColor = new(1, 0.96, 0.9);
+    /// <summary>The roughness of the demo's painted parts, which the head-on test of F0 uses.</summary>
+    private const double DemoRoughness = 0.38;
 
     private static Vector2 Pixel(Double3 point) =>
-        Holding(Gpu.Project(point: ToVector(point), width: Width, height: Height));
+        Holding(Gpu.Project(point: point.ToVector3(), width: Width, height: Height));
 
     /// <summary>A snapshot with a sun of <paramref name="sunIntensity"/> along <paramref name="toSun"/> and no ambient light.</summary>
     private static RenderSnapshot SunOnly(Vector3 toSun, float sunIntensity)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(toSun, sunIntensity: sunIntensity);
         snapshot.Ambient.Intensity = 0;
+        return snapshot;
+    }
+
+    /// <summary>A snapshot lit by a hemisphere ambient light of <paramref name="sky"/> and <paramref name="ground"/> alone.</summary>
+    private static RenderSnapshot AmbientOnly(Vector3 sky, Vector3 ground)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        snapshot.Ambient = new()
+        {
+            SkyColor = sky,
+            GroundColor = ground,
+            Intensity = 1,
+        };
         return snapshot;
     }
 
@@ -57,6 +70,34 @@ public sealed class BrdfRenderTests
             tables: BrdfTables.Shared
         );
         return reflected.X * 1000 * window / distanceSquared;
+    }
+
+    /// <summary>
+    /// The C# light that the hemisphere ambient light sends to the eye from the point of a sphere of radius 1 m that
+    /// <paramref name="pixel"/> sees, in the opaque pass: the specular target stores the lobe's sky share in 8 bits, and
+    /// the emissive target the normal's in a half float.
+    /// </summary>
+    private static Double3 SphereAmbientLight(
+        MaterialSample material,
+        Double3 center,
+        Vector2 pixel,
+        Double3 sky,
+        Double3 ground
+    )
+    {
+        Double3 point = OnSphere(Ray(pixel, Width, Height), center, 1);
+        Double3 normal = (point - center).Normalized();
+        Double3 toView = -point.Normalized();
+        double lobeSky = LobeSkyShare(normal: normal, toView: toView, roughness: material.Roughness);
+        return material.ReflectedHemisphere(
+            normal: normal,
+            toView: toView,
+            sky: sky,
+            ground: ground,
+            normalSkyShare: (double)(Half)NormalSkyShare(normal),
+            lobeSkyShare: Math.Round(lobeSky * 255) / 255,
+            tables: BrdfTables.Shared
+        );
     }
 
     [Fact]
@@ -97,7 +138,7 @@ public sealed class BrdfRenderTests
             RenderInstance instance = Gpu.Instance(
                 mesh: sphere,
                 material: material,
-                position: ToVector(center),
+                position: center.ToVector3(),
                 scale: Vector3.One,
                 radius: 1
             );
@@ -127,8 +168,8 @@ public sealed class BrdfRenderTests
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         Double3 toView = -point.Normalized();
         double roughness = DemoRoughness;
-        // The light of a white highlight with an F0 of f: the red diffuse light plus the lobe of that F0.
-        Vector3 HighlightOf(double f0)
+        // The light of a white highlight with an F0 of f under the sun: the red diffuse light plus the lobe of that F0.
+        Vector3 HighlightOf(double f0, Double3 sunIrradiance)
         {
             var red = new MaterialSample(BaseColor: new(1, 0, 0), Metallic: 0, Roughness: roughness, Reflectance: 0.5);
             Double3 diffuse = red.DiffuseColor / Math.PI;
@@ -147,7 +188,7 @@ public sealed class BrdfRenderTests
                     toLight: Double3.UnitZ,
                     tables: BrdfTables.Shared
                 );
-            return ToVector(reflected * SunColor);
+            return (reflected * sunIrradiance).ToVector3();
         }
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -158,10 +199,15 @@ public sealed class BrdfRenderTests
                 new(BaseColor: new(x: 1, y: 0, z: 0, w: 1), Roughness: (float)roughness, Reflectance: 0.5f)
             );
             RenderSnapshot snapshot = SunOnly(Vector3.UnitZ, 1);
-            snapshot.Instances.Add(FacingSquare(mesh: square, material: red, center: ToVector(center)));
+            snapshot.Instances.Add(FacingSquare(mesh: square, material: red, center: center.ToVector3()));
             Vector3 highlight = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-red-highlight")
                 .Color(pixel);
-            Vector3[] bounds = Displayed(renderer, [HighlightOf(0.036), HighlightOf(0.044)], "brdf-red-bounds");
+            Double3 sunIrradiance = snapshot.Sun.Color * snapshot.Sun.Intensity;
+            Vector3[] bounds = Displayed(
+                renderer,
+                [HighlightOf(0.036, sunIrradiance), HighlightOf(0.044, sunIrradiance)],
+                "brdf-red-bounds"
+            );
 
             highlight.Y.Should().BeInRange(bounds[0].Y, bounds[1].Y, "the highlight's green is that of an F0 near 4 %");
             highlight.Z.Should().BeInRange(bounds[0].Z, bounds[1].Z, "the highlight is white, so its blue is too");
@@ -171,9 +217,6 @@ public sealed class BrdfRenderTests
             Gpu.DisposeAndAssertClean(renderer);
         }
     }
-
-    /// <summary>The roughness of the demo's painted parts, which the head-on test of F0 uses.</summary>
-    private const double DemoRoughness = 0.38;
 
     [Fact]
     public void ARoughSurfacesHighlightHasTheLongTailOfGgx()
@@ -206,11 +249,10 @@ public sealed class BrdfRenderTests
             .Should()
             .BeLessThan(0.2, "the Blinn-Phong lobe of the same highlight falls far faster");
         // A bright sun lifts the tail above the toe of the tone curve.
-        const float sun = 40;
+        RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), 40);
         Double3 tail =
             black.Reflected(normal: Double3.UnitY, toView: toView, toLight: toSun, tables: BrdfTables.Shared)
-            * SunColor
-            * sun;
+            * (snapshot.Sun.Color * snapshot.Sun.Intensity);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -219,13 +261,16 @@ public sealed class BrdfRenderTests
             MaterialId material = renderer.CreateMaterial(
                 new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: (float)roughness, Reflectance: 0.5f)
             );
-            RenderSnapshot snapshot = SunOnly(ToVector(toSun), sun);
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: ground, material: material, position: new(0, -1, 0), scale: Vector3.One, radius: 71)
             );
             Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-tail")
                 .Color(pixel);
-            Vector3[] bounds = Displayed(renderer, [ToVector(tail * 0.8), ToVector(tail * 1.2)], "brdf-tail-bounds");
+            Vector3[] bounds = Displayed(
+                renderer,
+                [(tail * 0.8).ToVector3(), (tail * 1.2).ToVector3()],
+                "brdf-tail-bounds"
+            );
 
             shown.Y.Should().BeInRange(bounds[0].Y, bounds[1].Y, "the GGX lobe keeps a twentieth of its peak at 46°");
         }
@@ -238,32 +283,91 @@ public sealed class BrdfRenderTests
     [Fact]
     public void AMetalLitOnlyByTheAmbientLightIsNotBlack()
     {
-        var center = new Vector3(0, 0, -4);
+        var center = new Double3(0, 0, -4);
+        var sky = new Vector3(0.6f, 0, 0);
+        var ground = new Vector3(0, 0, 0.6f);
+        Vector2 top = Pixel(center + 0.8 * Double3.UnitY);
+        Vector2 bottom = Pixel(center - 0.8 * Double3.UnitY);
+        var metal = new MaterialSample(BaseColor: new(0.9, 0.9, 0.9), Metallic: 1, Roughness: 0.2, Reflectance: 0.5);
+        Double3 reflected = SphereAmbientLight(material: metal, center: center, pixel: top, sky: sky, ground: ground);
+
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
-            MaterialId metal = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), Roughness: 0.2f, Metallic: 1)
+            MaterialId material = renderer.CreateMaterial(
+                new(BaseColor: new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), Roughness: (float)metal.Roughness, Metallic: 1)
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
-            snapshot.Ambient = new()
-            {
-                SkyColor = new(0.6f, 0, 0),
-                GroundColor = new(0, 0, 0.6f),
-                Intensity = 1,
-            };
+            RenderSnapshot snapshot = AmbientOnly(sky: sky, ground: ground);
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: metal, position: center, scale: Vector3.One, radius: 1)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: material,
+                    position: center.ToVector3(),
+                    scale: Vector3.One,
+                    radius: 1
+                )
             );
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-ambient-metal");
-            Vector3 top = image.Color(Gpu.Project(point: center + 0.8f * Vector3.UnitY, width: Width, height: Height));
-            Vector3 bottom = image.Color(
-                Gpu.Project(point: center - 0.8f * Vector3.UnitY, width: Width, height: Height)
+            Vector3 topColor = image.Color(top);
+            Vector3 bottomColor = image.Color(bottom);
+            Vector3 glow = Displayed(renderer, [reflected.ToVector3()], "brdf-ambient-metal-glow")[0];
+
+            (topColor.X > topColor.Z + 0.15f).Should().BeTrue($"the top reflects the red sky, not {topColor}");
+            (bottomColor.Z > bottomColor.X + 0.15f)
+                .Should()
+                .BeTrue($"the bottom reflects the blue ground, not {bottomColor}");
+            LargestChannelDifference(topColor, glow)
+                .Should()
+                .BeLessThanOrEqualTo(
+                    2f / 255,
+                    $"the top shows the metal's specular ambient light {reflected}: shaded {topColor}, emissive {glow}"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor()
+    {
+        var center = new Double3(0, 0, -3);
+        Vector2 pixel = Pixel(center);
+        Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
+        // The sun stands 0.6 rad above the view axis, so the half vector leans θ = 0.3 rad from the normal. There D is
+        // about α² / (π θ⁴), which scales with the floor's fourth power. Near the peak, the rounding of 32-bit floats
+        // and the 0.3° tilt of the flat normal map (128 of 255 is not one half) swamp D. Here they move it a few percent.
+        var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
+        var mirror = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
+        Double3 reflected = mirror.Reflected(
+            normal: Double3.UnitZ,
+            toView: -point.Normalized(),
+            toLight: toSun,
+            tables: BrdfTables.Shared
+        );
+        // A dim sun keeps the light below 1 before the tone curve, which turns any bright color white.
+        RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), (float)(0.8 / reflected.X));
+        Double3 shine = reflected * (snapshot.Sun.Color * snapshot.Sun.Intensity);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
+            MaterialId material = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            snapshot.Instances.Add(FacingSquare(mesh: square, material: material, center: center.ToVector3()));
+            Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-floor-lobe")
+                .Color(pixel);
+            Vector3[] bounds = Displayed(
+                renderer,
+                [(shine * 0.8).ToVector3(), (shine * 1.2).ToVector3()],
+                "brdf-floor-lobe-bounds"
             );
 
-            (top.X > top.Z + 0.15f).Should().BeTrue($"the top reflects the red sky, not {top}");
-            (bottom.Z > bottom.X + 0.15f).Should().BeTrue($"the bottom reflects the blue ground, not {bottom}");
+            shown
+                .X.Should()
+                .BeInRange(bounds[0].X, bounds[1].X, "the floor of the roughness sets the height of the lobe's tail");
         }
         finally
         {
@@ -289,9 +393,14 @@ public sealed class BrdfRenderTests
             MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
             RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
             snapshot.Lights.Add(
-                new PointRenderLight(Position: ToVector(lightPosition), Color: Vector3.One, Intensity: 1000, Range: 10)
+                new PointRenderLight(
+                    Position: lightPosition.ToVector3(),
+                    Color: Vector3.One,
+                    Intensity: 1000,
+                    Range: 10
+                )
             );
-            snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: ToVector(center)));
+            snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
             Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-clamp")
                 .Color(pixel);
             // Turned down by the exposure, the stored value shows: the largest finite half float, not infinity.

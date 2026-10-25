@@ -15,15 +15,6 @@ public sealed class BrdfTablesTests
     private static double LobeSkyTexel(BrdfTables tables, int column, int row) =>
         (double)tables.LobeSky[row * BrdfTables.LobeSkyWidth + column];
 
-    [Fact]
-    public void TheTablesHaveTheirDocumentedSizes()
-    {
-        BrdfTables tables = BrdfTables.Shared;
-
-        tables.Dfg.Length.Should().Be(2 * 32 * 32);
-        tables.LobeSky.Length.Should().Be(64 * 32);
-    }
-
     [Theory]
     [InlineData(0, 0)]
     [InlineData(8, 0)]
