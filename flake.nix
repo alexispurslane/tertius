@@ -30,6 +30,7 @@
           joltc = pkgs.callPackage ./native/joltc.nix { };
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
           blenderMcp = pkgs.callPackage ./native/blender-mcp.nix { };
+          mpfb = pkgs.callPackage ./native/mpfb.nix { };
           blender = pkgs.lib.getExe pkgs.blender;
           vulkanLibs = [
             pkgs.vulkan-loader
@@ -110,6 +111,8 @@
               TERTIUS_BLENDER_VERSION = pkgs.blender.version;
               # The release file of the add-on, from a fixed-output fetch.
               TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;
+              # The unpacked MPFB add-on, pinned by hash. Model scripts read its MakeHuman base mesh and targets.
+              TERTIUS_MPFB = "${mpfb}";
               # blender-mcp runs Blender for some of its tools, and it reaches the bridge at this host and port.
               # tools/blender/bridge.sh starts the bridge on the same port.
               BLENDER_PATH = blender;
