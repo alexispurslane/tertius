@@ -1117,29 +1117,38 @@ In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFiveOcclusionPassesRunBetween
 
 To measure in Part 7, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": Release, `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, each build twice, one run at a time, with the load of the machine in the report. The runs: the default, `--screen-space-light off`, the radii and steps of "The default radius and steps", and fork 2's options.
 
-The table gives the memory traffic per frame at 1080p and the default setting, by arithmetic. The expected time comes from the rate that each kind of pass reached in GTAO's measurements (ARCHITECTURE.md, "Ambient occlusion", "Cost"):
+The table gives the memory traffic per frame at 1080p and the default setting, by arithmetic. The expected time came from the rate that each kind of pass reached in GTAO's measurements (ARCHITECTURE.md, "Ambient occlusion", "Cost"). The last column holds the time that `ter-izsu` measured instead, after the half-resolution copy below, mean of two runs (ARCHITECTURE.md, "Ambient occlusion", "Cost", has each run, the method and the load):
 
 - the upsample moved 76.7 MB in 0.78 ms, about 98 GB/s
 - the denoise moved 25.9 MB in 0.16 ms, about 160 GB/s
 - the horizons pass moved 53.4 MB in 0.70 ms, about 76 GB/s.
 
-| Pass | Today | Reads | Writes | Expected |
-|---|---|---|---|---|
-| Direct light | Lighting: 1.64 ms | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms |
-| Occlusion depth | 0.13 ms | 2.1 MB | 2.1 MB | 0.13 ms, unchanged |
-| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 74.6 MB of the 8 B normal of each of 18 steps, which finds its surface point on the slice (`ter-rxjr`), 74.6 MB of the two 4 B depths around each of 18 steps' exact place (`ter-y1s7`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms |
-| Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more |
-| Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms |
-| Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms |
-| Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms |
+| Pass | Today | Reads | Writes | Expected | Measured |
+|---|---|---|---|---|---|
+| Direct light | Lighting: 1.64 ms | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms | 2.14 ms |
+| Occlusion depth | 0.13 ms | 2.1 MB | 2.1 MB | 0.13 ms, unchanged | 0.07 ms |
+| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 74.6 MB of the 8 B normal of each of 18 steps, which finds its surface point on the slice (`ter-rxjr`), 74.6 MB of the two 4 B depths around each of 18 steps' exact place (`ter-y1s7`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms | 2.01 ms |
+| Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more | 5.98 ms, 2.59 ms with option B |
+| Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms | 0.13 ms |
+| Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.32 ms |
+| Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.66 ms |
 
 The two depths around each step's exact place (`ter-y1s7`) cost no time that the GPU timers could tell from the noise. On `demo-surface.json` at 1280 × 720 in Release on the M1 Max, two runs of 7 frames per build, with the 1-minute load from 7.9 to 11.1, the sectors pass took a mean of 2.304 and 2.054 ms (median 2.225 and 2.087 ms) before, and 2.304 and 2.310 ms (median 2.247 and 2.197 ms) after: the difference lies within the 0.25 ms between two runs of one build.
 
-So the occlusion passes are expected to take 4.0 to 8.4 ms together, against 1.7 ms today, and the split 0.3 to 0.7 ms more. That is far over the 1 ms limit of the crease shadowing, which it already passed. The report says so with the measured numbers. Three levers, each measured before it moves, the first two in the same run:
+So the occlusion passes were expected to take 4.0 to 8.4 ms together, against 1.7 ms for GTAO's, and the split 0.3 to 0.7 ms more. As built they took 9.1 ms on the M1 Max at 1080p, over the expectation and far over the 1 ms limit of the crease shadowing. The split took about 1 ms. The arithmetic still gives the reasons, and the counters of a GPU trace show where it missed:
 
-- Fork 2's option B: a third of the far rays.
-- A half-resolution copy of the direct light and the geometric normal, written by the depth pass beside the view depth image, if the sectors pass reads near its worst case (decision 25).
-- `ter-izsu`, which profiles the upsample, now with four channels.
+- The far rays took 6.2 ms, nearly twice the top of the expected range. Their trace loop is bound by arithmetic, not by memory (ALU 88 %, last-level cache 29 %): with one far step the pass took 0.79 ms. The expectation came from SSR's estimate of the time per ray, not from the traffic of the table.
+- The sectors pass took 2.3 ms, within the expected range, near its top. Its reads were near their worst case (ALU 72 %, last-level cache 71 %).
+- The upsample took 0.32 ms, a quarter of the expected 1.4 to 1.5 ms. The 124.4 MB of the table are requests, and the caches serve them: the counters show about 4 MB from memory each way. The denoise took 0.13 ms, also a quarter of its expectation, for the same reason.
+- The direct pass took 2.2 ms, above the expected 1.5 to 1.7 ms, with a fragment occupancy of 19 %.
+
+The three levers, each measured on its own (`ter-izsu`, 2026-10-26):
+
+- Fork 2's option B, a third of the far rays: the far rays took 2.6 ms in place of 6.2 ms, and the five passes 4.9 ms. It changes the image, the bounce's speckle grows, so it is a setting, `VisibilityBitmaskLight.FarRays`, with option A as the default until Part 7.
+- The half-resolution copy of the direct light and the geometric normal (decision 25): the sectors pass took 0.28 ms less, and the image is the same bytes. It is the new behavior.
+- The upsample, which the profile shows needs no change.
+
+With the copy and option B, the occlusion passes take 4.9 to 5.0 ms. The far rays' trace loop remains the largest cost. Its other levers change the image, such as `FarSteps`, or change the reflections' shared `traceRay`.
 
 With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image's round trip: about 0.3 to 0.7 ms and 31.1 MB more than today (fork 3).
 
