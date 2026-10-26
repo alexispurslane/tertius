@@ -46,6 +46,14 @@ public sealed class SpawnDesc
     /// <summary>The render row. Null means nothing to draw.</summary>
     public RenderData? Render { get; init; }
 
+    /// <summary>
+    /// The rig pose at the spawn, or null for none (docs/plans/skinning-and-morphs.md, "The rig pose in the simulation").
+    /// It fixes the counts of joint poses and weights for the entity's life, and needs a <see cref="Render"/> row. A spawn
+    /// refuses, with an <see cref="ArgumentException"/>, a number that is not finite, a zero rotation, or more than
+    /// <see cref="Rig.MaxJoints"/> joint poses.
+    /// </summary>
+    public RigPose? RigPose { get; init; }
+
     /// <summary>The component instances. Each instance belongs to one entity, so do not share them between spawns.</summary>
     public IReadOnlyList<IComponent> Components { get; init; } = [];
 

@@ -37,6 +37,10 @@ internal readonly record struct RenderView(
 /// the frame poses of that build. A puff keeps no memory here: its previous place is its place one chord back.
 /// </para>
 /// <para>
+/// <see cref="BuildRigPoses"/> adds the rig poses of the posed instances after the join. The placed copy of each rig pose
+/// in the entity table is the builder's memory of it, as the column of poses is of the transforms.
+/// </para>
+/// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
 /// <item>An entity's remembered pose comes from a build that has happened, and names the frame it was relative
@@ -109,6 +113,11 @@ internal sealed partial class RenderSnapshotBuilder
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
 
+    // The posed instances of each chunk, by their index in the chunk, which BuildRigPoses turns into entries of the
+    // snapshot after the join; and the index in the joined instances of each chunk's first instance.
+    private List<PosedInstance>[] posedChunks = [];
+    private int[] chunkInstanceStarts = [];
+
     // What the placement of the puffs knows of the build that is running: whether the build placed a camera, and whether
     // it interpolates from a build of the tick before, so that a puff's place one chord back is its previous place.
     private bool renderHasCamera;
@@ -165,6 +174,9 @@ internal sealed partial class RenderSnapshotBuilder
         /// <summary>The build that wrote it, or 0 for none.</summary>
         public long Stamp;
     }
+
+    /// <summary>A posed instance of one chunk: its index among the chunk's instances, and its entity's rig pose.</summary>
+    private readonly record struct PosedInstance(int Instance, EntityTable.RigPoseBlock RigPose);
 
     /// <summary>What the outline build knows of one frame, by dense index.</summary>
     private struct OutlineFrame
@@ -396,10 +408,13 @@ internal sealed partial class RenderSnapshotBuilder
             int old = instanceChunks.Length;
             Array.Resize(ref instanceChunks, chunkCount);
             Array.Resize(ref lightChunks, chunkCount);
+            Array.Resize(ref posedChunks, chunkCount);
+            Array.Resize(ref chunkInstanceStarts, chunkCount);
             for (int i = old; i < chunkCount; i++)
             {
                 instanceChunks[i] = new(64);
                 lightChunks[i] = new(4);
+                posedChunks[i] = [];
             }
         }
 
@@ -424,6 +439,7 @@ internal sealed partial class RenderSnapshotBuilder
         Span<RenderLight> lightSpan = CollectionsMarshal.AsSpan(snapshot.Lights);
         for (int c = 0; c < chunkCount; c++)
         {
+            chunkInstanceStarts[c] = instances - instanceSpan.Length;
             instanceChunks[c].AsSpan().CopyTo(instanceSpan);
             instanceSpan = instanceSpan[instanceChunks[c].Count..];
             lightChunks[c].AsSpan().CopyTo(lightSpan);
@@ -431,12 +447,48 @@ internal sealed partial class RenderSnapshotBuilder
             instanceChunks[c].Clear();
             lightChunks[c].Clear();
         }
+
+        BuildRigPoses(snapshot, chunkCount);
+    }
+
+    /// <summary>
+    /// Adds the rig pose of every posed instance to <paramref name="snapshot"/>, and places it for the next build
+    /// (docs/plans/skinning-and-morphs.md, "The rig pose in the snapshot"). The previous rig pose follows the rule of the
+    /// previous transforms: the placed copy of the build before when the build interpolates, and the current one otherwise.
+    /// </summary>
+    /// <remarks>
+    /// It runs after the join, because an entry names its instance by its index in the joined list, and on the calling
+    /// thread in chunk order, so that the entries come in instance order whatever threads built the chunks.
+    /// </remarks>
+    private void BuildRigPoses(RenderSnapshot snapshot, int chunkCount)
+    {
+        for (int c = 0; c < chunkCount; c++)
+        {
+            foreach (PosedInstance posed in posedChunks[c])
+            {
+                EntityTable.RigPoseBlock rigPose = posed.RigPose;
+                bool placedByTheBuildBefore = renderInterpolate && rigPose.PlacedStamp == buildStamp - 1;
+                ReadOnlySpan<Pose> joints = rigPose.FrontJoints;
+                ReadOnlySpan<float> weights = rigPose.FrontWeights;
+                snapshot.AddRigPose(
+                    instance: chunkInstanceStarts[c] + posed.Instance,
+                    joints: joints,
+                    previousJoints: placedByTheBuildBefore ? rigPose.PlacedJoints : joints,
+                    weights: weights,
+                    previousWeights: placedByTheBuildBefore ? rigPose.PlacedWeights : weights
+                );
+                rigPose.Place(buildStamp);
+            }
+
+            posedChunks[c].Clear();
+        }
     }
 
     private void BuildChunk(int chunk)
     {
         RefList<RenderInstance> instances = instanceChunks[chunk];
         RefList<RenderLight> lights = lightChunks[chunk];
+        List<PosedInstance> posed = posedChunks[chunk];
         int start = chunk * RenderChunkSlots;
         int end = Math.Min(start + RenderChunkSlots, renderSlotCount);
         Double3 origin = renderOrigin;
@@ -477,6 +529,8 @@ internal sealed partial class RenderSnapshotBuilder
                 );
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
+                if (entities.RigPoseOf(entity) is { } rigPose)
+                    posed.Add(new(Instance: instances.Count - 1, RigPose: rigPose));
             }
 
             AddLight(lights: lights, light: render.Light, carrier: current, chainDepth: (ushort)chainDepth[dense]);

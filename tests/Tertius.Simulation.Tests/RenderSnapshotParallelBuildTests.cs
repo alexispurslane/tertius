@@ -23,13 +23,15 @@ public sealed class RenderSnapshotParallelBuildTests
     /// A world of <paramref name="entityCount"/> visible entities in the root and in a far frame, every fourth one moving and
     /// every fiftieth one carrying a point light, after two ticks. With <paramref name="parallelThreshold"/>, the builder
     /// goes to the workers from that many slots on. The camera is in the root, or in the far frame with
-    /// <paramref name="cameraInFarFrame"/>.
+    /// <paramref name="cameraInFarFrame"/>. With <paramref name="posed"/>, every seventh entity has a rig pose, which it
+    /// writes in every tick.
     /// </summary>
     private static RenderSnapshot BuildAfterTwoTicks(
         int maxDegreeOfParallelism,
         int entityCount,
         int? parallelThreshold = null,
-        bool cameraInFarFrame = false
+        bool cameraInFarFrame = false,
+        bool posed = false
     )
     {
         // Debug checks cost O(capacity) per tick, which adds up for 12 000 entities and says nothing about the snapshot.
@@ -47,13 +49,16 @@ public sealed class RenderSnapshotParallelBuildTests
                     Intensity: 1,
                     Range: 20
                 );
+            bool hasRigPose = posed && i % 7 == 0;
+            IComponent[] components = i % 4 == 0 ? [new Mover(new(0.25, 0, 0))] : [];
             test.World.Spawn(
                 new()
                 {
                     Frame = i % 3 == 0 ? side : test.Root,
                     Pose = TestWorld.At(i * 0.5, i % 7, -i % 11),
                     Render = render,
-                    Components = i % 4 == 0 ? [new Mover(new(0.25, 0, 0))] : [],
+                    RigPose = hasRigPose ? RigPoseOf(entity: i, tick: -1) : null,
+                    Components = hasRigPose ? [.. components, RigPoser(i)] : components,
                 }
             );
         }
@@ -65,6 +70,32 @@ public sealed class RenderSnapshotParallelBuildTests
         // Disposing the world stops its physics thread and nothing else, so the snapshot object stays valid after it.
         return test.World.Latest();
     }
+
+    /// <summary>The rig pose of the entity <paramref name="entity"/> in the tick <paramref name="tick"/>: one joint per entity modulo 3, and two weights.</summary>
+    private static RigPose RigPoseOf(int entity, long tick) =>
+        new(
+            [
+                .. Enumerable
+                    .Range(0, 1 + entity % 3)
+                    .Select(joint => new Pose(
+                        new(entity, joint, tick),
+                        Quaternion.CreateFromAxisAngle(Vector3.UnitY, tick)
+                    )),
+            ],
+            [entity * 0.5f, tick]
+        );
+
+    /// <summary>Writes <see cref="RigPoseOf"/> of the tick into the rig pose of the entity <paramref name="entity"/>.</summary>
+    private static Lambda RigPoser(int entity) =>
+        Lambda.OnTick(
+            (self, scoped ref _, scoped ref _) =>
+            {
+                RigPose pose = RigPoseOf(entity, self.Tick);
+                RigPoseWriter writer = self.RigPose;
+                pose.Joints.AsSpan().CopyTo(writer.Joints);
+                pose.Weights.AsSpan().CopyTo(writer.Weights);
+            }
+        );
 
     [Fact]
     public void TheSnapshotOfAHugeWorldIsTheSameWhateverTheNumberOfThreads()
@@ -129,6 +160,27 @@ public sealed class RenderSnapshotParallelBuildTests
             .Should()
             .Equal(serial.Instances.Select(instance => instance.ChainDepth));
         onWorkers.Lights.Should().Equal(serial.Lights);
+    }
+
+    [Fact]
+    public void ParallelBuildGivesTheSerialRigPoses()
+    {
+        RenderSnapshot serial = BuildAfterTwoTicks(
+            maxDegreeOfParallelism: 1,
+            entityCount: SmallEntityCount,
+            posed: true
+        );
+        RenderSnapshot onWorkers = BuildAfterTwoTicks(
+            maxDegreeOfParallelism: 4,
+            entityCount: SmallEntityCount,
+            parallelThreshold: 1,
+            posed: true
+        );
+
+        serial.RigPoses.Should().HaveCount((SmallEntityCount + 6) / 7);
+        onWorkers.RigPoses.Should().Equal(serial.RigPoses);
+        onWorkers.JointPoses.Should().Equal(serial.JointPoses);
+        onWorkers.MorphWeights.Should().Equal(serial.MorphWeights);
     }
 
     // ---- From how many slots on --------------------------------------------------------------------------------------

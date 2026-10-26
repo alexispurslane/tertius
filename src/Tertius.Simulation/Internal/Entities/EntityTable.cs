@@ -7,7 +7,7 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The entity slots and everything stored per entity: the slot lifecycle and generations, the deterministic spawn
-/// pools, the double-buffered transform, render, component flag, collision and intent tables, the component lists with
+/// pools, the double-buffered transform, render, component flag, collision and intent tables, the rig poses, the component lists with
 /// their cached mask, the index of the entities by component type, and the dirty tracking that copies changed back rows
 /// forward. Other subsystems keep their per-entity state in columns that
 /// they add with <see cref="AddColumn{T}"/>: the table grows every column together with its own tables, and clears an
@@ -45,6 +45,9 @@ namespace Tertius.Simulation;
 /// <item>A slot is in the set of <see cref="EmitterEntities"/> exactly when it is live and its front render row holds an
 /// emitter that can make puffs, except a spawn since the last <see cref="CopyDirtyRows"/>, whose slot waits for that copy
 /// and is not in the set. So outside the sync point, the set holds exactly the emitters of the front render rows.</item>
+/// <item>A slot has a rig pose block exactly when it is live and its entity spawned with a rig pose. A block's three copies
+/// have its shape, and a block belongs to one slot or to the pool, never to both. A slot whose render row is clean has equal
+/// front and back rig poses.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
 /// <item>A back intent is set only for a live entity in its chunk's list of intent writers or in its list of pushers, and
@@ -188,6 +191,7 @@ internal sealed partial class EntityTable
         backComponents = AddSlotColumn<ComponentFlags>();
         frontCollision = AddSlotColumn<BodyCollision>();
         backCollision = AddSlotColumn<BodyCollision>();
+        rigPoses = AddSlotColumn<RigPoseBlock?>();
         Grow(initialCapacity);
     }
 
@@ -763,6 +767,7 @@ internal sealed partial class EntityTable
             componentIndex.Remove(entity, frontComponents[slot]);
             bodySlots.Remove(slot);
             emitterSlots.Set(slot, false);
+            ReturnRigPose(slot);
             foreach (IColumn column in columns)
                 column.Clear(slot);
             LiveCount--;
@@ -1450,6 +1455,7 @@ internal sealed partial class EntityTable
         AssertSlots(scan);
         AssertTotals(scan);
         AssertEmitterInvariants();
+        AssertRigPoseInvariants();
     }
 
     /// <summary>Checks that the size of every per-slot table and of the chunks agrees with the capacity.</summary>
@@ -1863,8 +1869,9 @@ internal sealed partial class EntityTable
     /// Copies the dirty rows of one slot forward and clears its dirty bits. Its entity joins <paramref name="movedTo"/>
     /// when the copy changed its front transform, and its slot joins <paramref name="componentCopiesTo"/> when its component
     /// flags must still be copied, which only the sync thread does. A copy of the render row sets the slot's emitter bit
-    /// from the new front row. It touches only this slot's rows, flags and emitter bit, which changes atomically, so the
-    /// workers of a parallel copy run it on disjoint slots, each with its chunk's lists.
+    /// from the new front row, and copies the slot's rig pose with it. It touches only this slot's rows, rig pose, flags
+    /// and emitter bit, which changes atomically, so the workers of a parallel copy run it on disjoint slots, each with its
+    /// chunk's lists.
     /// </summary>
     private void CopyRow(uint slot, List<Entity> movedTo, List<uint> componentCopiesTo)
     {
@@ -1883,6 +1890,7 @@ internal sealed partial class EntityTable
         {
             frontRender[slot] = backRender[slot];
             emitterSlots.Set(slot, frontRender[slot].Emitter.CanMakePuffs);
+            rigPoses[slot]?.CopyBackToFront();
         }
 
         if ((dirty & SlotFlags.ComponentsDirty) != 0)
