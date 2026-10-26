@@ -215,6 +215,36 @@ internal struct GpuLight
 [StructLayout(LayoutKind.Sequential)]
 internal readonly record struct UInt4(uint X, uint Y, uint Z, uint W);
 
+/// <summary>
+/// One tile view of the frame in the tile storage buffer (std430, binding 15 of the frame set). 80 bytes. A light's
+/// <see cref="AtlasTiles"/> slot names its views, in cube face order for a point light. The last 4 bytes are unused.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Size = 80)]
+internal struct GpuShadowTile
+{
+    /// <summary>Camera-relative world space to the tile's clip space, row-vector form: reversed-Z, infinite far plane.</summary>
+    public Matrix4x4 ViewProjection;
+
+    /// <summary>The layer of the atlas that holds the tile.</summary>
+    public uint Layer;
+
+    /// <summary>The world size of one texel at 1 m from the light along the view axis.</summary>
+    public float TexelPerMeter;
+
+    /// <summary>The near plane, in meters from the light: max(radius, <see cref="DepthRanges.NearPlane"/>).</summary>
+    public float Near;
+
+    /// <summary>The GPU form of <paramref name="view"/> of <paramref name="light"/> in an atlas of <paramref name="tileSize"/>² tiles.</summary>
+    public static GpuShadowTile Of(in PreparedLight light, TileView view, int tileSize) =>
+        new()
+        {
+            ViewProjection = ShadowTiles.ViewProjection(light: light, aim: view.Aim, tileSize: tileSize),
+            Layer = (uint)view.Layer,
+            TexelPerMeter = ShadowTiles.TexelPerMeter(light: light, aim: view.Aim, tileSize: tileSize),
+            Near = ShadowTiles.NearPlane(light),
+        };
+}
+
 /// <summary>One frame outline in the outline storage buffer (std430). 48 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuOutline

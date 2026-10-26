@@ -10,14 +10,16 @@ namespace Tertius.Rendering;
 /// frame outlines, puffs, the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable), and the exposure
 /// buffer (binding 11), which every frame's set shares, and the environment map's specular map (binding 12, partially
 /// bound), its sampler (binding 13, immutable) and its irradiance (binding 14, partially bound), which stay empty with the
-/// map off. One per frame in flight.</description></item>
+/// map off, and the tile views of the local shadows (binding 15, partially bound), empty without the atlas. One per frame
+/// in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
 /// <item><term>set 2, G-buffer</term>
 /// <description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
 /// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
-/// for the lit puffs, and the occlusion target (binding 7, rewritten on resize). One.</description></item>
+/// for the lit puffs, the occlusion target (binding 7, rewritten on resize), and the local shadow atlas (binding 8, partially
+/// bound), which the comparison sampler also reads and which stays empty without the atlas. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -521,8 +523,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, and the occlusion target. The sampler is immutable because portability implementations may
-    /// not allow updating comparison sampler descriptors
+    /// immutable sampler, the occlusion target and the local shadow atlas, partially bound. The sampler is immutable because
+    /// portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
     private DescriptorSetLayout CreateGBufferSetLayout(Sampler shadowSampler)
@@ -541,8 +543,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             Image(binding: 5, stages: graphics),
             ImmutableSampler(binding: 6, stages: graphics, sampler: &shadowSampler),
             Image(binding: RenderTargets.OcclusionBinding, stages: shading),
+            // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The reflections' compute shaders
+            // declare the atlas but never use it.
+            Image(binding: ShadowAtlas.AtlasBinding, stages: graphics),
         ];
-        return CreateLayout(bindings: gbuffer, name: "g-buffer set");
+        Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
+        flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;
+        return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
     }
 
     /// <summary>
@@ -603,15 +610,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            // Eight per frame set, the two of the exposure set and the one of the prefilter set.
-            new(DescriptorType.StorageBuffer, 8 * frames + 3),
+            // Nine per frame set, the two of the exposure set and the one of the prefilter set.
+            new(DescriptorType.StorageBuffer, 9 * frames + 3),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 18 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
+            // 19 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
             // glow source set, two each for the meter set and the occlusion set, one per pyramid level set, one for the
             // depth tail set, two for the reflection set and one for the prefilter set.
-            new(DescriptorType.SampledImage, 18 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
+            new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
             // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
             // set's mips, two for the reflection set and one per environment level set.
             new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 2 + EnvironmentLevelSets),
@@ -790,6 +797,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> and binding 13
     /// <paramref name="environment"/> as their immutable samplers. Bindings 12 and 14 are partially bound: they stay
     /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29).
+    /// Binding 15, the tile views, is partially bound too: it stays empty without the local shadow atlas.
     /// </summary>
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
@@ -837,10 +845,19 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: graphicsAndCompute
             ),
+            // The lit puffs sample the tiles in the vertex stage. The reflections' compute shaders declare the views but
+            // never use them.
+            new(
+                binding: ShadowAtlas.TileViewsBinding,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: graphics
+            ),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         flags[12] = DescriptorBindingFlags.PartiallyBoundBit;
         flags[14] = DescriptorBindingFlags.PartiallyBoundBit;
+        flags[(int)ShadowAtlas.TileViewsBinding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: frame, name: "frame set", bindingFlags: flags);
     }
 

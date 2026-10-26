@@ -1,6 +1,6 @@
 // The shadows of the lights (docs/plans/local-light-shadows.md): the cascade sets of the far lights (ShadowCascades.cs,
-// ShadowPass.cs), the far shadows of each far light, and the tiles of the near lights. Needs frame.glsl and
-// gbuffer_inputs.glsl.
+// ShadowPass.cs), the far shadows of each far light, and the tiles of the near lights (ShadowTiles.cs, LocalShadowPass.cs).
+// Needs frame.glsl and gbuffer_inputs.glsl.
 //
 // The main view's cascade selection is by view depth. Over the last 10% of each cascade the result blends into the next cascade,
 // and the last cascade fades out to fully lit at 2 km, so there are no shadow-map shadows beyond it.
@@ -20,6 +20,8 @@
 //  - A normal offset of one texel, scaled by sin(angle to the light), plus half a texel of constant depth bias.
 #ifndef TERTIUS_SHADOWS_GLSL
 #define TERTIUS_SHADOWS_GLSL
+
+#include "cube_faces.glsl"
 
 // The lit fraction of one cascade of one cascade set at a world position.
 float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal, float NdotL)
@@ -221,11 +223,43 @@ float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec4 rang
     return visibility;
 }
 
-// The share of a near light that its atlas tiles let through: 1 until the atlas exists (docs/plans/local-light-shadows.md,
-// Part 6).
+// How far tileShadow moves its lookup along the geometric normal, in texels of the tile at the receiver's distance, times
+// sin(angle to the light): ShadowPass.NormalOffsetTexels, as for the cascades.
+const float TileNormalOffsetTexels = 1.0;
+
+// The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
+// "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
+// the light to the position. The 4 × 4 hardware-PCF taps of the cascades, with the normal offset at the receiver's
+// distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is not linear across
+// it. Taps that leave the tile clamp to its edge. L is the unit direction toward the light and d its distance;
+// geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be positive.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
 {
-    return 1.0;
+    // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).
+    uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
+    GpuShadowTile tile = shadowTiles[view];
+    float sinTheta = sqrt(max(1.0 - NdotL * NdotL, 0.0));
+    vec3 lookup = position + geometricNormal * (TileNormalOffsetTexels * tile.texelPerMeter * d * sinTheta);
+    vec4 clip = tile.viewProj * vec4(lookup, 1.0);
+    // The near plane floors the divisor, which is the lookup's depth along the view axis: a lookup nearer the light than
+    // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.
+    vec3 ndc = clip.xyz / max(clip.w, tile.near);
+    vec2 uv = ndc.xy * 0.5 + 0.5;
+    float invSize = 1.0 / float(textureSize(shadowAtlas, 0).x);
+    float layer = float(tile.layer);
+
+    float lit = 0.0;
+    for (int y = 0; y < 4; y++)
+    {
+        for (int x = 0; x < 4; x++)
+        {
+            vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
+            // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
+            lit += textureGrad(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec4(uv + offset, layer, ndc.z), vec2(0.0),
+                vec2(0.0));
+        }
+    }
+    return lit * (1.0 / 16.0);
 }
 
 #endif

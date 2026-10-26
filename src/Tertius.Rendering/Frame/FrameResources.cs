@@ -7,7 +7,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// What one frame in flight owns: its command buffer, fence and acquire semaphore, the host-visible buffers the CPU
-/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs), its descriptor
+/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs and, with the
+/// local shadow atlas, the tile views), its descriptor
 /// sets and its staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other
 /// synchronization is needed for them.
 /// </summary>
@@ -29,6 +30,7 @@ internal sealed unsafe class FrameResources : IDisposable
         BrdfTableImages tables,
         GpuBuffer exposure,
         EnvironmentMap? environment,
+        ShadowAtlas? shadowAtlas,
         int index
     )
     {
@@ -59,6 +61,8 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders = StorageArray<Vector4>(allocator, "occluders", 16);
         Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
         Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
+        // Without the atlas the binding stays empty: it is partially bound.
+        ShadowTiles = shadowAtlas is null ? null : StorageArray<GpuShadowTile>(allocator, "tile views", 64);
         Staging = new(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
@@ -95,6 +99,9 @@ internal sealed unsafe class FrameResources : IDisposable
     public HostArray<Vector4> Occluders { get; }
     public HostArray<GpuOutline> Outlines { get; }
     public HostArray<GpuPuff> Puffs { get; }
+
+    /// <summary>The tile views of the local shadows, or null without the atlas.</summary>
+    public HostArray<GpuShadowTile>? ShadowTiles { get; }
     public StagingArena Staging { get; }
     public DescriptorSet FrameSet { get; }
     public DescriptorSet TextureSet { get; }
@@ -127,7 +134,17 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         if (Puffs.Write(scene.Puffs.AsSpan(0, scene.PuffCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+        if (ShadowTiles?.Write(scene.ShadowTiles.AsSpan(0, scene.ShadowTileCount)) == true)
+            WriteShadowTiles(ShadowTiles);
     }
+
+    private void WriteShadowTiles(HostArray<GpuShadowTile> tiles) =>
+        layouts.WriteBuffer(
+            set: FrameSet,
+            binding: ShadowAtlas.TileViewsBinding,
+            type: DescriptorType.StorageBuffer,
+            buffer: tiles.Buffer
+        );
 
     /// <summary>
     /// The GPU form of each light of the frame, in its order, written after every pass's Prepare, when every slot is
@@ -227,6 +244,8 @@ internal sealed unsafe class FrameResources : IDisposable
         layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
         // The renderer has one exposure buffer for its life, which every frame passes on to the next.
         layouts.WriteBuffer(set: FrameSet, binding: 11, type: DescriptorType.StorageBuffer, buffer: exposure);
+        if (ShadowTiles is { } tiles)
+            WriteShadowTiles(tiles);
     }
 
     /// <summary>Points this frame's sets at the current material buffer and writes textures added since its last frame.</summary>
@@ -261,6 +280,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders.Dispose();
         Outlines.Dispose();
         Puffs.Dispose();
+        ShadowTiles?.Dispose();
         Constants.Dispose();
         Staging.Dispose();
         vk.DestroySemaphore(device.Device, ImageAvailable, null);

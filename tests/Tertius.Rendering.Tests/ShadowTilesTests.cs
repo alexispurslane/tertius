@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="ShadowTiles"/>: which near lights get tiles of the atlas, which layer each tile takes, which casters each
 /// tile draws, when a tile is drawn again, and each tile's projection (docs/plans/local-light-shadows.md, "The budget",
-/// "Tile views", "Casters", "The cache"). Every frame checks the invariants.
+/// "Tile views", "Casters", "The cache"). Every frame is submitted, then checks the invariants, unless a test says otherwise.
 /// </summary>
 public sealed class ShadowTilesTests
 {
@@ -70,14 +70,17 @@ public sealed class ShadowTilesTests
             EntityIndex = entity,
         };
 
-    /// <summary>One frame of the tiles with the camera in the frame of id 1, with the invariants checked after it.</summary>
+    /// <summary>One submitted frame of the tiles with the camera in the frame of id 1, with the invariants checked after it.</summary>
     private static (List<TileView> Views, List<TileDraw> Draws) Frame(
         ShadowTiles tiles,
         PreparedLight[] lights,
         ShadowCaster[]? casters = null
     ) => FrameInOrigin(tiles: tiles, lights: lights, casters: casters ?? [], originFrameId: 1);
 
-    /// <summary>One frame of the tiles with the camera in the frame <paramref name="originFrameId"/>, with the invariants checked after it.</summary>
+    /// <summary>
+    /// One submitted frame of the tiles with the camera in the frame <paramref name="originFrameId"/>, with the invariants
+    /// checked after it.
+    /// </summary>
     private static (List<TileView> Views, List<TileDraw> Draws) FrameInOrigin(
         ShadowTiles tiles,
         PreparedLight[] lights,
@@ -88,6 +91,7 @@ public sealed class ShadowTilesTests
         List<TileView> views = [];
         List<TileDraw> draws = [];
         tiles.Update(lights: lights, casters: casters, originFrameId: originFrameId, views: views, draws: draws);
+        tiles.Drew();
         tiles.AssertInvariants();
         return (views, draws);
     }
@@ -588,6 +592,7 @@ public sealed class ShadowTilesTests
         PreparedLight[] lights = [Spot(entity: 1)];
         List<TileView> views = [];
         tiles.Update(lights: lights, casters: [], originFrameId: 1, views: views, draws: []);
+        tiles.Drew();
 
         views.Clear();
 
@@ -676,6 +681,21 @@ public sealed class ShadowTilesTests
         List<TileDraw> draws = FrameInOrigin(tiles: tiles, lights: lights, casters: [], originFrameId: 2).Draws;
 
         draws.Select(draw => draw.View).Should().Equal(0, 1, 2, 3, 4, 5, 6);
+    }
+
+    [Fact]
+    public void AFrameThatWasNeverSubmittedLeavesTheNextFrameToDrawEveryViewItWouldHaveDrawn()
+    {
+        var tiles = new ShadowTiles(layers: 7, tileSize: TileSize);
+        PreparedLight[] lights = [Point(entity: 1), Spot(entity: 2, position: new(0, 3, 0))];
+        // The first frame chooses its layers and draws, then throws before its submission, so it records nothing.
+        tiles.Update(lights: lights, casters: [], originFrameId: 1, views: [], draws: []);
+
+        List<TileDraw> draws = Frame(tiles, lights).Draws;
+
+        draws
+            .Should()
+            .HaveCount(7, "no frame has drawn the layers, so they hold the image's undefined content (ter-uhls)");
     }
 
     [Fact]

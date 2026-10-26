@@ -42,6 +42,12 @@ public readonly record struct RenderStats
     /// <summary>Caster instances over all cascades. A caster in two cascades counts twice.</summary>
     public int ShadowInstances { get; init; }
 
+    /// <summary>Tiles of the local shadow atlas that the frame's near lights use: 1 per spot light, 6 per point light.</summary>
+    public int ShadowTilesInUse { get; init; }
+
+    /// <summary>Tiles of the local shadow atlas that the frame draws again, because their records are stale. The others are cached.</summary>
+    public int ShadowTilesDrawn { get; init; }
+
     /// <summary>Objects drawn as impostor billboards instead of geometry.</summary>
     public int Impostors { get; init; }
 
@@ -55,8 +61,8 @@ public readonly record struct RenderStats
     public int ImpostorTilesInUse { get; init; }
 
     /// <summary>
-    /// vkCmdDrawIndexedIndirect calls. At most one per depth range per pass, one per shadow cascade and one per
-    /// impostor capture.
+    /// vkCmdDrawIndexedIndirect calls. At most one per depth range per pass, one per shadow cascade, one per drawn tile
+    /// and one per impostor capture.
     /// </summary>
     public int IndirectDrawCalls { get; init; }
 
