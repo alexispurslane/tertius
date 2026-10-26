@@ -1,6 +1,6 @@
 ---
 id: ter-torl
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T19:32:58Z
@@ -14,3 +14,9 @@ tags: [rendering, animation]
 
 Part 1 of docs/plans/skinning-and-morphs.md, 'Order of the work'.
 
+
+## Notes
+
+**2026-10-26T21:07:25Z**
+
+2026-10-26: built, reviewed and fixed on ter-4vzc-skinning (be874b0d, e5384447, dfe3651f; review fixes da1b3c4b).
