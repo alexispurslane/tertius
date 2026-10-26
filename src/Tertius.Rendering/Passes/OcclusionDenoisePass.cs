@@ -30,13 +30,13 @@ internal sealed class OcclusionDenoisePass(
         barriers.Image(images.TermA, ImageUse.StorageCompute);
         barriers.Image(images.TermB, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
-        pipeline.DispatchDenoise(context: context, denoise: images.DenoiseAToB, last: false);
+        pipeline.DispatchDenoise(context: context, set: images.SetAToB, last: false);
 
         // The last dispatch reads what the first wrote, and writes term A only after the first has read it.
         barriers.Image(images.TermB, ImageUse.StorageCompute);
         barriers.Image(images.TermA, ImageUse.StorageCompute);
         barriers.Flush(context.Vk, context.CommandBuffer);
-        pipeline.DispatchDenoise(context: context, denoise: images.DenoiseBToA, last: true);
+        pipeline.DispatchDenoise(context: context, set: images.SetBToA, last: true);
     }
 
     public override void Dispose() => pipeline.Dispose();

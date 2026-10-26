@@ -57,7 +57,7 @@ const float MinProjectedNormalLength = 1e-6;
 // the view ray r.
 vec3 gtaoViewPosition(vec2 screenPosition, float z)
 {
-    vec2 tangents = vec2(occlusion.cameraRight.w, occlusion.cameraUp.w);
+    vec2 tangents = cameraTangents();
     vec2 ndcToViewMul = vec2(2.0, -2.0) * tangents;
     vec2 ndcToViewAdd = vec2(-1.0, 1.0) * tangents;
     return vec3((ndcToViewMul * screenPosition + ndcToViewAdd) * z, z);

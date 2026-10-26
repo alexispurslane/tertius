@@ -1145,9 +1145,9 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
         Unsafe.SizeOf<GpuPuff>().Should().Be(32);
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(64);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(48);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(60);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(16);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
     }

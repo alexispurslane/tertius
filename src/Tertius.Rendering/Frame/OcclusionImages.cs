@@ -28,9 +28,8 @@ internal sealed class OcclusionImages : IDisposable
         this.allocator = allocator;
         this.layouts = layouts;
         CheckFormats(device);
-        Set = layouts.AllocateOcclusionSet();
-        DenoiseAToB = layouts.AllocateDenoiseSet();
-        DenoiseBToA = layouts.AllocateDenoiseSet();
+        SetAToB = layouts.AllocateOcclusionSet();
+        SetBToA = layouts.AllocateOcclusionSet();
         Create(targets);
     }
 
@@ -49,16 +48,16 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>The occlusion after the first denoise dispatch.</summary>
     public GpuImage TermB { get; private set; }
 
-    /// <summary>Set 0 of <see cref="DescriptorLayouts.OcclusionLayout"/>, for all four passes.</summary>
-    public DescriptorSet Set { get; }
+    /// <summary>
+    /// Set 3 of <see cref="DescriptorLayouts.OcclusionLayout"/> with term A as the denoise source and term B as its
+    /// destination: for every dispatch but the last denoise.
+    /// </summary>
+    public DescriptorSet SetAToB { get; }
 
-    /// <summary>Set 1 of the first denoise dispatch: term A to term B.</summary>
-    public DescriptorSet DenoiseAToB { get; }
+    /// <summary>Set 3 with term B as the denoise source and term A as its destination: for the last denoise dispatch.</summary>
+    public DescriptorSet SetBToA { get; }
 
-    /// <summary>Set 1 of the last denoise dispatch: term B to term A.</summary>
-    public DescriptorSet DenoiseBToA { get; }
-
-    /// <summary>Recreates the images at the half of the targets' size and rewrites the three sets. The device must be idle.</summary>
+    /// <summary>Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle.</summary>
     public void Resize(RenderTargets targets)
     {
         // Always, even at the same half size: the sets point at the targets, which a resize recreates.
@@ -75,17 +74,19 @@ internal sealed class OcclusionImages : IDisposable
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
         TermB = CreateImage(format: TermFormat, name: "occlusion term B");
 
-        // The bindings of occlusion.glsl.
-        layouts.WriteImage(set: Set, binding: 0, arrayElement: 0, image: targets.Distance);
-        layouts.WriteImage(set: Set, binding: 1, arrayElement: 0, image: targets.Normal);
-        layouts.WriteStorageImage(set: Set, binding: 2, image: ViewDepth);
-        layouts.WriteStorageImage(set: Set, binding: 3, image: Edges);
-        layouts.WriteStorageImage(set: Set, binding: 4, image: TermA);
-        layouts.WriteStorageImage(set: Set, binding: 5, image: targets.Estimate);
-        layouts.WriteStorageImage(set: DenoiseAToB, binding: 0, image: TermA);
-        layouts.WriteStorageImage(set: DenoiseAToB, binding: 1, image: TermB);
-        layouts.WriteStorageImage(set: DenoiseBToA, binding: 0, image: TermB);
-        layouts.WriteStorageImage(set: DenoiseBToA, binding: 1, image: TermA);
+        WriteSet(set: SetAToB, targets: targets, denoiseSource: TermA, denoiseDestination: TermB);
+        WriteSet(set: SetBToA, targets: targets, denoiseSource: TermB, denoiseDestination: TermA);
+    }
+
+    /// <summary>Writes the bindings of occlusion.glsl's set 3.</summary>
+    private void WriteSet(DescriptorSet set, RenderTargets targets, GpuImage denoiseSource, GpuImage denoiseDestination)
+    {
+        layouts.WriteStorageImage(set: set, binding: 0, image: ViewDepth);
+        layouts.WriteStorageImage(set: set, binding: 1, image: Edges);
+        layouts.WriteStorageImage(set: set, binding: 2, image: TermA);
+        layouts.WriteStorageImage(set: set, binding: 3, image: targets.Estimate);
+        layouts.WriteStorageImage(set: set, binding: 6, image: denoiseSource);
+        layouts.WriteStorageImage(set: set, binding: 7, image: denoiseDestination);
     }
 
     private GpuImage CreateImage(Format format, string name) =>

@@ -3,8 +3,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The GPU plumbing of the occlusion passes (docs/plans/ambient-occlusion.md, "Images" and "Push constants and sets"):
-/// the half-resolution images, their sets, a resize, and the layout that the four shaders share. Validation is on.
+/// The GPU plumbing of the occlusion passes (docs/plans/screen-space-illumination.md, "Images and buffers" and "Push
+/// constants and sets"): the half-resolution images, their sets, a resize, and the layout that the four shaders share.
+/// Validation is on.
 /// </summary>
 public sealed class OcclusionImagesTests
 {
