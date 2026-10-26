@@ -62,6 +62,14 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         {
             (Radiance, Specular, FaceDepth) = CreateImages(device: device, allocator: allocator, setting: setting);
             Irradiance = CreateBuffers(device: device, allocator: allocator, readbacks: readbacks);
+            IrradiancePartials = GpuBuffer.Create(
+                device: device,
+                allocator: allocator,
+                size: (ulong)(Rendering.Irradiance.Blocks(setting.FaceSize) * Rendering.Irradiance.PartialFloats * sizeof(float)),
+                usage: BufferUsageFlags.StorageBufferBit,
+                memoryUsage: MemoryUsage.GpuOnly,
+                name: "environment irradiance partial sums"
+            );
             for (int layer = 0; layer < CubeFaces.Count; layer++)
                 faceViews[layer] = Radiance.CreateLayerView((uint)layer);
             for (int level = 0; level < Levels; level++)
@@ -95,6 +103,13 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     /// <summary>The irradiance: nine vec4, coefficient i in vec4 i, at binding 14 of every frame set.</summary>
     public GpuBuffer Irradiance { get; }
+
+    /// <summary>
+    /// The partial sums of the irradiance's projection: <see cref="Rendering.Irradiance.PartialFloats"/> floats for each
+    /// block of <see cref="Rendering.Irradiance.BlockRows"/> rows of a face, which the prefilter sums into
+    /// <see cref="Irradiance"/>.
+    /// </summary>
+    public GpuBuffer IrradiancePartials { get; }
 
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written once.</summary>
     public DescriptorSet PrefilterSet { get; }
@@ -261,13 +276,19 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Allocates the level sets and writes every set once: the radiance map and the irradiance in the prefilter set, and
-    /// each level view of both cubes in its own level set.
+    /// Allocates the level sets and writes every set once: the radiance map, the irradiance and its partial sums in the
+    /// prefilter set, and each level view of both cubes in its own level set.
     /// </summary>
     private void WriteSets(DescriptorLayouts layouts)
     {
         layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
         layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+        layouts.WriteBuffer(
+            set: PrefilterSet,
+            binding: 3,
+            type: DescriptorType.StorageBuffer,
+            buffer: IrradiancePartials
+        );
         WriteLevelSets(layouts: layouts, views: levelViews, sets: specularLevelSets);
         WriteLevelSets(layouts: layouts, views: radianceLevelViews, sets: radianceLevelSets);
     }
@@ -298,6 +319,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();
         Irradiance?.Dispose();
+        IrradiancePartials?.Dispose();
         FaceDepth?.Dispose();
         Specular?.Dispose();
         Radiance?.Dispose();

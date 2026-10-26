@@ -3,34 +3,36 @@
 #include "cube_faces.glsl"
 #include "spherical_harmonics.glsl"
 
-// The irradiance of the environment map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
-// the projection of the radiance map's level 0 onto the nine Y_lm, times the clamped cosine's coefficients. One workgroup
-// of 128 invocations, the most that the Vulkan specification guarantees. Invocation j sums the texels j, j + 128, ... in
-// layer, row and column order, and a tree in shared memory adds the partial sums in a fixed order, so one map always gives
-// the same bits on one GPU.
+// The partial sums of the environment map's irradiance (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The
+// irradiance"): the projection of one block of level 0 of the radiance map onto the nine Y_lm. A block is BlockRows rows
+// of one face, and workgroup b sums block b, so the blocks run on many GPU cores at once. Invocation j sums the block's
+// texels j, j + 64, ... in row and column order, and a tree in shared memory adds the 64 partial sums in a fixed order,
+// so one map always gives the same bits on one GPU. environment_irradiance_sum.comp adds the blocks.
 
-const uint Invocations = 128u;
-const uint Sums = 27u;   // nine coefficients of three colors
+const uint Invocations = 64u;
+const uint BlockRows = 8u;   // Irradiance.BlockRows
+const uint Sums = 27u;       // nine coefficients of three colors, Irradiance.PartialFloats
 
-layout(local_size_x = 128) in;
+layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform textureCube radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Coefficient i in vec4 i: xyz E_lm, w 0 (Irradiance.cs).
-layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
+// Sums floats per block, coefficient-major: block b holds red, green and blue of E_00 first.
+layout(set = 0, binding = 3, std430) writeonly buffer IrradiancePartialsBlock { float partialSums[]; };
 
-// 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B.
+// 27 floats per invocation, 6,912 B, under the specification's least limit of 16,384 B.
 shared float partials[Sums * Invocations];
 
 void main()
 {
     uint j = gl_LocalInvocationIndex;
     uint size = uint(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
-    uint texels = 6u * size * size;
+    uint blockTexels = BlockRows * size;
+    uint first = gl_WorkGroupID.x * blockTexels;
     float sums[Sums];
     for (uint c = 0u; c < Sums; c++)
         sums[c] = 0.0;
-    for (uint t = j; t < texels; t += Invocations)
+    for (uint t = first + j; t < first + blockTexels; t += Invocations)
     {
         uint layer = t / (size * size);
         uint inLayer = t - layer * size * size;
@@ -62,15 +64,6 @@ void main()
     memoryBarrierShared();
     barrier();
 
-    if (j < 9u)
-    {
-        float cosine = ShClampedCosine[shBand(j)];
-        uint c = 3u * j;
-        irradiance[j] = vec4(
-            cosine * partials[c * Invocations],
-            cosine * partials[(c + 1u) * Invocations],
-            cosine * partials[(c + 2u) * Invocations],
-            0.0
-        );
-    }
+    if (j < Sums)
+        partialSums[gl_WorkGroupID.x * Sums + j] = partials[j * Invocations];
 }

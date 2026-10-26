@@ -24,6 +24,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     private readonly Pipeline downsample;
     private readonly Pipeline prefilter;
     private readonly Pipeline irradiance;
+    private readonly Pipeline irradianceSum;
 
     public EnvironmentPrefilterPass(
         VulkanDevice device,
@@ -40,6 +41,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             downsample = Create(name: "environment downsample", shader: "environment_downsample.comp");
             prefilter = Create(name: "environment prefilter", shader: "environment_prefilter.comp");
             irradiance = Create(name: "environment irradiance", shader: "environment_irradiance.comp");
+            irradianceSum = Create(name: "environment irradiance sum", shader: "environment_irradiance_sum.comp");
         }
         catch
         {
@@ -69,12 +71,23 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         // Every texel of every level is written anew, after the readers of the frame before.
         barriers.Image(map.Specular, ImageUse.StorageCompute, discard: true);
         barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);
+        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
+        // The irradiance's blocks and the specular levels write different resources and read only the radiance map, so
+        // they need no barrier between them, and they can run at once.
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradiance);
+        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: (uint)Irradiance.Blocks(map.Setting.FaceSize),
+            groupCountY: 1,
+            groupCountZ: 1
+        );
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, prefilter);
-        // The levels write different images and read only the radiance map, so they need no barrier between them.
         for (int level = 0; level < map.Levels; level++)
             DispatchLevel(vk: vk, commandBuffer: commandBuffer, level: level);
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradiance);
+        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeRead);
+        barriers.Flush(vk, commandBuffer);
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradianceSum);
         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);
 
         // Right after the irradiance, so a reading is the irradiance that this frame's passes use.
@@ -90,6 +103,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         device.Vk.DestroyPipeline(device.Device, downsample, null);
         device.Vk.DestroyPipeline(device.Device, prefilter, null);
         device.Vk.DestroyPipeline(device.Device, irradiance, null);
+        device.Vk.DestroyPipeline(device.Device, irradianceSum, null);
     }
 
     /// <summary>

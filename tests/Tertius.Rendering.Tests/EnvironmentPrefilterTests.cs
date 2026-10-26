@@ -295,6 +295,52 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// The smallest face size, the default and the largest: the projection's partial sums cover every texel of every
+    /// face, however many blocks of rows the face splits into.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void AtEveryFaceSizeTheIrradianceIsTheProjectionOfEveryTexel(int size)
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 160,
+            height: 90,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = size,
+            }
+        );
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            var faces = new List<Half>();
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                faces.AddRange(
+                    renderer.ReadEnvironmentFace(face: (CubeFace)layer, level: 0, image: EnvironmentImage.Radiance)
+                );
+            var expected = Irradiance.Project([.. faces], size);
+            Irradiance read = renderer.ReadEnvironmentIrradiance();
+
+            float total = 0;
+            for (int i = 0; i < Irradiance.Coefficients; i++)
+                total += expected[i].Length();
+            total.Should().BeGreaterThan(0.1f, "the map holds light");
+            for (int i = 0; i < Irradiance.Coefficients; i++)
+                Vector3
+                    .Distance(read[i], expected[i])
+                    .Should()
+                    .BeLessThan(1e-4f * total, "coefficient {0} at face size {1} sums every texel", i, size);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor()
     {

@@ -143,8 +143,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout ExposureSet { get; }
 
     /// <summary>
-    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, and the irradiance buffer
-    /// (docs/plans/environment-map.md, "Images and buffers").
+    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, the irradiance buffer and the
+    /// buffer of its partial sums (docs/plans/environment-map.md, "Images and buffers").
     /// </summary>
     public DescriptorSetLayout EnvironmentPrefilterSet { get; }
 
@@ -561,8 +561,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            // Eight per frame set, the two of the exposure set and the one of the prefilter set.
-            new(DescriptorType.StorageBuffer, 8 * frames + 3),
+            // Eight per frame set, the two of the exposure set and the two of the prefilter set.
+            new(DescriptorType.StorageBuffer, 8 * frames + 4),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
@@ -638,6 +638,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ImmutableSampler(binding: 1, stages: ShaderStageFlags.ComputeBit, sampler: &environmentSampler),
             new(
                 binding: 2,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+            new(
+                binding: 3,
                 descriptorType: DescriptorType.StorageBuffer,
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
