@@ -33,6 +33,7 @@ internal sealed class SceneBatcher
         LargestScale = 1.1529215e18f;
 
     private DrawItem[] opaque = new DrawItem[256];
+    private readonly OpaqueSorter opaqueSorter = new();
 
     private DrawItem[] transparent = new DrawItem[64];
 
@@ -312,7 +313,7 @@ internal sealed class SceneBatcher
                 AppendOpaque(count: ref opaqueCount, mask: mask, mesh: instance.Mesh, index: i);
             }
 
-            opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+            opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
             EnsureCapacity(ref scene.Instances, scene.InstanceCount + opaqueCount);
             Array.Clear(faceRanges);
             Emit(
@@ -433,7 +434,7 @@ internal sealed class SceneBatcher
             );
         }
 
-        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
         Emit(
@@ -888,7 +889,41 @@ internal sealed class SceneBatcher
             Array.Resize(ref array, Math.Max(count, array.Length * 2));
     }
 
-    private readonly record struct DrawItem(ulong Key, int Index);
+    internal readonly record struct DrawItem(ulong Key, int Index);
+
+    /// <summary>
+    /// Sorts a view's opaque draw items by key, and keeps their order at equal keys. A view appends its items in the
+    /// order of its instances, so this is the order of (key, index). A key is (range, mesh), one of
+    /// <see cref="DepthRanges.Count"/> × meshes, so the sorter counts the items of each key and moves each item once: a
+    /// counting sort, in time linear in the items and the meshes, where a comparison sort takes n log n comparisons.
+    /// Allocates nothing once its arrays have grown to the view.
+    /// </summary>
+    internal sealed class OpaqueSorter
+    {
+        private int[] starts = new int[64];
+        private DrawItem[] sorted = new DrawItem[256];
+
+        /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
+        public void Sort(Span<DrawItem> items, int meshCount)
+        {
+            int keys = DepthRanges.Count * meshCount;
+            EnsureCapacity(ref starts, keys + 1);
+            EnsureCapacity(ref sorted, items.Length);
+            Span<int> start = starts.AsSpan(0, keys + 1);
+            start.Clear();
+            foreach (DrawItem item in items)
+                start[KeyIndex(item, meshCount) + 1]++;
+            for (int key = 1; key < start.Length; key++)
+                start[key] += start[key - 1];
+            foreach (DrawItem item in items)
+                sorted[start[KeyIndex(item, meshCount)]++] = item;
+            sorted.AsSpan(0, items.Length).CopyTo(items);
+        }
+
+        /// <summary>The place of an item's key in key order: its range, then its mesh.</summary>
+        private static int KeyIndex(DrawItem item, int meshCount) =>
+            (int)(item.Key >> 32) * meshCount + (int)(uint)item.Key;
+    }
 
     /// <summary>Where an instance draws relative to the eye, its bounding radius, and the index of its mesh on the GPU.</summary>
     private readonly record struct Placement(Vector3 Position, float Radius, int Mesh);
