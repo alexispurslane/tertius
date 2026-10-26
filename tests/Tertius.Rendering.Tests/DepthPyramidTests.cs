@@ -65,7 +65,7 @@ public sealed class DepthPyramidTests
         CellBounds sky = pyramid.Bounds(1, 0, 0);
 
         sky.Should().Be(new CellBounds(Near: 0, Far: CellBounds.EmptyFar));
-        (float low, float high) = sky.Slab(ScreenRay.ThicknessShare);
+        (float low, float high) = sky.Slab(CellBounds.ThicknessShare);
         low.Should().BeGreaterThan(high, "no inverse depth lies in the slab of a cell without a surface");
     }
 
@@ -118,7 +118,7 @@ public sealed class DepthPyramidTests
     [Fact]
     public void AThicknessShareOfOneTenthFillsATenthOfTheDepthBehindASurface()
     {
-        (float low, float high) = CellBounds.OfSurface(1 / 5f).Slab(ScreenRay.ThicknessShare);
+        (float low, float high) = CellBounds.OfSurface(1 / 5f).Slab(CellBounds.ThicknessShare);
 
         (1 / high).Should().BeApproximately(5, 1e-5f);
         (1 / low).Should().BeApproximately(5.5f, 1e-5f, "a surface 5 m away fills the depths to 5.5 m");

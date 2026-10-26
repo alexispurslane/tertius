@@ -5,11 +5,12 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The size of the depth pyramid image and the largest screen that the pyramids cover
-/// (docs/plans/screen-space-reflections.md, "Images"), with no GPU. A Vulkan mip halves its image and rounds down, and a
+/// (docs/plans/screen-space-reflections.md, "Images"), with no GPU. <see cref="DepthPyramidImage"/> owns the pyramid
+/// for both of its readers, the reflections and the screen-space light. A Vulkan mip halves its image and rounds down, and a
 /// level of the depth pyramid halves the screen and rounds up, so the image is padded until each of its mips holds its
 /// level.
 /// </summary>
-public sealed class ReflectionTargetsTests
+public sealed class DepthPyramidImageTests
 {
     public static TheoryData<uint, uint> Screens =>
         new()
@@ -32,13 +33,13 @@ public sealed class ReflectionTargetsTests
     [InlineData(16_384, 1, true)]
     [InlineData(16_385, 1, false)]
     [InlineData(1, 16_385, false)]
-    public void TheReflectionsCoverAScreenOfUpTo16384PxASide(uint width, uint height, bool covered) =>
-        (ReflectionTargets.ScreenProblem(width, height) is null).Should().Be(covered);
+    public void TheDepthPyramidCoversAScreenOfUpTo16384PxASide(uint width, uint height, bool covered) =>
+        (DepthPyramidImage.ScreenProblem(width, height) is null).Should().Be(covered);
 
     [Fact]
     public void AScreenOfTheLongestSideNeedsAsManyLevelsAsTheSetsHold()
     {
-        int side = ReflectionTargets.MaxSide;
+        int side = DepthPyramidImage.MaxSide;
 
         DepthPyramid.LevelCount(side, side).Should().Be(DepthPyramid.MaxLevels, "one depth level set per level");
         (BitOperations.Log2((uint)side) + 1)
@@ -50,7 +51,7 @@ public sealed class ReflectionTargetsTests
     [MemberData(nameof(Screens))]
     public void EachMipOfTheDepthImageHoldsItsLevelOfTheDepthPyramid(uint width, uint height)
     {
-        Extent2D image = ReflectionTargets.DepthImageExtent(new(width, height));
+        Extent2D image = DepthPyramidImage.ImageExtent(new(width, height));
         int topLevel = DepthPyramid.LevelCount((int)width, (int)height);
 
         for (int level = 1; level <= topLevel; level++)
@@ -68,7 +69,7 @@ public sealed class ReflectionTargetsTests
     [MemberData(nameof(Screens))]
     public void TheDepthImagesFullMipChainHasOneMipPerLevelAboveTheDistanceTarget(uint width, uint height)
     {
-        Extent2D image = ReflectionTargets.DepthImageExtent(new(width, height));
+        Extent2D image = DepthPyramidImage.ImageExtent(new(width, height));
 
         int mips = BitOperations.Log2(Math.Max(image.Width, image.Height)) + 1;
 
@@ -79,7 +80,7 @@ public sealed class ReflectionTargetsTests
     [MemberData(nameof(Screens))]
     public void TheDepthImageIsTheSmallestWhoseMipsHoldEveryLevel(uint width, uint height)
     {
-        Extent2D image = ReflectionTargets.DepthImageExtent(new(width, height));
+        Extent2D image = DepthPyramidImage.ImageExtent(new(width, height));
         int topLevel = DepthPyramid.LevelCount((int)width, (int)height);
         IEnumerable<(int Width, int Height)> levels = Enumerable
             .Range(1, topLevel)

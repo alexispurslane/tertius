@@ -4,10 +4,11 @@ using static Tertius.Rendering.Tests.OcclusionScenes;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The acceptance criteria of the bounce light on the GPU that need no far ray (docs/plans/screen-space-illumination.md,
-/// "GPU tests of the acceptance criteria"): a lit surface lights the surfaces near it with its own color, no direct light
-/// gives no bounce, and in a furnace the open and the blocked shares sum to the light of an open surface. At 640 × 360
-/// under <see cref="VisibilityBitmaskLight.Default"/>, unless a test says otherwise.
+/// The acceptance criteria of the bounce light on the GPU (docs/plans/screen-space-illumination.md, "GPU tests of the
+/// acceptance criteria"): a lit surface lights the surfaces near it with its own color, near and through the far rays
+/// beyond the radius, a lit surface off the screen gives no light, no direct light gives no bounce, and in a furnace the
+/// open and the blocked shares sum to the light of an open surface. At 640 × 360 under
+/// <see cref="VisibilityBitmaskLight.Default"/>, unless a test says otherwise.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class BounceLightRenderTests(ITestOutputHelper output)
@@ -25,10 +26,10 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     public void ALitRedWallTintsTheFloorBesideItRed()
     {
         // The floor 0.1 to 0.3 m in front of the back wall, and 3.1 to 3.3 m in front of it.
-        Vector2[] beside = FloorPixels(fromTheWall: [0.1f, 0.2f, 0.3f]);
-        Vector2[] away = FloorPixels(fromTheWall: [3.1f, 3.2f, 3.3f]);
-        float[] on = RedWallHdr(VisibilityBitmaskLight.Default);
-        float[] off = RedWallHdr(new NoScreenSpaceLight());
+        Vector2[] beside = FloorPixels(fromTheWall: [0.1f, 0.2f, 0.3f], view: CornerView);
+        Vector2[] away = FloorPixels(fromTheWall: [3.1f, 3.2f, 3.3f], view: CornerView);
+        float[] on = RedWallHdr(VisibilityBitmaskLight.Default, CornerView);
+        float[] off = RedWallHdr(new NoScreenSpaceLight(), CornerView);
 
         double besideOn = MeanRedShare(on, beside);
         double besideOff = MeanRedShare(off, beside);
@@ -40,6 +41,53 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         besideOn
             .Should()
             .BeGreaterThanOrEqualTo(awayOn + 0.02, "the floor 3 m away lies beyond the radius of the wall");
+    }
+
+    [Fact]
+    public void AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays()
+    {
+        // The floor 2.9 to 3.1 m in front of the red wall, six times the radius away from it, seen by a camera turned
+        // down 15°, so that the screen shows the wall up to 2.8 m above the floor.
+        Quaternion view = Gpu.PitchDown(MathF.PI / 12);
+        Vector2[] measured = FloorPixels(fromTheWall: [2.9f, 3f, 3.1f], view: view);
+        float[] on = RedWallHdr(VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f }, view);
+        float[] off = RedWallHdr(new NoScreenSpaceLight(), view);
+
+        double redOn = MeanRedShare(on, measured);
+        double redOff = MeanRedShare(off, measured);
+        output.WriteLine($"red share 3 m from the wall {redOn:0.0000} (off {redOff:0.0000})");
+        // The screen shows the wall over about a fifth of the floor's cosine-weighted hemisphere, and the wall's red
+        // light is about a third of the floor's own: about 0.01 to 0.015 more red share. With no far ray, the near range
+        // holds nothing there, and the share is the same as with the setting off.
+        redOn
+            .Should()
+            .BeGreaterThanOrEqualTo(
+                redOff + 0.005,
+                "the far rays from the floor meet the lit red wall beyond the radius and bring its light"
+            );
+    }
+
+    [Fact]
+    public void ALitWallOffTheScreenGivesTheFloorNoBounce()
+    {
+        (float[] withWall, Vector2[] measured) = WallOffTheLeftEdge(wall: true);
+        (float[] open, _) = WallOffTheLeftEdge(wall: false);
+
+        foreach (Vector2 pixel in measured)
+        {
+            int i = ((int)pixel.Y * Width + (int)pixel.X) * 4;
+            output.WriteLine(
+                $"{pixel}: bounce ({withWall[i]}, {withWall[i + 1]}, {withWall[i + 2]}) against ({open[i]}, "
+                    + $"{open[i + 1]}, {open[i + 2]}), V {withWall[i + 3]:0.000} against {open[i + 3]:0.000} without the wall"
+            );
+            // Against the open floor, not 0: the floor's own steps leave a rounding of its own light, about 10⁻⁴ of it.
+            (withWall[i], withWall[i + 1], withWall[i + 2])
+                .Should()
+                .Be((open[i], open[i + 1], open[i + 2]), "no pixel shows the wall, so no ray meets it, at {0}", pixel);
+            withWall[i + 3]
+                .Should()
+                .BeApproximately(open[i + 3], 0.02f, "a ray that leaves the screen is open, at {0}", pixel);
+        }
     }
 
     [Fact]
@@ -110,9 +158,9 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
 
     /// <summary>
     /// The HDR image of the floor and the red back wall of the corner, without the side wall, under the sun and a dim
-    /// white ambient light, rendered by a renderer of <paramref name="setting"/>.
+    /// white ambient light, seen through <paramref name="view"/> and rendered by a renderer of <paramref name="setting"/>.
     /// </summary>
-    private static float[] RedWallHdr(ScreenSpaceLightSetting setting)
+    private static float[] RedWallHdr(ScreenSpaceLightSetting setting, Quaternion view)
     {
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
@@ -124,7 +172,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 GroundColor = Vector3.One,
                 Intensity = 0.3f,
             };
-            Look(snapshot, CornerView);
+            Look(snapshot, view);
             MeshId box = UnitBox(renderer);
             AddSlab(
                 snapshot: snapshot,
@@ -151,11 +199,75 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>The floor pixels at <paramref name="fromTheWall"/> m in front of the back wall, at x of −1, 0 and 1 m.</summary>
-    private static Vector2[] FloorPixels(float[] fromTheWall) =>
+    /// <summary>
+    /// The estimate target of a sunlit white floor seen by a level camera, with a lit red wall just past the left edge of
+    /// the screen when <paramref name="wall"/>, and the floor pixels 0.3 m inside that edge, 3.5 to 4.5 m ahead. The
+    /// wall's face lies 2 cm outside the left side plane of the view, parallel to it, so no pixel shows it.
+    /// </summary>
+    private static (float[] Estimate, Vector2[] Measured) WallOffTheLeftEdge(bool wall)
+    {
+        float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
+        // The side plane's normal toward the inside of the view, and its direction away from the eye.
+        Vector3 inward = Vector3.Normalize(new(1, 0, -tanHalfX));
+        Vector3 along = Vector3.Normalize(new(-tanHalfX, 0, -1));
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            // The sun lights the floor and the wall's face, which faces the inside of the view.
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.5f, 0.8f, -0.3f), sunIntensity: 3);
+            snapshot.Ambient = new()
+            {
+                SkyColor = Vector3.One,
+                GroundColor = Vector3.One,
+                Intensity = 0.3f,
+            };
+            MeshId box = UnitBox(renderer);
+            AddSlab(
+                snapshot: snapshot,
+                box: box,
+                material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
+                center: new(0, FloorHeight - 0.5f, -10),
+                size: new(40, 1, 40)
+            );
+            if (wall)
+            {
+                // From the eye to 8 m along the side plane, past the measured floor's 6.5 m.
+                Vector3 face = along * 4 - inward * 0.02f;
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: box,
+                        material: renderer.CreateMaterial(
+                            MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
+                        ),
+                        position: face - inward * 0.5f,
+                        // The box's x turns onto the inward normal.
+                        rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan(tanHalfX)),
+                        scale: new(1, 20, 8),
+                        radius: 11
+                    )
+                );
+            }
+
+            renderer.Render(snapshot, 1f);
+            Vector2[] measured =
+            [
+                .. new[] { 3.5f, 4f, 4.5f }.Select(depth =>
+                    PixelOf(new(-tanHalfX * depth + 0.3f, FloorHeight, -depth), Quaternion.Identity)
+                ),
+            ];
+            return (renderer.ReadEstimate(), measured);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The floor pixels at <paramref name="fromTheWall"/> m in front of the back wall, at x of −1, 0 and 1 m, seen through <paramref name="view"/>.</summary>
+    private static Vector2[] FloorPixels(float[] fromTheWall, Quaternion view) =>
         [
             .. fromTheWall.SelectMany(distance =>
-                new[] { -1f, 0f, 1f }.Select(x => PixelOf(new(x, FloorHeight, BackWallZ + distance), CornerView))
+                new[] { -1f, 0f, 1f }.Select(x => PixelOf(new(x, FloorHeight, BackWallZ + distance), view))
             ),
         ];
 

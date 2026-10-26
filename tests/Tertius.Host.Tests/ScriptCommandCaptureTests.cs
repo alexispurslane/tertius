@@ -24,6 +24,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "direct light",
         "occlusion depth",
         "occlusion sectors",
+        "occlusion far rays",
         "occlusion denoise",
         "occlusion upsample",
         "ambient light",

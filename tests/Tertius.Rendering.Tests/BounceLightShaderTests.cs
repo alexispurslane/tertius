@@ -95,7 +95,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         try
         {
             // The term that the sector pass leaves, before the blur overwrites it.
-            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
+            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
             MaterialId matte = Matte(renderer);
             RenderSnapshot scene = Corner(renderer, matte, LitCorner());
             MeshId box = UnitBox(renderer);
@@ -411,7 +411,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     center: center,
                     geometricNormal: geometricNormal,
                     radius: setting.RadiusMeters,
-                    thicknessShare: ScreenRay.ThicknessShare,
+                    thicknessShare: CellBounds.ThicknessShare,
                     steps: [.. steps]
                 );
                 ties[slice] = Ties(
@@ -486,7 +486,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     toEye: sectors.Slice.ToEye,
                     position: step.Position,
                     side: step.Side,
-                    thicknessShare: ScreenRay.ThicknessShare
+                    thicknessShare: CellBounds.ThicknessShare
                 );
                 ties = ties.Union(TiesAt(sectors, front, back));
             }

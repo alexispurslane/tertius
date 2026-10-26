@@ -36,7 +36,7 @@ internal sealed unsafe class ReflectionPass(
         CommandBuffer commandBuffer = context.CommandBuffer;
         RenderTargets renderTargets = context.Targets;
         BarrierBatch barriers = context.Barriers;
-        barriers.Image(targets.DepthImage, ImageUse.SampledComputeGeneral);
+        barriers.Image(targets.DepthPyramidImage.Image, ImageUse.SampledComputeGeneral);
         barriers.Image(targets.RadianceImage, ImageUse.SampledComputeGeneral);
         foreach (GpuImage image in renderTargets.GBuffer)
             barriers.Image(image, ImageUse.SampledCompute);

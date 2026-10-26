@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The GPU plumbing of the occlusion passes (docs/plans/screen-space-illumination.md, "Images and buffers" and "Push
 /// constants and sets"): the half-resolution images, the sector masks buffer, their sets, a resize, and the layout that
-/// the four shaders share.
+/// the five shaders share.
 /// Validation is on.
 /// </summary>
 public sealed class OcclusionImagesTests
@@ -134,6 +134,7 @@ public sealed class OcclusionImagesTests
     [Theory]
     [InlineData("occlusion_depth.comp")]
     [InlineData("occlusion_sectors.comp")]
+    [InlineData("occlusion_far_rays.comp")]
     [InlineData("occlusion_denoise.comp")]
     [InlineData("occlusion_upsample.comp")]
     public unsafe void EachOcclusionShaderMakesAPipelineWithTheOcclusionLayout(string shader)
@@ -179,7 +180,8 @@ public sealed class OcclusionImagesTests
                 extent: new(width, height),
                 glowLevels: 0,
                 smaaTables: null,
-                reflections: false
+                reflections: false,
+                screenSpaceLight: true
             );
         }
 
@@ -189,7 +191,14 @@ public sealed class OcclusionImagesTests
         public RenderTargets Targets { get; }
 
         public OcclusionImages CreateImages(int slices = 3) =>
-            new(device: Device, allocator: Allocator, layouts: Layouts, targets: Targets, slices: slices);
+            new(
+                device: Device,
+                allocator: Allocator,
+                layouts: Layouts,
+                targets: Targets,
+                depthPyramid: Targets.DepthPyramidImage!,
+                slices: slices
+            );
 
         /// <summary>Resizes the targets, as the renderer does, with the device idle.</summary>
         public void Resize(Extent2D extent)

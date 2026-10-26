@@ -5,16 +5,18 @@ public readonly record struct NoScreenSpaceLight;
 
 /// <summary>
 /// One estimate of the light around each surface point, from what the screen shows
-/// (docs/plans/screen-space-illumination.md): masks of sectors in GTAO's slices within the radius. A blocked direction
-/// brings the direct light of its blocker, an open one the ambient light. It runs at half resolution.
+/// (docs/plans/screen-space-illumination.md): masks of sectors in GTAO's slices within the radius, and one ray per slice
+/// beyond it through the depth pyramid. A blocked direction brings the direct light of its blocker, an open one the
+/// ambient light. It runs at half resolution.
 /// </summary>
-/// <param name="RadiusMeters">Where the near range ends, in m: above 0, at most 10⁶.</param>
+/// <param name="RadiusMeters">Where the near range ends and the far rays start, in m: above 0, at most 10⁶.</param>
 /// <param name="Slices">How many slices each half-resolution texel takes, 1 to 16.</param>
 /// <param name="StepsPerSide">How many depth samples each slice takes on each side within the radius, 1 to 16.</param>
-public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide)
+/// <param name="FarSteps">The most cells of the depth pyramid that one far ray examines, 1 to 1,024.</param>
+public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide, int FarSteps)
 {
-    /// <summary>The renderer's default: 1 m, 3 slices and 3 steps on each side, until captures pick them.</summary>
-    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3);
+    /// <summary>The renderer's default: 1 m, 3 slices, 3 steps on each side, 64 far steps, until captures pick them.</summary>
+    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3, FarSteps: 64);
 }
 
 /// <summary>
@@ -32,6 +34,9 @@ public readonly partial struct ScreenSpaceLightSetting
     public const int MaxSlices = 16;
 
     public const int MaxStepsPerSide = 16;
+
+    /// <summary>The most far steps, as SSR's most steps (ConeTracedReflections.MaxStepsLimit).</summary>
+    public const int MaxFarSteps = 1024;
 
     /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
     internal string? Problem =>
@@ -51,6 +56,9 @@ public readonly partial struct ScreenSpaceLightSetting
             return $"VisibilityBitmaskLight.Slices must be 1 to {MaxSlices}, not {light.Slices}.";
         if (light.StepsPerSide is < 1 or > MaxStepsPerSide)
             return $"VisibilityBitmaskLight.StepsPerSide must be 1 to {MaxStepsPerSide}, not {light.StepsPerSide}.";
+        // No far step would leave the far range out, against the one estimate in two ranges (decision 36).
+        if (light.FarSteps is < 1 or > MaxFarSteps)
+            return $"VisibilityBitmaskLight.FarSteps must be 1 to {MaxFarSteps}, not {light.FarSteps}.";
         return null;
     }
 }

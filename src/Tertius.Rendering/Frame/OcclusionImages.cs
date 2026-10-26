@@ -17,8 +17,10 @@ internal sealed class OcclusionImages : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+    private readonly DepthPyramidImage depthPyramid;
     private readonly int slices;
 
+    /// <param name="depthPyramid">The depth pyramid that the far rays read, which the targets own and resize first.</param>
     /// <param name="slices">The slices of each texel, each of which keeps one mask in <see cref="SectorMasks"/>.</param>
     /// <exception cref="NotSupportedException">
     /// A format is not a storage image on the device, or the masks pass its maxStorageBufferRange.
@@ -28,12 +30,14 @@ internal sealed class OcclusionImages : IDisposable
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         RenderTargets targets,
+        DepthPyramidImage depthPyramid,
         int slices
     )
     {
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        this.depthPyramid = depthPyramid;
         this.slices = slices;
         CheckFormats(device);
         SetAToB = layouts.AllocateOcclusionSet();
@@ -75,7 +79,8 @@ internal sealed class OcclusionImages : IDisposable
     /// <exception cref="NotSupportedException">The masks at the new size pass the device's maxStorageBufferRange.</exception>
     public void Resize(RenderTargets targets)
     {
-        // Always, even at the same half size: the sets point at the targets, which a resize recreates.
+        // Always, even at the same half size: the sets point at the targets and the depth pyramid, which a resize
+        // recreates.
         DestroyImages();
         Create(targets);
     }
@@ -126,6 +131,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: 2, image: TermA);
         layouts.WriteStorageImage(set: set, binding: 3, image: targets.Estimate);
         layouts.WriteBuffer(set: set, binding: 4, type: DescriptorType.StorageBuffer, buffer: SectorMasks);
+        layouts.WriteImage(set: set, binding: 5, view: depthPyramid.Image.View, layout: ImageLayout.General);
         layouts.WriteStorageImage(set: set, binding: 6, image: denoiseSource);
         layouts.WriteStorageImage(set: set, binding: 7, image: denoiseDestination);
     }

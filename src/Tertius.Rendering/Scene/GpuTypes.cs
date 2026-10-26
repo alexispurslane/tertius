@@ -264,7 +264,7 @@ internal struct DrawPushConstants
 
 /// <summary>
 /// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from the
-/// frame constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
+/// frame constants, so the occlusion passes and the lighting passes read the one store. 20 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
@@ -272,6 +272,9 @@ internal struct OcclusionPushConstants
     public float RadiusMeters;
     public uint Slices;
     public uint StepsPerSide;
+
+    /// <summary>The most cells of the depth pyramid that one far ray examines.</summary>
+    public uint FarSteps;
 
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
@@ -283,6 +286,7 @@ internal struct OcclusionPushConstants
             RadiusMeters = setting.RadiusMeters,
             Slices = (uint)setting.Slices,
             StepsPerSide = (uint)setting.StepsPerSide,
+            FarSteps = (uint)setting.FarSteps,
             LastDenoise = lastDenoise ? 1u : 0u,
         };
 }

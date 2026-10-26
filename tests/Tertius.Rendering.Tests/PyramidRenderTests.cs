@@ -5,7 +5,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The two pyramids of the screen-space reflections on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the
 /// pyramids"): the depth pyramid against its C# copy, the padding of its image, the radiance pyramid against the lit
-/// image and the 13-tap filter, a resize, and the passes that the setting adds. The scene is a floor, two boxes and a
+/// image and the 13-tap filter, a resize, and the passes that the setting adds, and the depth pyramid that the
+/// screen-space light builds with the reflections off. The scene is a floor, two boxes and a
 /// lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -286,6 +287,32 @@ public sealed class PyramidRenderTests
                     ["depth pyramid", "radiance pyramid", "reflections"],
                     "a frame without reflections is the frame from before"
                 );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheScreenSpaceLightBuildsTheDepthPyramidWithTheReflectionsOff()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+            DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
+            int topLevel = DepthPyramid.LevelCount(Width, Height);
+            (float[] bounds, _, _) = renderer.ReadDepthPyramidLevel(topLevel);
+
+            renderer
+                .Graph.Passes.Select(pass => pass.Name)
+                .Should()
+                .ContainInOrder(["G-buffer", "depth pyramid", "direct light"], "the far rays read the pyramid")
+                .And.NotContain(["radiance pyramid", "reflections"]);
+            CellBounds screen = expected.Bounds(topLevel, 0, 0);
+            bounds[0].Should().BeApproximately(screen.Near, screen.Near * InverseDepthTolerance);
+            bounds[1].Should().BeApproximately(screen.Far, screen.Far * InverseDepthTolerance);
         }
         finally
         {

@@ -20,7 +20,7 @@ layout(set = 3, binding = 4, std430) buffer SectorMasks
 {
     uint sectorMasks[];
 };
-// Binding 5, the depth pyramid, comes with the far rays.
+layout(set = 3, binding = 5) uniform texture2D depthPyramid;           // SSR's pyramid, General: mip m = level m + 1
 layout(set = 3, binding = 6, rgba16f) uniform image2D denoiseSource;
 layout(set = 3, binding = 7, rgba16f) uniform image2D denoiseDestination;
 
@@ -29,6 +29,7 @@ layout(push_constant, std430) uniform OcclusionPush
     float radiusMeters;
     uint slices;
     uint stepsPerSide;
+    uint farSteps;
     uint lastDenoise;
 } occlusion;
 
@@ -81,6 +82,14 @@ vec3 toViewAxes(vec3 world)
     vec2 tangents = cameraTangents();
     return vec3(dot(world, frame.cameraRight.xyz / tangents.x), dot(world, frame.cameraUp.xyz / tangents.y),
                 dot(world, frame.cameraForward.xyz));
+}
+
+// A view-space vector in the camera-relative world axes of SSR's trace: the inverse of toViewAxes.
+vec3 toWorldAxes(vec3 view)
+{
+    vec2 tangents = cameraTangents();
+    return view.x * frame.cameraRight.xyz / tangents.x + view.y * frame.cameraUp.xyz / tangents.y
+           + view.z * frame.cameraForward.xyz;
 }
 
 // The view-space shading normal of a full-resolution pixel.

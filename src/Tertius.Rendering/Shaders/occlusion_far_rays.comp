@@ -1,0 +1,83 @@
+#version 460
+// The occlusion far rays pass (docs/plans/screen-space-illumination.md, "The far ray of a slice" and "The estimate of a
+// texel"): one ray per slice beyond the radius, through the center of one open sector, along SSR's trace through the
+// depth pyramid. Its outcome moves the slice's open share of term A, which holds the near estimate, to blocked, with
+// the light of the hit. FarRay and SectorSearch in Shading/ are the C# copy. Change both together.
+#extension GL_GOOGLE_include_directive : require
+#include "sectors.glsl"
+#include "reflection.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// What a far ray decides for its slice's open sectors: the share that it blocks, from 0 to 1, and that share times its
+// light, pre-exposed (FarOutcome).
+struct FarOutcome
+{
+    float blocked;
+    vec3 light;
+};
+
+// The far ray from R along the view-space unit direction, one outcome per way that SSR's trace ends (decision 20).
+FarOutcome farRay(GtaoTexel setup, vec3 direction)
+{
+    // Only a normal map tilts an open sector below the geometric surface, which blocks the ray and shows it no light.
+    if (dot(direction, setup.geometricNormal) <= 0.0)
+        return FarOutcome(1.0, vec3(0.0));
+    vec3 start = setup.center + occlusion.radiusMeters * direction;
+    // The ray leaves the view through the near plane before R, and screenRayOf divides by the start's view depth.
+    if (start.z <= NearPlane)
+        return FarOutcome(0.0, vec3(0.0));
+    // SSR's trace works in the camera-relative world axes.
+    vec3 origin = toWorldAxes(start) + toWorldAxes(setup.geometricNormal) * originOffset(start.z);
+    ScreenRay ray = screenRayOf(origin, toWorldAxes(direction), start.z);
+    vec2 hit;
+    ivec2 hitPixel;
+    // SSR's entry share fades a reflection that enters a slab from behind. A far ray that meets a slab is blocked, and
+    // the facing test says whether the hit's light reaches the receiver.
+    float entryShare;
+    if (!traceRay(depthPyramid, ray, occlusion.farSteps, hit, hitPixel, entryShare))
+        return FarOutcome(0.0, vec3(0.0));
+    float fade = edgeFade(hit);
+    return FarOutcome(fade, fade * blockerLight(hitPixel, -direction));
+}
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(texel))
+        return;
+    float z = viewDepthAt(texel);
+    // Sky holds the open estimate, which the sectors pass wrote.
+    if (z >= SkyDepth)
+        return;
+    GtaoTexel setup = gtaoTexelSetup(texel, z, occlusion.radiusMeters / texelWidth(z));
+    int slices = int(occlusion.slices);
+    int stepsPerSide = int(occlusion.stepsPerSide);
+    float totalWeight = 0.0;
+    for (int slice = 0; slice < slices; slice++)
+        totalWeight += gtaoSliceGeometry(setup, slice).weight;
+    // A texel with no weight holds the open estimate, which the sectors pass wrote (decision 17).
+    if (!(totalWeight > MinTotalWeight))
+        return;
+    // Each invocation reads and writes its own texel only.
+    vec4 estimate = imageLoad(occlusionTermA, texel);
+    for (int slice = 0; slice < slices; slice++)
+    {
+        SliceGeometry g = gtaoSliceGeometry(setup, slice);
+        uint open = ~sectorMasks[maskIndex(texel, slice)];
+        uint count = uint(bitCount(open));
+        if (count == 0u)
+            continue;
+        // U: the share of the texel's estimate that the slice's open sectors hold.
+        float share = g.weight * float(count) / (float(SectorCount) * totalWeight);
+        // The next value of the slice's R1 sequence past its steps, k + n² (SectorSearch.FarRayNoise).
+        float noise = fract(setup.noise.y + float(slice + stepsPerSide * stepsPerSide) * 0.6180339887498948482);
+        // The rank is below the count, so findLSB never meets 0.
+        uint sector = openSectorOfRank(open, min(uint(noise * float(count)), count - 1u));
+        float angle = sectorCenterAngle(g, sector);
+        FarOutcome outcome = farRay(setup, cos(angle) * g.toEye + sin(angle) * g.side);
+        estimate.a -= share * outcome.blocked;
+        estimate.rgb += share * outcome.light;
+    }
+    imageStore(occlusionTermA, texel, estimate);
+}

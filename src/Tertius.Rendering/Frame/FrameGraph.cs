@@ -221,8 +221,9 @@ internal sealed class FrameGraph : IDisposable
         GBuffer,
 
         /// <summary>
-        /// The depth pyramid, under <see cref="ConeTracedReflections"/>: right after the G-buffer pass, because it describes
-        /// the G-buffer's distance, so every screen-space reader after it can use it. The occlusion passes do not read it.
+        /// The depth pyramid, under <see cref="ConeTracedReflections"/> or <see cref="VisibilityBitmaskLight"/>: right
+        /// after the G-buffer pass, because it describes the G-buffer's distance, so every screen-space reader after it can
+        /// use it: the bounce light's far rays and the reflections' trace.
         /// </summary>
         DepthPyramid,
 
@@ -235,8 +236,8 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and after the direct pass, whose image the bounce light's sector pass reads. Before the
-        /// ambient pass, which reads their estimate target.
+        /// normals they read, after the depth pyramid, which the far rays read, and after the direct pass, whose image
+        /// the bounce light's sectors and far rays read. Before the ambient pass, which reads their estimate target.
         /// </summary>
         AmbientOcclusion,
 

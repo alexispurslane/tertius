@@ -34,8 +34,8 @@ namespace Tertius.Rendering;
 /// <item><term>environment level</term><description>one level of the radiance map or the specular map as a storage image.
 /// One per level of each cube, written once, with the map on.</description></item>
 /// <item><term>occlusion</term><description>set 3 of <see cref="OcclusionLayout"/>: the half-resolution images, the
-/// estimate target, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
-/// direction of the denoise, rewritten on resize.</description></item>
+/// estimate target, and the source and the destination term of a denoise dispatch, as storage images, the sector masks
+/// buffer and the depth pyramid. Two, one per direction of the denoise, rewritten on resize.</description></item>
 /// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
 /// is on, its screen-sized images rewritten on resize.</description></item>
 /// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of a
@@ -226,8 +226,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
-    /// 3), the sector masks buffer (binding 4), and the source and the destination term of a denoise dispatch (bindings
-    /// 6 and 7), as storage images (docs/plans/screen-space-illumination.md, "Push constants and sets").
+    /// 3), the sector masks buffer (binding 4), the depth pyramid, sampled (binding 5), and the source and the destination
+    /// term of a denoise dispatch (bindings 6 and 7), as storage images (docs/plans/screen-space-illumination.md, "Push
+    /// constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 
@@ -568,9 +569,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 19 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
-            // glow source set, two for the meter set, one per pyramid level set, two for the reflection set and one for
-            // the prefilter set.
-            new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 2 + 1),
+            // glow source set, two for the meter set, one per pyramid level set, two for the reflection set, one for the
+            // prefilter set and one, the depth pyramid, for each of the two occlusion sets.
+            new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 2 + 1 + 2),
             // Six for each of the two occlusion sets, one per pyramid level set, one for the reflection set and one per
             // environment level set.
             new(DescriptorType.StorageImage, 2 * 6 + PyramidLevelSets + 1 + EnvironmentLevelSets),
@@ -651,10 +652,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
-    /// <summary>
-    /// The layout of the occlusion set, whose bindings the compute stage reads. Binding 5 stays free for the depth
-    /// pyramid (docs/plans/screen-space-illumination.md, "Order of the work").
-    /// </summary>
+    /// <summary>The layout of the occlusion set, whose bindings the compute stage reads.</summary>
     private DescriptorSetLayout CreateOcclusionSetLayout()
     {
         Span<DescriptorSetLayoutBinding> occlusion =
@@ -669,6 +667,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
             ),
+            Image(binding: 5, stages: ShaderStageFlags.ComputeBit),
             StorageImage(binding: 6),
             StorageImage(binding: 7),
         ];

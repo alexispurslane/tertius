@@ -7,15 +7,16 @@ namespace Tertius.Rendering.Tests;
 public sealed class OcclusionPushConstantsTests
 {
     [Fact]
-    public void TheRadiusTheSlicesAndTheStepsComeFromTheSetting()
+    public void TheRadiusTheSlicesTheStepsAndTheFarStepsComeFromTheSetting()
     {
-        var setting = new VisibilityBitmaskLight(RadiusMeters: 0.75f, Slices: 5, StepsPerSide: 7);
+        var setting = new VisibilityBitmaskLight(RadiusMeters: 0.75f, Slices: 5, StepsPerSide: 7, FarSteps: 33);
 
         var push = OcclusionPushConstants.For(setting: setting, lastDenoise: false);
 
         push.RadiusMeters.Should().Be(0.75f);
         push.Slices.Should().Be(5u);
         push.StepsPerSide.Should().Be(7u);
+        push.FarSteps.Should().Be(33u);
     }
 
     [Theory]
