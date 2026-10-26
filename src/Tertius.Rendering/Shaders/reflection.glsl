@@ -152,14 +152,15 @@ float entryShareOf(float edgeW, float low, float high)
 }
 
 // The parameter where the ray enters a slab that it meets: its front from in front, its back from behind, or s when it
-// is already inside.
+// is already inside. Selects, not branches, so that the lanes of a wave stay on one path.
 float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float low, float high)
 {
-    if (inW > high)
-        return parameterAt(high - ray.startW, ray.stepW, inverse.stepW, s);
-    if (inW < low)
-        return parameterAt(low - ray.startW, ray.stepW, inverse.stepW, s);
-    return s;
+    bool inside = inW <= high && inW >= low;
+    // Capped at the nearest surface's inverse depth, which no slab that the ray meets passes, so that the product stays
+    // finite also for a missed cell's empty bounds, whose entry the trace never takes.
+    float towardW = min(inW > high ? high : low, 1.0 / NearPlane);
+    float solved = parameterAt(towardW - ray.startW, ray.stepW, inverse.stepW, s);
+    return inside ? s : solved;
 }
 
 // Walks the ray's image through the depth pyramid (Uludag 2014, with min-max cells and the slab of McGuire and Mara
@@ -189,20 +190,12 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         float high = bounds.x;
         float low = bounds.y * (1.0 / (1.0 + ThicknessShare));
         float outW = ray.startW + ray.stepW * exit;
-        if (max(min(inW, outW), low) > min(max(inW, outW), high))
-        {
-            // Never back: an entry solved inside a cell can round past the cell's exit. The next descent then finds
-            // the entry at s, keeps s on an edge, and the nudge moves the walk on.
-            s = max(s, exit);
-            inW = ray.startW + ray.stepW * s;
-            onEdge = true;
-            level = min(level + 1u, topLevel);
-            continue;
-        }
+        bool meetsSlab = max(min(inW, outW), low) <= min(max(inW, outW), high);
+        // Both outcomes as selects, so that the lanes of a wave that cross and those that descend take one path.
         // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes its
         // maximum.
         float entry = min(max(slabEntry(ray, inverse, s, inW, low, high), s), exit);
-        if (level == 0u)
+        if (meetsSlab && level == 0u)
         {
             hit = clamp(ray.start + ray.step * entry, cell, cell + 1.0);
             hitPixel = ivec2(cell);
@@ -211,12 +204,15 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
             entryShare = entryShareOf(ray.startW + ray.stepW * pixelEntry(ray, cell, travel), low, high);
             return true;
         }
+        // A miss crosses the cell and never goes back: an entry solved inside a cell can round past the cell's exit.
+        // The next descent then finds the entry at s, keeps s on an edge, and the nudge moves the walk on.
+        float crossing = max(s, exit);
         bool entryInsideCell = entry > s && entry < exit;
-        onEdge = !entryInsideCell && (onEdge || entry >= exit);
-        s = entry;
-        // The overlap above keeps low at most high, so this clamp is defined.
-        inW = clamp(inW, low, high);
-        level--;
+        onEdge = !meetsSlab || (!entryInsideCell && (onEdge || entry >= exit));
+        // After a descent, the slab bound that s was solved for; min and max keep it defined where the cell is missed.
+        inW = meetsSlab ? min(max(inW, low), high) : ray.startW + ray.stepW * crossing;
+        s = meetsSlab ? entry : crossing;
+        level = meetsSlab ? level - 1u : min(level + 1u, topLevel);
     }
     return false;
 }
