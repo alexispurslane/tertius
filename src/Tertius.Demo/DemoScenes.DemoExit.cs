@@ -206,14 +206,8 @@ public static partial class DemoScenes
             );
             scene.Add("cabin-camera", cabinCamera);
 
-            Star(
-                world: world,
-                scene: scene,
-                frame: earth,
-                center: new(0, EarthRadius, 0),
-                direction: new(60, 80, 40),
-                irradiance: 1
-            );
+            Star(world: world, scene: scene, frame: earth, center: new(0, EarthRadius, 0), direction: new(60, 80, 40));
+            world.Ambient = Daylight;
 
             foreach (
                 string view in new[]

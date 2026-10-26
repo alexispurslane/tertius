@@ -182,7 +182,7 @@ public sealed class ShuttleTests : IDisposable
     /// a glowing panel 0.05 m thick, 0.5 m tall and 0.15 m wide, within its pillar's 0.2 m, so that the pillar hides it
     /// from outside. The line from the panel's middle out through the wall crosses no pane's hole. In <c>demo-surface</c>
     /// each is an entity with its id in the shuttle's frame, with a point light 0.3 m in front of it, toward the cabin's
-    /// middle, of range 10 m and intensity 50.
+    /// middle, of a cabin lamp's 10 W, which casts shadows.
     /// </summary>
     [Fact]
     public void TheLampsHangOnPillarsClearOfTheGlass()
@@ -225,8 +225,8 @@ public sealed class ShuttleTests : IDisposable
             DPose pose = world.PoseIn(lamp, cabin);
             (pose.Position - panel.Center).Length.Should().BeLessThan(1e-5, id);
             PointLightData light = world.GetRender(lamp).Light is PointLightData point ? point : default;
-            light.Power.Should().Be(4 * MathF.PI * 50, $"{id} carries a point light of 50 W/sr");
-            light.CastsShadow.Should().BeFalse(id);
+            light.Power.Should().Be(10, $"{id} carries a cabin lamp's light of 10 W, about 3,000 lumens");
+            light.CastsShadow.Should().BeTrue($"the light of {id} casts shadows; its panel does not darken it");
             (light.Offset.Position - new Double3(-side * 0.3, 0, 0))
                 .Length.Should()
                 .BeLessThan(1e-6, $"the light of {id} lies 0.3 m in front of it");

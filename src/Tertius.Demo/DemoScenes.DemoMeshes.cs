@@ -216,14 +216,8 @@ public static partial class DemoScenes
         world.Camera = camera;
 
         // The star's light comes from this direction: up, to the right and in front of the solids.
-        Star(
-            world: world,
-            scene: scene,
-            frame: ground,
-            center: Double3.Zero,
-            direction: new(30, 50, 40),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 40));
+        world.Ambient = Daylight;
 
         scene.AddView("camera");
         scene.AddView("cylinder-view");

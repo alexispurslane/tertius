@@ -161,14 +161,8 @@ public static partial class DemoScenes
         world.Camera = camera;
 
         // The star's light comes from this direction: up, to the port side and aft of the shuttles.
-        Star(
-            world: world,
-            scene: scene,
-            frame: ground,
-            center: Double3.Zero,
-            direction: new(-30, 50, 40),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(-30, 50, 40));
+        world.Ambient = Daylight;
 
         scene.AddView("side-camera");
         scene.AddView("tail-camera");

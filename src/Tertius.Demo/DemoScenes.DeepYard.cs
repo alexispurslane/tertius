@@ -83,9 +83,9 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            // The light comes from a star at space's origin, behind the person as it faces the crates. Its power gives the
-            // irradiance 1 W/m² at the crates, a light-year away. A face that the light does not reach gets the same dim
-            // light from every direction.
+            // The light comes from a star at space's origin, behind the person as it faces the crates. Its power, 4π (1 ly)²
+            // W/m² = 1.1 · 10³³ W, near that of the most luminous known stars, gives the irradiance 1 W/m² at the crates, a
+            // light-year away. A face that the light does not reach gets the same dim light from every direction.
             FrameHandle space = world.CreateRootFrame(
                 new(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None),
                 new RenderData

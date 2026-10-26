@@ -200,6 +200,25 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     }
 
     [Fact]
+    public void TheSunlightAtTheShipIsTheSolarConstantForEarthsDistance()
+    {
+        double distance = run.World.Frames.Relative(run.Frame("sun"), run.Frame("ship")).Position.Length;
+        run.World.PublishRenderSnapshot();
+        run.World.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        RenderSnapshot snapshot = run.World.RenderSnapshots.ReadBuffer;
+        uint sunIndex = run.Scene["sun"].Index;
+        PointRenderLight sun = snapshot
+            .Lights.Select(light => light.TryGetValue(out PointRenderLight point) ? point : default)
+            .Single(light => light.EntityIndex == sunIndex && light.Power > 0);
+
+        double irradiance = sun.Power / (4 * Math.PI * distance * distance);
+
+        // The scene is in SI units (docs/plans/local-light-shadows.md, decision 44): the Sun's whole power, which gives
+        // 1,361 W/m² at 1 AU. Earth's distance runs from 0.983 to 1.017 AU over a year.
+        irradiance.Should().BeInRange(1361 / (1.017 * 1.017), 1361 / (0.983 * 0.983));
+    }
+
+    [Fact]
     public void OnTheFarSideOfItsOrbitTheShipIsInEarthsShadow()
     {
         DPose sun = run.World.Frames.Relative(run.Frame("sun"), run.Frame("ship"));
@@ -318,10 +337,26 @@ public sealed class OrbitSliceImageTests : IDisposable
 {
     private readonly string folder = NewFolder();
 
+    /// <summary>
+    /// The fixed exposure of a sunlit view of the orbit scene, in stops: −log2(1,361 / 2.5). The scene is in SI units, with
+    /// the Sun's 1,361 W/m², and this exposure shows it as 0 stops showed it beside the sunlight of 2.5 W/m² that the
+    /// views below were judged with.
+    /// </summary>
+    private static readonly float SunlitStops = -MathF.Log2(1361f / 2.5f);
+
+    /// <summary>
+    /// The fixed exposure that shows the physical stars, in stops: 10, which undoes their scale of 2⁻¹⁰ W/(m²·sr)
+    /// (docs/plans/local-light-shadows.md, settled fork 1).
+    /// </summary>
+    private const float StarStops = 10;
+
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
-    /// <summary>The chase capture with the ship <paramref name="degrees"/> along its first circle, as the world starts there.</summary>
-    private Png ChaseAt(double degrees, string name)
+    /// <summary>
+    /// The chase capture with the ship <paramref name="degrees"/> along its first circle, as the world starts there, at
+    /// the fixed exposure of <paramref name="stops"/>.
+    /// </summary>
+    private Png ChaseAt(double degrees, string name, float stops)
     {
         double period = 2 * Math.PI / OrbitRun.MeanMotion;
         using var world = new World(
@@ -336,7 +371,7 @@ public sealed class OrbitSliceImageTests : IDisposable
         var script = Script.Parse(
             $$"""{ "scene": "orbit", "window": { "width": 1280, "height": 720 }, "steps": [ { "do": "capture", "name": "{{name}}" } ] }"""
         );
-        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+        VulkanRenderer renderer = GpuTesting.Headless(width: 16, height: 16, exposure: new FixedExposure(stops));
         try
         {
             ScriptRunner.Run(
@@ -360,7 +395,8 @@ public sealed class OrbitSliceImageTests : IDisposable
     public void AsTheShipTurnsAQuarterTurnOverAQuarterOrbitTheStarsSweepAcrossTheChaseView()
     {
         // The chase camera rides in the ship's frame, which turns once per orbit to face Earth. The stars are fixed to the
-        // sun frame's axes, so a quarter orbit later they stand elsewhere in the view. The rows above the ship show sky.
+        // sun frame's axes, so a quarter orbit later they stand elsewhere in the view. The rows above the ship show sky. The
+        // stars are physical, so beside the sunlit hull they show only at an exposure far above the hull's.
         static HashSet<(int X, int Y)> Stars(Png image)
         {
             var stars = new HashSet<(int X, int Y)>();
@@ -375,8 +411,8 @@ public sealed class OrbitSliceImageTests : IDisposable
             return stars;
         }
 
-        HashSet<(int X, int Y)> start = Stars(ChaseAt(0, "stars-0")),
-            quarter = Stars(ChaseAt(90, "stars-90"));
+        HashSet<(int X, int Y)> start = Stars(ChaseAt(degrees: 0, name: "stars-0", stops: StarStops)),
+            quarter = Stars(ChaseAt(degrees: 90, name: "stars-90", stops: StarStops));
 
         start.Count.Should().BeGreaterThan(50);
         quarter.Count.Should().BeGreaterThan(50);
@@ -388,8 +424,8 @@ public sealed class OrbitSliceImageTests : IDisposable
     {
         // Past the terminator, the ship's nose points away from the sun, so its back face, which the chase camera sees,
         // faces it: at 100 degrees the sun still lights it; at 120 degrees Earth's shadow covers the ship.
-        (int r, int g, int b) day = ChaseAt(100, "dusk").Average(640, 440);
-        (int r, int g, int b) night = ChaseAt(120, "umbra").Average(640, 440);
+        (int r, int g, int b) day = ChaseAt(degrees: 100, name: "dusk", stops: SunlitStops).Average(640, 440);
+        (int r, int g, int b) night = ChaseAt(degrees: 120, name: "umbra", stops: SunlitStops).Average(640, 440);
 
         (day.r > 150).Should().BeTrue($"before the shadow, the back face is sunlit, not {day}");
         (night.r + night.g + night.b < 120).Should().BeTrue($"in Earth's shadow, the back face is dark, not {night}");
@@ -405,7 +441,7 @@ public sealed class OrbitSliceImageTests : IDisposable
             """
         );
         using World world = NewJoltWorld();
-        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+        VulkanRenderer renderer = GpuTesting.Headless(width: 16, height: 16, exposure: new FixedExposure(SunlitStops));
         try
         {
             ScriptRunner.Run(

@@ -57,11 +57,13 @@ public static partial class DemoScenes
             scene: scene,
             floorHalfExtents: PbrFloorHalfExtents
         );
-        // A sky color and a ground color that differ, so that each sphere shows which way its hemisphere light is up.
+        // A sky color and a ground color that differ, so that each sphere shows which way its hemisphere light is up. Their
+        // radiances, in W/(m²·sr), keep the share of the Sun's light that the scene was judged with, beside sunlight of
+        // 1 W/m².
         world.Ambient = new()
         {
-            SkyColor = new(x: 0.12f, y: 0.16f, z: 0.24f),
-            GroundColor = new(x: 0.06f, y: 0.05f, z: 0.04f),
+            SkyColor = new(x: 160, y: 220, z: 330),
+            GroundColor = new(x: 80, y: 70, z: 55),
             Intensity = 1,
         };
 
@@ -86,14 +88,7 @@ public static partial class DemoScenes
         );
 
         // The sun stands up, in front of the rows and to their +X side, so the front views see each sphere's highlight.
-        Star(
-            world: world,
-            scene: scene,
-            frame: surface,
-            center: new(0, EarthRadius, 0),
-            direction: new(20, 30, 40),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(20, 30, 40));
 
         scene.AddView("front-camera");
         scene.AddView("low-camera");
@@ -102,36 +97,33 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// A lamp of the review scenes in <paramref name="surface"/> at <paramref name="position"/>: a glowing sphere 5 cm in
-    /// radius with a warm point light of 2 W/sr.
+    /// A lamp of the review scenes in <paramref name="surface"/> at <paramref name="position"/>: a household bulb, a
+    /// sphere of the lamp's radius that glows with its light's own surface radiance.
     /// </summary>
-    private static SpawnDesc GlowLamp(FrameHandle surface, IRenderResources resources, Double3 position) =>
-        new()
+    private static SpawnDesc GlowLamp(FrameHandle surface, IRenderResources resources, Double3 position)
+    {
+        PointLightData bulb = LampLight(offset: Vector3.Zero, power: HouseholdBulbPower);
+        return new()
         {
             Frame = surface,
             Pose = new(position, DQuaternion.Identity),
             Render = new RenderData
             {
-                Mesh = resources.CreateMesh(Primitives.Sphere(0.05f)),
+                Mesh = resources.CreateMesh(Primitives.Sphere(LampRadius)),
                 Material = resources.CreateMaterial(
                     new(
                         BaseColor: new(x: 0, y: 0, z: 0, w: 1),
                         Roughness: UsualRoughness,
                         Reflectance: 0,
-                        Emissive: new(6, 5.4f, 4.5f)
+                        Emissive: bulb.SurfaceRadiance
                     )
                 ),
-                BoundingRadius = 0.05f,
+                BoundingRadius = LampRadius,
                 Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                Light = new PointLightData(
-                    Offset: new(Vector3.Zero, Quaternion.Identity),
-                    Color: new(1, 0.9f, 0.75f),
-                    Power: 4 * MathF.PI * 2,
-                    Radius: LampRadius,
-                    CastsShadow: false
-                ),
+                Light = bulb,
             },
         };
+    }
 
     /// <summary>A view in <paramref name="frame"/> at <paramref name="pose"/>: an entity with no body that draws nothing.</summary>
     private static SpawnDesc ViewIn(FrameHandle frame, DPose pose) =>

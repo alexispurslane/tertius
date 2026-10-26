@@ -168,17 +168,25 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         (space.r + space.g + space.b)
             .Should()
             .BeLessThan(60, $"black space with a few stars shows through the hatch, not {space}");
-        (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows low in the hatch, not {earth}");
+        // The exposure follows the lamp-lit chamber, and sunlit Earth sends over a thousand times the lamps' light, so Earth
+        // shows white, not blue, low in the hatch.
+        (earth.r + earth.g + earth.b)
+            .Should()
+            .BeGreaterThan(700, $"sunlit Earth shows white low in the hatch beside the lamp-lit chamber, not {earth}");
     }
 
     [Fact]
-    public void FromOutsideEarthShowsBelowTheHullAndTheOpenHatchShowsTheLampLitChamberFloor()
+    public void FromOutsideEarthShowsBelowTheHullAndTheOpenHatchShowsTheChamberFloorDarkerThanTheHull()
     {
         // The person looks back at the hull's port face. The sun stands straight above the ship, so it does not light that
-        // face, which looks sideways. Earth fills the bottom of the image, below the hull. Through the open hatch the person
-        // sees the chamber's floor. Point lights cast no shadows yet, so the cabin's lamps light the chamber's floor through
-        // the chamber's walls and its shut inner door. Each probe sits well inside its region: the hull ends at row 596, above
-        // Earth, and the chamber floor spans rows 479 to 512 and columns 584 to 695.
+        // face, which looks sideways, but Earth below does. Earth fills the bottom of the image, below the hull. Through
+        // the open hatch the person sees the chamber's floor, which only the cabin's lamps light. Each probe sits well
+        // inside its region: the hull ends at row 596, above Earth, and the chamber floor spans rows 479 to 512 and columns
+        // 584 to 695.
+        //
+        // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the lamps send less than a
+        // thousandth of the light of sunlit Earth, so at the exposure that Earth sets the chamber floor shows far darker than the
+        // Earth-lit port face. Before, the lamps sent 10 times the sunlight and the floor showed brighter than the face.
         Png hull = run.Capture("hull");
         (int r, int g, int b) earth = hull.Average(640, 690),
             floor = hull.Average(640, 495),
@@ -186,9 +194,9 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows below the hull, not {earth}");
         (floor.r + floor.g + floor.b)
             .Should()
-            .BeGreaterThan(
-                side.r + side.g + side.b + 100,
-                $"the lamp-lit chamber floor {floor} is brighter than the hull's port face {side}"
+            .BeLessThan(
+                (side.r + side.g + side.b) / 4,
+                $"the lamp-lit chamber floor {floor} is darker than the Earth-lit port face {side}"
             );
     }
 }

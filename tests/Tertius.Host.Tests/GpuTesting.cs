@@ -79,11 +79,11 @@ public static class GpuTesting
 
     /// <summary>
     /// A validating headless renderer with no impostors, as a scripted run makes one, with no ambient occlusion, so that
-    /// the tests see the ambient light in full, no environment map, and a fixed exposure of 0 stops, so that a pixel does
-    /// not depend on the frames before it. Reflections are off, as in the renderer tests' fixtures. Local shadows are
-    /// off, as the impostors are.
+    /// the tests see the ambient light in full, and no environment map. The exposure is fixed at 0 stops unless asked
+    /// for, so that a pixel does not depend on the frames before it. Reflections are off, as in the renderer tests'
+    /// fixtures. Local shadows are off, as the impostors are.
     /// </summary>
-    public static VulkanRenderer Headless(int width, int height) =>
+    public static VulkanRenderer Headless(int width, int height, ExposureSetting exposure = default) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
@@ -92,12 +92,37 @@ public static class GpuTesting
                 Height = height,
                 Impostors = false,
                 AmbientOcclusion = new NoAmbientOcclusion(),
-                Exposure = new FixedExposure(0),
+                Exposure = exposure,
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,
                 LocalShadows = new NoLocalShadows(),
                 Reflections = new NoReflections(),
                 EnvironmentMap = new NoEnvironmentMap(),
+            }
+        );
+
+    /// <summary>
+    /// A validating headless renderer that shows a demo scene in SI units as a scripted run does: under the automatic
+    /// exposure, which a still after a long step shows settled, and with the environment map, which lights a cabin from
+    /// what lies around the camera. The hemisphere ambient light, sized for open space or daylight, would light a cabin
+    /// far more than its lamps, which send about 10⁻⁴ of the sunlight. The other passes are off, as in
+    /// <see cref="Headless"/>.
+    /// </summary>
+    public static VulkanRenderer LikeAScriptedRun(int width, int height) =>
+        VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = width,
+                Height = height,
+                Impostors = false,
+                AmbientOcclusion = new NoAmbientOcclusion(),
+                Exposure = AutoExposure.Default,
+                Bloom = new NoBloom(),
+                AntiAliasing = AntiAliasing.None,
+                LocalShadows = new NoLocalShadows(),
+                Reflections = new NoReflections(),
+                EnvironmentMap = SceneEnvironmentMap.Default,
             }
         );
 

@@ -269,8 +269,9 @@ public sealed class PreExposureTests
             }
         }
 
-        float unexposed = SkyLuma(new FixedExposure(0));
-        float exposed = SkyLuma(new FixedExposure(2));
+        // The stars are physical, at most about 3 · 2⁻¹⁰ W/(m²·sr) at their peaks, so 10 stops show them.
+        float unexposed = SkyLuma(new FixedExposure(10));
+        float exposed = SkyLuma(new FixedExposure(12));
 
         unexposed.Should().BePositive("some stars show in the view");
         exposed.Should().BeGreaterThan(1.5f * unexposed, "the stars are radiance, which the exposure multiplies");

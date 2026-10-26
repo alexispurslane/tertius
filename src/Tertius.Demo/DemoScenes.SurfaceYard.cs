@@ -158,14 +158,8 @@ public static partial class DemoScenes
         );
 
         // The star's light comes from this direction: up, and to the cameras' side of the yard.
-        Star(
-            world: world,
-            scene: scene,
-            frame: surface,
-            center: new(0, EarthRadius, 0),
-            direction: new(30, 50, 20),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(30, 50, 20));
+        world.Ambient = Daylight;
 
         scene.AddView("yard-camera");
         scene.AddView("stack-camera");
@@ -225,19 +219,11 @@ public static partial class DemoScenes
         );
 
     /// <summary>
-    /// The entity <c>sun</c>: a star 1 AU from <paramref name="center"/> along <paramref name="direction"/>, in
-    /// <paramref name="frame"/>, that casts shadows and sends the irradiance <paramref name="irradiance"/>, in W/m², at
-    /// <paramref name="center"/>. Its power is the irradiance times 4π (1 AU)². Its radius is 0, so that it lights the
-    /// scene as a sun frame without a sphere did before it: from a point, with sharp shadows.
+    /// The entity <c>sun</c>: the Sun 1 AU from <paramref name="center"/> along <paramref name="direction"/>, in
+    /// <paramref name="frame"/>, a point light of the Sun's power and radius that casts shadows. It sends 1,361 W/m², the
+    /// solar constant, at <paramref name="center"/>. It has no sphere: the scene sees only its light.
     /// </summary>
-    private static void Star(
-        World world,
-        SceneInstance scene,
-        FrameHandle frame,
-        Double3 center,
-        Double3 direction,
-        float irradiance
-    )
+    private static void Star(World world, SceneInstance scene, FrameHandle frame, Double3 center, Double3 direction)
     {
         Entity star = world.Spawn(
             new()
@@ -249,8 +235,8 @@ public static partial class DemoScenes
                     Light = new PointLightData(
                         Offset: new(Vector3.Zero, Quaternion.Identity),
                         Color: Vector3.One,
-                        Power: (float)(irradiance * 4 * Math.PI * AstronomicalUnit * AstronomicalUnit),
-                        Radius: 0,
+                        Power: (float)SunPower,
+                        Radius: (float)SunRadius,
                         CastsShadow: true
                     ),
                 },

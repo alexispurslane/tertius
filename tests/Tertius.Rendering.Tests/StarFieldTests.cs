@@ -111,10 +111,11 @@ public sealed class StarFieldTests
 
             stars++;
             var direction = Vector3.Normalize(cell + StarField.Hash33(cell + new Vector3(17)));
-            Vector3 peak = Vector3.Lerp(Warm, Cool, hash.Z) * (0.05f + 3f * MathF.Pow(hash.Y, 8));
+            Vector3 peak =
+                Vector3.Lerp(Warm, Cool, hash.Z) * (StarField.UnitRadiance * (0.05f + 3f * MathF.Pow(hash.Y, 8)));
             Star found = star!.Value;
             Vector3.Distance(found.Direction, direction).Should().BeLessThan(1e-6f, $"cell {cell}");
-            Vector3.Distance(found.Peak, peak).Should().BeLessThan(1e-6f, $"cell {cell}");
+            Vector3.Distance(found.Peak, peak).Should().BeLessThan(1e-6f * StarField.UnitRadiance, $"cell {cell}");
         }
 
         stars.Should().BeGreaterThan(50, "the box holds about 4,600 cells");
@@ -301,6 +302,21 @@ public sealed class StarFieldTests
             StarField.MeanRadiance(diagonal, PixelAngle).X / StarField.MeanRadiance(Vector3.UnitX, PixelAngle).X;
         expected.Should().BeApproximately(Math.Sqrt(3), 1e-5);
         ratio.Should().BeApproximately(expected, 0.05 * expected);
+    }
+
+    [Fact]
+    public void TheBrightestStarSendsAboutTheIrradianceOfTheBrightestRealStars()
+    {
+        // Settled fork 1, physical stars (docs/plans/local-light-shadows.md): the brightest stars of the sky send about
+        // 10⁻⁸ W/m². A star of the sky is a Gaussian of peak b and width p, so it sends b π p².
+        float brightest = Cells(new(140, -20, -20), new(150, 20, 20))
+            .Select(cell => StarField.OfCell(cell))
+            .OfType<Star>()
+            .Max(star => ExposureMeter.Luminance(star.Peak));
+
+        float irradiance = brightest * MathF.PI * PixelAngle * PixelAngle;
+
+        irradiance.Should().BeInRange(5e-9f, 2e-8f);
     }
 
     [Fact]

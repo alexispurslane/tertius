@@ -793,9 +793,9 @@ public sealed class ImpostorManagerTests
     {
         var harness = new Harness();
         var near = new Vector3(0, 0, -DistanceFor(100f));
-        // At the default exposure's highest 8 stops the cutoff irradiance is π · 2^−13 / 2^8 ≈ 1.5e-6 W/m², so a lamp of
-        // 8 W/sr reaches √(8 / 1.5e-6) ≈ 2.3 km. The far ball, 100 m in radius and about 3.1 km away, is beyond it.
-        var far = new Vector3(0, 0, -DistanceFor(40f, 100f));
+        // At the default exposure's highest 10 stops the cutoff irradiance is π · 2^−13 / 2^10 ≈ 3.7e-7 W/m², so a lamp of
+        // 8 W/sr reaches √(8 / 3.7e-7) ≈ 4.6 km. The far ball, 100 m in radius and about 6.2 km away, is beyond it.
+        var far = new Vector3(0, 0, -DistanceFor(20f, 100f));
 
         // The lamp is the only light, so all the light of the near ball changes with it, and the far ball has none to change.
         int[] CapturedEntities(float intensity)

@@ -17,7 +17,8 @@ public sealed class DeviceTests
     [Fact]
     public void EmptySceneRendersStarsOnBlack()
     {
-        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180);
+        // The stars are physical, at most about 3 · 2⁻¹⁰ W/(m²·sr) at their peaks, so 10 stops show them.
+        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, exposure: new FixedExposure(10));
         try
         {
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0));
@@ -51,7 +52,8 @@ public sealed class DeviceTests
     [Fact]
     public void TheStarsStayFixedToTheRootFramesAxesWhateverFrameTheCameraRidesIn()
     {
-        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180);
+        // 10 stops show the physical stars.
+        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, exposure: new FixedExposure(10));
         try
         {
             // The same view of the sky, from a camera in the root frame and from one in a frame turned by `turn`: in the

@@ -314,14 +314,8 @@ public static partial class DemoScenes
                 )
             );
 
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
-            );
+            // Cabin lamps behind glowing panels 1.2 m square.
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
             MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
             MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new(0.05f, 0.6f, 0.6f)));
             // The spoke lamps, on the spoke's spinward wall, each with its light 0.3 m in front of it.
@@ -333,13 +327,7 @@ public static partial class DemoScenes
                         pose: new(new(x, 0, wall - 0.05), DQuaternion.Identity),
                         mesh: wallPanel,
                         material: lampMaterial,
-                        light: new(
-                            Offset: new(new(0, 0, -0.3f), Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f),
-                            Power: 4 * MathF.PI * 60,
-                            Radius: LampRadius,
-                            CastsShadow: false
-                        )
+                        light: LampLight(offset: new(0, 0, -0.3f), power: CabinLampPower)
                     )
                 );
             // The wheel lamps, flat under the ceiling's face toward the floor, each turned so that its local +X points away
@@ -356,13 +344,7 @@ public static partial class DemoScenes
                         pose: new(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
                         mesh: ceilingPanel,
                         material: lampMaterial,
-                        light: new(
-                            Offset: new(new(0.3f, 0, 0), Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f),
-                            Power: 4 * MathF.PI * 100,
-                            Radius: LampRadius,
-                            CastsShadow: false
-                        )
+                        light: LampLight(offset: new(0.3f, 0, 0), power: CabinLampPower)
                     )
                 );
             }

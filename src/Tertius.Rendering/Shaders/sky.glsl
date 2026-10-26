@@ -10,7 +10,10 @@
 const float StarCells = 150.0;                       // StarField.CellsPerUnit: cells per unit of direction
 const float StarCellWidth = 1.0 / StarCells;         // c, in rad
 const float StarShare = 0.02;                        // one cell in 50 holds a star
-const float StarMeanBrightness = 0.05 + 3.0 / 9.0;   // E[brightness]
+// StarField.UnitRadiance: the peak radiance, in W/(m²·sr), of a star of brightness 1 (docs/plans/local-light-shadows.md,
+// settled fork 1, physical stars). At 1080p and a 60° view, the brightest stars then send about 10⁻⁸ W/m².
+const float StarUnitRadiance = 1.0 / 1024.0;
+const float StarMeanBrightness = StarUnitRadiance * (0.05 + 3.0 / 9.0);   // E[brightness]
 const vec3 StarMeanTint = vec3(0.86, 0.82, 0.81);    // E[tint]
 
 // Hash without sine (Dave Hoskins), stable for the integer cell coordinates used below.
@@ -45,7 +48,7 @@ bool starOfCell(vec3 cell, out vec3 star, out vec3 peak)
     if (h.x > StarShare)
         return false;
     star = normalize(cell + hash33(cell + 17.0));
-    float brightness = 0.05 + 3.0 * pow(h.y, 8.0);
+    float brightness = StarUnitRadiance * (0.05 + 3.0 * pow(h.y, 8.0));
     vec3 tint = mix(vec3(1.0, 0.82, 0.62), vec3(0.72, 0.82, 1.0), h.z);
     peak = tint * brightness;
     return true;

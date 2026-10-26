@@ -60,10 +60,11 @@ public static partial class DemoScenes
             scene: scene,
             floorHalfExtents: ReflectionsSlabHalfExtents
         );
+        // 160 W/(m²·sr), the share of the Sun's light that the scene was judged with, beside sunlight of 1 W/m².
         world.Ambient = new()
         {
-            SkyColor = new(0.12f),
-            GroundColor = new(0.12f),
+            SkyColor = new(160),
+            GroundColor = new(160),
             Intensity = 1,
         };
 
@@ -87,14 +88,7 @@ public static partial class DemoScenes
         );
 
         // The sun stands up and behind the views, so no view sees its glint and the shadows fall away from them.
-        Star(
-            world: world,
-            scene: scene,
-            frame: surface,
-            center: new(0, EarthRadius, 0),
-            direction: new(20, 30, 40),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(20, 30, 40));
 
         scene.AddView("front-camera");
         scene.AddView("low-camera");
@@ -204,7 +198,7 @@ public static partial class DemoScenes
                         BaseColor: new(x: 0, y: 0, z: 0, w: 1),
                         Roughness: UsualRoughness,
                         Reflectance: 0,
-                        Emissive: new(5)
+                        Emissive: new(6800)
                     )
                 ),
                 boundingRadius: halfExtents.Length()

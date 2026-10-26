@@ -9,8 +9,10 @@ namespace Tertius.Host.Tests;
 /// through the pane, 0.55 m from its eye. The script destroys that pane and captures the same view through the bare hole,
 /// so that the test can tell what the pane adds. Then the person walks into the airlock's chamber, cycles the airlock,
 /// walks out through the hatch and drifts away from the hull. It turns round toward the port window 4 m forward of the
-/// hatch and sees the lamp-lit cabin through its pane. A pane a few meters from the eye with Earth behind it crosses every
-/// depth range of the renderer. Every test of the class reads that one run.
+/// hatch and sees the cabin through its pane. A pane a few meters from the eye with Earth behind it crosses every depth
+/// range of the renderer. Every test of the class reads that one run. The scene is in SI units: the cabin's lamps send
+/// less than a thousandth of the light that sunlit Earth sends, so wherever Earth is in view or lights the hull, the lamp
+/// light falls below the exposure that Earth sets.
 /// </summary>
 public sealed class WindowsRun() : CheckedInRun("windows");
 
@@ -37,8 +39,10 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
     {
         // The person looks out along the ship's +X and 25 degrees down from 0.3 m inside the wall, so the window fills the
         // top of the image and Earth its middle: its horizon is 19.8 degrees below level. The pane lets most of Earth's
-        // light through and adds its own, the lamp light that it reflects. So through the pane Earth is a little lighter
-        // in red and green and a little darker in blue than through the bare hole, at the same pixel, 3 ticks later.
+        // light through. The lamp light that it reflects is less than a thousandth of Earth's, so it adds nothing that
+        // shows, and the pane only filters: through it Earth is darker than through the bare hole, at the same pixel,
+        // 3 ticks later, and the blue tint keeps the most of Earth's blue. Both captures settle at about the same
+        // exposure, which Earth sets.
         Dump("pane-gone")
             .Entities.Should()
             .NotContain(
@@ -50,37 +54,44 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
 
         (bare.b > bare.r + 60).Should().BeTrue($"Earth's blue shows through the bare hole, not {bare}");
         (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows through the pane, not {earth}");
-        (earth.r > bare.r + 2 && earth.g > bare.g + 2 && earth.b < bare.b)
+        (earth.r < bare.r && earth.g < bare.g && earth.b < bare.b)
             .Should()
-            .BeTrue($"the pane tints Earth from {bare} to {earth}");
+            .BeTrue($"the pane darkens Earth from {bare} to {earth}");
+        ((float)earth.b / bare.b)
+            .Should()
+            .BeGreaterThan(
+                (float)earth.r / bare.r,
+                $"the pane's blue tint keeps Earth's blue best, from {bare} to {earth}"
+            );
     }
 
     [Fact]
-    public void AgainstBlackSpaceThePaneShowsItsOwnSlightBlueTint()
+    public void AgainstBlackSpaceThePaneShowsNoLampLightBesideEarth()
     {
         // Above Earth's horizon, the bare hole shows black space. The pane there shows only its own lamp-lit color, at its
-        // low opacity: a dark blue gray. Since the lamps reach as far as their power carries (docs/plans/local-light-shadows.md,
-        // Part 4), not 10 m, they light the pane at full strength, (28, 34, 42), so the upper bound grew from 90 to 130.
+        // low opacity. In SI units the lamps send less than a thousandth of Earth's light, so at the exposure that Earth
+        // below sets the pane shows as black as the bare hole. (Before the scenes moved to SI units, the lamps sent 10 times the
+        // sunlight, and the pane showed a dark blue gray.)
         (int r, int g, int b) glass = run.Capture("earth-through-pane").Average(640, 200);
         (int r, int g, int b) space = run.Capture("earth-through-hole").Average(640, 200);
 
         (space.r + space.g + space.b).Should().BeLessThan(10, $"black space shows through the bare hole, not {space}");
-        (glass.r + glass.g + glass.b)
-            .Should()
-            .BeInRange(20, 130, $"the pane is dark, but not black, against space, not {glass}");
-        (glass.b > glass.g && glass.g > glass.r).Should().BeTrue($"the pane's tint is blue, not {glass}");
+        (glass.r + glass.g + glass.b).Should().BeLessThan(10, $"the lamp-lit pane is black beside Earth, not {glass}");
     }
 
     [Fact]
-    public void FromOutsideThePersonSeesTheLampLitCabinThroughAPortPane()
+    public void FromOutsideTheEarthLitPortFaceOutshinesTheLampLitCabinThroughAPortPane()
     {
         // The person drifts 5.4 m outside the port wall, a little above the hatch, and looks back at the window 4 m forward
         // of the hatch, 33 degrees to the left of the hatch and 5 degrees down. The sun stands straight above the ship, so
-        // only the dim ambient light reaches the port face. Through the pane, across the cabin, the lamps light the
-        // starboard wall and the floor in their warm white. The lit window spans rows 296 to 410 and columns 537 to 686.
-        // The starboard wall shows above row 352, and the floor below row 355. The opposite window's pane, dark against
-        // space, spans columns 627 to 661 and rows 303 to 328, so the probe of the wall sits between it and the window's
-        // right edge.
+        // it does not light the port face, but Earth below does, in its blue. Through the pane, across the cabin, the lamps
+        // light the starboard wall and the floor. The window spans rows 296 to 410 and columns 537 to 686. The starboard
+        // wall shows above row 352, and the floor below row 355.
+        //
+        // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the lamps send less than a
+        // thousandth of the light of sunlit Earth, so at the exposure that the Earth-lit hull sets the cabin floor through the
+        // pane shows far darker than the port face, as a window does by day. Before, the lamps sent 10 times the sunlight
+        // and the cabin showed brighter than the dark port face.
         //
         // Changed on purpose by ter-1b21 (the user's fork F6, 2026-10-20): a standing person walks in the plane of every
         // walkable face that Jolt reports, the faces of moving bodies included. While the inner door opens, the person
@@ -101,16 +112,17 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
             .BeLessThan(-15, "the person is outside the hull, 5.4 m from its port face");
         Png image = run.Capture("cabin-through-pane");
         (int r, int g, int b) hull = image.Average(640, 200),
-            wall = image.Average(676, 308),
             floor = image.Average(650, 368);
 
-        (hull.r + hull.g + hull.b).Should().BeLessThan(60, $"the port face above the window is dark, not {hull}");
-        (wall.r > hull.r + 50 && wall.r > wall.b)
+        (hull.b > hull.r + 60)
             .Should()
-            .BeTrue($"the lamp-lit starboard wall shows through the pane, not {wall}");
-        (floor.r > hull.r + 100 && floor.r > floor.b)
+            .BeTrue($"Earth's blue light shows on the port face above the window, not {hull}");
+        (floor.r + floor.g + floor.b)
             .Should()
-            .BeTrue($"the lamp-lit floor shows through the pane, not {floor}");
+            .BeLessThan(
+                (hull.r + hull.g + hull.b) / 2,
+                $"the lamp-lit floor {floor} shows darker through the pane than the Earth-lit port face {hull}"
+            );
     }
 
     [Fact]

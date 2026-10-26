@@ -153,14 +153,8 @@ public static partial class DemoScenes
         );
         scene.Add("camera", camera);
 
-        Star(
-            world: world,
-            scene: scene,
-            frame: ground,
-            center: Double3.Zero,
-            direction: new(30, 50, 20),
-            irradiance: 1
-        );
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 20));
+        world.Ambient = Daylight;
 
         scene.AddView("camera");
         scene.AddView("person");

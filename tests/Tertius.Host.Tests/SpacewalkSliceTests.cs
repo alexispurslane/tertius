@@ -236,8 +236,8 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
 
     /// <summary>
     /// The rows and the columns of <paramref name="image"/> that the ship covers, above row 520, where the carried crate
-    /// and Earth begin. A pixel is lit if its channels add up to more than 15: space is black, and the hull's port face,
-    /// which only the dim ambient light reaches, is a dark gray. The stars light at most a few dozen pixels of a row or a
+    /// and Earth begin. A pixel is lit if its channels add up to more than 15: space is black, and Earth below lights the
+    /// hull's port face blue. The stars light at most a few dozen pixels of a row or a
     /// column. The ship turns under the person in earth, so in the view its edges lean by a few pixels across the image.
     /// So a row of the ship is a row with more than half of its pixels lit, and a column of it has more than 30 lit pixels.
     /// </summary>
@@ -260,13 +260,14 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     }
 
     /// <summary>
-    /// The first and the last column of <paramref name="image"/> with a pixel whose channels add up to more than 150,
+    /// The first and the last column of <paramref name="image"/> with a pixel whose channels add up to less than 100,
     /// between rows 300 and 470, and from column <paramref name="from"/> up to column <paramref name="to"/>. Those rows lie
-    /// inside the hull's port face, which hides the stars. Only what the lamps light is that bright there: the top of the
-    /// hatch's sill, which reaches the port face, and the chamber's floor beyond it, which shows through the open hatch.
-    /// The windows of the port wall show the lamp-lit cabin too, so the columns must leave them out.
+    /// inside the hull's port face, which Earth lights to about 290. Only what the lamps alone light is that dark there:
+    /// the top of the hatch's sill, which reaches the port face, and the chamber's floor beyond it, which shows through
+    /// the open hatch. The lamps send less than a thousandth of the light of sunlit Earth (docs/plans/local-light-shadows.md,
+    /// Part 5). The windows of the port wall show the cabin too, so the columns must leave them out.
     /// </summary>
-    private static (int First, int Last) LitThroughTheHatch(Png image, int from, int to)
+    private static (int First, int Last) LampLitThroughTheHatch(Png image, int from, int to)
     {
         int first = image.Width,
             last = -1;
@@ -274,7 +275,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         for (int x = from; x < to; x++)
         {
             (int r, int g, int b) = image.At(x, y);
-            if (r + g + b > 150)
+            if (r + g + b < 100)
             {
                 first = Math.Min(first, x);
                 last = Math.Max(last, x);
@@ -299,7 +300,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         // within 2.5 m of the image's middle column.
         int reach = (int)Math.Round(2.5 * pixelsPerMeter);
         (int rows, int columns) = ShipExtent(image);
-        (int first, int last) = LitThroughTheHatch(image, image.Width / 2 - reach, image.Width / 2 + reach);
+        (int first, int last) = LampLitThroughTheHatch(image, image.Width / 2 - reach, image.Width / 2 + reach);
 
         distance.Should().BeLessThan(15, "the person passed into earth close to the ship");
         rows.Should().BeCloseTo((int)Math.Round(8 * pixelsPerMeter), 2, "the hull is 8 m tall");

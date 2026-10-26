@@ -229,8 +229,7 @@ public static partial class DemoScenes
                 world: world,
                 resources: resources,
                 scene: scene,
-                date: EarthDate.MarchEquinox,
-                irradiance: SpaceSunlight
+                date: EarthDate.MarchEquinox
             );
 
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
@@ -275,28 +274,8 @@ public static partial class DemoScenes
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
 
-            // Five lamps under the roof, 6 m apart, placed as in the orbit scene's ship, at 40 % of its light. At its light,
-            // the tone curve washed the cabin's colors out: the green crate came out as pale as the thin wall beside it, and
-            // the lamps' own faces white.
-            MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(2, 1.8f, 1.5f)
-                )
-            );
-            for (int i = -2; i <= 2; i++)
-                world.Spawn(
-                    CeilingLamp(
-                        frame: frame,
-                        position: new(0, Cabin.Y - 0.05, 6 * i),
-                        mesh: lampMesh,
-                        material: lampMaterial,
-                        intensity: 40
-                    )
-                );
+            // Five cabin lamps under the roof, 6 m apart, placed as in the orbit scene's ship.
+            SpawnCabinLamps(world: world, resources: resources, frame: frame, spacing: 6);
 
             // The outer door slides aft into the port wall beside the hatch, and the inner door up into the chamber's
             // inner wall. Each slides 0.1 m farther than its doorway is wide or tall, so that its edge hides in the wall.

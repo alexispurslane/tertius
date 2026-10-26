@@ -71,7 +71,7 @@ Settled by this design:
 22. The impostor atlas stores radiance, not pre-exposed light. A capture passes a scale of 1 to `surfaceRadiance`, and the billboard pre-exposes the atlas's color when it writes the emissive target. So a capture stays right when the exposure changes, with no second value per tile. See "The impostor atlas".
 23. The exposure pass clears the histogram at its start. So after a frame, the histogram holds that frame's counts: stored state describes the last finished step, and a test can read it.
 24. Every stops value of a setting lies from −64 to 64: `FixedExposure.Stops`, `MinStops`, `MaxStops` and `CompensationStops`. 2^64 is about 1.8 × 10^19, so a radiance below about 10^19 times it stays finite in a 32-bit float, and the product never overflows before the clamp.
-25. The default clamp is −8 to +8 stops, and both default trim shares are 0.1, in today's units. See "Defaults". The lights plan retunes the clamp for SI units.
+25. The default clamp is −8 to +8 stops, and both default trim shares are 0.1, in today's units. See "Defaults". The lights plan retuned the clamp for SI units to −14 to +10 ([local-light-shadows.md](local-light-shadows.md), decision 42).
 26. The device's graphics queue family must also support compute. The renderer records compute and graphics work in one command buffer on one queue. MoltenVK's one queue family supports both.
 27. `params.x` of the frame constants held a copy of the exposure that no shader read. It goes, and `x` is unused. A second store can disagree with the first.
 28. The readback copies the exposure buffer at the start of each drawn frame, before any pass reads it. So a reading is the exposure that a frame's passes used.
@@ -182,6 +182,8 @@ The compensation adds to the lower of the two targets, and the clamp applies aft
 | `BrightShare` | 0.1 | A lamp panel or a glint covers less than a tenth of the surface pixels in the demo's views. So a bright area that covers a tenth or more of the surface pixels sets the bright edge. |
 | `IntoDarkSeconds` | 3 | (User) |
 | `IntoLightSeconds` | 1 | (User) |
+
+The lights plan set the clamp to −14 to +10 when the scenes moved to SI units ([local-light-shadows.md](local-light-shadows.md), decision 42). The two rows of the clamp above give the reasons in today's units, before that move.
 
 The lights plan moves every scene to SI units, where a sunlit surface wants about −10 stops and a dim room about +7. It sets the clamp's defaults again then. The last part of this ticket checks the trims and the clamp in the screenshots.
 

@@ -433,17 +433,9 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            // The demo's light is the light that every film was judged with: sunlight of 1 W/m² and the world's own ambient
-            // light, not the brighter sun and the dim space of the orbit scene, which SunAndEarth sets.
-            AmbientLight ambient = world.Ambient;
-            FrameHandle earth = SunAndEarth(
-                world: world,
-                resources: resources,
-                scene: scene,
-                date: Date,
-                irradiance: 1
-            );
-            world.Ambient = ambient;
+            // On the ground, the daylight's ambient light, not the dim space of the orbit scene, which SunAndEarth sets.
+            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: Date);
+            world.Ambient = Daylight;
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
             Floor(
                 world: world,
@@ -467,17 +459,10 @@ public static partial class DemoScenes
             );
 
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
-            );
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
 
             SpawnDesc Lamp(FrameHandle frame, Double3 position) =>
-                CeilingLamp(frame: frame, position: position, mesh: lampMesh, material: lampMaterial, intensity: 100);
+                CeilingLamp(frame: frame, position: position, mesh: lampMesh, material: lampMaterial);
 
             Vector3 half = TerminalHalf;
             scene.Add(

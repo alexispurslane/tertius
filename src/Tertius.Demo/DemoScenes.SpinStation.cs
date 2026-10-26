@@ -264,16 +264,10 @@ public static partial class DemoScenes
         /// <summary>The lamps on both walls, one on each wall over every fourth joint.</summary>
         private static void SpawnWallLamps(World world, IRenderResources resources, FrameHandle frame)
         {
-            // Each lamp is a glowing panel on the inner face of a wall, with its light just in front of it.
+            // Each lamp is a glowing panel 0.6 m by 1.2 m on the inner face of a wall, with a cabin lamp's light just in
+            // front of it.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
-            );
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 0.6f * 1.2f);
             for (int k = 0; k < Segments; k += LampEvery)
             {
                 double theta = k * Facet,
@@ -297,13 +291,7 @@ public static partial class DemoScenes
                                 Material = lampMaterial,
                                 BoundingRadius = 0.85f,
                                 Flags = RenderFlags.Visible,
-                                Light = new PointLightData(
-                                    Offset: new(new((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity),
-                                    Color: new(1, 0.92f, 0.8f),
-                                    Power: 4 * MathF.PI * 80,
-                                    Radius: LampRadius,
-                                    CastsShadow: false
-                                ),
+                                Light = LampLight(offset: new((float)-side * 0.3f, -0.3f, 0), power: CabinLampPower),
                             },
                         }
                     );
