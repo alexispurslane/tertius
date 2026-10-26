@@ -256,13 +256,20 @@ A scripted model is a model whose only source is a folder of Blender Python scri
 
 | Path | What it is |
 |---|---|
-| `tertius_blender/` | The model library: the Python package that model scripts import. `run` runs scripts. `geometry` and `nodes` build meshes and shader node trees. `checks` holds the attachment check and the view check. `bake` and `export` make the maps and the files. `stage` adds the cameras and lights of the views. |
+| `tertius_blender/` | The model library: the Python package that model scripts import. `run` runs scripts. `geometry` and `nodes` build meshes and shader node trees. `checks` holds the attachment check and the view check. `bake` and `export` make the maps and the files. `stage` adds the cameras and lights of the views. `mpfb` makes humans with MPFB (see "Humans from MPFB"). |
 | `build.sh`, `build.py` | The build tool. It builds one model folder in headless Blender, with no MCP server. |
-| `setup.sh` | Installs the Blender MCP add-on into Blender, once per machine |
 | `bridge.sh` | Starts and stops the bridge: a headless Blender that serves the MCP server of `.mcp.json` |
-| `tests/` | The example model `crate.model` and the tests of the build tool |
+| `tests/` | The example model `crate.model`, the tests of the build tool, and the tests of `mpfb` |
 
-All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The first start of the shell downloads about 600 MiB, which take 1.7 GiB in the Nix store (measured on 2026-10-26).
+All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The shell also gives:
+
+| Variable | What it names |
+|---|---|
+| `BLENDER_SYSTEM_EXTENSIONS` | A folder in the Nix store with the MCP add-on and MPFB as Blender system extensions (`native/blender-extensions.nix`). Every Blender of the shell finds them, and nothing is installed into your Blender folders. |
+| `TERTIUS_MPFB` | The MPFB 2.0.18 add-on, unpacked from a fetch pinned by hash in `native/mpfb.nix` (44 MiB to download) |
+| `TERTIUS_MAKEHUMAN_ASSETS` | The skins, eyes, eyebrows, eyelashes, teeth, tongues and hair of the MakeHuman system assets, from a fetch pinned by hash in `native/makehuman-assets.nix` (268 MiB to download, 139 MiB kept). The clothes of the pack are left out. |
+
+The first start of the shell downloads about 870 MiB, which take about 2.1 GiB in the Nix store, the downloaded archives included (measured on 2026-10-26).
 
 ### Build a model
 
@@ -283,9 +290,8 @@ The build tool stops Blender on every exit and deletes Blender's temporary folde
 
 `.mcp.json` registers the official Blender Lab MCP server as the server `blender`. Claude Code starts it with `nix develop .#assets --command blender-mcp`, and asks once to approve the servers of the project. The server sends each tool call to the bridge.
 
-1. Once per machine, install the add-on: `tools/blender/setup.sh`. If version 1.0.3 is already installed and enabled, the script changes nothing.
-2. Start the bridge: `tools/blender/bridge.sh start`. It listens on `localhost:9876` and writes its log to `~/.local/state/tertius/blender-bridge-9876/bridge.log`. One bridge serves the machine, and it belongs to the checkout or worktree that started it. A start or a stop from another checkout fails with exit code 1 and names the owner. `bridge.sh status` prints the process id and the owner.
-3. Run model scripts through the tool `execute_blender_code`, with the same function as the build tool:
+1. Start the bridge: `tools/blender/bridge.sh start`. It listens on `localhost:9876` and writes its log to `~/.local/state/tertius/blender-bridge-9876/bridge.log`. Its Blender runs with `--factory-startup` and enables the MCP add-on from the system extensions. Its temporary folder and its user resource folder are in that state folder too, and the stop deletes them. One bridge serves the machine, and it belongs to the checkout or worktree that started it. A start or a stop from another checkout fails with exit code 1 and names the owner. `bridge.sh status` prints the process id and the owner.
+2. Run model scripts through the tool `execute_blender_code`, with the same function as the build tool:
 
    ```python
    import importlib, sys
@@ -298,7 +304,7 @@ The build tool stops Blender on every exit and deletes Blender's temporary folde
    ```
 
    `<repository>` is the absolute path of the checkout. `run_script` reads `model.json` again and reloads the other modules of the model library on each call, and the snippet reloads `run`, so an edit applies at once. `run_script` raises an error when the bridge runs the library of another checkout. The code of a tool call runs in a new namespace each time, but `sys.path` and the scene stay.
-4. To look at the scene, add the stage and pick a shot, then call a render tool:
+3. To look at the scene, add the stage and pick a shot, then call a render tool:
 
    ```python
    from tertius_blender import run, stage
@@ -308,7 +314,7 @@ The build tool stops Blender on every exit and deletes Blender's temporary folde
    ```
 
    `stage.build` sets Cycles to the GPU and saves the render settings that it changes. `render_thumbnail_to_path` makes a fast, small image, and `render_viewport_to_path` uses the render settings of the stage. The MCP server waits at most 300 s for one tool call. Both write into the temporary folder of the bridge and return the path. Open that path with the Read tool before you stop the bridge, because the stop deletes the folder. Call `stage.remove()` before you run model scripts again. It restores the render settings, and a camera in the scene fails the build.
-5. At the end of the work, stop the bridge: `tools/blender/bridge.sh stop`. A running bridge holds memory, and other agents wait for Blender to quit before they time GPU work.
+4. At the end of the work, stop the bridge: `tools/blender/bridge.sh stop`. A running bridge holds memory, and other agents wait for Blender to quit before they time GPU work.
 
 The render tools need a camera, and only the stage adds one. The other tools of the server, such as `get_objects_summary` and `search_api_docs`, need no camera.
 
@@ -317,18 +323,35 @@ The render tools need a camera, and only the stage adds one. The other tools of 
 - Use `model.rng` for every random choice. It is seeded from the `seed` of `model.json` and the script name. The build also seeds the `random` module the same way before each script, as a guard.
 - Never iterate over a `set` of Blender objects or BMesh elements: its order follows memory addresses. `dict.fromkeys(...)` keeps a fixed order.
 - Build meshes with `geometry.MB` and end each with `MB.finish`. It puts the vertices and faces into an order of their coordinates, because `create_uvsphere`, `spin` and the weld order them by memory address.
-- Write no files. The bake, the save and the export belong to the build tool.
+- Write no files. The bake, the save and the export belong to the build tool. MPFB writes logs, but only into the temporary user resource folder that the build tool and the bridge give Blender.
 - Build only the model, in meters, with +Z up and the front toward -Y. Add no cameras and no lights for the views.
 - Mark a piece below the root with the custom property `tertius_piece = 1`.
 - Set `result` to a dictionary to report numbers. `build.json` keeps the `result` of each script.
 
+### Humans from MPFB
+
+A model of a person makes the person with MPFB's own code, through `tertius_blender.mpfb`. The design and the rules are in `docs/plans/asset-pipeline.md`, "Humans from MPFB". The astronaut (`content/tertius.demo/assets/characters/astronaut.model/`) and the crew member (`crew.model/` next to it) are the examples, and the skill `procedural-modeling` teaches the way of work.
+
+```python
+from tertius_blender import mpfb
+
+body = mpfb.human(model.params["human"], "Crew")
+mpfb.pose(body.parent, model.params["pose"])
+joints = mpfb.joints(body)
+parts = mpfb.freeze(body)
+```
+
+- `mpfb.human` takes MPFB's own human description, as MPFB saves it in a human preset `.json` file: `phenotype` (the macro sliders), `targets` (the detail targets), `rig`, `skin_mhmat`, `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue`, `hair` and `alternative_materials` (another eye color). An asset is named by its folder and file in the asset pack, such as `afro01/afro01.mhclo`. An asset or a detail target that MPFB does not hold by that name stops the build with an error that names it, and so does a key that MPFB's presets lack. The skin and eye material types are `MAKESKIN`, the only kind that `mpfb.freeze` rewires for glTF, and any other type stops the build.
+- `mpfb.freeze` applies the pose, the shape keys and the helper mask, removes the rig and returns plain meshes by part name: `Body`, `Eyes`, `Eyebrows`, `Eyelashes`, `Teeth`, `Tongue` and `Hair`. Each keeps the vertex groups of the bones, for the garment scripts.
+- MPFB writes its logs into Blender's user resource folder. `mpfb.services()` stops with an error unless `BLENDER_USER_RESOURCES` names a folder, and the build tool and the bridge set it. If you start Blender by hand for a test, set it to a scratch folder.
+
 ### The tests
 
 ```bash
-nix develop .#assets --command python3 tools/blender/tests/test_build.py
+nix develop .#assets --command python3 -m unittest discover -s tools/blender/tests -p "test_*.py"
 ```
 
-`tools/test-all.sh` runs them too, as the module Blender. The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, a signal, the attachment check, the view check, a material that two bake objects share, the stage and its settings, the library check of the bridge and the free space that a build needs. They start Blender 23 times and take about 45 seconds on the CPU (measured on 2026-10-26).
+`tools/test-all.sh` runs them too, as the module Blender. The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, a signal, the attachment check, the view check, a material that two bake objects share, the stage and its settings, the library check of the bridge and the free space that a build needs. `test_mpfb.py` checks that MPFB's sliders make the bodies that an independent copy of its formula predicts, the frozen human and the same meshes from two Blenders, the errors of `mpfb.human` and `mpfb.pose` on a wrong description or pose, detail targets, eye colors, a human without a rig, and the refusal without a user resource folder. All the tests start Blender 30 times and take about 100 seconds, `test_mpfb.py` alone about 20 (measured on 2026-10-26, while other agents built).
 
 ## Git hooks
 

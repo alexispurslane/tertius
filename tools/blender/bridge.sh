@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Starts or stops the bridge: a headless Blender that runs the MCP add-on and listens on localhost:$BLENDER_MCP_PORT.
-# The MCP server of .mcp.json sends each tool call to it. Run tools/blender/setup.sh once first.
+# The MCP server of .mcp.json sends each tool call to it. The bridge runs with factory settings and enables the MCP
+# add-on from the assets shell's system extension repository (native/blender-extensions.nix), so nothing is installed
+# into the user's Blender. Its user resource folder lies in its own state folder, which stop deletes.
 # Usage: tools/blender/bridge.sh start|stop|status
 #   start   starts the bridge in the background and waits until its socket accepts connections
 #   stop    stops it with SIGTERM, waits for it to exit, and deletes its temporary folder
@@ -62,9 +64,12 @@ start() {
         return 1
     fi
     rm -rf "$state"
-    mkdir -p "$state/tmp"
-    # Blender takes its temporary folder from TMPDIR, so stop can delete it.
-    TMPDIR="$state/tmp" nohup "$TERTIUS_BLENDER" --background --online-mode --command blender_mcp \
+    mkdir -p "$state/tmp" "$state/user"
+    # Blender takes its temporary folder from TMPDIR and its user folder from BLENDER_USER_RESOURCES, so stop can
+    # delete both. An add-on that a model script enables, such as MPFB, writes its logs and settings into the user
+    # folder.
+    TMPDIR="$state/tmp" BLENDER_USER_RESOURCES="$state/user" nohup "$TERTIUS_BLENDER" --background --factory-startup \
+        --online-mode --addons bl_ext.system.mcp --command blender_mcp \
         --host "$BLENDER_MCP_HOST" --port "$BLENDER_MCP_PORT" > "$state/bridge.log" 2>&1 &
     echo $! > "$pid_file"
     echo "$root" > "$root_file"

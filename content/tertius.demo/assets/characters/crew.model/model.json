@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "scripts": [
+    "s00_scene.py",
+    "s10_human.py",
+    "s20_jumpsuit.py",
+    "s70_materials.py",
+    "s75_uv.py",
+    "s80_assemble.py",
+    "s90_checks.py"
+  ],
+  "seed": 2187,
+  "parameters": {
+    "human": {
+      "phenotype": {
+        "gender": 0.3,
+        "age": 0.45,
+        "muscle": 0.55,
+        "weight": 0.5,
+        "proportions": 0.6,
+        "height": 0.55,
+        "race": {"african": 0.55, "asian": 0.15, "caucasian": 0.3}
+      },
+      "rig": "game_engine",
+      "skin_mhmat": "young_african_female/young_african_female.mhmat",
+      "eyes": "high-poly/high-poly.mhclo",
+      "eyebrows": "eyebrow001/eyebrow001.mhclo",
+      "eyelashes": "eyelashes01/eyelashes01.mhclo",
+      "teeth": "teeth_base/teeth_base.mhclo",
+      "tongue": "tongue01/tongue01.mhclo",
+      "hair": "afro01/afro01.mhclo"
+    },
+    "pose": {
+      "index_01_l": [15, 0, 0],
+      "index_01_r": [15, 0, 0],
+      "index_02_l": [25, 0, 0],
+      "index_02_r": [25, 0, 0],
+      "index_03_l": [15, 0, 0],
+      "index_03_r": [15, 0, 0],
+      "lowerarm_l": [10, 0, 4],
+      "lowerarm_r": [10, 0, -4],
+      "middle_01_l": [15, 0, 0],
+      "middle_01_r": [15, 0, 0],
+      "middle_02_l": [25, 0, 0],
+      "middle_02_r": [25, 0, 0],
+      "middle_03_l": [15, 0, 0],
+      "middle_03_r": [15, 0, 0],
+      "pinky_01_l": [15, 0, 0],
+      "pinky_01_r": [15, 0, 0],
+      "pinky_02_l": [25, 0, 0],
+      "pinky_02_r": [25, 0, 0],
+      "pinky_03_l": [15, 0, 0],
+      "pinky_03_r": [15, 0, 0],
+      "ring_01_l": [15, 0, 0],
+      "ring_01_r": [15, 0, 0],
+      "ring_02_l": [25, 0, 0],
+      "ring_02_r": [25, 0, 0],
+      "ring_03_l": [15, 0, 0],
+      "ring_03_r": [15, 0, 0],
+      "thumb_02_l": [10, 0, 0],
+      "thumb_02_r": [10, 0, 0],
+      "upperarm_l": [4, 0, -30],
+      "upperarm_r": [4, 0, 30]
+    },
+    "suit": {
+      "sole": 0.025,
+      "neck_cut": 0.035,
+      "sleeve_end": 0.93,
+      "leg_end": 0.06,
+      "boot_top": 0.15,
+      "torso_smooth": 40,
+      "suit_smooth": 6,
+      "suit_smooth_after": 3,
+      "suit_thickness": {
+        "spine": 0.016,
+        "pelvis": 0.016,
+        "clavicle": 0.014,
+        "neck": 0.008,
+        "upperarm": 0.013,
+        "lowerarm": 0.011,
+        "hand": 0.008,
+        "thigh": 0.016,
+        "calf": 0.014,
+        "foot": 0.012,
+        "ball": 0.012
+      },
+      "folds": {
+        "pitch": [0.05, 0.09],
+        "bend": 1.0,
+        "depth": 0.0035,
+        "waist_band": 0.05,
+        "waist_depth": 0.003,
+        "waist_waves": 9
+      },
+      "junction_smooth": 10,
+      "junction_gain": 1.5,
+      "collar": {
+        "below": 0.025,
+        "above": 0.018,
+        "out": 0.004,
+        "flare": 0.008,
+        "edge": 0.016,
+        "reach": 0.14,
+        "tilt": 0.0
+      },
+      "cuff": {"length": 0.06, "past": 0.008, "out": 0.004, "edge": 0.016, "reach": 0.1},
+      "trim_thickness": 0.004,
+      "belt": {"above_pelvis": 0.07, "height": 0.04, "out": 0.004, "thickness": 0.005, "reach": 0.3},
+      "pockets": {
+        "chest_x": 0.085,
+        "chest_dz": -0.07,
+        "chest_size": [0.085, 0.1],
+        "thigh_t": 0.45,
+        "thigh_size": [0.12, 0.15],
+        "out": 0.003
+      },
+      "zipper": {"below_pelvis": -0.09, "samples": 40, "out": 0.003, "radius": 0.003},
+      "boot": {
+        "resolution": 0.008,
+        "threshold": 0.6,
+        "stiffness": 2.0,
+        "thickness": 0.01,
+        "width": 0.085,
+        "rand_height": 0.022,
+        "rand_out": 0.003,
+        "top_band": {"height": 0.03, "out": 0.003, "thickness": 0.004}
+      },
+      "keep_rings": 2,
+      "ring_segments": 96
+    },
+    "materials": {
+      "fabric": {
+        "panel": [0.24, 0.16],
+        "seam": 0.003,
+        "stitch": 0.008,
+        "weave_scale": 1100.0,
+        "bump": 0.002,
+        "color": [0.03, 0.055, 0.095],
+        "color_alt": [0.028, 0.05, 0.085],
+        "worn": [0.08, 0.11, 0.15]
+      },
+      "wear": 0.35,
+      "trim": {"from_shoulder": [0.1, 0.13], "color": [0.8, 0.42, 0.07], "radius": 0.075},
+      "patch": {"t": 0.32, "toward": [1.0, -0.6, 0.2], "radius": 0.035, "color": [0.8, 0.42, 0.07]}
+    }
+  },
+  "bake": {"objects": ["Jumpsuit", "Trims"], "size": 2048, "samples": 8, "margin": 16},
+  "views": {
+    "resolution": [960, 1280],
+    "samples": 128,
+    "shots": [
+      {
+        "name": "front",
+        "camera": [0.0, -3.7, 1.0],
+        "target": [0.0, 0.0, 0.9],
+        "lens": 65,
+        "sun": [-0.45, -0.75, 0.55]
+      },
+      {
+        "name": "three-quarter",
+        "camera": [-2.2, -2.9, 1.4],
+        "target": [0.0, 0.0, 0.9],
+        "lens": 65,
+        "sun": [-0.6, -0.55, 0.6]
+      },
+      {
+        "name": "back",
+        "camera": [1.9, 3.1, 1.5],
+        "target": [0.0, 0.0, 0.9],
+        "lens": 65,
+        "sun": [0.5, 0.6, 0.65]
+      },
+      {
+        "name": "face",
+        "camera": [-0.3, -0.85, 1.62],
+        "target": [0.0, 0.0, 1.55],
+        "lens": 60,
+        "sun": [-0.5, -0.75, 0.5]
+      }
+    ]
+  }
+}
