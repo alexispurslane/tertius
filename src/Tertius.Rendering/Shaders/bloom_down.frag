@@ -4,9 +4,9 @@
 
 // A downsample from one bloom level into the next with Jimenez's 13 bilinear taps.
 
-vec3 tap(vec2 center, vec2 texel, vec2 offset)
+vec4 tap(vec2 center, vec2 texel, vec2 offset)
 {
-    return textureLod(sampler2D(source, linearClamp), center + offset * texel, 0.0).rgb;
+    return textureLod(sampler2D(source, linearClamp), center + offset * texel, 0.0);
 }
 
 void main()
@@ -19,5 +19,5 @@ void main()
         tap(center, texel, vec2(-1, -1)), tap(center, texel, vec2(1, -1)),
         tap(center, texel, vec2(-2, 0)), tap(center, texel, vec2(0, 0)), tap(center, texel, vec2(2, 0)),
         tap(center, texel, vec2(-1, 1)), tap(center, texel, vec2(1, 1)),
-        tap(center, texel, vec2(-2, 2)), tap(center, texel, vec2(0, 2)), tap(center, texel, vec2(2, 2))), 1.0);
+        tap(center, texel, vec2(-2, 2)), tap(center, texel, vec2(0, 2)), tap(center, texel, vec2(2, 2))).rgb, 1.0);
 }

@@ -1,6 +1,6 @@
 ---
 id: ter-nl5u
-status: in_progress
+status: closed
 deps: [ter-zzyr]
 links: []
 created: 2026-10-25T13:40:27Z
@@ -34,3 +34,11 @@ Design decisions (user, 2026-10-25): design A, the scene map. The map holds the 
 **2026-10-25T17:03:12Z**
 
 Parts 1 to 3 committed (86b9753c, 7dc4cece, d7aba87a), and main merged (e8d83668). Settled by the orchestrator, 2026-10-25, from the user's decision that a headless still shows the settled exposure of its own view: a long step is the clock step in Render being 0 or at least MeteringStepSeconds (0.09 s), the condition of main's metering draw, so a still after a camera cut at the same tick refreshes all six faces under either exposure setting.
+
+**2026-10-25T23:15:06Z**
+
+2026-10-25: Part 6 done (08380881): the mirror-balls scene, the cost and the docs. The map costs about 1.6 ms of GPU time per frame at 1080p on demo-exit (faces 0.40, prefilter 1.23 to 1.27 ms), see ter-of1p. The orchestrator looked at the captures (mirror-balls, pbr-spheres, demo-surface, orbit) and sent four to the user. The branch lacks main's portable float audit (ter-lozc, 52bd1d4b): it merges main after the reflections merge, so it resolves both at once, and then its shaders get the same portable audit as the reflections' shaders.
+
+**2026-10-25T23:24:13Z**
+
+Coverage of the changed C# lines on 08380881: 1,417 of 1,535 lines, 304 of 345 branches. Uncovered: the mirror-balls demo scene, which the captures review; cleanup catch blocks of GpuImage, EnvironmentMap, EnvironmentFacePass and EnvironmentPrefilterPass; guards (GpuImage's shape, the device's maxImageDimensionCube, EnvironmentDraw's depth range, the null arms of the ambient unions); the face pass's early return for a frame with no face, which F of at least 1 never gives; AmbientSignature.Difference's arm for a change of source, which one renderer never makes; and SceneBatcher's growth of the map instance array (Array.Resize), which no test reaches. The Physics allocation tests fail under coverage, as always.

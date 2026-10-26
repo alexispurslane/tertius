@@ -214,7 +214,10 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                 return Corner(renderer, Matte(renderer), snapshot);
             },
             "occlusion-corner-map",
-            environmentMap: SceneEnvironmentMap.Default with { FaceSize = 32 }
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = 32,
+            }
         );
 
         Vector2 pixel = PixelOf(FloorAtTheCorner, CornerView);

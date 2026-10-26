@@ -2,7 +2,7 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>Everything that differs between the engine's compute pipelines: the shader and its layout.</summary>
+/// <summary>Everything that differs between the engine's compute pipelines: the shader, its layout and its constants.</summary>
 internal sealed class ComputePipelineDesc
 {
     public required string Name { get; init; }
@@ -12,20 +12,23 @@ internal sealed class ComputePipelineDesc
 
     public required PipelineLayout Layout { get; init; }
 
+    /// <summary>The specialization constants of the stage, or null for a shader that declares none.</summary>
+    public ShaderConstants? Constants { get; init; }
+
     /// <summary>Creates the pipeline. The caller destroys it.</summary>
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
+        SpecializationStorage storage;
         var info = new ComputePipelineCreateInfo
         {
             SType = StructureType.ComputePipelineCreateInfo,
-            Stage = new()
-            {
-                SType = StructureType.PipelineShaderStageCreateInfo,
-                Stage = ShaderStageFlags.ComputeBit,
-                Module = shaders.Get(Shader),
-                PName = entry,
-            },
+            Stage = shaders.Stage(
+                stage: ShaderStageFlags.ComputeBit,
+                file: Shader,
+                entry: entry,
+                constants: ShaderConstants.Specialization(Constants, &storage)
+            ),
             Layout = Layout,
         };
         device

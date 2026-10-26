@@ -5,10 +5,10 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// Every material texture, in one bindless array of sampled images (set 1). The first <see cref="BuiltInCount"/>
-/// slots hold the built-in defaults that a material's <see cref="TextureId.None"/> slots resolve to. Texture n from
-/// <see cref="VulkanRenderer.CreateTexture"/> lives in slot n + <see cref="BuiltInCount"/>, so no
-/// <see cref="TextureId"/> names a built-in, and ids start at 0 without any of them meaning "default". Textures get
-/// a full mip chain made with blits when the format allows linear blits.
+/// slots hold the defaults that a material's <see cref="TextureId.None"/> base color and metallic-roughness maps
+/// resolve to. Texture n from <see cref="VulkanRenderer.CreateTexture"/> lives in slot n + <see cref="BuiltInCount"/>,
+/// so no <see cref="TextureId"/> names a built-in. Textures get a full mip chain made with blits when the format allows
+/// linear blits.
 /// </summary>
 internal sealed unsafe class TextureStore : IDisposable
 {
@@ -18,14 +18,11 @@ internal sealed unsafe class TextureStore : IDisposable
     /// <summary>The slot of opaque white in sRGB: the default base color map.</summary>
     public const int White = 0;
 
-    /// <summary>The slot of (0.5, 0.5, 1) in UNORM: the default normal map, a tangent-space normal of +Z.</summary>
-    public const int FlatNormal = 1;
-
     /// <summary>The slot of opaque white in UNORM: the default metallic-roughness map, which leaves both factors as they are.</summary>
-    public const int DefaultMetallicRoughness = 2;
+    public const int DefaultMetallicRoughness = 1;
 
     /// <summary>The slots the built-in defaults take, before the first texture that the renderer hands out.</summary>
-    public const int BuiltInCount = 3;
+    public const int BuiltInCount = 2;
 
     /// <summary>The most textures that <see cref="VulkanRenderer.CreateTexture"/> can create.</summary>
     public const int UserCapacity = Capacity - BuiltInCount;
@@ -97,18 +94,11 @@ internal sealed unsafe class TextureStore : IDisposable
     {
         if (images.Count == 0)
         {
-            // In slot order: White, FlatNormal, DefaultMetallicRoughness.
+            // In slot order: White, DefaultMetallicRoughness. A normal map has no default (GpuMaterial.NoMap).
             Add(
                 commandBuffer: commandBuffer,
                 data: new(Width: 1, Height: 1, Rgba: [255, 255, 255, 255], Srgb: true),
                 name: "default white",
-                staging: staging,
-                barriers: barriers
-            );
-            Add(
-                commandBuffer: commandBuffer,
-                data: new(Width: 1, Height: 1, Rgba: [128, 128, 255, 255], Srgb: false),
-                name: "default normal",
                 staging: staging,
                 barriers: barriers
             );

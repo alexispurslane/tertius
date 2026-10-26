@@ -849,7 +849,8 @@ internal static class Eclipse
             float distance = toCenter.Length();
             if (distance <= occluder.W)
                 continue;
-            float occluderRadius = MathF.Asin(occluder.W / distance);
+            // As in the shader, whose division may round the ratio past 1 for a distance within 2 ULP of the radius.
+            float occluderRadius = MathF.Asin(MathF.Min(occluder.W / distance, 1f));
             float separation = MathF.Atan2(
                 Vector3.Cross(toCenter, sunDirection).Length(),
                 Vector3.Dot(toCenter, sunDirection)

@@ -72,6 +72,12 @@ public sealed class RendererOptions
     public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
 
     /// <summary>
+    /// Reflections of what is on the screen in glossy surfaces, or <see cref="NoReflections"/>. On by default. The
+    /// pyramids take about 33 MB at 1920 × 1080 (docs/plans/screen-space-reflections.md, "Images").
+    /// </summary>
+    public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Default;
+
+    /// <summary>
     /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
     /// (about 21 MB at 1920 × 1080) and three full-screen passes.
     /// </summary>

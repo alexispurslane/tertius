@@ -19,7 +19,7 @@ Today the sun is a special light. A scene names one frame as the sun, and only t
 | Intensity, I | W/sr. A point light: P / (4π). A spot light: P / (2π (1 − cos θ_o)), with θ_o the outer half-angle. |
 | Irradiance, E | W/m²: the light that reaches a surface from one light. color × I / d² at distance d, times a spot light's cone. |
 | Radiance, L | W/(m²·sr): what emissive materials, glow puffs, the ambient colors, the stars and the HDR image hold. |
-| Pre-exposed radiance | Radiance times the exposure scale k = 2^S, clamped to 65,504 ([auto-exposure.md](auto-exposure.md)). |
+| Pre-exposed radiance | Radiance times the exposure scale k = 2^S, at most `MaxRadiance` = 32,256 per channel, capped before the product by `exposed` ([auto-exposure.md](auto-exposure.md), and ARCHITECTURE.md, "Portable Vulkan"). |
 | S_max | The highest exposure in stops that a frame can use: `FixedExposure.Stops`, or `AutoExposure.MaxStops`. |
 | The cutoff radiance, R_cut | 2⁻¹³: a pre-exposed radiance that both tone curves show below half an 8-bit step of the output (see "The cutoff and the reach"). |
 | The cutoff irradiance, E_cut | π · R_cut / 2^S_max, in W/m²: the irradiance at which a white matte surface at the highest exposure sends R_cut. One constant per renderer. |
@@ -65,7 +65,7 @@ The user made the decisions marked (User). This design settled the others by the
 14. A light is far when its distance from the eye is at least `FarDistance` = 10,000 × `ShadowCascades.Distance` = 2 × 10⁷ m, by the pure predicate `LightUnits.IsFar`. Far chooses only how the light casts shadows. (kept) Across the 2 km of the cascades, the direction of a far light changes by at most 10⁻⁴ rad and its irradiance by at most 0.02 %, so one direction serves the whole cascade set.
 15. A point light's intensity is P / (4π). A spot light sends its power through its outer cone: I = P / (2π (1 − cos θ_o)), so a narrower cone with the same power is brighter. The fade between the inner and the outer cone is not counted in that solid angle. (kept)
 16. The cutoff radiance R_cut is 2⁻¹³ of pre-exposed radiance, and E_cut = π · R_cut / 2^S_max. (changed) The approved text took 1/256 of output white. That is too bright: the sRGB encoding is steep near black, and Hable's curve has a linear toe, so a pre-exposed 1/256 shows as about 10 of 255 under Hable. 2⁻¹³ is the largest power of two that shows below half an 8-bit step under both curves: ACES fitted maps it to black, and Hable to 0.31 of a step. S_max is fixed for the renderer's life, so E_cut is one constant ([auto-exposure.md](auto-exposure.md), decision 12).
-17. The reach is at most `MaxReach` = 5 × 10¹⁸ m, a light is kept only within 2 × `MaxReach` of the eye, and the largest channel of color × intensity is at most `MaxIntensity` = 10³⁴ W/sr. The batcher multiplies the color and the intensity in doubles (`LightUnits.RadiantIntensity`) and keeps only the product, `PreparedLight.RadiantIntensity`, because I alone can pass the largest float for a narrow, powerful spot light of dim color. So every distance², reach² and irradiance stays a finite 32-bit float in the shaders and on the CPU (see "Portable Vulkan"). The Sun has 3 × 10²⁵ W/sr, and the most luminous known stars about 10³² W/sr.
+17. The reach is at most `MaxReach` = 5 × 10¹⁸ m, a light is kept only within 2 × `MaxReach` of the eye, and the largest channel of color × intensity is at most `MaxIntensity` = 10³⁴ W/sr. The batcher multiplies the color and the intensity in doubles (`LightUnits.RadiantIntensity`) and keeps only the product, `PreparedLight.RadiantIntensity`, because I alone can pass the largest float for a narrow, powerful spot light of dim color. So every distance², reach² and irradiance stays a finite 32-bit float in the shaders and on the CPU (see "Portable Vulkan"). The Sun has 3 × 10²⁵ W/sr, and the most luminous known stars about 10³² W/sr. Main's portable rules, merged into this branch before Part 4, meet this decision in two of its limits (see "Main's limits and decision 17").
 18. The irradiance divides by max(d², R², (1 cm)²). Outside a sphere that emits evenly, the irradiance is exactly I / d², so the light's own radius is the honest floor. The 1 cm floor of today stays for a light of radius 0.
 19. Every light follows today's rule of the sun's geometric normal: where the vertex normal faces away from the light, the light adds nothing, whatever the normal map says. One loop has one rule, and the shadow maps need a positive cosine with the geometric normal anyway. A lamp on a normal-mapped surface at a grazing angle loses a little light that it has today.
 20. `SceneBatcher` decides whether a light shines, with one pure predicate, `Shines`, and leaves out a light that does not. (changed) The approved text had the snapshot builder drop a light of zero power. The builder copies every light, as it copies every instance, and the batcher drops instances of zero scale with `HasVolume`. One place decides. A light shines when its place, previous place and color are finite, each color channel is 0 or more and one is above 0, its power is finite and above 0, its radius is finite and 0 or more, a spot light's axes and cone angles are finite, and c_max · I is at most `MaxIntensity`.
@@ -112,7 +112,7 @@ Each line of this section matches main at `5479c5f1`.
 - Every pass that writes the HDR image or the emissive target writes pre-exposed radiance. `AutoExposure.Default` clamps to −8 to +8 stops "in today's units", and says that the lights plan retunes it. Bloom's threshold is 1 after the exposure.
 - Six reference images exist in `tests/Tertius.Rendering.Tests/ReferenceImages`: five puff scenes and the frame outlines. `puffs-lit` is lit by the snapshot's sun.
 
-`directLight` and `directRadiance` do not exist on main. The environment map's Part 5 adds them (see "The work in flight on other branches"), and this design builds on them.
+`directLight` and `directRadiance` did not exist on main at `5479c5f1`. The environment map's Part 5 added them, and main has them since the environment map merged (see "The work in flight on other branches"). This design builds on them.
 
 ## Lights instead of one sun
 
@@ -253,7 +253,7 @@ Light positions reach the renderer as floats relative to the render origin, whic
 
 The exposure ticket built pre-exposure ([auto-exposure.md](auto-exposure.md), "Pre-exposure"). Every writer pre-exposes with the exposure that the frame before decided, and the tone map multiplies by none. This epic changes no writer. In SI units:
 
-- A sunlit white surface sends about 433 W/(m²·sr), and the Sun's disc about 2 × 10⁷. In a sunlit view at −11 stops, they show at 0.21 and about 9,800 before the tone curve, both inside the half float's 65,504.
+- A sunlit white surface sends about 433 W/(m²·sr), and the Sun's disc about 2 × 10⁷. In a sunlit view at −11 stops, they show at 0.21 and about 9,800 before the tone curve, both below the surfaces' cap `MaxRadiance`, 32,256 (ARCHITECTURE.md, "Portable Vulkan").
 - The automatic exposure's clamp moves to −14 to +10 stops (decision 42). E_cut follows from +10.
 - Highlight metering (`ter-is7n`) maps the bright trim edge to 1.0. A sunlit white hull then wants −8.6 stops, inside the new clamp.
 - Bloom's threshold stays 1, and the Sun's glow grows (decision 43). Part 5 reviews it in captures.
@@ -498,13 +498,15 @@ public int CascadedLights { get; set; } = 1;
 
 ## The work in flight on other branches
 
+All five branches below are on main now, and this branch merged main before Part 4 (2026-10-26). The table keeps what each one meets.
+
 | Branch | What it changes that this epic meets | Must merge first? | What this epic changes in it |
 |---|---|---|---|
 | `ter-nl5u-environment-map`, [environment-map.md](environment-map.md) | Its faces are lit by the sun's cascades, by the finest box that holds the point, and by the point and spot lights ("How a face is lit"). Its Part 5 adds `directLight`, `directRadiance` and the `SunShadows*` modes to `lighting.glsl`, and `sunShadowHolding` to `shadows.glsl`. Its Part 3 changed `SceneBatcher.CollectLights` to keep the lights of every drawn face, and `ImpostorManager`'s ambient signature. `CubeFaces` is on its branch. | Yes, before Parts 3 and 4. This epic builds on `directLight`, the modes, `CubeFaces` and the face lights. | The modes become `ShadowMaps*` for every light's maps. A face samples every cascade set by the holding rule and the atlas tiles, which do not depend on the view. `CollectLights` keeps a face's light by its reach, not its range. Its doc's "How a face is lit" and decisions 19 and 20 say "every far light's cascade set" for "the sun's cascades". Only the main view ranks lights for tiles, so a lamp that only a face sees has no tile there. |
 | `ter-is7n-highlight-metering`, `.tickets/ter-is7n.md` | The exposure target becomes the lower of the average target and a highlight target that maps the bright trim edge to 1.0. The compensation and the clamp apply after. | Yes, before Part 5, so the retune of the clamp and the captures in SI units meet the final meter. Parts 1 to 4 do not wait. | `AutoExposure.Default` becomes −14 to +10. Its captures (orbit-umbra, demo-surface, pbr-spheres) are taken again in SI units by Part 5. Its meter and its tests do not change. |
 | `ter-b3h5-ssao`, `ambient-occlusion.md` on its branch | The occlusion scales only the two ambient terms (`AmbientTerms`, `hemisphereAmbient`, `occludedAmbient`). "The sun, the point and spot lights and emission do not take V." G-buffer set binding 7 is the occlusion target. | Yes, before Part 4, so `lighting.glsl` changes in one order, and before Part 6, whose atlas takes binding 8. | No code. Its GPU tests that light with the snapshot's sun, such as `TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion`, use the test star of `Gpu.Snapshot`. |
-| `ter-jxv9-ssr`, `screen-space-reflections.md` on its branch | The trace reads the lit HDR image before the transparent pass, and the ambient specular term only through `ambientTerms`. Its compute shader includes `lighting.glsl` and binds set 0. Its scene `DemoScenes.Reflections` calls `SunAt`. | No. Whichever merges second resolves `lighting.glsl` and moves the reflections scene's sun to a star. | No code. The bindings that this epic adds, frame set 15 and G-buffer set 8, are not read by the trace, so they need no compute stage. |
-| `ter-mgze-glass` | The transparent pass blends with dual-source blending: outColor + target × transmittance. `lobesRadiance` takes the lobes, and the pane's radiance is clamped to 65,504 × (1 − T) so the blend stays finite. | Yes, before Part 4. | `lobesRadiance` calls the one loop through `directLight`, so glass takes every light and its tiles. The clamp to 65,504 × (1 − T) follows the loop, so no light can overflow the blend. Glass that sets `CastsShadow` casts an opaque shadow into the tiles, as it does into the cascades today. |
+| `ter-jxv9-ssr`, `screen-space-reflections.md` on its branch | The trace reads the lit HDR image before the transparent pass, and the ambient specular term only through `ambientTerms`. Its compute shader includes `lighting.glsl` and binds set 0. Its scene `DemoScenes.Reflections` calls `SunAt`. | No. It merged first, so Part 4 changes `lighting.glsl` after it, and Part 5 moves the reflections scene's sun to a star. | No code. The bindings that this epic adds, frame set 15 and G-buffer set 8, are not read by the trace, so they need no compute stage. The trace binds set 0, so it sees the new `FrameBlock` when Part 4 changes it. |
+| `ter-mgze-glass` | The transparent pass blends with dual-source blending: outColor + target × transmittance. `lobesRadiance` takes the lobes, and the pane's radiance is capped at 32,256 × (1 − T), `MaxRadiance` × (1 − T), so the blend stays at or below 65,504 (ARCHITECTURE.md, "Portable Vulkan"). | Yes, before Part 4. | `lobesRadiance` calls the one loop through `directLight`, so glass takes every light and its tiles. The cap of 32,256 × (1 − T) follows the loop, so no light can overflow the blend. Glass that sets `CastsShadow` casts an opaque shadow into the tiles, as it does into the cascades today. |
 
 ## Every reader and writer
 
@@ -613,7 +615,9 @@ The game must run on regular Vulkan on Linux, not only on MoltenVK (CLAUDE.md, "
 | One more storage buffer per stage in the frame set, 9 with the environment map's | The specification guarantees only 4, and the renderer already uses 7. NVIDIA, RADV and ANV report about 10⁶ or more, and lavapipe its `MAX_DESCRIPTORS`. Part 6's review reads the four reports in the Vulkan hardware database. |
 | A frame uniform block of about 1.6 KB with the cascade sets | The specification guarantees 16 KB of `maxUniformBufferRange`. |
 
-No feature or extension is added. No pass of this epic blends: the tile pass and the cascades write depth only. The lighting loop relies on no Metal behavior, such as a half float blend that stops at 65,504 or a `clamp` that turns NaN into 0, because SPIR-V leaves `clamp`, `min`, `max` and `smoothstep` undefined for a NaN. The design keeps NaN and infinity out of them:
+No feature or extension is added. No pass of this epic blends: the tile pass and the cascades write depth only. The lighting loop relies on no Metal behavior, such as a half float blend that stops at 65,504 or a `clamp` that turns NaN into 0, because SPIR-V leaves `clamp`, `min`, `max` and `smoothstep` undefined for a NaN.
+
+Main's rules of ARCHITECTURE.md, "Portable Vulkan" (`ter-lozc`), bind every shader site of this epic: a NaN and an infinity are kept from arising at their sources, never detected; `ShaderInput` reads every value from the CPU into its range once; a `normalize` that can see a zero vector becomes `normalizedOr(v, fallback)` of `vectors.glsl`; and every writer of the HDR image caps its light at `MaxRadiance`, 32,256, with `exposed`, before the product with the exposure. Each new site goes into that document's site table with its verdict. Where a row below and those rules differ, the rules win. The design keeps NaN and infinity out of the sites of this epic:
 
 | Place | Risk | How the design keeps it out |
 |---|---|---|
@@ -622,13 +626,26 @@ No feature or extension is added. No pass of this epic blends: the tile pass and
 | `lightIrradiance`: the intensity over the distance floor | Infinity, then infinity × a cone factor of 0 | c_max · I ≤ 10³⁴, multiplied in doubles before it becomes a float, and the floor is at least 10⁻⁴ m², so the irradiance is at most 10³⁸. |
 | `smoothstep` of the cone | Undefined when the edges are equal or reversed | `Cone.Of` clamps θ_o to [10⁻³, π] and keeps cos(inner) ≥ cos(outer) + min(10⁻⁴, (1 − cos(outer)) / 2). The fade of today, 10⁻⁴, holds for a cone wider than about 0.014 rad. A narrower cone fades over at most the outer half of its cosines, so its axis gets the whole intensity that `SpotIntensity` spreads over the cone. |
 | The direction L at the light's center | A zero vector | `inversesqrt(max(d², 10⁻⁸))` gives a zero L, the loop skips it at dot(N, L) ≤ 0, and no tile is sampled. |
-| `brdf × irradiance × visibility` | Infinity × 0 | The irradiance is finite. The product can overflow to +infinity only for an extreme light in a mirror highlight. The loop multiplies by the visibility only when it is above 0, and adds only values of 0 or more. `min(+infinity, 65,504)` in `surfaceRadiance` is defined: infinity is not a NaN. |
+| `brdf × irradiance × visibility` | Infinity × 0, and an infinity at all | The irradiance is finite. The loop multiplies by the visibility only when it is above 0, and adds only values of 0 or more. The design's old answer, that the product overflows to +infinity only for an extreme light in a mirror highlight and that `min(+infinity, 65,504)` is defined, does not meet main's rule, under which no infinity may arise. Open for Part 4: see "Main's limits and decision 17" below. |
 | `asin` of the angular radius | asin above 1 inside the light's sphere, and 0 / 0 at its center | asin(min(R / max(d, 10⁻⁶), 1)) in the shader and in `LightUnits.AngularRadius`. |
 | `discCoverage` | As today | Its guards stay: a sun radius floor of 10⁻⁵, asin only outside the occluder, `acos` of clamped finite values. |
 | The tile lookup: x / w | 0 / 0 at the light's center, or behind a spot light | A tile is sampled only when the irradiance is above 0, so the point lies inside the cone of a spot light, and for a point light w is at least d / √3 on its face, with d above 10⁻⁴. |
 | The CPU: interpolation, distances, ranking | A NaN place that sorts inconsistently | `Shines` tests every value before anything uses it. Distances and reaches are doubles. The irradiance at the eye has a floor, so every key of the ranking is finite. |
 | The cascade fit | A zero direction | A cascade set belongs to a far light, at least 2 × 10⁷ m away. |
-| Downstream: the meter, bloom, the tone map | NaN in `log2(max(Y, …))` or the prefilter's clamp | No NaN reaches the HDR image by the rows above. |
+| Downstream: the meter, bloom, the tone map | NaN in `log2(max(Y, …))`, or light past the bloom's room | No NaN reaches the HDR image by the rows above, and every writer keeps the image at or below 64,512 by main's caps. The bloom prefilter has no clamp of its own any more. |
+
+### Main's limits and decision 17
+
+Main's `ShaderInput` (`Scene/ShaderInput.cs`) was built for the lights of today, in the old units. Its limits meet decision 17 in three places, which Part 4 settles before it writes `CollectLights`:
+
+| Value | Decision 17 (`LightUnits`) | Main (`ShaderInput`) | The clash |
+|---|---|---|---|
+| A light's color × intensity | At most `MaxIntensity` = 10³⁴ W/sr per channel | `Radiance` reads it from 0 to `RadianceLimit` = 2^64 ≈ 1.8 × 10¹⁹ | The Sun has 3 × 10²⁵ W/sr, so main's reader would dim every star. Main's bound that no product with the BRDF, the distance attenuation and the exposure leaves the float range holds only below 2^64. |
+| The reach | At most `MaxReach` = 5 × 10¹⁸ m | `Range` caps it at `RangeLimit` = 2^63 ≈ 9.2 × 10¹⁸ m | None: 5 × 10¹⁸ m is below 2^63. |
+| The distance of a kept light | Within 2 × `MaxReach` = 10¹⁹ m of the eye | `InPositionRange` keeps it within `PositionLimit` = 2^62 ≈ 4.6 × 10¹⁸ m | A light between 2^62 and 10¹⁹ m away passes decision 17 and fails main's check. Main's check is the stricter one, so it wins. |
+
+The first row is the one that changes what the user gets: a star in SI units cannot pass main's reader, and the irradiance over the 1 cm floor, 10³⁸ W/m², times a mirror's BRDF can pass the float range, which main's rule forbids.
+
 
 ## Known limits
 
@@ -831,11 +848,11 @@ The work splits into seven parts. Each part owns its files, so builders of one w
 | 2. The settings | 1, at once | Nothing |
 | 3. The C# math of the tiles | 2 | The environment map's merge into main (`CubeFaces`), and Part 1's interface |
 | 4. One light list, end to end | 2, beside Part 3 | The merges of the environment map, SSAO and glass into main, and Parts 1 and 2 |
-| 5. SI units in every scene | 3 | Part 4, and the merge of highlight metering (`ter-is7n`) |
+| 5. SI units in every scene | 3 | Part 4, and the merge of highlight metering (`ter-is7n`), which is on main since before Part 4 |
 | 6. The atlas on the GPU | 3, beside Part 5 | Parts 3 and 4 |
 | 7. The demo scenes of the shadows, the cost, the captures and the docs | 4 | Parts 5 and 6 |
 
-The epic's branch merges main after each awaited merge, before the part that waits for it starts. SSR (`ter-jxv9`) does not hold any part back.
+The epic's branch merges main after each awaited merge, before the part that waits for it starts. SSR (`ter-jxv9`) does not hold any part back. The branch merged main before Part 4 (2026-10-26), with the environment map's final tip, SSAO, glass, highlight metering, SSR and the portable rules of `ter-lozc`.
 
 ### Part 1: the C# light math
 
@@ -1046,7 +1063,7 @@ internal sealed unsafe class ShadowMap
   and the GLSL of "The shaders", with `tileShadow` returning 1 until Part 6.
 - `CollectLights` builds every spot light's `Cone` through `Cone.Of`, with the unit axis of `InterpolateAxis`, and every `RadiantIntensity` through `LightUnits.RadiantIntensity`. Today's fallback for a zero axis, −Y, or a refusal in `Shines`, comes before `Cone.Of`, which requires a unit axis. The environment faces read the same `PreparedLight`s.
 - Takes: Part 1, Part 2's `CascadedLights`, the environment map's `directLight` and modes, SSAO's `AmbientTerms`, glass's `lobesRadiance`.
-- Done: every test passes in Checked and Release, the six reference images within their thresholds. The demo's captures look as before, apart from lamps that now reach past their old ranges. The review goes through "Portable Vulkan" line by line.
+- Done: every test passes in Checked and Release, the six reference images within their thresholds. The demo's captures look as before, apart from lamps that now reach past their old ranges. The review goes through "Portable Vulkan" line by line, here and in ARCHITECTURE.md, and every new shader site has a row with its verdict in ARCHITECTURE.md's site table.
 
 ### Part 5: SI units in every scene
 

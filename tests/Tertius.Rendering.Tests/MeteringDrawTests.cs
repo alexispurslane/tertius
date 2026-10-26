@@ -45,8 +45,8 @@ public sealed class MeteringDrawTests
             const double shownTime = 2;
             float shown = Still(renderer: renderer, snapshot: snapshot, time: shownTime).Stops;
 
-            // The frame before it read the still's exposure a moment after it.
-            float step = (float)(shownTime - ReadingStepSeconds);
+            // The still before it lies at time 0.
+            const float step = (float)shownTime;
             float expected = ExposureMeter.Approach(
                 stops: bright,
                 target: darkTarget,

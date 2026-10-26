@@ -116,7 +116,8 @@ public sealed class OcclusionImagesTests
                 layouts: Layouts,
                 extent: new(width, height),
                 glowLevels: 0,
-                smaaTables: null
+                smaaTables: null,
+                reflections: false
             );
         }
 

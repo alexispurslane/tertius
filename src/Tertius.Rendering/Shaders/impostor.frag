@@ -43,9 +43,12 @@ void main()
                vec3(instance.modelRow0.z, instance.modelRow1.z, instance.modelRow2.z);
     vec3 world = eye + (quad - eye) * (1.0 + clamp(offset / coverage, -0.99, 1.0));
     vec4 clip = draw.viewProj * vec4(world, 1.0);
+    // At or behind the eye: clip w is 0 or less, and the depth would divide by it.
+    if (clip.w <= 0.0)
+        discard;
     float depth = clip.z / clip.w;
     // In front of this range's near plane: the nearer range draws that part.
-    if (clip.w <= 0.0 || depth > 1.0)
+    if (depth > 1.0)
         discard;
     gl_FragDepth = depth;
 

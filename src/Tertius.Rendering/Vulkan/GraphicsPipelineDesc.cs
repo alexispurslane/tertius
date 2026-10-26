@@ -131,63 +131,27 @@ internal sealed class GraphicsPipelineDesc
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
-        // A VkBool32, the type of a bool specialization constant.
-        uint environmentMap = Constants is { EnvironmentMap: true } ? 1u : 0u;
-        var entries = new SpecializationMapEntry(ShaderConstants.EnvironmentMapId, 0, sizeof(uint));
-        var specialization = new SpecializationInfo
-        {
-            MapEntryCount = 1,
-            PMapEntries = &entries,
-            DataSize = sizeof(uint),
-            PData = &environmentMap,
-        };
-        SpecializationInfo* constants = Constants.HasValue ? &specialization : null;
+        SpecializationStorage storage;
+        SpecializationInfo* constants = ShaderConstants.Specialization(Constants, &storage);
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
-        stages[0] = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.VertexBit,
-            Module = shaders.Get(VertexShader),
-            PName = entry,
-            PSpecializationInfo = constants,
-        };
+        stages[0] = shaders.Stage(
+            stage: ShaderStageFlags.VertexBit,
+            file: VertexShader,
+            entry: entry,
+            constants: constants
+        );
         uint stageCount = 1;
         if (FragmentShader != null)
-            stages[stageCount++] = new()
-            {
-                SType = StructureType.PipelineShaderStageCreateInfo,
-                Stage = ShaderStageFlags.FragmentBit,
-                Module = shaders.Get(FragmentShader),
-                PName = entry,
-                PSpecializationInfo = constants,
-            };
+            stages[stageCount++] = shaders.Stage(
+                stage: ShaderStageFlags.FragmentBit,
+                file: FragmentShader,
+                entry: entry,
+                constants: constants
+            );
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        attributes[0] = new(
-            location: 0,
-            binding: 0,
-            format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
-        );
-        attributes[1] = new(
-            location: 1,
-            binding: 0,
-            format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
-        );
-        attributes[2] = new(
-            location: 2,
-            binding: 0,
-            format: Format.R32G32B32A32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
-        );
-        attributes[3] = new(
-            location: 3,
-            binding: 0,
-            format: Format.R32G32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
-        );
+        WriteMeshAttributes(attributes);
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
         var vertexInput = new PipelineVertexInputStateCreateInfo
@@ -297,5 +261,34 @@ internal sealed class GraphicsPipelineDesc
             device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
             return pipeline;
         }
+    }
+
+    /// <summary>The four attributes of a <see cref="Vertex"/> at locations 0 to 3 of binding 0, into <paramref name="attributes"/>.</summary>
+    private static unsafe void WriteMeshAttributes(VertexInputAttributeDescription* attributes)
+    {
+        attributes[0] = new(
+            location: 0,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
+        );
+        attributes[1] = new(
+            location: 1,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
+        );
+        attributes[2] = new(
+            location: 2,
+            binding: 0,
+            format: Format.R32G32B32A32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
+        );
+        attributes[3] = new(
+            location: 3,
+            binding: 0,
+            format: Format.R32G32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
+        );
     }
 }

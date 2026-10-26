@@ -78,7 +78,8 @@ internal sealed unsafe class GpuImage : IDisposable
     {
         CheckShape(extent: extent, arrayLayers: arrayLayers, cube: cube);
         ImageAspectFlags aspect = IsDepth(format) ? ImageAspectFlags.DepthBit : ImageAspectFlags.ColorBit;
-        ImageCreateFlags flags = (cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
+        ImageCreateFlags flags =
+            (cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
             | (mutableFormat ? ImageCreateFlags.CreateMutableFormatBit : 0);
         Image image = CreateHandle(
             device: device,
@@ -146,12 +147,7 @@ internal sealed unsafe class GpuImage : IDisposable
     }
 
     /// <summary>Allocates the GPU memory of <paramref name="image"/> and binds it. Frees the memory if the bind fails.</summary>
-    private static MemoryAllocation BindMemory(
-        VulkanDevice device,
-        DeviceAllocator allocator,
-        Image image,
-        string name
-    )
+    private static MemoryAllocation BindMemory(VulkanDevice device, DeviceAllocator allocator, Image image, string name)
     {
         device.Vk.GetImageMemoryRequirements(device.Device, image, out MemoryRequirements requirements);
         MemoryAllocation memory = allocator.Allocate(

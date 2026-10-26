@@ -4,12 +4,15 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The exposure pass, under <see cref="AutoExposure"/> (docs/plans/auto-exposure.md, "The exposure pass"): it clears
-/// the histogram, meters the surface pixels of the HDR image into it, and moves the exposure buffer toward the target
-/// by this draw's step. Two compute dispatches, on the graphics queue.
+/// the histogram, meters into it the top-left pixel of each 2 × 2 block of the HDR image when it is a surface pixel, and
+/// moves the exposure buffer toward the target by this draw's step. Two compute dispatches, on the graphics queue.
 /// </summary>
 internal sealed unsafe class ExposurePass : RenderPass
 {
-    /// <summary>The meter's workgroup: 16 by 16 pixels.</summary>
+    /// <summary>The side of the meter's block, in pixels: the meter reads one pixel of each block.</summary>
+    private const uint MeterBlockSize = 2;
+
+    /// <summary>The meter's workgroup: 16 by 16 blocks, one invocation each.</summary>
     private const uint MeterGroupSize = 16;
 
     private readonly VulkanDevice device;
@@ -66,8 +69,8 @@ internal sealed unsafe class ExposurePass : RenderPass
         Extent2D extent = context.Extent;
         vk.CmdDispatch(
             commandBuffer: commandBuffer,
-            groupCountX: (extent.Width + MeterGroupSize - 1) / MeterGroupSize,
-            groupCountY: (extent.Height + MeterGroupSize - 1) / MeterGroupSize,
+            groupCountX: MeterGroups(extent.Width),
+            groupCountY: MeterGroups(extent.Height),
             groupCountZ: 1
         );
 
@@ -91,6 +94,16 @@ internal sealed unsafe class ExposurePass : RenderPass
     {
         device.Vk.DestroyPipeline(device.Device, meter, null);
         device.Vk.DestroyPipeline(device.Device, adapt, null);
+    }
+
+    /// <summary>
+    /// The meter's workgroups along an axis of <paramref name="pixels"/>: enough for every block, the last one partial
+    /// when <paramref name="pixels"/> is odd.
+    /// </summary>
+    private static uint MeterGroups(uint pixels)
+    {
+        uint blocks = (pixels + MeterBlockSize - 1) / MeterBlockSize;
+        return (blocks + MeterGroupSize - 1) / MeterGroupSize;
     }
 
     /// <summary>Binds the meter set and the exposure set at the compute bind point, for both dispatches.</summary>

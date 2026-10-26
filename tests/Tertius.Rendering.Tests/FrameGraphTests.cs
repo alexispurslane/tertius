@@ -56,6 +56,26 @@ public sealed class FrameGraphTests
             );
     }
 
+    [Fact]
+    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheLightingAndTheTransparentPass()
+    {
+        using var graph = new FrameGraph();
+        graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
+        graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
+        graph.Add(FrameGraph.Stage.Lighting, new NamedPass("lighting"));
+        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
+        graph.Add(FrameGraph.Stage.DepthPyramid, new NamedPass("depth pyramid"));
+        graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
+
+        graph
+            .Passes.Select(pass => pass.Name)
+            .Should()
+            .Equal(
+                ["G-buffer", "depth pyramid", "occlusion depth", "lighting", "radiance pyramid", "transparent"],
+                "the depth pyramid describes the finished distance, and the reflections read the lit image before glass"
+            );
+    }
+
     private sealed class NamedPass(string name) : RenderPass
     {
         public override string Name => name;

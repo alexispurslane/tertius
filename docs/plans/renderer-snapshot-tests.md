@@ -13,10 +13,10 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 - An environment variable re-approves a reference image on purpose.
 - Some agents add or re-approve a reference image, or see a snapshot failure. Each such agent opens the reference, the actual image and the heat map with the Read tool. Its report describes what it saw.
 - The first approval of a reference image is a real review against the scene description, because a snapshot only proves that nothing changed.
-- One switch in `RendererOptions` makes rendering deterministic for tests: interpolation alpha 1, fixed seeds, impostor captures forced or off, and no temporal effects.
+- One switch in `RendererOptions` makes rendering deterministic for tests: interpolation alpha 1, fixed seeds, and impostor captures forced or off. The renderer has no temporal effects to turn off (rendering-performance.md, decision 8).
 - A snapshot test locks in a look, so it comes after the look is what we want. A snapshot cannot drive red-green TDD, because its reference image exists only after the feature works. So this epic waits for the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)), which holds every rendering feature that changes the look.
 - The user decided this order on 2026-10-21.
-- Automatic exposure comes first (`ter-zzyr`, [auto-exposure.md](auto-exposure.md)). The snapshot tests set `FixedExposure`, so the deterministic switch has no exposure of its own to turn off. A switch that overrode the setting would be a second store of it. Every other temporal effect that lands before this epic is still turned off by the switch.
+- Automatic exposure comes first (`ter-zzyr`, [auto-exposure.md](auto-exposure.md)). The snapshot tests set `FixedExposure`, so the deterministic switch has no exposure of its own to turn off. A switch that overrode the setting would be a second store of it. Every other temporal effect that lands before this epic is still turned off by the switch. The snapshot tests also set the environment map's setting in their options, `NoEnvironmentMap` or `SceneEnvironmentMap(128, 6)`, which draws every face in the frame that reads it ([environment-map.md](environment-map.md), "The setting"). So the deterministic switch has no map of its own to turn off.
 
 ## Steps
 

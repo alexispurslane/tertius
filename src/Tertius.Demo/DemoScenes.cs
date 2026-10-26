@@ -110,6 +110,8 @@ public static partial class DemoScenes
         new("demo-exit", DemoExit.Build),
         new("puff-yard", PuffYard),
         new("pbr-spheres", PbrSpheres),
+        new("reflections", Reflections),
+        new("mirror-balls", MirrorBalls),
     ];
 
     /// <summary>

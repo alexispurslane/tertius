@@ -1,0 +1,31 @@
+#version 460
+// Level k ≥ 2 of the depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"): each cell merges the
+// bounds of the up to four cells of level k − 1 under it. One invocation per texel of the image's mip, padding included.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "depth_pyramid.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 0) uniform texture2D source;                         // level k − 1, one mip
+layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // level k
+
+// A child outside the source's mip lies beyond the screen, and the fetch must stay inside the image.
+vec2 childBounds(ivec2 child)
+{
+    if (any(greaterThanEqual(child, textureSize(source, 0))))
+        return vec2(0.0, EmptyFar);
+    return texelFetch(source, child, 0).rg;
+}
+
+void main()
+{
+    ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(cell, imageSize(destination))))
+        return;
+    vec2 bounds = vec2(0.0, EmptyFar);
+    for (int y = 0; y < 2; y++)
+        for (int x = 0; x < 2; x++)
+            bounds = mergedBounds(bounds, childBounds(2 * cell + ivec2(x, y)));
+    imageStore(destination, cell, vec4(bounds, 0.0, 0.0));
+}

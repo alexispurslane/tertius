@@ -18,6 +18,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Content packages and mods](content-packages.md) | `ter-ynqi` |
 | [Design review](design-review.md) | `ter-tanj` |
 | [Editor](editor.md) | `ter-631h` |
+| [Scene environment map](environment-map.md) | `ter-nl5u` |
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |
@@ -28,6 +29,8 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |
+| [Screen-space reflections](screen-space-reflections.md) | `ter-jxv9` |
 | [Spin gravity](spin-gravity.md) | `ter-s9m0` |
 | [Renderer snapshot tests](renderer-snapshot-tests.md) | `ter-rtxu` |
+| [Rendering performance](rendering-performance.md) | `ter-pq5y` |
 | [Test hardening](test-hardening.md) | `ter-7e55` |

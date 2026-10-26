@@ -6,6 +6,9 @@ namespace Tertius.Rendering;
 /// <summary>The interpolated camera of one frame. World space is camera-relative: the eye is at the origin.</summary>
 internal struct CameraView
 {
+    /// <summary>The share of the shorter side of the screen over which a reflection fades out toward each edge.</summary>
+    public const float EdgeFadeShare = 0.1f;
+
     public Quaternion Rotation;
     public Vector3 Right;
     public Vector3 Up;
@@ -47,6 +50,41 @@ internal struct CameraView
         float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
         float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
         return MathF.Abs(x) - depth * TanHalfX > radius * scaleX || MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
+    }
+
+    /// <summary>
+    /// The view ray through a position on the screen, in pixels from the top left. Its component along Forward is 1.
+    /// The C# copy of viewRayThrough in screen.glsl (docs/plans/screen-space-reflections.md, "Terms").
+    /// </summary>
+    public readonly Vector3 ViewRayThrough(Vector2 pixel)
+    {
+        Vector2 ndc = pixel / new Vector2(Width, Height) * 2 - Vector2.One;
+        return Forward + ndc.X * TanHalfX * Right - ndc.Y * TanHalfY * Up;
+    }
+
+    /// <summary>The position on the screen of a camera-relative point in front of the eye, in pixels from the top left.
+    /// </summary>
+    public readonly Vector2 PixelOf(Vector3 point)
+    {
+        float depth = Vector3.Dot(point, Forward);
+        Vector2 ndc = new Vector2(Vector3.Dot(point, Right) / TanHalfX, -Vector3.Dot(point, Up) / TanHalfY) / depth;
+        return (ndc + Vector2.One) * 0.5f * new Vector2(Width, Height);
+    }
+
+    /// <summary>1 over the view depth of a camera-relative point, in 1/m.</summary>
+    public readonly float InverseDepthOf(Vector3 point) => 1 / Vector3.Dot(point, Forward);
+
+    /// <summary>The edge fade at a position on the screen: 0 on the edges, 1 a band of EdgeFadeShare inside them.</summary>
+    public readonly float EdgeFade(Vector2 pixel)
+    {
+        var size = new Vector2(Width, Height);
+        var inside = Vector2.Clamp(
+            Vector2.Min(pixel, size - pixel) / (EdgeFadeShare * Math.Min(Width, Height)),
+            Vector2.Zero,
+            Vector2.One
+        );
+        Vector2 smoothed = inside * inside * (new Vector2(3) - 2 * inside);
+        return smoothed.X * smoothed.Y;
     }
 }
 

@@ -21,11 +21,14 @@ layout(location = 0) out vec4 outColor;   // RGBA16F: plain radiance, and an ope
 
 void main()
 {
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    // A face's eye is the camera's, at the origin (draw.eye is 0). A surface there has no direction toward it, and one
+    // whose vertex normal has no direction faces the eye.
+    vec3 V = towardEye(inPosition);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
-    shading.geometricNormal = normalize(inNormal);
+    shading.geometricNormal = normalizedOr(inNormal, V);
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
@@ -33,6 +36,5 @@ void main()
     shading.skyFraction = 0.0;
     shading.lobeSkyFraction = 0.0;
     shading.reflectionFootprint = frame.params.z;
-    vec3 V = normalize(-inPosition);
     outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding), 0.0);
 }
