@@ -1,7 +1,7 @@
 ---
 id: ter-y1s7
-status: open
-deps: [ter-9xoi]
+status: in_progress
+deps: [ter-9xoi, ter-rxjr]
 links: []
 created: 2026-10-25T20:07:17Z
 type: task

@@ -1,6 +1,6 @@
 ---
 id: ter-9xoi
-status: in_progress
+status: closed
 deps: [ter-xyfj]
 links: []
 created: 2026-10-25T20:07:17Z
