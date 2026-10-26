@@ -1,7 +1,7 @@
 ---
 id: ter-ehxp
 status: open
-deps: []
+deps: [ter-izsu]
 links: []
 created: 2026-10-26T22:24:22Z
 type: task
