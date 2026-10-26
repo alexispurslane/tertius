@@ -40,6 +40,7 @@ public sealed class FarShadowTests
             height: 900,
             meshes: Meshes,
             materialCount: 8,
+            environment: default,
             scene: scene
         );
         return scene;

@@ -33,8 +33,9 @@ internal enum ImageUse
     SampledFragmentCompute,
 
     /// <summary>
-    /// Read and written as a storage image in a compute shader, as the occlusion passes use their images, and sampled in
-    /// the same dispatch, as a pyramid's build samples the level below the one that it writes.
+    /// Read and written as a storage image in a compute shader, as the occlusion passes use their images and the
+    /// environment prefilter writes the specular map, and sampled in the same dispatch, as a pyramid's build samples the
+    /// level below the one that it writes.
     /// </summary>
     StorageCompute,
 

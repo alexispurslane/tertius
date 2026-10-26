@@ -21,6 +21,24 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
+    public void TheEnvironmentMapsStagesRecordAfterTheShadowMapsAndBeforeTheImpostorCaptures()
+    {
+        using var graph = new FrameGraph();
+        graph.Add(FrameGraph.Stage.ImpostorCaptures, new NamedPass("impostor captures"));
+        graph.Add(FrameGraph.Stage.EnvironmentPrefilter, new NamedPass("environment prefilter"));
+        graph.Add(FrameGraph.Stage.EnvironmentFaces, new NamedPass("environment faces"));
+        graph.Add(FrameGraph.Stage.ShadowMaps, new NamedPass("shadow maps"));
+
+        graph
+            .Passes.Select(pass => pass.Name)
+            .Should()
+            .Equal(
+                ["shadow maps", "environment faces", "environment prefilter", "impostor captures"],
+                "a face samples this frame's cascades, the prefilter reads this frame's faces, and a capture bakes the map's light"
+            );
+    }
+
+    [Fact]
     public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheAmbientPass()
     {
         using var graph = new FrameGraph();

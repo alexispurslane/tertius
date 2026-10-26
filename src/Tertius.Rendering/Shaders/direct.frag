@@ -11,10 +11,12 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    // A helper invocation of a 2 × 2 quad can lie past the image's last column or row when the size is odd, and a fetch
+    // there is undefined, so every read stays inside the image.
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
     vec3 direction = normalize(inRay);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    // Sky: no reader reads the direct image there, and the ambient pass draws the star field.
+    // Sky: no reader reads the direct image there, and the ambient pass draws the sky and the stars.
     if (distanceToEye <= 0.0)
     {
         outColor = vec4(0.0);
@@ -36,6 +38,6 @@ void main()
     vec3 position = direction * distanceToEye;
     vec3 V = -direction;
     ShadingInput s = materialAt(pixel);
-    vec3 direct = directLight(s, lobesOf(s, V), position, V, true);
+    vec3 direct = directLight(s, lobesOf(s, V), position, V, SunShadowsMainView);
     outColor = vec4(min(exposed(direct, exposureScale()) + emissive, vec3(MaxRadiance)), 1.0);
 }

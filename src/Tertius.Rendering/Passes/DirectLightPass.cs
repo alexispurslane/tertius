@@ -12,7 +12,12 @@ internal sealed unsafe class DirectLightPass : RenderPass
     private readonly VulkanDevice device;
     private readonly Pipeline pipeline;
 
-    public DirectLightPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+    public DirectLightPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ShaderConstants constants
+    )
     {
         this.device = device;
         pipeline = new GraphicsPipelineDesc
@@ -23,6 +28,7 @@ internal sealed unsafe class DirectLightPass : RenderPass
             Layout = layouts.SceneLayout,
             ColorFormats = [RenderTargets.DirectFormat],
             CullMode = CullModeFlags.None,
+            Constants = constants,
         }.Create(device, shaders);
     }
 

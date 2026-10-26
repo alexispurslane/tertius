@@ -41,6 +41,25 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
         return module;
     }
 
+    /// <summary>
+    /// The create info of a <paramref name="stage"/> that runs <paramref name="entry"/> of <paramref name="file"/>, with
+    /// the specialization <paramref name="constants"/> or none. Both pointers must outlive the creation of the pipeline.
+    /// </summary>
+    public PipelineShaderStageCreateInfo Stage(
+        ShaderStageFlags stage,
+        string file,
+        byte* entry,
+        SpecializationInfo* constants
+    ) =>
+        new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = stage,
+            Module = Get(file),
+            PName = entry,
+            PSpecializationInfo = constants,
+        };
+
     public static byte[] LoadSpirv(string file)
     {
         string resource = $"Tertius.Rendering.Shaders.{file}.spv";

@@ -197,6 +197,48 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void UnderTheEnvironmentMapAnInnerCornerGetsLessAmbientLightThanWithoutOcclusion()
+    {
+        (Capture on, Capture off) = OnAndOff(
+            renderer =>
+            {
+                // The map's light alone: no sun, no hemisphere, and a glowing ceiling high above the corner, which the
+                // map holds above its horizon.
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                snapshot.Ambient.Intensity = 0;
+                AddSlab(
+                    snapshot: snapshot,
+                    box: UnitBox(renderer),
+                    material: BrdfTesting.Glow(renderer, Vector3.One),
+                    center: new(0, 40, 0),
+                    size: new(400, 1, 400)
+                );
+                return Corner(renderer, Matte(renderer), snapshot);
+            },
+            "occlusion-corner-map",
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = 32,
+            }
+        );
+
+        Vector2 pixel = PixelOf(FloorAtTheCorner, CornerView);
+        float unoccluded = off.Luma(pixel);
+        float occluded = on.Luma(pixel);
+        output.WriteLine(
+            $"floor at the corner under the map: {occluded * 255:0} with occlusion, {unoccluded * 255:0} without"
+        );
+        unoccluded.Should().BeGreaterThan(40f / 255, "the map's glowing ceiling lights the floor");
+        (unoccluded - occluded)
+            .Should()
+            .BeGreaterThanOrEqualTo(
+                20f / 255,
+                "the occlusion scales the map's ambient terms as it scales the hemisphere's, and the walls hide "
+                    + "much of the hemisphere 0.1 m from both"
+            );
+    }
+
+    [Fact]
     public void TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion()
     {
         static float[] DirectImage(ScreenSpaceLightSetting setting)
@@ -378,14 +420,18 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     /// One capture of <paramref name="scene"/> under <see cref="VisibilityBitmaskLight.Default"/> and one with occlusion off,
     /// each by a renderer of its own.
     /// </summary>
-    private static (Capture On, Capture Off) OnAndOff(Func<VulkanRenderer, RenderSnapshot> scene, string name)
+    private static (Capture On, Capture Off) OnAndOff(
+        Func<VulkanRenderer, RenderSnapshot> scene,
+        string name,
+        EnvironmentMapSetting? environmentMap = null
+    )
     {
-        static Capture Render(Func<VulkanRenderer, RenderSnapshot> scene, ScreenSpaceLightSetting setting, string name)
+        Capture Render(ScreenSpaceLightSetting setting, string suffix)
         {
-            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
+            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: environmentMap);
             try
             {
-                return Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(renderer), name: name);
+                return Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(renderer), name: name + suffix);
             }
             finally
             {
@@ -393,10 +439,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             }
         }
 
-        return (
-            Render(scene: scene, setting: VisibilityBitmaskLight.Default, name: name + "-on"),
-            Render(scene: scene, setting: new NoScreenSpaceLight(), name: name + "-off")
-        );
+        return (Render(VisibilityBitmaskLight.Default, "-on"), Render(new NoScreenSpaceLight(), "-off"));
     }
 
     /// <summary>

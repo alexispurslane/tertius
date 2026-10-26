@@ -64,6 +64,15 @@ internal sealed class GraphicsPipelineDesc
     public CullModeFlags CullMode { get; init; } = CullModeFlags.BackBit;
 
     /// <summary>
+    /// The winding of a front face on screen. Counterclockwise for every view whose axes are right-handed; an environment
+    /// face is a mirror image, so it is clockwise (docs/plans/environment-map.md, "The faces and their axes").
+    /// </summary>
+    public FrontFace FrontFace { get; init; } = FrontFace.CounterClockwise;
+
+    /// <summary>The specialization constants of both stages, or null for a pipeline whose shaders declare none.</summary>
+    public ShaderConstants? Constants { get; init; }
+
+    /// <summary>
     /// The rasterizer's slope-scaled depth bias: this many times the primitive's largest depth change per pixel is
     /// added to its depth. 0 disables depth bias.
     /// </summary>
@@ -122,50 +131,27 @@ internal sealed class GraphicsPipelineDesc
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
+        SpecializationStorage storage;
+        SpecializationInfo* constants = ShaderConstants.Specialization(Constants, &storage);
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
-        stages[0] = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.VertexBit,
-            Module = shaders.Get(VertexShader),
-            PName = entry,
-        };
+        stages[0] = shaders.Stage(
+            stage: ShaderStageFlags.VertexBit,
+            file: VertexShader,
+            entry: entry,
+            constants: constants
+        );
         uint stageCount = 1;
         if (FragmentShader != null)
-            stages[stageCount++] = new()
-            {
-                SType = StructureType.PipelineShaderStageCreateInfo,
-                Stage = ShaderStageFlags.FragmentBit,
-                Module = shaders.Get(FragmentShader),
-                PName = entry,
-            };
+            stages[stageCount++] = shaders.Stage(
+                stage: ShaderStageFlags.FragmentBit,
+                file: FragmentShader,
+                entry: entry,
+                constants: constants
+            );
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        attributes[0] = new(
-            location: 0,
-            binding: 0,
-            format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
-        );
-        attributes[1] = new(
-            location: 1,
-            binding: 0,
-            format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
-        );
-        attributes[2] = new(
-            location: 2,
-            binding: 0,
-            format: Format.R32G32B32A32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
-        );
-        attributes[3] = new(
-            location: 3,
-            binding: 0,
-            format: Format.R32G32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
-        );
+        WriteMeshAttributes(attributes);
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
         var vertexInput = new PipelineVertexInputStateCreateInfo
@@ -199,7 +185,7 @@ internal sealed class GraphicsPipelineDesc
             DepthClampEnable = DepthClamp,
             PolygonMode = PolygonMode.Fill,
             CullMode = CullMode,
-            FrontFace = FrontFace.CounterClockwise,
+            FrontFace = FrontFace,
             DepthBiasEnable = DepthBiasSlope != 0f,
             DepthBiasSlopeFactor = DepthBiasSlope,
             LineWidth = 1f,
@@ -275,5 +261,34 @@ internal sealed class GraphicsPipelineDesc
             device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
             return pipeline;
         }
+    }
+
+    /// <summary>The four attributes of a <see cref="Vertex"/> at locations 0 to 3 of binding 0, into <paramref name="attributes"/>.</summary>
+    private static unsafe void WriteMeshAttributes(VertexInputAttributeDescription* attributes)
+    {
+        attributes[0] = new(
+            location: 0,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
+        );
+        attributes[1] = new(
+            location: 1,
+            binding: 0,
+            format: Format.R32G32B32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
+        );
+        attributes[2] = new(
+            location: 2,
+            binding: 0,
+            format: Format.R32G32B32A32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
+        );
+        attributes[3] = new(
+            location: 3,
+            binding: 0,
+            format: Format.R32G32Sfloat,
+            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
+        );
     }
 }

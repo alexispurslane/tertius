@@ -12,7 +12,8 @@ internal sealed unsafe class ReflectionPass(
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     ReflectionTargets targets,
-    ConeTracedReflections setting
+    ConeTracedReflections setting,
+    ShaderConstants constants
 ) : RenderPass
 {
     /// <summary>The width and the height of a workgroup, the shader's local size.</summary>
@@ -23,6 +24,8 @@ internal sealed unsafe class ReflectionPass(
         Name = "reflection trace",
         Shader = "reflection_trace.comp",
         Layout = layouts.ReflectionLayout,
+        // The fallback reads the ambient light through ambientTerms, which reads the map while it is on.
+        Constants = constants,
     }.Create(device, shaders);
 
     public override string Name => "reflections";
@@ -40,6 +43,12 @@ internal sealed unsafe class ReflectionPass(
         barriers.Image(renderTargets.Estimate, ImageUse.SampledCompute);
         barriers.Image(renderTargets.Hdr, ImageUse.StorageCompute);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        // The fallback's ambient terms read the map while it is on.
+        if (context.Environment is { } map)
+        {
+            barriers.Image(map.Specular, ImageUse.SampledCompute);
+            barriers.Buffer(map.Irradiance, BufferUse.ComputeRead);
+        }
         barriers.Flush(vk, commandBuffer);
 
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);

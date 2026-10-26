@@ -32,6 +32,7 @@ void main()
     // Sky starts no ray, and neither does an impostor, whose light the atlas holds.
     if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
         return;
+    // surfaceAt gives the footprint that the ambient pass took, so the fallback is the term that it added.
     ShadingInput s = surfaceAt(pixel);
     float roughness = flooredRoughness(s.roughness);
     float roughnessFade = clamp(2.0 - 2.0 * roughness / reflection.maxRoughness, 0.0, 1.0);

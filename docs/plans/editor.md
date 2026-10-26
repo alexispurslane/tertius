@@ -869,11 +869,13 @@ public sealed class RenderView : IDisposable
     public void Dispose();
 }
 
-public sealed record ViewOptions(bool Impostors = false, bool Shadows = true, DisplayMode Display = DisplayMode.Lit, ExposureSetting Exposure = default);
+public sealed record ViewOptions(bool Impostors = false, bool Shadows = true, DisplayMode Display = DisplayMode.Lit, ExposureSetting Exposure = default, EnvironmentMapSetting EnvironmentMap = default);
 
 public enum DisplayMode { Lit, BaseColor, Normals, Specular, Emissive, Distance, DepthRange, ImpostorTint }
 
 `ViewOptions.Exposure` is an `ExposureSetting` (`FixedExposure` or `AutoExposure`, [auto-exposure.md](auto-exposure.md), "The setting"). The view passes it to `RendererOptions.Exposure`, as it passes its impostor switch. The setting is fixed for the life of a renderer (decision 12 of that doc), so a view that changes it needs a renderer made with the new setting. The default value of the record is `FixedExposure(0)`, which multiplies by exactly 1, as the former `1f` did. A view that follows the surfaces in view passes `AutoExposure.Default`.
+
+`ViewOptions.EnvironmentMap` is an `EnvironmentMapSetting` (`NoEnvironmentMap` or `SceneEnvironmentMap`, [environment-map.md](environment-map.md), "The setting"). The view passes it to `RendererOptions.EnvironmentMap`, as it passes its impostor switch, and it is fixed for the life of the view's renderer too. The default value of the record is `NoEnvironmentMap`, the union's zero value, so a view lights with the hemisphere unless it passes `SceneEnvironmentMap.Default`.
 
 /// <summary>A picked object. Entity.Null means that the pixel showed no object.</summary>
 public readonly record struct PickResult(Entity Entity, ushort Part);

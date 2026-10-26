@@ -21,6 +21,9 @@ internal sealed class FrameContext
     /// <summary>The exposure buffer, which the passes that write the HDR image or the emissive target read.</summary>
     public required ExposureResources Exposure { get; init; }
 
+    /// <summary>The scene environment map, or null with <see cref="NoEnvironmentMap"/>.</summary>
+    public required EnvironmentMap? Environment { get; init; }
+
     public long Number { get; set; }
 
     /// <summary>
@@ -181,8 +184,9 @@ internal abstract class RenderPass : IDisposable
 
 /// <summary>
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
-/// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
-/// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
+/// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>), the environment map's
+/// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
+/// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
 /// <see cref="VisibilityBitmaskLight"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
 /// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
@@ -204,6 +208,15 @@ internal sealed class FrameGraph : IDisposable
     public enum Stage
     {
         ShadowMaps,
+
+        /// <summary>The environment map's faces of this frame, after the shadow maps, because a face samples this frame's cascades.</summary>
+        EnvironmentFaces,
+
+        /// <summary>
+        /// The specular map and the irradiance, after the faces, because they derive from the faces of this frame, and
+        /// before every reader of the map, the impostor captures first.
+        /// </summary>
+        EnvironmentPrefilter,
         ImpostorCaptures,
         GBuffer,
 

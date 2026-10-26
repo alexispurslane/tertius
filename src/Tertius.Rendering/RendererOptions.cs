@@ -73,4 +73,11 @@ public sealed class RendererOptions
     /// (about 21 MB at 1920 × 1080) and three full-screen passes.
     /// </summary>
     public AntiAliasing AntiAliasing { get; set; } = AntiAliasing.Smaa;
+
+    /// <summary>
+    /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of
+    /// World.Ambient. The default is <see cref="SceneEnvironmentMap.Default"/>: 128 texels per face, one face per frame, about
+    /// 2 MB (docs/plans/environment-map.md, "The setting").
+    /// </summary>
+    public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
 }

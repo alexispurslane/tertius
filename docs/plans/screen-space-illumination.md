@@ -106,7 +106,7 @@ Each by the user's decisions and the project's rules, with its reason.
 21. The far rays run at half resolution, in the texels and slices of the near masks, because they continue the near estimate's directions. They run at every distance, so GTAO's fade below one pixel goes: where R spans at most the nearest step, 1.3 texels, the near range holds no step, and the far rays give the whole estimate. A fade toward full visibility drops the far blockers, against decision 1. GTAO's decision 6 still holds for the near range, which "fades out where it covers less than a pixel" by holding no step.
 22. The near search and the far rays are two passes, "occlusion sectors" and "occlusion far rays". The GPU timers then report each, as GTAO's decision 28 wants, and the near loop does not carry the trace's registers. The sector masks buffer passes the masks from one to the other: 6.2 MB at 1080p and 3 slices.
 23. The occlusion passes take the layout of SSR's compute passes: sets 0 to 2 of `SceneLayout` and their own set 3. The far ray pass includes `gtao.glsl` for the slices and SSR's `reflection.glsl` for the trace, so both must see the same sets. The camera then has one store, the frame constants, and the push constants keep only the setting. GTAO's decision 29 put the camera in push constants because the frame set had no compute stage. SSR adds it.
-24. The direct pass writes its own image, the direct image, and the ambient pass, a fragment pass, reads it and writes the HDR image once: min(direct + ambient, c). Three reasons. The environment map's reflected stars take their footprint from fragment derivatives (its decision 33), which a compute pass lacks. A blend cannot cap the sum, because a fragment shader cannot read the color attachment that it blends into. And the HDR image needs no storage usage, so SSR's decision 30 stays. It costs 16.6 MB at 1080p.
+24. The direct pass writes its own image, the direct image, and the ambient pass, a fragment pass, reads it and writes the HDR image once: min(direct + ambient, c). Three reasons. The environment map's reflected stars take their footprint from fragment derivatives (its decision 33), which a compute pass lacks. A blend cannot cap the sum, because a fragment shader cannot read the color attachment that it blends into. And the HDR image needs no storage usage, so SSR's decision 30 stays. It costs 16.6 MB at 1080p. (Merge of main, 2026-10-26: the map as merged takes a G-buffer pixel's footprint from the G-buffer, `reflectionFootprintAt` in `surfaceAt`, not from derivatives, so the first reason no longer binds. The other two stand.)
 25. A near step reads the direct light and the geometric normal of its representative pixel 2t from the full-resolution direct image and normals target, and a far ray reads them at its hit pixel. No half-resolution copy. One store of the direct light, and each step reads the light of the very pixel whose depth it used. If the cost shows the sectors pass bound by these reads, a copy beside the view depth image, written by the depth pass, is the measured fix (see "Cost").
 26. The estimate target replaces the occlusion target: one RGBA16F image at full size, rgb the bounce and a the occlusion, because one estimate makes both. It is cleared to (0, 0, 0, 1) in the first frame after each creation, as the occlusion target was cleared to 1.
 27. The images hold the bounce pre-exposed, and `ShadingInput.bounce` holds it as plain radiance: the reader divides by k. Pre-exposed, the bounce is a weighted mean of direct pixels, at most c, so it fits a half float. Plain radiance passes 65,504 in a sunlit scene in SI units at a low exposure.
@@ -520,13 +520,11 @@ where `directLight` is the environment map's function, one loop over the light l
 ```glsl
 void main()
 {
-    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
     vec3 direction = normalize(inRay);
-    // The footprint of the reflected stars first, in uniform control flow (environment-map.md, decision 33).
-    float footprint = reflectionFootprint(...);
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
-        outColor = vec4(preExposed(starField(direction)), 1.0);
+        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
         return;
     }
     vec3 direct = texelFetch(gbufferDirect, pixel, 0).rgb;
@@ -536,8 +534,8 @@ void main()
         outColor = vec4(direct, 1.0);
         return;
     }
+    // surfaceAt sets the reflected stars' footprint from the G-buffer (environment-map.md, "Where it runs").
     ShadingInput s = surfaceAt(pixel);
-    s.reflectionFootprint = footprint;
     SurfaceLobes lobes = lobesOf(s, -direction);
     vec3 ambient = exposed(ambientLight(s, lobes, -direction), exposureScale());
     outColor = vec4(min(direct + ambient, vec3(MaxRadiance)), 1.0);
@@ -585,7 +583,7 @@ HDR(p)          = min(direct image(p) + exposed(ambient light, k), c)           
 
 ### Where the ambient pass meets the environment map and SSR
 
-- The environment map changes only the source that `ambientTerms` calls (environment-map.md, "The one source of the ambient light"). The ambient pass calls `ambientLight`, which calls `ambientTerms` and then `occludedAmbient`. The ambient pass is a fragment pass, so the footprint of the reflected stars keeps its derivatives. The pass binds the map's frame set bindings 12 to 14 and has the specialization constant `environmentMapOn`, as the lighting pass has today.
+- The environment map changes only the source that `ambientTerms` calls (environment-map.md, "The one source of the ambient light"). The ambient pass calls `ambientLight`, which calls `ambientTerms` and then `occludedAmbient`. The ambient pass reads the footprint of the reflected stars through `surfaceAt`, which takes it from the G-buffer (`reflectionFootprintAt`, environment-map.md, "Where it runs"), as the reflections' trace does, so the trace takes away the very term that the ambient pass added. The pass binds the map's frame set bindings 12 to 14 and has the specialization constant `environmentMapOn`, as the lighting pass had. The direct pass has the constant too, and reads none of the map. `materialAt` sets the footprint to its floor p, which the direct light does not read.
 - SSR's trace reads the ambient specular term through `ambientTerms` at its origin pixel (screen-space-reflections.md, "The one place where SSR reads the ambient light"). It reads V from the estimate target through `surfaceAt`, so its fallback is the term that the ambient pass wrote. The bounce changes only the diffuse term, so SSR's delta f · (W · C − a · k · T_s) does not change.
 - SSR's radiance pyramid reads the HDR image after the ambient pass (stage `Reflections` after stage `AmbientLight`), so a reflection shows the bounce of the surface that it reflects.
 
@@ -914,7 +912,7 @@ This design has the same parts, with these differences:
 | A thickness from a pass of back faces | κ of the view depth, SSR's | (SSR's decision 7, the user's) One model of what is solid for both ranges, with no second geometry pass. |
 | A full-resolution gather | Half resolution with GTAO's upsample | (GTAO's decision 2, the user's) |
 | A world-space cache of radiance for what the screen does not show (probes, voxels, distance fields) | The ambient source, with the edge fade | (User) Off the screen, the ambient light. The environment map is the far field. |
-| The composite in one compute pass that writes the final image | A fragment pass that writes the HDR image once | Decision 24: the reflected stars' derivatives, and one cap on the whole sum |
+| The composite in one compute pass that writes the final image | A fragment pass that writes the HDR image once | Decision 24: one cap on the whole sum, and no storage usage on the HDR image (the reflected stars' derivatives no longer bind) |
 | Light toward each receiver from each blocker's BRDF | The light toward the eye | Decision 16: exact for the diffuse part, one read per blocker |
 
 ## Known limits
@@ -1091,7 +1089,7 @@ With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image
 | Ticket | What it meets here | What it does |
 |---|---|---|
 | SSR (`ter-jxv9`) | The depth pyramid, the trace, `ScreenRay`, the edge fade, κ, `surfaceAt`, `ambientTerms`, the compute stage on sets 0 and 2, `BindSceneSets` at the compute bind point | Merges first. This ticket moves the depth pyramid to `DepthPyramidImage` and κ to `CellBounds`, and `surfaceAt` reads the estimate target |
-| The environment map (`ter-nl5u`) | `ambientTerms`, `environmentAmbient`, the reflected stars' footprint, `directLight` | Its lighting pass becomes the ambient pass, which keeps its derivatives. Its known limit of the map's near surfaces meets decision 31 |
+| The environment map (`ter-nl5u`) | `ambientTerms`, `environmentAmbient`, the reflected stars' footprint, `directLight` | Its lighting pass becomes the ambient pass, which takes the footprint from the G-buffer through `surfaceAt`. Its known limit of the map's near surfaces meets decision 31 |
 | The lights (`ter-s9cv`) | `directLight`'s one loop, G-buffer binding 8 | Its loop runs in the direct pass. The direct image takes binding 9 |
 | The shader audit (`ter-lozc`) | `MaxRadiance`, `exposed` | The two passes keep the surfaces' share by "The cap at `MaxRadiance`". Its tables gain this doc's rows |
 | XeGTAO's tuned set (`ter-sdks`) | The seven constants | The user chose none of it (fork 1). `ter-sdks` closes unbuilt |
