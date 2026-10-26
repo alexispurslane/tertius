@@ -16,6 +16,7 @@ public sealed class DeviceFeatureTests
         DualSrcBlend = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
+        ImageCubeArray = true,
     };
 
     private static readonly PhysicalDeviceVulkan12Features Vulkan12 = new()
@@ -37,6 +38,11 @@ public sealed class DeviceFeatureTests
         ShaderDemoteToHelperInvocation = true,
     };
 
+    private const ShaderStageFlags SubgroupStages = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
+
+    private const SubgroupFeatureFlags SubgroupOperations =
+        SubgroupFeatureFlags.BasicBit | SubgroupFeatureFlags.BallotBit;
+
     [Fact]
     public void ADeviceWithEveryRequiredFeatureIsTaken() =>
         VulkanDevice.MissingFeature(Core, Vulkan12, Vulkan13).Should().BeNull();
@@ -55,6 +61,18 @@ public sealed class DeviceFeatureTests
     }
 
     [Fact]
+    public void ADeviceWithoutCubeArraysIsRefusedByItsName()
+    {
+        // The environment maps of the chain's frames are one cube array (docs/plans/environment-maps-per-frame.md, decision 18).
+        PhysicalDeviceFeatures withoutIt = Core with
+        {
+            ImageCubeArray = false,
+        };
+
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("imageCubeArray");
+    }
+
+    [Fact]
     public void ADeviceWithoutExtendedStorageImageFormatsIsRefusedByItsName()
     {
         // The occlusion passes write R8 and R16F storage images, which only this feature guarantees.
@@ -65,4 +83,37 @@ public sealed class DeviceFeatureTests
 
         VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("shaderStorageImageExtendedFormats");
     }
+
+    [Fact]
+    public void ADeviceWithSubgroupBallotInFragmentAndComputeShadersIsTaken() =>
+        VulkanDevice.MissingSubgroupSupport(SubgroupStages, SubgroupOperations).Should().BeNull();
+
+    [Fact]
+    public void ADeviceWithoutSubgroupBallotIsRefusedByItsName()
+    {
+        // The map's ambient light reads its coefficients at a map that subgroupBroadcastFirst makes uniform over the
+        // subgroup (environment.glsl).
+        const SubgroupFeatureFlags withoutIt = SubgroupFeatureFlags.BasicBit | SubgroupFeatureFlags.VoteBit;
+
+        VulkanDevice
+            .MissingSubgroupSupport(SubgroupStages, withoutIt)
+            .Should()
+            .Be("subgroupSupportedOperations BALLOT");
+    }
+
+    [Fact]
+    public void ADeviceWithoutSubgroupOperationsInFragmentShadersIsRefusedByItsName() =>
+        // The lighting and transparent passes read the map's ambient light in fragment shaders.
+        VulkanDevice
+            .MissingSubgroupSupport(ShaderStageFlags.ComputeBit, SubgroupOperations)
+            .Should()
+            .Be("subgroupSupportedStages FRAGMENT");
+
+    [Fact]
+    public void ADeviceWithoutSubgroupOperationsInComputeShadersIsRefusedByItsName() =>
+        // The reflections' trace and upsample read the map's ambient light in compute shaders.
+        VulkanDevice
+            .MissingSubgroupSupport(ShaderStageFlags.FragmentBit, SubgroupOperations)
+            .Should()
+            .Be("subgroupSupportedStages COMPUTE");
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -369,7 +370,15 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 GroundColor = Vector3.One,
                 Intensity = 20_000,
             };
-            snapshot.Lights.Add(new PointRenderLight(Position: lamp, Color: Vector3.One, Intensity: 1e6f, Range: 50));
+            snapshot.Lights.Add(
+                new PointRenderLight(
+                    Position: lamp,
+                    Color: Vector3.One,
+                    Intensity: 1e6f,
+                    Range: 50,
+                    ChainDepth: TestChains.CamerasFrame
+                )
+            );
             AddSlab(
                 snapshot: snapshot,
                 box: UnitBox(renderer),

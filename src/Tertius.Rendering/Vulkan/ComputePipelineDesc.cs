@@ -12,7 +12,11 @@ internal sealed class ComputePipelineDesc
 
     public required PipelineLayout Layout { get; init; }
 
-    /// <summary>The specialization constants of the stage, or null for a shader that declares none.</summary>
+    /// <summary>
+    /// The specialization constants of the stage, or null. A stage ignores the constants that its compiled module does
+    /// not hold, so a pass may give the same constants to each of its shaders: Vulkan ignores a map entry whose
+    /// constantID the module does not use (VkSpecializationMapEntry).
+    /// </summary>
     public ShaderConstants? Constants { get; init; }
 
     /// <summary>Creates the pipeline. The caller destroys it.</summary>

@@ -6,8 +6,10 @@
 
 #extension GL_EXT_samplerless_texture_functions : require
 
-layout(set = 2, binding = 0) uniform texture2D gbufferBaseColor;       // RGBA8 sRGB: linear base color on read; alpha 1
-                                                                       // lit, 0 unlit (impostors: emission only)
+layout(set = 2, binding = 0) uniform texture2D gbufferBaseColor;       // RGBA8 sRGB: linear base color on read; alpha
+                                                                       // the map code of a lit pixel (mapCode,
+                                                                       // gbuffer.frag), 0 unlit (impostors: emission
+                                                                       // only)
 layout(set = 2, binding = 1) uniform texture2D gbufferNormal;          // RGBA16 SNORM: octahedral world normals,
                                                                        // rg shading (normal-mapped), ba geometric
 layout(set = 2, binding = 2) uniform texture2D gbufferSpecular;        // RGBA8: metallic, roughness r₀, reflectance,

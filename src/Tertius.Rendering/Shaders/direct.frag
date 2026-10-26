@@ -38,6 +38,6 @@ void main()
     vec3 position = direction * distanceToEye;
     vec3 V = -direction;
     ShadingInput s = materialAt(pixel);
-    vec3 direct = directLight(s, lobesOf(s, V), position, V, SunShadowsMainView);
+    vec3 direct = directLight(s, lobesOf(s, V), position, V, SunShadowsMainView, EveryMap);
     outColor = vec4(min(exposed(direct, exposureScale()) + emissive, vec3(MaxRadiance)), 1.0);
 }

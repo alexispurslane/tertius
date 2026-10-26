@@ -79,7 +79,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
-    /// <param name="reflections">True to make the pyramids of the reflections, under <see cref="ConeTracedReflections"/>.</param>
+    /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
     /// <param name="screenSpaceLight">True to make the depth pyramid for the far rays, under <see cref="VisibilityBitmaskLight"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">The depth pyramid is made, and a side is above <see cref="DepthPyramidImage.MaxSide"/>.</exception>
     public RenderTargets(
@@ -89,18 +89,18 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        bool reflections,
+        TraceResolution? reflections,
         bool screenSpaceLight
     )
     {
         // One condition for the depth pyramid's existence: any reader (docs/plans/screen-space-illumination.md, decision 33).
-        bool depthPyramid = reflections || screenSpaceLight;
+        bool depthPyramid = reflections is not null || screenSpaceLight;
         if (depthPyramid)
             CheckPyramidScreen(extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        CheckFormats(device: device, reflections: reflections);
+        CheckFormats(device: device, reflections: reflections is not null);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
@@ -108,16 +108,17 @@ internal sealed class RenderTargets : IDisposable
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
-        Create(extent: extent, hdrStorage: reflections);
+        Create(extent: extent, hdrStorage: reflections is not null);
         if (depthPyramid)
             DepthPyramidImage = new(device: device, allocator: allocator, layouts: layouts, extent: extent);
-        if (reflections && DepthPyramidImage is { } pyramid)
+        if (reflections is { } resolution && DepthPyramidImage is { } pyramid)
             Reflections = new(
                 device: device,
                 allocator: allocator,
                 layouts: layouts,
                 extent: extent,
                 hdr: Hdr,
+                resolution: resolution,
                 depthPyramid: pyramid
             );
         if (smaaTables is not null)
@@ -185,7 +186,8 @@ internal sealed class RenderTargets : IDisposable
         Create(extent: extent, hdrStorage: Reflections is not null);
         // The depth pyramid before the reflections, whose trace set reads it.
         DepthPyramidImage?.Resize(extent);
-        Reflections?.Create(extent, Hdr);
+        // The trace keeps its resolution across a resize.
+        Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
         Smaa?.Resize(extent);
     }
 
@@ -212,7 +214,7 @@ internal sealed class RenderTargets : IDisposable
     {
         Extent = extent;
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
-        Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
+        Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
@@ -360,7 +362,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The build writes the radiance pyramid as a storage image and the trace samples it trilinearly, and the trace writes
-    /// the HDR target as a storage image. <see cref="DepthPyramidImage"/> checks its own format.
+    /// the HDR target as a storage image. <see cref="DepthPyramidImage"/> checks its own format and its tail's limit.
     /// </summary>
     private static void CheckReflectionFormats(VulkanDevice device)
     {

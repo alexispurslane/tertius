@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -64,7 +65,7 @@ public sealed class DeviceTests
             inRoot.Camera.Rotation = inRoot.Camera.PreviousRotation = view;
             RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
             inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
-            inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
+            TestChains.UnderTurnedRoot(inTurned, Quaternion.Conjugate(turn));
 
             HashSet<(int X, int Y)> rootStars = Stars(
                 Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root")

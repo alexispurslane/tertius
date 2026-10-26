@@ -1,5 +1,6 @@
 using System.Numerics;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -27,10 +28,17 @@ public sealed class ReflectionRenderTests
     /// <summary>The center of the mirror ball of <see cref="MirrorBesideGlow"/>, 4 m ahead.</summary>
     private static readonly Vector3 MirrorBall = new(0, 0, -4);
 
-    [Fact]
-    public void ABrightObjectAboveAMirrorFloorShowsInTheFloor()
+    /// <summary>Both traces: the behaviors of the reflections hold at either resolution.</summary>
+    public static TheoryData<TraceResolution> Resolutions => [TraceResolution.Full, TraceResolution.Half];
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ABrightObjectAboveAMirrorFloorShowsInTheFloor(TraceResolution resolution)
     {
-        (float[] hdr, CameraView camera) = RenderHdr(Reflections, renderer => BoxAbove(renderer, Mirror()));
+        (float[] hdr, CameraView camera) = RenderHdr(
+            ReflectionsAt(resolution),
+            renderer => BoxAbove(renderer, Mirror())
+        );
 
         (int X, int Y) pixel = MirrorPixel(BoxFace);
         Vector3 expected = SpecularWeight(Mirror(), camera, pixel) * Bright;
@@ -40,8 +48,9 @@ public sealed class ReflectionRenderTests
             .BeLessThanOrEqualTo(0.02f * expected.Y, "the mirror shows W · L at {0}: {1}", pixel, At(hdr, pixel));
     }
 
-    [Fact]
-    public void ARougherFloorBlursTheReflection()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ARougherFloorBlursTheReflection(TraceResolution resolution)
     {
         // About 0.1, 0.2 and 0.3, in steps that the G-buffer's 8 bits hold exactly.
         float[] roughnesses = [26 / 255f, 51 / 255f, 77 / 255f];
@@ -52,7 +61,10 @@ public sealed class ReflectionRenderTests
         [
             .. roughnesses.Select(roughness =>
             {
-                float[] hdr = RenderHdr(Reflections, renderer => BoxAbove(renderer, Mirror(roughness))).Hdr;
+                float[] hdr = RenderHdr(
+                    ReflectionsAt(resolution),
+                    renderer => BoxAbove(renderer, Mirror(roughness))
+                ).Hdr;
                 return RiseWidth(Row(hdr, center.Y), outside: edge - 70, plateau: center.X);
             }),
         ];
@@ -65,8 +77,9 @@ public sealed class ReflectionRenderTests
             .BeInRange(diameter / 2, diameter * 2, "the blur is the size of the cone, {0} px across", diameter);
     }
 
-    [Fact]
-    public void TheReflectionFadesAtTheScreenEdgeWithNoHardEdge()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void TheReflectionFadesAtTheScreenEdgeWithNoHardEdge(TraceResolution resolution)
     {
         // At 1280 × 720 the fade's band is 72 px, so the smoothstep's steepest step is 2.1 % of the peak per pixel.
         const int width = 1280,
@@ -76,7 +89,11 @@ public sealed class ReflectionRenderTests
         // Short of the bar's right end, whose reflected silhouette is a hard edge, as a mirror shows it.
         int last = PixelOf(barFront with { X = 2.5f }, width, height).X;
         float[] with = Row(
-            RenderHdr(reflections: Reflections, scene: LongBar, view: new(Width: width, Height: height)).Hdr,
+            RenderHdr(
+                reflections: ReflectionsAt(resolution),
+                scene: LongBar,
+                view: new(Width: width, Height: height)
+            ).Hdr,
             row,
             width
         );
@@ -100,9 +117,11 @@ public sealed class ReflectionRenderTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    public void AHitReplacesTheAmbientSpecularTermUnderTheSameWeight(float exposureStops)
+    [InlineData(0, TraceResolution.Full)]
+    [InlineData(2, TraceResolution.Full)]
+    [InlineData(0, TraceResolution.Half)]
+    [InlineData(2, TraceResolution.Half)]
+    public void AHitReplacesTheAmbientSpecularTermUnderTheSameWeight(float exposureStops, TraceResolution resolution)
     {
         const float gray = 0.2f;
         var floor = new MaterialDesc(
@@ -122,7 +141,7 @@ public sealed class ReflectionRenderTests
         }
 
         var view = new TestView(ExposureStops: exposureStops);
-        (float[] with, CameraView camera) = RenderHdr(reflections: Reflections, scene: Scene, view: view);
+        (float[] with, CameraView camera) = RenderHdr(reflections: ReflectionsAt(resolution), scene: Scene, view: view);
         float[] without = RenderHdr(reflections: new NoReflections(), scene: Scene, view: view).Hdr;
 
         foreach (float x in (float[])[-2, 0, 2])
@@ -212,8 +231,9 @@ public sealed class ReflectionRenderTests
         }
     }
 
-    [Fact]
-    public void AFloorWithNothingAboveItShowsTheAmbientSpecularTerm()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AFloorWithNothingAboveItShowsTheAmbientSpecularTerm(TraceResolution resolution)
     {
         static RenderSnapshot Scene(VulkanRenderer renderer)
         {
@@ -222,14 +242,15 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] with = RenderHdr(Reflections, Scene).Hdr;
+        float[] with = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
         float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
 
         ShouldMatch(with, without, "no ray hits its own floor, and a miss keeps the term");
     }
 
-    [Fact]
-    public void AFloorRougherThanTheMaximumKeepsTheAmbientSpecularTerm()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AFloorRougherThanTheMaximumKeepsTheAmbientSpecularTerm(TraceResolution resolution)
     {
         // About 0.7, above the maximum of 0.6; the box is rough too, so that no pixel of the frame reflects.
         static RenderSnapshot Scene(VulkanRenderer renderer)
@@ -243,17 +264,18 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] with = RenderHdr(Reflections, Scene).Hdr;
+        float[] with = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
         float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
 
         ShouldMatch(with, without, "above the maximum roughness SSR has faded out");
     }
 
-    [Fact]
-    public void AMetalFloorReflectsInItsOwnColor()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AMetalFloorReflectsInItsOwnColor(TraceResolution resolution)
     {
         var gold = new MaterialDesc(BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1), Roughness: 0, Metallic: 1);
-        float[] hdr = RenderHdr(Reflections, renderer => BoxAbove(renderer, gold)).Hdr;
+        float[] hdr = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, gold)).Hdr;
 
         Vector3 shown = At(hdr, MirrorPixel(BoxFace));
         shown.X.Should().BeGreaterThan(shown.Y, "gold reflects more red than green: {0}", shown);
@@ -261,8 +283,9 @@ public sealed class ReflectionRenderTests
         shown.Z.Should().BePositive("the white box shows in it");
     }
 
-    [Fact]
-    public void ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt(TraceResolution resolution)
     {
         // The floor point 4 m ahead reflects the green wall 20 m ahead. On the screen its ray crosses a red plate 6 m
         // ahead, which hangs above the ray: where the ray's image crosses the plate's, the ray is 1.4 m to 3 m behind it,
@@ -291,7 +314,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] hdr = RenderHdr(Reflections, Scene).Hdr;
+        float[] hdr = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
 
         Vector3 shown = At(hdr, PixelOf(new(0, FloorHeight, -4)));
         shown.Y.Should().BeGreaterThan(Bright / 2, "the floor shows the green wall behind the plate: {0}", shown);
@@ -337,8 +360,9 @@ public sealed class ReflectionRenderTests
         }
     }
 
-    [Fact]
-    public void ARayThatPointsIntoItsOwnSurfaceAddsNothing()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ARayThatPointsIntoItsOwnSurfaceAddsNothing(TraceResolution resolution)
     {
         // The floor's normal map leans its shading normal 45° away from the eye, so every mirror ray points down into
         // the floor, where the surface fade is 0.
@@ -364,7 +388,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] with = RenderHdr(Reflections, Scene).Hdr;
+        float[] with = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
         float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
 
         ShouldMatch(with, without, "a ray into its own surface fades out before it starts");
@@ -407,8 +431,9 @@ public sealed class ReflectionRenderTests
         ShouldMatch(with, without, "every origin stays in front of the eye, and no ray meets its own flat mirror");
     }
 
-    [Fact]
-    public void AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt(TraceResolution resolution)
     {
         // About 0.2. The bar stands on the floor 7.7 m ahead, 3 m wide and 2 m tall.
         const float roughness = 51 / 255f;
@@ -423,7 +448,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] hdr = RenderHdr(Reflections, Scene).Hdr;
+        float[] hdr = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
 
         int edge = PixelOf(new(-1.5f, 0, -7.7f)).X;
         int center = Width / 2;
@@ -436,8 +461,9 @@ public sealed class ReflectionRenderTests
             .BeLessThan(nearTop / 2, "a reflected ray is short near the contact, so its cone is narrow there");
     }
 
-    [Fact]
-    public void GlassAndPuffsDoNotShowInReflections()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void GlassAndPuffsDoNotShowInReflections(TraceResolution resolution)
     {
         var paneCenter = new Vector3(-1, -0.5f, -6);
         var puffCenter = new Vector3(1, -0.5f, -6);
@@ -479,8 +505,8 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] with = RenderHdr(Reflections, renderer => Scene(renderer, transparent: true)).Hdr;
-        float[] without = RenderHdr(Reflections, renderer => Scene(renderer, transparent: false)).Hdr;
+        float[] with = RenderHdr(ReflectionsAt(resolution), renderer => Scene(renderer, transparent: true)).Hdr;
+        float[] without = RenderHdr(ReflectionsAt(resolution), renderer => Scene(renderer, transparent: false)).Hdr;
 
         At(with, PixelOf(paneCenter)).Z.Should().BeGreaterThan(1, "the pane shows");
         At(with, PixelOf(puffCenter)).X.Should().BeGreaterThan(1, "and the puff");
@@ -490,8 +516,9 @@ public sealed class ReflectionRenderTests
                 .Be(At(without, MirrorPixel(center)), "the rays read the lit image before the transparent pass");
     }
 
-    [Fact]
-    public void AnImpostorKeepsItsBakedLightAndShowsInReflections()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AnImpostorKeepsItsBakedLightAndShowsInReflections(TraceResolution resolution)
     {
         var center = new Vector3(0, -0.5f, -6);
         RenderSnapshot Scene(VulkanRenderer renderer)
@@ -519,7 +546,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        (float[] with, CameraView camera) = RenderImpostors(Reflections, Scene);
+        (float[] with, CameraView camera) = RenderImpostors(ReflectionsAt(resolution), Scene);
         float[] without = RenderImpostors(new NoReflections(), Scene).Hdr;
 
         (int X, int Y) middle = PixelOf(center);
@@ -536,8 +563,9 @@ public sealed class ReflectionRenderTests
             .BeLessThanOrEqualTo(0.05f * expected.X, "the mirror shows the billboard: {0}", At(with, mirror));
     }
 
-    [Fact]
-    public void AFarPlanetShowsInANearMirror()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AFarPlanetShowsInANearMirror(TraceResolution resolution)
     {
         // A planet of 3,000 km radius 10,000 km ahead, above the horizon from 5.6° to 38°.
         var radiance = new Vector3(2, 1.5f, 1);
@@ -557,7 +585,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        (float[] hdr, CameraView camera) = RenderHdr(Reflections, Scene);
+        (float[] hdr, CameraView camera) = RenderHdr(ReflectionsAt(resolution), Scene);
 
         foreach (float degrees in (float[])[10, 15, 20])
         {
@@ -572,15 +600,16 @@ public sealed class ReflectionRenderTests
         }
     }
 
-    [Fact]
-    public void AReflectionOnAFloorAtTheCapStaysAtTheCap()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AReflectionOnAFloorAtTheCapStaysAtTheCap(TraceResolution resolution)
     {
         // The floor's own light plus the reflection of the box passes MaxRadiance, the surfaces' share of the HDR image.
         // Past the share, the puffs over the pixel could carry its sum past 65,504, which a half float above 65,520 holds
         // only as infinity, and the tone curve turns infinity into NaN.
         const float cap = ShaderInput.MaxRadiance;
         float[] hdr = RenderHdr(
-            Reflections,
+            ReflectionsAt(resolution),
             renderer =>
             {
                 RenderSnapshot snapshot = Dark();
@@ -594,11 +623,12 @@ public sealed class ReflectionRenderTests
         hdr.Should().OnlyContain(value => float.IsFinite(value), "no value of the frame is infinite");
     }
 
-    [Fact]
-    public void TwoRendersGiveTheSameBits()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void TwoRendersGiveTheSameBits(TraceResolution resolution)
     {
-        float[] first = RenderHdr(Reflections, renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
-        float[] second = RenderHdr(Reflections, renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
+        float[] first = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
+        float[] second = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
 
         second.Should().Equal(first, "the trace has no noise and no history");
     }
@@ -621,7 +651,276 @@ public sealed class ReflectionRenderTests
     }
 
     [Fact]
-    public void WithTheEnvironmentMapOnAHitReplacesTheMapsSpecularTerm()
+    public void AtHalfResolutionTheRaysTraceBeforeTheReflectionsWhichRunBeforeTheTransparentPass()
+    {
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer
+                .Graph.Passes.Select(pass => pass.Name)
+                .Should()
+                .ContainInOrder(["ambient light", "radiance pyramid", "reflection trace", "reflections", "transparent"]);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AtFullResolutionNoPassTracesAtHalfResolution()
+    {
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Full));
+        try
+        {
+            renderer.Graph.Passes.Select(pass => pass.Name).Should().NotContain("reflection trace");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AtHalfResolutionEachTexelHoldsTheRayOfTheTopLeftPixelOfItsBlock()
+    {
+        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), StripedWall).Hdr;
+        (float[] traced, int tracedWidth, int tracedHeight) = RenderTrace(StripedWall);
+
+        // The blocks below the row where the wall meets the floor show only the floor.
+        int firstFloorRow = PixelOf(new(0, FloorHeight, -15)).Y / 2 + 1;
+        int compared = 0,
+            atAnEdge = 0;
+        for (int j = firstFloorRow; j < tracedHeight; j++)
+        for (int i = 0; i < tracedWidth; i++)
+        {
+            Vector3 representative = At(full, (2 * i, 2 * j));
+            Vector3 diagonal = At(full, (2 * i + 1, 2 * j + 1));
+            Vector3 ray = At(traced, (i, j), tracedWidth);
+            if (representative.X + representative.Y < 0.05f * Bright || ray.X + ray.Y <= 0)
+                continue;
+            RedShare(ray)
+                .Should()
+                .BeApproximately(
+                    RedShare(representative),
+                    0.02f,
+                    "texel ({0}, {1}) holds the ray of pixel ({2}, {3}): {4} against {5} at full resolution",
+                    i,
+                    j,
+                    2 * i,
+                    2 * j,
+                    ray,
+                    representative
+                );
+            compared++;
+            if (Math.Abs(RedShare(representative) - RedShare(diagonal)) > 0.3f)
+                atAnEdge++;
+        }
+
+        compared.Should().BeGreaterThan(1000, "the floor below the wall reflects the stripes");
+        atAnEdge.Should().BeGreaterThan(50, "the stripes' edges cross the rows of the floor's reflection");
+    }
+
+    [Fact]
+    public void AtHalfResolutionAMirrorSlabKeepsItsReflectionApartFromTheFloorBehindIt()
+    {
+        // The far edge of the slab splits the blocks of 2 × 2 pixels of its row, so a texel of the trace stands for both
+        // the slab and the floor behind it. Both face up, so only their depths tell them apart.
+        float top = ToAnOddPixelBoundary(
+            start: -1,
+            projected: height => Gpu.Project(point: new(0, height, -6), width: Width, height: Height).Y
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer => MirrorSlab(renderer, top));
+
+        (int X, int Y) edge = PixelOf(new(0, top, -6));
+        At(renders.Full, (edge.X, edge.Y + 3)).Y.Should().BeGreaterThan(Bright / 4, "the slab shows the green half");
+        At(renders.Full, (edge.X, edge.Y - 3))
+            .X.Should()
+            .BeGreaterThan(Bright / 4, "the floor behind it shows the red half");
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: edge, dxs: [-1, 0, 1], dys: [-3, -2, -1, 0, 1, 2, 3]),
+            shows: "by the slab's far edge shows its own surface's reflection"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionTheTwoFacesOfAMirrorCornerKeepTheirReflectionsApart()
+    {
+        // The corner splits the blocks of 2 × 2 pixels of its column. Texels across it lie near the other face's plane,
+        // but face another way.
+        float x = ToAnOddPixelBoundary(
+            start: 0,
+            projected: across => Gpu.Project(point: new(across, -0.5f, -6), width: Width, height: Height).X
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer => MirrorCorner(renderer, x));
+
+        (int X, int Y) corner = PixelOf(new(x, -0.5f, -6));
+        At(renders.Full, (corner.X - 4, corner.Y))
+            .X.Should()
+            .BeGreaterThan(Bright / 4, "the left face shows the red wall");
+        At(renders.Full, (corner.X + 4, corner.Y))
+            .Y.Should()
+            .BeGreaterThan(Bright / 4, "the right face shows the green wall");
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: corner, dxs: [-3, -2, -1, 0, 1, 2, 3], dys: [-6, -3, 0, 3, 6]),
+            shows: "by the corner shows its own face's reflection"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionAMirrorFloorBesideARoughFloorReflectsAsAtFullResolutionUpToTheirSeam()
+    {
+        // The texels across the seam lie on the mirror's plane but start no ray.
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(MirrorBesideRoughFloor);
+
+        foreach (float ahead in (float[])[-4, -6, -9])
+        {
+            (int X, int Y) seam = PixelOf(new(0, FloorHeight, ahead));
+            BrdfTesting
+                .LargestChannelDifference(At(renders.Full, (seam.X - 6, seam.Y)), Vector3.Zero)
+                .Should()
+                .BeGreaterThan(Bright / 4, "the mirror shows the wall {0} m ahead", -ahead);
+            ShouldMatchAtHalfResolution(
+                renders: renders,
+                pixels: Around(center: seam, dxs: [-3, -2, -1, 0], dys: [0]),
+                shows: "of the mirror at the seam takes only the texels with a ray"
+            );
+        }
+    }
+
+    /// <summary>
+    /// A white mirror floor in the dark before a wall of red and green stripes 0.3 m wide, 15 m ahead. The white metal
+    /// weighs each channel alike and the dark adds nothing, so the red share of a floor pixel's HDR value is the red
+    /// share of its ray. Along the stripes' edges, the share changes from one pixel to the next.
+    /// </summary>
+    private static RenderSnapshot StripedWall(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        for (int k = -20; k < 20; k++)
+            snapshot.Instances.Add(
+                Block(
+                    box: box,
+                    material: k % 2 == 0 ? red : green,
+                    center: new((k + 0.5f) * 0.3f, 2, -15.5f),
+                    size: new(0.3f, 7, 1)
+                )
+            );
+        return snapshot;
+    }
+
+    /// <summary>The share of red in the red and green of <paramref name="radiance"/>.</summary>
+    private static float RedShare(Vector3 radiance) => radiance.X / (radiance.X + radiance.Y);
+
+    /// <summary>
+    /// A mirror slab half a metre above the mirror floor, its top at <paramref name="top"/> and its far edge 6 m ahead,
+    /// before a wall red below the eye's height and green above it. At the far edge's row, the slab reflects the green
+    /// half, and the floor 9 m ahead behind it the red half.
+    /// </summary>
+    private static RenderSnapshot MirrorSlab(VulkanRenderer renderer, float top)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: renderer.CreateMaterial(Mirror()),
+                center: new(0, top - 0.05f, -5),
+                size: new(2, 0.1f, 2)
+            )
+        );
+        snapshot.Instances.Add(Block(box: box, material: red, center: new(0, -0.75f, -15.5f), size: new(60, 1.5f, 1)));
+        snapshot.Instances.Add(Block(box: box, material: green, center: new(0, 2.5f, -15.5f), size: new(60, 5, 1)));
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A mirror box turned by 45° about the vertical, whose corner nearest the eye stands at <paramref name="x"/>, 6 m
+    /// ahead, between a red wall at the left and a green wall at the right. Its left face reflects the red wall, and its
+    /// right face the green wall.
+    /// </summary>
+    private static RenderSnapshot MirrorCorner(VulkanRenderer renderer, float x)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: renderer.CreateMaterial(Mirror()),
+                position: new(x, -0.5f, -6 - MathF.Sqrt(2) / 2),
+                scale: Vector3.One,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                radius: 1
+            )
+        );
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        snapshot.Instances.Add(Block(box: box, material: red, center: new(-4.5f, 0, -7), size: new(1, 6, 10)));
+        snapshot.Instances.Add(Block(box: box, material: green, center: new(4.5f, 0, -7), size: new(1, 6, 10)));
+        return snapshot;
+    }
+
+    /// <summary>
+    /// The floor's left half a mirror and its right half rougher than the maximum, both at one height, before a bright
+    /// wall.
+    /// </summary>
+    private static RenderSnapshot MirrorBesideRoughFloor(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+        foreach (
+            (float center, MaterialDesc material) in ((float Center, MaterialDesc Material)[])
+                [(Center: -15, Material: Mirror()), (Center: 15, Material: Mirror(179 / 255f))]
+        )
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: plane,
+                    material: renderer.CreateMaterial(material with { NormalMap = FlatNormalMap(renderer) }),
+                    position: new(center, FloorHeight, -20),
+                    scale: new(15, 1, 30),
+                    radius: 34
+                )
+            );
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(Bright)), center: new(0, 2, -15.5f), size: new(60, 7, 1))
+        );
+        return snapshot;
+    }
+
+    /// <summary>The HDR images of the scene that <paramref name="scene"/> builds, traced at full and at half resolution.</summary>
+    private static (float[] Full, float[] Half) RenderAtBothResolutions(Func<VulkanRenderer, RenderSnapshot> scene) =>
+        (
+            Full: RenderHdr(ReflectionsAt(TraceResolution.Full), scene).Hdr,
+            Half: RenderHdr(ReflectionsAt(TraceResolution.Half), scene).Hdr
+        );
+
+    /// <summary>The half-resolution trace of the scene that <paramref name="scene"/> builds, read after one render.</summary>
+    private static (float[] Rgba, int Width, int Height) RenderTrace(Func<VulkanRenderer, RenderSnapshot> scene)
+    {
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(scene(renderer), 1f);
+            return renderer.ReadReflectionTrace();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void WithTheEnvironmentMapOnAHitReplacesTheMapsSpecularTerm(TraceResolution resolution)
     {
         // A wide wall that glows 3 fills the floor's lobe on the screen and in the map alike, so the ray's radiance and
         // the map's specular term are both 3: a hit that replaces the term leaves the floor as it was, and a fallback
@@ -637,7 +936,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        (float[] with, CameraView camera) = RenderUnderMap(reflections: Reflections, scene: Scene);
+        (float[] with, CameraView camera) = RenderUnderMap(reflections: ReflectionsAt(resolution), scene: Scene);
         float[] without = RenderUnderMap(reflections: new NoReflections(), scene: Scene).Hdr;
 
         foreach (float x in (float[])[-2, 0, 2])
@@ -660,8 +959,9 @@ public sealed class ReflectionRenderTests
         }
     }
 
-    [Fact]
-    public void ACurvedMirrorThatReflectsItsNeighborDoesNotChangeWhenTheStarsTurn()
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ACurvedMirrorThatReflectsItsNeighborDoesNotChangeWhenTheStarsTurn(TraceResolution resolution)
     {
         // The rays of the mirror ball's right side hit the glowing ball on the screen, but the map, seen from the eye,
         // sees open sky along them. The mirror's d moves by several star cells per pixel, so the ambient pass adds the
@@ -671,7 +971,10 @@ public sealed class ReflectionRenderTests
             reflections: new NoReflections(),
             scene: MirrorBesideGlow(Quaternion.Identity)
         ).Hdr;
-        float[] reflected = RenderUnderMap(reflections: Reflections, scene: MirrorBesideGlow(Quaternion.Identity)).Hdr;
+        float[] reflected = RenderUnderMap(
+            reflections: ReflectionsAt(resolution),
+            scene: MirrorBesideGlow(Quaternion.Identity)
+        ).Hdr;
         (int X, int Y)[] mirror = MirrorBallPixels();
         mirror
             .Count(pixel => At(reflected, pixel).Y > At(lit, pixel).Y + 0.5f)
@@ -686,7 +989,7 @@ public sealed class ReflectionRenderTests
                 ]
         )
         {
-            float[] turned = RenderUnderMap(reflections: Reflections, scene: MirrorBesideGlow(turn)).Hdr;
+            float[] turned = RenderUnderMap(reflections: ReflectionsAt(resolution), scene: MirrorBesideGlow(turn)).Hdr;
             (int X, int Y)[] differing =
             [
                 .. mirror.Where(pixel =>
@@ -713,8 +1016,7 @@ public sealed class ReflectionRenderTests
         renderer =>
         {
             RenderSnapshot snapshot = Dark();
-            snapshot.RootRotation = root;
-            snapshot.PreviousRootRotation = root;
+            TestChains.UnderTurnedRoot(snapshot, root);
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             snapshot.Instances.Add(
                 Gpu.Instance(
@@ -776,6 +1078,36 @@ public sealed class ReflectionRenderTests
             Gpu.DisposeAndAssertClean(renderer);
         }
     }
+
+    /// <summary>
+    /// Each of <paramref name="pixels"/> of the half-resolution render shows what the full-resolution render shows there,
+    /// within 5 % of <see cref="Bright"/>.
+    /// </summary>
+    private static void ShouldMatchAtHalfResolution(
+        (float[] Full, float[] Half) renders,
+        IEnumerable<(int X, int Y)> pixels,
+        string shows
+    )
+    {
+        foreach ((int X, int Y) pixel in pixels)
+            BrdfTesting
+                .LargestChannelDifference(At(renders.Half, pixel), At(renders.Full, pixel))
+                .Should()
+                .BeLessThanOrEqualTo(
+                    0.05f * Bright,
+                    "pixel {0} {1}: {2} at half, {3} at full",
+                    pixel,
+                    shows,
+                    At(renders.Half, pixel),
+                    At(renders.Full, pixel)
+                );
+    }
+
+    /// <summary>The pixels at the offsets <paramref name="dxs"/> × <paramref name="dys"/> from <paramref name="center"/>.</summary>
+    private static IEnumerable<(int X, int Y)> Around((int X, int Y) center, int[] dxs, int[] dys) =>
+        from dy in dys
+        from dx in dxs
+        select (center.X + dx, center.Y + dy);
 
     /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, under GTAO's default.</summary>
     /// <returns>The frame's HDR image, the occlusion V of each pixel and its camera.</returns>
@@ -888,5 +1220,18 @@ public sealed class ReflectionRenderTests
                 .Where(i => MathF.Abs(actual[i] - expected[i]) > MathF.Abs(expected[i]) / 1024),
         ];
         differing.Should().BeEmpty("{0}; the first is value {1}", because, differing.FirstOrDefault());
+    }
+
+    /// <summary>
+    /// The coordinate near <paramref name="start"/>, in m, at which <paramref name="projected"/>, an affine map from it to
+    /// a pixel coordinate, reaches the next boundary between a pixel 2k and a pixel 2k + 1: the middle of a block of the
+    /// half-resolution trace.
+    /// </summary>
+    private static float ToAnOddPixelBoundary(float start, Func<float, float> projected)
+    {
+        float at = projected(start);
+        float pixelsPerMetre = (projected(start + 0.1f) - at) / 0.1f;
+        float boundary = 2 * MathF.Floor(at / 2) + 1;
+        return start + (boundary - at) / pixelsPerMetre;
     }
 }

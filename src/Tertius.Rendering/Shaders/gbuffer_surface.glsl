@@ -1,10 +1,11 @@
 // The lit surface that the G-buffer holds at a pixel (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light"). The direct and ambient passes and the reflection trace read a lit pixel's surface only
+// reads the ambient light"). The direct and ambient passes and the reflections' passes read a lit pixel's surface only
 // through it, and the estimate of the light around the pixel enters the shading input here
 // (docs/plans/screen-space-illumination.md, "The ambient pass"). So does the reflection's footprint, which the ambient
-// pass and the trace both take from the G-buffer, so that the trace takes away the very ambient specular term that the
-// ambient pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside the G-buffer: texelFetch
-// outside an image is undefined.
+// pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution)
+// take from the G-buffer, so that the delta takes away the very ambient specular term that the ambient pass added
+// (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside the G-buffer: texelFetch outside an image
+// is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
@@ -37,13 +38,23 @@ float reflectionFootprintAt(ivec2 pixel)
     return max(frame.params.z, max(alongX, alongY));
 }
 
+// The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+// alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
+// which no caller passes here.
+uint mapOfCode(float alpha)
+{
+    return (256u - uint(round(alpha * 255.0))) >> 1;
+}
+
 // The surface without the estimate, with V = 1 and G = 0, and with the footprint at its floor p, for the direct light,
 // which reads none of them. The direct pass reads the surface only through it, so it never reads the estimate target,
 // which the occlusion passes write after it.
 ShadingInput materialAt(ivec2 pixel)
 {
     ShadingInput s;
-    s.baseColor = texelFetch(gbufferBaseColor, pixel, 0).rgb;
+    vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
+    s.baseColor = baseColor.rgb;
+    s.map = mapOfCode(baseColor.a);
     vec4 normals = texelFetch(gbufferNormal, pixel, 0);
     s.normal = octDecode(normals.rg);
     s.geometricNormal = octDecode(normals.ba);

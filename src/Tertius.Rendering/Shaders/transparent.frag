@@ -11,7 +11,7 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uint inMaterial;
+layout(location = 4) flat in uvec2 inMaterialAndMap;   // x: the material. y: the instance's environment map
 layout(location = 5) flat in vec4 inHemisphere;
 
 // Dual-source blending (BlendMode.Transmittance): the target becomes outColor + target · outTransmittance.
@@ -22,10 +22,11 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     // Sample and take the footprint before the discard below, so implicit derivatives stay defined for the whole quad.
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
+    SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.normal = s.normal;
     shading.roughness = s.roughness;
+    shading.map = inMaterialAndMap.y;
     shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the

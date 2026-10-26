@@ -61,7 +61,7 @@ The user made the decisions marked (User): decisions 1 to 11 in the ticket's not
 9. GPU pixel tests, no reference images: a mirror sphere reflects a bright object behind the camera, and a rough sphere shows it blurred. (User)
 10. The cost is measured at 1080p, and the user sees captures. (User)
 11. The per-frame sky and ground colors (`ter-hro7`) are closed without work. The atmosphere color (`ter-6vhj`) reaches the ambient light through the map. (User)
-12. One map serves every surface, now. A lit room then lights what lies outside it, such as the apron that the cabin's seat sees through the canopy, and the user accepts that for now. Local maps per room are a later ticket (see "Known limits" and "Later"). (User)
+12. One map serves every surface, now. A lit room then lights what lies outside it, such as the apron that the cabin's seat sees through the canopy, and the user accepts that for now. Local maps per room are a later ticket (see "Known limits" and "Later"). (User) `ter-uy7y` replaced the one map with one map per semantic frame on the camera's chain: see [environment-maps-per-frame.md](environment-maps-per-frame.md).
 13. The faces draw no stars. The map's alpha holds the open-sky share of each texel, and the prefilter blurs it with the same GGX lobe as the color. The ambient specular term adds the star field, evaluated at the dominant direction through the same star function as the sky pixels, times the prefiltered open-sky share. The stars fade with roughness so that their light matches what a map that held them gives a rough lobe. See "The reflected stars". (User)
 14. The atmosphere ticket (`ter-6vhj`) stays last, as planned. So while the map is on, the map's sky is black until that ticket, and planet shadows and the ground lose today's sky fill light, 0.08 on demo-surface. No interim sky color comes before the atmosphere. (User)
 15. The setting takes the form that STYLE.md gives struct cases: a `[GeneratedUnion]` of positional `readonly record struct` cases, with `NoEnvironmentMap` as its zero case and a `Problem` check that `CheckOptions` calls, as `ExposureSetting` and `AmbientOcclusionSetting` do. `ter-48qn` converts `BloomSetting` to the same form. (Orchestrator, for every setting of the epic, 2026-10-25)
@@ -84,7 +84,7 @@ Settled by this design:
 30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
-33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and SSR's trace take it from the G-buffer, by one function, so that the trace takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and the pass that adds SSR's delta (the full-resolution trace, or the upsample at half resolution) take it from the G-buffer, by one function, so that the delta takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
@@ -491,7 +491,7 @@ where
 
 Derivatives are defined only in uniform control flow, so each of these shaders computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
 
-The lighting pass and SSR's trace read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
+The lighting pass and SSR's passes read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
 
 ```glsl
 float reflectionFootprintAt(ivec2 pixel)
@@ -512,7 +512,7 @@ where
 - `nextX`, `nextY` = the next pixel in x and in y, or the pixel before it in the image's last column or row.
 - `alongX`, `alongY` = how far d moves to those pixels, in rad.
 
-So the trace, which is a compute shader, subtracts the same T_s that the lighting pass added: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes.
+So the pass that adds SSR's delta, a compute shader (the full-resolution trace, or the upsample at half resolution), subtracts the same T_s that the lighting pass added at the pixel: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes, the lighting pass and the pass that adds the delta. The half-resolution trace reads no ambient light, so it never uses the footprint.
 
 The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
@@ -1045,7 +1045,7 @@ If the atmosphere dims the stars, by its transmittance or by its own brightness,
 
 The map is the light at the camera's eye, and decisions 4 and 5 give it to every surface. So a surface far from the camera takes the light of the camera's surroundings, not of its own. Out in the open, where the surroundings are far, the error is small: a far planet's night side takes a little light from the ship beside the camera, about as much as today's fill. In a lit room it is large. In `demo-surface`, the cabin's four lamps of intensity 50 light its walls to a radiance of about 2, while the sun of intensity 1 lights the apron to about 0.1 to 0.2. Seen from the seat, the apron through the canopy takes several times its sunlight as ambient light, and its shadows fill in. The terminal and its lamps of intensity 100 do the same to what lies outside its windows.
 
-The user accepts this for now and keeps one map (decision 12). Part 6's captures from the cabin show how much it shows. Local maps per room are a later ticket, and the one map keeps all of its machinery under them.
+The user accepted this for the first map (decision 12). Part 6's captures from the cabin showed how much it shows. `ter-uy7y` then gave each semantic frame on the camera's chain a map of its own, and the apron now takes earth-surface's map, which leaves out the shuttle and its lamps: see [environment-maps-per-frame.md](environment-maps-per-frame.md), and its "Known limits" for what remains.
 
 ### The black sky until the atmosphere
 
@@ -1057,7 +1057,7 @@ Each item is left out because nothing needs it yet. The orchestrator files the t
 
 | Item | What it adds | When it is needed |
 |---|---|---|
-| Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | When the captures from the cabin, or a later scene, show the outside lit by the room's light |
+| Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | Built in another form by `ter-uy7y`: one map per semantic frame on the camera's chain, at the eye and with no box ([environment-maps-per-frame.md](environment-maps-per-frame.md)) |
 | A larger block for the reflected stars, 5 × 5 × 5 cells | Single stars until about roughness 0.12 on a flat mirror, at 4.6 times the cost per smooth pixel | When a capture shows chrome between roughness 0.06 and 0.12 that misses its stars |
 | The stars' light in the diffuse term, through the irradiance buffer's w components | About 6 · 10⁻⁴ of diffuse light in open space | When an image shows the difference, which decision 32 expects never |
 | A star field defined by each star's light, the same at every resolution, with one evaluation for the sky and the reflections | Stars whose light does not fall with the resolution | When the star field gets its own ticket. It re-approves the reference images. |
@@ -1332,7 +1332,7 @@ internal sealed class EnvironmentMap : IDisposable
 
   // reflection_footprint.glsl, for fragment shaders only.
   float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
-  // gbuffer_surface.glsl, for the lighting pass and the reflection trace.
+  // gbuffer_surface.glsl, for the lighting pass and the pass that adds SSR's delta.
   float reflectionFootprintAt(ivec2 pixel);                                 // max(p, |d(next x) − d|, |d(next y) − d|)
   ```
 

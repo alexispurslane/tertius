@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// SSR's depth pyramid with one owner, and the sets of its build: made when the reflections or the screen-space light
+/// SSR's depth pyramid with one owner, and the sets of its build (the level sets and the tail's set): made when the reflections or the screen-space light
 /// read it (docs/plans/screen-space-illumination.md, decision 33). The image stays in the General layout for its whole
 /// life. <see cref="RenderTargets"/> owns one when either reader is on.
 /// </summary>
@@ -32,9 +32,18 @@ internal sealed unsafe class DepthPyramidImage : IDisposable
     private ImageView[] mipViews = [];
 
     /// <summary>Allocates the sets for the largest pyramid, and makes the image for a screen of <paramref name="extent"/>.</summary>
-    /// <exception cref="NotSupportedException">The device cannot sample and store <see cref="ImageFormat"/>.</exception>
+    /// <exception cref="NotSupportedException">
+    /// The device cannot sample and store <see cref="ImageFormat"/>, or its tail binds more storage images in one stage
+    /// than the device allows.
+    /// </exception>
     public DepthPyramidImage(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, Extent2D extent)
     {
+        // The tail binds more storage images in one stage than Vulkan guarantees.
+        if (
+            DepthPyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
+            { } storageImages
+        )
+            throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags needed = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
         if ((device.FormatProperties(ImageFormat).OptimalTilingFeatures & needed) != needed)
             throw new NotSupportedException($"{ImageFormat} cannot be sampled and stored on {device.DeviceName}.");
@@ -43,6 +52,7 @@ internal sealed unsafe class DepthPyramidImage : IDisposable
         this.layouts = layouts;
         for (int i = 0; i < levelSets.Length; i++)
             levelSets[i] = layouts.AllocatePyramidLevelSet();
+        TailSet = layouts.AllocateDepthTailSet();
         Create(extent);
     }
 
@@ -51,6 +61,9 @@ internal sealed unsafe class DepthPyramidImage : IDisposable
 
     /// <summary>The top level L, whose one cell covers the screen (<see cref="DepthPyramid.LevelCount"/>).</summary>
     public int TopLevel { get; private set; }
+
+    /// <summary>Set 3 of <see cref="DescriptorLayouts.DepthTailLayout"/>, written when the image has a tail (<see cref="DepthPyramidTail"/>).</summary>
+    public DescriptorSet TailSet { get; }
 
     /// <summary>Why the pyramid cannot cover a screen of <paramref name="width"/> by <paramref name="height"/> px, or null when it can.</summary>
     internal static string? ScreenProblem(long width, long height) =>
@@ -132,6 +145,27 @@ internal sealed unsafe class DepthPyramidImage : IDisposable
                 );
             layouts.WriteStorageImage(set: levelSets[level - 1], binding: 1, view: mipViews[level - 1]);
         }
+
+        WriteTailSet();
+    }
+
+    /// <summary>
+    /// Writes the tail set: the mip before the tail, and the tail's mips from the first array element. The elements past
+    /// the tail repeat its last mip: the shader never writes them, but each must hold a view.
+    /// </summary>
+    private void WriteTailSet()
+    {
+        int first = DepthPyramidTail.FirstMip(Image);
+        if (first >= mipViews.Length)
+            return;
+        layouts.WriteImage(set: TailSet, binding: 0, view: mipViews[first - 1], layout: ImageLayout.General);
+        for (int element = 0; element < DepthPyramidTail.Mips; element++)
+            layouts.WriteStorageImage(
+                set: TailSet,
+                binding: 1,
+                arrayElement: (uint)element,
+                view: mipViews[Math.Min(first + element, mipViews.Length - 1)]
+            );
     }
 
     /// <summary>Destroys the views and the image. The device must be idle.</summary>

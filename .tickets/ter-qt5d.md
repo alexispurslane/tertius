@@ -1,6 +1,6 @@
 ---
 id: ter-qt5d
-status: open
+status: closed
 deps: [ter-q218]
 links: []
 created: 2026-10-26T12:43:56Z
@@ -20,3 +20,7 @@ Decision 21 of docs/plans/asset-pipeline.md put binary source files (texture ima
 **2026-10-26T12:47:09Z**
 
 2026-10-26, user: fetch from provenance. Git keeps each third-party binary source's provenance record (URL, license, hash); the importer downloads it on the first build, checks the hash and caches it under bin/assets. Record this in docs/plans/asset-pipeline.md beside decision 21 after ter-q218 merges, because ter-q218 rewrites decision 21.
+
+**2026-10-26T15:09:44Z**
+
+2026-10-26, orchestrator: merged. Decision 26 in docs/plans/asset-pipeline.md, with the new section 'Fetched sources' and the codes AS1008, AS1009, AS9005, AS9006 and AS9007. Design choices the writer made, for the user to look at when the importer is built: texture-set packing moves from intake to import through extras keys in the .gltf; add requires --from-fetch or --own; an asset id takes the extension of its main downloaded file. Consequence: every machine that imports a third-party FBX, OBJ, .blend, TIFF, WebP or compressed glTF needs the assets shell.

@@ -1,6 +1,7 @@
 using System.Numerics;
 using StbImageSharp;
 using StbImageWriteSharp;
+using Tertius.Testing;
 using ColorComponents = StbImageSharp.ColorComponents;
 
 namespace Tertius.Rendering.Tests;
@@ -157,6 +158,7 @@ internal static class Gpu
             scale: scale,
             boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
+            chainDepth: TestChains.CamerasFrame,
             flags: flags | RenderFlags.Visible,
             entityIndex: entity,
             part: part

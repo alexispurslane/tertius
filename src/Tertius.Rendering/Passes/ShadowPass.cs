@@ -159,13 +159,14 @@ internal sealed unsafe class ShadowPass : RenderPass
             if (casterCount == casters.Length)
                 Array.Resize(ref casters, casters.Length * 2);
             Quaternion rotation = SceneBatcher.Interpolate(instance.PreviousRotation, instance.Rotation, alpha);
-            // The depth-only pass reads no material.
+            // The depth-only pass reads no material and no map.
             casters[casterCount++] = new(
                 GpuInstance.From(
                     position: position,
                     rotation: rotation,
                     scale: instance.Scale,
-                    material: MaterialStore.DefaultSlot
+                    material: MaterialStore.DefaultSlot,
+                    map: 0
                 ),
                 mesh,
                 mask

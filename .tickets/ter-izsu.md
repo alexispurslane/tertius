@@ -1,6 +1,6 @@
 ---
 id: ter-izsu
-status: open
+status: in_progress
 deps: [ter-y1s7, ter-nydu]
 links: []
 created: 2026-10-25T18:34:36Z

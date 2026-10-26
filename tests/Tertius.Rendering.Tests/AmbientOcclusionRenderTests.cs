@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -285,7 +286,13 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                     Intensity = 1,
                 };
                 snapshot.Lights.Add(
-                    new PointRenderLight(Position: new(-1.5f, -1, -4.5f), Color: Vector3.One, Intensity: 5, Range: 5)
+                    new PointRenderLight(
+                        Position: new(-1.5f, -1, -4.5f),
+                        Color: Vector3.One,
+                        Intensity: 5,
+                        Range: 5,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
                 );
                 RenderSnapshot corner = Corner(renderer, Matte(renderer), snapshot);
                 // Twice: in the second frame, the estimate target holds the occlusion of the first.

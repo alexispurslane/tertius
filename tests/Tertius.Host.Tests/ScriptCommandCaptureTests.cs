@@ -12,7 +12,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     /// <summary>
     /// The timed passes of a headless frame with the renderer's defaults, in frame order: the environment map's faces and
     /// prefilter after the shadow maps, the occlusion passes of the screen-space light between the direct and the ambient
-    /// pass, SMAA after the tone map.
+    /// pass, the reflections' half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
@@ -29,6 +29,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "occlusion upsample",
         "ambient light",
         "radiance pyramid",
+        "reflection trace",
         "reflections",
         "transparent",
         "exposure",

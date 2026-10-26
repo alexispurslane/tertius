@@ -38,17 +38,36 @@ internal static class CubeFaces
 {
     public const int Count = 6;
 
-    /// <summary>The forward, right and up axes of <paramref name="face"/>, after the table of the doc.</summary>
+    /// <summary>
+    /// The forward, right and up axes of <paramref name="face"/> in the map's own axes, after the table of the doc. Each
+    /// zero is +0, as a turn by the identity gives it, so the identity turns the table to its own bits.
+    /// </summary>
     public static FaceBasis Basis(CubeFace face) =>
         face switch
         {
-            CubeFace.PositiveX => new(Vector3.UnitX, -Vector3.UnitZ, Vector3.UnitY),
-            CubeFace.NegativeX => new(-Vector3.UnitX, Vector3.UnitZ, Vector3.UnitY),
-            CubeFace.PositiveY => new(Vector3.UnitY, Vector3.UnitX, -Vector3.UnitZ),
-            CubeFace.NegativeY => new(-Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ),
+            CubeFace.PositiveX => new(Vector3.UnitX, new(0, 0, -1), Vector3.UnitY),
+            CubeFace.NegativeX => new(new(-1, 0, 0), Vector3.UnitZ, Vector3.UnitY),
+            CubeFace.PositiveY => new(Vector3.UnitY, Vector3.UnitX, new(0, 0, -1)),
+            CubeFace.NegativeY => new(new(0, -1, 0), Vector3.UnitX, Vector3.UnitZ),
             CubeFace.PositiveZ => new(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY),
-            CubeFace.NegativeZ => new(-Vector3.UnitZ, -Vector3.UnitX, Vector3.UnitY),
+            CubeFace.NegativeZ => new(new(0, 0, -1), new(-1, 0, 0), Vector3.UnitY),
         };
+
+    /// <summary>
+    /// The axes of <paramref name="face"/> of a map that lies in the axes <paramref name="axes"/>, in world axes: the
+    /// table's forward, right and up turned by <paramref name="axes"/> (docs/plans/environment-maps-per-frame.md, decision
+    /// 9). The identity gives the table's bits.
+    /// </summary>
+    /// <param name="axes">The map's frame's axes in world axes, a unit quaternion.</param>
+    public static FaceBasis Basis(CubeFace face, Quaternion axes)
+    {
+        FaceBasis inFrame = Basis(face);
+        return new(
+            Forward: Vector3.Transform(inFrame.Forward, axes),
+            Right: Vector3.Transform(inFrame.Right, axes),
+            Up: Vector3.Transform(inFrame.Up, axes)
+        );
+    }
 
     /// <summary>The set that holds only <paramref name="face"/>.</summary>
     public static FaceMask Of(CubeFace face) => (FaceMask)(1 << (int)face);
@@ -99,10 +118,8 @@ internal static class CubeFaces
     /// The view matrix of a face in row-vector form: x along right, y along up, and view space looking down −Z along
     /// forward.
     /// </summary>
-    public static Matrix4x4 View(CubeFace face)
-    {
-        FaceBasis basis = Basis(face);
-        return new(
+    public static Matrix4x4 View(FaceBasis basis) =>
+        new(
             m11: basis.Right.X,
             m12: basis.Up.X,
             m13: -basis.Forward.X,
@@ -120,19 +137,17 @@ internal static class CubeFaces
             m43: 0,
             m44: 1
         );
-    }
 
     /// <summary>The view projection of a face for depth range <paramref name="range"/>: 90° and square.</summary>
-    public static Matrix4x4 ViewProjection(CubeFace face, int range) =>
-        View(face) * DepthRanges.RangeProjection(range, MathF.PI / 2, 1);
+    public static Matrix4x4 ViewProjection(FaceBasis basis, int range) =>
+        View(basis) * DepthRanges.RangeProjection(range, MathF.PI / 2, 1);
 
     /// <summary>
     /// Whether a face culls the sphere at <paramref name="center"/>, camera-relative: it lies behind the near plane or
     /// outside one of the four side planes through the eye.
     /// </summary>
-    public static bool Culls(CubeFace face, Vector3 center, float radius)
+    public static bool Culls(FaceBasis basis, Vector3 center, float radius)
     {
-        FaceBasis basis = Basis(face);
         float depth = Vector3.Dot(center, basis.Forward);
         if (depth + radius < DepthRanges.NearPlane)
             return true;

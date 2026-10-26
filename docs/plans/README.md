@@ -20,6 +20,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Design review](design-review.md) | `ter-tanj` |
 | [Editor](editor.md) | `ter-631h` |
 | [Scene environment map](environment-map.md) | `ter-nl5u` |
+| [Environment maps per frame on the camera's chain](environment-maps-per-frame.md) | `ter-uy7y` |
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |

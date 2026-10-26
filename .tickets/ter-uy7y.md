@@ -1,6 +1,6 @@
 ---
 id: ter-uy7y
-status: in_progress
+status: closed
 deps: [ter-nl5u]
 links: []
 created: 2026-10-25T15:09:02Z
@@ -26,3 +26,7 @@ From inside the lit cabin, the apron seen through the canopy keeps its own ambie
 **2026-10-26T12:44:27Z**
 
 2026-10-26, user: one map per semantic frame on the camera's chain (the camera's frame, its parent, up to the root), only those. An object takes the map of the frame that holds it, chosen per draw; an object in a frame off the chain takes the map of its nearest ancestor on the chain. Every map is captured at the eye; the map of a chain frame leaves out the subtree of the chain frame below it. No box projection; updates in turn. The deferred passes read each pixel's map index from the G-buffer.
+
+**2026-10-26T16:49:08Z**
+
+2026-10-26: merged into main (0db4bc32). Coverage of the changed lines, Debug and Release: lines 629/635 (99.1%), branches 147/154. Uncovered: the getter of the test hook DeviceAllocator.AllocationsBeforeFailure (only tests set it, none reads it); GpuImage's guard against a cube array that is not square or not six layers per cube (only EnvironmentMap makes cube arrays, always 6M square layers); the UnreachableException of an unknown light case in RenderSnapshotBuilder. Partial branches: null-conditional disposals of images never made. Lighting costs 0.49 ms more on demo-exit, tracked in ter-51gq. The never-submitted growth edge case is ter-qril.
