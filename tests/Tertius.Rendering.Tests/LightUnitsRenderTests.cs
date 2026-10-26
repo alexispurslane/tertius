@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -64,6 +65,7 @@ public sealed class LightUnitsRenderTests
             scale: scale,
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: RenderFlags.CastsShadow,
             entityIndex: 0,
             part: 0

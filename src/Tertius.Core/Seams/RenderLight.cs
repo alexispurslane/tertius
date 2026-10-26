@@ -13,6 +13,7 @@ namespace Tertius;
 /// <param name="Power">The radiant power that leaves the light, in W.</param>
 /// <param name="Radius">The radius of the emitting sphere, in m.</param>
 /// <param name="CastsShadow">Whether the light casts shadows, within the renderer's budgets.</param>
+/// <param name="ChainDepth">The chain depth of the entity that carries the light, as <see cref="RenderInstance.ChainDepth"/>.</param>
 public readonly record struct PointRenderLight(
     uint EntityIndex,
     Vector3 Position,
@@ -20,7 +21,8 @@ public readonly record struct PointRenderLight(
     Vector3 Color,
     float Power,
     float Radius,
-    bool CastsShadow
+    bool CastsShadow,
+    ushort ChainDepth
 );
 
 /// <summary>
@@ -41,6 +43,7 @@ public readonly record struct PointRenderLight(
 /// <param name="CastsShadow">Whether the light casts shadows, within the renderer's budgets.</param>
 /// <param name="InnerConeAngle">Half-angle of the full-intensity cone, in radians.</param>
 /// <param name="OuterConeAngle">Half-angle of the outer edge of the cone, in radians. The light fades to zero between the two angles.</param>
+/// <param name="ChainDepth">As for <see cref="PointRenderLight"/>.</param>
 public readonly record struct SpotRenderLight(
     uint EntityIndex,
     Vector3 Position,
@@ -52,7 +55,8 @@ public readonly record struct SpotRenderLight(
     float Radius,
     bool CastsShadow,
     float InnerConeAngle,
-    float OuterConeAngle
+    float OuterConeAngle,
+    ushort ChainDepth
 );
 
 /// <summary>
@@ -61,7 +65,8 @@ public readonly record struct SpotRenderLight(
 /// </summary>
 /// <remarks>
 /// The union generator writes its union members (docs/plans/union-tooling.md). A light reads only the values of its own
-/// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte.
+/// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte, 84
+/// bytes.
 /// Equality needs the same case and the same values, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>

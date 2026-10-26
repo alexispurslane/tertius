@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -69,6 +70,7 @@ public sealed class HemisphereTests
                     scale: Vector3.One,
                     boundingRadius: 1f,
                     hemisphere: up,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: RenderFlags.Visible | flags,
                     entityIndex: 1
                 )

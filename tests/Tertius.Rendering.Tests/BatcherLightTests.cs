@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -74,6 +75,7 @@ public sealed class BatcherLightTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow,
             entityIndex: 0,
             part: 0
@@ -368,8 +370,8 @@ public sealed class BatcherLightTests
         OccludersOf(scene, scene.Lights[0]).Select(occluder => occluder.Z).Should().Equal(-500f, -3e7f);
         scene.Lights[1].Shadow.Value.Should().BeOfType<FarShadowsOnly>();
         OccludersOf(scene, scene.Lights[1]).Select(occluder => occluder.Z).Should().Equal(-3e7f, -500f);
-        GpuLight.From(scene.Lights[0]).Occluders.Should().Be(new UInt4(X: 0, Y: 2, Z: 1, W: 0));
-        GpuLight.From(scene.Lights[1]).Occluders.Should().Be(new UInt4(X: 2, Y: 2, Z: 0, W: 0));
+        GpuLight.From(scene.Lights[0]).Occluders.Should().Be(new UInt3(X: 0, Y: 2, Z: 1));
+        GpuLight.From(scene.Lights[1]).Occluders.Should().Be(new UInt3(X: 2, Y: 2, Z: 0));
     }
 
     [Fact]

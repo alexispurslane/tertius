@@ -2,7 +2,7 @@
 
 Run them in the assets shell:
     nix develop .#assets --command python3 tools/blender/tests/test_build.py
-tools/test-all.sh runs them as the module Blender. They start Blender 23 times and take about 45 seconds.
+tools/test-all.sh runs them as the module Blender. They start Blender 25 times and take about 50 seconds.
 """
 
 import json
@@ -247,6 +247,32 @@ class StrayRandomness(unittest.TestCase):
                 self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
                 rolls.append(json.loads(run.stdout)["scripts"][0]["result"]["roll"])
             self.assertEqual(rolls[0], rolls[1])
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+
+
+class AUserFolderOfTheBuild(unittest.TestCase):
+    """An add-on that a script enables, such as MPFB, writes into Blender's user folder. The build gives Blender a
+    user folder of its own, inside the build's temporary folder, so nothing reaches the user's own Blender folder."""
+
+    def test_blender_writes_its_user_files_into_a_folder_of_the_build_that_the_build_deletes(self):
+        scratch = pathlib.Path(tempfile.mkdtemp(prefix="tertius-build-test-"))
+        try:
+            model = scratch / "user.model"
+            model.mkdir()
+            (model / "model.json").write_text('{"format": 1, "scripts": ["s00_user.py"], "seed": 3}')
+            (model / "s00_user.py").write_text(
+                "import os, tempfile, bpy\n"
+                "user = bpy.utils.resource_path('USER')\n"
+                "result = {'user': user, 'tmp': tempfile.gettempdir()}\n")
+            run = build(model, scratch / "out")
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            found = json.loads(run.stdout)["scripts"][0]["result"]
+            user = pathlib.Path(found["user"]).resolve()
+            build_tmp = pathlib.Path(found["tmp"]).resolve()
+            self.assertTrue(build_tmp.name.startswith("tertius-build."), build_tmp)
+            self.assertEqual(user.parent, build_tmp)
+            self.assertFalse(user.exists())
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 

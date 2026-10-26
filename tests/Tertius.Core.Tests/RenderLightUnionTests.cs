@@ -28,7 +28,8 @@ public sealed class RenderLightUnionTests
         Color: Warm,
         Power: 4,
         Radius: 10,
-        CastsShadow: true
+        CastsShadow: true,
+        ChainDepth: TestChains.CamerasFrame
     );
 
     private static readonly SpotRenderLight Beam = new(
@@ -42,7 +43,8 @@ public sealed class RenderLightUnionTests
         Radius: 10,
         CastsShadow: true,
         InnerConeAngle: 0.3f,
-        OuterConeAngle: 0.5f
+        OuterConeAngle: 0.5f,
+        ChainDepth: TestChains.CamerasFrame
     );
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
@@ -132,7 +134,8 @@ public sealed class RenderLightUnionTests
             Color: new(8, 9, 10),
             Power: 11,
             Radius: 12,
-            CastsShadow: true
+            CastsShadow: true,
+            ChainDepth: TestChains.CamerasFrame
         );
         var spot = new SpotRenderLight(
             EntityIndex: 1,
@@ -145,7 +148,8 @@ public sealed class RenderLightUnionTests
             Radius: 18,
             CastsShadow: true,
             InnerConeAngle: 19,
-            OuterConeAngle: 20
+            OuterConeAngle: 20,
+            ChainDepth: TestChains.CamerasFrame
         );
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
@@ -241,7 +245,8 @@ public sealed class RenderLightUnionTests
                 Color: Warm,
                 Power: 4,
                 Radius: 10,
-                CastsShadow: true
+                CastsShadow: true,
+                ChainDepth: TestChains.CamerasFrame
             ),
             new SpotRenderLight(
                 EntityIndex: 7,
@@ -254,7 +259,8 @@ public sealed class RenderLightUnionTests
                 Radius: 10,
                 CastsShadow: true,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             ),
             default,
         ];
@@ -267,7 +273,8 @@ public sealed class RenderLightUnionTests
                 Color: Warm,
                 Power: 4,
                 Radius: 10,
-                CastsShadow: true
+                CastsShadow: true,
+                ChainDepth: TestChains.CamerasFrame
             ),
             new SpotRenderLight(
                 EntityIndex: 7,
@@ -280,7 +287,8 @@ public sealed class RenderLightUnionTests
                 Radius: 10,
                 CastsShadow: true,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             ),
             default,
         ];
@@ -350,7 +358,8 @@ public sealed class RenderLightUnionTests
             Radius: 10,
             CastsShadow: true,
             InnerConeAngle: 0,
-            OuterConeAngle: 0
+            OuterConeAngle: 0,
+            ChainDepth: TestChains.CamerasFrame
         );
 
         (point == spot).Should().BeFalse();
@@ -472,10 +481,11 @@ public sealed class RenderLightUnionTests
     [Fact]
     public void ALightTakesEightyFourBytesTheFieldsOfOneSpotLight()
     {
-        // The cases share the storage of every field of a point light, so the union holds one spot light's 84 bytes. Its
-        // kind byte fits in the 3 bytes of padding after the shadow flag. Storing each case whole would take 140 bytes.
+        // The cases share the storage of every field of a point light, so the union holds one spot light's 82 bytes of
+        // fields. Its slots are packed by type, so the shadow flag, the chain depth and the kind byte fill 4 bytes, and the
+        // union takes 84, less than a spot light alone, which pads to 88. Storing each case whole would take 140 bytes.
         Unsafe.SizeOf<PointRenderLight>().Should().Be(52);
-        Unsafe.SizeOf<SpotRenderLight>().Should().Be(84);
+        Unsafe.SizeOf<SpotRenderLight>().Should().Be(88);
         Unsafe.SizeOf<RenderLight>().Should().Be(84);
     }
 }

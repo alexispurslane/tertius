@@ -56,7 +56,7 @@ public class LitPuffRenderBenchmarks
                 PreviousRotation = Quaternion.Identity,
                 VerticalFov = MathF.PI / 3,
             },
-            Lights = { BenchmarkLights.Star(direction: new(0.4f, 0.8f, 0.5f), irradiance: 3) },
+            Lights = { BenchmarkLights.Star(direction: new(0.4f, 0.8f, 0.5f), irradiance: 3, chainDepth: 0) },
             Ambient = new()
             {
                 SkyColor = new(0.09f, 0.11f, 0.15f),
@@ -74,6 +74,7 @@ public class LitPuffRenderBenchmarks
                 scale: new(250, 1, 250),
                 boundingRadius: 0,
                 hemisphere: up,
+                chainDepth: 0,
                 flags: RenderFlags.Visible | RenderFlags.CastsShadow
             )
         );
@@ -91,6 +92,7 @@ public class LitPuffRenderBenchmarks
                     scale: new(2),
                     boundingRadius: 0,
                     hemisphere: up,
+                    chainDepth: 0,
                     flags: RenderFlags.Visible | RenderFlags.CastsShadow,
                     entityIndex: (uint)i + 1
                 )

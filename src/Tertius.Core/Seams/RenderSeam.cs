@@ -105,6 +105,12 @@ public struct RenderInstance
     /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
 
+    /// <summary>
+    /// The depth of the object's chain frame: the nearest frame of <see cref="RenderSnapshot.Chain"/> at or above the frame
+    /// that holds it, 0 for the camera's frame (docs/plans/environment-maps-per-frame.md).
+    /// </summary>
+    public ushort ChainDepth;
+
     public MeshId Mesh;
     public MaterialId Material;
     public RenderFlags Flags;
@@ -132,6 +138,7 @@ public struct RenderInstance
         Vector3 scale,
         float boundingRadius,
         HemisphereUp hemisphere,
+        ushort chainDepth,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
         ushort part = 0
@@ -140,6 +147,7 @@ public struct RenderInstance
         {
             EntityIndex = entityIndex,
             Part = part,
+            ChainDepth = chainDepth,
             Mesh = mesh,
             Material = material,
             Flags = flags,
@@ -152,6 +160,15 @@ public struct RenderInstance
             Hemisphere = hemisphere,
         };
 }
+
+/// <summary>
+/// A frame of the camera's chain (docs/plans/environment-maps-per-frame.md): its id, and its axes in the axes of the
+/// camera's frame.
+/// </summary>
+/// <param name="FrameId">The frame's generation in the high 32 bits and its index in the low 32 bits.</param>
+/// <param name="Rotation">The frame's axes in the axes of the camera's frame: it turns a direction in the frame's axes into world axes.</param>
+/// <param name="PreviousRotation"><paramref name="Rotation"/> at the previous build, or the same rotation when the build does not interpolate.</param>
+public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation, Quaternion PreviousRotation);
 
 /// <summary>The camera. Its current position is the render origin, so <see cref="Position"/> is zero.</summary>
 public struct RenderCamera
@@ -189,22 +206,24 @@ public sealed class RenderSnapshot
     /// </summary>
     public Double3 OriginInFrame;
 
-    /// <summary>An opaque id of the camera's reference frame. It changes when the camera changes frame.</summary>
-    public long OriginFrameId;
-
     public AmbientLight Ambient;
 
     /// <summary>
-    /// The axes of the root frame of the camera's frame tree, in the axes of the camera's frame: it turns a direction
-    /// in root axes into world axes. The star field is fixed to the root's axes. Identity without a camera.
+    /// The chain: the camera's frame first, then each semantic parent up to the root of its tree. Empty without a camera.
     /// </summary>
-    public Quaternion RootRotation;
+    public readonly List<RenderChainFrame> Chain = [];
+
+    /// <summary>The id of the camera's frame, the first of <see cref="Chain"/>. 0 without a camera.</summary>
+    public long OriginFrameId => Chain.Count > 0 ? Chain[0].FrameId : 0;
 
     /// <summary>
-    /// <see cref="RootRotation"/> at the previous snapshot, for interpolation, or the same rotation when the camera
-    /// changed frame or did not interpolate.
+    /// The axes of the root frame of the camera's frame tree, the last of <see cref="Chain"/>, in the axes of the camera's
+    /// frame. The star field is fixed to the root's axes. Identity without a camera.
     /// </summary>
-    public Quaternion PreviousRootRotation;
+    public Quaternion RootRotation => Chain.Count > 0 ? Chain[^1].Rotation : Quaternion.Identity;
+
+    /// <summary><see cref="RootRotation"/> at the previous build, by the rule of <see cref="RenderChainFrame.PreviousRotation"/>.</summary>
+    public Quaternion PreviousRootRotation => Chain.Count > 0 ? Chain[^1].PreviousRotation : Quaternion.Identity;
 
     public readonly List<RenderInstance> Instances = [];
     public readonly List<RenderLight> Lights = [];
@@ -226,9 +245,10 @@ public sealed class RenderSnapshot
     /// </summary>
     public float PuffAgeStep;
 
-    /// <summary>Empties the lists of the snapshot and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
+    /// <summary>Empties the lists of the snapshot, the chain among them, and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
     public void Clear()
     {
+        Chain.Clear();
         Instances.Clear();
         Lights.Clear();
         Outlines.Clear();

@@ -67,6 +67,9 @@ internal sealed partial class RenderSnapshotBuilder
     private FrameHandle[] denseFrames = new FrameHandle[16];
     private FrameHemisphere[] frameHemisphere = new FrameHemisphere[16];
 
+    // The chain depth of each frame, 0 to 65,535, which BuildChain writes before the instances and puffs read it.
+    private int[] chainDepth = new int[16];
+
     // Frame data by frame index.
     private int[] denseOfFrame = new int[16];
     private uint[] genOfFrame = new uint[16];
@@ -195,9 +198,7 @@ internal sealed partial class RenderSnapshotBuilder
             PreviousRotation = Quaternion.Identity,
             VerticalFov = view.VerticalFov,
         };
-        snapshot.RootRotation = snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.OriginInFrame = Double3.Zero;
-        snapshot.OriginFrameId = 0;
         renderHasCamera = renderFollowsTick = false;
 
         if (CameraPoseOf(view.Camera) is not (var cameraFrame, var cameraHome, var eyeInFrame, var cameraPose))
@@ -235,13 +236,10 @@ internal sealed partial class RenderSnapshotBuilder
             PreviousRotation = previousCamera.Rotation.ToQuaternion(),
             VerticalFov = view.VerticalFov,
         };
-        int root = denseOfFrame[RootOf(cameraFrame).Index];
-        snapshot.RootRotation = relCurrent[root].Rotation.ToQuaternion();
-        snapshot.PreviousRootRotation = interpolate ? relPrevious[root].Rotation.ToQuaternion() : snapshot.RootRotation;
         snapshot.OriginInFrame = eyeInFrame.Position;
-        // Stable for the life of the frame, and new when a frame reuses the index: the generation changes.
-        snapshot.OriginFrameId = ((long)cameraFrame.Generation << 32) | (uint)cameraFrame.Index;
 
+        // The instances and the puffs read the depths, so the chain comes first.
+        BuildChain(snapshot, cameraFrame);
         BuildInstances(snapshot);
         if (view.ShowFrameOutlines)
             BuildOutlines(snapshot);
@@ -255,6 +253,50 @@ internal sealed partial class RenderSnapshotBuilder
         lastCameraStamp = stamp;
         lastCameraTick = view.Tick;
     }
+
+    /// <summary>
+    /// Writes the chain of <paramref name="cameraFrame"/> into <paramref name="snapshot"/>, camera first, and the chain
+    /// depth of every frame by dense index (docs/plans/environment-maps-per-frame.md, decision 17).
+    /// </summary>
+    /// <remarks>
+    /// A frame off the chain takes its tree parent's depth, which the dense order gives first, and a root of another tree
+    /// takes the root's. A numeric frame so passes its semantic frame's depth on to the frames below it.
+    /// </remarks>
+    private void BuildChain(RenderSnapshot snapshot, FrameHandle cameraFrame)
+    {
+        Span<int> depths = chainDepth.AsSpan(0, frames.Count);
+        // -1 marks a frame off the chain until the pass below gives it its depth.
+        depths.Fill(-1);
+        int depth = 0;
+        for (FrameHandle frame = cameraFrame; !frame.IsNull; frame = frames.Parent(frame))
+        {
+            int dense = denseOfFrame[frame.Index];
+            // PrepareFramePoses gives the previous poses, which are the current ones when the build does not interpolate.
+            snapshot.Chain.Add(
+                new(
+                    FrameId: FrameIdOf(frame),
+                    Rotation: relCurrent[dense].Rotation.ToQuaternion(),
+                    PreviousRotation: relPrevious[dense].Rotation.ToQuaternion()
+                )
+            );
+            depths[dense] = Math.Min(depth++, ushort.MaxValue);
+        }
+
+        int rootDepth = Math.Min(depth - 1, ushort.MaxValue);
+        for (int i = 0; i < depths.Length; i++)
+        {
+            if (depths[i] >= 0)
+                continue;
+            FrameHandle parent = frames.TreeParent(denseFrames[i]);
+            depths[i] = parent.IsNull ? rootDepth : depths[denseOfFrame[parent.Index]];
+        }
+    }
+
+    /// <summary>
+    /// The id of <paramref name="frame"/> in a snapshot: stable for the life of the frame, and new when a frame reuses the
+    /// index, because the generation changes.
+    /// </summary>
+    private static long FrameIdOf(FrameHandle frame) => ((long)frame.Generation << 32) | (uint)frame.Index;
 
     /// <summary>
     /// The camera's frame and physics home, and its eye pose in each: the entity pose composed with its view offset.
@@ -418,6 +460,7 @@ internal sealed partial class RenderSnapshotBuilder
                     scale: render.Scale,
                     boundingRadius: render.BoundingRadius,
                     hemisphere: HemisphereOf(dense, place, current.Position),
+                    chainDepth: (ushort)chainDepth[dense],
                     flags: render.Flags,
                     entityIndex: entity.Index,
                     part: 0
@@ -432,7 +475,8 @@ internal sealed partial class RenderSnapshotBuilder
                 light: render.Light,
                 current: current,
                 previous: previous,
-                origin: origin
+                origin: origin,
+                chainDepth: (ushort)chainDepth[dense]
             );
         }
     }
@@ -440,7 +484,8 @@ internal sealed partial class RenderSnapshotBuilder
     /// <summary>
     /// Adds the <see cref="RenderLight"/> of <paramref name="light"/>, carried by <paramref name="entity"/> at
     /// <paramref name="current"/> and at <paramref name="previous"/> in the camera's frame, relative to
-    /// <paramref name="origin"/>. The default light holds no case, so the entity adds no light.
+    /// <paramref name="origin"/>, with the entity's <paramref name="chainDepth"/>. The default light holds no case, so the
+    /// entity adds no light.
     /// </summary>
     private static void AddLight(
         RefList<RenderLight> lights,
@@ -448,7 +493,8 @@ internal sealed partial class RenderSnapshotBuilder
         in LightData light,
         in DPose current,
         in DPose previous,
-        Double3 origin
+        Double3 origin,
+        ushort chainDepth
     )
     {
         switch (light)
@@ -468,7 +514,8 @@ internal sealed partial class RenderSnapshotBuilder
                     Color: color,
                     Power: power,
                     Radius: radius,
-                    CastsShadow: castsShadow
+                    CastsShadow: castsShadow,
+                    ChainDepth: chainDepth
                 );
                 break;
             case SpotLightData
@@ -495,7 +542,8 @@ internal sealed partial class RenderSnapshotBuilder
                     Radius: radius,
                     CastsShadow: castsShadow,
                     InnerConeAngle: innerConeAngle,
-                    OuterConeAngle: outerConeAngle
+                    OuterConeAngle: outerConeAngle,
+                    ChainDepth: chainDepth
                 );
                 break;
             }
@@ -625,14 +673,6 @@ internal sealed partial class RenderSnapshotBuilder
         return frame.Up;
     }
 
-    /// <summary>The root frame of the tree that <paramref name="frame"/> is in.</summary>
-    private FrameHandle RootOf(FrameHandle frame)
-    {
-        for (FrameHandle parent = frames.Parent(frame); !parent.IsNull; parent = frames.Parent(frame))
-            frame = parent;
-        return frame;
-    }
-
     /// <summary>True for a live frame that this build has placed.</summary>
     private bool FrameSeen(FrameHandle frame) =>
         !frame.IsNull
@@ -736,6 +776,7 @@ internal sealed partial class RenderSnapshotBuilder
         Array.Resize(ref localPrevious, size);
         Array.Resize(ref denseFrames, size);
         Array.Resize(ref frameHemisphere, size);
+        Array.Resize(ref chainDepth, size);
     }
 
     private void EnsureFrameIndexArrays(int index)

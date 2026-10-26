@@ -1,6 +1,7 @@
 using System.Numerics;
 using StbImageSharp;
 using StbImageWriteSharp;
+using Tertius.Testing;
 using ColorComponents = StbImageSharp.ColorComponents;
 
 namespace Tertius.Rendering.Tests;
@@ -163,6 +164,7 @@ internal static class Gpu
             scale: scale,
             boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
+            chainDepth: TestChains.CamerasFrame,
             flags: flags | RenderFlags.Visible,
             entityIndex: entity,
             part: part
@@ -226,7 +228,8 @@ internal static class Gpu
             Color: color,
             Power: (float)(4 * Math.PI * StarDistance * StarDistance * irradiance),
             Radius: (float)(StarDistance * Math.Sin(angularRadius)),
-            CastsShadow: true
+            CastsShadow: true,
+            ChainDepth: TestChains.CamerasFrame
         );
     }
 
@@ -242,7 +245,8 @@ internal static class Gpu
             Color: color,
             Power: (float)(4 * Math.PI * intensity),
             Radius: 0,
-            CastsShadow: false
+            CastsShadow: false,
+            ChainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>
@@ -271,7 +275,8 @@ internal static class Gpu
             Radius: 0,
             CastsShadow: false,
             InnerConeAngle: innerConeAngle,
-            OuterConeAngle: outerConeAngle
+            OuterConeAngle: outerConeAngle,
+            ChainDepth: TestChains.CamerasFrame
         );
     }
 

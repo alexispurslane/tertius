@@ -10,13 +10,15 @@ const float PI = 3.14159265358979323846;
 // One level of the environment map's specular map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The
 // specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
 // with n = v = r, over 64 Hammersley samples with filtered importance sampling (Křivánek and Colbert 2008), in all four
-// channels, so the alpha is the open-sky share along the lobe. One invocation per texel, over (W_k, W_k, 6).
+// channels, so the alpha is the open-sky share along the lobe. One invocation per texel of one map m, over (W_k, W_k, 6):
+// it reads cube m of the radiance map and writes layers 6m to 6m + 5. A map lies in its own axes, and so do its texels'
+// rays, so the prefilter needs no turn.
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0) uniform textureCube radianceMap;
+layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Level k of the specular map, six layers.
+// Level k of the specular map, six layers per map.
 layout(set = 2, binding = 0, rgba16f) uniform writeonly image2DArray specularLevel;
 
 // EnvironmentPrefilterPushConstants in GpuTypes.cs.
@@ -25,7 +27,15 @@ layout(push_constant, std430) uniform PrefilterPush
     uint levelSize;   // W_k
     float roughness;  // r_k = k / (L − 1)
     uint samples;     // N
+    uint map;         // m
 } prefilter;
+
+// The radiance map's cube m at the direction v and level lod. The layer coordinate float(m) is an integer, which Vulkan
+// rounds to itself.
+vec4 radianceAt(vec3 v, float lod)
+{
+    return textureLod(samplerCubeArray(radianceMap, environmentSampler), vec4(v, float(prefilter.map)), lod);
+}
 
 // The base-2 radical inverse of i: its bits mirrored about the binary point (Hammersley.cs).
 float radicalInverse(uint i)
@@ -50,7 +60,7 @@ vec3 ggxHalfVector(vec2 u, float alpha, vec3 n)
 vec4 prefiltered(vec3 n)
 {
     float alpha = prefilter.roughness * prefilter.roughness;
-    float faceSize = float(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
+    float faceSize = float(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x);
     // Ω_p: the solid angle of one texel of level 0.
     float texelAngle = 4.0 * PI / (6.0 * faceSize * faceSize);
     vec4 sum = vec4(0.0);
@@ -68,7 +78,7 @@ vec4 prefiltered(vec3 n)
             float pdf = ggxDistribution(NdotH, alpha) * 0.25;
             float sampleSolidAngle = 1.0 / (float(prefilter.samples) * pdf);
             float lod = max(0.5 * log2(sampleSolidAngle / texelAngle) + 1.0, 0.0);
-            sum += textureLod(samplerCube(radianceMap, environmentSampler), l, lod) * NdotL;
+            sum += radianceAt(l, lod) * NdotL;
             weight += NdotL;
         }
     }
@@ -83,8 +93,6 @@ void main()
     vec2 st = (vec2(id.xy) + 0.5) / float(prefilter.levelSize);
     vec3 ray = faceRay(id.z, st);
     // The exact ray through a texel center reads that texel of level 0 alone, so the mirror level copies it.
-    vec4 value = prefilter.roughness == 0.0
-        ? textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0)
-        : prefiltered(normalize(ray));
-    imageStore(specularLevel, ivec3(id), value);
+    vec4 value = prefilter.roughness == 0.0 ? radianceAt(ray, 0.0) : prefiltered(normalize(ray));
+    imageStore(specularLevel, ivec3(id.xy, 6u * prefilter.map + id.z), value);
 }

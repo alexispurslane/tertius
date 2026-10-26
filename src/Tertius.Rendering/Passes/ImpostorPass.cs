@@ -104,6 +104,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                     rotation: capture.Rotation,
                     scale: capture.Scale,
                     material: capture.Material,
+                    map: capture.Map,
                     hemisphere: capture.Hemisphere
                 )
             );

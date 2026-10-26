@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Tertius.Benchmarks;
 
-/// <summary>The lights of the benchmark scenes, in SI units.</summary>
+/// <summary>The lights of the benchmark scenes, in SI units. A lamp and a spot light are in the camera's frame, chain depth 0.</summary>
 internal static class BenchmarkLights
 {
     /// <summary>How far a star stands from the camera, in m: about 1 AU.</summary>
@@ -11,8 +11,9 @@ internal static class BenchmarkLights
     /// <summary>
     /// A white star along <paramref name="direction"/> that casts shadows, whose power gives the irradiance
     /// <paramref name="irradiance"/> at the camera, and whose sphere covers 0.00467 rad there, as the Sun does from Earth.
+    /// It is carried by an entity at <paramref name="chainDepth"/>.
     /// </summary>
-    public static PointRenderLight Star(Vector3 direction, float irradiance)
+    public static PointRenderLight Star(Vector3 direction, float irradiance, ushort chainDepth)
     {
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
@@ -22,7 +23,8 @@ internal static class BenchmarkLights
             Color: Vector3.One,
             Power: (float)(4 * Math.PI * StarDistance * StarDistance * irradiance),
             Radius: (float)(StarDistance * Math.Sin(0.00467)),
-            CastsShadow: true
+            CastsShadow: true,
+            ChainDepth: chainDepth
         );
     }
 
@@ -35,7 +37,8 @@ internal static class BenchmarkLights
             Color: color,
             Power: (float)(4 * Math.PI * intensity),
             Radius: 0,
-            CastsShadow: false
+            CastsShadow: false,
+            ChainDepth: 0
         );
 
     /// <summary>
@@ -61,6 +64,7 @@ internal static class BenchmarkLights
             Radius: 0,
             CastsShadow: false,
             InnerConeAngle: innerConeAngle,
-            OuterConeAngle: outerConeAngle
+            OuterConeAngle: outerConeAngle,
+            ChainDepth: 0
         );
 }

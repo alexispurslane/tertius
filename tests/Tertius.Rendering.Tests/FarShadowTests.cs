@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -26,6 +27,7 @@ public sealed class FarShadowTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow,
             entityIndex: 0,
             part: 0

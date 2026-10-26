@@ -16,11 +16,15 @@ internal sealed unsafe class FrameResources : IDisposable
 {
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
+    private readonly EnvironmentMap? environment;
     private int texturesWritten;
     private int materialVersion = -1;
 
     // The GPU form of the frame's lights, before the copy into the light buffer.
     private GpuLight[] gpuLights = new GpuLight[16];
+
+    /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that binding 12 points at, or −1 before it is written.</summary>
+    private int environmentVersion = -1;
 
     public FrameResources(
         VulkanDevice device,
@@ -36,6 +40,7 @@ internal sealed unsafe class FrameResources : IDisposable
     {
         this.device = device;
         this.layouts = layouts;
+        this.environment = environment;
         Index = index;
         (CommandPool, CommandBuffer) = CreateCommands(index);
         Fence = CreateSignaledFence();
@@ -68,18 +73,15 @@ internal sealed unsafe class FrameResources : IDisposable
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
         WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
-        // The map's images and buffer live as long as the renderer, so their bindings are written once. With the map off
-        // they stay empty: they are partially bound.
+        // The irradiance buffer lives as long as the renderer, so its binding is written once. The specular maps grow, so
+        // UpdateSharedDescriptors writes their binding. With the map off both stay empty: they are partially bound.
         if (environment is not null)
-        {
-            layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
             layouts.WriteBuffer(
                 set: FrameSet,
                 binding: 14,
                 type: DescriptorType.StorageBuffer,
                 buffer: environment.Irradiance
             );
-        }
     }
 
     public int Index { get; }
@@ -248,9 +250,18 @@ internal sealed unsafe class FrameResources : IDisposable
             WriteShadowTiles(tiles);
     }
 
-    /// <summary>Points this frame's sets at the current material buffer and writes textures added since its last frame.</summary>
+    /// <summary>
+    /// Points this frame's sets at the current material buffer and the current specular maps, and writes textures added
+    /// since its last frame. A growth of the maps waited for the device, so no submitted frame still uses the set.
+    /// </summary>
     public void UpdateSharedDescriptors(MaterialStore materials, TextureStore textures)
     {
+        if (environment is not null && environmentVersion != environment.ImagesVersion)
+        {
+            layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
+            environmentVersion = environment.ImagesVersion;
+        }
+
         if (materialVersion != materials.Version)
         {
             layouts.WriteBuffer(

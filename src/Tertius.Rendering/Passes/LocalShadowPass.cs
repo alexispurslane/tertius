@@ -77,12 +77,13 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         for (int i = draw.First; i < draw.First + draw.Count; i++)
         {
             ref readonly ShadowCaster caster = ref casters[Tiles.CasterIndices[i]];
-            // The depth-only pass reads no material.
+            // The depth-only pass reads no material and no map.
             var instance = GpuInstance.From(
                 position: caster.Position,
                 rotation: caster.Rotation,
                 scale: caster.Scale,
-                material: MaterialStore.DefaultSlot
+                material: MaterialStore.DefaultSlot,
+                map: 0
             );
             ShadowPass.AppendCaster(
                 scene: scene,

@@ -70,4 +70,7 @@ internal struct PreparedLight
 
     /// <summary>How the light casts shadows in this frame. The default holds none.</summary>
     public LightShadow Shadow;
+
+    /// <summary>The light's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
+    public int Map;
 }

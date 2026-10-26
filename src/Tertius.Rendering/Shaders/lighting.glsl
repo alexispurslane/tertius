@@ -51,7 +51,11 @@ struct ShadingInput
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
     float reflectionFootprint; // f, in rad, at least p: how far d moves to the next pixel, set by the caller
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
+    uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
 };
+
+// The lastMap of directLight that keeps every light: every view but an environment face.
+const uint EveryMap = 0xFFFFFFFFu;
 
 // The values that every light at one pixel shares, computed once per pixel.
 struct SurfaceLobes
@@ -216,9 +220,9 @@ vec3 ambientSpecularDirection(ShadingInput s, vec3 V)
 AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
     AmbientTerms terms;
-    terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.normal);
+    terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.map, s.normal);
     vec3 incoming = environmentSpecular(
-        ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+        s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
     terms.specular = specularWeight(lobes) * incoming;
     return terms;
 }
@@ -241,15 +245,19 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
     return terms.diffuse + terms.specular;
 }
 
-// Every light of the list reflected toward V, each dimmed by its shadows as shadowMaps says, in the order of the list, so
-// the sum rounds the same way on every run. A normal map can tilt the shading normal toward a light on a surface that
-// itself faces away; that surface is in its own shadow, so every light needs both normals to face it.
-vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps)
+// Every light of the list whose map is at most lastMap reflected toward V, each dimmed by its shadows as shadowMaps says
+// (docs/plans/environment-maps-per-frame.md, decision 13): a face of map i passes i, and every other view EveryMap. The
+// lights add in the order of the list, so the sum rounds the same way on every run. A normal map can tilt the shading
+// normal toward a light on a surface that itself faces away; that surface is in its own shadow, so every light needs both
+// normals to face it.
+vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
 {
     vec3 color = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
+        if (light.map > lastMap)
+            continue;
         vec3 L;
         float d;
         vec3 irradiance = lightIrradiance(light, position, L, d);
@@ -273,7 +281,7 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps);
+    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps, EveryMap);
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
@@ -283,24 +291,24 @@ vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec
     return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, shadowMaps, exposure);
 }
 
-// The light that the lights send from a surface point toward V, plus its emission, in plain radiance: no ambient light
-// and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
-vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps)
+// The light that the lights of the maps up to lastMap send from a surface point toward V, plus its emission, in plain
+// radiance: no ambient light and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
+vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    return min(directLight(s, lobes, position, V, shadowMaps) + emission, vec3(MaxRadiance));
+    return min(directLight(s, lobes, position, V, shadowMaps, lastMap) + emission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
 // surface and no normal: it scatters the light that reaches its center equally in every direction, which is the mean over
 // every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so each light
 // gives albedo / (4π) times its irradiance and visibility. The ambient light gives the albedo times the mean radiance of
-// its source: the map's without the stars, or the mean of the sky and the ground color, whose shares average one half. A
+// its source: its map's without the stars, or the mean of the sky and the ground color, whose shares average one half. A
 // light's visibility samples its maps with L as the normal, which needs no normal offset and no receiver-plane slope.
-vec3 scatteredLight(vec3 albedo, vec3 position)
+vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 {
     vec3 meanAmbient = environmentMapOn
-        ? environmentMeanRadiance()
+        ? environmentMeanRadiance(map)
         : 0.5 * (frame.ambientSky.rgb + frame.ambientGround.rgb);
     vec3 irradiance = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)

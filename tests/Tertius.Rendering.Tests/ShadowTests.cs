@@ -1,5 +1,6 @@
 using System.Numerics;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -95,6 +96,7 @@ public sealed class ShadowTests
                     scale: new(20f),
                     boundingRadius: 0,
                     hemisphere: HemisphereUp.Even,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: RenderFlags.CastsShadow,
                     entityIndex: 0,
                     part: 0
@@ -159,6 +161,7 @@ public sealed class ShadowTests
                     scale: new(1_000f),
                     boundingRadius: 0,
                     hemisphere: HemisphereUp.Even,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: Caster,
                     entityIndex: 0,
                     part: 0
@@ -692,6 +695,7 @@ public sealed class ShadowTests
                 scale: new(1f, 3f, 1f),
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                chainDepth: TestChains.CamerasFrame,
                 flags: Caster
             );
             pole.PreviousPosition = new(-3f, ground + 1.5f, -8f);
@@ -752,6 +756,7 @@ public sealed class ShadowTests
                     scale: Vector3.One,
                     boundingRadius: 0f,
                     hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                    chainDepth: TestChains.CamerasFrame,
                     flags: flags
                 );
 
@@ -892,7 +897,7 @@ public sealed class ShadowTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, -0.3f));
         snapshot.Tick = tick;
-        snapshot.OriginFrameId = frameId;
+        TestChains.Of(snapshot, (frameId, Quaternion.Identity));
         snapshot.OriginInFrame = eye;
         snapshot.Camera.Rotation = rotation;
         snapshot.Camera.PreviousRotation = rotation;

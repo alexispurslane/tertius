@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
 namespace Tertius.Rendering.Tests;

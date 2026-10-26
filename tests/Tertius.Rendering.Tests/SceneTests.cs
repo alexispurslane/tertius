@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -166,6 +167,7 @@ public sealed class SceneTests
                     scale: new(200f),
                     boundingRadius: 0,
                     hemisphere: HemisphereUp.Even,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: RenderFlags.CastsShadow,
                     entityIndex: 0,
                     part: 0

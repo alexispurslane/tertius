@@ -19,7 +19,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 1. Claude plans the pipeline in detail, and it must be complete enough for agents to use alone. (User)
 2. glTF 2.0 is the one scene format inside the importer. Blender exports it well, and its conventions match the engine: meters, radians, +Y up and counterclockwise front faces. (User: "GLTFs or something from Blender")
 3. FBX, OBJ and `.blend` files go through headless Blender, which writes glTF. One converter covers three formats, and the glTF exporter of Blender is the reference exporter of the format.
-4. Blender lives in a second dev shell, `nix develop .#assets`. Blender adds about 1.7 GiB to the Nix store, and only conversions need it. Every other tool is in the default shell. The cost: every machine that imports a `.blend` source needs the assets shell once, with a download of about 600 MiB (measured on 2026-10-26: 598 MiB from cache.nixos.org, plus the small sources of `blender-mcp`). This includes the machine of the user, a fresh clone and CI, because git ignores the cooked output. Git keeps no downloaded file (decision 26), so the importer converts every third-party source at import, not intake. Every source that Blender converts then needs Blender on every machine: FBX, OBJ, `.blend`, TIFF, WebP and glTF with Draco or meshopt compression. A plain glTF needs no Blender, so the runbook prefers glTF downloads. (Changed on 2026-10-26: the project's own models are scripted models, see decision 22, and third-party sources are fetched, see decision 26.)
+4. Blender lives in a second dev shell, `nix develop .#assets`. Blender adds about 1.7 GiB to the Nix store, and only conversions need it. Every other tool is in the default shell. The cost: every machine that imports a `.blend` source needs the assets shell once, with a download of about 870 MiB (measured on 2026-10-26, see tools/README.md: Blender from cache.nixos.org, the small sources of `blender-mcp`, and the archives of MPFB and the MakeHuman asset pack, 44 MiB and 268 MiB, for decision 27). This includes the machine of the user, a fresh clone and CI, because git ignores the cooked output. Git keeps no downloaded file (decision 26), so the importer converts every third-party source at import, not intake. Every source that Blender converts then needs Blender on every machine: FBX, OBJ, `.blend`, TIFF, WebP and glTF with Draco or meshopt compression. A plain glTF needs no Blender, so the runbook prefers glTF downloads. (Changed on 2026-10-26: the project's own models are scripted models, see decision 22, and third-party sources are fetched, see decision 26.)
 5. The importer uses C# libraries where a mature one exists: SharpGLTF, StbImageSharp, TinyEXR.NET and BCnEncoder.Net. It uses native code only where C# has no equal: meshoptimizer, V-HACD and Jolt.
 6. Native bindings use `[DllImport]` with blittable arguments, not `[LibraryImport]`. The `LibraryImport` source generator does not load inside Stryker.NET 5.0.0 (project memory), so mutation tests of the importer stay possible.
 7. Cooked output is the runtime-ready data that the importer writes. It goes into `bin/assets/` of the package, which git ignores (content packages and mods). A built package, as the content packages and mods design defines it, carries `bin/assets/`, so a player needs no importer.
@@ -42,6 +42,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 24. Agents model through the official Blender Lab MCP server, `blender-mcp` 1.0.3, which `.mcp.json` registers as the server `blender`. All modeling goes through its tool `execute_blender_code`, and agents look at their work through its render tools. (User, 2026-10-26)
 25. The Nostromo tug moves in from an earlier project as the first scripted model, `tertius.demo:ships/nostromo.model`. It is also the worked example of the project skill `procedural-modeling`. (User, 2026-10-26)
 26. Third-party sources are fetched from their provenance records. Git keeps the sidecar of each third-party asset, with its page, authors, license and fetch record: the URL, size and SHA-256 of each file. Git does not keep the files. The importer downloads a file on the first import where it is missing from the source cache `bin/sources/` of the package, checks its SHA-256, and keeps it there. The user approves the download once, at the fetch plan, and that approval covers the same pinned bytes on every machine (see "Fetched sources"). The cost: the first import on a new machine needs the network, and a source lasts only as long as its URL serves it. (User, 2026-10-26)
+27. A model of a person makes the person with the code of MPFB, the MakeHuman add-on for Blender, inside the build. MPFB's sliders, skins, eyes, eyebrows, eyelashes, teeth, tongue, hair and rig then make a complete human, and a copy of its logic cannot drift from the original. The scripts make every garment and every piece of equipment. No clothes asset is used. (User, 2026-10-26: "I want the procedural model generation to actually be able to do a complete human.") See "Humans from MPFB".
 
 ## Design
 
@@ -324,7 +325,7 @@ Rules for a model script:
 
 - Every random choice comes from `model.rng`, or from a `random.Random` seeded with a value of `model.json`. The seeding of the `random` module is a guard against a stray call, not an interface.
 - A script iterates in a fixed order. It never depends on the order of a `set`, because Python orders a set of objects by memory address.
-- A script changes only the scene. It writes no file. The bake, the save and the export belong to the build tool.
+- A script changes only the scene. It writes no file. The bake, the save and the export belong to the build tool. MPFB writes log files while it works, into Blender's user resource folder, which the build tool and the bridge point at a temporary folder of their own (see "Humans from MPFB").
 - A script builds only the model: meshes, materials, the lights of the model, empties for node poses, and collision markers. It adds no camera and no light for the views. The build tool adds the stage of the views after it saved `model.blend`.
 - A script marks a piece that is not a root with the custom property `tertius_piece = 1`, and a collision marker with `tertius_collision`, as "Models: nodes and pieces" says. The custom property survives a rename.
 - The origin of each piece node is the origin of the piece in the engine, as rule 4 of "Models: nodes and pieces" says. The front of the model faces -Y.
@@ -360,7 +361,7 @@ Outside the assets shell, the build tool runs itself again inside it. It then:
 
 1. Estimates the free space that the build needs, from `bake.objects` and `bake.size` of `model.json` (`tools/blender/needed_mb.py`). If the volume of the output folder has less, it stops with exit code 6. The estimate is 1 GB, plus 32 bytes per pixel of one map for Blender's temporary files while it bakes, plus 24 bytes per pixel and bake object for the three maps in `textures/` and again in `model.glb`. The Nostromo, with four bake objects and maps of 4096 x 4096, needs 3 GB. A build with no bake needs 1 GB. The measured peak of the Nostromo was 344 MB of temporary files and 257 MB of outputs.
 2. If the output folder exists, is not empty and holds no `build.json`, stops with exit code 2. A folder with `build.json` holds an earlier build, and the build tool replaces it. So a wrong path never loses files.
-3. Runs Blender twice, with `TMPDIR` set to a new temporary folder, so Blender's temporary files land there. Blender's own output of both runs goes to `<out>/blender.log`.
+3. Runs Blender twice, with `TMPDIR` set to a new temporary folder, so Blender's temporary files land there, and `BLENDER_USER_RESOURCES` set to a folder inside it. Blender's user resource folder is where an add-on such as MPFB writes its logs and settings, so these files go away with the temporary folder, and the user's own Blender folder stays untouched. Blender's own output of both runs goes to `<out>/blender.log`.
    1. The build run: `$TERTIUS_BLENDER --background --factory-startup --disable-autoexec --python-exit-code 3 --python tools/blender/build.py -- <arguments>`.
    2. The export run, only after a good build run: the same command with `--threads 1 <out>/model.blend` and the arguments `--export <out>`. It opens `model.blend` and exports `model.glb`. With more than one thread, Blender computes the tangents of the export in an order that changes between runs, so their last bits differ (see "Determinism" below).
 4. On every exit, also on an error or a signal, stops a Blender that still runs with SIGTERM. Then it deletes the temporary folder. Blender ignores Ctrl+C and SIGINT, and it leaves its temporary folder behind after SIGTERM. After SIGINT or SIGTERM, the build tool exits with code 130. SIGKILL runs no trap, so a caller that kills the build tool must also kill its Blender.
@@ -436,18 +437,71 @@ The cache key of a scripted model uses the key inputs of "Caching and determinis
 |---|---|
 | `source` | The SHA-256 of a canonical JSON object. The object maps the path of `model.json` and of each script that it names to the SHA-256 of its bytes. The paths are relative to the model folder. `README.md` is not in the key, because the build never reads it. |
 | `dependencies` | The repository path and the SHA-256 of each file of the build tool and the model library: `tools/blender/build.sh`, `tools/blender/build.py` and every `.py` file in `tools/blender/tertius_blender/` |
-| `tools` | The tools of a glTF source, and also `blender`: the Nix store path of Blender, which names its version. SharpGLTF, meshoptimizer, the .NET runtime and the others still process `build/model.glb`. |
+| `tools` | The tools of a glTF source, and also `blender`: the Nix store path of Blender, which names its version. SharpGLTF, meshoptimizer, the .NET runtime and the others still process `build/model.glb`. Also `mpfb` and `makehuman`: the Nix store paths of MPFB (`TERTIUS_MPFB`) and of the MakeHuman system assets (`TERTIUS_MAKEHUMAN_ASSETS`), because a model of a person runs MPFB's code on those assets. |
 
 The bake device is not a key input, because the importer always bakes on the CPU.
 
 A scripted model is code. It runs with the rights of the person who imports it, like the `code/` folder of a package. A built package holds no scripts, so a player never runs one. Read a scripted model from a stranger before you import its source package.
 
+#### Humans from MPFB
+
+A model of a person makes the person with MPFB 2.0.18, the MakeHuman add-on for Blender, inside the build (decision 27). The model library module `tertius_blender.mpfb` holds the calls, and the astronaut and the crew member are the worked examples:
+
+```python
+from tertius_blender import mpfb
+
+body = mpfb.human(model.params["human"], "Crew")     # MPFB's human description: sliders, skin, eyes, hair, rig
+mpfb.pose(body.parent, model.params["pose"])         # bone -> XYZ Euler degrees from the rest pose
+joints = mpfb.joints(body)                           # joint name -> (x, y, z), from MPFB's joint helpers
+parts = mpfb.freeze(body)                            # part name -> plain mesh: Body, Eyes, Eyebrows, ..., Hair
+arm = mpfb.bone_weights(parts["Body"], points, mpfb.ARM_BONES)   # the arm weight of the body under each point
+```
+
+How MPFB runs in the build:
+
+- MPFB is a Blender system extension from the Nix store (`native/blender-extensions.nix`, `BLENDER_SYSTEM_EXTENSIONS`). `mpfb.services()` enables it in the running Blender only. Blender runs with `--factory-startup`, so the preferences are never saved.
+- The body-part assets come from the MakeHuman system asset pack, `makehuman_system_assets_cc0.zip`, CC0 1.0, pinned by hash in `native/makehuman-assets.nix`. The derivation keeps only the folders `skins`, `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue` and `hair`, and it removes the skins `special_suit` and `toon`. The pack's clothes never reach the store, so a model cannot use them. `mpfb.services()` makes this folder MPFB's second asset root.
+- MPFB and the asset pack are inputs of the build tool, like Blender itself, and not third-party sources of a package (decision 26). No asset id names them, no sidecar describes them, and no import reads them on its own: MPFB reads them while a model script runs. So they need no fetch record and no source cache. Nix pins their bytes by hash, the assets shell downloads them once per machine, and the cache key of a scripted model names their store paths (`tools` in "The importer and a scripted model"). The skin, eye, eyebrow, eyelash and hair images end up in `model.glb` as parts of the person. They are CC0 1.0, which asks for no credit, so `CREDITS.md`, which lists the sidecars, has no line for them. The `.nix` files record their source page, size and license.
+- MPFB writes logs and settings into Blender's user resource folder while it loads and works. `mpfb.services()` stops with an error unless `BLENDER_USER_RESOURCES` names a folder. The build tool and the bridge point it at a temporary folder of their own, which they delete.
+- MPFB deletes every material without users when it makes a human. `mpfb.human` gives the materials of earlier scripts a fake user for the time of the call, so a material that `s00_scene.py` made for a later script survives.
+- `mpfb.human` takes MPFB's own human description, and it stops with an error that names the mistake before MPFB builds anything: a key that MPFB's presets lack, an asset that the pack lacks, a detail target that MPFB does not hold by exactly that name, or a skin or eye material type other than `MAKESKIN`. MPFB alone skips an unknown asset or target with a log line, takes the first target whose name starts with a partial name, and builds materials that `freeze` cannot rewire. `MAKESKIN` is the default of both material types. `mpfb.pose` stops on a bone that the rig lacks.
+- MPFB uses Python's `random` module only for the names of temporary shape keys. `run.run_script` seeds that module for each script, so those names repeat too. The hair of the MakeHuman assets is a fixed mesh of cards, with no random part.
+- Two builds of the astronaut and two of the crew member with `--device cpu` (2026-10-26) gave the same bytes for every mesh: 33 meshes and 16 meshes. Only the normal map of the largest bake object differed, `Suit` and `Jumpsuit`, because the multithreaded bake computes their tangents in a changing order (ticket ter-b4k3).
+
+`mpfb.freeze` turns the human into plain meshes, for the export:
+
+| Rule | Reason |
+|---|---|
+| It applies the pose and removes the rig. A human without a rig is frozen the same way. | The importer ignores skins (AS2005), and the renderer has no skinning (decision 17). The frozen meshes carry the pose into the game. |
+| It applies the shape keys and the helper mask, and removes the modifiers. | The macro sliders are shape keys, and the joint cubes and tights of the base mesh are helper geometry, not a part of the body. |
+| It keeps the vertex groups of the bones and removes the others. | Garment scripts choose faces by bone weight. The glTF exporter writes no vertex group without a skin. |
+| It rewires each MakeSkin material into one image texture that feeds the base color of one Principled BSDF. | glTF holds that material as it is, and the bake is not needed. |
+| Only the hair, the eyebrows and the eyelashes keep the alpha of their image, with blended drawing (`BLEND`). The skin and the eyes are opaque. | An opaque part with alpha would export as `BLEND` and sort badly. |
+| It deletes the faces of the eyes whose image is clear, the cornea. | Drawn opaque, the clear shell hides the iris. |
+
+The test `tools/blender/tests/test_mpfb.py` checks MPFB's slider logic against an independent copy of its formula (`mpfb_reference.py`). For seven slider sets, from the defaults to every slider at 0 and at 1, MPFB and the copy choose the same targets with the same weights, and every vertex of the two bodies lies within 0.54 micrometers. Blender keeps shape keys in 32-bit floats, so that is the rounding of the sums. Until 2026-10-26, the astronaut's `s10_body.py` held such a copy, and no model ran MPFB's code. Now every body comes from MPFB, and the copy lives on only in the test.
+
+What MPFB gives in the build, and what it does not:
+
+| Feature | In the build | Note |
+|---|---|---|
+| Macro sliders | Yes | `phenotype` of the human description |
+| Detail targets | Yes | `targets` of the human description: the nose, the ears, the chin and the other parts |
+| Eye colors | Yes | `alternative_materials` of the human description |
+| MakeSkin skin | Yes | Rewired by `freeze` |
+| Eyes, eyebrows, eyelashes, teeth, tongue | Yes | The MakeHuman assets |
+| Hair | Yes | Alpha cards, drawn blended |
+| Rig and pose | Yes, frozen | `game_engine` rig. `pose` sets bone rotations. |
+| Expressions | No | MPFB 2.0.18 ships no expression presets: its folder `data/expressions` holds only a README. Its expressions need the face unit pack `faceunits01`, which is not pinned, and the system asset pack holds none. |
+| Clothes | No, by rule | The scripts make every garment (decision 27). |
+| Subdivision, proxies | Not used | `deserialization_settings(subdiv_levels=0)`. The base mesh is dense enough. |
+
 #### Agents and the MCP server
 
 The assets shell holds Blender 5.2.2 and `blender-mcp` 1.0.3. Its setup:
 
-1. `tools/blender/setup.sh`, once per machine, installs the MCP add-on into Blender's user extensions with Blender's own `extension install-file --enable` command. The add-on file `mcp-1.0.3.zip` comes from a fixed-output Nix fetch with a pinned hash. If version 1.0.3 is already installed, the script does nothing.
-2. `tools/blender/bridge.sh start` starts the bridge: `blender --background --online-mode --command blender_mcp`. Without online mode, the add-on opens no socket. `tools/blender/bridge.sh stop` stops it with SIGTERM and deletes its temporary folder. One bridge serves the machine, because the MCP server of every session connects to port 9876. The bridge belongs to the checkout that started it: `bridge.sh` records that checkout, and a start or a stop from another checkout or worktree stops with an error that names the owner. So a second agent never drives, wipes or stops the scene of the first.
+1. Nix gives Blender the MCP add-on and MPFB as system extensions: `native/blender-extensions.nix` makes a folder with both in `system/`, and the assets shell names it in `BLENDER_SYSTEM_EXTENSIONS`. The add-on file `mcp-1.0.3.zip` comes from a fixed-output Nix fetch with a pinned hash. Nothing goes into the user's Blender folders, so no setup step runs once per machine. (This replaced `tools/blender/setup.sh`, which installed the add-on into the user's extensions, on 2026-10-26. A Blender of the user then saw the add-on, and an uninstall was a manual step.)
+2. `tools/blender/bridge.sh start` starts the bridge: `blender --background --factory-startup --online-mode --addons bl_ext.system.mcp --command blender_mcp`, with `TMPDIR` and `BLENDER_USER_RESOURCES` pointed at folders in the bridge's own state folder. Without online mode, the add-on opens no socket. `tools/blender/bridge.sh stop` stops it with SIGTERM and deletes its temporary folder. One bridge serves the machine, because the MCP server of every session connects to port 9876. The bridge belongs to the checkout that started it: `bridge.sh` records that checkout, and a start or a stop from another checkout or worktree stops with an error that names the owner. So a second agent never drives, wipes or stops the scene of the first.
 3. `.mcp.json` registers the server `blender`, which runs `nix develop .#assets --command blender-mcp`. The MCP server connects to the bridge for each tool call.
 
 An agent runs model scripts through `execute_blender_code` with the same function as the build tool:
@@ -475,7 +529,10 @@ The agent looks at the scene through the render tools of the MCP server. They ne
 | `tools/blender/tertius_blender/*.py` | Engine authors | Model scripts, `build.py`, the bridge, the importer (the cache key) |
 | `tools/blender/build.py` | Engine authors | Blender, started by the build tool, and the importer (the cache key) |
 | `tools/blender/build.sh` | Engine authors | The importer (it runs the tool, and the file is in the cache key), agents |
-| `tools/blender/setup.sh`, `tools/blender/bridge.sh` | Engine authors | Agents and people |
+| `tools/blender/bridge.sh` | Engine authors | Agents and people |
+| `native/mpfb.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MPFB`: the unpacked MPFB 2.0.18 add-on, pinned by hash. `native/blender-extensions.nix` links it as the system extension `mpfb`. The tests of `tools/blender/tests/test_mpfb.py` read its `data/` folder for their reference sums. |
+| `native/makehuman-assets.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MAKEHUMAN_ASSETS`: the skins, eyes, eyebrows, eyelashes, teeth, tongues and hair of the MakeHuman system assets, pinned by hash. `tertius_blender.mpfb` makes it MPFB's second asset root. |
+| `native/blender-extensions.nix` | Engine authors | Nix, for the assets shell's `BLENDER_SYSTEM_EXTENSIONS`: the MCP add-on and MPFB as Blender system extensions |
 | `.mcp.json` | Engine authors | Claude Code |
 | `build/model.glb` | `build.py` | The importer, agents |
 | `build/model.blend` | `build.py` | Agents and people in Blender. The importer does not read it. |
@@ -1720,8 +1777,10 @@ Every version below comes from the pinned nixpkgs (`nix eval`) or from NuGet, as
 | `check-jsonschema` | 0.38.0 | Apache-2.0 | nixpkgs `check-jsonschema` (content formats) | Schema conformance of import files. Import files are plain JSON, so it reads them as they are. |
 | Blender | 5.2.2 | GPL-2.0-or-later | nixpkgs `blender`, `assets` shell only | FBX, OBJ, `.blend`, TIFF and WebP conversion at import, the round trip of compressed glTF, and the build of scripted models |
 | `blender-mcp` | 1.0.3 | GPL-3.0-or-later | The official tag, built in `flake.nix`, `assets` shell only. Its add-on `mcp-1.0.3.zip` comes from a fixed-output fetch. | The MCP server and the Blender add-on through which agents model (see "Scripted models") |
+| MPFB | 2.0.18 | GPL-3.0-or-later for the code, CC0-1.0 for the base mesh, the targets and the rigs | `native/mpfb.nix`, a fixed-output fetch from the Blender extensions platform, `assets` shell only | The people of scripted models (see "Humans from MPFB") |
+| MakeHuman system assets | The pack of 2024-04-14 | CC0-1.0 | `native/makehuman-assets.nix`, a fixed-output fetch without the clothes, `assets` shell only | The skins, eyes, eyebrows, eyelashes, teeth, tongue and hair of those people |
 
-Running Blender as a tool does not put its license on the output files (research belief, the usual reading of the GPL). The meshoptimizer README asks for a credit line. The importer prints it in `tertius asset --version`, and the game does not ship meshoptimizer.
+Running Blender or MPFB as a tool does not put its license on the output files (research belief, the usual reading of the GPL). The meshoptimizer README asks for a credit line. The importer prints it in `tertius asset --version`, and the game does not ship meshoptimizer.
 
 Flake changes. The `common` attributes and the `assets` shell exist since ter-q218, and the importer adds its tools to them:
 
@@ -1739,7 +1798,9 @@ devShells.assets = pkgs.mkShell (common // {
   packages = common.packages ++ [ pkgs.blender blenderMcp ];   # blenderMcp: native/blender-mcp.nix
   TERTIUS_BLENDER = pkgs.lib.getExe pkgs.blender;
   TERTIUS_BLENDER_VERSION = pkgs.blender.version;
-  TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;               # the fixed-output fetch of mcp-1.0.3.zip
+  TERTIUS_MPFB = "${mpfb}";                                   # native/mpfb.nix: MPFB 2.0.18, unpacked
+  TERTIUS_MAKEHUMAN_ASSETS = "${makehumanAssets}";            # native/makehuman-assets.nix: body-part assets, no clothes
+  BLENDER_SYSTEM_EXTENSIONS = "${blenderExtensions}";         # native/blender-extensions.nix: MCP add-on and MPFB
   BLENDER_PATH = pkgs.lib.getExe pkgs.blender;                # for the tools of blender-mcp that start Blender
   BLENDER_MCP_HOST = "localhost";                             # the bridge, for the MCP server and bridge.sh
   BLENDER_MCP_PORT = "9876";
@@ -1747,7 +1808,7 @@ devShells.assets = pkgs.mkShell (common // {
 ```
 
 - `blender-mcp` 1.0.3 needs the Python package `mcp` below version 2. The pinned nixpkgs has `mcp` 1.29.0, so the package builds from the nixpkgs Python set with no override. `native/blender-mcp.nix` asserts the version, so a nixpkgs update to `mcp` 2 stops the build with a message, not the server at run time. The earlier Nostromo project met the same limit by pinning an older nixpkgs.
-- The Blender of nixpkgs has no Python module `requests`. Blender's extension add-on prints a traceback at each start because of it. Installing and running the MCP add-on works all the same. The nixpkgs function `blender.withPackages` adds Python modules, but its build fails on macOS.
+- The Blender of nixpkgs has no Python module `requests`. Blender's extension add-on prints a traceback at each start because of it. Enabling and running the MCP add-on and MPFB works all the same. The nixpkgs function `blender.withPackages` adds Python modules, but its build fails on macOS.
 
 - `meshoptimizer` has the outputs `bin`, `dev` and `out`, and `bin` is the default output. So the library path uses `lib.getLib`.
 - `native/vhacd.nix` pins V-HACD by tag and hash, like `native/joltc.nix`. It compiles `native/vhacd/tertius_vhacd.cpp`, which includes `VHACD.h` with `ENABLE_VHACD_IMPLEMENTATION` and exports a C API:

@@ -1,0 +1,239 @@
+{
+  "format": 1,
+  "scripts": [
+    "s00_scene.py",
+    "s10_body.py",
+    "s20_shells.py",
+    "s30_hardware.py",
+    "s40_helmet.py",
+    "s50_backpack.py",
+    "s70_materials.py",
+    "s75_uv.py",
+    "s80_assemble.py",
+    "s90_checks.py"
+  ],
+  "seed": 1969,
+  "parameters": {
+    "human": {
+      "phenotype": {
+        "gender": 0.8,
+        "age": 0.55,
+        "muscle": 0.6,
+        "weight": 0.55,
+        "proportions": 0.75,
+        "height": 0.6,
+        "race": {"african": 0.2, "asian": 0.2, "caucasian": 0.6}
+      },
+      "rig": "game_engine",
+      "skin_mhmat": "middleage_caucasian_male/middleage_caucasian_male.mhmat",
+      "eyes": "high-poly/high-poly.mhclo",
+      "eyebrows": "eyebrow002/eyebrow002.mhclo",
+      "eyelashes": "eyelashes02/eyelashes02.mhclo",
+      "teeth": "teeth_base/teeth_base.mhclo",
+      "tongue": "tongue01/tongue01.mhclo"
+    },
+    "suit": {
+      "sole": 0.035,
+      "neck_cut": 0.0,
+      "collar_overlap": 0.03,
+      "sleeve_end": 0.97,
+      "glove_start": 0.88,
+      "leg_end": 0.07,
+      "boot_top": 0.16,
+      "suit_smooth": 12,
+      "suit_smooth_after": 4,
+      "suit_thickness": {
+        "spine_03": 0.085,
+        "spine_02": 0.085,
+        "spine_01": 0.08,
+        "pelvis": 0.07,
+        "clavicle": 0.075,
+        "neck_01": 0.05,
+        "head": 0.05,
+        "upperarm": 0.05,
+        "lowerarm": 0.045,
+        "hand": 0.04,
+        "thigh": 0.055,
+        "calf": 0.05,
+        "foot": 0.05,
+        "ball": 0.05
+      },
+      "convolute": {"half_length": 0.12, "pitch": 0.042, "depth": 0.024},
+      "glove_smooth": 2,
+      "glove_thickness": {
+        "hand": 0.012,
+        "index": 0.007,
+        "middle": 0.007,
+        "ring": 0.007,
+        "pinky": 0.007,
+        "thumb": 0.008,
+        "lowerarm": 0.02
+      },
+      "torso_smooth": 150,
+      "wrinkles": {"pitch": [0.07, 0.11], "bend": 1.2, "depth": 0.007},
+      "wrist_taper_start": 0.7,
+      "wrist_thickness": 0.018,
+      "tip_weight": 0.5,
+      "boot": {"resolution": 0.008, "threshold": 0.6, "stiffness": 2.0, "thickness": 0.022, "width": 0.1},
+      "junction_smooth": 12,
+      "junction_gain": 1.5
+    },
+    "hardware": {
+      "segments": 48,
+      "neck_ring": {
+        "offset": [0.0, 0.0, 0.035],
+        "axis": [0.0, -0.12, 1.0],
+        "inner": 0.105,
+        "outer": 0.15,
+        "height": 0.035,
+        "dam": 0.062,
+        "skirt": 0.045
+      },
+      "waist_ring": {"above_pelvis": 0.09, "reach": 0.33, "height": 0.035, "out": 0.012},
+      "shoulder_bearing": {"t": 0.22, "reach": 0.14, "width": 0.05, "out": 0.012},
+      "thigh_bearing": {"t": 0.2, "reach": 0.16, "width": 0.035, "out": 0.01},
+      "gauntlet": {"ring": 0.95, "cuff": 0.05, "ring_out": 0.016, "length": 0.045, "flare": 0.016},
+      "boot": {
+        "cuff_height": 0.03,
+        "cuff_out": 0.01,
+        "outline_height": 0.02,
+        "sole_grow": 0.008,
+        "sole_over": 0.012,
+        "rand_height": 0.03,
+        "rand_out": 0.006
+      }
+    },
+    "helmet": {
+      "radius": 0.178,
+      "seat": 0.012,
+      "rows": 24,
+      "segments": 48,
+      "bubble_alpha": 0.12,
+      "shell_gap": 0.012,
+      "shell_thickness": 0.012,
+      "shell_lift": 0.06,
+      "window_above_eyes": 0.42,
+      "window_half_width_deg": 62,
+      "visor_above_eyes": 0.22,
+      "lamp_azimuth_deg": 92,
+      "lamp_elevation_deg": 12,
+      "lamp_size": [0.05, 0.1, 0.045],
+      "cap_lower": -0.06,
+      "cap_thickness": 0.006,
+      "face_depth": -0.02,
+      "face_half_width": 0.066,
+      "ear_cup_radius": 0.035,
+      "camera_above_deg": 16,
+      "face_half_height": 0.085,
+      "face_center_dz": -0.03,
+      "cap_edge_smooth": 10
+    },
+    "backpack": {
+      "size": [0.56, 0.24, 0.74],
+      "top_above_neck": 0.06,
+      "sink": 0.03,
+      "taper": 0.04,
+      "bevel": 0.03,
+      "sop_height": 0.14,
+      "vents": 4,
+      "dcm_size": [0.27, 0.12, 0.13],
+      "dcm_below_neck": 0.28,
+      "dcm_sink": 0.035,
+      "hose_clearance": 0.022,
+      "hose_radius": 0.016,
+      "hose_drop": 0.13,
+      "checklist": {"t": 0.55, "sink": 0.006, "size": [0.08, 0.11, 0.014]}
+    },
+    "materials": {
+      "fabric": {
+        "panel": [0.26, 0.17],
+        "seam": 0.004,
+        "stitch": 0.009,
+        "weave_scale": 900.0,
+        "bump": 0.003,
+        "color": [0.84, 0.84, 0.81],
+        "color_alt": [0.78, 0.78, 0.75]
+      },
+      "stripe_z": [0.66, 0.71],
+      "stripe_color": [0.62, 0.06, 0.04],
+      "patch": {"t": 0.35, "toward": [1.0, -0.7, 0.2], "radius": 0.05, "color": [0.08, 0.16, 0.45]},
+      "dust_height": 0.45,
+      "dust_color": [0.42, 0.38, 0.33],
+      "pack": {
+        "panel": [0.18, 0.12],
+        "seam": 0.003,
+        "fastener": 0.03,
+        "bump": 0.003,
+        "color": [0.86, 0.86, 0.84],
+        "color_alt": [0.8, 0.8, 0.79]
+      }
+    },
+    "pose": {
+      "index_01_l": [18, 0, 0],
+      "index_01_r": [18, 0, 0],
+      "index_02_l": [28, 0, 0],
+      "index_02_r": [28, 0, 0],
+      "index_03_l": [18, 0, 0],
+      "index_03_r": [18, 0, 0],
+      "lowerarm_l": [8, 0, 0],
+      "lowerarm_r": [8, 0, 0],
+      "middle_01_l": [18, 0, 0],
+      "middle_01_r": [18, 0, 0],
+      "middle_02_l": [28, 0, 0],
+      "middle_02_r": [28, 0, 0],
+      "middle_03_l": [18, 0, 0],
+      "middle_03_r": [18, 0, 0],
+      "pinky_01_l": [18, 0, 0],
+      "pinky_01_r": [18, 0, 0],
+      "pinky_02_l": [28, 0, 0],
+      "pinky_02_r": [28, 0, 0],
+      "pinky_03_l": [18, 0, 0],
+      "pinky_03_r": [18, 0, 0],
+      "ring_01_l": [18, 0, 0],
+      "ring_01_r": [18, 0, 0],
+      "ring_02_l": [28, 0, 0],
+      "ring_02_r": [28, 0, 0],
+      "ring_03_l": [18, 0, 0],
+      "ring_03_r": [18, 0, 0],
+      "thumb_02_l": [10, 0, 0],
+      "thumb_02_r": [10, 0, 0],
+      "upperarm_l": [4, 0, -8],
+      "upperarm_r": [4, 0, 8]
+    }
+  },
+  "views": {
+    "resolution": [1920, 1080],
+    "samples": 128,
+    "shots": [
+      {
+        "name": "front",
+        "camera": [0.0, -5.4, 1.1],
+        "target": [0.0, 0.0, 1.0],
+        "lens": 50,
+        "sun": [-0.45, -0.75, 0.55]
+      },
+      {
+        "name": "three-quarter",
+        "camera": [-3.4, -4.1, 1.6],
+        "target": [0.0, 0.0, 1.0],
+        "lens": 50,
+        "sun": [-0.6, -0.55, 0.6]
+      },
+      {
+        "name": "back",
+        "camera": [3.0, 4.3, 1.7],
+        "target": [0.0, 0.0, 1.0],
+        "lens": 50,
+        "sun": [0.5, 0.6, 0.65]
+      },
+      {
+        "name": "helmet",
+        "camera": [-0.55, -1.25, 1.78],
+        "target": [0.0, -0.05, 1.62],
+        "lens": 50,
+        "sun": [-0.55, -0.7, 0.5]
+      }
+    ]
+  },
+  "bake": {"objects": ["Suit", "Backpack"], "size": 2048, "samples": 8, "margin": 16}
+}

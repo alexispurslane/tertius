@@ -1,6 +1,6 @@
 ---
 id: ter-rxjr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T14:49:29Z

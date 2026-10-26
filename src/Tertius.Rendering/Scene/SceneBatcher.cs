@@ -67,7 +67,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// Material slots on the GPU, the default included. <see cref="MaterialId.None"/> and ids that are not on the GPU
     /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
     /// </param>
-    /// <param name="environment">The faces of the map that this frame draws, and its latest irradiance, or no map.</param>
+    /// <param name="environment">
+    /// The faces that this frame draws of each served map, root first, and their latest irradiance, or no map. The served
+    /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
+    /// </param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(
         RenderSnapshot snapshot,
@@ -83,22 +86,29 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
-        (FaceMask faces, scene.Ambient) = environment switch
+        // With the map off, one map stands for none, and every object takes map 0 (decision 24).
+        (ReadOnlyMemory<FaceMask> drawn, scene.Ambient) = environment switch
         {
-            WithMap { Faces: var drawn, Irradiance: var reading } => (
-                drawn,
-                new AmbientSource(new MapAmbient(reading))
+            WithMap { Faces: var faces, Irradiance: var readings } => (
+                faces,
+                new AmbientSource(new MapAmbient(readings))
             ),
-            WithoutMap => (FaceMask.None, new AmbientSource(new HemisphereAmbient(snapshot.Ambient))),
+            WithoutMap => (
+                new ReadOnlyMemory<FaceMask>(NoFaces),
+                new AmbientSource(new HemisphereAmbient(snapshot.Ambient))
+            ),
         };
+        ReadOnlySpan<FaceMask> facesOfMaps = drawn.Span;
+        scene.MapCount = facesOfMaps.Length;
+        InterpolateMapAxes(snapshot: snapshot, alpha: alpha, scene: scene);
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
         CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materialCount: materialCount, scene: scene);
-        CollectPuffs(snapshot, alpha, scene.Camera);
+        CollectPuffs(snapshot, alpha, scene);
         CollectCasters(snapshot: snapshot, alpha: alpha, meshes: meshes, scene: scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
-        CollectLights(snapshot: snapshot, alpha: alpha, faces: faces, scene: scene);
+        CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
         CollectFarShadows(scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
@@ -109,10 +119,31 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             alpha: alpha,
             meshes: meshes,
             materialCount: materialCount,
-            faces: faces,
+            faces: facesOfMaps,
             scene: scene
         );
         WriteConstants(snapshot, scene);
+    }
+
+    /// <summary>The faces of the one map that stands for none while the map is off: it draws no face.</summary>
+    private static readonly FaceMask[] NoFaces = [FaceMask.None];
+
+    /// <summary>
+    /// R_i of each served map, root first: the rotation of map i's frame, the chain frame at depth M − 1 − i, interpolated
+    /// like the camera's (decision 9). A map with no frame on the chain, the one map of a snapshot without a chain, lies in
+    /// world axes.
+    /// </summary>
+    private static void InterpolateMapAxes(RenderSnapshot snapshot, float alpha, PreparedScene scene)
+    {
+        ReadOnlySpan<RenderChainFrame> chain = CollectionsMarshal.AsSpan(snapshot.Chain);
+        for (int map = 0; map < scene.MapCount; map++)
+        {
+            int depth = scene.MapCount - 1 - map;
+            scene.MapAxes[map] =
+                depth < chain.Length
+                    ? Interpolate(chain[depth].PreviousRotation, chain[depth].Rotation, alpha)
+                    : Quaternion.Identity;
+        }
     }
 
     private static CameraView InterpolateCamera(RenderSnapshot snapshot, float alpha, int width, int height)
@@ -217,7 +248,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
-                materialCount: materialCount
+                materialCount: materialCount,
+                maps: scene.MapCount
             ) with
             {
                 Depth = Vector3.Dot(placement.Position, camera.Forward),
@@ -249,13 +281,14 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// The prepared instance of <paramref name="instance"/> at <paramref name="placement"/>, with no depth and no distance,
-    /// the two fields that depend on the view.
+    /// the two fields that depend on the view, and its map of the <paramref name="maps"/> served maps.
     /// </summary>
     private static PreparedInstance Prepared(
         in RenderInstance instance,
         Placement placement,
         float alpha,
-        int materialCount
+        int materialCount,
+        int maps
     ) =>
         new()
         {
@@ -269,66 +302,94 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             EntityIndex = instance.EntityIndex,
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
+            Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
         };
 
     /// <summary>
-    /// Prepares one view for each face of <paramref name="faces"/>, in layer order, after the main view's instances and
-    /// commands: the opaque instances of the snapshot that the face does not cull, by their depth along its axis, as
-    /// geometry and with no impostor (docs/plans/environment-map.md, "Culling and level of detail").
+    /// Prepares one view for each face that a map of <paramref name="faces"/> draws, map by map and each map's in layer
+    /// order, after the main view's instances and commands: the opaque instances of the snapshot that the map draws (the
+    /// draw rule) and that the face does not cull in the map's axes, by their depth along its axis, as geometry and with no
+    /// impostor (docs/plans/environment-map.md, "Culling and level of detail", and docs/plans/environment-maps-per-frame.md,
+    /// "What a map draws").
     /// </summary>
+    /// <param name="faces">The faces of each served map, root first.</param>
     private void BatchFaces(
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
         int materialCount,
-        FaceMask faces,
+        ReadOnlySpan<FaceMask> faces,
         PreparedScene scene
     )
     {
-        if (faces == FaceMask.None)
+        if (!faces.ContainsAnyExcept(FaceMask.None))
             return;
         Span<PreparedInstance> instances = CollectMapInstances(
             snapshot: snapshot,
             alpha: alpha,
             meshes: meshes,
             materialCount: materialCount,
-            eye: scene.Camera.Offset
+            scene: scene
         );
+        for (int map = 0; map < faces.Length; map++)
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
             var face = (CubeFace)layer;
-            if ((faces & CubeFaces.Of(face)) == 0)
-                continue;
-            Vector3 forward = CubeFaces.Basis(face).Forward;
-            int opaqueCount = 0;
-            for (int i = 0; i < instances.Length; i++)
-            {
-                ref PreparedInstance instance = ref instances[i];
-                if (CubeFaces.Culls(face, instance.Position, instance.Radius))
-                    continue;
-                int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, forward), instance.Radius);
-                AppendOpaque(count: ref opaqueCount, mask: mask, mesh: instance.Mesh, index: i);
-            }
-
-            opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
-            EnsureCapacity(ref scene.Instances, scene.InstanceCount + opaqueCount);
-            Array.Clear(faceRanges);
-            Emit(
-                scene: scene,
-                meshes: meshes,
-                instances: instances,
-                items: opaque.AsSpan(0, opaqueCount),
-                ranges: faceRanges
-            );
-            scene.EnvironmentFaces.Add(
-                new(
-                    Face: face,
-                    Far: faceRanges[DepthRanges.Far],
-                    Middle: faceRanges[DepthRanges.Middle],
-                    Near: faceRanges[DepthRanges.Near]
-                )
-            );
+            if ((faces[map] & CubeFaces.Of(face)) != 0)
+                BatchFace(
+                    meshes: meshes,
+                    instances: instances,
+                    map: map,
+                    face: face,
+                    basis: CubeFaces.Basis(face, scene.MapAxes[map]),
+                    scene: scene
+                );
         }
+    }
+
+    /// <summary>Prepares the view of one face of map <paramref name="map"/>, whose axes are <paramref name="basis"/>.</summary>
+    private void BatchFace(
+        ReadOnlySpan<MeshInfo> meshes,
+        Span<PreparedInstance> instances,
+        int map,
+        CubeFace face,
+        FaceBasis basis,
+        PreparedScene scene
+    )
+    {
+        int opaqueCount = 0;
+        for (int i = 0; i < instances.Length; i++)
+        {
+            ref PreparedInstance instance = ref instances[i];
+            if (
+                !EnvironmentChain.Draws(map: map, objectMap: instance.Map)
+                || CubeFaces.Culls(basis, instance.Position, instance.Radius)
+            )
+                continue;
+            int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
+            AppendOpaque(count: ref opaqueCount, mask: mask, mesh: instance.Mesh, index: i);
+        }
+
+        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        EnsureCapacity(ref scene.Instances, scene.InstanceCount + opaqueCount);
+        Array.Clear(faceRanges);
+        Emit(
+            scene: scene,
+            meshes: meshes,
+            instances: instances,
+            items: opaque.AsSpan(0, opaqueCount),
+            ranges: faceRanges
+        );
+        scene.EnvironmentFaces.Add(
+            new(
+                Map: map,
+                Face: face,
+                Basis: basis,
+                Far: faceRanges[DepthRanges.Far],
+                Middle: faceRanges[DepthRanges.Middle],
+                Near: faceRanges[DepthRanges.Near]
+            )
+        );
     }
 
     /// <summary>The opaque instances of the snapshot that a face may draw, interpolated, before any face culls them.</summary>
@@ -337,9 +398,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
         int materialCount,
-        Vector3 eye
+        PreparedScene scene
     )
     {
+        Vector3 eye = scene.Camera.Offset;
         int count = 0;
         foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
@@ -354,7 +416,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
-                materialCount: materialCount
+                materialCount: materialCount,
+                maps: scene.MapCount
             );
         }
 
@@ -370,8 +433,9 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <see cref="ShaderInput.PositionLimit"/>, when its radius is below the smallest normal float, and when its sphere
     /// is outside the frustum.
     /// </summary>
-    private void CollectPuffs(RenderSnapshot snapshot, float alpha, in CameraView camera)
+    private void CollectPuffs(RenderSnapshot snapshot, float alpha, PreparedScene scene)
     {
+        ref readonly CameraView camera = ref scene.Camera;
         collectedPuffCount = 0;
         ReadOnlySpan<PuffLook> looks = CollectionsMarshal.AsSpan(snapshot.PuffLooks);
         float ageSinceRender = (1f - alpha) * snapshot.PuffAgeStep;
@@ -405,7 +469,12 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 continue;
             if (collectedPuffCount == collectedPuffs.Length)
                 Array.Resize(ref collectedPuffs, collectedPuffs.Length * 2);
-            collectedPuffs[collectedPuffCount++] = new() { PositionRadius = new(position, radius), ColorKind = color };
+            collectedPuffs[collectedPuffCount++] = new()
+            {
+                PositionRadius = new(position, radius),
+                ColorKind = color,
+                Map = (uint)EnvironmentChain.MapOf(puff.ChainDepth, scene.MapCount),
+            };
         }
     }
 
@@ -561,6 +630,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             rotation: instance.Rotation,
             scale: instance.Scale,
             material: instance.Material,
+            map: instance.Map,
             hemisphere: instance.Hemisphere
         );
         if (instance.Mesh == currentMesh)
@@ -661,18 +731,25 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
-    /// Keeps each light of the snapshot, in its order, that <see cref="Shines(in RenderLight)"/> and whose reach can touch the main view or
-    /// a face of <paramref name="faces"/>: one light list serves every view of the frame (docs/plans/environment-map.md,
-    /// decision 20). Then chooses the far lights' slots (<see cref="FarShadows.Choose"/>).
+    /// Keeps each light of the snapshot, in its order, that <see cref="Shines(in RenderLight)"/> and whose reach can touch the
+    /// main view or a face that keeps it: a face of a map at or above the light's map
+    /// (docs/plans/environment-maps-per-frame.md, decision 13). One light list serves every view of the frame
+    /// (docs/plans/environment-map.md, decision 20). Then chooses the far lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
-    private void CollectLights(RenderSnapshot snapshot, float alpha, FaceMask faces, PreparedScene scene)
+    /// <param name="faces">The faces of each served map, root first.</param>
+    private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
     {
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
         {
             if (!Shines(light))
                 continue;
-            PreparedLight prepared = Prepared(light: light, alpha: alpha, eye: scene.Camera.Offset);
-            if (Reaches(camera: scene.Camera, faces: faces, light: prepared))
+            PreparedLight prepared = Prepared(
+                light: light,
+                alpha: alpha,
+                eye: scene.Camera.Offset,
+                maps: scene.MapCount
+            );
+            if (Reaches(camera: scene.Camera, faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
 
@@ -681,9 +758,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated <paramref name="eye"/>, with
-    /// its radiant intensity, its reach and its distance computed in doubles, and no shadow slot yet.
+    /// its radiant intensity, its reach and its distance computed in doubles, its map among <paramref name="maps"/> served
+    /// maps, and no shadow slot yet.
     /// </summary>
-    private PreparedLight Prepared(in RenderLight light, float alpha, Vector3 eye)
+    private PreparedLight Prepared(in RenderLight light, float alpha, Vector3 eye, int maps)
     {
         (
             uint entity,
@@ -692,7 +770,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             double intensity,
             float radius,
             bool castsShadow,
-            LightSpread spread
+            LightSpread spread,
+            ushort chainDepth
         ) = light switch
         {
             PointRenderLight point => (
@@ -702,7 +781,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 LightUnits.PointIntensity(point.Power),
                 point.Radius,
                 point.CastsShadow,
-                new LightSpread(new EveryDirection())
+                new LightSpread(new EveryDirection()),
+                point.ChainDepth
             ),
             SpotRenderLight spot => (
                 spot.EntityIndex,
@@ -711,7 +791,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
                 spot.Radius,
                 spot.CastsShadow,
-                new LightSpread(SpreadOf(spot, alpha))
+                new LightSpread(SpreadOf(spot, alpha)),
+                spot.ChainDepth
             ),
             null => throw new UnreachableException("A light that shines holds a case."),
         };
@@ -728,6 +809,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             ),
             CastsShadow = castsShadow,
             Spread = spread,
+            Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
     }
 
@@ -811,22 +893,40 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <summary>
     /// Whether a prepared light can light a surface that a view draws: it lies within
     /// <see cref="ShaderInput.PositionLimit"/> of the eye, and its reach sphere is not outside the main view's frustum or
-    /// that of a face of <paramref name="faces"/>.
+    /// that of a drawn face of a map that keeps the light: a map at or above the light's map, in the map's axes.
     /// </summary>
-    private static bool Reaches(in CameraView camera, FaceMask faces, in PreparedLight light) =>
+    private static bool Reaches(
+        in CameraView camera,
+        ReadOnlySpan<FaceMask> faces,
+        Quaternion[] axes,
+        in PreparedLight light
+    ) =>
         ShaderInput.InPositionRange(light.Position, 0f)
         && (
             !camera.Culls(light.Position, light.Reach)
-            || AnyFaceKeeps(faces: faces, center: light.Position, radius: light.Reach)
+            || AnyFaceKeeps(faces: faces, lightMap: light.Map, axes: axes, center: light.Position, radius: light.Reach)
         );
 
-    /// <summary>Whether a face of <paramref name="faces"/> keeps the sphere at <paramref name="center"/>, camera-relative.</summary>
-    private static bool AnyFaceKeeps(FaceMask faces, Vector3 center, float radius)
+    /// <summary>
+    /// Whether a drawn face of a map at or above <paramref name="lightMap"/>, the maps that keep the light, keeps the sphere
+    /// at <paramref name="center"/>, camera-relative, in its map's axes.
+    /// </summary>
+    private static bool AnyFaceKeeps(
+        ReadOnlySpan<FaceMask> faces,
+        int lightMap,
+        Quaternion[] axes,
+        Vector3 center,
+        float radius
+    )
     {
+        for (int map = lightMap; map < faces.Length; map++)
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
             var face = (CubeFace)layer;
-            if ((faces & CubeFaces.Of(face)) != 0 && !CubeFaces.Culls(face, center, radius))
+            if (
+                (faces[map] & CubeFaces.Of(face)) != 0
+                && !CubeFaces.Culls(CubeFaces.Basis(face, axes[map]), center, radius)
+            )
                 return true;
         }
 
@@ -954,6 +1054,11 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 w: camera.RootRotation.W
             ),
         };
+        for (int map = 0; map < scene.MapCount; map++)
+        {
+            Quaternion axes = scene.MapAxes[map];
+            scene.Constants.MapAxes[map] = new(x: axes.X, y: axes.Y, z: axes.Z, w: axes.W);
+        }
     }
 
     private static void Append(ref DrawItem[] items, ref int count, DrawItem item)

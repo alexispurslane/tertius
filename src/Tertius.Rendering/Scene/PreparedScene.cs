@@ -117,6 +117,9 @@ internal struct PreparedInstance
 
     /// <summary>Which way is up for the hemisphere ambient light.</summary>
     public HemisphereUp Hemisphere;
+
+    /// <summary>The instance's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
+    public int Map;
 }
 
 /// <summary>A run of indirect commands for one draw call.</summary>
@@ -260,8 +263,14 @@ internal sealed class PreparedScene
     /// <summary>Impostor billboards per depth range, appended after batching by the impostor pass.</summary>
     public readonly InstanceRange[] Impostors = new InstanceRange[DepthRanges.Count];
 
-    /// <summary>The faces of the map that this frame draws, in layer order, with their opaque commands.</summary>
+    /// <summary>The faces of the maps that this frame draws, map by map and each map's in layer order, with their opaque commands.</summary>
     public readonly List<EnvironmentFaceDraw> EnvironmentFaces = [];
+
+    /// <summary>M, the served maps of this frame: 1 with the map off, whose one map every object takes.</summary>
+    public int MapCount;
+
+    /// <summary>R_i of the first <see cref="MapCount"/> maps, root first: the axes of map i's frame in world axes, interpolated.</summary>
+    public readonly Quaternion[] MapAxes = new Quaternion[EnvironmentChain.MaxMaps];
 
     /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
     public int TransparentCommandCount

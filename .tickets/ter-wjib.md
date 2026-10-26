@@ -1,6 +1,6 @@
 ---
 id: ter-wjib
-status: in_progress
+status: closed
 deps: [ter-iz58]
 links: []
 created: 2026-10-25T16:58:27Z

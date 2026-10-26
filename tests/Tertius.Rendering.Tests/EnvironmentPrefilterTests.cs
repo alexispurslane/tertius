@@ -44,7 +44,7 @@ public sealed class EnvironmentPrefilterTests
     {
         var all = new List<Half>();
         for (int layer = 0; layer < CubeFaces.Count; layer++)
-            all.AddRange(renderer.ReadEnvironmentFace(face: (CubeFace)layer, level: level, image: image));
+            all.AddRange(renderer.ReadEnvironmentFace(map: 0, face: (CubeFace)layer, level: level, image: image));
         return [.. all];
     }
 
@@ -60,6 +60,7 @@ public sealed class EnvironmentPrefilterTests
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
             Half[] face = renderer.ReadEnvironmentFace(
+                map: 0,
                 face: (CubeFace)layer,
                 level: level,
                 image: EnvironmentImage.Specular
@@ -233,11 +234,13 @@ public sealed class EnvironmentPrefilterTests
             renderer.Render(StripDownColumn(renderer: renderer, column: column, size: size), 1f);
 
             Half[] children = renderer.ReadEnvironmentFace(
+                map: 0,
                 face: CubeFace.PositiveZ,
                 level: 0,
                 image: EnvironmentImage.Radiance
             );
             Half[] parents = renderer.ReadEnvironmentFace(
+                map: 0,
                 face: CubeFace.PositiveZ,
                 level: 1,
                 image: EnvironmentImage.Radiance
@@ -277,7 +280,7 @@ public sealed class EnvironmentPrefilterTests
                 AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
                 Size
             );
-            Irradiance read = renderer.ReadEnvironmentIrradiance();
+            Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
 
             float total = 0;
             for (int i = 0; i < Irradiance.Coefficients; i++)
@@ -369,7 +372,7 @@ public sealed class EnvironmentPrefilterTests
 
             renderer.Render(snapshot, 1f);
 
-            Irradiance irradiance = renderer.ReadEnvironmentIrradiance();
+            Irradiance irradiance = renderer.ReadEnvironmentIrradiance(map: 0);
             foreach (
                 Vector3 normal in (ReadOnlySpan<Vector3>)
                     [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ]

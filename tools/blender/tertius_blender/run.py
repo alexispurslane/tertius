@@ -23,7 +23,7 @@ import bpy
 
 # The modules of the model library that run_script reloads, in the order of their imports of each other. A module
 # cannot reload itself while it runs, so the code of the authoring loop reloads run.
-_LIBRARY = ("geometry", "nodes", "checks", "bake", "export", "stage")
+_LIBRARY = ("geometry", "nodes", "checks", "bake", "export", "stage", "mpfb")
 
 # tools/blender of the checkout whose model library this Blender runs.
 _LIBRARY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

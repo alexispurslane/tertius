@@ -1,6 +1,6 @@
 ---
 name: procedural-modeling
-description: How to model, build or change a 3D model of Tertius in Blender, such as a ship, a station, a prop or any other Blender asset. The only source of a model is a folder of Blender Python scripts, and the .blend, .glb, baked textures and views are build outputs. Load it for any request to model, build, change, fix, bake, export or render a 3D model, a ship, a prop or a Blender asset, and before any use of the blender MCP tools or of tools/blender/.
+description: How to model, build or change a 3D model of Tertius in Blender, such as a ship, a station, a prop, a person or character (a complete human from MPFB, with clothes from scripts) or any other Blender asset. The only source of a model is a folder of Blender Python scripts, and the .blend, .glb, baked textures and views are build outputs. Load it for any request to model, build, change, fix, bake, export or render a 3D model, a ship, a prop, a person, a character or a Blender asset, and before any use of the blender MCP tools or of tools/blender/.
 ---
 
 # Procedural modeling in Blender
@@ -17,9 +17,8 @@ This skill teaches the way of work for the models of Tertius. The design is in `
 
 ## 2. One-time setup
 
-1. The assets shell, `nix develop .#assets`, holds Blender 5.2.2 and the MCP server `blender-mcp` 1.0.3. The tools in `tools/blender/` enter it by themselves. Its first start downloads about 600 MiB, which take 1.7 GiB in the Nix store.
-2. Install the MCP add-on into Blender: `tools/blender/setup.sh`. If version 1.0.3 is already installed and enabled, the script changes nothing.
-3. Approve the MCP server. The project's `.mcp.json` registers the server `blender`. In a new session, Claude Code asks the user once to approve the servers of the project. The user can also enable it with `/mcp`. Ask the user for this approval. Never add `enabledMcpjsonServers` to a settings file yourself.
+1. The assets shell, `nix develop .#assets`, holds Blender 5.2.2, the MCP server `blender-mcp` 1.0.3, and MPFB with the MakeHuman body-part assets. The tools in `tools/blender/` enter it by themselves. Its first start downloads about 870 MiB, which take about 2.1 GiB in the Nix store. Blender finds the MCP add-on and MPFB as system extensions in the Nix store, so nothing is installed into the user's Blender folders.
+2. Approve the MCP server. The project's `.mcp.json` registers the server `blender`. In a new session, Claude Code asks the user once to approve the servers of the project. The user can also enable it with `/mcp`. Ask the user for this approval. Never add `enabledMcpjsonServers` to a settings file yourself.
 
 After the approval, the native tools are `mcp__blender__execute_blender_code`, `mcp__blender__render_thumbnail_to_path`, `mcp__blender__render_viewport_to_path` and the other tools of the server. Without the approval, use the fallback in reference.md, "Without the MCP tools".
 
@@ -125,8 +124,54 @@ reference.md, "Pitfalls", explains each one.
 - Parts under the hull look as if they float, even when they touch. The stage has a weak fill light from below for this. The attachment check is the proof.
 - Pipes in front of the hull spoil a close-up. Pick the camera so that the hull hides them, and lock it with a view check.
 - Build meshes with `MB` and end them with `MB.finish`. A mesh made by raw BMesh operators keeps an order that changes between runs.
+- MPFB writes logs and settings into Blender's user resource folder. The build tool and the bridge point `BLENDER_USER_RESOURCES` at a temporary folder, and `mpfb.services()` refuses to run without it. If you start Blender by hand, set it to a scratch folder, never leave it out.
+- MPFB deletes every material without users when it makes a human. `mpfb.human` protects the materials of earlier scripts for the time of the call. Make materials before or after it, as you like.
 
-## 10. The worked example: the Nostromo
+## 10. A human with MPFB
+
+A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the build through `tertius_blender.mpfb`. MPFB makes the body, the skin, the eyes, eyebrows, eyelashes, teeth, tongue, hair and the rig. Your scripts make every garment and every piece of equipment. Never use a clothes asset or a finished model of a person, a garment or equipment. The design is in `docs/plans/asset-pipeline.md`, "Humans from MPFB". reference.md, "A human with MPFB", has the slider table, the asset names, the bone axes, the garment methods and the pitfalls.
+
+1. The assets shell holds MPFB and the MakeHuman body-part assets (section 2). MPFB runs only in a Blender whose `BLENDER_USER_RESOURCES` names a scratch folder: the build tool and the bridge set it. For a Blender that you start yourself, see reference.md, "Without the MCP tools".
+2. Copy the crew member, `content/tertius.demo/assets/characters/crew.model/`. It is a complete human in a jumpsuit, with the face and the hair in view. The astronaut next to it is the example of a person inside equipment.
+3. In `model.json`, set `parameters.human` to MPFB's human description. A key that you leave out keeps MPFB's default.
+   - `phenotype`: the macro sliders `gender`, `age`, `muscle`, `weight`, `proportions`, `height`, `cupsize` and `firmness`, each from 0 to 1 with the default 0.5, and `race`, the shares of `african`, `asian` and `caucasian`, which sum to 1. gender 0 is female and 1 male. age 0.5 is a young adult and 1 old. reference.md, "The macro sliders", says what each value does.
+   - `targets`: the detail targets of the face and the body, a list of `{"target": "nose-scale-vert-incr", "value": 0.6}` with values from 0 to 1. They make one person differ from another with the same sliders. reference.md, "The detail targets", says where the names are.
+   - `rig`: `game_engine`. The pose and the bone weights of the garments need it.
+   - `skin_mhmat`: a skin such as `young_african_female/young_african_female.mhmat`. Match it to the sliders: the age, the gender and the race of the skin.
+   - `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue` and `hair`: one asset each, such as `eyebrow001/eyebrow001.mhclo`. Leave out `hair` under a helmet or a cap. The eyes are brown, and `alternative_materials` gives them another color (reference.md, "The asset names").
+   - Leave out `skin_material_type` and `eyes_material_type`. Both are `MAKESKIN`, the only kind that `freeze` rewires for glTF, and any other value stops the build.
+   - A name of an asset or a detail target that MPFB does not hold stops the build with an error that names it, and so does a key that MPFB's presets lack.
+4. Set `parameters.pose`: bone name -> `[x, y, z]` Euler degrees from the rest pose, MakeHuman's A-pose. The crew member's pose lowers the arms to the sides, bends the elbows a little and curls the fingers. A bone that the rig lacks stops the build.
+5. The human script calls, in this order:
+
+   ```python
+   from tertius_blender import mpfb
+
+   body = mpfb.human(model.params["human"], "Crew")
+   mpfb.pose(body.parent, model.params["pose"])
+   joints = mpfb.joints(body)   # joint name -> (x, y, z): "neck", "l-shoulder", "r-elbow", "l-hand", "pelvis", ...
+   parts = mpfb.freeze(body)    # Body, Eyes, Eyebrows, Eyelashes, Teeth, Tongue, Hair: plain meshes, rig removed
+   ```
+
+   `joints` must come before `freeze`, because the joints are helper geometry that `freeze` removes. Then move every part so the lowest skin point stands on the sole height, link the parts into your collection, remove MPFB's empty collection, and share the joints with later scripts through a scene property that `s80_assemble.py` deletes.
+6. Make each garment from the faces of `Body`: choose faces by the bone weights of their vertices (the vertex groups that `freeze` keeps) and by the joints, smooth away the anatomy, push the surface out along its normals, and give it thickness. Place trims, rings and pockets with rays cast at the garment. Delete the body faces that a garment covers, so skin never shows through the cloth. A garment made away from the body reads the bones under it with `mpfb.bone_weights` (reference.md, "Garments from the body").
+7. Build twice with `--device cpu` and compare the hash of every mesh in the two `.glb` files. The meshes must be the same. Only the normal map of a large bake object can differ (ticket ter-b4k3).
+
+The freeze is final. It applies the pose, the shape keys and the helper mask, removes the rig, keeps only the bone weights as vertex groups, rewires each part's material into one image texture that feeds the base color, and deletes the clear cornea of the eyes. The reason: the importer ignores skins and the renderer has no skinning, so the pose must be in the meshes, and glTF holds only that simple material.
+
+What reaches `model.glb` from the person: the meshes in their pose, with their UV maps, normals and tangents, and one material per part with its MakeHuman image as the base color. The hair, the eyebrows and the eyelashes keep the alpha of their image and draw blended (`BLEND`). The skin and the eyes are opaque. No rig, no bone weights, no shape keys and no MPFB settings reach the file.
+
+Limits, and the tickets that lift them:
+
+- The person cannot move: no rig and no animation reach the game. Ticket ter-0ok3 keeps the rig and the weights once the engine can skin.
+- Up close, hair cards show straight dark edges. Ticket ter-omuj makes card hair read as hair.
+- Every exported material is double-sided, so closed meshes draw their back faces too. Ticket ter-m0ux.
+- Every mesh with a UV map carries tangents, also without a normal map. Ticket ter-74ng.
+- The CPU bake of a large garment can differ in a few pixels of its normal map between builds. Ticket ter-b4k3.
+- The renderer has no alpha cutout, so hair, eyebrows and eyelashes draw blended, and their sort order can show (asset pipeline, "Out of scope and later").
+- No facial expressions: MPFB 2.0.18 ships no expression presets, and the face unit pack is not pinned. No ticket yet.
+
+## 11. The worked example: the Nostromo
 
 The Nostromo is a tug of about 244 m, with 192,238 triangles in 19 meshes under the one piece `Nostromo`.
 

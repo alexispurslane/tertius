@@ -199,7 +199,7 @@ float discCoverage(float lightRadius, float occluderRadius, float separation)
 // only points outside it, so a caster never shadows its own surface. The first occluders.z spheres belong to casters that
 // the light's cascade set also draws: they count by beyondMaps, the weight of the far shadow where the maps end
 // (beyondShadowMaps). Eclipse.Visibility is the same test on the CPU. L is the unit direction toward the light.
-float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec4 range, float beyondMaps)
+float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec3 range, float beyondMaps)
 {
     float lightRadius = max(angularRadius, 1e-5);
     float visibility = 1.0;

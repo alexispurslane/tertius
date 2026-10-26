@@ -47,6 +47,9 @@ internal struct ImpostorCapture
 
     /// <summary>Which way is up for the object's hemisphere ambient light, as the capture bakes it.</summary>
     public HemisphereUp Hemisphere;
+
+    /// <summary>The object's map, whose light the capture bakes.</summary>
+    public int Map;
 }
 
 /// <summary>An object drawn as an impostor this frame.</summary>
@@ -408,6 +411,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             Radius = radius,
             TanHalfAngle = tanHalfAngle,
             Hemisphere = instance.Hemisphere,
+            Map = instance.Map,
         };
     }
 
@@ -664,7 +668,8 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             AmbientSignature ambientPart = ambient switch
             {
                 HemisphereAmbient(var light) => Hemisphere(light: light, instance: instance, inverse: inverse),
-                MapAmbient(var reading) => new MapSignature(reading?.Irradiance ?? default),
+                // The capture bakes the light of the object's own map, so only that map's reading counts.
+                MapAmbient(var readings) => new MapSignature(readings.Span[instance.Map]?.Irradiance ?? default),
                 null => throw new UnreachableException(
                     "The batcher sets the ambient source before the processors run."
                 ),

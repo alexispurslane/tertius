@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -493,7 +494,7 @@ public sealed class EnvironmentLightingTests
             );
 
             Capture lit = Shown(renderer, snapshot, "environment-lit-puff");
-            Vector3 mean = renderer.ReadEnvironmentIrradiance().MeanRadiance;
+            Vector3 mean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
             snapshot.PuffLooks[0] = look with { Shading = PuffShading.Glow(albedo * mean) };
             Capture glow = Shown(renderer, snapshot, "environment-glow-puff");
 
@@ -606,8 +607,7 @@ public sealed class EnvironmentLightingTests
             try
             {
                 RenderSnapshot snapshot = Dark();
-                snapshot.RootRotation = root;
-                snapshot.PreviousRootRotation = root;
+                TestChains.UnderTurnedRoot(snapshot, root);
                 MeshId sphere = Sphere(renderer);
                 MaterialId mirror = Metal(renderer, roughness: 0);
                 snapshot.Instances.Add(
@@ -689,8 +689,7 @@ public sealed class EnvironmentLightingTests
         {
             RenderSnapshot snapshot = Dark();
             snapshot.Camera.VerticalFov = Fov;
-            snapshot.RootRotation = root;
-            snapshot.PreviousRootRotation = root;
+            TestChains.UnderTurnedRoot(snapshot, root);
             return snapshot;
         }
 

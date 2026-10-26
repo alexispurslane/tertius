@@ -902,7 +902,7 @@ public sealed class ShadowTilesTests
         foreach (CubeFace face in Enum.GetValues<CubeFace>())
         {
             Matrix4x4 tile = ShadowTiles.ViewProjection(Point(entity: 1, position: place), new FaceAim(face), TileSize);
-            Matrix4x4 cube = CubeFaces.ViewProjection(face, DepthRanges.Near);
+            Matrix4x4 cube = CubeFaces.ViewProjection(CubeFaces.Basis(face), DepthRanges.Near);
             FaceBasis basis = CubeFaces.Basis(face);
             Vector3 offset = 4 * basis.Forward + 1.5f * basis.Right - 2.5f * basis.Up;
 

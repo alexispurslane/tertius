@@ -164,13 +164,14 @@ internal sealed unsafe class ShadowPass : RenderPass
                 continue;
             if (casterCount == casters.Length)
                 Array.Resize(ref casters, casters.Length * 2);
-            // The depth-only pass reads no material.
+            // The depth-only pass reads no material and no map.
             casters[casterCount++] = new(
                 GpuInstance.From(
                     position: caster.Position,
                     rotation: caster.Rotation,
                     scale: caster.Scale,
-                    material: MaterialStore.DefaultSlot
+                    material: MaterialStore.DefaultSlot,
+                    map: 0
                 ),
                 caster.Mesh,
                 mask
