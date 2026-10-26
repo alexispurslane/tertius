@@ -16,8 +16,8 @@ namespace Tertius.Rendering;
 /// Perspective, not orthographic: at the 200 px switch an object can be only a few radii away, where an
 /// orthographic capture misses the front-to-back perspective by many pixels; the manager recaptures when the eye's
 /// distance changes the perspective by about a pixel. The fragment shader lights the object with the lighting
-/// pass's BRDF, <c>surfaceRadiance</c> with the shadow maps off (ambient with its specular part, the sun with the
-/// eclipse term, and the point and spot lights) and writes premultiplied color, coverage and the relative depth into level 0 of the tile. Blits then rebuild the tile's mip
+/// pass's BRDF, <c>surfaceRadiance</c> with the shadow maps off (ambient with its specular part, and every light with
+/// its far shadows) and writes premultiplied color, coverage and the relative depth into level 0 of the tile. Blits then rebuild the tile's mip
 /// chain.</para>
 /// <para>A billboard is a quad in the plane of the bounding sphere's center, spanned by the capture's axes as the
 /// object's current rotation turns them (so an object rolling about the view axis needs no recapture), with one
@@ -272,33 +272,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         };
         vk.CmdBeginRendering(commandBuffer, &rendering);
         if (bindState)
-        {
-            vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, capturePipeline);
-            // Frame constants, instances and materials, and the textures. The G-buffer set is not used here.
-            DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
-            vk.CmdBindDescriptorSets(
-                commandBuffer: commandBuffer,
-                pipelineBindPoint: PipelineBindPoint.Graphics,
-                layout: layouts.SceneLayout,
-                firstSet: 0,
-                descriptorSetCount: 2,
-                pDescriptorSets: sets,
-                dynamicOffsetCount: 0,
-                pDynamicOffsets: null
-            );
-            var viewport = new Viewport(
-                x: 0,
-                y: 0,
-                width: ImpostorAtlas.TileSize,
-                height: ImpostorAtlas.TileSize,
-                minDepth: 0,
-                maxDepth: 1
-            );
-            var scissor = new Rect2D(new Offset2D(0, 0), extent);
-            vk.CmdSetViewport(commandBuffer: commandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
-            vk.CmdSetScissor(commandBuffer: commandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
-            GeometryPass.BindGeometry(context);
-        }
+            BindCaptureState(context, extent);
 
         // The main view's eye (the origin), so that specular highlights are where the camera would see them.
         GeometryPass.PushDraw(context: context, viewProjection: capture.ViewProjection);
@@ -306,6 +280,28 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         vk.CmdEndRendering(commandBuffer);
 
         GenerateMips(vk: vk, commandBuffer: commandBuffer, barriers: barriers, layer: layer);
+    }
+
+    /// <summary>Binds what every capture of the frame shares: the pipeline, sets 0 and 1, the tile's viewport and the geometry.</summary>
+    private void BindCaptureState(FrameContext context, Extent2D extent)
+    {
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, capturePipeline);
+        // Frame constants, instances and materials, and the textures. The G-buffer set is not used here.
+        DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
+        vk.CmdBindDescriptorSets(
+            commandBuffer: commandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layouts.SceneLayout,
+            firstSet: 0,
+            descriptorSetCount: 2,
+            pDescriptorSets: sets,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        context.SetViewport(extent);
+        GeometryPass.BindGeometry(context);
     }
 
     private static RenderingAttachmentInfo TileAttachment(ImageView view) =>

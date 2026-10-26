@@ -9,8 +9,8 @@ namespace Tertius.Rendering;
 public readonly record struct NoEnvironmentMap;
 
 /// <summary>
-/// A cube map of the scene around the camera (docs/plans/environment-map.md): the three depth ranges lit by the sun and the
-/// lamps, and the share of each texel through which the sky is open. It gives every surface its ambient light, diffuse and
+/// A cube map of the scene around the camera (docs/plans/environment-map.md): the three depth ranges lit by every light,
+/// and the share of each texel through which the sky is open. It gives every surface its ambient light, diffuse and
 /// specular, the stars in its reflections, and SSR its fallback.
 /// </summary>
 /// <param name="FaceSize">The texels along one side of each face: a power of two from 16 to 1024.</param>

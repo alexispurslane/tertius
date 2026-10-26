@@ -166,7 +166,7 @@ public sealed class StressTests(ITestOutputHelper output)
 
             double Batch(bool withManager)
             {
-                var batcher = new SceneBatcher();
+                SceneBatcher batcher = Batchers.Default();
                 if (withManager)
                     batcher.Processors.Add(new ImpostorManager(64));
                 var scene = new PreparedScene();

@@ -99,14 +99,13 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// only the first can be an impostor; the others draw as geometry.</para>
 /// <para>Captures: an impostor needs a capture in an atlas tile; until it has one it keeps drawing as geometry. A
 /// capture is a perspective view from the eye, fitted to the bounding sphere's tangent cone (see
-/// <see cref="ImpostorPass"/>). It records the view direction (from the object to the eye), the sun direction, and
-/// the capture's own axes, all in object space, so the object's rotation counts, and r / d, the bounding radius over
-/// the eye's distance. Its error later is the largest of: the angle between the current and captured view directions; the same
-/// for the sun direction; the change of r / d, the parallax between the sphere's front and back, which moves the
-/// silhouette by about (h / 2) · Δ(r / d) pixels as a turn of Δθ moves it by (h / 2) · Δθ; the relative change of the
-/// light that reaches the object, against the total (sun radiance times the analytic eclipse visibility at its
-/// center, the ambient colors, and the irradiance of the point and spot lights at its center with its direction in
-/// object space); and how far the scale has become non-uniform relative to the captured scale.
+/// <see cref="ImpostorPass"/>). It records the view direction (from the object to the eye) and the capture's own axes,
+/// both in object space, so the object's rotation counts, and r / d, the bounding radius over the eye's distance. Its
+/// error later is the largest of: the angle between the current and captured view directions; the change of r / d, the
+/// parallax between the sphere's front and back, which moves the silhouette by about (h / 2) · Δ(r / d) pixels as a turn
+/// of Δθ moves it by (h / 2) · Δθ; the relative change of the light that reaches the object, against the total (each
+/// light's irradiance at its center past the far shadows, with its direction in object space, and the ambient light);
+/// and how far the scale has become non-uniform relative to the captured scale.
 /// A capture with error × h above <see cref="RecaptureError"/> (the 2 / h rule, about one pixel) is a recapture
 /// candidate with priority error × h.
 /// A first capture has priority π × h, the error of the worst possible view. Each frame the
@@ -385,7 +384,6 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         state.View = Vector3.Transform(toward, inverse);
         state.Right = Vector3.Transform(right, inverse);
         state.Up = Vector3.Transform(up, inverse);
-        state.Sun = light.HasSun ? Vector3.Transform(light.SunDirection, inverse) : Vector3.Zero;
         state.Scale = instance.Scale;
         float distance = instance.Distance,
             radius = instance.Radius;
@@ -424,8 +422,6 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         var toward = Vector3.Transform(-instance.Position / instance.Distance, inverse);
         float error = Angle(toward, state.View);
         error = MathF.Max(error, MathF.Abs(instance.Radius / instance.Distance - state.Parallax));
-        if (light.HasSun)
-            error = MathF.Max(error, Angle(Vector3.Transform(light.SunDirection, inverse), state.Sun));
         error = MathF.Max(error, LightSignature.Change(state.Light, light.At(instance)));
         return MathF.Max(error, 1f - 1f / NonUniformity(instance.Scale, state.Scale));
     }
@@ -558,9 +554,8 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
 
         public long CapturedFrame;
 
-        // The capture, in object space: the direction to the eye, the sun direction, and the capture's own axes.
+        // The capture, in object space: the direction to the eye, and the capture's own axes.
         public Vector3 View;
-        public Vector3 Sun;
         public Vector3 Right;
         public Vector3 Up;
         public Vector3 Scale;
@@ -578,29 +573,31 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The light a capture bakes in, at the object: what reaches it from the sun, the ambient light, and the irradiance
-    /// from the point and spot lights, with that irradiance's direction in object space.
+    /// The light a capture bakes in, at the object (docs/plans/local-light-shadows.md, "The impostor signature"): the sum of
+    /// every light's irradiance past its far shadows, the ambient light, and the sum of each light's direction in object
+    /// space weighted by the length of its irradiance.
     /// </summary>
-    private readonly record struct LightSignature(
-        Vector3 Sun,
-        AmbientSignature Ambient,
-        Vector3 Local,
-        Vector3 LocalDirection
-    )
+    private readonly record struct LightSignature(Vector3 Light, AmbientSignature Ambient, Vector3 LightDirection)
     {
-        private float Total => Sun.Length() + Ambient.Total + Local.Length();
+        private float Total => LengthInDoubles(Light) + Ambient.Total;
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
             float difference =
-                (a.Sun - b.Sun).Length()
+                LengthInDoubles(a.Light - b.Light)
                 + AmbientSignature.Difference(a.Ambient, b.Ambient)
-                + (a.Local - b.Local).Length()
-                + (a.LocalDirection - b.LocalDirection).Length();
+                + LengthInDoubles(a.LightDirection - b.LightDirection);
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
     }
+
+    /// <summary>
+    /// The length of <paramref name="v"/>, squared in doubles: a light at the irradiance cap of 2^64 W/m² per channel
+    /// squares past the range of single floats.
+    /// </summary>
+    private static float LengthInDoubles(Vector3 v) =>
+        (float)Math.Sqrt((double)v.X * v.X + (double)v.Y * v.Y + (double)v.Z * v.Z);
 
     /// <summary>
     /// The hemisphere's two colors, and its up at the object's center in object space, weighted by how much the sky and
@@ -658,44 +655,15 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         }
     }
 
-    /// <summary>The frame's sun, ambient light, occluders and local lights, as the lighting shader sees them.</summary>
-    private readonly ref struct SceneLight
+    /// <summary>The frame's lights, ambient light and occluders, as the lighting shader sees them.</summary>
+    private readonly ref struct SceneLight(PreparedScene scene)
     {
-        private readonly ReadOnlySpan<Vector4> occluders;
-        private readonly ReadOnlySpan<GpuLight> lights;
-        private readonly Vector3 sunRadiance;
-        private readonly AmbientSource ambient;
-        private readonly float sunAngularRadius;
-
-        public SceneLight(PreparedScene scene)
-        {
-            RenderSun sun = scene.Sun;
-            HasSun = SceneBatcher.HasSun(sun);
-            SunDirection = HasSun ? Vector3.Normalize(sun.Direction) : Vector3.Zero;
-            sunRadiance = HasSun ? sun.Color * sun.Intensity : Vector3.Zero;
-            sunAngularRadius = MathF.Max(sun.AngularRadius, 0f);
-            ambient = scene.Ambient;
-            occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
-            lights = scene.Lights.AsSpan(0, scene.LightCount);
-        }
-
-        public bool HasSun { get; }
-        public Vector3 SunDirection { get; }
+        private readonly ReadOnlySpan<Vector4> occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
+        private readonly ReadOnlySpan<PreparedLight> lights = scene.Lights.AsSpan(0, scene.LightCount);
+        private readonly AmbientSource ambient = scene.Ambient;
 
         public LightSignature At(in PreparedInstance instance)
         {
-            Vector3 position = instance.Position;
-            Vector3 sun = HasSun
-                ? sunRadiance
-                    * Eclipse.SunVisibility(
-                        position: position,
-                        sunDirection: SunDirection,
-                        sunAngularRadius: sunAngularRadius,
-                        occluders: occluders
-                    )
-                : Vector3.Zero;
-            Vector3 local = Vector3.Zero,
-                direction = Vector3.Zero;
             var inverse = Quaternion.Conjugate(instance.Rotation);
             AmbientSignature ambientPart = ambient switch
             {
@@ -706,41 +674,55 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                     "The batcher sets the ambient source before the processors run."
                 ),
             };
-            if (!lights.IsEmpty)
+            Vector3 total = Vector3.Zero,
+                direction = Vector3.Zero;
+            foreach (ref readonly PreparedLight light in lights)
             {
-                float radius = instance.Radius;
-                foreach (ref readonly GpuLight light in lights)
-                {
-                    // The lighting shader's range window and spot cone, at the center, with the window measured to
-                    // the nearest point of the bounding sphere so that a light grazing the object counts.
-                    Vector3 toLight =
-                        new Vector3(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z) - position;
-                    float distance = toLight.Length();
-                    float range = light.PositionRange.W;
-                    float nearest = MathF.Max(distance - radius, 0f);
-                    if (nearest >= range || distance < 1e-6f)
-                        continue;
-                    float ratio = nearest * nearest / (range * range);
-                    float window = Math.Clamp(1f - ratio * ratio, 0f, 1f);
-                    float attenuation = window * window / MathF.Max(distance * distance, radius * radius);
-                    Vector3 unit = toLight / distance;
-                    if (light.RadianceKind.W > 0.5f)
-                    {
-                        float cosAngle = Vector3.Dot(
-                            -unit,
-                            new(light.DirectionCosOuter.X, light.DirectionCosOuter.Y, light.DirectionCosOuter.Z)
-                        );
-                        attenuation *= SmoothStep(light.DirectionCosOuter.W, light.CosInner, cosAngle);
-                    }
-
-                    Vector3 irradiance =
-                        new Vector3(light.RadianceKind.X, light.RadianceKind.Y, light.RadianceKind.Z) * attenuation;
-                    local += irradiance;
-                    direction += Vector3.Transform(unit, inverse) * irradiance.Length();
-                }
+                if (IrradianceAt(light, instance) is not ({ } irradiance, var unit))
+                    continue;
+                total += irradiance;
+                direction += Vector3.Transform(unit, inverse) * LengthInDoubles(irradiance);
             }
 
-            return new(Sun: sun, Ambient: ambientPart, Local: local, LocalDirection: direction);
+            return new(Light: total, Ambient: ambientPart, LightDirection: direction);
+        }
+
+        /// <summary>
+        /// The irradiance of <paramref name="light"/> at the instance's center past its far shadows, and the unit
+        /// direction toward the light, or null where it adds nothing. As the lighting shader's lightIrradiance, with its
+        /// window measured to the nearest point of the bounding sphere, so that a light that grazes the object counts.
+        /// </summary>
+        private (Vector3 Irradiance, Vector3 Unit)? IrradianceAt(in PreparedLight light, in PreparedInstance instance)
+        {
+            Vector3 toLight = light.Position - instance.Position;
+            float distance = toLight.Length();
+            float nearest = MathF.Max(distance - instance.Radius, 0f);
+            if (nearest >= light.Reach || distance < 1e-6f)
+                return null;
+            float ratio = nearest * nearest / (light.Reach * light.Reach);
+            float window = Math.Clamp(1f - ratio * ratio, 0f, 1f);
+            float floor = MathF.Max(MathF.Max(instance.Radius, light.Radius), LightUnits.NearestDistance);
+            float falloff = window * window / MathF.Max(distance * distance, floor * floor);
+            Vector3 unit = toLight / distance;
+            if (light.Spread is Cone { Axis: var axis, CosInner: var cosInner, CosOuter: var cosOuter })
+                falloff *= SmoothStep(cosOuter, cosInner, Vector3.Dot(-unit, axis));
+            // The shader's cap, so that the sums stay finite single floats.
+            var irradiance = Vector3.Min(light.RadiantIntensity * falloff, new Vector3(ShaderInput.IrradianceLimit));
+            OccluderRange? range = light.Shadow switch
+            {
+                CascadeSet { Occluders: var cascadeOccluders } => cascadeOccluders,
+                FarShadowsOnly(var farOccluders) => farOccluders,
+                AtlasTiles or null => null,
+            };
+            if (range is not { } far)
+                return (irradiance, unit);
+            float visibility = Eclipse.Visibility(
+                position: instance.Position,
+                towardLight: unit,
+                angularRadius: LightUnits.AngularRadius(light.Radius, distance),
+                occluders: occluders.Slice(far.Start, far.Count)
+            );
+            return (irradiance * visibility, unit);
         }
 
         private static HemisphereSignature Hemisphere(
@@ -828,25 +810,27 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
 }
 
 /// <summary>
-/// The analytic eclipse test of Shaders/lighting.glsl on the CPU, so that impostor captures notice when an occluder
+/// The analytic eclipse test of Shaders/shadows.glsl on the CPU, so that impostor captures notice when an occluder
 /// starts or stops shading the object.
 /// </summary>
 internal static class Eclipse
 {
     /// <summary>
-    /// The visible fraction of the sun's disc at a camera-relative position, given far shadows: xyz the center, w the radius
-    /// of a caster's bounding sphere. A sphere shadows only points outside it, so a caster never shadows its own surface;
-    /// a planet's ground faces away from the sun at night anyway. Impostor captures get no shadow-map shadows, so every
-    /// sphere counts here, also those of casters that the maps draw.
+    /// The visible fraction of a light's disc at a camera-relative position, given its far shadows: xyz the center, w the
+    /// radius of a caster's bounding sphere. A sphere shadows only points outside it, so a caster never shadows its own
+    /// surface. Impostor captures get no shadow-map shadows, so every sphere counts here, also those of casters that the
+    /// maps draw.
     /// </summary>
-    public static float SunVisibility(
+    /// <param name="towardLight">The unit direction from the position toward the light.</param>
+    /// <param name="angularRadius">The light's angular radius at the position, in rad.</param>
+    public static float Visibility(
         Vector3 position,
-        Vector3 sunDirection,
-        float sunAngularRadius,
+        Vector3 towardLight,
+        float angularRadius,
         ReadOnlySpan<Vector4> occluders
     )
     {
-        float sunRadius = MathF.Max(sunAngularRadius, 1e-5f);
+        float lightRadius = MathF.Max(angularRadius, 1e-5f);
         float visibility = 1f;
         foreach (Vector4 occluder in occluders)
         {
@@ -857,16 +841,16 @@ internal static class Eclipse
             // As in the shader, whose division may round the ratio past 1 for a distance within 2 ULP of the radius.
             float occluderRadius = MathF.Asin(MathF.Min(occluder.W / distance, 1f));
             float separation = MathF.Atan2(
-                Vector3.Cross(toCenter, sunDirection).Length(),
-                Vector3.Dot(toCenter, sunDirection)
+                Vector3.Cross(toCenter, towardLight).Length(),
+                Vector3.Dot(toCenter, towardLight)
             );
-            visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
+            visibility *= 1f - DiscCoverage(lightRadius, occluderRadius, separation);
         }
 
         return visibility;
     }
 
-    /// <summary>The fraction of the sun's disc hidden by an occluder's disc whose center is <paramref name="separation"/>
+    /// <summary>The fraction of a light's disc hidden by an occluder's disc whose center is <paramref name="separation"/>
     /// radians away.</summary>
     public static float DiscCoverage(float sunRadius, float occluderRadius, float separation)
     {

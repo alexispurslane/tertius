@@ -1,0 +1,9 @@
+{
+  "scene": "lamp-hall-4-spot-moving",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 10 },
+    { "do": "capture", "name": "hall" },
+    { "do": "film", "name": "timing", "frames": 300, "every": 1 }
+  ]
+}

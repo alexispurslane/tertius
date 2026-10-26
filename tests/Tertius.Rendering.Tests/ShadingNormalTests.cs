@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The shading normal of a material on the GPU: a material without a normal map shades with its interpolated vertex
-/// normal, and a normal map decodes as glTF's xyz × 2 − 1. Each test finds the sun's highlight on a smooth white metal
+/// normal, and a normal map decodes as glTF's xyz × 2 − 1. Each test finds the sun's highlight on a smooth dark metal
 /// square that fills a 10° view. At the roughness floor the highlight peaks where the half vector meets the shading
 /// normal, so the center of the highlight shows that normal to a quarter of a milliradian.
 /// </summary>
@@ -57,17 +57,20 @@ public sealed class ShadingNormalTests
     }
 
     /// <summary>
-    /// The center of the highlight on a smooth white metal square 3 m ahead that faces the camera and fills the view, with
+    /// The center of the highlight on a smooth dark metal square 3 m ahead that faces the camera and fills the view, with
     /// <paramref name="normalMap"/>, under a sun along <paramref name="toSun"/> and no ambient light.
     /// </summary>
     private static Vector2 HighlightOnAMirror(Vector3 toSun, TextureData? normalMap, string name)
     {
-        // A dim sun keeps the peak below 1 before the tone curve, which would turn the pixels around it white too.
-        var white = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
-        double peak = white
+        // A dim sun keeps the peak below 1 before the tone curve, which would turn the pixels around it white too. The
+        // metal reflects 2%: a white mirror's peak is about 19,000 times its irradiance, so a sun dim enough for it would
+        // fall below the cutoff irradiance, which is set for a matte surface, and the batcher would leave it out. On the
+        // dark metal the sun's irradiance is about 3 times the cutoff.
+        var metal = new MaterialSample(BaseColor: new(0.02, 0.02, 0.02), Metallic: 1, Roughness: 0, Reflectance: 0.5);
+        double peak = metal
             .Reflected(normal: Double3.UnitZ, toView: Double3.UnitZ, toLight: Double3.UnitZ, tables: BrdfTables.Shared)
             .X;
-        RenderSnapshot snapshot = Gpu.Snapshot(toSun, sunIntensity: (float)(0.5 / peak));
+        RenderSnapshot snapshot = Gpu.Snapshot(toSun, starIrradiance: (float)(0.5 / peak));
         snapshot.Ambient.Intensity = 0;
         snapshot.Camera.VerticalFov = NarrowFov;
 
@@ -77,7 +80,7 @@ public sealed class ShadingNormalTests
             MeshId square = renderer.CreateMesh(Primitives.Plane(1f));
             TextureId map = normalMap is { } data ? renderer.CreateTexture(data) : TextureId.None;
             MaterialId mirror = renderer.CreateMaterial(
-                new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1, NormalMap: map)
+                new(BaseColor: new(x: 0.02f, y: 0.02f, z: 0.02f, w: 1), Roughness: 0, Metallic: 1, NormalMap: map)
             );
             snapshot.Instances.Add(
                 Gpu.Instance(

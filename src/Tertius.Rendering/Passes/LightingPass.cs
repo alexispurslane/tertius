@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// One fullscreen pass over all depth ranges: reads the G-buffer, rebuilds each pixel's position from its view ray
-/// and stored distance, and writes lit HDR color, with the sun shadowed by the cascades and the occluder spheres and
+/// and stored distance, and writes lit HDR color, with each light shadowed by its slot's cascades and occluder spheres and
 /// the ambient light darkened by the occlusion target. Sky pixels get the star field.
 /// </summary>
 internal sealed unsafe class LightingPass : RenderPass
@@ -45,6 +45,8 @@ internal sealed unsafe class LightingPass : RenderPass
         barriers.Image(targets.Occlusion, ImageUse.SampledFragment);
         // Always, even in a frame without shadow maps: the descriptor promises this layout whenever the shader runs.
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+        if (context.ShadowAtlas is { } atlas)
+            barriers.Image(atlas.Image, ImageUse.SampledFragment);
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         barriers.Flush(vk, commandBuffer);

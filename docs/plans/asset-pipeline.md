@@ -26,7 +26,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 8. The game never imports. The CLI, the editor and `tertius content validate` import, and the game loads only cooked output. The game then ships no native asset tools.
 9. A model file is addressed by node names. A piece is a node that renders as one unit. Every root node is a piece, and an author can mark any other node as a piece. A part is one mesh with one material inside a piece. One entity renders one piece with all its parts through `render.model`.
 10. The front of an object in the engine is -Z, like the camera and spot lights. glTF puts the front of an asset at +Z. So the importer turns every model by 180° about +Y.
-11. One engine light unit is 683 candela for point and spot lights, and 683 lux for the sun. For the sun, this is a Blender sun of strength 1 W/m². For a point light, it is a Blender point light of 4π W. The Blender exporter multiplies by exactly 683, so a scene from Blender keeps its relative brightness.
+11. A light's power is in W, as the engine's lights are in SI units ([local-light-shadows.md](local-light-shadows.md), "Units"). The importer turns glTF's candela into watts by the exporter's own factor of 683 lm/W: P = 4π · cd / 683 for a point light, and P = 2π (1 − cos θ_o) · cd / 683, the cone's solid angle times the intensity, for a spot light. So a Blender point light of 100 W imports as 100 W, and a scene from Blender keeps its brightness.
 12. Materials import from glTF metallic-roughness as they are. Metallic, roughness and the base color pass through to `MaterialDesc`, and the reflectance is clamp(√(Y(F0d) / 0.16), 0, 1), where F0d is the dielectric reflectance of the glTF material. The default glTF dielectric, with an IOR of 1.5, gives the default reflectance of 0.5 exactly. (Changed on 2026-10-24: the renderer switched from Blinn-Phong to a PBR BRDF, so no conversion to gloss is needed. See [pbr-brdf.md](pbr-brdf.md).)
 13. Metals look right. The BRDF takes the base color of a metal as its F0, and metals reflect the renderer's environment map of the scene around the camera ([environment-map.md](environment-map.md)). The specular part of the hemisphere ambient light lights them only in a renderer whose map is off. (Changed on 2026-10-24: the renderer no longer caps F0 at 0.16, so the importer no longer keeps half of the base color of a metal as diffuse color. (User))
 14. Textures are block-compressed (BC4, BC5 and BC7), and the importer makes every mip level. All target GPUs support BC: Apple Silicon through MoltenVK (measured on this machine) and desktop GPUs on Linux.
@@ -621,7 +621,6 @@ The section `texture` applies to standalone texture assets, and `model.textures`
 | `collision.decompose` | See "Collision" | The options of V-HACD |
 | `blenderTimeout` | 1800 | s: the time limit of a Blender run, for a conversion and for the build of a scripted model. A scripted model with a large bake needs minutes. It changes no output, so it is not part of the cache key. |
 | `lights.import` | `true` | Import the point and spot lights of the model |
-| `lights.cutoff` | 0.01 | The irradiance, in engine units, at which a light without a glTF range ends |
 | `lights.castsShadow` | `false` | Default for lights without the custom property `tertius_cast_shadow` |
 | `textures` | | Texture keys that apply to every texture of the materials of the model |
 | `budget.triangles` | 100000 | The largest triangle count of LOD 0 of the whole file. Above it, warning AS2015. |
@@ -807,19 +806,19 @@ Other material features:
 The importer reads KHR_lights_punctual point and spot lights. They become lights of their piece, with an offset from the piece origin. glTF lights point along -Z of their node, as engine lights do.
 
 ```
-intensity (engine) = intensity (glTF, candela) / 683
-range              = glTF range, or sqrt(intensity × max(color) / lights.cutoff), clamped to [0.5, 500] m
+power (W)          = 4π · candela / 683                        for a point light
+power (W)          = 2π (1 − cos θ_o) · candela / 683          for a spot light of outer half-angle θ_o
+radius             = 0: a punctual light has no size
 cone angles        = glTF innerConeAngle and outerConeAngle (half-angles in radians; glTF defaults 0 and π/4)
 castsShadow        = the custom property tertius_cast_shadow, or lights.castsShadow
 ```
 
-- The Blender exporter in its default lighting mode writes candela = W / (4π) × 683 for point and spot lights. It writes lux = W/m² × 683 for sun lights (glTF-Blender-IO `blender/exp/lights.py`). So one engine unit is one Blender W/m².
-- The renderer computes irradiance as color × intensity / d² (`RenderLight`), and the sun has a default intensity of 1. A Blender sun of strength 1 and the engine sun of intensity 1 then give the same irradiance.
-- Blender writes no range, so the range comes from the cutoff. A light of intensity 30 reaches 55 m. Step 11 measures the GPU cost of the light ranges of a real interior.
-- A directional light is ignored (warning AS2019). The sun is a value of the scene.
+- The Blender exporter in its default lighting mode writes candela = W / (4π) × 683 for point and spot lights (glTF-Blender-IO `blender/exp/lights.py`). So the point light's formula gives back Blender's watts. A Blender spot light sends its watts into every direction as a point light would, and the importer keeps only what goes through the cone, as the engine's spot light sends its whole power through its cone.
+- The importer writes no range and no cutoff: the renderer derives a light's intensity and its reach from the power, in each frame (local-light-shadows.md, "The cutoff and the reach"). A glTF range is ignored. Step 11 measures the GPU cost of the lights of a real interior.
+- A directional light is ignored (warning AS2019). A star is an entity with a point light of its real power, at its real distance, not a light of a model.
 - Emissive values pass through unchanged. KHR_materials_emissive_strength is a unitless factor (its specification), and the Blender exporter writes the Blender emission strength without a conversion. The engine adds emissive as radiance, and its diffuse term is base color × (1 − metallic) / π. So an emission strength of 1 looks as bright as in Blender.
 
-The content formats design states this unit for the light sections of content files: an intensity of 1 is 683 candela, which is a Blender point light of 4π W, about 12.6 W.
+The content formats design states the same unit, the watt, for the light sections of content files.
 
 ### Textures
 
@@ -1033,7 +1032,7 @@ bin/assets/ships/corvette.blend/
     { "name": "AirlockInner", "parent": 0, "piece": 0, "pose": { "position": [0, 1.1, 12] } }
   ],
   "lights": [
-    { "kind": "point", "offset": { "position": [0, 2.4, -6] }, "color": [1, 0.85, 0.7], "intensity": 18.6, "range": 43.1, "castsShadow": false }
+    { "kind": "point", "offset": { "position": [0, 2.4, -6] }, "color": [1, 0.85, 0.7], "power": 233.7, "radius": 0, "castsShadow": false }
   ],
   "shapes": [
     { "kind": "compound", "children": [ { "kind": "convexHull", "points": [0, 64], "pose": { "position": [0, 0, -20] } } ] },
@@ -1198,12 +1197,12 @@ public readonly record struct ModelId { ... }   // like MeshId: the value is sto
 /// <summary>One mesh with one material, placed by an offset from the model origin.</summary>
 public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset, bool Transparent);
 
-/// <summary>A point light of a model, placed by an offset from the model origin. Units as PointRenderLight.</summary>
-public readonly record struct PointModelLight(Pose Offset, Vector3 Color, float Intensity, float Range, bool CastsShadow);
+/// <summary>A point light of a model, placed by an offset from the model origin. Units as PointLightData.</summary>
+public readonly record struct PointModelLight(Pose Offset, Vector3 Color, float Power, float Radius, bool CastsShadow);
 
-/// <summary>A spot light of a model. Units as SpotRenderLight. It points along -Z of its offset.</summary>
+/// <summary>A spot light of a model. Units as SpotLightData. It points along -Z of its offset.</summary>
 public readonly record struct SpotModelLight(
-    Pose Offset, Vector3 Color, float Intensity, float Range, float InnerConeAngle, float OuterConeAngle, bool CastsShadow);
+    Pose Offset, Vector3 Color, float Power, float Radius, bool CastsShadow, float InnerConeAngle, float OuterConeAngle);
 
 /// <summary>A light of a model: a PointModelLight or a SpotModelLight. A custom [Union], as RenderLight is. default holds no light.</summary>
 [Union]
@@ -1449,7 +1448,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
         { "material": "HullPaint", "triangles": 41210, "lods": [{ "triangles": 20604, "error": 0.0041 }, { "triangles": 10302, "error": 0.0112 }] },
         { "material": "Glass", "triangles": 410, "transparent": true, "lods": [] }
       ],
-      "lights": [{ "kind": "point", "node": "Lamp", "intensity": 18.6, "candela": 12704, "range": 43.1 }],
+      "lights": [{ "kind": "point", "node": "Lamp", "power": 233.7, "candela": 12704 }],
       "collision": {
         "moving": { "kind": "compound", "children": 12, "points": 704, "from": "markers" },
         "static": { "kind": "mesh", "triangles": 8360, "from": "markers" }
@@ -1484,7 +1483,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
 | `materials.png` | One sphere per material, with the textures of the material. Labels: material names. |
 | `thumbnail.png` | 256 × 256 pixels, with no labels: the three-quarter view of a model, or the sphere of a texture. The asset browser of the editor shows it. |
 
-A texture asset gets `textures.png` and a sphere with the texture. The light rig is fixed: a sun from the front, above and to the left, with intensity 3, and the default hemisphere ambient light. The camera fits the bounding sphere with a vertical field of view of 35°. The 8 × 8 font comes from a public-domain source such as `dhepper/font8x8`, and step 16 makes sure of its license first.
+A texture asset gets `textures.png` and a sphere with the texture. The light rig is fixed: a star entity from the front, above and to the left, of the Sun's power 1 AU away, and the default hemisphere ambient light. The camera fits the bounding sphere with a vertical field of view of 35°. The 8 × 8 font comes from a public-domain source such as `dhepper/font8x8`, and step 16 makes sure of its license first.
 
 ### Fetching and intake
 
@@ -1950,7 +1949,7 @@ Ticket ter-q218 comes before these steps. It adds the scripted model format, the
     - Toksvig in the mips: n = 2 / α² − 2 and back gives the same roughness for |Na| = 1.
     - Metals, unlit, every alpha mode, packing into textures and texture sharing.
     - A texture set with separate roughness and metal images in `extras`, and `tertius_normalDx`.
-11. Write the light conversion. Tests: candela to engine units, ranges from the cutoff, spot cones and ignored directional lights. Measure the GPU cost of the lights of the interior fixture.
+11. Write the light conversion. Tests: candela to watts for point and spot lights, spot cones and ignored directional lights. Measure the GPU cost of the lights of the interior fixture.
 12. Write collision. Tests:
     - Each marker kind, root markers and the defaults for both uses.
     - A static use of a piece with `UTM_` markers leaves out its convex markers.
@@ -2011,7 +2010,7 @@ Fixtures in `tests/Tertius.Import.Tests/Fixtures/`. Each one is small and tests 
 | `texture-transform.gltf`, `two-uv-sets.gltf` | UV baking |
 | `double-sided.glb`, `alpha-modes.glb` | Material modes |
 | `blender-tangents.glb` | Tangents that Blender wrote |
-| `interior.glb` | A room of about 10,000 triangles with 8 lights, for collision and light ranges |
+| `interior.glb` | A room of about 10,000 triangles with 8 lights, for collision and the cost of the lights |
 | `door.fbx`, `crate.obj` with `crate.mtl`, `ship.blend`, `autoexec.blend`, `draco.glb`, `checker.tif`, `checker.webp` | The Blender path, and the conversions at import |
 | `texture-set.gltf` with separate roughness, metal and DirectX normal images | The packing of a texture set at import |
 | `crate.model/` | A scripted model: a copy of the example model of `tools/blender/tests/` |

@@ -32,7 +32,8 @@ public abstract class CheckedInRun : IDisposable
     {
         Script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", name + ".json")));
         World = NewJoltWorld();
-        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+        // The demo scenes are in SI units, from sunlight to cabin lamps, so the captures show them as a scripted run does.
+        VulkanRenderer renderer = GpuTesting.LikeAScriptedRun(16, 16);
         try
         {
             Scene = DemoScenes.All.Single(s => s.Name == Script.Scene).Build(World, renderer);

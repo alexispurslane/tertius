@@ -67,11 +67,13 @@ public enum RenderFlags : uint
     Visible = 1 << 0,
 
     /// <summary>
-    /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
-    /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows, which have its real shape, onto
-    /// what is within 2 km. Every caster also shadows as an analytic sphere of its bounding radius, a far shadow, where the
-    /// maps do not reach, when it is big enough to notice. A sphere never shadows what lies inside it, so a caster never
-    /// shadows itself. Leave it off the sun itself.
+    /// Casts shadows from every light that casts shadows, whether or not the instance is <see cref="Visible"/>, and onto
+    /// objects in any frame. For a far light with a cascade set, a caster whose bounding sphere comes within 2 km of the
+    /// camera casts shadow-map shadows, which have its real shape, onto what is within 2 km. Every caster also shadows as an
+    /// analytic sphere of its bounding radius, a far shadow of a far light, where the maps do not reach, when it is big
+    /// enough to notice. A sphere never shadows what lies inside it, so a caster never shadows itself. For a near light with
+    /// tiles of the local shadow atlas, a caster within the light's reach casts shadows of its real shape. Leave it off a
+    /// light's own emitter, such as a lamp's bulb or panel, so that it does not darken its own light.
     /// </summary>
     CastsShadow = 1 << 1,
 
@@ -93,7 +95,7 @@ public enum RenderFlags : uint
 /// The previous transform uses the same origin, so the render thread can interpolate. A zeroed instance is not
 /// drawable (zero scale and zero rotations), so build instances with <see cref="Create"/>.
 /// Below 200 px of projected height, the renderer may draw the object from a baked capture (an impostor). An
-/// impostor keeps its sun, ambient, eclipse and point or spot lighting, but receives no shadow-map shadows.
+/// impostor keeps its lights, ambient light and far shadows, but receives no shadow-map shadows.
 /// </summary>
 public struct RenderInstance
 {
@@ -180,22 +182,6 @@ public struct RenderCamera
     public float VerticalFov;
 }
 
-/// <summary>The sun as a directional light.</summary>
-public struct RenderSun
-{
-    /// <summary>From the camera toward the sun. It need not be normalized, but it must not be zero.</summary>
-    public Vector3 Direction;
-
-    /// <summary>Linear RGB.</summary>
-    public Vector3 Color;
-
-    /// <summary>Irradiance. Zero or less disables the sun, including its shadow pass.</summary>
-    public float Intensity;
-
-    /// <summary>The sun's apparent angular radius, in radians. It sets the softness of eclipse edges.</summary>
-    public float AngularRadius;
-}
-
 public struct AmbientLight
 {
     public Vector3 SkyColor;
@@ -220,7 +206,6 @@ public sealed class RenderSnapshot
     /// </summary>
     public Double3 OriginInFrame;
 
-    public RenderSun Sun;
     public AmbientLight Ambient;
 
     /// <summary>

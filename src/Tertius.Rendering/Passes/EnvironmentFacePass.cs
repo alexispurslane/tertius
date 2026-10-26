@@ -10,7 +10,7 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para>A face is one rendering per depth range into level 0 of its layer, far to near, each with the face's own
 /// projection of that range and a freshly cleared depth. The far range first draws the sky over every texel, with no depth
-/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with the sun, the lamps and their
+/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with every light and their
 /// emission and no ambient light.</para>
 /// <para>A face looks along its map's axes (docs/plans/environment-maps-per-frame.md, decision 9), and keeps the lights of
 /// its map and the maps outside it (decision 13).</para>
@@ -81,6 +81,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+        if (context.ShadowAtlas is { } atlas)
+            barriers.Image(atlas.Image, ImageUse.SampledFragment);
         barriers.Flush(context.Vk, context.CommandBuffer);
 
         // The last frame's prefilter is the only reader of the radiance map, so each face's discard waits for it alone.
@@ -227,11 +229,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, sky);
         context.BindSceneSets();
-        float size = map.Setting.FaceSize;
-        var viewport = new Viewport(x: 0, y: 0, width: size, height: size, minDepth: 0, maxDepth: 1);
-        var scissor = new Rect2D(new Offset2D(0, 0), FaceExtent);
-        vk.CmdSetViewport(commandBuffer: commandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
-        vk.CmdSetScissor(commandBuffer: commandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
+        context.SetViewport(FaceExtent);
         GeometryPass.BindGeometry(context);
     }
 

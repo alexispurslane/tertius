@@ -3676,7 +3676,7 @@ A numeric frame that holds nothing has a contents sphere of radius 0, and the re
 
 #### Who turns outlines on
 
-`World.ShowFrameOutlines` is a view setting, like `World.Camera`, `VerticalFov` and `SunFrame`. It is a plain property. The snapshot builder reads it through `RenderView` at each build. It is off by default. A scene can set it at its build. A script sets it between ticks with a step:
+`World.ShowFrameOutlines` is a view setting, like `World.Camera` and `VerticalFov`. (`SunFrame` was one too, until the lights plan made a star an entity with a light, [local-light-shadows.md](local-light-shadows.md).) It is a plain property. The snapshot builder reads it through `RenderView` at each build. It is off by default. A scene can set it at its build. A script sets it between ticks with a step:
 
 ```json
 { "do": "outlines", "show": true }
@@ -3721,7 +3721,7 @@ The renderer's description in ARCHITECTURE.md changes in one place. It knows not
 
 | New value | Existing analogue | Same model? |
 |---|---|---|
-| `World.ShowFrameOutlines` | `World.Camera`, `VerticalFov` and `SunFrame`: view settings that the builder reads through `RenderView` | Yes |
+| `World.ShowFrameOutlines` | `World.Camera` and `VerticalFov`: view settings that the builder reads through `RenderView` | Yes |
 | The switch as a whole | A renderer switch, such as `RendererOptions.Impostors`, which makes or leaves out the impostor pass | No. It must change between captures of one run, and the builder cannot see renderer options. |
 | `OutlinesStep` | `CameraStep`, which sets a view setting between ticks, as a hard cut | Yes |
 | `RenderSnapshot.Outlines` | `RenderSnapshot.Lights`: a list of a union, built at step 11, relative to the render origin, not interpolated | Yes, except one point. The builder adds outlines in a loop after the chunks join, because there is one outline for each frame, not for each slot. |

@@ -327,7 +327,7 @@ public sealed class PlumeTests : IDisposable
         ground.DensityAt(new(0, DemoScenes.EarthRadius + 8500, 0)).Should().BeApproximately(1.225 / Math.E, 1e-6);
         ground.Drag.Should().BePositive();
         Of("earth").HasValue.Should().BeFalse();
-        frames.Medium(world.SunFrame).HasValue.Should().BeFalse();
+        Of("sun").HasValue.Should().BeFalse();
 
         MediumField cabin = Of("shuttle");
         cabin.Fills(Shuttle.SeatStand).Should().BeTrue();

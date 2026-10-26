@@ -46,8 +46,9 @@ public sealed class RenderSnapshotParallelBuildTests
                 render.Light = new PointLightData(
                     Offset: Pose.Identity,
                     Color: new(1, 0.5f, 0.25f),
-                    Intensity: 1,
-                    Range: 20
+                    Power: 1,
+                    Radius: 0.2f,
+                    CastsShadow: true
                 );
             bool hasRigPose = posed && i % 7 == 0;
             IComponent[] components = i % 4 == 0 ? [new Mover(new(0.25, 0, 0))] : [];
@@ -234,17 +235,7 @@ public sealed class RenderSnapshotParallelBuildTests
             var snapshot = new RenderSnapshot();
             Builder.Build(
                 snapshot,
-                new(
-                    Tick: 0,
-                    Time: 0,
-                    Camera: camera,
-                    VerticalFov: 1,
-                    SunFrame: FrameHandle.Null,
-                    SunColor: Vector3.One,
-                    SunIntensity: 0,
-                    Ambient: new(),
-                    ShowFrameOutlines: false
-                ),
+                new(Tick: 0, Time: 0, Camera: camera, VerticalFov: 1, Ambient: new(), ShowFrameOutlines: false),
                 puffs: default
             );
             return snapshot;

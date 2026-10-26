@@ -19,7 +19,9 @@ namespace Tertius.Rendering;
 /// <item>CPU batching (<see cref="SceneBatcher"/>): interpolation by alpha, culling, depth ranges, sorting, one indirect
 /// command per (range, mesh) run. The impostor manager (<see cref="IInstanceProcessor"/>) takes the objects it draws
 /// as impostors out of the batch and chooses this frame's captures.</item>
-/// <item>Sun shadow maps (<see cref="ShadowPass"/>): four cascades over the first 2 km, casters from the whole snapshot.</item>
+/// <item>The shadow maps (<see cref="ShadowPass"/>): a set of four cascades over the first 2 km for each far light with a
+/// cascade set, from the frame's casters, then, under <see cref="LocalShadowAtlas"/>, the stale tiles of the near lights
+/// in the local shadow atlas (<see cref="LocalShadowPass"/>).</item>
 /// <item>The environment map, under <see cref="SceneEnvironmentMap"/>: the faces that this frame draws
 /// (<see cref="EnvironmentFacePass"/>), then the specular map and the irradiance (<see cref="EnvironmentPrefilterPass"/>).</item>
 /// <item>Impostor captures (<see cref="ImpostorPass"/>): up to four objects, chosen by <see cref="ImpostorManager"/>
@@ -88,6 +90,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ExposureResources exposure;
     private readonly ExposureSetting exposureSetting;
     private readonly EnvironmentMap? environmentMap;
+    private readonly ShadowAtlas? shadowAtlas;
+    private readonly LocalShadowPass? localShadows;
 
     /// <summary>The served chain of the frame being drawn, frame ids root first, in its first M entries.</summary>
     private readonly long[] servedChain = new long[EnvironmentChain.MaxMaps];
@@ -112,6 +116,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         this.headless = headless;
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
+        Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
         {
@@ -137,7 +142,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections
             );
-            ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
                 new ExposureResources(
                     device: device,
@@ -147,11 +151,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 )
             );
             environmentMap = CreateEnvironmentMap(options);
-            // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
-            layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
+            (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             frames = CreateFrames(options.FramesInFlight);
 
-            (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
+            (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
@@ -192,7 +195,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
 
-    internal SceneBatcher Batcher { get; } = new();
+    internal SceneBatcher Batcher { get; }
 
     internal FrameGraph Graph { get; } = new();
 
@@ -308,6 +311,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 $"ShadowMapSize must be at least {ShadowMap.MinimumSize}."
             );
+        if (options.CascadedLights is < 0 or > RendererOptions.MaxCascadedLights)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"CascadedLights must be 0 to {RendererOptions.MaxCascadedLights}, not {options.CascadedLights}."
+            );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
@@ -323,7 +331,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The first problem of the settings in <paramref name="options"/> that are unions, in their order there, or null.</summary>
     private static string? SettingsProblem(RendererOptions options) =>
-        options.Exposure.Problem
+        options.LocalShadows.Problem
+        ?? options.Exposure.Problem
         ?? options.AmbientOcclusion.Problem
         ?? options.Bloom.Problem
         ?? options.Reflections.Problem
@@ -492,8 +501,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        // Only now, so that a frame that threw above leaves the maps' drawn chain and the slot's readback as they were.
+        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback and the tiles'
+        // records as they were.
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
+        localShadows?.Tiles.Drew();
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -727,14 +738,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
             NearCommands = scene.Opaque[DepthRanges.Near].Count,
             TransparentCommands = scene.TransparentCommandCount,
-            ShadowCommands =
-                scene.ShadowCommands[0].Count
-                + scene.ShadowCommands[1].Count
-                + scene.ShadowCommands[2].Count
-                + scene.ShadowCommands[3].Count,
-            ShadowCascades = scene.ShadowCascadeCount,
+            ShadowCommands = ShadowCommandsOf(scene),
+            ShadowCascades = scene.CascadeSetCount * ShadowCascades.Count,
+            CascadeSets = scene.CascadeSetCount,
             ShadowCasters = scene.ShadowCasters,
             ShadowInstances = scene.ShadowInstances,
+            ShadowTilesInUse = scene.ShadowTileCount,
+            ShadowTilesDrawn = scene.DrawnTiles.Count,
             Impostors = impostors?.Draws.Length ?? 0,
             ImpostorCaptures = impostors?.Captures.Length ?? 0,
             ImpostorsWaiting = impostors?.Waiting ?? 0,
@@ -747,6 +757,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Exposure = exposure,
             Rendered = true,
         };
+
+    /// <summary>The caster commands of every cascade of every set that the frame draws.</summary>
+    private static int ShadowCommandsOf(PreparedScene scene)
+    {
+        int count = 0;
+        for (int layer = 0; layer < scene.CascadeSetCount * ShadowCascades.Count; layer++)
+            count += scene.ShadowCommands[layer].Count;
+        return count;
+    }
 
     private void ApplyPendingResize()
     {
@@ -774,15 +793,34 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Reads one cascade of the shadow map back to the CPU, row by row from the top: reversed depth, 1 nearest the
-    /// sun. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+    /// Reads one cascade of one cascade set back to the CPU, row by row from the top: reversed depth, 1 nearest the light.
+    /// A test and tooling hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadShadowCascade(int cascade)
+    internal float[] ReadShadowCascade(int set, int cascade)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)set, (uint)ShadowMap.Sets);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)cascade, (uint)ShadowCascades.Count);
-        GpuImage image = ShadowMap.Image;
-        int size = ShadowMap.Size;
-        int texelBytes = ShadowMap.Format == Format.D32Sfloat ? 4 : 2;
+        return ReadDepthLayer(image: ShadowMap.Image, layer: ShadowMap.Layer(set, cascade), size: ShadowMap.Size);
+    }
+
+    /// <summary>
+    /// Reads one layer of the local shadow atlas back to the CPU, row by row from the top: reversed depth, 1 at the tile's
+    /// near plane, 0 at infinity. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Local shadows are off.</exception>
+    internal float[] ReadShadowTile(int layer)
+    {
+        ShadowAtlas atlas = shadowAtlas ?? throw new InvalidOperationException("Local shadows are off.");
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)layer, (uint)atlas.Tiles);
+        return ReadDepthLayer(image: atlas.Image, layer: layer, size: atlas.TileSize);
+    }
+
+    /// <summary>
+    /// Copies one layer of a square depth image of D32 or D16 to the CPU, as floats from 0 to 1, row by row from the top.
+    /// </summary>
+    private float[] ReadDepthLayer(GpuImage image, int layer, int size)
+    {
+        int texelBytes = image.Format == Format.D32Sfloat ? 4 : 2;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -796,7 +834,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 commandBuffer: commandBuffer,
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
-                layer: cascade,
+                layer: layer,
                 mip: 0,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer
@@ -1303,6 +1341,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Materials = materials,
             Barriers = barriers,
             Shadows = ShadowMap,
+            ShadowAtlas = shadowAtlas,
             Timer = timer,
             Exposure = exposure,
             Environment = environmentMap,
@@ -1351,6 +1390,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     tables: BrdfTableImages,
                     exposure: exposure.Buffer,
                     environment: environmentMap,
+                    shadowAtlas: shadowAtlas,
                     index: i
                 )
             );
@@ -1358,10 +1398,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Adds the shadow and G-buffer passes to the graph, and the impostors when <paramref name="options"/> turn them on.
-    /// Returns the impostor atlas and manager, or nulls when impostors are off.
+    /// Adds the shadow and G-buffer passes to the graph, the local shadow pass when the renderer has an atlas, and the
+    /// impostors when <paramref name="options"/> turn them on. Returns the impostor atlas and manager, or nulls when
+    /// impostors are off, and the local shadow pass, or null without an atlas.
     /// </summary>
-    private (ImpostorAtlas? Atlas, ImpostorManager? Manager) AddPassesThroughGeometry(
+    private (ImpostorAtlas? Atlas, ImpostorManager? Manager, LocalShadowPass? LocalShadows) AddPassesThroughGeometry(
         ShaderLibrary shaders,
         RendererOptions options
     )
@@ -1370,6 +1411,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.ShadowMaps,
             new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)
         );
+        LocalShadowPass? localShadowPass = null;
+        if (shadowAtlas is { } atlas)
+        {
+            // After the cascades, in the same stage: both only draw depth, and every shading pass reads both.
+            localShadowPass = new LocalShadowPass(device: device, shaders: shaders, layouts: layouts, atlas: atlas);
+            Graph.Add(FrameGraph.Stage.ShadowMaps, localShadowPass);
+        }
+
         if (environmentMap is { } map)
         {
             Graph.Add(
@@ -1390,8 +1439,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
         if (!options.Impostors)
-            return (null, null);
-        return AddImpostors(shaders: shaders, geometryPass: geometryPass, tiles: options.ImpostorTiles);
+            return (null, null, localShadowPass);
+        (ImpostorAtlas impostorAtlas, ImpostorManager manager) = AddImpostors(
+            shaders: shaders,
+            geometryPass: geometryPass,
+            tiles: options.ImpostorTiles
+        );
+        return (impostorAtlas, manager, localShadowPass);
     }
 
     /// <summary>
@@ -1424,6 +1478,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
     private ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
+
+    /// <summary>
+    /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas, which the renderer owns,
+    /// written into the G-buffer set once: neither image changes, and resizing rewrites only the other G-buffer bindings.
+    /// Without the atlas its binding stays empty: it is partially bound.
+    /// </summary>
+    private (ShadowMap Map, ShadowAtlas? Atlas) CreateShadowImages(RendererOptions options)
+    {
+        ShadowMap map = Own(
+            new ShadowMap(
+                device: device,
+                allocator: Allocator,
+                size: options.ShadowMapSize,
+                sets: options.CascadedLights
+            )
+        );
+        ShadowAtlas? atlas = CreateShadowAtlas(options.LocalShadows);
+        layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: map.Image);
+        if (atlas is not null)
+            layouts.WriteImage(
+                set: targets.GBufferSet,
+                binding: ShadowAtlas.AtlasBinding,
+                arrayElement: 0,
+                image: atlas.Image
+            );
+        return (map, atlas);
+    }
+
+    /// <summary>The local shadow atlas that <paramref name="setting"/> asks for, which the renderer owns, or null for none.</summary>
+    private ShadowAtlas? CreateShadowAtlas(LocalShadowSetting setting) =>
+        setting switch
+        {
+            NoLocalShadows => null,
+            LocalShadowAtlas atlas => Own(new ShadowAtlas(device: device, allocator: Allocator, setting: atlas)),
+        };
 
     /// <summary>The environment map that <paramref name="options"/> ask for, which the renderer owns, or null for none.</summary>
     private EnvironmentMap? CreateEnvironmentMap(RendererOptions options) =>

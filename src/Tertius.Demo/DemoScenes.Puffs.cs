@@ -53,21 +53,21 @@ public static partial class DemoScenes
             StartRadius: 0.25f,
             EndRadius: 1.2f,
             TemperatureRatio: 3,
-            Shading: PuffShading.Glow(new(1.5f, 0.6f, 0.15f))
+            Shading: PuffShading.Glow(new(5100, 2040, 510))
         );
         var blue = new PuffLook(
             Life: 2.5f,
             StartRadius: 0.15f,
             EndRadius: 0.8f,
             TemperatureRatio: 1.6f,
-            Shading: PuffShading.Glow(new(0.25f, 0.5f, 1.5f))
+            Shading: PuffShading.Glow(new(850, 1700, 5100))
         );
         var cold = new PuffLook(
             Life: 4,
             StartRadius: 0.2f,
             EndRadius: 1f,
             TemperatureRatio: 0.8f,
-            Shading: PuffShading.Glow(new(0.15f, 0.6f, 0.2f))
+            Shading: PuffShading.Glow(new(510, 2040, 680))
         );
         scene.Add(
             "flame",
@@ -134,17 +134,15 @@ public static partial class DemoScenes
         );
         scene.Add("camera", camera);
         world.Camera = camera;
-        Entity sun = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = new(new(30, 50, 40), DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
-            }
-        );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
-        world.SunIntensity = 0.4f;
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 40));
+        // The glow puffs and the ambient light, in W/(m²·sr), keep the share of the Sun's light that the scene was judged
+        // with, beside sunlight of 0.4 W/m².
+        world.Ambient = new()
+        {
+            SkyColor = new(270),
+            GroundColor = new(100),
+            Intensity = 1,
+        };
         return scene;
     }
 

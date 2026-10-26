@@ -12,6 +12,12 @@ public static class TestChains
     public const ushort CamerasFrame = 0;
 
     /// <summary>
+    /// The chain depth of an object in the root, whatever chain the test gives its snapshot, even one it gives after it
+    /// adds the object: the deepest depth. A depth deeper than the served chain takes map 0, as the root does.
+    /// </summary>
+    public const ushort Root = ushort.MaxValue;
+
+    /// <summary>
     /// Replaces the chain of <paramref name="snapshot"/> with <paramref name="frames"/>, camera first. Each frame keeps its
     /// rotation from the previous build, as in a build that does not interpolate.
     /// </summary>

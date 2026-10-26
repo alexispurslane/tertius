@@ -5,8 +5,7 @@ using static Tertius.Simulation.Tests.RenderSnapshotSupport;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// Everything in a snapshot that is not an instance: the camera, the lights that entities carry, the sun, the ambient
-/// light and the spheres that cast eclipses. Positions are relative to the render origin and in the axes of the camera's
+/// Everything in a snapshot that is not an instance: the camera, the lights that entities carry, and the ambient light. Positions are relative to the render origin and in the axes of the camera's
 /// frame. A quarter turn about +Y maps (x, y, z) to (z, y, -x).
 /// </summary>
 public sealed class RenderSnapshotLightingTests
@@ -21,16 +20,29 @@ public sealed class RenderSnapshotLightingTests
             Light = new SpotLightData(
                 Offset: LampOffset,
                 Color: LampColor,
-                Intensity: 3,
-                Range: 20,
+                Power: 3,
+                Radius: 0.2f,
+                CastsShadow: true,
                 InnerConeAngle: 0.3f,
                 OuterConeAngle: 0.5f
             ),
         };
 
+    /// <summary>The Sun's light at the origin of its entity: 3.828 × 10²⁶ W from a sphere of 6.957 × 10⁸ m.</summary>
+    private static readonly PointLightData Star = new(
+        Offset: default,
+        Color: Vector3.One,
+        Power: 3.828e26f,
+        Radius: 6.957e8f,
+        CastsShadow: true
+    );
+
     /// <summary>The same as <see cref="Lamp"/>, but a point light.</summary>
     private static RenderData PointLamp() =>
-        new() { Light = new PointLightData(Offset: LampOffset, Color: LampColor, Intensity: 3, Range: 20) };
+        new()
+        {
+            Light = new PointLightData(Offset: LampOffset, Color: LampColor, Power: 3, Radius: 0.2f, CastsShadow: true),
+        };
 
     // ---- The camera ------------------------------------------------------------------------------------------------
 
@@ -160,7 +172,13 @@ public sealed class RenderSnapshotLightingTests
                 Pose = new(new(5, 0, 0), PoseChecks.QuarterTurnAboutY),
                 Render = new RenderData
                 {
-                    Light = new PointLightData(Offset: offset, Color: LampColor, Intensity: 3, Range: 20),
+                    Light = new PointLightData(
+                        Offset: offset,
+                        Color: LampColor,
+                        Power: 3,
+                        Radius: 0.2f,
+                        CastsShadow: true
+                    ),
                 },
             }
         );
@@ -174,8 +192,9 @@ public sealed class RenderSnapshotLightingTests
                     Light = new SpotLightData(
                         Offset: offset,
                         Color: LampColor,
-                        Intensity: 3,
-                        Range: 20,
+                        Power: 3,
+                        Radius: 0.2f,
+                        CastsShadow: true,
                         InnerConeAngle: 0.3f,
                         OuterConeAngle: 0.5f
                     ),
@@ -208,8 +227,9 @@ public sealed class RenderSnapshotLightingTests
                     Light = new SpotLightData(
                         Offset: quarterTurnAboutY,
                         Color: LampColor,
-                        Intensity: 3,
-                        Range: 20,
+                        Power: 3,
+                        Radius: 0.2f,
+                        CastsShadow: true,
                         InnerConeAngle: 0.3f,
                         OuterConeAngle: 0.5f
                     ),
@@ -237,7 +257,13 @@ public sealed class RenderSnapshotLightingTests
                 Pose = TestWorld.At(5),
                 Render = new RenderData
                 {
-                    Light = new PointLightData(Offset: default, Color: LampColor, Intensity: 3, Range: 20),
+                    Light = new PointLightData(
+                        Offset: default,
+                        Color: LampColor,
+                        Power: 3,
+                        Radius: 0.2f,
+                        CastsShadow: true
+                    ),
                 },
             }
         );
@@ -251,8 +277,9 @@ public sealed class RenderSnapshotLightingTests
                     Light = new SpotLightData(
                         Offset: default,
                         Color: LampColor,
-                        Intensity: 3,
-                        Range: 20,
+                        Power: 3,
+                        Radius: 0.2f,
+                        CastsShadow: true,
                         InnerConeAngle: 0.3f,
                         OuterConeAngle: 0.5f
                     ),
@@ -293,39 +320,205 @@ public sealed class RenderSnapshotLightingTests
     }
 
     [Fact]
-    public void APointLightIsAPointRenderLightWithItsColorIntensityAndRange()
+    public void ALightCarriesItsPowerRadiusAndShadowFlagIntoTheSnapshot()
     {
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.World.Spawn(new() { Frame = test.Root, Render = PointLamp() });
-
-        test.Run(1);
-
-        RenderLight light = test.World.Latest().Lights.Single();
-        light.TryGetValue(out SpotRenderLight _).Should().BeFalse();
-        light.TryGetValue(out PointRenderLight point).Should().BeTrue();
-        point.Color.Should().Be(new Vector3(1, 0.5f, 0.25f));
-        point.Intensity.Should().Be(3);
-        point.Range.Should().Be(20);
-    }
-
-    [Fact]
-    public void ASpotLightIsASpotRenderLightWithItsColorIntensityRangeAndConeAngles()
-    {
-        using var test = new TestWorld();
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.World.Spawn(new() { Frame = test.Root, Render = Lamp() });
 
         test.Run(1);
 
-        RenderLight light = test.World.Latest().Lights.Single();
-        light.TryGetValue(out PointRenderLight _).Should().BeFalse();
-        light.TryGetValue(out SpotRenderLight spot).Should().BeTrue();
+        RenderLight[] lights = [.. test.World.Latest().Lights];
+        lights.Should().HaveCount(2);
+        lights[0].TryGetValue(out PointRenderLight point).Should().BeTrue();
+        point.Color.Should().Be(new Vector3(1, 0.5f, 0.25f));
+        point.Power.Should().Be(3);
+        point.Radius.Should().Be(0.2f);
+        point.CastsShadow.Should().BeTrue();
+        lights[1].TryGetValue(out SpotRenderLight spot).Should().BeTrue();
         spot.Color.Should().Be(new Vector3(1, 0.5f, 0.25f));
-        spot.Intensity.Should().Be(3);
-        spot.Range.Should().Be(20);
+        spot.Power.Should().Be(3);
+        spot.Radius.Should().Be(0.2f);
+        spot.CastsShadow.Should().BeTrue();
         spot.InnerConeAngle.Should().Be(0.3f);
         spot.OuterConeAngle.Should().Be(0.5f);
+    }
+
+    [Fact]
+    public void ALightCarriesTheIndexOfItsEntity()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // Two entities before the lamps, so that no lamp's index is 0 by chance.
+        test.Show(test.Root, TestWorld.At(0, 0, -5));
+        test.Show(test.Root, TestWorld.At(0, 0, -6));
+        Entity point = test.World.Spawn(new() { Frame = test.Root, Render = PointLamp() });
+        Entity spot = test.World.Spawn(new() { Frame = test.Root, Render = Lamp() });
+
+        test.Run(1);
+
+        RenderLight[] lights = [.. test.World.Latest().Lights];
+        lights[0].TryGetValue(out PointRenderLight pointLight).Should().BeTrue();
+        pointLight.EntityIndex.Should().Be(point.Index);
+        lights[1].TryGetValue(out SpotRenderLight spotLight).Should().BeTrue();
+        spotLight.EntityIndex.Should().Be(spot.Index);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ALightOnAMovingEntityCarriesItsPreviousPlace(bool spot)
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity, new Mover(new(0, 1, 0)));
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(10, 0, -5),
+                Render = spot ? Lamp() : PointLamp(),
+                Components = [new Mover(new(1, 0, 0))],
+            }
+        );
+        test.Run(1);
+        test.World.Latest();
+
+        test.Run(1);
+
+        // After tick 1 the lamp is at (12, 0, -5), its light 1 m above it, and the camera at (0, 2, 0). A tick earlier the
+        // lamp was at (11, 0, -5). Both places are relative to the camera of this snapshot.
+        (Vector3 position, Vector3 previous) = test.World.Latest().Lights.Single() switch
+        {
+            PointRenderLight point => (point.Position, point.PreviousPosition),
+            SpotRenderLight spotLight => (spotLight.Position, spotLight.PreviousPosition),
+            null => throw new InvalidOperationException("The lamp's light holds a case."),
+        };
+        position.Should().Be(new Vector3(12, -1, -5));
+        previous.Should().Be(new Vector3(11, -1, -5));
+    }
+
+    [Fact]
+    public void ASpotLightCarriesItsPreviousAxis()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // The lamp turns a quarter turn about +Y in each tick: by a quarter turn at the end of tick 0 and by a half turn at
+        // the end of tick 1. They take the axis (0, 0, -1) to (-1, 0, 0) and to (0, 0, 1).
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = Lamp(),
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                            self.SetTransform(
+                                self.PoseInOwnFrame() with
+                                {
+                                    Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2 * (self.Tick + 1)),
+                                }
+                            )
+                    ),
+                ],
+            }
+        );
+        test.Run(1);
+        test.World.Latest();
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out SpotRenderLight spot).Should().BeTrue();
+        PoseChecks.AssertNear(spot.Direction, new(0, 0, 1), 1e-6f);
+        PoseChecks.AssertNear(spot.PreviousDirection, new(-1, 0, 0), 1e-6f);
+    }
+
+    [Fact]
+    public void AfterTheCameraChangesFrameALightsPreviousPlaceIsItsPlace()
+    {
+        using var scene = new RenderSnapshotInterpolationTests.HandOffScene();
+        scene.Test.World.Spawn(
+            new()
+            {
+                Frame = scene.Test.Root,
+                Pose = new(scene.StartOfMoving, DQuaternion.Identity),
+                Render = Lamp(),
+                Components = [new Mover(new(1, 0, 0))],
+            }
+        );
+        scene.Test.Run(2);
+        scene.Test.World.Latest();
+
+        scene.Test.Run(1);
+
+        // The snapshot of the tick in which the camera flew into B does not interpolate, so the light was where it is.
+        scene.Test.World.Latest().Lights.Single().TryGetValue(out SpotRenderLight spot).Should().BeTrue();
+        spot.PreviousPosition.Should().Be(spot.Position);
+        spot.PreviousDirection.Should().Be(spot.Direction);
+        scene.Test.World.GetFrame(scene.Camera).Should().Be(scene.B);
+    }
+
+    [Fact]
+    public void AStarAtTheRootIsALightOfTheRootsEntity()
+    {
+        using var test = new TestWorld();
+        // A second root under the shared root, whose own entity carries the Sun's light at the root's origin.
+        FrameHandle star = test.World.CreateRootFrame(new(FrameBounds.Sphere(1e9f)), new RenderData { Light = Star });
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out PointRenderLight light).Should().BeTrue();
+        light.EntityIndex.Should().Be(star.Entity.Index);
+        light.Power.Should().Be(3.828e26f);
+    }
+
+    [Fact]
+    public void AWorldWithoutALightHasNoLight()
+    {
+        // No light from above or anywhere else stands in for a missing one: a world lit by nothing is dark.
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        test.Show(test.Root, TestWorld.At(0, 0, -5));
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The camera sits at the origin of the test's root. A second root lies 1 km along +X under the shared virtual root,
+    /// turned a quarter turn about Y, and a lamp stands 200 m along that root's -Z. The quarter turn takes that root's -Z to
+    /// the first root's -X, so the lamp stands at (800, 0, 0) from the camera, and its light 1 m above it.
+    /// </summary>
+    [Fact]
+    public void ALightInAnotherFrameTreeIsPlacedThroughTheSharedRoot()
+    {
+        using var test = new TestWorld();
+        FrameHandle other = test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new()
+                {
+                    Pose = new(new(1000, 0, 0), PoseChecks.QuarterTurnAboutY),
+                    AsFrame = new(FrameBounds.Sphere(5e5f)),
+                }
+            )
+        );
+        test.World.Spawn(
+            new()
+            {
+                Frame = other,
+                Pose = TestWorld.At(0, 0, -200),
+                Render = PointLamp(),
+            }
+        );
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out PointRenderLight light).Should().BeTrue();
+        PoseChecks.AssertNear(light.Position, new(800, 1, 0), 1e-3f);
     }
 
     [Fact]
@@ -404,114 +597,5 @@ public sealed class RenderSnapshotLightingTests
         ambient.SkyColor.Should().Be(new Vector3(0.2f));
         ambient.GroundColor.Should().Be(new Vector3(0.1f));
         ambient.Intensity.Should().Be(0.5f);
-    }
-
-    // ---- The sun ---------------------------------------------------------------------------------------------------
-
-    [Fact]
-    public void TheSunIsInTheDirectionFromTheCameraToTheOriginOfTheSunFrame()
-    {
-        using var test = new TestWorld();
-        // A 3-4-5 triangle: the sun is 5e11 m away, 3e11 m along +X and 4e11 m along +Y.
-        test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(3e11, 4e11, 0), radius: 1e9f);
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-
-        test.Run(1);
-
-        PoseChecks.AssertNear(test.World.Latest().Sun.Direction, new(0.6f, 0.8f, 0), 1e-6f);
-    }
-
-    [Fact]
-    public void TheSunIsSeenFromTheEyeOfTheCameraAndNotFromItsFeet()
-    {
-        using var test = new TestWorld();
-        test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(0, 100, 0), radius: 1e9f);
-        test.World.Camera = test.World.Spawn(
-            new()
-            {
-                Frame = test.Root,
-                Pose = TestWorld.At(100, 0, 0),
-                Render = new RenderData { ViewOffset = new(new(0, 100, 0), Quaternion.Identity) },
-            }
-        );
-
-        test.Run(1);
-
-        // The eye is at (100, 100, 0) and the sun at (0, 100, 0), straight along -X.
-        PoseChecks.AssertNear(test.World.Latest().Sun.Direction, new(-1, 0, 0), 1e-6f);
-    }
-
-    [Fact]
-    public void TheSunHasTheColorAndTheIntensityOfTheWorld()
-    {
-        using var test = new TestWorld();
-        test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(0, 0, 1e11), radius: 1e9f);
-        test.World.SunColor = new(1, 0.9f, 0.8f);
-        test.World.SunIntensity = 7;
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-
-        test.Run(1);
-
-        RenderSun sun = test.World.Latest().Sun;
-        sun.Color.Should().Be(new Vector3(1, 0.9f, 0.8f));
-        sun.Intensity.Should().Be(7);
-    }
-
-    [Fact]
-    public void WithoutASunFrameTheSunIsStraightAboveTheCamera()
-    {
-        using var test = new TestWorld();
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-
-        test.Run(1);
-
-        test.World.Latest().Sun.Direction.Should().Be(Vector3.UnitY);
-    }
-
-    [Fact]
-    public void ASunFrameAtTheEyeOfTheCameraKeepsTheDefaultDirectionInsteadOfBecomingNotANumber()
-    {
-        using var test = new TestWorld();
-        test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(4, 5, 6), radius: 10);
-        test.World.Camera = test.SpawnCamera(test.Root, TestWorld.At(4, 5, 6));
-
-        test.Run(1);
-
-        test.World.Latest().Sun.Direction.Should().Be(Vector3.UnitY);
-    }
-
-    [Fact]
-    public void TheAngularRadiusOfTheSunComesFromTheRenderRadiusOfTheSunFramesOwner()
-    {
-        using var test = new TestWorld();
-        // The sun's radius is 7e8 m and it is 1.5e11 m away: atan(7e8 / 1.5e11) = 0.0046666328 rad.
-        test.World.SunFrame = test.World.GetOwnedFrame(
-            test.World.Spawn(
-                new()
-                {
-                    Frame = test.Root,
-                    Pose = TestWorld.At(1.5e11),
-                    AsFrame = new(FrameBounds.Sphere(1e9f)),
-                    Render = new RenderData { BoundingRadius = 7e8f },
-                }
-            )
-        );
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-
-        test.Run(1);
-
-        test.World.Latest().Sun.AngularRadius.Should().BeApproximately(0.0046666328f, 1e-8f);
-    }
-
-    [Fact]
-    public void ASunWhoseFrameOwnerHasNoRenderRadiusHasNoAngularRadius()
-    {
-        using var test = new TestWorld();
-        test.World.SunFrame = test.SpawnStaticFrame(TestWorld.At(1.5e11), radius: 1e9f);
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-
-        test.Run(1);
-
-        test.World.Latest().Sun.AngularRadius.Should().Be(0);
     }
 }

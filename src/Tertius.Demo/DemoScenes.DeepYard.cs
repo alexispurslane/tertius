@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Host;
 using Tertius.Simulation;
 
@@ -82,13 +83,23 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
+            // The light comes from a star at space's origin, behind the person as it faces the crates. Its power, 4π (1 ly)²
+            // W/m² = 1.1 · 10³³ W, near that of the most luminous known stars, gives the irradiance 1 W/m² at the crates, a
+            // light-year away. A face that the light does not reach gets the same dim light from every direction.
             FrameHandle space = world.CreateRootFrame(
-                new(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None)
+                new(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None),
+                new RenderData
+                {
+                    Light = new PointLightData(
+                        Offset: new(Vector3.Zero, Quaternion.Identity),
+                        Color: Vector3.One,
+                        Power: (float)(4 * Math.PI * LightYear * LightYear),
+                        Radius: 0,
+                        CastsShadow: true
+                    ),
+                }
             );
             scene.Add("space", space.Entity);
-            // The light comes from space's origin, behind the person as it faces the crates. A face that the light does
-            // not reach gets the same dim light from every direction.
-            world.SunFrame = space;
             world.Ambient = new()
             {
                 SkyColor = new(0.03f),

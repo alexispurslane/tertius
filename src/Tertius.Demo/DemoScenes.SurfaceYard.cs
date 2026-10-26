@@ -55,7 +55,8 @@ public static partial class DemoScenes
     /// <item>The view <c>yard-camera</c>, the camera at the start, stands 10 m from the stack along +X, 3 m up, and
     /// looks along -X at the person's way. The view <c>stack-camera</c> stands 4 m from the stack along +X, at the
     /// height of the stack's top, and looks along -X at the stack and the floor behind it, where the top crate lands.</item>
-    /// <item>The frame <c>sun</c>, 50 m up and to the side, is where the light comes from.</item>
+    /// <item>The light is the star <c>sun</c>, 1 AU from the yard along (30, 50, 20), up and to the side, which sends
+    /// 1 W/m² there and casts shadows.</item>
     /// </list>
     /// </summary>
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)
@@ -156,8 +157,9 @@ public static partial class DemoScenes
             )
         );
 
-        // The sun frame's origin is where the light comes from: up, and to the cameras' side of the yard.
-        SunAt(world: world, scene: scene, frame: surface, position: new(30, EarthRadius + 50, 20));
+        // The star's light comes from this direction: up, and to the cameras' side of the yard.
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(30, 50, 20));
+        world.Ambient = Daylight;
 
         scene.AddView("yard-camera");
         scene.AddView("stack-camera");
@@ -216,19 +218,17 @@ public static partial class DemoScenes
             )
         );
 
-    /// <summary>The frame <c>sun</c> in <paramref name="frame"/>, whose origin at <paramref name="position"/> is where the world's light comes from.</summary>
-    private static void SunAt(World world, SceneInstance scene, FrameHandle frame, Double3 position)
+    /// <summary>
+    /// The entity <c>sun</c>: the Sun 1 AU from <paramref name="center"/> along <paramref name="direction"/>, in
+    /// <paramref name="frame"/>, a point light of the Sun's power and radius that casts shadows. It sends 1,361 W/m², the
+    /// solar constant, at <paramref name="center"/>. It has no sphere: the scene sees only its light.
+    /// </summary>
+    private static void Star(World world, SceneInstance scene, FrameHandle frame, Double3 center, Double3 direction)
     {
-        Entity sun = world.Spawn(
-            new()
-            {
-                Frame = frame,
-                Pose = new(position, DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
-            }
+        Entity star = world.Spawn(
+            StarAt(frame: frame, place: center + direction.Normalized() * AstronomicalUnit, color: Vector3.One)
         );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
+        scene.Add("sun", star);
     }
 
     /// <summary>

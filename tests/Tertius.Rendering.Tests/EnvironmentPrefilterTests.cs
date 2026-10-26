@@ -18,7 +18,7 @@ public sealed class EnvironmentPrefilterTests
     private static RenderSnapshot Colorful(VulkanRenderer renderer)
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: new(0.3f, 0.5f, 1f), sunIntensity: 3f);
+        RenderSnapshot snapshot = Gpu.Snapshot(starDirection: new(0.3f, 0.5f, 1f), starIrradiance: 3f);
         for (int layer = 0; layer < CubeFaces.Count; layer++)
             snapshot.Instances.Add(
                 EnvironmentScenes.Square(

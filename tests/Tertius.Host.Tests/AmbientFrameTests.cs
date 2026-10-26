@@ -23,7 +23,6 @@ public sealed class AmbientFrameTests : IDisposable
         FrameHandle ground = world.CreateRootFrame(
             new(FrameBounds.Sphere(1e4f), GravityField.Uniform(new(0, -9.81f, 0)))
         );
-        world.SunIntensity = 0;
         world.Ambient = new()
         {
             SkyColor = new(0.6f, 0, 0),

@@ -194,7 +194,7 @@ public sealed class MeteringDrawTests
             try
             {
                 RenderSnapshot snapshot = Sunlit();
-                snapshot.Sun.Intensity = 0;
+                Gpu.Star(snapshot: snapshot, irradiance: 0);
                 AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
                 // 226 frames at 15 frames per second, so that the last one has adapted for 15 s.
                 FilmFrame[] film = Film(

@@ -81,7 +81,7 @@ internal static class BrdfTesting
         const float spacing = 0.5f;
         (int width, int height) = renderer.OutputSize;
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.2f));
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         var centers = new Vector3[radiances.Count];
         for (int i = 0; i < radiances.Count; i++)
