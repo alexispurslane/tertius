@@ -4,12 +4,14 @@
 // The half-resolution trace of the screen-space reflections (docs/plans/screen-space-reflections.md, "The
 // half-resolution trace"): texel (i, j) stands for the block of pixels from (2i, 2j) to (2i + 1, 2j + 1), and holds the
 // result of the ray of its representative pixel (2i, 2j), as the full-resolution trace computes it, or a coverage of
-// −1 when that pixel starts no ray.
+// −1 when that pixel starts no ray, and the view depth of the ray's hit, which the upsample compares between texels, or
+// 0 for a miss or no ray.
 #include "reflection_ray.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D tracedImage;  // ⌈W / 2⌉ × ⌈H / 2⌉
+layout(set = 3, binding = 5, r32f) uniform writeonly image2D hitDepthImage;   // the same size
 
 const float TexelSide = 2.0;  // in pixels: one ray for each block of 2 × 2
 
@@ -24,11 +26,17 @@ void main()
     if (!reflectingPixel(representative, p))
     {
         imageStore(tracedImage, texel, vec4(0.0, 0.0, 0.0, -1.0));
+        imageStore(hitDepthImage, texel, vec4(0.0));
         return;
     }
     vec4 rayResult;
-    // A miss keeps the ambient specular term: no radiance and no coverage.
-    if (!traceReflection(p, TexelSide, rayResult))
+    float hitDepth;
+    // A miss keeps the ambient specular term: no radiance and no coverage, and no depth.
+    if (!traceReflection(p, TexelSide, rayResult, hitDepth))
+    {
         rayResult = vec4(0.0);
+        hitDepth = 0.0;
+    }
     imageStore(tracedImage, texel, rayResult);
+    imageStore(hitDepthImage, texel, vec4(hitDepth));
 }

@@ -23,6 +23,12 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     /// <summary>The radiance pyramid's format: premultiplied pre-exposed radiance and the surface coverage.</summary>
     public const Format RadianceFormat = Format.R16G16B16A16Sfloat;
 
+    /// <summary>
+    /// The format of the half-resolution trace's hit depths, in m. A half float would overflow past 65,504 m, short of a
+    /// far planet. reflection_half_trace.comp and reflection_upsample.comp declare r32f.
+    /// </summary>
+    public const Format HitDepthFormat = Format.R32Sfloat;
+
     /// <summary>The longest side of a screen with reflections, in px: the sets are allocated for <see cref="DepthPyramid.MaxLevels"/> levels.</summary>
     public const int MaxSide = 1 << DepthPyramid.MaxLevels;
 
@@ -94,7 +100,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     /// <summary>
     /// Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids, the HDR image and, for a
-    /// <see cref="HalfTrace"/>, its image at binding 4.
+    /// <see cref="HalfTrace"/>, its images at bindings 4 and 5.
     /// </summary>
     public DescriptorSet TraceSet { get; }
 
@@ -170,15 +176,8 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         {
             TraceResolution.Full => new FullTrace(),
             TraceResolution.Half => new HalfTrace(
-                GpuImage.Create(
-                    device: device,
-                    allocator: allocator,
-                    extent: new((extent.Width + 1) / 2, (extent.Height + 1) / 2),
-                    format: RadianceFormat,
-                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
-                    mipLevels: 1,
-                    name: "reflection trace"
-                )
+                Traced: CreateHalfImage(screen: extent, format: RadianceFormat, name: "reflection trace"),
+                HitDepths: CreateHalfImage(screen: extent, format: HitDepthFormat, name: "reflection hit depths")
             ),
         };
         depthMipViews = MipViews(DepthImage);
@@ -237,9 +236,10 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         {
             case HalfTrace half:
                 layouts.WriteStorageImage(set: TraceSet, binding: 4, image: half.Traced);
+                layouts.WriteStorageImage(set: TraceSet, binding: 5, image: half.HitDepths);
                 break;
             case FullTrace:
-                // The full-resolution trace writes the HDR image only, so binding 4 stays unwritten.
+                // The full-resolution trace writes the HDR image only, so bindings 4 and 5 stay unwritten.
                 break;
             case null:
             default:
@@ -259,6 +259,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         switch (Trace)
         {
             case HalfTrace half:
+                half.HitDepths.Dispose();
                 half.Traced.Dispose();
                 break;
             case FullTrace or null:
@@ -270,6 +271,18 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     // The pool of the layouts frees the sets.
     public void Dispose() => DestroyImages();
+
+    /// <summary>An image of the half-resolution trace, ⌈W / 2⌉ × ⌈H / 2⌉ for a <paramref name="screen"/> of W × H: written and read as a storage image, copied out by the read hooks.</summary>
+    private GpuImage CreateHalfImage(Extent2D screen, Format format, string name) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: new((screen.Width + 1) / 2, (screen.Height + 1) / 2),
+            format: format,
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: name
+        );
 
     /// <summary>A pyramid image: built as a storage image, sampled by the builds and the trace, copied out by the read hooks.</summary>
     private GpuImage CreateImage(Extent2D extent, Format format, uint mipLevels, string name) =>

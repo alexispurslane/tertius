@@ -11,7 +11,8 @@ internal union ReflectionTrace(FullTrace, HalfTrace);
 internal sealed record FullTrace;
 
 /// <summary>
-/// The half-resolution trace: <paramref name="Traced"/>, RGBA16F of ⌈W / 2⌉ × ⌈H / 2⌉, holds for each texel the ray of
-/// its representative pixel. <see cref="ReflectionTargets"/> owns the image.
+/// The half-resolution trace: <paramref name="Traced"/>, RGBA16F of ⌈W / 2⌉ × ⌈H / 2⌉, holds for each texel the result
+/// of its representative pixel's ray, and <paramref name="HitDepths"/>, R32F of the same size, the view depth of its hit.
+/// <see cref="ReflectionTargets"/> owns the images.
 /// </summary>
-internal sealed record HalfTrace(GpuImage Traced);
+internal sealed record HalfTrace(GpuImage Traced, GpuImage HitDepths);

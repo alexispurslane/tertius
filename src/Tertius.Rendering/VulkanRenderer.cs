@@ -901,6 +901,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// The last frame's hit depths of the half-resolution trace: for each texel, the view depth of its ray's hit in m,
+    /// or 0 for a ray that hit nothing or no ray. A test hook, like <see cref="ReadReflectionTrace"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (float[] Depths, int Width, int Height) ReadReflectionHitDepths()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuImage hitDepths = pyramids.Trace switch
+        {
+            HalfTrace half => half.HitDepths,
+            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        return ReadLevel(image: hitDepths, layer: 0, mip: 0);
+    }
+
+    /// <summary>
     /// One level of the last frame's radiance pyramid: premultiplied RGB and the coverage of each texel, row by row from
     /// the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>

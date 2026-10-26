@@ -19,7 +19,8 @@ void main()
         return;
     ReflectingPixel p;
     vec4 rayResult;
-    if (!reflectingPixel(pixel, p) || !traceReflection(p, TexelSide, rayResult))
+    float hitDepth;
+    if (!reflectingPixel(pixel, p) || !traceReflection(p, TexelSide, rayResult, hitDepth))
         return;
     vec3 delta = reflectionDelta(p, rayResult);
     vec4 lit = imageLoad(hdrImage, pixel);

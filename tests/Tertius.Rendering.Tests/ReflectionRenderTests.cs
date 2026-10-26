@@ -846,6 +846,102 @@ public sealed class ReflectionRenderTests
             );
     }
 
+    [Fact]
+    public void AtHalfResolutionTheReflectedOutlineOfABoxBeforeAFartherWallMatchesTheFullResolutionTrace()
+    {
+        // The box stands 3 m before the wall, far past the trace's slab of a tenth of the depth, so the rays on either side
+        // of its reflected outline hit different surfaces. The floor from 9.5 m to 11.5 m ahead reflects the box's lower
+        // half, and its rays run less than half as far as their hits lie from the eye, so both traces' cones read level 0.
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer =>
+            BoxBeforeAFartherWall(renderer, split: 6)
+        );
+
+        int farRow = PixelOf(new(0, FloorHeight, -11.5f)).Y,
+            nearRow = PixelOf(new(0, FloorHeight, -9.5f)).Y;
+        int left = MirrorPixel(new(-1, -1.3f, -12)).X,
+            right = MirrorPixel(new(1, -1.3f, -12)).X;
+        int middle = (farRow + nearRow) / 2;
+        At(renders.Full, (left + 3, middle)).X.Should().BeGreaterThan(Bright / 4, "the floor shows the red box");
+        At(renders.Full, (left - 3, middle)).Y.Should().BeGreaterThan(Bright / 4, "beside it, the green wall");
+        int[] rows = [.. Enumerable.Range(farRow, nearRow - farRow + 1)];
+        int[] across = [-3, -2, -1, 0, 1, 2, 3];
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: (left, 0), dxs: across, dys: rows)
+                .Concat(Around(center: (right, 0), dxs: across, dys: rows)),
+            shows: "on the box's reflected outline shows the box or the wall as the full-resolution trace does"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionAColorEdgeOnOneReflectedSurfaceKeepsTheMeanOfItsTexelsRays()
+    {
+        // The wall turns from green to blue at an odd pixel boundary of the reflection, so the odd pixel right of it lies
+        // between a texel whose ray hits green and one whose ray hits blue. Both hit the wall at one depth: they agree, and
+        // the pixel takes their mean, where the full-resolution trace shows blue.
+        float split = ToAnOddPixelBoundary(
+            start: 4,
+            projected: across => Gpu.Project(point: new(across, 0, -15), width: Width, height: Height).X
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer =>
+            BoxBeforeAFartherWall(renderer, split)
+        );
+
+        int edge = (int)MathF.Round(Gpu.Project(point: new(split, 0, -15), width: Width, height: Height).X);
+        foreach (float ahead in (float[])[-9.5f, -10.5f, -11.5f])
+        {
+            (int X, int Y) between = (edge, PixelOf(new(0, FloorHeight, ahead)).Y);
+            Vector3 full = At(renders.Full, between),
+                mean = At(renders.Half, between);
+            full.Z.Should().BeGreaterThan(Bright / 4, "the full trace shows the blue half at {0}", between);
+            mean.Z.Should().BeGreaterThan(Bright / 4, "pixel {0} takes the blue texel's half: {1}", between, mean);
+            mean.Y.Should()
+                .BeGreaterThan(
+                    full.Y + Bright / 4,
+                    "pixel {0} takes the green texel's half, which its own ray does not see: {1} against {2}",
+                    between,
+                    mean,
+                    full
+                );
+        }
+    }
+
+    /// <summary>
+    /// A white mirror floor in the dark before a red box 2 m wide, 2 m tall and 0.5 m deep, standing on the floor with its
+    /// front 12 m ahead, and a wall 15 m ahead, green left of <paramref name="split"/> and blue right of it.
+    /// </summary>
+    private static RenderSnapshot BoxBeforeAFartherWall(VulkanRenderer renderer, float split)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(Bright, 0, 0)),
+                center: new(0, FloorHeight + 1, -12.25f),
+                size: new(2, 2, 0.5f)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(0, Bright, 0)),
+                center: new((split - 30) / 2, 2, -15.5f),
+                size: new(split + 30, 7, 1)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(0, 0, Bright)),
+                center: new((split + 30) / 2, 2, -15.5f),
+                size: new(30 - split, 7, 1)
+            )
+        );
+        return snapshot;
+    }
+
     /// <summary>
     /// A white mirror floor in the dark before a wall of red and green stripes 0.3 m wide, 15 m ahead. The white metal
     /// weighs each channel alike and the dark adds nothing, so the red share of a floor pixel's HDR value is the red
