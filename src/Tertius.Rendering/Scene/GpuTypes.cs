@@ -100,6 +100,9 @@ internal struct GpuInstance
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
+    /// <summary>The <see cref="NormalMap"/> of a material without a normal map, which shades with its vertex normal.</summary>
+    public const uint NoMap = uint.MaxValue;
+
     public Vector4 BaseColor;
     public Vector3 Emissive;
     public float Metallic;
@@ -108,9 +111,16 @@ internal struct GpuMaterial
     public float Roughness;
     public float Reflectance;
 
-    /// <summary>Bindless indices, already resolved to the default textures.</summary>
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint BaseColorMap;
+
+    /// <summary>
+    /// Bindless index, or <see cref="NoMap"/> for a material without a normal map. No default texture stands in for
+    /// none, because no 8-bit UNORM texel decodes to +Z.
+    /// </summary>
     public uint NormalMap;
+
+    /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint MetallicRoughnessMap;
 }
 
@@ -350,4 +360,22 @@ internal struct OutlinePushConstants
 {
     /// <summary>1 when the output format stores linear values and the shader must apply the sRGB curve, as the tone mapper does.</summary>
     public uint EncodeSrgb;
+}
+
+/// <summary>
+/// The push constants of reflection_trace.comp: the setting of the reflections (docs/plans/screen-space-reflections.md,
+/// "Descriptor sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ReflectionPushConstants
+{
+    /// <summary><see cref="ConeTracedReflections.MaxRoughness"/>.</summary>
+    public float MaxRoughness;
+
+    /// <summary><see cref="ConeTracedReflections.MaxSteps"/>.</summary>
+    public uint MaxSteps;
+
+    /// <summary>The push constants of <paramref name="setting"/>, which the renderer has checked.</summary>
+    public static ReflectionPushConstants For(ConeTracedReflections setting) =>
+        new() { MaxRoughness = setting.MaxRoughness, MaxSteps = (uint)setting.MaxSteps };
 }

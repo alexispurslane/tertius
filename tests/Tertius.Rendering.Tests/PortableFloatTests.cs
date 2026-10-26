@@ -136,7 +136,7 @@ public sealed class PortableFloatTests
     private static Vector3 HdrCenter(VulkanRenderer renderer, RenderSnapshot snapshot)
     {
         renderer.Render(snapshot, 1f);
-        return Center(renderer.ReadHdrImage());
+        return Center(renderer.ReadHdr());
     }
 
     [Fact]
@@ -443,7 +443,7 @@ public sealed class PortableFloatTests
             );
             renderer.Render(snapshot, 1f);
 
-            float[] hdr = renderer.ReadHdrImage();
+            float[] hdr = renderer.ReadHdr();
 
             Center(hdr).Should().Be(new Vector3((float)(Half)0.2f), "the puff adds no light to the wall");
             hdr.Should()
@@ -514,7 +514,7 @@ public sealed class PortableFloatTests
                 );
             renderer.Render(snapshot, 1f);
 
-            float[] hdr = renderer.ReadHdrImage();
+            float[] hdr = renderer.ReadHdr();
 
             hdr.Should()
                 .OnlyContain(

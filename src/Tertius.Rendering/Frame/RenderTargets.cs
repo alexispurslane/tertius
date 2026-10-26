@@ -5,7 +5,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target, the bloom
-/// levels, the occlusion target and, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>).
+/// levels, the occlusion target, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -24,7 +25,9 @@ namespace Tertius.Rendering;
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The occlusion target is
 /// R8_UNORM: the occlusion V of each pixel, 1 when ambient occlusion is off (docs/plans/ambient-occlusion.md, "Images").
-/// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size.
+/// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
+/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections the HDR target is
+/// also a storage image, which the trace writes; without them it is not, so a frame is the frame from before them.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -67,19 +70,23 @@ internal sealed class RenderTargets : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
+    /// <param name="reflections">True to make the pyramids of the reflections, under <see cref="ConeTracedReflections"/>.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
         int glowLevels,
-        SmaaTables? smaaTables
+        SmaaTables? smaaTables,
+        bool reflections
     )
     {
+        if (reflections)
+            CheckReflectedScreen(extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        CheckFormats(device);
+        CheckFormats(device: device, reflections: reflections);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
@@ -87,7 +94,9 @@ internal sealed class RenderTargets : IDisposable
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
-        Create(extent);
+        Create(extent: extent, hdrStorage: reflections);
+        if (reflections)
+            Reflections = new(device: device, allocator: allocator, layouts: layouts, extent: extent, hdr: Hdr);
         if (smaaTables is not null)
             Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
     }
@@ -106,6 +115,9 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>The images of SMAA, or null when SMAA is off.</summary>
     public SmaaTargets? Smaa { get; }
+
+    /// <summary>The pyramids of the reflections, or null under <see cref="NoReflections"/>.</summary>
+    public ReflectionTargets? Reflections { get; }
 
     /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -129,15 +141,28 @@ internal sealed class RenderTargets : IDisposable
     public DescriptorSet[] GlowSources { get; }
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
     public void Resize(Extent2D extent)
     {
         if (extent.Width == Extent.Width && extent.Height == Extent.Height)
             return;
+        // Before anything is destroyed, so that a refused size leaves every target as it was.
+        if (Reflections is not null)
+            CheckReflectedScreen(extent);
         DestroyImages();
-        Create(extent);
+        Create(extent: extent, hdrStorage: Reflections is not null);
+        Reflections?.Create(extent, Hdr);
         Smaa?.Resize(extent);
     }
 
+    private static void CheckReflectedScreen(Extent2D extent)
+    {
+        if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(extent), problem);
+    }
+
+    /// <summary>Makes every target at <paramref name="extent"/> and writes the sets that read them.</summary>
+    /// <param name="hdrStorage">True to make the HDR target a storage image too, for the reflections' trace.</param>
     [MemberNotNull(
         nameof(BaseColor),
         nameof(Normal),
@@ -148,14 +173,14 @@ internal sealed class RenderTargets : IDisposable
         nameof(Hdr),
         nameof(Occlusion)
     )]
-    private void Create(Extent2D extent)
+    private void Create(Extent2D extent, bool hdrStorage)
     {
         Extent = extent;
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
-        Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance");
+        Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
         Depth = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -165,7 +190,13 @@ internal sealed class RenderTargets : IDisposable
             mipLevels: 1,
             name: "depth"
         );
-        Hdr = ColorTarget(extent: extent, format: HdrFormat, name: "hdr", readable: true);
+        Hdr = ColorTarget(
+            extent: extent,
+            format: HdrFormat,
+            name: "hdr",
+            readable: true,
+            extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
+        );
         Occlusion = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -208,9 +239,15 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// An image of one level that passes draw into and later passes sample. A <paramref name="readable"/> image can also
-    /// be copied out, for the renderer's read hooks.
+    /// be copied out, for the renderer's read hooks. The image has <paramref name="extraUsage"/> beside.
     /// </summary>
-    private GpuImage ColorTarget(Extent2D extent, Format format, string name, bool readable = false) =>
+    private GpuImage ColorTarget(
+        Extent2D extent,
+        Format format,
+        string name,
+        bool readable = false,
+        ImageUsageFlags extraUsage = 0
+    ) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -218,7 +255,8 @@ internal sealed class RenderTargets : IDisposable
             format: format,
             usage: ImageUsageFlags.ColorAttachmentBit
                 | ImageUsageFlags.SampledBit
-                | (readable ? ImageUsageFlags.TransferSrcBit : 0),
+                | (readable ? ImageUsageFlags.TransferSrcBit : 0)
+                | extraUsage,
             mipLevels: 1,
             name: name
         );
@@ -249,7 +287,7 @@ internal sealed class RenderTargets : IDisposable
         occlusionNeedsClear = false;
     }
 
-    private static void CheckFormats(VulkanDevice device)
+    private static void CheckFormats(VulkanDevice device, bool reflections)
     {
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
         {
@@ -276,10 +314,31 @@ internal sealed class RenderTargets : IDisposable
             throw new NotSupportedException(
                 $"{OcclusionFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
             );
+        if (reflections)
+            CheckReflectionFormats(device);
+    }
+
+    /// <summary>
+    /// The builds write both pyramids as storage images and the trace samples them, the radiance pyramid trilinearly, and
+    /// the trace writes the HDR target as a storage image.
+    /// </summary>
+    private static void CheckReflectionFormats(VulkanDevice device)
+    {
+        const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
+        const FormatFeatureFlags radiance = pyramid | FormatFeatureFlags.SampledImageFilterLinearBit;
+        if ((device.FormatProperties(ReflectionTargets.DepthFormat).OptimalTilingFeatures & pyramid) != pyramid)
+            throw new NotSupportedException(
+                $"{ReflectionTargets.DepthFormat} cannot be sampled and stored on {device.DeviceName}."
+            );
+        if ((device.FormatProperties(ReflectionTargets.RadianceFormat).OptimalTilingFeatures & radiance) != radiance)
+            throw new NotSupportedException(
+                $"{ReflectionTargets.RadianceFormat} cannot be stored and filtered linearly on {device.DeviceName}."
+            );
     }
 
     private void DestroyImages()
     {
+        Reflections?.DestroyImages();
         foreach (GpuImage image in GBuffer)
             image.Dispose();
         Depth?.Dispose();

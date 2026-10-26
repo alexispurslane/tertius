@@ -1,6 +1,6 @@
 ---
 id: ter-cl86
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T16:58:27Z
@@ -18,3 +18,9 @@ Part 2 of docs/plans/local-light-shadows.md on branch ter-s9cv-light-shadows, "O
 
 The part's tests pass in Checked and Release, with hand mutations of each new test, as the part's "Done" says.
 
+
+## Notes
+
+**2026-10-25T21:03:19Z**
+
+Built, reviewed and fixed on the epic branch ter-s9cv-light-shadows on 2026-10-25: 2019869a (part 2), with the review's fixes in 434b0131 (the most cascade sets in one home, the maxImageArrayLayers refusal moved to Part 6's ShadowAtlas, the script options in ARCHITECTURE.md, one folded parser).

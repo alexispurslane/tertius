@@ -17,11 +17,14 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     [
         "shadow maps",
         "G-buffer",
+        "depth pyramid",
         "occlusion depth",
         "occlusion horizons",
         "occlusion denoise",
         "occlusion upsample",
         "lighting",
+        "radiance pyramid",
+        "reflections",
         "transparent",
         "exposure",
         "bloom",
@@ -211,8 +214,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Select(pass => pass.GetProperty("frames").GetInt32())
             .Should()
             .AllBeEquivalentTo(
-                5,
-                "the first frame adds a metering draw, and the renderer reads a frame when it reuses its slot, so the last 2 frames in flight are never read"
+                6,
+                "each capture reads its own frame after its wait, and the first frame's metering draw is read after a newer frame"
             );
         passes
             .Should()
@@ -226,7 +229,57 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void AHeadlessFilmPrintsOneLineWithTheGpuTimeOfEachPass()
+    public void AHeadlessFilmWritesTheGpuSpanOfItsFramesBesideThePassesWithAMeanNoShorterThanItsLongestPass()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        using var timings = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, ScriptCommand.GpuTimingsFile)));
+        JsonElement frame = timings.RootElement.GetProperty("frame");
+        int spans = frame.GetProperty("frames").GetInt32();
+        spans.Should().Be(6, "the film times one span per film frame");
+        JsonElement[] passes = [.. timings.RootElement.GetProperty("passes").EnumerateArray()];
+        passes
+            .Should()
+            .AllSatisfy(pass =>
+                pass.GetProperty("frames")
+                    .GetInt32()
+                    .Should()
+                    .Be(spans, "the span counts the same frames as the passes")
+            );
+        double longestPass = passes.Max(pass => pass.GetProperty("meanMs").GetDouble());
+        frame
+            .GetProperty("meanMs")
+            .GetDouble()
+            .Should()
+            .BeGreaterThanOrEqualTo(longestPass, "the span of each frame holds all of its passes")
+            .And.BeLessThan(1_000);
+        frame
+            .GetProperty("p95Ms")
+            .GetDouble()
+            .Should()
+            .BeGreaterThanOrEqualTo(frame.GetProperty("medianMs").GetDouble());
+    }
+
+    [Fact]
+    public void AHeadlessFilmPrintsOneLineWithTheGpuTimeOfEachPassThenOneWithTheGpuSpanOfTheFrame()
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
@@ -254,7 +307,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Where(line => line.StartsWith("GPU ", StringComparison.Ordinal))
             .Select(line => line[..line.IndexOf(": mean ", StringComparison.Ordinal)])
             .Should()
-            .Equal(FramePasses.Select(pass => "GPU " + pass));
+            .Equal([.. FramePasses.Select(pass => "GPU " + pass), "GPU frame span"]);
     }
 
     [Fact]
@@ -366,6 +419,37 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         object expected = off ? new NoBloom() : new RendererOptions().Bloom.Value!;
+        settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--reflections", "on" }, false)]
+    [InlineData(new[] { "--reflections", "off" }, true)]
+    public void TheReflectionsOptionTurnsTheHeadlessRenderersReflectionsOffAndOnKeepsTheRenderersDefault(
+        string[] reflections,
+        bool off
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<object?>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. reflections],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.Reflections.Value);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        object expected = off ? new NoReflections() : new RendererOptions().Reflections.Value!;
         settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 

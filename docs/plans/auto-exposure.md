@@ -246,7 +246,7 @@ There is one exposure buffer and one histogram for the renderer, not one per fra
 | The start of every drawn frame, before the first pass | `ExposureResources.RecordReadback` | Copies the exposure buffer into the slot's readback buffer. |
 | The G-buffer, lighting and transparent passes | Their shaders | Read `exposureStops` (see "Pre-exposure"). |
 | The exposure pass, under `AutoExposure` | The adapt step | Reads `exposureStops`, the S that the frame used, and writes S'. |
-| After the slot's fence wait, in `Render` | `ExposureResources.Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. |
+| After each wait on a slot's fence, in `Render`: the wait before the slot records again, and a capture's wait for its own frame | `ExposureResources.Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. It keeps only a newer frame, so the wait on an older slot after a capture does not take the reading back. So a captured frame reports its own exposure, and any other frame the exposure of a frame a few frames before. |
 
 Under `FixedExposure`, the renderer adds no exposure pass, so after the seed nothing writes the buffer. The shaders take one path for both cases.
 
@@ -962,6 +962,7 @@ Part 4 measured it by the recipe above: Release, `scripts/demo-exit.json`, 1920 
 | Capture | 0.017 ms | 0.032 ms | +0.015 ms | 0.001 ms, 0.002 ms |
 
 - The exposure pass: a mean of 0.311 ms, a median of 0.320 ms and a p95 of 0.422 ms. That is above the 0.2 ms line, so the rule above applies: a meter on every second pixel in each axis becomes a ticket.
+  - Ticket `ter-zqla` built it: the meter reads the top-left pixel of each 2 × 2 block. The pass then cost a mean of 0.150 ms and a median of 0.118 ms over two runs, against 0.298 ms and 0.302 ms for the meter of every pixel in two runs on the same day. ARCHITECTURE.md, "Exposure", holds the rule and the runs.
 - The sum of the pass means is about 4.12 ms on the base and about 4.14 ms on the branch. So the whole feature costs about 0 ms, within the noise. The lighting pass (−0.24 ms) and the transparent pass (−0.05 ms) paid back the exposure pass. Nobody has explained why. The timestamps may shift work between neighbors, because the exposure pass sits after the transparent pass.
 - Every change in the table is larger than the spread between two runs of one build, except the G-buffer mean, which is only about 2.5 times the spread of the branch runs. The p95 of the capture pass is not reliable, because the base spread is 0.022 ms.
 - The G-buffer, lighting and transparent passes were expected to change within the spread. The tone map was expected to cost a multiply less, and it costs 0.02 ms more. The shadow maps do not change in this ticket, and they cost 0.09 ms more. These rises have no known cause.

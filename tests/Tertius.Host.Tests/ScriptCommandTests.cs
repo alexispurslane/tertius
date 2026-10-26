@@ -289,6 +289,35 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("--bloom applies to a headless run", "--scene", "no-such-scene", "--bloom", "off")]
     [InlineData("--bloom needs on or off", "--script", "script.json", "--headless", "--out", "out", "--bloom", "dim")]
     [InlineData(
+        "--reflections needs a value",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--reflections"
+    )]
+    [InlineData(
+        "--reflections applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--reflections",
+        "off"
+    )]
+    [InlineData("--reflections applies to a headless run", "--scene", "no-such-scene", "--reflections", "off")]
+    [InlineData(
+        "--reflections needs on or off",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--reflections",
+        "mirror"
+    )]
+    [InlineData(
         "--tone-curve needs aces or hable",
         "--script",
         "script.json",
