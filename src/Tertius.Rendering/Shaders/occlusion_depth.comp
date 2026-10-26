@@ -1,6 +1,7 @@
 #version 460
 // The occlusion depth pass (docs/plans/ambient-occlusion.md, "The occlusion depth pass"): the view depth of each
-// half-resolution texel, from the distance of its representative pixel. Engine glue after the shape of vaGTAO.hlsl.
+// half-resolution texel, from the distance of its representative pixel, and copies of that pixel's direct light and
+// geometric normal, which the near steps read densely (docs/plans/screen-space-illumination.md, decision 25). Engine glue after the shape of vaGTAO.hlsl.
 // XeGTAO's copyright and permission notice are in gtao.glsl.
 #extension GL_GOOGLE_include_directive : require
 #include "gtao.glsl"
@@ -18,4 +19,7 @@ void main()
     // The distance target holds 0 for sky. SkyDepth puts sky beyond every radius, where an infinite depth gives NaN.
     float z = distanceToEye > 0.0 ? distanceToEye / length(ray) : SkyDepth;
     imageStore(viewDepth, texel, vec4(z));
+    // Exact copies: a half float stores back as itself, and an SNORM16 value k / 32767 as k.
+    imageStore(occlusionDirect, texel, texelFetch(gbufferDirect, pixel, 0));
+    imageStore(occlusionGeometricNormal, texel, vec4(texelFetch(gbufferNormal, pixel, 0).ba, 0.0, 0.0));
 }

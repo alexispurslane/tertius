@@ -401,6 +401,69 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheDepthPassCopiesTheDirectLightAndTheGeometricNormalOfEachTexelsRepresentativePixel()
+    {
+        // The near steps read the copies in place of the full-resolution images, so the copies must hold the very values
+        // of pixel 2t (decision 25).
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot snapshot = RedWall(renderer, CornerView);
+            // A sphere whose normal map tilts its shading normals away from its geometric normals.
+            byte[] tiltedTexel = [128, 200, 220, 255];
+            MaterialId tilted = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.8f) with
+                {
+                    NormalMap = renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: tiltedTexel, Srgb: false)),
+                }
+            );
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Sphere(1)),
+                    material: tilted,
+                    position: new(0.8f, FloorHeight + 0.6f, BackWallZ + 1.5f),
+                    scale: new(0.6f),
+                    radius: 0.6f
+                )
+            );
+            renderer.Render(snapshot, 1f);
+            float[] direct = renderer.ReadDirect();
+            float[] normals = renderer.ReadNormals();
+            (float[] directCopy, int width, int height) = renderer.ReadOcclusionDirect();
+            float[] normalCopy = renderer.ReadOcclusionGeometricNormal().Rg;
+
+            float[] directAtTexels = new float[3 * width * height];
+            float[] normalAtTexels = new float[2 * width * height];
+            int mappedTexels = 0;
+            float[] directCopyRgb = new float[3 * width * height];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int texel = y * width + x;
+                int pixel = 2 * y * Width + 2 * x;
+                for (int c = 0; c < 3; c++)
+                {
+                    directAtTexels[3 * texel + c] = direct[4 * pixel + c];
+                    directCopyRgb[3 * texel + c] = directCopy[4 * texel + c];
+                }
+                normalAtTexels[2 * texel] = normals[4 * pixel + 2];
+                normalAtTexels[2 * texel + 1] = normals[4 * pixel + 3];
+                if (Math.Abs(normals[4 * pixel] - normals[4 * pixel + 2]) > 0.02f)
+                    mappedTexels++;
+            }
+
+            directAtTexels.Count(value => value > 0).Should().BeGreaterThan(1000, "the sun lights the wall and the floor");
+            mappedTexels.Should().BeGreaterThan(100, "the sphere's shading normals differ from its geometric normals");
+            directCopyRgb.Should().Equal(directAtTexels);
+            normalCopy.Should().Equal(normalAtTexels);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ThePassesKeepAPixelWithinTheSurfacesShare()
     {
         const float cap = ShaderInput.MaxRadiance;

@@ -58,7 +58,8 @@ void main()
                 // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
                 if (sampleDepth >= SkyDepth)
                     continue;
-                vec3 sampleNormal = geometricNormalAt(2 * t);
+                // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
+                vec3 sampleNormal = texelGeometricNormalAt(t);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.
                 vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
                 vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
@@ -74,7 +75,8 @@ void main()
                 if (fresh == 0u)
                     continue;
                 blocked |= fresh;
-                light += float(bitCount(fresh)) * blockerLight(2 * t, sampleNormal, setup.center - samplePosition);
+                light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
+                                                            setup.center - samplePosition);
             }
         }
         sectorMasks[maskIndex(texel, slice)] = blocked;

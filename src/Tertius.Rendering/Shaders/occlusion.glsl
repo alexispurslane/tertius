@@ -23,6 +23,9 @@ layout(set = 3, binding = 4, std430) buffer SectorMasks
 layout(set = 3, binding = 5) uniform texture2D depthPyramid;           // SSR's pyramid, General: mip m = level m + 1
 layout(set = 3, binding = 6, rgba16f) uniform image2D denoiseSource;
 layout(set = 3, binding = 7, rgba16f) uniform image2D denoiseDestination;
+layout(set = 3, binding = 8, rgba16f) uniform image2D occlusionDirect;  // half: the direct image at pixel 2t
+// half: the octahedral world geometric normal at pixel 2t, the normals target's ba
+layout(set = 3, binding = 9, rg16_snorm) uniform image2D occlusionGeometricNormal;
 
 layout(push_constant, std430) uniform OcclusionPush
 {
@@ -103,6 +106,12 @@ vec3 shadingNormalAt(ivec2 pixel)
 vec3 geometricNormalAt(ivec2 pixel)
 {
     return toViewAxes(octDecode(texelFetch(gbufferNormal, pixel, 0).ba));
+}
+
+// The view-space geometric normal of a half-resolution texel's representative pixel, from the depth pass's copy.
+vec3 texelGeometricNormalAt(ivec2 texel)
+{
+    return toViewAxes(octDecode(imageLoad(occlusionGeometricNormal, texel).rg));
 }
 
 // The view depth of a half-resolution texel. A texel outside the image reads the border texel, as XeGTAO's clamped

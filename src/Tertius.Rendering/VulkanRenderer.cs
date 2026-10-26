@@ -870,6 +870,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ReadLevel(image: OcclusionImagesOrThrow().ViewDepth, layer: 0, mip: 0);
 
     /// <summary>
+    /// The depth pass's copy of the direct image of the last frame at half resolution, RGBA per texel, row by row from the
+    /// top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionDirect() =>
+        ReadLevel(image: OcclusionImagesOrThrow().Direct, layer: 0, mip: 0);
+
+    /// <summary>
+    /// The depth pass's copy of the octahedral geometric normal of the last frame at half resolution, RG per texel, row by
+    /// row from the top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rg, int Width, int Height) ReadOcclusionGeometricNormal() =>
+        ReadLevel(image: OcclusionImagesOrThrow().GeometricNormal, layer: 0, mip: 0);
+
+    /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1082,6 +1098,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R32Sfloat => (1, StoredChannel.Float),
             Format.R32G32Sfloat => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
+            Format.R16G16SNorm => (2, StoredChannel.Snorm16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)

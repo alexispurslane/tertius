@@ -13,6 +13,8 @@ internal sealed class OcclusionImages : IDisposable
     public const Format ViewDepthFormat = Format.R32Sfloat;
     public const Format EdgesFormat = Format.R8Unorm;
     public const Format TermFormat = Format.R16G16B16A16Sfloat;
+    public const Format DirectFormat = Format.R16G16B16A16Sfloat;
+    public const Format GeometricNormalFormat = Format.R16G16SNorm;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -51,6 +53,18 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>The view depth of each texel's top-left pixel, in m.</summary>
     public GpuImage ViewDepth { get; private set; }
 
+    /// <summary>
+    /// The direct image's value at each texel's representative pixel, which the depth pass copies for the near steps
+    /// (docs/plans/screen-space-illumination.md, decision 25).
+    /// </summary>
+    public GpuImage Direct { get; private set; }
+
+    /// <summary>
+    /// The octahedral world geometric normal at each texel's representative pixel, the normals target's BA, which the depth
+    /// pass copies for the near steps.
+    /// </summary>
+    public GpuImage GeometricNormal { get; private set; }
+
     /// <summary>XeGTAO's packed depth edges, which the denoise reads.</summary>
     public GpuImage Edges { get; private set; }
 
@@ -85,13 +99,23 @@ internal sealed class OcclusionImages : IDisposable
         Create(targets);
     }
 
-    [MemberNotNull(nameof(ViewDepth), nameof(Edges), nameof(TermA), nameof(TermB), nameof(SectorMasks))]
+    [MemberNotNull(
+        nameof(ViewDepth),
+        nameof(Direct),
+        nameof(GeometricNormal),
+        nameof(Edges),
+        nameof(TermA),
+        nameof(TermB),
+        nameof(SectorMasks)
+    )]
     private void Create(RenderTargets targets)
     {
         HalfExtent = new((targets.Extent.Width + 1) / 2, (targets.Extent.Height + 1) / 2);
         ulong masksSize = (ulong)HalfExtent.Width * HalfExtent.Height * (ulong)slices * sizeof(uint);
         CheckMasksSize(masksSize);
         ViewDepth = CreateImage(format: ViewDepthFormat, name: "occlusion view depth");
+        Direct = CreateImage(format: DirectFormat, name: "occlusion direct");
+        GeometricNormal = CreateImage(format: GeometricNormalFormat, name: "occlusion geometric normal");
         Edges = CreateImage(format: EdgesFormat, name: "occlusion edges");
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
         TermB = CreateImage(format: TermFormat, name: "occlusion term B");
@@ -134,6 +158,8 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteImage(set: set, binding: 5, view: depthPyramid.Image.View, layout: ImageLayout.General);
         layouts.WriteStorageImage(set: set, binding: 6, image: denoiseSource);
         layouts.WriteStorageImage(set: set, binding: 7, image: denoiseDestination);
+        layouts.WriteStorageImage(set: set, binding: 8, image: Direct);
+        layouts.WriteStorageImage(set: set, binding: 9, image: GeometricNormal);
     }
 
     private GpuImage CreateImage(Format format, string name) =>
@@ -142,7 +168,7 @@ internal sealed class OcclusionImages : IDisposable
             allocator: allocator,
             extent: HalfExtent,
             format: format,
-            // Transfer source for the renderer's test hooks, which read term A and the view depth back.
+            // Transfer source for the renderer's test hooks, which read term A, the view depth and the copies back.
             usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
             name: name
@@ -150,7 +176,7 @@ internal sealed class OcclusionImages : IDisposable
 
     private static void CheckFormats(VulkanDevice device)
     {
-        foreach (Format format in (Format[])[ViewDepthFormat, EdgesFormat, TermFormat])
+        foreach (Format format in (Format[])[ViewDepthFormat, DirectFormat, GeometricNormalFormat, EdgesFormat, TermFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)
                 throw new NotSupportedException($"{format} cannot be a storage image on {device.DeviceName}.");
     }
@@ -158,6 +184,8 @@ internal sealed class OcclusionImages : IDisposable
     private void DestroyImages()
     {
         ViewDepth.Dispose();
+        Direct.Dispose();
+        GeometricNormal.Dispose();
         Edges.Dispose();
         TermA.Dispose();
         TermB.Dispose();

@@ -19,7 +19,15 @@ public sealed class OcclusionImagesTests
         using var plumbing = new Plumbing(width, height);
         using OcclusionImages images = plumbing.CreateImages();
 
-        Extent2D[] extents = [images.ViewDepth.Extent, images.Edges.Extent, images.TermA.Extent, images.TermB.Extent];
+        Extent2D[] extents =
+        [
+            images.ViewDepth.Extent,
+            images.Direct.Extent,
+            images.GeometricNormal.Extent,
+            images.Edges.Extent,
+            images.TermA.Extent,
+            images.TermB.Extent,
+        ];
 
         images.HalfExtent.Should().Be(new Extent2D(halfWidth, halfHeight));
         extents.Should().AllBeEquivalentTo(images.HalfExtent, "each texel stands for a 2 × 2 block of pixels");
@@ -35,6 +43,10 @@ public sealed class OcclusionImagesTests
         images.Edges.Format.Should().Be(Format.R8Unorm, "occlusion.glsl declares occlusionEdges r8");
         images.TermA.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
         images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+        images.Direct.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionDirect rgba16f");
+        images
+            .GeometricNormal.Format.Should()
+            .Be(Format.R16G16SNorm, "occlusion.glsl declares occlusionGeometricNormal rg16_snorm");
     }
 
     [Fact]

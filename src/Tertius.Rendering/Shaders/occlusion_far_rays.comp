@@ -44,7 +44,8 @@ FarOutcome farRay(GtaoTexel setup, vec3 direction)
     if (!traceRay(depthPyramid, ray, occlusion.farSteps, hit, hitPixel, entryShare))
         return FarOutcome(0.0, vec3(0.0));
     float fade = edgeFade(hit);
-    return FarOutcome(fade, fade * blockerLight(hitPixel, geometricNormalAt(hitPixel), -direction));
+    vec3 hitDirect = texelFetch(gbufferDirect, hitPixel, 0).rgb;
+    return FarOutcome(fade, fade * blockerLight(hitDirect, geometricNormalAt(hitPixel), -direction));
 }
 
 // The direction of slice g's far ray through the center of the open sector of a rank.

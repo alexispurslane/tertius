@@ -116,11 +116,11 @@ bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 
     return true;
 }
 
-// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
+// The direct light that a blocker of direct light `direct` gives the directions that it blocks: all of it when its
 // view-space geometric normal faces towardReceiver, and none when the receiver sees its back.
-vec3 blockerLight(ivec2 pixel, vec3 geometricNormal, vec3 towardReceiver)
+vec3 blockerLight(vec3 direct, vec3 geometricNormal, vec3 towardReceiver)
 {
-    return dot(geometricNormal, towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
+    return dot(geometricNormal, towardReceiver) > 0.0 ? direct : vec3(0.0);
 }
 
 // θ at the center of a sector: the inverse of measureFraction at (sector + ½) / 32, by halving, since m has no closed

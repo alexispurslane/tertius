@@ -614,9 +614,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // glow source set, two for the meter set, one per pyramid level set, one for the depth tail set, two for the
             // reflection set, one for the prefilter set and one, the depth pyramid, for each of the two occlusion sets.
             new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 2),
-            // Six for each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, two for the
+            // Eight for each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, two for the
             // reflection set and one per environment level set.
-            new(DescriptorType.StorageImage, 2 * 6 + PyramidLevelSets + DepthPyramidTail.Mips + 2 + EnvironmentLevelSets),
+            new(DescriptorType.StorageImage, 2 * 8 + PyramidLevelSets + DepthPyramidTail.Mips + 2 + EnvironmentLevelSets),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
@@ -712,6 +712,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             Image(binding: 5, stages: ShaderStageFlags.ComputeBit),
             StorageImage(binding: 6),
             StorageImage(binding: 7),
+            StorageImage(binding: 8),
+            StorageImage(binding: 9),
         ];
         return CreateLayout(bindings: occlusion, name: "occlusion set");
     }
