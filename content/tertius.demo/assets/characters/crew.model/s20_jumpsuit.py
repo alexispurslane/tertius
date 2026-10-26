@@ -335,7 +335,8 @@ for s in "lr":
     end = J[s + "-elbow"] + P["sleeve_end"] * fore
     unit = fore / np.linalg.norm(fore)
     trims.append(ring(suit_tree, end, unit,
-                      [(-cf["length"], cf["out"], True), (-cf["edge"], cf["out"], True), (cf["past"], cf["out"], False)],
+                      [(-cf["length"], cf["out"], True), (-cf["edge"], cf["out"], True),
+                       (cf["past"], cf["out"], False)],
                       seg, cf["reach"]))
 # Pockets: a patch on each side of the chest, and one on the outside of each thigh. Each is a grid of rays that hit
 # the cloth from outside, so its edges are straight and the patch follows the cloth.
@@ -432,7 +433,13 @@ for s in "lr":
     top = np.array((shin_c[0], shin_c[1], ankle_z[s] + P["boot_top"]))
     low = np.array((shin_c[0], heel_y - 0.065, sole + 0.09))
     axis = top - low
-    e = element("CAPSULE", (top + low) / 2, shin_r * B["shaft_scale"] + t)
+    # The shaft holds the jumpsuit leg: its radius is the farthest point of the leg from the shaft's axis, so the
+    # cloth never pokes out of the boot behind the calf.
+    unit = axis / np.linalg.norm(axis)
+    leg = sp[(sp[:, 2] < top[2]) & (sp[:, 2] > low[2]) & (np.abs(sp[:, 0] - shin_c[0]) < 0.12)]
+    rel = leg - low
+    leg_r = float(np.linalg.norm(rel - np.outer(rel @ unit, unit), axis=1).max())
+    e = element("CAPSULE", (top + low) / 2, leg_r + t)
     e.size_x = float(np.linalg.norm(axis)) / 2
     e.rotation = Vector((1.0, 0.0, 0.0)).rotation_difference(Vector(axis / np.linalg.norm(axis)))
     ball_ob = bpy.data.objects.new("Boot" + s.upper(), data)
@@ -468,7 +475,8 @@ for s in "lr":
                           [(-tb["height"], tb["out"], True), (-0.012, tb["out"], True),
                            (0.004, tb["out"] + 0.002, False)], seg, reach=0.12))
     lo, hi = bp.min(axis=0), bp.max(axis=0)
-    boot_report[s] = {"shin_r": round(shin_r, 3), "length": round(float(hi[1] - lo[1]), 3),
+    boot_report[s] = {"shin_r": round(shin_r, 3), "leg_r": round(leg_r, 3),
+                      "length": round(float(hi[1] - lo[1]), 3),
                       "top": round(float(top[2]), 3)}
 soles.finish("Soles", M["M_Sole"], "Suit", smooth_angle=60.0)
 tp, tq, count = [], [], 0
@@ -476,7 +484,8 @@ for pos, quads in boot_tops:
     tp.append(pos)
     tq.append(quads + count)
     count += len(pos)
-finish("Boot_Tops", np.concatenate(tp), np.concatenate(tq), "M_Boot", smooth_angle=60.0, solidify=B["top_band"]["thickness"])
+finish("Boot_Tops", np.concatenate(tp), np.concatenate(tq), "M_Boot", smooth_angle=60.0,
+       solidify=B["top_band"]["thickness"])
 
 # --- The body under the cloth goes away -------------------------------------------------------------------------
 # A body face goes when every vertex lies under the jumpsuit or a boot and at least `keep_rings` rings of faces away

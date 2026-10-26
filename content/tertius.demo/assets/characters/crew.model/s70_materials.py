@@ -1,6 +1,6 @@
 # The jumpsuit fabric, a procedural material that the build bakes into maps (bake.objects of model.json). The
-# trims (collar, cuffs and pockets) get the same fabric without the marks, as a bake object of their own. The person keeps
-# MPFB's image materials, which glTF holds as they are, and the small parts keep the constants of s00_scene.py.
+# trims (collar, cuffs and pockets) get the same fabric without the marks, as a bake object of their own. The person
+# keeps MPFB's image materials, which glTF holds as they are, and the small parts keep the constants of s00_scene.py.
 #
 # Each baked material has one Principled BSDF with a constant metallic input, and a Bump node into its normal input:
 # the bake contract of the asset pipeline. The materials read object coordinates, and every part sits at the origin
