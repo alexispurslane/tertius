@@ -60,6 +60,7 @@ public sealed class ReflectionTraceTests
                     layouts: plumbing.Layouts,
                     targets: plumbing.Reflections,
                     setting: ConeTracedReflections.Default,
+                    constants: new ShaderConstants(EnvironmentMap: false),
                     step: ReflectionStep.Upsample
                 )
             )

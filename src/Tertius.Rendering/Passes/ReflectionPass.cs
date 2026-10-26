@@ -43,6 +43,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
         DescriptorLayouts layouts,
         ReflectionTargets targets,
         ConeTracedReflections setting,
+        ShaderConstants constants,
         ReflectionStep step
     )
     {
@@ -84,6 +85,8 @@ internal sealed unsafe class ReflectionPass : RenderPass
             Name = pipelineName,
             Shader = shader,
             Layout = layouts.ReflectionLayout,
+            // The fallback reads the ambient light through ambientTerms, which reads the map while it is on.
+            Constants = constants,
         }.Create(device, shaders);
     }
 
@@ -165,6 +168,12 @@ internal sealed unsafe class ReflectionPass : RenderPass
         // The full-resolution trace and the upsample add the deltas to the lit image in the exposure's scale.
         barriers.Image(renderTargets.Hdr, ImageUse.StorageCompute);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        // Their fallback's ambient terms read the map while it is on.
+        if (context.Environment is { } map)
+        {
+            barriers.Image(map.Specular, ImageUse.SampledCompute);
+            barriers.Buffer(map.Irradiance, BufferUse.ComputeRead);
+        }
     }
 
     private void DeclarePyramids(BarrierBatch barriers)

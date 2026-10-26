@@ -36,6 +36,8 @@ bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
     p.distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     if (p.distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
         return false;
+    // surfaceAt gives the footprint that the lighting pass took at this pixel, so the delta's fallback is the term that
+    // it added.
     p.s = surfaceAt(pixel);
     float roughness = flooredRoughness(p.s.roughness);
     float roughnessFade = clamp(2.0 - 2.0 * roughness / reflection.maxRoughness, 0.0, 1.0);

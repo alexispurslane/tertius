@@ -63,14 +63,16 @@ public sealed class ScriptCommandExposureTests : IDisposable
         string settledOut = Path.Combine(folder, "settled"),
             filmOut = Path.Combine(folder, "film");
 
+        // The scene is lit by its hemisphere alone, which the environment map replaces, and a map of a scene with no sun
+        // and no emission is black in both views.
         int settleCode = ScriptCommand.Run(
-            args: ["--script", settle, "--headless", "--out", settledOut],
+            args: ["--script", settle, "--headless", "--out", settledOut, "--environment-map", "off"],
             scenes: [DarkAndBrightScene],
             output: output,
             error: error
         );
         int filmCode = ScriptCommand.Run(
-            args: ["--script", film, "--headless", "--out", filmOut],
+            args: ["--script", film, "--headless", "--out", filmOut, "--environment-map", "off"],
             scenes: [DarkAndBrightScene],
             output: output,
             error: error

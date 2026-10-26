@@ -10,13 +10,15 @@ namespace Tertius.Host.Tests;
 public sealed class ScriptCommandCaptureTests : IDisposable
 {
     /// <summary>
-    /// The timed passes of a headless frame with the renderer's defaults, in frame order: ambient occlusion between the
-    /// G-buffer and the lighting, the reflections' half-resolution trace and its upsample after the radiance pyramid, SMAA
-    /// after the tone map.
+    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the environment map's faces and
+    /// prefilter after the shadow maps, ambient occlusion between the G-buffer and the lighting, the reflections'
+    /// half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
         "shadow maps",
+        "environment faces",
+        "environment prefilter",
         "G-buffer",
         "depth pyramid",
         "occlusion depth",
@@ -63,8 +65,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             """
         );
 
+        // The lit box shows its color by the hemisphere's light, which the environment map replaces.
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out],
+            args: ["--script", script, "--headless", "--out", Out, "--environment-map", "off"],
             scenes: [LitBoxScene],
             output: output,
             error: error
@@ -114,8 +117,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }"""
         );
 
+        // The lit box shows its color by the hemisphere's light, which the environment map replaces.
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out],
+            args: ["--script", script, "--headless", "--out", Out, "--environment-map", "off"],
             scenes: [LitBoxScene],
             output: output,
             error: error

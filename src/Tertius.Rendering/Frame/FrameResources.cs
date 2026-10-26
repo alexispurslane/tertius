@@ -25,6 +25,7 @@ internal sealed unsafe class FrameResources : IDisposable
         TextureStore textures,
         BrdfTableImages tables,
         GpuBuffer exposure,
+        EnvironmentMap? environment,
         int index
     )
     {
@@ -60,6 +61,18 @@ internal sealed unsafe class FrameResources : IDisposable
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
         WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
+        // The map's images and buffer live as long as the renderer, so their bindings are written once. With the map off
+        // they stay empty: they are partially bound.
+        if (environment is not null)
+        {
+            layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
+            layouts.WriteBuffer(
+                set: FrameSet,
+                binding: 14,
+                type: DescriptorType.StorageBuffer,
+                buffer: environment.Irradiance
+            );
+        }
     }
 
     public int Index { get; }

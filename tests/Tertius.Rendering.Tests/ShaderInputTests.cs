@@ -26,6 +26,7 @@ public sealed class ShaderInputTests
             height: 900,
             meshes: Meshes,
             materialCount: 1,
+            environment: new WithoutMap(),
             scene: scene
         );
         return scene;

@@ -1,6 +1,6 @@
 ---
 id: ter-ff6y
-status: open
+status: in_progress
 deps: [ter-jxv9, ter-nydu]
 links: []
 created: 2026-10-25T22:22:45Z

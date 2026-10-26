@@ -178,6 +178,7 @@ public sealed class StressTests(ITestOutputHelper output)
                         height: height,
                         meshes: meshes,
                         materialCount: 8,
+                        environment: default,
                         scene: scene
                     );
                 var timer = Stopwatch.StartNew();
@@ -189,6 +190,7 @@ public sealed class StressTests(ITestOutputHelper output)
                         height: height,
                         meshes: meshes,
                         materialCount: 8,
+                        environment: default,
                         scene: scene
                     );
                 return timer.Elapsed.TotalMilliseconds / 50;

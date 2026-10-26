@@ -28,6 +28,8 @@ namespace Tertius.Host;
 /// them off.</item>
 /// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
 /// option.</item>
+/// <item><c>--environment-map on|off</c> keeps the headless renderer's default <see cref="SceneEnvironmentMap"/>, or turns
+/// it off.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -69,7 +71,7 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -93,6 +95,7 @@ public static class ScriptCommand
         "--bloom",
         "--reflections",
         "--anti-aliasing",
+        "--environment-map",
     ];
 
     /// <summary>
@@ -405,6 +408,8 @@ public static class ScriptCommand
             rendererOptions.Reflections = new NoReflections();
         if (options.AntiAliasing is { } antiAliasing)
             rendererOptions.AntiAliasing = antiAliasing;
+        if (options.EnvironmentMapOff)
+            rendererOptions.EnvironmentMap = new NoEnvironmentMap();
         try
         {
             return createRenderer(rendererOptions);
@@ -588,6 +593,7 @@ public static class ScriptCommand
     /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
     /// <param name="ReflectionsOff">True to turn the headless renderer's reflections off, false to keep its default.</param>
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="EnvironmentMapOff">True to turn the headless renderer's environment map off, false to keep its default.</param>
     internal sealed record Options(
         string? Script,
         string? Scene,
@@ -601,7 +607,8 @@ public static class ScriptCommand
         AmbientOcclusionSetting? AmbientOcclusion = null,
         bool BloomOff = false,
         bool ReflectionsOff = false,
-        AntiAliasing? AntiAliasing = null
+        AntiAliasing? AntiAliasing = null,
+        bool EnvironmentMapOff = false
     );
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
@@ -628,7 +635,8 @@ public static class ScriptCommand
             AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
             BloomOff: given.Value("--bloom") == "off",
             ReflectionsOff: given.Value("--reflections") == "off",
-            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing"))
+            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
+            EnvironmentMapOff: given.Value("--environment-map") == "off"
         );
     }
 
@@ -696,7 +704,8 @@ public static class ScriptCommand
         ?? AmbientOcclusionProblem(given)
         ?? OnOffProblem(given, "--bloom")
         ?? OnOffProblem(given, "--reflections")
-        ?? AntiAliasingProblem(given);
+        ?? AntiAliasingProblem(given)
+        ?? OnOffProblem(given, "--environment-map");
 
     private static string? SpeedProblem(GivenOptions given)
     {

@@ -2,7 +2,7 @@
 id: ter-cqgt
 status: open
 deps: []
-links: []
+links: [ter-nkyv]
 created: 2026-10-25T02:43:12Z
 type: chore
 priority: 3

@@ -33,7 +33,8 @@ public sealed class BatcherTests
         RenderSnapshot snapshot,
         float alpha = 1f,
         int materials = 8,
-        SceneBatcher? batcher = null
+        SceneBatcher? batcher = null,
+        EnvironmentDraw environment = default
     )
     {
         var scene = new PreparedScene();
@@ -44,6 +45,7 @@ public sealed class BatcherTests
             height: 900,
             meshes: Meshes,
             materialCount: materials,
+            environment: environment,
             scene: scene
         );
         return scene;
@@ -699,6 +701,315 @@ public sealed class BatcherTests
         Prepare(snapshot: snapshot).Constants.RootRotation.Should().Be(new Vector4(x: 0, y: 0, z: 0, w: 1));
     }
 
+    // The map's faces. The camera sits at the render origin and looks down −Z, so it sees nothing along ±X or ±Y.
+
+    /// <summary>The map is on, draws <paramref name="faces"/> this frame, and has no irradiance reading yet.</summary>
+    private static EnvironmentDraw MapOf(FaceMask faces) => new WithMap(Faces: faces, Irradiance: null);
+
+    /// <summary>A unit box of mesh 0 at <paramref name="position"/>.</summary>
+    private static RenderInstance Box(Vector3 position, RenderFlags flags = RenderFlags.None) =>
+        Gpu.Instance(mesh: new(0), material: new(0), position: position, scale: Vector3.One, flags: flags);
+
+    private static Vector3 Position(in GpuInstance instance) =>
+        new(instance.ModelRow0.W, instance.ModelRow1.W, instance.ModelRow2.W);
+
+    /// <summary>The places of the GPU instances that the commands of <paramref name="commands"/> draw, in draw order.</summary>
+    private static List<Vector3> Placed(PreparedScene scene, CommandRange commands)
+    {
+        var positions = new List<Vector3>();
+        for (int c = commands.First; c < commands.First + commands.Count; c++)
+        {
+            DrawIndexedIndirectCommand command = scene.Commands[c];
+            for (uint i = command.FirstInstance; i < command.FirstInstance + command.InstanceCount; i++)
+                positions.Add(Position(scene.Instances[i]));
+        }
+
+        return positions;
+    }
+
+    /// <summary>The places of the GPU instances that a face draws over its three depth ranges.</summary>
+    private static List<Vector3> Placed(PreparedScene scene, EnvironmentFaceDraw face) =>
+        [.. Placed(scene, face.Far), .. Placed(scene, face.Middle), .. Placed(scene, face.Near)];
+
+    private static Vector3 LightPosition(in GpuLight light) =>
+        new(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z);
+
+    [Fact]
+    public void AFaceDrawsTheOpaqueInstancesInItsFrustumAndNoTransparentOne()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(Box(new(10, 0, 0)));
+        snapshot.Instances.Add(Box(new(10, 3, 0), RenderFlags.Transparent));
+        snapshot.Instances.Add(Box(new(-10, 0, 0))); // behind the face
+        snapshot.Instances.Add(Box(new(10, 30, 0))); // above its top plane
+        snapshot.Instances.Add(Box(new(10, 0, 30))); // beyond its side plane
+        snapshot.Instances.Add(
+            RenderInstance.Create(
+                mesh: new(0),
+                material: new(0),
+                position: new(10, -3, 0),
+                rotation: Quaternion.Identity,
+                scale: Vector3.One,
+                boundingRadius: 0f,
+                hemisphere: HemisphereUp.Even,
+                flags: RenderFlags.CastsShadow
+            )
+        ); // not Visible
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        face.Face.Should().Be(CubeFace.PositiveX);
+        Placed(scene, face).Should().Equal(new Vector3(10, 0, 0));
+    }
+
+    [Fact]
+    public void AFaceDrawsEachInstanceAtItsInterpolatedPlaceRelativeToTheInterpolatedEye()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Camera.PreviousPosition = new(0, 0, 0);
+        snapshot.Camera.Position = new(0, 2, 0);
+        RenderInstance box = Box(new(12, 0, 0));
+        box.PreviousPosition = new(10, 0, 0);
+        snapshot.Instances.Add(box);
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f, environment: MapOf(FaceMask.PositiveX));
+
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(11, -1, 0));
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(MathF.PI / 2)]
+    [InlineData(MathF.PI)]
+    [InlineData(-MathF.PI / 2)]
+    public void AFaceSortsItsInstancesIntoTheRangesOfTheirDepthAlongItsOwnAxis(float cameraTurn)
+    {
+        // The camera turns about +Y: it looks down −Z, −X, +Z and +X in turn.
+        RenderSnapshot snapshot = Empty();
+        var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, cameraTurn);
+        snapshot.Camera.Rotation = turn;
+        snapshot.Camera.PreviousRotation = turn;
+        snapshot.Instances.Add(Box(new(10_000, 0, 0)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        Placed(scene, face[DepthRanges.Middle]).Should().Equal(new Vector3(10_000, 0, 0));
+        face[DepthRanges.Far].Count.Should().Be(0);
+        face[DepthRanges.Near].Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void ARefreshPreparesSixFaces()
+    {
+        Vector3[] axes = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ];
+        RenderSnapshot snapshot = Empty();
+        foreach (Vector3 axis in axes)
+            snapshot.Instances.Add(Box(axis * 10));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All));
+
+        scene
+            .EnvironmentFaces.Select(face => face.Face)
+            .Should()
+            .Equal(
+                CubeFace.PositiveX,
+                CubeFace.NegativeX,
+                CubeFace.PositiveY,
+                CubeFace.NegativeY,
+                CubeFace.PositiveZ,
+                CubeFace.NegativeZ
+            );
+        for (int i = 0; i < CubeFaces.Count; i++)
+            Placed(scene, scene.EnvironmentFaces[i])
+                .Should()
+                .Equal([axes[i] * 10], $"face {i} sees the box on its axis");
+    }
+
+    [Fact]
+    public void TheFacesCommandsAndInstancesFollowTheMainViews()
+    {
+        // The box ahead is in the main view and in face −Z; the pane is in the main view's transparent pass.
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(Box(new(0, 0, -10)));
+        snapshot.Instances.Add(Box(new(0, 0, -20), RenderFlags.Transparent));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.NegativeZ));
+
+        CommandRange near = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near];
+        near.Should()
+            .Be(new CommandRange(First: 2, Count: 1), "the main view's opaque and transparent commands come first");
+        scene.Commands[near.First].FirstInstance.Should().Be(2u);
+        scene.InstanceCount.Should().Be(3);
+    }
+
+    [Fact]
+    public void AFaceDrawsAnObjectThatAProcessorTookOutOfTheMainView()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(Box(new(0, 0, -10)));
+        var batcher = new SceneBatcher();
+        batcher.Processors.Add(new TakeAllOut());
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
+
+        scene.Opaque[DepthRanges.Near].Count.Should().Be(0);
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(0, 0, -10));
+    }
+
+    /// <summary>Takes every visible instance out of the main view, as the impostor manager takes its impostors out.</summary>
+    private sealed class TakeAllOut : IInstanceProcessor
+    {
+        public void Process(PreparedScene scene) => scene.VisibleCount = 0;
+    }
+
+    [Fact]
+    public void AFaceKeepsALightThatTheMainViewLeavesOut()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
+
+        scene.LightCount.Should().Be(1);
+        scene.Lights[0].PositionRange.Should().Be(new Vector4(x: 50, y: 0, z: 0, w: 10));
+        scene.Constants.LightCount.Should().Be(1u);
+    }
+
+    [Fact]
+    public void ALightThatOnlyAFaceThatThisFrameSkipsCouldReachIsLeftOut()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All & ~FaceMask.PositiveX));
+
+        scene.LightCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void TheLightsKeepTheSnapshotsOrder()
+    {
+        // Faces only, the main view only, faces only, and one that lights nothing.
+        Vector3[] places = [new(50, 0, 0), new(0, 0, -5), new(0, 50, 0), new(30, 0, 0)];
+        float[] intensities = [1, 1, 1, 0];
+        RenderSnapshot snapshot = Empty();
+        for (int i = 0; i < places.Length; i++)
+            snapshot.Lights.Add(
+                new PointRenderLight(Position: places[i], Color: Vector3.One, Intensity: intensities[i], Range: 10)
+            );
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All));
+
+        scene
+            .Lights.AsSpan(0, scene.LightCount)
+            .ToArray()
+            .Select(light => LightPosition(light))
+            .Should()
+            .Equal(places[0], places[1], places[2]);
+    }
+
+    [Fact]
+    public void WithoutTheMapTheLightsAreTheMainViewsAlone()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Instances.Add(Box(new(10, 0, 0)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: new WithoutMap());
+
+        scene.LightCount.Should().Be(1);
+        LightPosition(scene.Lights[0]).Should().Be(new Vector3(0, 0, -5));
+        scene.EnvironmentFaces.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WithTheMapOnTheFrameConstantsHoldNoHemisphere()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Ambient = new()
+        {
+            SkyColor = new(0.2f, 0.3f, 0.4f),
+            GroundColor = new(0.1f),
+            Intensity = 2,
+        };
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.None));
+
+        scene.Constants.AmbientSky.Should().Be(Vector4.Zero);
+        scene.Constants.AmbientGround.Should().Be(Vector4.Zero);
+    }
+
+    [Fact]
+    public void WithoutTheMapTheAmbientLightIsTheSnapshotsHemisphere()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Ambient = new()
+        {
+            SkyColor = new(0.2f, 0.3f, 0.4f),
+            GroundColor = new(0.1f),
+            Intensity = 2,
+        };
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: new WithoutMap());
+
+        scene.Ambient.Should().Be(new AmbientSource(new HemisphereAmbient(snapshot.Ambient)));
+        scene.Constants.AmbientSky.Should().Be(new Vector4(x: 0.4f, y: 0.6f, z: 0.8f, w: 0));
+        scene.Constants.AmbientGround.Should().Be(new Vector4(x: 0.2f, y: 0.2f, z: 0.2f, w: 0));
+    }
+
+    [Fact]
+    public void WithTheMapTheAmbientLightIsTheMapWithItsLatestReading()
+    {
+        var coefficients = new Vector3[Irradiance.Coefficients];
+        coefficients[0] = new(1, 2, 3);
+        var reading = new IrradianceReading(Frame: 7, Irradiance: new(coefficients));
+
+        PreparedScene scene = Prepare(
+            snapshot: Empty(),
+            environment: new WithMap(Faces: FaceMask.None, Irradiance: reading)
+        );
+
+        scene.Ambient.TryGetValue(out MapAmbient map).Should().BeTrue();
+        map.Irradiance!.Value.Frame.Should().Be(7);
+        map.Irradiance.Value.Irradiance[0].Should().Be(new Vector3(1, 2, 3));
+    }
+
+    [Fact]
+    public void APreparedSceneDropsTheFacesOfTheFrameBefore()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(Box(new(10, 0, 0)));
+        var scene = new PreparedScene();
+        var batcher = new SceneBatcher();
+        batcher.Prepare(
+            snapshot: snapshot,
+            alpha: 1f,
+            width: 1600,
+            height: 900,
+            meshes: Meshes,
+            materialCount: 8,
+            environment: MapOf(FaceMask.All),
+            scene: scene
+        );
+        scene.EnvironmentFaces.Should().HaveCount(6);
+
+        batcher.Prepare(
+            snapshot: snapshot,
+            alpha: 1f,
+            width: 1600,
+            height: 900,
+            meshes: Meshes,
+            materialCount: 8,
+            environment: MapOf(FaceMask.NegativeY),
+            scene: scene
+        );
+
+        scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
+    }
+
     /// <summary>A still puff: its previous place is its place.</summary>
     private static RenderPuff Puff(Vector3 position, float age = 0.5f, int look = 0) =>
         new()
@@ -1073,6 +1384,7 @@ public sealed class BatcherTests
             height: 900,
             meshes: Meshes,
             materialCount: 8,
+            environment: default,
             scene: scene
         );
         scene.PuffCount.Should().Be(1);
@@ -1084,6 +1396,7 @@ public sealed class BatcherTests
             height: 900,
             meshes: Meshes,
             materialCount: 8,
+            environment: default,
             scene: scene
         );
 
