@@ -380,7 +380,7 @@ internal struct SkyFacePushConstants
 }
 
 /// <summary>
-/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k. 12 bytes.
+/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k. 16 bytes.
 /// environment_irradiance.comp reads none.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -394,6 +394,9 @@ internal struct EnvironmentPrefilterPushConstants
 
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
+
+    /// <summary>The invocations that share one texel's samples, <see cref="PrefilterLevels.Lanes"/> of the level.</summary>
+    public uint Lanes;
 }
 
 /// <summary>

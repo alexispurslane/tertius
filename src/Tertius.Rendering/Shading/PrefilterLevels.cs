@@ -18,6 +18,14 @@ internal static class PrefilterLevels
     /// <summary>The levels of the radiance map's mip chain, from a power of two <paramref name="faceSize"/> down to 1 texel.</summary>
     public static int RadianceLevels(int faceSize) => BitOperations.Log2((uint)faceSize) + 1;
 
+    /// <summary>
+    /// The invocations of environment_prefilter.comp that share the samples of one texel of level
+    /// <paramref name="level"/>: 1 for levels 0 and 1, then four times as many for each level of a quarter of the texels,
+    /// up to one sample each. So every level from 1 on has as many invocations as level 1 until each sample has its own,
+    /// and a texel of a small level waits on a chain of a few texture reads, not of all its samples.
+    /// </summary>
+    public static int Lanes(int level) => level <= 1 ? 1 : Math.Min(SamplesPerTexel, 1 << (2 * (level - 1)));
+
     /// <summary>The roughness that level <paramref name="level"/> of <paramref name="levels"/> holds, linear in perceptual roughness.</summary>
     public static float Roughness(int level, int levels) => (float)level / (levels - 1);
 

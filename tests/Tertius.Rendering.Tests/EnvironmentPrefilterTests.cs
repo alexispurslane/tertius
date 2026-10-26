@@ -79,6 +79,69 @@ public sealed class EnvironmentPrefilterTests
         return (light, angle / light);
     }
 
+    /// <summary>
+    /// Every texel of each rough level is Karis's sum over the level's samples, each a trilinear read of the radiance map at
+    /// the level that filtered importance sampling gives: the result of <see cref="PrefilterReference"/>, which reads the
+    /// radiance map that the GPU drew. So however the shader splits a texel's samples among its invocations, it takes each
+    /// sample once, in its own direction, weight and level.
+    /// </summary>
+    [Fact]
+    public void EveryTexelOfARoughLevelIsTheSumOverItsSamplesOfTheRadianceMap()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            var mips = new Half[PrefilterLevels.RadianceLevels(Size)][][];
+            for (int level = 0; level < mips.Length; level++)
+            {
+                mips[level] = new Half[CubeFaces.Count][];
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                    mips[level][layer] = renderer.ReadEnvironmentFace(
+                        face: (CubeFace)layer,
+                        level: level,
+                        image: EnvironmentImage.Radiance
+                    );
+            }
+
+            var reference = new PrefilterReference(mips, Size);
+            // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
+            var worstOfLevel = new float[Levels];
+            for (int level = 1; level < Levels; level++)
+            {
+                int size = Size >> level;
+                float roughness = PrefilterLevels.Roughness(level, Levels);
+                float worst = 0;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                {
+                    Half[] face = renderer.ReadEnvironmentFace(
+                        face: (CubeFace)layer,
+                        level: level,
+                        image: EnvironmentImage.Specular
+                    );
+                    for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+                        Vector4 expected = reference.Prefilter(n, roughness);
+                        Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
+                        worst = MathF.Max(worst, (read - expected).Length() / (1 + expected.Length()));
+                    }
+                }
+
+                worstOfLevel[level] = worst;
+            }
+
+            // Within 0.35 % of a texel's light: the GPU's filter weights and the halves of the stored levels.
+            worstOfLevel[1..].Should().OnlyContain(worst => worst < 3.5e-3f, "each level's texels sum over their samples");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheMirrorLevelIsTheRadianceMap()
     {

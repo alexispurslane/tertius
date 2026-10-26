@@ -15,8 +15,14 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 {
-    /// <summary>The prefilter's workgroup: 8 by 8 texels of one face.</summary>
+    /// <summary>The downsample's workgroup: 8 by 8 texels of one face.</summary>
     private const uint GroupSize = 8;
+
+    /// <summary>
+    /// The invocations of a workgroup of environment_prefilter.comp, one row of its table of samples each: 64 /
+    /// <see cref="PrefilterLevels.Lanes"/> texels of a level (the GLSL copy is Invocations).
+    /// </summary>
+    private const uint GroupInvocations = 64;
 
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
@@ -201,7 +207,10 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         );
     }
 
-    /// <summary>Dispatches one level of the specular map: one invocation per texel of its six faces.</summary>
+    /// <summary>
+    /// Dispatches one level of the specular map: <see cref="PrefilterLevels.Lanes"/> invocations per texel of its six
+    /// faces.
+    /// </summary>
     private void DispatchLevel(Vk vk, CommandBuffer commandBuffer, int level)
     {
         uint size = (uint)(map.Setting.FaceSize >> level);
@@ -212,6 +221,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             LevelSize = size,
             Roughness = PrefilterLevels.Roughness(level, map.Levels),
             Samples = PrefilterLevels.SamplesPerTexel,
+            Lanes = (uint)PrefilterLevels.Lanes(level),
         };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
@@ -221,7 +231,14 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             size: (uint)sizeof(EnvironmentPrefilterPushConstants),
             pValues: &push
         );
-        Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
+        uint texels = CubeFaces.Count * size * size;
+        uint texelsPerGroup = GroupInvocations / push.Lanes;
+        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: (texels + texelsPerGroup - 1) / texelsPerGroup,
+            groupCountY: 1,
+            groupCountZ: 1
+        );
     }
 
     /// <summary>Binds <paramref name="sets"/> to the prefilter layout from set <paramref name="firstSet"/> on.</summary>
