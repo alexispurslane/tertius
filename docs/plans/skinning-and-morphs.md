@@ -229,7 +229,6 @@ The `Rig` constructor throws `ArgumentException` for a parent that does not come
 - Every inverse bind is finite, and its rotation is a rotation.
 - Every target names a morph of the rig, and no two targets of the mesh name the same morph.
 - Every delta array is empty or has one entry per vertex. Every delta is finite. A normal or tangent delta is at most 2 long, the longest difference of two unit vectors.
-- A deforming mesh has at most 64 × 65,535 = 4,194,240 vertices, the vertices of one row of the deform pass's grid (see "Portable Vulkan").
 
 `AddMesh` then calls `MeshDeform.Pack` and keeps its result beside the mesh. A deforming mesh whose deform data passes the device's limit throws `InvalidOperationException`, as `AddTexture` does when the texture store is full (see "Buffers and the region").
 
@@ -322,9 +321,11 @@ Reasons for the order:
 `SceneBatcher.Prepare` gains a parameter, the deform region, and a first step, `PoseInstances`, before `CollectVisible`:
 
 ```csharp
-internal readonly record struct DeformRegion(int Base, int Capacity)
+internal readonly record struct DeformRegion(int Base, int Capacity, int PoseRowCapacity, int JobCapacity)
 {
-    public static DeformRegion None => new(Base: 0, Capacity: 0);
+    public static DeformRegion None => new(Base: 0, Capacity: 0, PoseRowCapacity: 0, JobCapacity: 0);
+    public static DeformRegion Within(int vertexBase, int capacity, uint maxStorageBufferRange);
+    public bool Holds(int vertices, int poseRows, int jobs);
 }
 
 internal readonly record struct DeformJob(int Mesh, int Target, int Pose);
@@ -336,6 +337,10 @@ where
 
 - `DeformRegion.Base` = the first vertex of the region in the global vertex buffer, a multiple of 16.
 - `DeformRegion.Capacity` = the number of vertices that the region holds.
+- `DeformRegion.PoseRowCapacity` = the number of pose rows that the frame's pose buffer holds: `maxStorageBufferRange` / 16.
+- `DeformRegion.JobCapacity` = the number of jobs that the frame's job table holds: `maxStorageBufferRange` / 28.
+- `DeformRegion.Within` = the region that `GeometryStore.Region` gives, with both of these from the device's `maxStorageBufferRange`.
+- `DeformRegion.Holds` = whether the region holds a frame of that many copied vertices, pose rows and jobs.
 - `DeformJob.Mesh` = the static mesh of the job.
 - `DeformJob.Target` = the first vertex of the copy, counted from the region's base.
 - `DeformJob.Pose` = the first of the job's pose rows in `PreparedScene.Poses`.
@@ -343,9 +348,9 @@ where
 
 `PoseInstances` walks `snapshot.RigPoses` in order. For each entry, it decides the instance's frame mesh:
 
-1. If the instance's mesh is not on the GPU, the entry is skipped, and the instance is skipped later as today.
+1. If the instance's mesh is not on the GPU, or no view draws the instance, the entry is skipped, and the instance is skipped later as today. No view draws an instance that is neither visible nor casts a shadow, or that has no volume (`SceneBatcher.HasVolume`). It takes no job and is not counted.
 2. If the mesh has no `Deform`, or `Deform.Fits(JointCount, WeightCount)` is false, the instance draws as uploaded.
-3. If the next target plus the mesh's `VertexCount` passes the region's `Capacity`, the copy does not fit, and the instance draws as uploaded.
+3. If the next target plus the mesh's `VertexCount` passes the region's `Capacity`, or the frame's pose rows plus the mesh's `PoseRows` pass its `PoseRowCapacity`, or one more job passes its `JobCapacity`, the copy does not fit, and the instance draws as uploaded.
 4. Otherwise `MeshDeform.PoseInto` writes the job's pose rows and returns the posed bound. If the bound is not finite or passes `PositionLimit`, the rows are dropped, and the instance draws as uploaded.
 5. Otherwise the batcher appends the job and a frame mesh `(FirstIndex, IndexCount, Base + Target, bound, null)`, the static mesh's index range over the copy's vertices. The instance's frame mesh is `StaticMeshCount + k`, where k counts the jobs before it.
 
@@ -380,7 +385,7 @@ where
 - `SourceOf(mesh)` = the static mesh of a frame mesh: itself for a static mesh, and its job's `Mesh` for a deformed copy.
 - `PoseOf(mesh)` = the pose rows of a deformed copy, and an empty span for a static mesh.
 
-`SceneBatcher.DeformNeed(snapshot, meshes)` returns the sum of the vertex counts of the entries whose mesh deforms. The renderer calls it after the uploads and before `Prepare`, and `GeometryStore.ReserveDeformed` grows the region to it.
+`SceneBatcher.DeformNeed(snapshot, meshes)` returns the sum of the vertex counts of the entries that some view may draw and whose mesh deforms, the entries that rule 1 keeps. The renderer calls it after the uploads and before `Prepare`, and `GeometryStore.ReserveDeformed` grows the region to it.
 
 ## The deformation on the GPU
 
@@ -389,7 +394,7 @@ where
 - The deform vertices and the morph deltas live in `DeformStore`, two device-local storage buffers that grow by doubling, as the geometry does. Each holds at most the device's `maxStorageBufferRange`.
 - The global vertex buffer gains `StorageBufferBit`. Its layout is the static capacity, then the deform region. The region's base is a multiple of 16 vertices, 768 bytes, which is a multiple of 48 and of 256, the largest `minStorageBufferOffsetAlignment` that the spec allows.
 - `GeometryStore.ReserveDeformed(vertices, ...)` grows the region to the next power of two of the need, times 16 vertices, at most `maxStorageBufferRange / 48`. A growth makes a new vertex buffer, copies the static vertices, and retires the old buffer until the frames that use it finish, as a static growth does today. The region needs no copy, because every frame writes it anew. A static growth moves the region with it.
-- Each frame slot holds two host-visible storage buffers, which grow to the frame: the pose buffer, of the frame's pose rows, and the job table, of one `GpuDeformJob` per job. It also holds a deform descriptor set. `FrameResources.Write` copies `PreparedScene.Poses` into the slot's pose buffer and writes the job table from `PreparedScene.Deforms`, after `Prepare`, as it copies the instances.
+- Each frame slot holds two host-visible storage buffers, which grow to the frame: the pose buffer, of the frame's pose rows, and the job table, of one `GpuDeformJob` per job. A storage buffer of a frame slot grows by doubling, but never past `maxStorageBufferRange` while its data fits it (`HostArray.GrownCapacity`), and the batcher keeps the pose rows and the jobs within it (rule 3 of "Posing in the batcher"), so each binding stays within the device's range. It also holds a deform descriptor set. `FrameResources.Write` copies `PreparedScene.Poses` into the slot's pose buffer and writes the job table from `PreparedScene.Deforms`, after `Prepare`, as it copies the instances.
 
 ### The layouts
 
@@ -525,7 +530,7 @@ Why one dispatch for every job, and not one per job:
 - `FrameGraph.Stage.Deformation` is a new first stage, before `ShadowMaps`. The deform pass is its one pass, named "deformation" in the GPU timings. On the shadow branch the graph holds at most 24 passes, with every switch on, so one more stays under `GpuTimer.MaxPasses`, 31.
 - With no job, the pass records nothing.
 - Otherwise it moves the vertex buffer from `BufferUse.VertexInput` to `ComputeWrite`, which orders its writes after every earlier vertex read, the frame before's included (decision 18). It records its one dispatch, with no barrier inside it, then moves the buffer back to `VertexInput`, before the first draw of the frame.
-- The uploads move `DeformStore`'s buffers from `TransferDestination` to `ComputeRead` in the upload step's barrier batch.
+- The deform pass moves `DeformStore`'s two buffers to `ComputeRead` in its first barrier batch, because each pass declares its own uses. An upload or a growth earlier in the frame leaves them at `TransferDestination`, and the batch's tracked state chains from there.
 - The host writes of the pose buffer and the job table become visible to the device at the submission.
 
 ## The math, and its C# copy
@@ -714,7 +719,7 @@ The deformation follows the Vulkan specification, so it runs on NVIDIA, RADV, AN
 | Five storage buffers in the deform set, in the compute stage | Above the spec's least `maxPerStageDescriptorStorageBuffers`, 4. But the renderer already refuses a device whose stages see fewer storage buffers than the frame set's nine (`DescriptorLayouts.StorageBufferProblem`), and the deform pipeline's layout holds the deform set alone, so its compute stage sees five. NVIDIA, RADV, ANV and lavapipe offer far more. |
 | A window offset that is a multiple of 768 bytes | The spec's `minStorageBufferOffsetAlignment` is at most 256. |
 | A window, a deform store, a pose buffer and a job table within `maxStorageBufferRange` | The spec's least is 2^27 bytes. The renderer reads the device's value from `VulkanDevice.Properties` and stays within it. |
-| One dispatch of every job's workgroups, on a grid of at most 65,535 per row and per column | The spec's least `maxComputeWorkGroupCount` is 65,535 in each dimension, so the grid holds up to 65,535² workgroups. A mesh has at most 4,194,240 vertices, one row (the guard of `AddMesh`). |
+| One dispatch of every job's workgroups, on a grid of at most 65,535 per row and per column | The spec's least `maxComputeWorkGroupCount` is 65,535 in each dimension, so the grid holds up to 65,535² workgroups. |
 | 64 invocations per group | The spec's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128. |
 | Push constants of 8 bytes | The spec's least `maxPushConstantsSize` is 128. |
 | Joint indices packed in 32-bit words | No `storageBuffer16BitAccess`. |
@@ -926,6 +931,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `PosedInstancesPastTheRegionDrawTheirStaticMeshAndAreCounted`
 - `EmptyRegionDrawsEveryPosedInstanceAsUploaded`
 - `PoseWhoseBoundPassesThePositionLimitDrawsAsUploaded`
+- `PoseThatIsNotFiniteDrawsAsUploaded` (review fix)
+- `PosedInstanceThatNoViewDrawsTakesNoJobAndIsNotCounted`, `DeformNeedLeavesOutPosedInstancesThatNoViewDraws` and `ShadowOnlyPosedInstanceDeforms` (review fix)
+- `PosedInstancesPastThePoseBufferDrawTheirStaticMeshAndAreCounted` and `PosedInstancesPastTheJobTableDrawTheirStaticMeshAndAreCounted` (review fix)
+- `StaticMeshesShorterThanTheTableBeforeAreABug` (review fix, with contracts)
 - `PosedInstanceIsCulledByItsPosedBound`: a tip bent outside the rest radius keeps the instance in view.
 - `RenderRowBoundingRadiusOverridesThePosedBound`
 - `ShadowCastersOfAPosedInstanceDrawItsCopy`
@@ -941,6 +950,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `TileRedrawsWhenAJointOfAPosedCasterTurns`
 - `TileRedrawsWhenAMorphWeightOfAPosedCasterChanges`
 - `TileRedrawsWhenACasterTurnsFromStaticToPosed`
+- `TileWithAStillPosedCasterKeepsItsTileWhenItsCopyMovesInTheFrameMeshes` and `TileWithTwoStillPosedCastersOfDifferentPosesStaysCached` (review fix)
 
 `DeformationGpuTests` (Rendering.Tests, Part 4b), through `ReadDeformedVertices`:
 
@@ -953,6 +963,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `RegionGrowsForMorePosedInstances`
 - `StaticMeshesStillDrawAfterTheRegionGrows`
 - `DeformationOffDrawsTheStaticMesh`
+- `FrameWithoutAPosedInstanceRecordsNothingInTheDeformPass`: the test hook `DeformPass.Barriers` and `Dispatches` are both 0 (review fix).
 - `OneDispatchDeformsEveryJobOfTheFrame`: four copies of three meshes, of 7, 1, 7 and 7 workgroups, in one dispatch, each equal to the C# copy.
 
 `DeformJobsTests` (Rendering.Tests, Part 4b's one dispatch), without a GPU:
@@ -966,6 +977,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `GridOfAtMostTheLeastMaxWorkgroupCountIsOneRow`
 - `GridPastTheLeastMaxWorkgroupCountTakesAsFewRowsAsHoldIt`
 - `GridStaysWithinEveryDeviceAndEndsLessThanOneRowPastTheLastWorkgroup`
+
+`DeformRegionTests` gains, from the review fixes: `PoseBufferOfTheRegionStaysWithinTheStorageRange`, `JobTableOfTheRegionStaysWithinTheStorageRange`, `StorageArrayGrowsByDoubling`, `StorageArrayStopsGrowingAtTheMostThatTheStorageRangeHolds` and `StorageArrayHoldsDataPastTheStorageRange`.
 
 `DescriptorLayoutsTests.TheDeformLayoutBindsNoMoreStorageBuffersThanTheFrameSetNeedsOfEveryDevice` replaces the test of four.
 

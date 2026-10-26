@@ -15,12 +15,6 @@ internal sealed partial record MeshDeform
     /// <summary>The invocations of one group of the deform pass, one per vertex.</summary>
     public const int InvocationsPerGroup = 64;
 
-    /// <summary>
-    /// The most vertices of a deforming mesh: the vertices of one row of the deform pass's grid, at the spec's least
-    /// maxComputeWorkGroupCount[0] (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
-    /// </summary>
-    public const int MaxVertices = InvocationsPerGroup * (int)DeformPass.MaxGroupsPerDimension;
-
     /// <summary>The most joints whose model poses <see cref="PoseInto"/> keeps on the stack. A larger rig rents them.</summary>
     private const int StackJoints = 128;
 

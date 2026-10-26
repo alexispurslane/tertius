@@ -201,19 +201,6 @@ public sealed class UploadQueueRiggingTests
     }
 
     [Fact]
-    public void AddMeshRefusesADeformingMeshPastTheLargestDispatch()
-    {
-        // A mesh that only morphs, with zeroed vertices: the count alone is wrong.
-        var rig = new Rig([], [new(Name: "Swell", Rest: 0)]);
-        var mesh = new MeshData(new Vertex[MeshDeform.MaxVertices + 1], [0, 1, 2])
-        {
-            Rigging = new(rig, Skin: null, [new MorphTarget(Morph: 0, Positions: [], Normals: [], Tangents: [])]),
-        };
-
-        ShouldRefuse(mesh);
-    }
-
-    [Fact]
     public void AddMeshThrowsWhenTheDeformDataPassesTheDeviceLimit()
     {
         MeshData box = Primitives.MorphingBox(Vector3.One);
@@ -242,10 +229,7 @@ public sealed class UploadQueueRiggingTests
         // Room for the 24 * 80 bytes of deform vertices, and not for the 24 * 96 bytes of deltas.
         var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 24 * 88);
 
-        FluentActions
-            .Invoking(() => queue.AddMesh(everywhere))
-            .Should()
-            .ThrowExactly<InvalidOperationException>();
+        FluentActions.Invoking(() => queue.AddMesh(everywhere)).Should().ThrowExactly<InvalidOperationException>();
     }
 
     [Fact]

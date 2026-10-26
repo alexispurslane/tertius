@@ -29,6 +29,7 @@ internal readonly record struct TileDraw(int View, int First, int Count);
 /// <item>A layer's record names the entity of the light whose view holds it.</item>
 /// <item>No two views of a frame share a layer.</item>
 /// <item>A layer without a view of the last submitted frame holds no record.</item>
+/// <item>A record's casters' pose ranges follow one another in caster order from 0 and end at the end of its pose rows.</item>
 /// </list>
 /// </summary>
 internal sealed class ShadowTiles
@@ -226,6 +227,23 @@ internal sealed class ShadowTiles
 
         // Each view's layer holds a record, so as many records as views leave none on a layer without a view.
         Contract.Invariant(drawnTiles.Count == records.Count(record => record is not null));
+
+        foreach (TileRecord record in records.OfType<TileRecord>())
+            Contract.Invariant(PoseRangesTile(record));
+    }
+
+    /// <summary>Whether the record's casters' pose ranges lie end to end from 0 to the end of its pose rows, in caster order.</summary>
+    private static bool PoseRangesTile(TileRecord record)
+    {
+        int next = 0;
+        foreach (RecordedCaster caster in record.Casters)
+        {
+            if (caster.PoseStart != next || caster.PoseCount < 0)
+                return false;
+            next += caster.PoseCount;
+        }
+
+        return next == record.Poses.Count;
     }
 
     /// <summary>How far the farthest axis of one basis lies from its counterpart in the other: the chord, about the angle.</summary>

@@ -1,18 +1,41 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Tertius.Rendering;
 
 /// <summary>
 /// The deform region of a frame: the part of the global vertex buffer after the uploaded vertices that holds the frame's
-/// deformed copies (docs/plans/skinning-and-morphs.md, "Posing in the batcher").
+/// deformed copies, and the room of the frame's pose buffer and job table (docs/plans/skinning-and-morphs.md, "Posing in
+/// the batcher").
 /// </summary>
 /// <param name="Base">The first vertex of the region in the global vertex buffer, a multiple of 16.</param>
 /// <param name="Capacity">The number of vertices that the region holds.</param>
-internal readonly record struct DeformRegion(int Base, int Capacity)
+/// <param name="PoseRowCapacity">The number of pose rows that the frame's pose buffer holds.</param>
+/// <param name="JobCapacity">The number of jobs that the frame's job table holds.</param>
+internal readonly record struct DeformRegion(int Base, int Capacity, int PoseRowCapacity, int JobCapacity)
 {
     /// <summary>The empty region: every posed instance draws as uploaded.</summary>
-    public static DeformRegion None => new(Base: 0, Capacity: 0);
+    public static DeformRegion None => new(Base: 0, Capacity: 0, PoseRowCapacity: 0, JobCapacity: 0);
+
+    /// <summary>
+    /// The region of <paramref name="capacity"/> vertices from <paramref name="vertexBase"/>, whose pose buffer and job
+    /// table each stay within <paramref name="maxStorageBufferRange"/> bytes.
+    /// </summary>
+    public static DeformRegion Within(int vertexBase, int capacity, uint maxStorageBufferRange) =>
+        new(
+            Base: vertexBase,
+            Capacity: capacity,
+            PoseRowCapacity: (int)(maxStorageBufferRange / (uint)Unsafe.SizeOf<Vector4>()),
+            JobCapacity: (int)(maxStorageBufferRange / (uint)Unsafe.SizeOf<GpuDeformJob>())
+        );
+
+    /// <summary>
+    /// Whether the region holds a frame of <paramref name="vertices"/> copied vertices, <paramref name="poseRows"/> pose
+    /// rows and <paramref name="jobs"/> jobs.
+    /// </summary>
+    public bool Holds(int vertices, int poseRows, int jobs) =>
+        vertices <= Capacity && poseRows <= PoseRowCapacity && jobs <= JobCapacity;
 }
 
 /// <summary>The work of one deformed copy of a frame.</summary>

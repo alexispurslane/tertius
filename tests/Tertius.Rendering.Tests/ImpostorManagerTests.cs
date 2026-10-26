@@ -228,7 +228,7 @@ public sealed class ImpostorManagerTests
     [Fact]
     public void DeformedInstanceNeverBecomesAnImpostor()
     {
-        var harness = new Harness(region: new(Base: 1_024, Capacity: 1_000));
+        var harness = new Harness(region: new(Base: 1_024, Capacity: 1_000, PoseRowCapacity: 1_000, JobCapacity: 100));
 
         PreparedScene scene = harness.Run(SmallPosedBox());
 

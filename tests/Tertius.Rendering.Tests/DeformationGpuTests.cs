@@ -261,6 +261,11 @@ public sealed class DeformationGpuTests
                 .Single()
                 .Dispatches.Should()
                 .Be(1, "one dispatch covers every job");
+            renderer
+                .Graph.Passes.OfType<DeformPass>()
+                .Single()
+                .Barriers.Should()
+                .Be(2, "one batch before the dispatch and one after it, and none between its jobs");
             int read = 0;
             for (int i = 0; i < copies.Length; i++)
             {
@@ -496,6 +501,30 @@ public sealed class DeformationGpuTests
             DistanceAt(renderer.ReadDistance(), boxAt)
                 .Should()
                 .BeGreaterThan(0, "the grown vertex buffer still holds the box's vertices");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void FrameWithoutAPosedInstanceRecordsNothingInTheDeformPass()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId mesh = renderer.CreateMesh(Cylinder());
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
+            snapshot.Instances.Add(Posed(mesh, white, Stand));
+
+            renderer.Render(snapshot, 1f);
+
+            DeformPass pass = renderer.Graph.Passes.OfType<DeformPass>().Single();
+            pass.Dispatches.Should().Be(0);
+            pass.Barriers.Should()
+                .Be(0, "a scene without a posed instance keeps the cost it had before the deformation");
         }
         finally
         {

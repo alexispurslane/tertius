@@ -134,15 +134,18 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// The vertices that this frame's deformed copies can take: the sum of the vertex counts of the snapshot's posed
-    /// instances whose mesh deforms. The renderer grows the deform region to it before <see cref="Prepare"/>.
+    /// instances that some view may draw and whose mesh deforms. The renderer grows the deform region to it before
+    /// <see cref="Prepare"/>.
     /// </summary>
     public static int DeformNeed(RenderSnapshot snapshot, ReadOnlySpan<MeshInfo> meshes)
     {
         int need = 0;
+        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         foreach (ref readonly RenderRigPose pose in CollectionsMarshal.AsSpan(snapshot.RigPoses))
         {
-            int mesh = MeshIndex(snapshot.Instances[pose.Instance].Mesh, meshes.Length);
-            if (mesh >= 0 && meshes[mesh].Deform is { } deform)
+            ref readonly RenderInstance instance = ref instances[pose.Instance];
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh >= 0 && MayDraw(instance) && meshes[mesh].Deform is { } deform)
                 need += deform.VertexCount;
         }
 
@@ -222,6 +225,16 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     internal static bool HasVolume(Vector3 scale) =>
         IsDrawableAxis(scale.X) && IsDrawableAxis(scale.Y) && IsDrawableAxis(scale.Z);
 
+    /// <summary>
+    /// Whether some view may draw the instance: it is visible or casts a shadow, and it has a volume. Every collector
+    /// skips an instance without both.
+    /// </summary>
+    private static bool MayDraw(in RenderInstance instance)
+    {
+        bool shown = (instance.Flags & (RenderFlags.Visible | RenderFlags.CastsShadow)) != 0;
+        return shown && HasVolume(instance.Scale);
+    }
+
     // A NaN fails both comparisons.
     private static bool IsDrawableAxis(float axis) => MathF.Abs(axis) is >= SmallestScale and <= LargestScale;
 
@@ -252,7 +265,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <summary>
     /// Decides the frame mesh of each posed instance, in the snapshot's order (docs/plans/skinning-and-morphs.md, "Posing
     /// in the batcher"): a deformed copy when <see cref="DeformedCopy"/> makes one, else its static mesh, counted as drawn
-    /// as uploaded. An instance whose mesh is not on the GPU is left to the collectors, which skip it.
+    /// as uploaded. An instance whose mesh is not on the GPU, or that no view draws, is left to the collectors, which skip
+    /// it, so that no job arises that no draw reads.
     /// </summary>
     /// <param name="meshes">The static meshes, which become the static part of the frame meshes.</param>
     private void PoseInstances(
@@ -269,9 +283,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         EnsureCapacity(ref entryMeshes, poses.Length);
         for (int entry = 0; entry < poses.Length; entry++)
         {
-            int mesh = MeshIndex(instances[poses[entry].Instance].Mesh, meshes.Length);
+            ref readonly RenderInstance instance = ref instances[poses[entry].Instance];
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
             entryMeshes[entry] = mesh;
-            if (mesh < 0)
+            if (mesh < 0 || !MayDraw(instance))
                 continue;
             if (
                 DeformedCopy(
@@ -293,7 +308,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <summary>
     /// The frame mesh of a deformed copy of static mesh <paramref name="mesh"/> in <paramref name="pose"/>, appended with its
     /// job and its pose rows, or null when the instance draws as uploaded: the mesh does not deform, the rig pose does not
-    /// fit it, the copy does not fit in the region, or the posed bound is not finite or passes
+    /// fit it, the copy, its pose rows or its job do not fit in the region, or the posed bound is not finite or passes
     /// <see cref="ShaderInput.PositionLimit"/>.
     /// </summary>
     private static int? DeformedCopy(
@@ -308,7 +323,12 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         if (scene.Meshes[mesh].Deform is not { } deform || !deform.Fits(pose.JointCount, pose.WeightCount))
             return null;
         // The copies lie end to end, so the vertices of the copies so far are the next copy's target.
-        if (scene.DeformedVertices + deform.VertexCount > region.Capacity)
+        bool fits = region.Holds(
+            vertices: scene.DeformedVertices + deform.VertexCount,
+            poseRows: scene.Poses.Length + deform.PoseRows,
+            jobs: scene.Deforms.Length + 1
+        );
+        if (!fits)
             return null;
         float bound = deform.PoseInto(
             previousJoints: snapshot.PreviousJointsOf(pose),

@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The size of the deform region and the dispatches of the deform pass, without a GPU
+/// The size of the deform region, of the pose buffer and the job table, and the dispatches of the deform pass, without a GPU
 /// (docs/plans/skinning-and-morphs.md, "Buffers and the region" and "The pass").
 /// </summary>
 public sealed class DeformRegionTests
@@ -34,6 +34,48 @@ public sealed class DeformRegionTests
         largest.Should().Be(2_796_192, "2^27 / 48 is 2,796,202.67, and the multiple of 16 below it is 2,796,192");
         ((long)largest * 48).Should().BeLessThanOrEqualTo(1L << 27);
     }
+
+    [Fact]
+    public void PoseBufferOfTheRegionStaysWithinTheStorageRange()
+    {
+        // The spec's least maxStorageBufferRange, 2^27 bytes, and a pose row of 16 bytes.
+        var region = DeformRegion.Within(vertexBase: 0, capacity: 16, maxStorageBufferRange: 1u << 27);
+
+        ((long)region.PoseRowCapacity * 16).Should().BeLessThanOrEqualTo(1L << 27);
+        ((long)(region.PoseRowCapacity + 1) * 16)
+            .Should()
+            .BeGreaterThan(1L << 27, "the buffer holds every row that fits");
+    }
+
+    [Fact]
+    public void JobTableOfTheRegionStaysWithinTheStorageRange()
+    {
+        // A job record of 28 bytes.
+        var region = DeformRegion.Within(vertexBase: 0, capacity: 16, maxStorageBufferRange: 1u << 27);
+
+        ((long)region.JobCapacity * 28).Should().BeLessThanOrEqualTo(1L << 27);
+        ((long)(region.JobCapacity + 1) * 28)
+            .Should()
+            .BeGreaterThan(1L << 27, "the table holds every record that fits");
+    }
+
+    [Fact]
+    public void StorageArrayGrowsByDoubling() =>
+        HostArray<GpuDeformJob>.GrownCapacity(capacity: 16, needed: 40, maxCapacity: 1 << 20).Should().Be(64);
+
+    [Fact]
+    public void StorageArrayStopsGrowingAtTheMostThatTheStorageRangeHolds() =>
+        HostArray<GpuDeformJob>
+            .GrownCapacity(capacity: 16, needed: 40, maxCapacity: 50)
+            .Should()
+            .Be(50, "a buffer bound whole stays within maxStorageBufferRange while its data does");
+
+    [Fact]
+    public void StorageArrayHoldsDataPastTheStorageRange() =>
+        HostArray<GpuDeformJob>
+            .GrownCapacity(capacity: 16, needed: 60, maxCapacity: 50)
+            .Should()
+            .Be(60, "the array never drops data: the batcher keeps the deform pass's data within the range");
 
     [Theory]
     [InlineData(1u, 1u)]

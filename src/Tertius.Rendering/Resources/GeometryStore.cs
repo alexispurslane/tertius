@@ -32,6 +32,9 @@ internal sealed unsafe class GeometryStore : IDisposable
 
     /// <summary>The most vertices of the region: its window, a storage buffer range, stays within maxStorageBufferRange.</summary>
     private readonly int maxRegion;
+
+    /// <summary>The device's maxStorageBufferRange, in bytes, within which the region keeps the deform pass's buffers.</summary>
+    private readonly uint maxStorageBufferRange;
     private ulong vertexCapacity;
     private ulong indexCapacity;
     private int regionCapacity;
@@ -42,7 +45,8 @@ internal sealed unsafe class GeometryStore : IDisposable
         this.allocator = allocator;
         vertexCapacity = InitialVertices;
         indexCapacity = InitialIndices;
-        maxRegion = MaxRegion(device.Properties.Limits.MaxStorageBufferRange);
+        maxStorageBufferRange = device.Properties.Limits.MaxStorageBufferRange;
+        maxRegion = MaxRegion(maxStorageBufferRange);
         VertexBuffer = CreateVertexBuffer(vertexCapacity);
         IndexBuffer = CreateIndexBuffer(indexCapacity);
     }
@@ -58,7 +62,12 @@ internal sealed unsafe class GeometryStore : IDisposable
     public ulong IndexCount { get; private set; }
 
     /// <summary>The deform region: right after the static capacity, empty until <see cref="ReserveDeformed"/> grows it.</summary>
-    public DeformRegion Region => new(Base: checked((int)vertexCapacity), Capacity: regionCapacity);
+    public DeformRegion Region =>
+        DeformRegion.Within(
+            vertexBase: checked((int)vertexCapacity),
+            capacity: regionCapacity,
+            maxStorageBufferRange: maxStorageBufferRange
+        );
 
     /// <summary>
     /// The most vertices of a region within <paramref name="maxStorageBufferRange"/> bytes, a multiple of

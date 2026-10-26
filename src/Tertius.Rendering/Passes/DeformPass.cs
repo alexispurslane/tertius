@@ -38,7 +38,18 @@ internal sealed unsafe class DeformPass : RenderPass
     /// <summary>The dispatches that the last <see cref="Record"/> recorded: 1, or 0 for a frame without a job. A test hook.</summary>
     internal int Dispatches { get; private set; }
 
+    /// <summary>The barrier batches that the last <see cref="Record"/> recorded: 2, or 0 for a frame without a job. A test hook.</summary>
+    internal int Barriers { get; private set; }
+
     public override void Record(FrameContext context)
+    {
+        int flushesBefore = context.Barriers.FlushCount;
+        RecordJobs(context);
+        Barriers = context.Barriers.FlushCount - flushesBefore;
+    }
+
+    /// <summary>Records the dispatch of the frame's jobs between its two barrier batches, or nothing without a job.</summary>
+    private void RecordJobs(FrameContext context)
     {
         ReadOnlySpan<DeformJob> jobs = context.Scene.Deforms;
         Dispatches = 0;

@@ -408,12 +408,22 @@ internal sealed class HostArray<T> : IDisposable
     private readonly BufferUsageFlags usage;
     private readonly string name;
 
+    /// <summary>
+    /// The most elements that a growth gives the buffer: for a storage buffer, which binds whole, as many as fit
+    /// maxStorageBufferRange (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
+    /// </summary>
+    private readonly int maxCapacity;
+
     public HostArray(VulkanDevice device, DeviceAllocator allocator, BufferUsageFlags usage, string name, int capacity)
     {
         this.device = device;
         this.allocator = allocator;
         this.usage = usage;
         this.name = name;
+        maxCapacity =
+            (usage & BufferUsageFlags.StorageBufferBit) != 0
+                ? (int)Math.Min(device.Properties.Limits.MaxStorageBufferRange / (uint)sizeof(T), int.MaxValue)
+                : int.MaxValue;
         Capacity = Math.Max(capacity, 1);
         Buffer = GpuBuffer.Create(
             device: device,
@@ -434,9 +444,7 @@ internal sealed class HostArray<T> : IDisposable
         bool replaced = false;
         if (data.Length > Capacity)
         {
-            int capacity = Capacity;
-            while (capacity < data.Length)
-                capacity *= 2;
+            int capacity = GrownCapacity(capacity: Capacity, needed: data.Length, maxCapacity: maxCapacity);
             Buffer.Dispose();
             Buffer = GpuBuffer.Create(
                 device: device,
@@ -456,4 +464,16 @@ internal sealed class HostArray<T> : IDisposable
     }
 
     public void Dispose() => Buffer.Dispose();
+
+    /// <summary>
+    /// The capacity that holds <paramref name="needed"/> elements: <paramref name="capacity"/> doubled until it does, but
+    /// at most <paramref name="maxCapacity"/>, unless <paramref name="needed"/> passes it.
+    /// </summary>
+    internal static int GrownCapacity(int capacity, int needed, int maxCapacity)
+    {
+        long doubled = capacity;
+        while (doubled < needed)
+            doubled *= 2;
+        return (int)Math.Max(needed, Math.Min(doubled, maxCapacity));
+    }
 }

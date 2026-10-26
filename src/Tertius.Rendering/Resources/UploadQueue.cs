@@ -82,11 +82,6 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
     private static void CheckRigging(MeshRigging rigging, int vertexCount)
     {
         ArgumentNullException.ThrowIfNull(rigging.Rig, "mesh");
-        if (vertexCount > MeshDeform.MaxVertices)
-            throw new ArgumentException(
-                $"A deforming mesh has at most {MeshDeform.MaxVertices} vertices, not {vertexCount}.",
-                "mesh"
-            );
         if (rigging.Skin is { } skin)
             CheckSkin(skin, rigging.Rig, vertexCount);
         if (rigging.Morphs.IsDefault)

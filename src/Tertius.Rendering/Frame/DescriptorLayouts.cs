@@ -154,7 +154,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DepthTailLayout,
             ReflectionLayout
         ) = CreateComputeLayouts();
-        // The deform set alone, so the compute stage sees four storage buffers, the spec's least.
+        // The deform set alone, so its compute stage sees five storage buffers, within the nine that StorageBufferProblem
+        // already requires of every device.
         DeformLayout = CreatePipelineLayout(
             sets: [DeformSet],
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<DeformPushConstants>()),

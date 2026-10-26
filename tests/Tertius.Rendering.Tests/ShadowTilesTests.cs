@@ -516,6 +516,50 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void TileWithAStillPosedCasterKeepsItsTileWhenItsCopyMovesInTheFrameMeshes()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        PosedFrame(tiles, [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)], FrameMeshes.Posed(CylinderData, rest));
+
+        // Another posed instance, which casts into no tile, gained the job before the caster's: its copy is frame mesh 3.
+        List<TileDraw> draws = PosedFrame(
+            tiles,
+            [Caster(entity: 7, position: new(10, 0, 0), mesh: 3)],
+            FrameMeshes.PosedTwice(CylinderData, rest)
+        );
+
+        draws.Should().BeEmpty("the record names the copy's static mesh, which stays");
+    }
+
+    [Fact]
+    public void TileWithTwoStillPosedCastersOfDifferentPosesStaysCached()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        RigPose bent = rest with
+        {
+            Joints = rest.Joints.SetItem(
+                1,
+                rest.Joints[1] with
+                {
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f),
+                }
+            ),
+        };
+        ShadowCaster[] casters =
+        [
+            Caster(entity: 7, position: new(10, 0, 0), mesh: 2),
+            Caster(entity: 8, position: new(12, 0, 0), mesh: 3),
+        ];
+        PosedFrame(tiles, casters, FrameMeshes.PosedTwice(CylinderData, rest, bent));
+
+        List<TileDraw> draws = PosedFrame(tiles, casters, FrameMeshes.PosedTwice(CylinderData, rest, bent));
+
+        draws.Should().BeEmpty("each caster's rows are compared with its own recorded rows");
+    }
+
+    [Fact]
     public void ACasterAroundTheLightThatStaysKeepsTheTile()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
@@ -1170,6 +1214,27 @@ public sealed class ShadowTilesTests
                 StaticMeshCount: 2,
                 Jobs: [new(Mesh: 1, Target: 0, Pose: 0)],
                 Poses: rows
+            );
+        }
+
+        /// <summary>
+        /// A rigid mesh 0, <paramref name="mesh"/> as static mesh 1, and two copies of it: frame mesh 2 in
+        /// <paramref name="first"/>, and frame mesh 3 in <paramref name="second"/>, or in <paramref name="first"/> too.
+        /// </summary>
+        public static FrameMeshes PosedTwice(MeshData mesh, RigPose first, RigPose? second = null)
+        {
+            FrameMeshes one = Posed(mesh, first),
+                two = Posed(mesh, second ?? first);
+            MeshDeform deform = MeshDeform.Pack(mesh)!.Deform;
+            return new(
+                Meshes: [.. one.Meshes, two.Meshes[2]],
+                StaticMeshCount: 2,
+                Jobs:
+                [
+                    new(Mesh: 1, Target: 0, Pose: 0),
+                    new(Mesh: 1, Target: deform.VertexCount, Pose: deform.PoseRows),
+                ],
+                Poses: [.. one.Poses, .. two.Poses]
             );
         }
 

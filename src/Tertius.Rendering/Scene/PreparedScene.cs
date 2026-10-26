@@ -335,9 +335,11 @@ internal sealed class PreparedScene
     /// <summary>
     /// Makes <paramref name="staticMeshes"/> the static part of <see cref="Meshes"/>, after <see cref="Reset"/> and before
     /// any job. Copies only the meshes uploaded since the call before, because a static mesh never changes once uploaded.
+    /// So the static part is a cache of one table that only appends, GeometryStore.Meshes, and a scene serves one renderer.
     /// </summary>
     public void SetStaticMeshes(ReadOnlySpan<MeshInfo> staticMeshes)
     {
+        Contract.Requires(staticMeshes.Length >= StaticMeshCount);
         EnsureRoom(ref meshes, staticMeshes.Length);
         staticMeshes[StaticMeshCount..].CopyTo(meshes.AsSpan(StaticMeshCount));
         StaticMeshCount = staticMeshes.Length;

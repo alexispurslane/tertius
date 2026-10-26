@@ -41,7 +41,12 @@ public sealed class BatcherDeformTests
         ),
     ];
 
-    private static readonly DeformRegion Roomy = new(Base: RegionBase, Capacity: 100_000);
+    private static readonly DeformRegion Roomy = new(
+        Base: RegionBase,
+        Capacity: 100_000,
+        PoseRowCapacity: 100_000,
+        JobCapacity: 1_000
+    );
 
     private static RenderSnapshot Empty() => Gpu.Snapshot(Vector3.UnitY);
 
@@ -237,11 +242,40 @@ public sealed class BatcherDeformTests
         RenderSnapshot snapshot = Empty();
         AddPosed(snapshot, Instance(Cylinder, new(-1, 0, -10)), CylinderRest);
         AddPosed(snapshot, Instance(Cylinder, new(1, 0, -10)), CylinderRest);
-        var region = new DeformRegion(Base: RegionBase, Capacity: CylinderDeform.VertexCount * 3 / 2);
+        DeformRegion region = Roomy with { Capacity = CylinderDeform.VertexCount * 3 / 2 };
 
         PreparedScene scene = Prepare(snapshot, region);
 
         scene.VisibleSpan.ToArray().Select(instance => instance.Mesh).Should().Equal(StaticMeshCount, Cylinder);
+        scene.UndeformedPosedInstances.Should().Be(1);
+    }
+
+    [Fact]
+    public void PosedInstancesPastThePoseBufferDrawTheirStaticMeshAndAreCounted()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(-1, 0, -10)), CylinderRest);
+        AddPosed(snapshot, Instance(Cylinder, new(1, 0, -10)), CylinderRest);
+        DeformRegion region = Roomy with { PoseRowCapacity = CylinderDeform.PoseRows * 3 / 2 };
+
+        PreparedScene scene = Prepare(snapshot, region);
+
+        scene.VisibleSpan.ToArray().Select(instance => instance.Mesh).Should().Equal(StaticMeshCount, Cylinder);
+        scene.UndeformedPosedInstances.Should().Be(1);
+        scene.Poses.Length.Should().Be(CylinderDeform.PoseRows);
+    }
+
+    [Fact]
+    public void PosedInstancesPastTheJobTableDrawTheirStaticMeshAndAreCounted()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(-1, 0, -10)), CylinderRest);
+        AddPosed(snapshot, Instance(MorphBox, new(1, 0, -10)), BoxRest);
+        DeformRegion region = Roomy with { JobCapacity = 1 };
+
+        PreparedScene scene = Prepare(snapshot, region);
+
+        scene.VisibleSpan.ToArray().Select(instance => instance.Mesh).Should().Equal(StaticMeshCount, MorphBox);
         scene.UndeformedPosedInstances.Should().Be(1);
     }
 
@@ -268,6 +302,85 @@ public sealed class BatcherDeformTests
         PreparedScene scene = Prepare(snapshot, Roomy);
 
         scene.VisibleSpan[0].Mesh.Should().Be(Cylinder);
+        scene.UndeformedPosedInstances.Should().Be(1);
+        scene.Poses.Length.Should().Be(0, "the dropped job leaves no pose rows");
+    }
+
+    /// <summary>A cylinder instance that no view draws: hidden and casting no shadow, or flat along one axis.</summary>
+    private static RenderInstance Undrawn(string why) =>
+        why switch
+        {
+            "hidden" => Instance(Cylinder, new(0, 0, -10)) with { Flags = RenderFlags.None },
+            _ => Instance(Cylinder, new(0, 0, -10)) with { Scale = new(1, 0, 1) },
+        };
+
+    [Theory]
+    [InlineData("hidden")]
+    [InlineData("flat")]
+    public void PosedInstanceThatNoViewDrawsTakesNoJobAndIsNotCounted(string why)
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Undrawn(why), CylinderRest);
+
+        PreparedScene scene = Prepare(snapshot, Roomy);
+
+        scene.Deforms.Length.Should().Be(0, "no draw would read its copy");
+        scene.Poses.Length.Should().Be(0);
+        scene.DeformedInstances.Should().Be(0);
+        scene.UndeformedPosedInstances.Should().Be(0, "it draws in no view, so it does not draw as uploaded either");
+    }
+
+    [Theory]
+    [InlineData("hidden")]
+    [InlineData("flat")]
+    public void DeformNeedLeavesOutPosedInstancesThatNoViewDraws(string why)
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Undrawn(why), CylinderRest);
+        AddPosed(snapshot, Instance(MorphBox, new(1, 0, -10)), BoxRest);
+
+        int need = SceneBatcher.DeformNeed(snapshot, Meshes);
+
+        need.Should().Be(BoxDeform.VertexCount);
+    }
+
+    [Fact]
+    public void ShadowOnlyPosedInstanceDeforms()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(0, 0, -10)) with { Flags = RenderFlags.CastsShadow }, CylinderRest);
+
+        PreparedScene scene = Prepare(snapshot, Roomy);
+
+        scene.DeformedInstances.Should().Be(1, "its shadow draws the copy");
+    }
+
+#if TERTIUS_CONTRACTS
+    [Fact]
+    public void StaticMeshesShorterThanTheTableBeforeAreABug()
+    {
+        var scene = new PreparedScene();
+        scene.SetStaticMeshes(Meshes);
+        scene.Reset();
+
+        Action shorter = () => scene.SetStaticMeshes(Meshes.AsSpan(0, 1));
+
+        shorter
+            .Should()
+            .Throw<ContractException>("the mesh table only appends, so a shorter one is another table")
+            .WithMessage("Precondition*");
+    }
+#endif
+
+    [Fact]
+    public void PoseThatIsNotFiniteDrawsAsUploaded()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(0, 0, -10)), TipAt(float.NaN));
+
+        PreparedScene scene = Prepare(snapshot, Roomy);
+
+        scene.VisibleSpan[0].Mesh.Should().Be(Cylinder, "no NaN pose row reaches the deform pass");
         scene.UndeformedPosedInstances.Should().Be(1);
         scene.Poses.Length.Should().Be(0, "the dropped job leaves no pose rows");
     }
