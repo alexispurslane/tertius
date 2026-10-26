@@ -48,8 +48,8 @@ namespace Tertius.Rendering;
 /// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image and the hit depth image
 /// as storage images at bindings 4 and 5, for the trace and the upsample. One, rewritten on resize.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
-/// buffer, the deform vertices, the morph deltas and the frame's pose rows, four storage buffers for the compute stage
-/// (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
+/// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
+/// compute stage (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
@@ -68,8 +68,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public const uint FrameSetStorageBuffers = 9;
 
-    /// <summary>The storage buffers of the deform set: the region's window, the deform vertices, the deltas and the pose rows.</summary>
-    public const uint DeformSetStorageBuffers = 4;
+    /// <summary>
+    /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows and the
+    /// job table. At most <see cref="FrameSetStorageBuffers"/>, which every device that the renderer accepts offers a stage.
+    /// </summary>
+    public const uint DeformSetStorageBuffers = 5;
 
     /// <summary>
     /// The pyramid level sets of the largest pyramids: levels 1 to 14 of the depth pyramid and 0 to 14 of the radiance
@@ -303,10 +306,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace and the upsample.</summary>
     public PipelineLayout ReflectionLayout { get; }
 
-    /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas and the pose rows.</summary>
+    /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas, the pose rows and the job table.</summary>
     public DescriptorSetLayout DeformSet { get; }
 
-    /// <summary>The deform pass's layout: the deform set and the push constants of one job.</summary>
+    /// <summary>The deform pass's layout: the deform set and the push constants of its one dispatch.</summary>
     public PipelineLayout DeformLayout { get; }
 
     /// <summary>

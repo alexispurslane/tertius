@@ -37,14 +37,23 @@ public sealed class GpuDeformTypesTests
     }
 
     [Fact]
-    public void DeformPushConstantsAre24Bytes()
+    public void GpuDeformJobIs28Bytes()
     {
-        Unsafe.SizeOf<DeformPushConstants>().Should().Be(24);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Source)).Should().Be(0);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Deltas)).Should().Be(4);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Target)).Should().Be(8);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Count)).Should().Be(12);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Palette)).Should().Be(16);
-        Offset<DeformPushConstants>(nameof(DeformPushConstants.Weights)).Should().Be(20);
+        Unsafe.SizeOf<GpuDeformJob>().Should().Be(28);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Source)).Should().Be(0);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Deltas)).Should().Be(4);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Target)).Should().Be(8);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Count)).Should().Be(12);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Palette)).Should().Be(16);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.Weights)).Should().Be(20);
+        Offset<GpuDeformJob>(nameof(GpuDeformJob.FirstGroup)).Should().Be(24);
+    }
+
+    [Fact]
+    public void DeformPushConstantsAre8Bytes()
+    {
+        Unsafe.SizeOf<DeformPushConstants>().Should().Be(8);
+        Offset<DeformPushConstants>(nameof(DeformPushConstants.JobCount)).Should().Be(0);
+        Offset<DeformPushConstants>(nameof(DeformPushConstants.Groups)).Should().Be(4);
     }
 }

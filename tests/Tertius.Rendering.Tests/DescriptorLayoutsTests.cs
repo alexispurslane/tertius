@@ -40,7 +40,7 @@ public sealed class DescriptorLayoutsTests
     }
 
     [Fact]
-    public void TheDeformLayoutBindsNoMoreStorageBuffersThanEveryDeviceOffersAStage()
+    public void TheDeformLayoutBindsNoMoreStorageBuffersThanTheFrameSetNeedsOfEveryDevice()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -48,9 +48,10 @@ public sealed class DescriptorLayoutsTests
         layouts
             .StorageBuffersOf(layouts.DeformLayout)
             .Should()
-            .Be(
-                4,
-                "the deform pass runs on a device that offers its compute stage the spec's least, four storage buffers"
+            .Be(5, "the window, the deform vertices, the morph deltas, the pose rows and the job table")
+            .And.BeLessThanOrEqualTo(
+                DescriptorLayouts.FrameSetStorageBuffers,
+                "the renderer refuses a device whose stages see fewer storage buffers than the frame set holds"
             );
     }
 }

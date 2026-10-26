@@ -8,7 +8,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// What one frame in flight owns: its command buffer, fence and acquire semaphore, the host-visible buffers the CPU
 /// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs, the deform
-/// pass's pose rows and, with the local shadow atlas, the tile views), its descriptor
+/// pass's pose rows and job table and, with the local shadow atlas, the tile views), its descriptor
 /// sets and its staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other
 /// synchronization is needed for them.
 /// </summary>
@@ -22,6 +22,9 @@ internal sealed unsafe class FrameResources : IDisposable
 
     // The GPU form of the frame's lights, before the copy into the light buffer.
     private GpuLight[] gpuLights = new GpuLight[16];
+
+    // The frame's job table, before the copy into the job buffer.
+    private GpuDeformJob[] gpuDeformJobs = new GpuDeformJob[16];
 
     /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that binding 12 points at, or −1 before it is written.</summary>
     private int environmentVersion = -1;
@@ -73,6 +76,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
         Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
         Poses = StorageArray<Vector4>(allocator, "pose rows", 256);
+        DeformJobs = StorageArray<GpuDeformJob>(allocator, "deform jobs", 16);
         // Without the atlas the binding stays empty: it is partially bound.
         ShadowTiles = shadowAtlas is null ? null : StorageArray<GpuShadowTile>(allocator, "tile views", 64);
         Staging = new(device, allocator, $"frame {index}");
@@ -81,6 +85,7 @@ internal sealed unsafe class FrameResources : IDisposable
         TextureSet = layouts.AllocateTextureSet();
         DeformSet = layouts.AllocateDeformSet();
         WritePoses(Poses);
+        WriteDeformJobs(DeformJobs);
         WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
         // The irradiance buffer lives as long as the renderer, so its binding is written once. The specular maps grow, so
         // UpdateSharedDescriptors writes their binding. With the map off both stay empty: they are partially bound.
@@ -113,6 +118,12 @@ internal sealed unsafe class FrameResources : IDisposable
 
     /// <summary>The pose rows of the frame's deform jobs, which the deform pass reads.</summary>
     public HostArray<Vector4> Poses { get; }
+
+    /// <summary>The job table of the frame's deform jobs, which the deform pass reads.</summary>
+    public HostArray<GpuDeformJob> DeformJobs { get; }
+
+    /// <summary>The workgroups of the deform pass's dispatch, which the records in <see cref="DeformJobs"/> divide among them.</summary>
+    public uint DeformGroups { get; private set; }
 
     /// <summary>The tile views of the local shadows, or null without the atlas.</summary>
     public HostArray<GpuShadowTile>? ShadowTiles { get; }
@@ -155,10 +166,26 @@ internal sealed unsafe class FrameResources : IDisposable
             WriteShadowTiles(ShadowTiles);
         if (Poses.Write(scene.Poses))
             WritePoses(Poses);
+        if (DeformJobs.Write(GpuDeformJobsOf(scene)))
+            WriteDeformJobs(DeformJobs);
     }
 
     private void WritePoses(HostArray<Vector4> poses) =>
         layouts.WriteBuffer(set: DeformSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: poses.Buffer);
+
+    private void WriteDeformJobs(HostArray<GpuDeformJob> jobs) =>
+        layouts.WriteBuffer(set: DeformSet, binding: 4, type: DescriptorType.StorageBuffer, buffer: jobs.Buffer);
+
+    /// <summary>The job table of the frame's deform jobs, in job order. Sets <see cref="DeformGroups"/> to its workgroups.</summary>
+    private ReadOnlySpan<GpuDeformJob> GpuDeformJobsOf(PreparedScene scene)
+    {
+        ReadOnlySpan<DeformJob> jobs = scene.Deforms;
+        if (gpuDeformJobs.Length < jobs.Length)
+            Array.Resize(ref gpuDeformJobs, Math.Max(jobs.Length, gpuDeformJobs.Length * 2));
+        Span<GpuDeformJob> records = gpuDeformJobs.AsSpan(0, jobs.Length);
+        DeformGroups = GpuDeformJob.FromJobs(jobs: jobs, meshes: scene.Meshes, records: records);
+        return records;
+    }
 
     private void WriteShadowTiles(HostArray<GpuShadowTile> tiles) =>
         layouts.WriteBuffer(
@@ -359,6 +386,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Outlines.Dispose();
         Puffs.Dispose();
         Poses.Dispose();
+        DeformJobs.Dispose();
         ShadowTiles?.Dispose();
         Constants.Dispose();
         Staging.Dispose();

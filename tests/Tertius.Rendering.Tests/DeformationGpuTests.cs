@@ -223,6 +223,61 @@ public sealed class DeformationGpuTests
     }
 
     [Fact]
+    public void OneDispatchDeformsEveryJobOfTheFrame()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            MeshData cylinder = Cylinder(),
+                box = Primitives.MorphingBox(new(0.5f, 0.3f, 0.4f)),
+                twisting = Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
+            Rig rig = cylinder.Rigging!.Rig,
+                twistingRig = twisting.Rigging!.Rig;
+            // Copies of 425, 24 and 425 vertices: 7, 1 and 7 workgroups, so a job's groups start mid-dispatch.
+            (MeshData Mesh, RigPose Pose)[] copies =
+            [
+                (cylinder, BentTip(rig.Rest, rig, angle: 1.1f)),
+                (box, box.Rigging!.Rig.Rest with { Weights = [0.5f, -0.75f] }),
+                (twisting, BentTip(twistingRig.Rest, twistingRig, angle: -0.8f) with { Weights = [0.6f] }),
+                (cylinder, BentTip(rig.Rest, rig, angle: -0.4f)),
+            ];
+            MeshId cylinderId = renderer.CreateMesh(cylinder),
+                boxId = renderer.CreateMesh(box),
+                twistingId = renderer.CreateMesh(twisting);
+            MeshId[] ids = [cylinderId, boxId, twistingId, cylinderId];
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
+            for (int i = 0; i < copies.Length; i++)
+            {
+                snapshot.Instances.Add(Posed(ids[i], white, Stand + new Vector3(i - 1.5f, 0, 0)));
+                AddStillPose(snapshot, instance: i, pose: copies[i].Pose);
+            }
+
+            renderer.Render(snapshot, 1f);
+            Vertex[] shown = renderer.ReadDeformedVertices();
+
+            renderer
+                .Graph.Passes.OfType<DeformPass>()
+                .Single()
+                .Dispatches.Should()
+                .Be(1, "one dispatch covers every job");
+            int read = 0;
+            for (int i = 0; i < copies.Length; i++)
+            {
+                int count = copies[i].Mesh.Vertices.Length;
+                ShouldMatch(shown.AsSpan(read, count), Expected(copies[i].Mesh, copies[i].Pose), $"copy {i}");
+                read += count;
+            }
+
+            read.Should().Be(shown.Length, "the copies follow one another in job order");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void BentCylinderDrawsItsTipWhereThePoseMovedIt()
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -308,14 +363,14 @@ public sealed class DeformationGpuTests
         for (int cascade = 0; cascade < ShadowCascades.Count; cascade++)
         {
             Matrix4x4 viewProjection = scene.CascadeSets[0][cascade].ViewProjection;
-            Vector4 clip = Vector4.Transform(new Vector4(point, 1), viewProjection);
+            var clip = Vector4.Transform(new Vector4(point, 1), viewProjection);
             if (MathF.Abs(clip.X) >= 0.99f || MathF.Abs(clip.Y) >= 0.99f)
                 continue;
             int size = renderer.ShadowMap.Size;
             float[] depths = renderer.ReadShadowCascade(set: 0, cascade: cascade);
             int column = (int)((clip.X * 0.5f + 0.5f) * size);
             int row = (int)((clip.Y * 0.5f + 0.5f) * size);
-            Vector4 atHeight = Vector4.Transform(new Vector4(point with { Y = height }, 1), viewProjection);
+            var atHeight = Vector4.Transform(new Vector4(point with { Y = height }, 1), viewProjection);
             return (depths[row * size + column], atHeight.Z);
         }
 

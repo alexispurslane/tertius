@@ -1,6 +1,6 @@
 #version 460
-// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one invocation per vertex of one job writes the
-// vertex after its morphs and its skin into the job's copy in the deform region. MeshDeform.Deformed is its C# copy, with
+// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one dispatch over every job of the frame, in which one
+// invocation per vertex of a job writes the vertex after its morphs and its skin into the job's copy in the deform region. MeshDeform.Deformed is its C# copy, with
 // the same order of every sum, because a float sum depends on its order.
 #extension GL_GOOGLE_include_directive : require
 #include "vectors.glsl"
@@ -39,16 +39,43 @@ layout(set = 0, binding = 2, std430) readonly buffer DeltaBlock { MorphDelta del
 // The frame's pose rows: per job, three rows per palette joint, then the weights four to a row.
 layout(set = 0, binding = 3, std430) readonly buffer PoseBlock { vec4 poses[]; };
 
-// DeformPushConstants: one job.
+// One job of the frame: GpuDeformJob, 28 bytes.
+struct Job
+{
+    uint source;      // the mesh's first deform vertex
+    uint deltas;      // the mesh's first morph delta
+    uint target;      // the copy's first vertex, counted from the region's base
+    uint count;       // the mesh's vertex count
+    uint palette;     // the job's first pose row
+    uint weights;     // the job's first weight row
+    uint firstGroup;  // the job's first workgroup: the workgroups of every job before it
+};
+
+// The frame's job table, in job order.
+layout(set = 0, binding = 4, std430) readonly buffer JobBlock { Job jobs[]; };
+
+// DeformPushConstants.
 layout(push_constant, std430) uniform DeformPush
 {
-    uint source;    // the mesh's first deform vertex
-    uint deltas;    // the mesh's first morph delta
-    uint target;    // the copy's first vertex, counted from the region's base
-    uint count;     // the mesh's vertex count
-    uint palette;   // the job's first pose row
-    uint weights;   // the job's first weight row
-} job;
+    uint jobCount;  // at least 1: a frame without a job records nothing
+    uint groups;    // the workgroups of every job
+} frame;
+
+// The job of workgroup g: the last job whose first workgroup is at most g, by a binary search. DeformPass.JobOf is its C#
+// copy. g is the same for every invocation of a workgroup, so the search is uniform.
+uint jobOf(uint g)
+{
+    uint low = 0u, high = frame.jobCount - 1u;
+    while (low < high)
+    {
+        uint middle = (low + high + 1u) / 2u;
+        if (jobs[middle].firstGroup <= g)
+            low = middle;
+        else
+            high = middle - 1u;
+    }
+    return low;
+}
 
 // The joint index of skin slot s.
 uint jointOf(uvec2 joints, uint s)
@@ -77,7 +104,13 @@ void writeVertex(uint k, vec3 position, vec3 normal, vec4 tangent, vec2 texCoord
 
 void main()
 {
-    uint i = gl_GlobalInvocationID.x;
+    // The grid stays within the least maxComputeWorkGroupCount of the specification (DeformPass.Grid), and the workgroups
+    // past the last row's end return at once.
+    uint g = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+    if (g >= frame.groups)
+        return;
+    Job job = jobs[jobOf(g)];
+    uint i = (g - job.firstGroup) * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
     if (i >= job.count)
         return;
     DeformVertex v = sources[job.source + i];

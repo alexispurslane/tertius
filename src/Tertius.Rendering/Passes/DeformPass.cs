@@ -1,15 +1,20 @@
-using System.Diagnostics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one compute dispatch per job of the frame writes the
-/// job's deformed copy into the deform region, before every pass that draws a mesh. A frame without a job records
-/// nothing.
+/// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one compute dispatch over every job of the frame
+/// writes each job's deformed copy into the deform region, before every pass that draws a mesh. A frame without a job
+/// records nothing.
 /// </summary>
 internal sealed unsafe class DeformPass : RenderPass
 {
+    /// <summary>
+    /// The workgroups that a dispatch may count along each of X, Y and Z on every Vulkan device: the least
+    /// <c>maxComputeWorkGroupCount</c> that the specification allows.
+    /// </summary>
+    public const uint MaxGroupsPerDimension = 65_535;
+
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly DeformStore deforms;
@@ -30,9 +35,13 @@ internal sealed unsafe class DeformPass : RenderPass
 
     public override string Name => "deformation";
 
+    /// <summary>The dispatches that the last <see cref="Record"/> recorded: 1, or 0 for a frame without a job. A test hook.</summary>
+    internal int Dispatches { get; private set; }
+
     public override void Record(FrameContext context)
     {
         ReadOnlySpan<DeformJob> jobs = context.Scene.Deforms;
+        Dispatches = 0;
         if (jobs.IsEmpty)
             return;
         Vk vk = context.Vk;
@@ -58,35 +67,19 @@ internal sealed unsafe class DeformPass : RenderPass
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
-        // In job order. Each invocation writes only its own vertex, so the order changes no bits.
-        for (int i = 0; i < jobs.Length; i++)
-        {
-            // The copies never overlap, but every dispatch writes through the one window of the region, so the
-            // synchronization validation sees two writes to one range. A write after write orders each dispatch after
-            // the one before.
-            if (i > 0)
-            {
-                barriers.Buffer(vertices, BufferUse.ComputeWrite);
-                barriers.Flush(vk, commandBuffer);
-            }
-
-            DeformPushConstants push = PushConstants(jobs[i], meshes);
-            vk.CmdPushConstants(
-                commandBuffer: commandBuffer,
-                layout: layouts.DeformLayout,
-                stageFlags: ShaderStageFlags.ComputeBit,
-                offset: 0,
-                size: (uint)sizeof(DeformPushConstants),
-                pValues: &push
-            );
-            vk.CmdDispatch(
-                commandBuffer: commandBuffer,
-                groupCountX: Groups(push.Count),
-                groupCountY: 1,
-                groupCountZ: 1
-            );
-        }
+        // Each invocation writes only its own vertex of the region, so one dispatch needs no order between its jobs.
+        var push = new DeformPushConstants { JobCount = (uint)jobs.Length, Groups = context.Frame.DeformGroups };
+        vk.CmdPushConstants(
+            commandBuffer: commandBuffer,
+            layout: layouts.DeformLayout,
+            stageFlags: ShaderStageFlags.ComputeBit,
+            offset: 0,
+            size: (uint)sizeof(DeformPushConstants),
+            pValues: &push
+        );
+        (uint x, uint y) = Grid(push.Groups);
+        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: x, groupCountY: y, groupCountZ: 1);
+        Dispatches = 1;
 
         // Before the first draw of the frame, which reads the copies as vertices.
         barriers.Buffer(vertices, BufferUse.VertexInput);
@@ -99,19 +92,35 @@ internal sealed unsafe class DeformPass : RenderPass
     internal static uint Groups(uint count) =>
         (count + MeshDeform.InvocationsPerGroup - 1) / MeshDeform.InvocationsPerGroup;
 
-    /// <summary>The push constants of <paramref name="job"/>, whose static mesh is one of <paramref name="meshes"/>.</summary>
-    internal static DeformPushConstants PushConstants(DeformJob job, ReadOnlySpan<MeshInfo> meshes)
+    /// <summary>
+    /// The job of workgroup <paramref name="group"/> of the frame's dispatch: the last of <paramref name="records"/> whose
+    /// first workgroup is at most <paramref name="group"/>. The C# copy of deform.comp's binary search.
+    /// </summary>
+    /// <param name="records">At least one record, in job order, so their first workgroups never fall.</param>
+    internal static int JobOf(ReadOnlySpan<GpuDeformJob> records, uint group)
     {
-        MeshDeform deform =
-            meshes[job.Mesh].Deform ?? throw new UnreachableException("Only a deforming mesh has a job.");
-        return new()
+        int low = 0,
+            high = records.Length - 1;
+        while (low < high)
         {
-            Source = (uint)deform.Source,
-            Deltas = (uint)deform.Deltas,
-            Target = (uint)job.Target,
-            Count = (uint)deform.VertexCount,
-            Palette = (uint)job.Pose,
-            Weights = (uint)(job.Pose + 3 * deform.PaletteJoints),
-        };
+            int middle = (low + high + 1) / 2;
+            if (records[middle].FirstGroup <= group)
+                low = middle;
+            else
+                high = middle - 1;
+        }
+
+        return low;
+    }
+
+    /// <summary>
+    /// The grid of a dispatch of <paramref name="groups"/> workgroups: as few rows as hold them with at most
+    /// <see cref="MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the grid ends fewer than <c>Y</c>
+    /// workgroups past the last, which return at once.
+    /// </summary>
+    internal static (uint X, uint Y) Grid(uint groups)
+    {
+        uint rows = (groups + MaxGroupsPerDimension - 1) / MaxGroupsPerDimension;
+        return ((groups + rows - 1) / rows, rows);
     }
 }

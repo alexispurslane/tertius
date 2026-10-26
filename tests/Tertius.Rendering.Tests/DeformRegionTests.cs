@@ -42,28 +42,4 @@ public sealed class DeformRegionTests
     [InlineData(425u, 7u)]
     public void OneGroupDeformsSixtyFourVertices(uint vertices, uint groups) =>
         DeformPass.Groups(vertices).Should().Be(groups);
-
-    [Fact]
-    public void PushConstantsNameTheMeshsSourcesAndTheJobsCopyAndRows()
-    {
-        MeshDeform deform = MeshDeform.Pack(Primitives.BendingCylinder(radius: 0.2f, length: 2))!.Deform with
-        {
-            Source = 100,
-            Deltas = 7,
-        };
-        MeshInfo[] meshes =
-        [
-            new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: null),
-            new(FirstIndex: 3, IndexCount: 6, VertexOffset: 3, Radius: 1, Deform: deform),
-        ];
-
-        DeformPushConstants push = DeformPass.PushConstants(new(Mesh: 1, Target: 512, Pose: 30), meshes);
-
-        push.Source.Should().Be(100);
-        push.Deltas.Should().Be(7);
-        push.Target.Should().Be(512);
-        push.Count.Should().Be((uint)deform.VertexCount);
-        push.Palette.Should().Be(30);
-        push.Weights.Should().Be(30 + 3 * 2, "the weight rows follow three palette rows for each of the two joints");
-    }
 }
