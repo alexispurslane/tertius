@@ -226,21 +226,7 @@ public static partial class DemoScenes
     private static void Star(World world, SceneInstance scene, FrameHandle frame, Double3 center, Double3 direction)
     {
         Entity star = world.Spawn(
-            new()
-            {
-                Frame = frame,
-                Pose = new(center + direction.Normalized() * AstronomicalUnit, DQuaternion.Identity),
-                Render = new RenderData
-                {
-                    Light = new PointLightData(
-                        Offset: new(Vector3.Zero, Quaternion.Identity),
-                        Color: Vector3.One,
-                        Power: (float)SunPower,
-                        Radius: (float)SunRadius,
-                        CastsShadow: true
-                    ),
-                },
-            }
+            StarAt(frame: frame, place: center + direction.Normalized() * AstronomicalUnit, color: Vector3.One)
         );
         scene.Add("sun", star);
     }

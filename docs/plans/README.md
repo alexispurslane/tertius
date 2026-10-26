@@ -25,7 +25,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Particles: puffs](particles.md) | `ter-4zt6` |
 | [Parts: attached entities that push their chain's root](parts.md) | `ter-ftk4` |
 | [PBR BRDF](pbr-brdf.md) | `ter-ptft` |
-| [Point and spot light shadows](local-light-shadows.md) | `ter-s9cv` |
+| [Shadows of every light, and lights in SI units](local-light-shadows.md) | `ter-s9cv` |
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |

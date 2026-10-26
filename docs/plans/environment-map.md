@@ -70,8 +70,8 @@ Settled by this design:
 16. A face is shaded in a forward pass, as the impostor capture is: one draw per depth range into the face, with the shading in the fragment shader. A face has 16,384 texels, so overdraw costs little, and a G-buffer of six faces adds five images and a lighting pass for nothing. The impostor capture is the existing pass that shades objects off screen.
 17. The capture takes no ambient light. A face holds the light that the sun, the lamps and emission send toward the camera, so the main view's surfaces get one bounce of that light. Three reasons. A face then depends only on the frame that draws it. With the previous map as the capture's ambient, each face depends on every earlier face, a chain with no end, and a still after a camera step needs repeated refreshes to converge. The hemisphere is excluded by decision 4. And SSAO already left out bounced brightening because SSGI (`ter-a24f`) adds real bounced light. The cost: in a room, the parts that only bounced light reaches are black in the map, so interiors are darker than with many bounces.
 18. A face draws the opaque instances, the impostor objects as geometry, emission and the sky, with no stars (decision 13). It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes.
-19. A face samples the sun's cascades by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. See "The sun's shadow maps in a face".
-20. One light list serves every view of a frame. A light is kept when its reach touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
+19. A face samples each far light's cascade set by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. A near light's tiles of the local shadow atlas cover every direction from the light, so a face samples them as the main view does. See "The shadow maps in a face". (The lights plan, [local-light-shadows.md](local-light-shadows.md), gave every far light its set and every near light its tiles. This decision had the one sun's cascades.)
+20. One light list serves every view of a frame. A light is kept when its reach, which the renderer derives from its power (local-light-shadows.md, "The cutoff and the reach"), touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
 21. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
 22. Frame n draws the faces (n · F + k) mod 6 for k from 0 to F − 1, where F is `FacesPerFrame`, in layer order. It is a pure function of the frame number, so no stored cursor has to be reset by a refresh, a film draws the same faces on every run, and every face is at most ⌈6 / F⌉ − 1 frames old. An order that follows the camera's view changes with the view and needs a rule for ties.
 23. A refresh happens when the map's frame differs from the camera's frame, and on a long step. The map starts with no frame, so the first drawn frame refreshes. A change of the camera's frame changes the axes of camera-relative world space, so every old face is wrong, not only old. See "Which faces a frame draws".
@@ -143,18 +143,18 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
 ShadingInput shading = ...;   // as in impostor_capture.frag, both sky shares 0
 vec3 V = normalize(-inPosition);   // toward the eye, which every face shares
-outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding), 0.0);   // alpha: no open sky
+outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding), 0.0);   // alpha: no open sky
 ```
 
 where
 
-- `directRadiance` = the sun and the point and spot lights reflected toward V, plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
-- `SunShadowsHolding` = the rule of the sun's shadow maps for a view that is not the main view (next section).
+- `directRadiance` = every light of the frame's list reflected toward V, each with its shadows (a far light's far shadows and cascade set, a near light's tiles), plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
+- `ShadowMapsHolding` = the rule of the shadow maps for a view that is not the main view (next section).
 - `V` = the unit direction from the surface point to the eye. A face's highlights are those that the camera's eye sees, because the map is the light that arrives at the eye.
 
-#### The sun's shadow maps in a face
+#### The shadow maps in a face
 
-The cascades are fitted to the main view (ARCHITECTURE.md, "Shadows"): cascade i is the bounding sphere of the slice of the main view's frustum that ends at its split, and the shader picks the cascade by the view depth along the camera's forward axis. A point behind the camera has a negative view depth, so that rule picks cascade 0 for it, which does not hold it once it is more than a few meters behind.
+Each far light's cascade set is fitted to the main view, and every set shares the splits and the boxes' sizes (ARCHITECTURE.md, "Shadows"): cascade i is the bounding sphere of the slice of the main view's frustum that ends at its split, and the shader picks the cascade by the view depth along the camera's forward axis. A point behind the camera has a negative view depth, so that rule picks cascade 0 for it, which does not hold it once it is more than a few meters behind.
 
 A face therefore picks the finest cascade whose box holds the point, with the margin of the filter. Every cascade's box holds the sphere of its slice, and the sphere holds a ball around the eye of radius (sphere radius − sphere center's depth). At the demo's 60° field of view and 16:9, that ball is about 9 m for cascade 0, 19 m for cascade 1, 49 m for cascade 2 and 355 m for cascade 3. So every point within 9 m of the camera, in any direction, gets cascade 0's texels of 6 cm. Ahead of the camera, the cascades reach 2 km as before. In the outer tenth of the coarsest box, the map shadow fades out and the far shadow of the casters in the maps fades in, by the same weight, as the main view does over its last blend band. Beyond every box, the far shadows alone decide, as for the main view beyond 2 km.
 
@@ -162,13 +162,15 @@ The shadow pass already culls its casters against every cascade's box, not again
 
 With the far shadows alone, the sun lights the cabin's walls in the map through the hull: a far shadow never shadows a point inside its caster's sphere, and the cabin lies inside the shuttle's sphere.
 
+A near light's tiles need no such rule. A spot light's tile and a point light's six faces look out from the light, not from the camera, so they hold every point that the light reaches in their frustums, whichever view samples them. A face samples them as the main view does (`tileShadow`, ARCHITECTURE.md, "Local shadows").
+
 #### The point and spot lights
 
-`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 20). On a refresh, the six faces see every direction, so every light of positive range and intensity is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
+`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 20). On a refresh, the six faces see every direction, so every light of positive power is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
 
 #### No ambient light in the capture
 
-Decision 17. A face's surfaces get the sun, the far and map shadows, the point and spot lights, and their emission. A surface that none of these reach is black in the map.
+Decision 17. A face's surfaces get every light of the list with its shadows (far shadows, cascade sets and tiles), and their emission. A surface that none of these reach is black in the map.
 
 ### Culling and level of detail
 
@@ -1294,23 +1296,23 @@ internal sealed class EnvironmentMap : IDisposable
   ```
 
   and `FrameContext.Environment`, the barrier states after the prefilter pass (the specular map in `SampledFragment`, the irradiance buffer in `ShaderRead`), and the frame set bindings 12 to 14 as "Images and buffers" gives them.
-- Takes: the exposure branch (`ComputePipelineDesc`, `SampledCompute`, `ComputeWrite`, the compute queue, `FrameClock`, `MeteringStepSeconds`, the draw step), Part 1, Part 2's setting, Part 3's `EnvironmentDraw`, `EnvironmentFaces` and `AmbientSource`, and Part 5's `directRadiance` and `SunShadows*` constants, which the face shader calls.
+- Takes: the exposure branch (`ComputePipelineDesc`, `SampledCompute`, `ComputeWrite`, the compute queue, `FrameClock`, `MeteringStepSeconds`, the draw step), Part 1, Part 2's setting, Part 3's `EnvironmentDraw`, `EnvironmentFaces` and `AmbientSource`, and Part 5's `directRadiance` and `ShadowMaps*` constants (then named `SunShadows*`), which the face shader calls.
 - Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The review goes through "Portable Vulkan" line by line.
 
 ### Part 5: the readers
 
 - Files:
   - New: `src/Tertius.Rendering/Shaders/environment.glsl`, `src/Tertius.Rendering/Shaders/reflection_footprint.glsl` and `tests/Tertius.Rendering.Tests/EnvironmentLightingTests.cs`.
-  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ShadingInput.reflectionFootprint`, `ambientSpecularDirection`, `environmentAmbient`, `ambientTerms`, `ambientLight`, `scatteredLight`'s mean), `lighting.frag` (the footprint at the top of `main`, the G-buffer reads before the sky test, `skyRadiance` plus `starRadiance` for sky pixels, `SunShadowsMainView`), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
+  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ShadingInput.reflectionFootprint`, `ambientSpecularDirection`, `environmentAmbient`, `ambientTerms`, `ambientLight`, `scatteredLight`'s mean), `lighting.frag` (the footprint at the top of `main`, the G-buffer reads before the sky test, `skyRadiance` plus `starRadiance` for sky pixels, `ShadowMapsMainView`), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
 - Tests first: `EnvironmentLightingTests`, which fail for the right reason once Part 4's map exists: the mirror sphere shows the hemisphere's gray, and the mirror shows no star.
 - First step, before anything else: the new `lighting.glsl` interface with today's behavior behind it, so that Part 4's face shader builds against it.
 - Gives:
 
   ```glsl
   // lighting.glsl
-  const uint SunShadowsNone = 0u;       // far shadows only: the impostor capture
-  const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
-  const uint SunShadowsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
+  const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
+  const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
+  const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
   float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, uint sunShadows);
   struct ShadingInput { ...; float reflectionFootprint; };   // f, in rad, at least p: set by the caller ("Where it runs")
   vec3 ambientSpecularDirection(ShadingInput s, vec3 V);     // d

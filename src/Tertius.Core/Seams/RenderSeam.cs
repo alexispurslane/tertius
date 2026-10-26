@@ -70,8 +70,10 @@ public enum RenderFlags : uint
     /// Casts shadows from every light that casts shadows, whether or not the instance is <see cref="Visible"/>, and onto
     /// objects in any frame. For a far light with a cascade set, a caster whose bounding sphere comes within 2 km of the
     /// camera casts shadow-map shadows, which have its real shape, onto what is within 2 km. Every caster also shadows as an
-    /// analytic sphere of its bounding radius, a far shadow, where the maps do not reach, when it is big enough to notice. A
-    /// sphere never shadows what lies inside it, so a caster never shadows itself. Leave it off a light's own emitter.
+    /// analytic sphere of its bounding radius, a far shadow of a far light, where the maps do not reach, when it is big
+    /// enough to notice. A sphere never shadows what lies inside it, so a caster never shadows itself. For a near light with
+    /// tiles of the local shadow atlas, a caster within the light's reach casts shadows of its real shape. Leave it off a
+    /// light's own emitter, such as a lamp's bulb or panel, so that it does not darken its own light.
     /// </summary>
     CastsShadow = 1 << 1,
 

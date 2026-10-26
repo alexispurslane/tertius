@@ -224,6 +224,7 @@ public static partial class DemoScenes
         new("pbr-spheres", PbrSpheres),
         new("reflections", Reflections),
         new("mirror-balls", MirrorBalls),
+        .. ShadowScenes,
     ];
 
     /// <summary>
@@ -709,11 +710,10 @@ public static partial class DemoScenes
         FrameHandle earth,
         FrameSpin turning,
         double firstStepEnd
-    )
-    {
+    ) =>
         // The ground turns with the sidereal day, from the date's ground turn at time 0, and from its first step, as every
         // frame on rails in these scenes moves from its first step.
-        return world.Spawn(
+        world.Spawn(
             new()
             {
                 Frame = earth,
@@ -742,7 +742,6 @@ public static partial class DemoScenes
                 },
             }
         );
-    }
 
     /// <summary>
     /// The moon entity in <paramref name="earth"/>, on its orbit from the world's time, which moves from the step that

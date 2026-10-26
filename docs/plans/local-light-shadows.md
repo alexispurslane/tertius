@@ -808,6 +808,7 @@ To measure in Part 7, by the recipe of [rendering-upgrade.md](rendering-upgrade.
 - Far lights: one, two and four stars, under `--cascaded-lights` 0, 1, 2 and 4. The report gives "shadow maps" and "lighting".
 - The demo: `scripts/demo-exit.json`, against the base, as every member does.
 - Expected: a cached tile costs nothing to draw. A drawn tile costs its casters' depth draws, about a tenth of a cascade. The lighting pass grows with the lights in the list, since the loop runs over every kept light, and with 16 PCF taps per shadowed light where it shines. If 16 shadowed lamps cost the lighting pass more than 2 ms at 1080p, the report says so, and a clustered light list becomes a ticket (decision 45).
+- Measured in Part 7 (2026-10-26, ARCHITECTURE.md, "The scenes and the cost of the shadows"): a cached tile costs nothing to draw, and a drawn tile about 0.04 ms, about one cascade, not a tenth of one. 16 shadowed point lamps cost the lighting pass 4.3 ms, 2.3 ms more than without shadows, so the clustered light list is ticket `ter-p1u7`. 16 shadowed spot lamps cost it 0.3 ms more. The demo's lighting pass grew from about 2.0 ms on the base to about 7.3 ms, and its frame span from about 11.7 to 17.4 ms.
 
 Memory, by arithmetic:
 
