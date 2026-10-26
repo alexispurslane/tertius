@@ -651,7 +651,14 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     {
         if (index >= firstPuff)
             return TransparentKind.Puff;
-        return scene.Visible[index].Alpha is FringedAlpha ? TransparentKind.Fringe : TransparentKind.Glass;
+        return scene.Visible[index].Alpha switch
+        {
+            GlassAlpha => TransparentKind.Glass,
+            FringedAlpha => TransparentKind.Fringe,
+            OpaqueAlpha or CutoutAlpha => throw new UnreachableException(
+                "An opaque or cutout material draws in no transparent pass."
+            ),
+        };
     }
 
     /// <summary>Adds the run of one kind that started at <paramref name="runStart"/> to the runs of its range.</summary>

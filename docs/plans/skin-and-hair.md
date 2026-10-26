@@ -853,7 +853,7 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 
 `StrandCodeTests` (new): `EveryUnitStrandSurvivesTheEightBitCodeWithinOneDegree`, over a dense set of directions. The test records the largest error. `ShadingCodeTests` (new): `EachModelHasItsOwnCode`, `TheStandardCodeIsZeroAsInAClearedTarget`.
 
-`DirectTermsTests` (new): `TheTwoPartsOfTheStandardResponseSumToTheBrdf`, against `MaterialSample.Reflected`.
+`DirectTermsTests` (new): `TheDiffusePartIsTheLambertTermAlone` and `TheSpecularPartIsTheCompensatedLobeTimesTheCosineOfTheLight`, each against its own expression of the BRDF, not against `MaterialSample.Reflected`, which is their sum.
 
 ### Part 3: cutout and fringe drawing
 
@@ -874,10 +874,11 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ACutoutCasterShadowsOnlyWhereItsTexelsReachTheCutoff`, in a cascade and in an atlas tile.
 - `AnEnvironmentFaceSeesOnlyTheCore`
 - `AnImpostorCaptureKeepsTheHolesOfACutout`
-- `ASolidMaterialDrawsAsBeforeBitForBit`
+- `AnOpaqueMaterialIgnoresItsAlpha`: no shading reads an opaque material's alpha. It does not guard the routing into the solid run, which `AnOpaqueMaterialWithTheGlassBitOfOldIsOpaque` pins, because an opaque material's cutoff is 0.
 
 `FringeRenderTests` (new, GPU):
 
+- `ACoreTexelOfAFringedCardDrawsNothingInTheTransparentPass`: a lit, matte card of alpha 0.6, and of alpha 0.5 at the cutoff, drawn as fringed equals the same card drawn as cutout, bit for bit. The G-buffer's 8-bit base color and 16-bit normals make forward light differ from deferred light, so a second draw of the core shows.
 - `AClearTexelOfAFringedCardLeavesThePixelBehindItAsItWas`: the acceptance of "the cards do not show". A strong light at the mirror angle of the card, where a glass pane shows its highlight. Behind the clear half, the pixels equal the scene without the card, bit for bit. The same card as glass shows the highlight there, which shows that the test can fail.
 - `AFringeTexelCoversThePixelByItsAlpha`: 0.4 · the card's light + 0.6 · the background, within the half float's rounding.
 - `AFringeBehindAnOpaqueSurfaceDrawsNothing`

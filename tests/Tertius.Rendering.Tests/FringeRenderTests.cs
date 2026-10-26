@@ -151,6 +151,49 @@ public sealed class FringeRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(0.6f)]
+    [InlineData(Cutoff)]
+    public void ACoreTexelOfAFringedCardDrawsNothingInTheTransparentPass(float alpha)
+    {
+        // A lit, matte card: the G-buffer's 8-bit base color and 16-bit normals make its forward light differ from its
+        // deferred light, so a second draw of the core over its own G-buffer pixel would show.
+        static float[] Render(AlphaMode mode, float alpha)
+        {
+            VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+            try
+            {
+                MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+                MaterialId card = renderer.CreateMaterial(
+                    new(
+                        BaseColor: new(x: 0.6f, y: 0.35f, z: 0.2f, w: alpha),
+                        Roughness: 0.5f,
+                        Reflectance: 0.5f,
+                        Alpha: mode
+                    )
+                );
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Normalize(new(0.3f, 0.6f, 0.75f)), starIrradiance: 2);
+                snapshot.Instances.Add(
+                    Facing(plane: plane, material: Glow(renderer, new(0, 0.5f, 1)), center: new(0, 0, -6), scale: 3)
+                );
+                snapshot.Instances.Add(Facing(plane: plane, material: card, center: new(0, 0, -3)));
+                renderer.Render(snapshot, 1f);
+                return renderer.ReadHdr();
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        Render(new FringedAlpha(Cutoff), alpha)
+            .Should()
+            .Equal(
+                Render(new CutoutAlpha(Cutoff), alpha),
+                "a texel at the cutoff or above is core, which the G-buffer pass draws alone"
+            );
+    }
+
     [Fact]
     public void AFringeTexelCoversThePixelByItsAlpha()
     {

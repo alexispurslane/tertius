@@ -24,7 +24,7 @@ public sealed class DirectTermsTests
     }
 
     [Fact]
-    public void TheTwoPartsOfTheStandardResponseSumToTheBrdf()
+    public void TheSpecularPartIsTheCompensatedLobeTimesTheCosineOfTheLight()
     {
         DirectTerms terms = Plastic.ReflectedTerms(
             normal: Double3.UnitZ,
@@ -32,17 +32,17 @@ public sealed class DirectTermsTests
             toLight: ToLight,
             tables: BrdfTables.Shared
         );
+        Double3 lobe =
+            Plastic.SingleScatteringBrdf(normal: Double3.UnitZ, toView: ToView, toLight: ToLight)
+            - Plastic.DiffuseColor / Math.PI;
+        double lobeAlbedo = BrdfTables.Shared.SampleDfg(nDotV: ToView.Z, roughness: Plastic.Lobe.Roughness).LobeAlbedo;
+        Double3 compensation = new Double3(1, 1, 1) + Plastic.F0 * (1 / lobeAlbedo - 1);
 
         ShouldBeNear(
-            actual: terms.Diffuse + terms.Specular,
-            expected: Plastic.Reflected(
-                normal: Double3.UnitZ,
-                toView: ToView,
-                toLight: ToLight,
-                tables: BrdfTables.Shared
-            ),
+            actual: terms.Specular,
+            expected: lobe * compensation * ToLight.Z,
             tolerance: 1e-15,
-            because: "the split moves no light between the parts and loses none"
+            because: "the specular part is f_ss's lobe times c = 1 + F0 (1 / E₁ − 1), times n·l"
         );
     }
 

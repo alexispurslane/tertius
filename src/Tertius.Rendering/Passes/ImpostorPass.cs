@@ -525,7 +525,6 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         device.Vk.DestroyPipeline(device.Device, billboardPipeline, null);
     }
 
-    /// <summary>A capture ready to record: its tile, its indirect command and its view-projection matrix.</summary>
     /// <summary>A capture of this frame: its tile, its indirect command, whether it draws with the cutout pipeline, and its camera.</summary>
     private readonly record struct PreparedCapture(int Tile, int Command, bool Cutout, Matrix4x4 ViewProjection);
 

@@ -500,10 +500,15 @@ public sealed class CutoutRenderTests
         }
     }
 
+    /// <summary>
+    /// An opaque material's card of stripes draws as one whose alpha is 1 everywhere: no shading reads the alpha. This
+    /// does not guard the routing into the solid run, because an opaque material's cutoff is 0 and a cutout pipeline
+    /// would discard none of its texels. <see cref="BatcherTests.AnOpaqueMaterialWithTheGlassBitOfOldIsOpaque"/> pins
+    /// the routing.
+    /// </summary>
     [Fact]
-    public void ASolidMaterialDrawsAsBeforeBitForBit()
+    public void AnOpaqueMaterialIgnoresItsAlpha()
     {
-        // An opaque material does not test its alpha: its card of stripes draws as one whose alpha is 1 everywhere.
         static float[] Render(bool opaqueImage)
         {
             VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);

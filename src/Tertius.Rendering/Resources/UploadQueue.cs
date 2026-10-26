@@ -108,7 +108,6 @@ internal sealed class UploadQueue(int maxTextureSize)
             ? throw new InvalidOperationException($"This renderer has run out of ids for {kind}.")
             : counter++;
 
-    /// <summary>A material's texture slot is None (the default texture) or a texture this renderer created.</summary>
     /// <summary>Refuses a cutoff that is not above 0 and at most 1, a NaN included: at 0, every texel would be core.</summary>
     private static void CheckCutoff(AlphaMode alpha)
     {
@@ -123,6 +122,7 @@ internal sealed class UploadQueue(int maxTextureSize)
             );
     }
 
+    /// <summary>A material's texture slot is None (the default texture) or a texture this renderer created.</summary>
     private void CheckTexture(TextureId texture, string slot)
     {
         if (!texture.IsNone && (uint)texture.Value >= (uint)textureCount)
