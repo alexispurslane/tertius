@@ -49,6 +49,13 @@ public record struct Double3(double X, double Y, double Z)
         return length > 0 ? this / length : Zero;
     }
 
+    /// <summary>This vector at unit length, or <paramref name="fallback"/> when it has no direction.</summary>
+    public readonly Double3 NormalizedOr(Double3 fallback)
+    {
+        double length = Length;
+        return length > 0 ? this / length : fallback;
+    }
+
     /// <summary>Widening conversion: every float vector is exactly representable.</summary>
     public static implicit operator Double3(Vector3 v) => new(v.X, v.Y, v.Z);
 
