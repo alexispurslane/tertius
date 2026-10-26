@@ -53,6 +53,7 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
     private readonly List<Block> blocks = [];
     private readonly HashSet<Dedicated> dedicated = [];
     private int liveAllocations;
+    private int? allocationsBeforeFailure;
     private bool disposed;
 
     /// <summary>The number of allocations not yet freed. Zero after a clean shutdown.</summary>
@@ -63,6 +64,28 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             lock (gate)
             {
                 return liveAllocations;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A test hook: when set, <see cref="Allocate"/> grants this many more allocations, then refuses each one with the
+    /// error of a device that is out of memory. Null, the default, refuses none.
+    /// </summary>
+    public int? AllocationsBeforeFailure
+    {
+        get
+        {
+            lock (gate)
+            {
+                return allocationsBeforeFailure;
+            }
+        }
+        set
+        {
+            lock (gate)
+            {
+                allocationsBeforeFailure = value;
             }
         }
     }
@@ -107,6 +130,13 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
+            if (allocationsBeforeFailure is { } granted)
+            {
+                if (granted == 0)
+                    throw new VulkanException($"vkAllocateMemory for {name}", Result.ErrorOutOfDeviceMemory);
+                allocationsBeforeFailure = granted - 1;
+            }
+
             if (requirements.Size > BlockSize / 2)
             {
                 var allocation = new Dedicated(

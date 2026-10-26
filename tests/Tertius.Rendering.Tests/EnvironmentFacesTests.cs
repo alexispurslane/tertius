@@ -143,4 +143,39 @@ public sealed class EnvironmentFacesTests
 
         refreshed.Should().AllBeEquivalentTo(false);
     }
+
+    /// <summary>
+    /// The most frames that a face of a kept map waits between two draws when the served maps go from
+    /// <paramref name="before"/> to <paramref name="after"/>, at one face per frame, over every frame of the change in two
+    /// full cycles of both counts.
+    /// </summary>
+    private static int OldestKeptFaceAcrossAChange(int before, int after)
+    {
+        int cycle = CubeFaces.Count * before * CubeFaces.Count * after;
+        int oldest = 0;
+        for (int change = cycle; change < 2 * cycle; change++)
+        for (int map = 0; map < Math.Min(before, after); map++)
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+        {
+            var face = (FaceMask)(1 << layer);
+            int last = change - 1;
+            while (!InTurn(last, facesPerFrame: 1, maps: before)[map].HasFlag(face))
+                last--;
+            int next = change;
+            while (!InTurn(next, facesPerFrame: 1, maps: after)[map].HasFlag(face))
+                next++;
+            oldest = Math.Max(oldest, next - 1 - last);
+        }
+
+        return oldest;
+    }
+
+    [Fact]
+    public void AcrossAChangeOfTheMapCountAKeptFaceCanBeOlderThanOneCycleButNoOlderThanBothCyclesLessTwo()
+    {
+        int oldest = OldestKeptFaceAcrossAChange(before: 3, after: 4);
+
+        oldest.Should().BeGreaterThan(6 * 4 - 1, "the kept face waits for its slot in the new schedule");
+        oldest.Should().BeLessThanOrEqualTo(6 * 3 + 6 * 4 - 2);
+    }
 }

@@ -488,6 +488,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
+        // Only now, so that a frame that threw above leaves the maps' drawn chain and the slot's readback as they were.
+        environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -547,7 +549,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// What the batcher prepares for the maps in the frame that the renderer draws next: no map, or the faces of each map of
     /// the snapshot's served chain that <see cref="EnvironmentMap.FacesFor"/> chooses, with their latest irradiance
-    /// readings.
+    /// readings. It writes the served chain, and changes no state of the maps but a growth, so a frame that throws before
+    /// its submission leaves the maps' drawn chain as it was.
     /// </summary>
     private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool longStep)
     {
@@ -558,6 +561,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: frameNumber, served: served, longStep: longStep);
         return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
+
+    /// <summary>The served chain of <paramref name="snapshot"/>, frame ids root first, as <see cref="EnvironmentDrawFor"/> wrote it.</summary>
+    private ReadOnlySpan<long> Served(RenderSnapshot snapshot) =>
+        servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
 
     /// <summary>
     /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's

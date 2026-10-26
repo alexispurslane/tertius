@@ -66,7 +66,7 @@ Settled by this design:
     | The camera's frame hands off to its grandparent, with the camera in it | 6 (N − 1) faces | 12 faces: the two maps at and below the change of the chain |
     | A long step | 6N faces | 6N faces |
 
-11. In turn, drawn frame n draws the slots (n · F + k) mod 6M for k from 0 to F − 1. Slot s is face s mod 6 of map ⌊s / 6⌋. Reason: decision 5. The slots run map by map, so the six faces of one map are drawn within ⌈6 / F⌉ frames of each other, and a rough lobe that crosses into a neighbor face mixes faces of nearly one time. A frame with F ≤ 6 touches at most two maps. Every face is at most ⌈6M / F⌉ − 1 frames old.
+11. In turn, drawn frame n draws the slots (n · F + k) mod 6M for k from 0 to F − 1. Slot s is face s mod 6 of map ⌊s / 6⌋. Reason: decision 5. The slots run map by map, so the six faces of one map are drawn within ⌈6 / F⌉ frames of each other, and a rough lobe that crosses into a neighbor face mixes faces of nearly one time. A frame with F ≤ 6 touches at most two maps. While M stays the same, every face is at most ⌈6M / F⌉ − 1 frames old. Across a change of M, a face of a kept map waits for its slot in the new schedule, so it can be up to ⌈6M_old / F⌉ + ⌈6M_new / F⌉ − 2 frames old.
 12. A map is prefiltered only in a drawn frame that draws one of its faces. Otherwise its mips, its specular levels and its irradiance stay as they are. Reason: they are a pure function of the map's six faces ([environment-map.md](environment-map.md), "The prefilter"), so the same faces give the same bits. With F = 1, a frame prefilters one map, as today.
 13. A map leaves out the lights of the subtree that it leaves out, with its geometry and its emission. A light belongs to the entity that carries it, and decision 3 removes "the shuttle and its contents". So the cabin's lamps light the cabin's map and no other. The face pass sends each face's map index, and `environment_face.frag` keeps a light only when the light's map is at most the face's map. The main view, the captures and the transparent pass keep every light. Reason: with the lamps kept, the planet's map shows the ground under the shuttle lit by them, and the apron's diffuse light picks some of it up (see "Known limits").
 14. The sun's shadow maps and far shadows stay the scene's: one set per frame, as today. So a map that leaves out the shuttle still shows the shuttle's shadow on the apron, where the real apron has it. Reason: shadow maps per map multiply the shadow pass by M for a difference of a shadow under a ship. See "Later".
@@ -81,7 +81,7 @@ Settled by this design:
 23. The capacity grows in `EnvironmentMap.FacesFor`, before batching, when M passes it. The growth waits for the device to be idle, makes the cube arrays anew for M maps, rewrites the map's own sets, empties "drawn for", and counts a version that tells each frame slot to rewrite binding 12 of its frame set. So every map refreshes in that frame. The capacity never shrinks. Reason: memory follows the longest chain that the camera has seen, and the growth is the path of a resize (`DrawFrame` waits for the device when the swapchain changes size). At the first frame nothing is in flight, so the first growth costs no wait. A camera that goes back and forth between a cabin and the ground grows once.
 24. With `NoEnvironmentMap`, the snapshot still carries the chain and the depths, because the snapshot builder cannot see the renderer's options. The batcher writes map 0 for every object, and the G-buffer writes 1.0. So the frame is the frame from before the map, pixel for pixel, as today.
 25. The face pass draws the drawn faces map by map, and each map's faces in layer order. The prefilter takes the maps in index order. Reason: one fixed order of commands. Each map writes only its own layers and its own nine coefficients, so the order does not change any bits.
-26. `EnvironmentMap.FacesFor` stays the one choke point of the maps' automatic machinery. It calls the pure predicates `EnvironmentChain.Keeps`, `EnvironmentFaces.InTurn` and `EnvironmentFaces.RefreshesAll`, and acts directly: it grows the images and stores "drawn for". No planner and no plan object.
+26. `EnvironmentMap.FacesFor` stays the one choke point of the maps' automatic machinery. It calls the pure predicates `EnvironmentChain.Keeps`, `EnvironmentFaces.InTurn` and `EnvironmentFaces.RefreshesAll`, and acts directly: it grows the images. `EnvironmentMap.Drew(served, slot)`, which `DrawFrame` calls after `SubmitAndPresent`, stores "drawn for" and the slot's count of maps, so that both describe the last submitted frame. No planner and no plan object.
 
 ## The model
 
@@ -280,9 +280,14 @@ public ReadOnlySpan<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bo
     for (int map = 0; map < faces.Length; map++)
         if (EnvironmentFaces.RefreshesAll(DrawnFor, served, map, longStep))
             faces[map] = FaceMask.All;
+    return faces;
+}
+
+public void Drew(ReadOnlySpan<long> served, int slot)
+{
     served.CopyTo(drawnFor);
     drawnForLength = served.Length;
-    return faces;
+    readbackMaps[slot] = served.Length;
 }
 ```
 
@@ -293,7 +298,11 @@ where
 - `facesOfMaps` = an array of 42 `FaceMask`, reused, so a frame allocates nothing.
 - `InTurn` = clears `faces`, then sets the slots (frame · F + k) mod 6M for k from 0 to F − 1 (decision 11).
 - `RefreshesAll` = `!EnvironmentChain.Keeps(drawnFor, served, map) || longStep` (decision 10).
-- `DrawnFor` = the served chain of the stored faces, empty before the first drawn frame and after a growth.
+- `DrawnFor` = the served chain of the stored faces, empty before the first submitted frame and after a growth.
+- `Drew` = what `DrawFrame` calls after `SubmitAndPresent`, with the frame's slot.
+- `readbackMaps` = for each frame slot, the served maps of its last submitted frame, which its readback buffer holds and `Collect` reads.
+
+A frame that throws after `FacesFor` and before its submission leaves "drawn for" and the slot's count as they were. So the next frame draws again every face that it would have refreshed, and the slot's next `Collect` reads only the maps that its last submitted frame copied. If `FacesFor` stored "drawn for" itself, the next frame would draw only F faces in turn, and the other faces of new or grown images would keep the image's undefined content, which can be a NaN or an infinity on a Linux driver.
 
 ```mermaid
 flowchart TD
@@ -322,7 +331,7 @@ The cases, for the cabin camera's chain of four and F = 1:
 | The shuttle climbs out of earth-surface into earth with the camera in it: (sun, earth, earth-surface, shuttle) becomes (sun, earth, shuttle) | 12: map 1 now leaves out the shuttle, and map 2 is now the shuttle's | 2 |
 | The camera jumps to another tree | 6M: no frame matches | M |
 
-Every face is at most ⌈6M / F⌉ − 1 frames old: 23 frames, 383 ms at 60 Hz, for four maps at F = 1. The maps of the ancestors lie in their own axes, so their faces age only by what moves in them and by the eye's motion.
+While M stays the same, every face is at most ⌈6M / F⌉ − 1 frames old: 23 frames, 383 ms at 60 Hz, for four maps at F = 1. Across a change of M, a face of a kept map waits for its slot in the new schedule, so it can be up to ⌈6M_old / F⌉ + ⌈6M_new / F⌉ − 2 frames old: up to 35 frames, 583 ms, when the camera walks from the apron into the cabin, M from 3 to 4. `EnvironmentFacesTests` checks the bound. The maps of the ancestors lie in their own axes, so their faces age only by what moves in them and by the eye's motion.
 
 ## The prefilter of each map
 
@@ -411,7 +420,7 @@ The CPU side: `MapAmbient` holds one `IrradianceReading?` for each map, and `Imp
 
 So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so the number of level sets stays that of one map, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers and coefficients do not overlap.
 
-The growth (decision 23): `Grow(maps)` waits for the device, disposes the cube arrays and their views, makes them for `maps` maps, rewrites the prefilter set and the level sets with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
+The growth (decision 23): `Grow(maps)` waits for the device, makes the cube arrays and their views for `maps` maps, and only then disposes the old ones, so that a growth that throws, for example out of device memory, leaves the old images whole. It rewrites the prefilter set and the level sets with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
 
 The descriptors that change:
 
@@ -470,7 +479,7 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame": 3 batch
 | The dense depths | `ChainDepths` | The snapshot build, before the chunks | `BuildChunk`, `BuildPuffs` | The same build | An array of the builder, rebuilt each build | `frameHemisphere` by dense index |
 | The served chain | `EnvironmentChain.Serve` | Step 3, before `FacesFor` | `FacesFor`, the batcher | Step 3 | None: a derived read of the snapshot | |
 | The capacity and the images | `EnvironmentMap.Grow`, from `FacesFor` | Step 3 | Every pass of the maps, `FrameResources` | Steps 3 to 14 | `EnvironmentMap` | `ResizeTargets` |
-| Drawn for | `FacesFor` | Step 3 | `FacesFor` | Step 3 of the next drawn frame | `EnvironmentMap` | Today's `EnvironmentMap.FrameId` |
+| Drawn for | `Drew`, emptied by a growth in `FacesFor` | After `SubmitAndPresent` | `FacesFor` | Step 3 of the next drawn frame | `EnvironmentMap` | Today's `EnvironmentMap.FrameId` |
 | The faces of each map | `FacesFor` | Step 3 | The batcher, then the face pass and the prefilter | Steps 3, 5, 6 | `WithMap`, then `PreparedScene.EnvironmentFaces` | Today's `FaceMask` |
 | An object's map | The batcher, by `MapOf` | Step 3 | The draw rule, the light filter, `GpuInstance.Map`, `GpuLight.Map`, `GpuPuff.Map`, the impostor signature | Steps 3 to 14 | `PreparedInstance.Map` and the GPU rows | `GpuInstance.Material` |
 | The map axes R_i | The batcher, interpolated from the chain | Step 3 | The faces' bases on the CPU; `frame.mapAxes` in the readers | Steps 3, 5, 7 to 14 | `PreparedScene.MapAxes`, the frame constants | `PreparedScene.RootRotation` |
@@ -481,19 +490,21 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame": 3 batch
 | The map code | `gbuffer.frag` | Step 8 | `surfaceAt`, in the lighting pass and the reflection trace | Steps 11, 13 | The base color target's alpha | Today's 1.0 |
 | `ShadingInput.map` | Each caller, from its source | Per pixel | `environmentAmbient`, `scatteredLight` | Per pixel | A value in the shader | `ShadingInput.reflectionFootprint` |
 | The readback of a slot | The copy after the last prefilter | Step 6 | `EnvironmentMap.Collect` | After the slot's fence | The readback buffers | Today's |
+| The maps of a slot's readback | `Drew` | After `SubmitAndPresent` | `EnvironmentMap.Collect` | After the slot's fence | `EnvironmentMap` | `FrameResources.Number` |
 | The readings, one per map | `Collect` | After the slot's fence, in `Render` | `ImpostorManager`, through `MapAmbient` | Step 3 | `EnvironmentMap` | Today's `Latest` |
 
 Each ordering rule has its reason:
 
 - The chain and the depths come from the snapshot build, because only the simulation knows the frame tree. The dense depths come before the chunks, so each chunk reads them and none writes them.
 - `Serve` and `FacesFor` run before batching, because the batcher prepares the faces of each map. `FacesFor` runs after the output gives the frame an image, so a skipped frame leaves "drawn for" as it is, as today.
+- `Drew` runs after `SubmitAndPresent`, so a frame that throws before its submission leaves "drawn for" and the slot's count of maps as they were.
 - The growth runs inside `FacesFor`, before batching, because the batcher and every pass of the frame use the grown images, and before `UpdateSharedDescriptors`, which points the slot's frame set at them.
 - The faces of a frame come after its shadow maps, the prefilter after the faces, and every reader after the prefilter, as today.
 - The face pass and the prefilter take the maps in index order (decision 25).
 
 ## Stored state, one store, determinism and no temporal rendering
 
-- Stored state describes the last finished step. The chain and the depths describe the snapshot's build. Each face of each map describes the frame that drew it, in its map's axes, as today's faces do. Drawn for describes the chain of the faces that the recorded frames will have drawn, as today's `FrameId` does. A map's levels and coefficients describe its six faces.
+- Stored state describes the last finished step. The chain and the depths describe the snapshot's build. Each face of each map describes the frame that drew it, in its map's axes, as today's faces do. Drawn for describes the chain of the faces that the last submitted frame drew, and each slot's count of maps the maps that its last submitted frame copied. A map's levels and coefficients describe its six faces.
 - One store for each piece of state. `RenderSnapshot.Chain` holds the camera's frame's id and the root's rotation, which become reads of it. Drawn for replaces `FrameId`. One cube array holds every map's faces, and one buffer every map's coefficients. A map's levels and coefficients are not a second store of its faces: they are their pure function, rebuilt in the frame that changes the faces.
 - Closed sets stay unions: `EnvironmentDraw` (`WithoutMap`, `WithMap`) and `AmbientSource` (`HemisphereAmbient`, `MapAmbient`). No kind enum is added. Which map is the camera's frame's is an index, M − 1, not a kind.
 - Determinism. The in-turn slots are a pure function of the drawn frame's number, F and M, so a film draws the same faces on every run. The faces and the prefilter run in a fixed order, and each texel and coefficient sums its samples in a fixed order and writes only its own slot. The light list keeps the snapshot's order. The dense depths do not depend on the threads of the build.
@@ -649,7 +660,7 @@ The existing tests:
 - (User) From outside, a lit interior gets the outside's map. Its lamps still light it directly.
 - (User) The shuttle's own hull is missing from the apron's map, so the apron beside it gets sky light where the hull stands.
 - A map keeps the scene's sun shadows (decision 14). The apron in the planet's map keeps the shuttle's shadow, which the real apron has too.
-- The faces of all maps share F faces per frame (User, decision 5). So a face is up to ⌈6M / F⌉ − 1 frames old: 23 frames, 383 ms at 60 Hz, for the cabin's four maps at F = 1, where today's map is up to 83 ms old. The ancestors' maps lie in their own axes, so a turn of the ship does not age them. The cabin's map ages as today's map does, for what moves in the cabin. `FacesPerFrame` buys it back.
+- The faces of all maps share F faces per frame (User, decision 5). So a face is up to ⌈6M / F⌉ − 1 frames old while M stays the same: 23 frames, 383 ms at 60 Hz, for the cabin's four maps at F = 1, where today's map is up to 83 ms old. Across a change of M, a face of a kept map can be up to ⌈6M_old / F⌉ + ⌈6M_new / F⌉ − 2 frames old. The ancestors' maps lie in their own axes, so a turn of the ship does not age them. The cabin's map ages as today's map does, for what moves in the cabin. `FacesPerFrame` buys it back.
 - An off-chain frame takes its chain ancestor's map, which leaves out the chain frame below. Seen from Earth's surface, the Moon takes earth's map, which leaves out Earth: its night side loses the ground light from around the camera that today's single map gave it, which was not earthshine either.
 - The map images never shrink. A camera that once rode a chain of five keeps five maps' memory.
 - A chain longer than ever before waits for the device once, at the frame of the growth.

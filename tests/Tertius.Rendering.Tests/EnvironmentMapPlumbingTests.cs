@@ -1,8 +1,11 @@
+using Silk.NET.Vulkan;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The GPU plumbing of the environment map (docs/plans/environment-map.md, "Images and buffers" and "Portable Vulkan"):
-/// the descriptors that its compute passes need, and what a map that fails to start leaves behind. Validation is on.
+/// the descriptors that its compute passes need, what a map that fails to start or to grow leaves behind, and the drawn
+/// chain and the readback of a slot when a drawn frame fails before its submission. Validation is on.
 /// </summary>
 public sealed class EnvironmentMapPlumbingTests
 {
@@ -94,6 +97,104 @@ public sealed class EnvironmentMapPlumbingTests
         plumbing.Allocator.LiveAllocations.Should().Be(live, "the grown images replace the old ones");
     }
 
+    [Fact]
+    public void AFrameThatWasNeverSubmittedLeavesTheNextFrameToDrawEveryFace()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        // The first frame chooses its faces, then throws before its submission, so it records no drawn frame.
+        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+
+        map.FacesFor(frame: 1, served: Served(1), longStep: false)
+            .ToArray()
+            .Should()
+            .Equal(
+                [FaceMask.All],
+                "no frame has drawn the faces, so their level 0 holds the image's undefined content"
+            );
+    }
+
+    [Fact]
+    public void AFrameThatGrewTheMapsAndWasNeverSubmittedLeavesTheNextFrameToDrawEveryFaceOfEveryMap()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        map.FacesFor(frame: 0, served: Served(3), longStep: false);
+        map.Drew(served: Served(3), slot: 0);
+        // The camera enters a child: the frame grows the maps to four, then throws before its submission.
+        map.FacesFor(frame: 1, served: Served(4), longStep: false);
+
+        map.FacesFor(frame: 1, served: Served(4), longStep: false)
+            .ToArray()
+            .Should()
+            .Equal(
+                [FaceMask.All, FaceMask.All, FaceMask.All, FaceMask.All],
+                "the grown images hold no drawn face, the kept maps' included"
+            );
+    }
+
+    [Fact]
+    public void AfterASubmittedFrameTheNextFrameOfTheSameChainDrawsItsFacesInTurn()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        map.FacesFor(frame: 0, served: Served(2), longStep: false);
+        map.Drew(served: Served(2), slot: 0);
+
+        var inTurn = new FaceMask[2];
+        EnvironmentFaces.InTurn(frame: 1, facesPerFrame: 1, faces: inTurn);
+        map.FacesFor(frame: 1, served: Served(2), longStep: false)
+            .ToArray()
+            .Should()
+            .Equal(inTurn, "the submitted frame drew every face of both maps for this chain");
+    }
+
+    [Fact]
+    public void ACollectReadsOnlyTheMapsThatTheSlotsLastSubmittedFrameCopied()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        // Frame 0 serves one map in slot 0 and is submitted.
+        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+        map.Drew(served: Served(1), slot: 0);
+        // Frame 2, in slot 0 again, serves two maps and records its readback copy, then throws before its submission.
+        map.FacesFor(frame: 2, served: Served(2), longStep: false);
+        using (var recording = new Recording(plumbing.Device))
+            map.RecordReadback(commandBuffer: recording.CommandBuffer, barriers: new(), slot: 0, maps: 2);
+
+        // The wait before slot 0 records again collects its last submitted frame, frame 0.
+        map.Collect(slot: 0, frame: 0);
+
+        IrradianceReading?[] readings = map.ReadingsOf(2).ToArray();
+        readings[0].Should().NotBeNull("frame 0 copied the irradiance of map 0");
+        readings[1].Should().BeNull("no submitted frame copied map 1, so its readback holds no irradiance");
+    }
+
+    [Fact]
+    public void AGrowthThatFailsLeavesTheOldMapsWhole()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        map.FacesFor(frame: 0, served: Served(1), longStep: false);
+        map.Drew(served: Served(1), slot: 0);
+        int live = plumbing.Allocator.LiveAllocations;
+        // The new radiance maps fit, and the new specular maps do not.
+        plumbing.Allocator.AllocationsBeforeFailure = 1;
+
+        Action grow = () => map.FacesFor(frame: 1, served: Served(3), longStep: false);
+
+        grow.Should().Throw<VulkanException>("the device has no memory for the second cube array");
+        plumbing.Allocator.AllocationsBeforeFailure = null;
+        map.Capacity.Should().Be(1);
+        plumbing
+            .Allocator.LiveAllocations.Should()
+            .Be(live, "the old images stay, and the growth releases the new image that it made");
+        map.FaceView(map: 0, face: CubeFace.PositiveX)
+            .Handle.Should()
+            .NotBe(0, "the old radiance maps keep their views");
+        map.DrawnFor.ToArray().Should().Equal(Served(1), "the old maps keep their drawn faces");
+    }
+
     /// <summary>A validating headless device with the descriptor layouts.</summary>
     private sealed class Plumbing : IDisposable
     {
@@ -128,5 +229,54 @@ public sealed class EnvironmentMapPlumbingTests
             Allocator.Dispose();
             Device.Dispose();
         }
+    }
+
+    /// <summary>
+    /// A command buffer in the recording state that is never submitted, as a drawn frame that throws before its submission
+    /// leaves it.
+    /// </summary>
+    private sealed unsafe class Recording : IDisposable
+    {
+        private readonly VulkanDevice device;
+        private readonly CommandPool pool;
+
+        public Recording(VulkanDevice device)
+        {
+            this.device = device;
+            var poolInfo = new CommandPoolCreateInfo
+            {
+                SType = StructureType.CommandPoolCreateInfo,
+                Flags = CommandPoolCreateFlags.TransientBit,
+                QueueFamilyIndex = device.QueueFamily,
+            };
+            device
+                .Vk.CreateCommandPool(
+                    device: device.Device,
+                    pCreateInfo: &poolInfo,
+                    pAllocator: null,
+                    pCommandPool: out pool
+                )
+                .Should()
+                .Be(Result.Success);
+            var allocate = new CommandBufferAllocateInfo
+            {
+                SType = StructureType.CommandBufferAllocateInfo,
+                CommandPool = pool,
+                Level = CommandBufferLevel.Primary,
+                CommandBufferCount = 1,
+            };
+            device
+                .Vk.AllocateCommandBuffers(device.Device, &allocate, out CommandBuffer commandBuffer)
+                .Should()
+                .Be(Result.Success);
+            var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo };
+            device.Vk.BeginCommandBuffer(commandBuffer, &begin).Should().Be(Result.Success);
+            CommandBuffer = commandBuffer;
+        }
+
+        public CommandBuffer CommandBuffer { get; }
+
+        /// <summary>Destroys the pool, which frees the command buffer in its recording state.</summary>
+        public void Dispose() => device.Vk.DestroyCommandPool(device.Device, pool, null);
     }
 }
