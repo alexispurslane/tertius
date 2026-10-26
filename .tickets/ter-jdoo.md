@@ -1,6 +1,6 @@
 ---
 id: ter-jdoo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T23:03:08Z
@@ -17,3 +17,9 @@ Part 6 of ter-nl5u measured the environment prefilter pass at 1.16 to 1.35 ms pe
 
 A measurement names the dispatch that takes the time, and the pass's cost on demo-exit at 1080p falls toward the design's estimate, or the design doc records why it cannot.
 
+
+## Notes
+
+**2026-10-26T12:14:56Z**
+
+Closed as a duplicate of ter-of1p, which profiles the environment map's prefilter (2026-10-26).

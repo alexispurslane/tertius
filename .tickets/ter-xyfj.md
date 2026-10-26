@@ -1,6 +1,6 @@
 ---
 id: ter-xyfj
-status: open
+status: in_progress
 deps: [ter-r0hc, ter-dv5t]
 links: []
 created: 2026-10-25T20:07:17Z

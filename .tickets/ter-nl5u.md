@@ -1,6 +1,6 @@
 ---
 id: ter-nl5u
-status: in_progress
+status: closed
 deps: [ter-zzyr]
 links: []
 created: 2026-10-25T13:40:27Z

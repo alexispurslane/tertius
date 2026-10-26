@@ -1,6 +1,6 @@
 ---
 id: ter-dv5t
-status: in_progress
+status: closed
 deps: [ter-7z3l]
 links: []
 created: 2026-10-25T20:07:17Z
