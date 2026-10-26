@@ -122,6 +122,9 @@ internal struct PreparedInstance
 /// <summary>A run of indirect commands for one draw call.</summary>
 internal readonly record struct CommandRange(int First, int Count);
 
+/// <summary>The caster commands of a tile view that the frame draws: <see cref="PreparedScene.ShadowTiles"/>[View].</summary>
+internal readonly record struct TileCommands(int View, CommandRange Commands);
+
 /// <summary>A run of GPU instances for one instanced draw.</summary>
 internal readonly record struct InstanceRange(int First, int Count);
 
@@ -243,6 +246,17 @@ internal sealed class PreparedScene
     /// <summary>Caster instances over all cascades: a caster in two cascades counts twice.</summary>
     public int ShadowInstances;
 
+    /// <summary>
+    /// The tile views of the frame, in the order of the lights' <see cref="AtlasTiles"/> slots, written by the local shadow
+    /// pass. Views 0 to <see cref="ShadowTileCount"/> − 1 are valid.
+    /// </summary>
+    public GpuShadowTile[] ShadowTiles = new GpuShadowTile[16];
+
+    public int ShadowTileCount;
+
+    /// <summary>The tile views that the frame draws, because their records are stale, with their caster commands.</summary>
+    public readonly List<TileCommands> DrawnTiles = [];
+
     /// <summary>Impostor billboards per depth range, appended after batching by the impostor pass.</summary>
     public readonly InstanceRange[] Impostors = new InstanceRange[DepthRanges.Count];
 
@@ -308,6 +322,14 @@ internal sealed class PreparedScene
         return ref slot;
     }
 
+    /// <summary>Appends a tile view of the frame.</summary>
+    public void AddShadowTile(in GpuShadowTile tile)
+    {
+        if (ShadowTileCount == ShadowTiles.Length)
+            Array.Resize(ref ShadowTiles, ShadowTiles.Length * 2);
+        ShadowTiles[ShadowTileCount++] = tile;
+    }
+
     /// <summary>Appends a far shadow, the sphere of a caster.</summary>
     public void AddOccluder(Vector4 sphere)
     {
@@ -360,6 +382,8 @@ internal sealed class PreparedScene
         Array.Clear(ShadowCommands);
         ShadowCasters = 0;
         ShadowInstances = 0;
+        ShadowTileCount = 0;
+        DrawnTiles.Clear();
         Array.Clear(Impostors);
         EnvironmentFaces.Clear();
     }

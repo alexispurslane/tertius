@@ -214,29 +214,50 @@ internal sealed unsafe class ShadowPass : RenderPass
                 ref readonly Caster caster = ref casters[index];
                 if ((caster.Mask & bit) == 0)
                     continue;
-                int gpuIndex = scene.AppendInstance(caster.Instance);
-                if (caster.Mesh == currentMesh)
-                {
-                    scene.Commands[scene.CommandCount - 1].InstanceCount++;
-                    continue;
-                }
-
-                currentMesh = caster.Mesh;
-                MeshInfo info = meshes[caster.Mesh];
-                scene.AppendCommand(
-                    new()
-                    {
-                        IndexCount = info.IndexCount,
-                        InstanceCount = 1,
-                        FirstIndex = info.FirstIndex,
-                        VertexOffset = info.VertexOffset,
-                        FirstInstance = (uint)gpuIndex,
-                    }
+                AppendCaster(
+                    scene: scene,
+                    meshes: meshes,
+                    instance: caster.Instance,
+                    mesh: caster.Mesh,
+                    currentMesh: ref currentMesh
                 );
             }
 
             scene.ShadowCommands[layer] = new(rangeStart, scene.CommandCount - rangeStart);
         }
+    }
+
+    /// <summary>
+    /// Appends one caster of a run in mesh order: its instance, and either one more instance on the run's last indirect
+    /// command, when its mesh is <paramref name="currentMesh"/>, or a new command for its mesh, which becomes the current one.
+    /// </summary>
+    internal static void AppendCaster(
+        PreparedScene scene,
+        ReadOnlySpan<MeshInfo> meshes,
+        in GpuInstance instance,
+        int mesh,
+        ref int currentMesh
+    )
+    {
+        int gpuIndex = scene.AppendInstance(instance);
+        if (mesh == currentMesh)
+        {
+            scene.Commands[scene.CommandCount - 1].InstanceCount++;
+            return;
+        }
+
+        currentMesh = mesh;
+        MeshInfo info = meshes[mesh];
+        scene.AppendCommand(
+            new()
+            {
+                IndexCount = info.IndexCount,
+                InstanceCount = 1,
+                FirstIndex = info.FirstIndex,
+                VertexOffset = info.VertexOffset,
+                FirstInstance = (uint)gpuIndex,
+            }
+        );
     }
 
     /// <summary>Writes the matrices and the light-space axes of one cascade set into the frame constants.</summary>
@@ -324,7 +345,7 @@ internal sealed unsafe class ShadowPass : RenderPass
             vk.CmdBeginRendering(commandBuffer, &rendering);
             // Every layer shares the pipeline, the frame set, the viewport and the geometry, which stay bound.
             if (layer == 0)
-                BindShared(context, extent);
+                BindDepthOnly(context: context, pipeline: pipeline, extent: extent);
 
             CommandRange commands = scene.ShadowCommands[layer];
             if (commands.Count > 0)
@@ -337,8 +358,11 @@ internal sealed unsafe class ShadowPass : RenderPass
         }
     }
 
-    /// <summary>Binds what every layer's rendering shares: the pipeline, the frame set, the viewport and the geometry.</summary>
-    private void BindShared(FrameContext context, Extent2D extent)
+    /// <summary>
+    /// Binds what every layer of a depth-only shadow image shares: <paramref name="pipeline"/>, the frame set, a viewport
+    /// of <paramref name="extent"/> and the geometry. The cascades and the local shadow atlas both use it.
+    /// </summary>
+    internal static void BindDepthOnly(FrameContext context, Pipeline pipeline, Extent2D extent)
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
@@ -355,10 +379,7 @@ internal sealed unsafe class ShadowPass : RenderPass
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-        var viewport = new Viewport(x: 0, y: 0, width: map.Size, height: map.Size, minDepth: 0, maxDepth: 1);
-        var scissor = new Rect2D(new Offset2D(0, 0), extent);
-        vk.CmdSetViewport(commandBuffer: commandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
-        vk.CmdSetScissor(commandBuffer: commandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
+        context.SetViewport(extent);
         GeometryPass.BindGeometry(context);
     }
 

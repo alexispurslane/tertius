@@ -21,13 +21,14 @@ internal readonly record struct TileDraw(int View, int First, int Count);
 
 /// <summary>
 /// The CPU side of the local shadow atlas (docs/plans/local-light-shadows.md, "The budget", "The cache"): which light holds
-/// which layer, and what each layer holds. Invariants, checked by AssertInvariants:
+/// which layer, and what each layer holds, as of the last submitted frame. <see cref="Update"/> chooses a frame's layers
+/// and draws; <see cref="Drew"/> keeps them once the frame is submitted. Invariants, checked by AssertInvariants after Drew:
 /// <list type="bullet">
 /// <item>A layer belongs to at most one light.</item>
 /// <item>A light holds 1 or 6 layers.</item>
 /// <item>A layer's record names the entity of the light whose view holds it.</item>
 /// <item>No two views of a frame share a layer.</item>
-/// <item>A layer without a view of the last frame holds no record.</item>
+/// <item>A layer without a view of the last submitted frame holds no record.</item>
 /// </list>
 /// </summary>
 internal sealed class ShadowTiles
@@ -45,7 +46,7 @@ internal sealed class ShadowTiles
     /// </summary>
     private const float RoundingShare = 8f / (1 << 23);
 
-    /// <summary>What each layer holds, from the frame that drew it, or null for a free layer.</summary>
+    /// <summary>What each layer holds, from the submitted frame that drew it, or null for a free layer.</summary>
     private readonly TileRecord?[] records;
 
     /// <summary>Records of freed layers, kept so that a layer taken again allocates nothing.</summary>
@@ -56,13 +57,24 @@ internal sealed class ShadowTiles
     // The scratch of one Update: none of it outlives the call.
     private readonly List<Candidate> candidates = [];
     private readonly List<int> tileCounts = [];
-    private readonly int[] layerLights;
     private readonly List<int> reachable = [];
     private readonly List<int> tileCasters = [];
     private readonly List<(int Mesh, int Caster)> meshOrder = [];
 
-    /// <summary>The layer of each view of the last Update and its light's entity, for AssertInvariants.</summary>
+    // The frame in flight: what the last Update chose, which Drew keeps once the frame is submitted, and the next Update
+    // drops when no Drew came (docs/plans/local-light-shadows.md, "The cache").
+
+    /// <summary>The light of each layer in the frame in flight, an index into its lights, or <see cref="NoLight"/>.</summary>
+    private readonly int[] layerLights;
+
+    /// <summary>The records of the views that the frame in flight draws, by layer.</summary>
+    private readonly List<(int Layer, TileRecord Record)> drawnRecords = [];
+
+    /// <summary>The layer of each view of the frame in flight and its light's entity.</summary>
     private readonly List<(int Layer, uint LightEntity)> frameTiles = [];
+
+    /// <summary>The layer of each view of the last submitted frame and its light's entity, for AssertInvariants.</summary>
+    private readonly List<(int Layer, uint LightEntity)> drawnTiles = [];
 
     public ShadowTiles(int layers, int tileSize)
     {
@@ -71,6 +83,7 @@ internal sealed class ShadowTiles
         TileSize = tileSize;
         records = new TileRecord?[layers];
         layerLights = new int[layers];
+        Array.Fill(layerLights, NoLight);
     }
 
     public int Layers { get; }
@@ -82,7 +95,8 @@ internal sealed class ShadowTiles
     /// <summary>
     /// The choke point of a frame: ranks the near lights that cast shadows, gives the top ones layers within the budget,
     /// writes their AtlasTiles slots, fills <paramref name="views"/> in slot order, and adds a draw for each view whose
-    /// record is stale, with its casters, replacing that record.
+    /// record is stale, with its casters. It only reads the records and the layers' owners: <see cref="Drew"/> keeps the
+    /// frame's.
     /// </summary>
     public void Update(
         Span<PreparedLight> lights,
@@ -96,6 +110,10 @@ internal sealed class ShadowTiles
         draws.Clear();
         casterIndices.Clear();
         frameTiles.Clear();
+        // A frame that was never submitted drew nothing, so its records go back unused.
+        foreach ((int _, TileRecord record) in drawnRecords)
+            spareRecords.Push(record);
+        drawnRecords.Clear();
         Grant(lights);
         Allot(lights);
 
@@ -116,6 +134,35 @@ internal sealed class ShadowTiles
             );
         }
     }
+
+    /// <summary>
+    /// Keeps what the frame of the last <see cref="Update"/> chose, once that frame is submitted: the layers of its lights,
+    /// and the records of the views that it drew. A layer of no light of the frame becomes free.
+    /// </summary>
+    public void Drew()
+    {
+        for (int layer = 0; layer < Layers; layer++)
+        {
+            if (layerLights[layer] != NoLight || records[layer] is not { } freed)
+                continue;
+            spareRecords.Push(freed);
+            records[layer] = null;
+        }
+
+        foreach ((int layer, TileRecord record) in drawnRecords)
+        {
+            if (records[layer] is { } replaced)
+                spareRecords.Push(replaced);
+            records[layer] = record;
+        }
+
+        drawnRecords.Clear();
+        drawnTiles.Clear();
+        drawnTiles.AddRange(frameTiles);
+    }
+
+    /// <summary>The near plane of every tile of <paramref name="light"/>, in m from it: max(radius, <see cref="DepthRanges.NearPlane"/>).</summary>
+    internal static float NearPlane(in PreparedLight light) => MathF.Max(light.Radius, DepthRanges.NearPlane);
 
     /// <summary>The tiles that a near light takes: 1 for a spot light of outer half-angle up to WidestCone, else 6.</summary>
     internal static int TilesOf(in PreparedLight light) =>
@@ -170,12 +217,12 @@ internal sealed class ShadowTiles
         foreach (IGrouping<uint, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity))
             Contract.Invariant(held.Count() is 1 or CubeFaces.Count);
 
-        Contract.Invariant(frameTiles.Select(tile => tile.Layer).Distinct().Count() == frameTiles.Count);
-        foreach ((int layer, uint lightEntity) in frameTiles)
+        Contract.Invariant(drawnTiles.Select(tile => tile.Layer).Distinct().Count() == drawnTiles.Count);
+        foreach ((int layer, uint lightEntity) in drawnTiles)
             Contract.Invariant(records[layer]?.LightEntity == lightEntity);
 
         // Each view's layer holds a record, so as many records as views leave none on a layer without a view.
-        Contract.Invariant(frameTiles.Count == records.Count(record => record is not null));
+        Contract.Invariant(drawnTiles.Count == records.Count(record => record is not null));
     }
 
     /// <summary>How far the farthest axis of one basis lies from its counterpart in the other: the chord, about the angle.</summary>
@@ -241,8 +288,8 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>
-    /// Gives each light with tiles its layers: a light keeps the layers that it held with the same count, layers of no
-    /// light are freed, and the others take the lowest free layers.
+    /// Gives each light with tiles its layers: a light keeps the layers that it held with the same count, and the others
+    /// take the lowest layers that no light of the frame holds.
     /// </summary>
     private void Allot(ReadOnlySpan<PreparedLight> lights)
     {
@@ -250,14 +297,6 @@ internal sealed class ShadowTiles
         for (int light = 0; light < lights.Length; light++)
             if (tileCounts[light] > 0)
                 Keep(light: light, entity: lights[light].EntityIndex);
-
-        for (int layer = 0; layer < Layers; layer++)
-        {
-            if (layerLights[layer] != NoLight || records[layer] is not { } record)
-                continue;
-            spareRecords.Push(record);
-            records[layer] = null;
-        }
 
         // New lights take layers in list order, the snapshot's order, which every run shares.
         for (int light = 0; light < lights.Length; light++)
@@ -279,7 +318,10 @@ internal sealed class ShadowTiles
                 layerLights[layer] = light;
     }
 
-    /// <summary>Gives <paramref name="light"/> the lowest free layers, which hold no record.</summary>
+    /// <summary>
+    /// Gives <paramref name="light"/> the lowest layers that no light of the frame holds. Such a layer can still hold the
+    /// record of a light that lost its tiles, which <see cref="IsStale"/> tells apart by its entity and aim.
+    /// </summary>
     private void Take(int light)
     {
         int taken = 0;
@@ -363,8 +405,8 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
-    /// another camera frame, another projection, a turn of the aim, other casters, or a caster that moved by a quarter
-    /// of a texel where it shows, or by more than float rounding of its pose.
+    /// another light or aim, another camera frame, another projection, a turn of the aim, other casters, or a caster that
+    /// moved by a quarter of a texel where it shows, or by more than float rounding of its pose.
     /// </summary>
     private static bool IsStale(
         TileRecord record,
@@ -376,8 +418,9 @@ internal sealed class ShadowTiles
         long originFrameId
     )
     {
+        bool sameTile = record.LightEntity == light.EntityIndex && record.Frustum.Aim == frustum.Aim;
         bool sameProjection = record.Frustum.Near == frustum.Near && record.Frustum.TanHalf == frustum.TanHalf;
-        if (record.OriginFrameId != originFrameId || !sameProjection)
+        if (!sameTile || record.OriginFrameId != originFrameId || !sameProjection)
             return true;
 
         // A quarter of a texel at 1 m from the light along the axis, which is also a quarter of a texel's angle there.
@@ -406,7 +449,10 @@ internal sealed class ShadowTiles
         return false;
     }
 
-    /// <summary>Replaces the layer's record with the tile of this frame and its <paramref name="seen"/> casters.</summary>
+    /// <summary>
+    /// Writes the record of the layer's tile in this frame, with its <paramref name="seen"/> casters, into
+    /// <see cref="drawnRecords"/>, which <see cref="Drew"/> keeps.
+    /// </summary>
     private void Record(
         int layer,
         in TileFrustum frustum,
@@ -416,7 +462,7 @@ internal sealed class ShadowTiles
         long originFrameId
     )
     {
-        TileRecord record = records[layer] ?? (spareRecords.TryPop(out TileRecord? spare) ? spare : new());
+        TileRecord record = spareRecords.TryPop(out TileRecord? spare) ? spare : new();
         record.LightEntity = light.EntityIndex;
         record.OriginFrameId = originFrameId;
         record.Frustum = frustum;
@@ -436,7 +482,7 @@ internal sealed class ShadowTiles
             );
         }
 
-        records[layer] = record;
+        drawnRecords.Add((layer, record));
     }
 
     /// <summary>Appends the <paramref name="seen"/> casters to <see cref="casterIndices"/> by mesh, and in list order within a mesh.</summary>
@@ -480,7 +526,7 @@ internal sealed class ShadowTiles
         public static TileFrustum Of(in PreparedLight light, TileAim aim, int tileSize)
         {
             float widening = (float)tileSize / (tileSize - 2 * MarginTexels);
-            float near = MathF.Max(light.Radius, DepthRanges.NearPlane);
+            float near = NearPlane(light);
             return (aim, light.Spread) switch
             {
                 (FaceAim(var face), _) => new(Basis: FaceBasisOf(face), Near: near, TanHalf: widening, Aim: aim),

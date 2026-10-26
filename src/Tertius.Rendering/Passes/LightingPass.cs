@@ -45,6 +45,8 @@ internal sealed unsafe class LightingPass : RenderPass
         barriers.Image(targets.Occlusion, ImageUse.SampledFragment);
         // Always, even in a frame without shadow maps: the descriptor promises this layout whenever the shader runs.
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
+        if (context.ShadowAtlas is { } atlas)
+            barriers.Image(atlas.Image, ImageUse.SampledFragment);
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         barriers.Flush(vk, commandBuffer);

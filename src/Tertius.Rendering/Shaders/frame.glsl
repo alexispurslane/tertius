@@ -62,6 +62,15 @@ struct GpuCascadeSet
     vec4 axisY;               // xyz light-space y axis
 };                            // std140: 288 bytes
 
+struct GpuShadowTile
+{
+    mat4 viewProj;            // tile clip space from world space: reversed-Z perspective with an infinite far plane from the light
+    uint layer;               // the layer of the atlas that holds the tile
+    float texelPerMeter;      // the world size of one texel at 1 m from the light along the view axis
+    float near;               // the near plane, in meters from the light
+    float unused;
+};                            // std430: 80 bytes
+
 struct GpuOutline
 {
     vec4 rotation;            // the frame's axes in world axes, as a quaternion (xyz, w)
@@ -108,6 +117,9 @@ layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline o
 layout(set = 0, binding = 7, std430) readonly buffer PuffBlock { GpuPuff puffs[]; };
 // The exposure in stops that this frame's passes use (ExposureResources.cs). The adapt step of the frame before wrote it.
 layout(set = 0, binding = 11, std430) readonly buffer ExposureBlock { float exposureStops; };
+// The tile views of the local shadows (ShadowAtlas.TileViewsBinding): a near light's AtlasTiles slot names its views.
+// Partially bound: empty without the atlas, when no light has such a slot.
+layout(set = 0, binding = 15, std430) readonly buffer ShadowTileBlock { GpuShadowTile shadowTiles[]; };
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 

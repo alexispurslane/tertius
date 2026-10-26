@@ -15,6 +15,9 @@ internal sealed class FrameContext
     /// <summary>The shadow cascades of every cascade set. Passes that shade with the far lights sample them.</summary>
     public required ShadowMap Shadows { get; init; }
 
+    /// <summary>The local shadow atlas, or null with <see cref="NoLocalShadows"/>. Passes that shade with the near lights sample it.</summary>
+    public required ShadowAtlas? ShadowAtlas { get; init; }
+
     /// <summary>The timestamps around the passes. Only <see cref="FrameGraph.Record"/> writes them.</summary>
     public required GpuTimer Timer { get; init; }
 
@@ -110,10 +113,13 @@ internal sealed class FrameContext
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
-    public unsafe void SetFullViewport()
+    public void SetFullViewport() => SetViewport(Extent);
+
+    /// <summary>Sets a viewport, of depth 0 to 1, and a scissor that cover a target of <paramref name="extent"/> from its corner.</summary>
+    public unsafe void SetViewport(Extent2D extent)
     {
-        var viewport = new Viewport(x: 0, y: 0, width: Extent.Width, height: Extent.Height, minDepth: 0, maxDepth: 1);
-        var scissor = new Rect2D(new Offset2D(0, 0), Extent);
+        var viewport = new Viewport(x: 0, y: 0, width: extent.Width, height: extent.Height, minDepth: 0, maxDepth: 1);
+        var scissor = new Rect2D(new Offset2D(0, 0), extent);
         Vk.CmdSetViewport(commandBuffer: CommandBuffer, firstViewport: 0, viewportCount: 1, pViewports: &viewport);
         Vk.CmdSetScissor(commandBuffer: CommandBuffer, firstScissor: 0, scissorCount: 1, pScissors: &scissor);
     }
@@ -163,7 +169,8 @@ internal abstract class RenderPass : IDisposable
 
 /// <summary>
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
-/// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>), the environment map's
+/// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>, then
+/// <see cref="LocalShadowPass"/> under <see cref="LocalShadowAtlas"/>), the environment map's
 /// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
 /// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
