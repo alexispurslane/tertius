@@ -3,6 +3,9 @@ namespace Tertius.Rendering;
 /// <summary>Settings for creating a <see cref="VulkanRenderer"/>.</summary>
 public sealed class RendererOptions
 {
+    /// <summary>The most far lights that get cascaded shadow maps.</summary>
+    public const int MaxCascadedLights = 4;
+
     /// <summary>
     /// Enables VK_LAYER_KHRONOS_validation with synchronization validation, and records every warning and error in
     /// <see cref="VulkanRenderer.ValidationMessages"/>. Costs CPU time; use it in tests and debug builds.
@@ -22,10 +25,16 @@ public sealed class RendererOptions
     public int Height { get; set; }
 
     /// <summary>
-    /// The side of each of the four sun shadow cascades, in texels: 256 up to the device's largest image. The maps
-    /// take ShadowMapSize² × 16 bytes of device memory (64 MB at the default 2048).
+    /// The side of each shadow cascade of every cascade set, in texels: 256 up to the device's largest image. Each set's
+    /// four cascades take ShadowMapSize² × 16 bytes of device memory (64 MB at the default 2048).
     /// </summary>
     public int ShadowMapSize { get; set; } = ShadowMap.DefaultSize;
+
+    /// <summary>How many far lights get cascaded shadow maps, 0 to 4. Each takes ShadowMapSize² × 16 bytes. The default is 1.</summary>
+    public int CascadedLights { get; set; } = 1;
+
+    /// <summary>Whether near lights cast shadows from a shared atlas. The default is <see cref="LocalShadowAtlas.Default"/>.</summary>
+    public LocalShadowSetting LocalShadows { get; set; } = LocalShadowAtlas.Default;
 
     /// <summary>
     /// Draws small objects as impostors: below a projected height of 200 px an object is replaced by a captured

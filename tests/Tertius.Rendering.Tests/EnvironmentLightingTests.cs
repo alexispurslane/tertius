@@ -35,7 +35,7 @@ public sealed class EnvironmentLightingTests
     /// <summary>A snapshot with no sun and no hemisphere light, so that only what a test adds lights its scene.</summary>
     private static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -122,7 +122,7 @@ public sealed class EnvironmentLightingTests
         VulkanRenderer renderer = Renderer(map);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             AddRedSquareBehind(renderer, snapshot, radiance: 1);
             AddSphere(
                 snapshot: snapshot,
@@ -293,7 +293,7 @@ public sealed class EnvironmentLightingTests
             VulkanRenderer renderer = Renderer(map);
             try
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
                 // The pane passes 0.8 of what lies behind it and blends its own light by 0.2, so the square is bright.
                 AddRedSquareBehind(renderer, snapshot, radiance: 40);
                 MaterialId glass = renderer.CreateMaterial(
@@ -679,6 +679,12 @@ public sealed class EnvironmentLightingTests
     {
         private static readonly float Fov = 10f * MathF.PI / 180;
 
+        /// <summary>
+        /// The stops that undo the physical stars' radiance scale, <see cref="StarField.UnitRadiance"/> = 2⁻¹⁰, so that
+        /// each test below names the stops that it shows a star of brightness 1 at.
+        /// </summary>
+        private static readonly float PhysicalStars = -MathF.Log2(StarField.UnitRadiance);
+
         /// <summary>p, the angle of one pixel in rad, as PreparedScene.PixelAngle gives it.</summary>
         private static readonly float PixelAngle = 2 * MathF.Tan(Fov / 2) / Height;
 
@@ -879,7 +885,7 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void AMirrorReflectsAStarSharpAndSteadyWhileTheCamerasFrameTurns()
         {
-            const float stops = 2;
+            float stops = PhysicalStars + 2;
             Star star = LoneBrightStar();
             float width = StarField.LobeWidth(PixelAngle, roughness: 0);
             float expectedPeak = Luma(star.Peak) * PixelAngle * PixelAngle / (width * width);
@@ -942,9 +948,9 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void AMirrorShowsTheSameStarsInTheLastColumnOfAnOddWidthImageAsInsideAWiderOne()
         {
-            // 10 stops show M in the middle of the curve, so a footprint that fades the stars into their mean shows.
-            const float stops = 10;
-            static Capture Mirror(int width)
+            // 10 stops more show M in the middle of the curve, so a footprint that fades the stars into their mean shows.
+            float stops = PhysicalStars + 10;
+            Capture Mirror(int width)
             {
                 VulkanRenderer renderer = StarRenderer(exposureStops: stops, width: width);
                 try
@@ -985,9 +991,9 @@ public sealed class EnvironmentLightingTests
         {
             Star star = LoneBrightStar();
             Quaternion start = Toward(star);
-            // At 0 stops the star shows at about half the range in the mirror, and the GGX tail of the specular map's
-            // level 1, which reaches past the wall's edge, stays under half a step of 8 bits.
-            VulkanRenderer renderer = StarRenderer(exposureStops: 0);
+            // At no stops beyond the physical scale the star shows at about half the range in the mirror, and the GGX tail
+            // of the specular map's level 1, which reaches past the wall's edge, stays under half a step of 8 bits.
+            VulkanRenderer renderer = StarRenderer(exposureStops: PhysicalStars);
             try
             {
                 Capture WithWall(Quaternion root, string name)
@@ -1091,8 +1097,8 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void ARoughSurfaceShowsNoSingleStars()
         {
-            // 10 stops show M, about 4 · 10⁻⁴, in the middle of the curve, where 8 bits resolve it to well under 1 %.
-            const float stops = 10;
+            // 10 stops more show M, about 4 · 10⁻⁷, in the middle of the curve, where 8 bits resolve it to well under 1 %.
+            float stops = PhysicalStars + 10;
             Vector3[,] rough = Sphere(roughness: 0.5f, exposureStops: stops, name: "environment-rough-stars");
             Vector3[,] mirror = Sphere(roughness: 0, exposureStops: stops, name: "environment-mirror-stars");
 
@@ -1120,7 +1126,7 @@ public sealed class EnvironmentLightingTests
             // axes, where M = 450 |ω|₁ ... has no crease, so the mean changes evenly between pixels.
             Vector3[,] curved = Sphere(
                 roughness: 0,
-                exposureStops: 10,
+                exposureStops: PhysicalStars + 10,
                 name: "environment-curved-mirror-stars",
                 radius: 0.25f,
                 root: Toward(Vector3.Normalize(Vector3.One))

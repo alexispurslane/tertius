@@ -31,7 +31,7 @@ public sealed class ShadowCascadeTests
         var cascades = new ShadowCascadeArray();
         ShadowCascades.Fit(
             camera: camera,
-            light: LightBasis.FromSunDirection(sun),
+            light: LightBasis.FromDirection(sun),
             mapSize: MapSize,
             depthRangeScale: 16f,
             anchor: anchor,
@@ -130,7 +130,7 @@ public sealed class ShadowCascadeTests
     {
         // The margin keeps half a texel for snapping: the box moves to the nearest grid point, never further.
         var sun = new Vector3(-0.4f, 0.7f, 0.25f);
-        var light = LightBasis.FromSunDirection(sun);
+        var light = LightBasis.FromDirection(sun);
         CameraView camera = Camera(Quaternion.CreateFromYawPitchRoll(0.9f, -0.3f, 0f));
         var random = new Random(20261010);
         for (int trial = 0; trial < 200; trial++)
@@ -223,7 +223,7 @@ public sealed class ShadowCascadeTests
     {
         var sun = Vector3.Normalize(new(0.2f, 1f, 0.3f));
         ShadowCascade cascade = Fit(Camera(Quaternion.Identity), sun)[0];
-        var light = LightBasis.FromSunDirection(sun);
+        var light = LightBasis.FromDirection(sun);
         Vector3 center = light.X * cascade.Center.X + light.Y * cascade.Center.Y + light.Z * cascade.Center.Z;
         float Depth(Vector3 p) => Vector4.Transform(new Vector4(p, 1f), cascade.ViewProjection).Z;
         Depth(center).Should().BeApproximately(0.5f, 1e-5f);
@@ -241,7 +241,7 @@ public sealed class ShadowCascadeTests
                 [new(0.3f, 0.8f, -0.4f), new(0f, 1f, 0f), new(0.001f, -1f, 0.002f), new(1f, 0f, 0f)]
         )
         {
-            var light = LightBasis.FromSunDirection(sun);
+            var light = LightBasis.FromDirection(sun);
             light.X.Length().Should().BeApproximately(1f, 1e-5f);
             light.Y.Length().Should().BeApproximately(1f, 1e-5f);
             Vector3.Dot(light.X, light.Y).Should().BeApproximately(0f, 1e-5f);

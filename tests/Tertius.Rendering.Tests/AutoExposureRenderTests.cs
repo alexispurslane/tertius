@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.ExposureScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -17,6 +18,128 @@ public sealed class AutoExposureRenderTests
 
     /// <summary>A film at 15 frames per second of snapshot time.</summary>
     private const double FrameSeconds = 1.0 / 15;
+
+    /// <summary>The Sun's irradiance at 1 AU, in W/m²: the solar constant.</summary>
+    private const float SolarConstant = 1361;
+
+    /// <summary>The radiant power of a household bulb of 800 lumens, in W.</summary>
+    private const float HouseholdBulbPower = 2.5f;
+
+    /// <summary>The image rows above the square of <see cref="SquareBelowTheSky"/>, which show only the sky.</summary>
+    private const int SkyRows = 20;
+
+    /// <summary>
+    /// A matte white square of roughness 1 and reflectance 0, facing the camera <see cref="Ahead"/>, of
+    /// <paramref name="halfSize"/> m.
+    /// </summary>
+    private static void AddWhiteSquare(VulkanRenderer renderer, RenderSnapshot snapshot, float halfSize)
+    {
+        MaterialId white = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 1, Reflectance: 0));
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(halfSize)),
+                material: white,
+                position: Ahead,
+                scale: Vector3.One,
+                rotation: FacingTheCamera
+            )
+        );
+    }
+
+    /// <summary>
+    /// The settled image of a new renderer under <see cref="AutoExposure.Default"/>: a white square of 1.46 m in the
+    /// middle of the view, about a tenth of it, with the open sky above and around it, and the test star at
+    /// <paramref name="starIrradiance"/> W/m² behind the camera. The first frame is a metering draw, so it already shows
+    /// the settled exposure.
+    /// </summary>
+    private static Capture SquareBelowTheSky(float starIrradiance)
+    {
+        VulkanRenderer renderer = Renderer(AutoExposure.Default);
+        try
+        {
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: starIrradiance);
+            snapshot.Ambient.Intensity = 0;
+            AddWhiteSquare(renderer, snapshot, halfSize: 0.73f);
+            return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "stars beside a square");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The largest luma of the <see cref="SkyRows"/> rows at the top of <paramref name="image"/>.</summary>
+    private static float BrightestSkyLuma(Capture image)
+    {
+        float brightest = 0;
+        for (int y = 0; y < SkyRows; y++)
+        for (int x = 0; x < image.Width; x++)
+            brightest = MathF.Max(brightest, image.Luma(x, y));
+        return brightest;
+    }
+
+    [Fact]
+    public void UnderTheDefaultASunlitWhiteSquareAtOneAuSettlesInsideTheClamp()
+    {
+        // The square sends about 1,361 / π = 433 W/(m²·sr), which wants about −11 stops.
+        float settled = SettledStops(
+            AutoExposure.Default,
+            renderer =>
+            {
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: SolarConstant);
+                AddWhiteSquare(renderer, snapshot, halfSize: FillsTheView);
+                return snapshot;
+            }
+        );
+
+        settled.Should().BeGreaterThan(AutoExposure.Default.MinStops, "the clamp leaves room below a sunlit hull");
+        settled.Should().BeLessThan(AutoExposure.Default.MaxStops);
+    }
+
+    [Fact]
+    public void UnderTheDefaultASquareThatALampLightsAtThreeMetersSettlesInsideTheClamp()
+    {
+        // The lamp sits at the eye, 3 m from the square, which sends about 2.5 / (4π · 9) / π = 0.007 W/(m²·sr) in the
+        // middle, and wants about +5 stops.
+        float settled = SettledStops(
+            AutoExposure.Default,
+            renderer =>
+            {
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
+                snapshot.Ambient.Intensity = 0;
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: Vector3.Zero,
+                        color: Vector3.One,
+                        intensity: HouseholdBulbPower / (4 * MathF.PI),
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+                AddWhiteSquare(renderer, snapshot, halfSize: FillsTheView);
+                return snapshot;
+            }
+        );
+
+        settled.Should().BeGreaterThan(AutoExposure.Default.MinStops);
+        settled.Should().BeLessThan(AutoExposure.Default.MaxStops, "the clamp leaves room above a lamp-lit cabin");
+    }
+
+    [Fact]
+    public void TheStarsDoNotShowBesideASunlitSurface()
+    {
+        Capture image = SquareBelowTheSky(starIrradiance: SolarConstant);
+
+        image.Luma(Middle).Should().BeGreaterThan(0.1f, "the sunlit square shows");
+        BrightestSkyLuma(image).Should().Be(0, "a photograph of a sunlit hull shows no stars");
+    }
+
+    [Fact]
+    public void TheStarsShowInTheDark()
+    {
+        Capture image = SquareBelowTheSky(starIrradiance: 0);
+
+        BrightestSkyLuma(image).Should().BeGreaterThan(0.25f, "the exposure rises to its highest stops in the dark");
+    }
 
     /// <summary>The settled exposure of the sunlit gray square that fills the view, with <paramref name="add"/> added.</summary>
     private static float SettledOnTheGraySquare(
@@ -39,7 +162,7 @@ public sealed class AutoExposureRenderTests
     {
         RenderSnapshot snapshot = Sunlit();
         if (sunOut)
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
         AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
         return snapshot;
     }
@@ -134,7 +257,7 @@ public sealed class AutoExposureRenderTests
             AutoExposure.Default,
             (_, snapshot) =>
             {
-                snapshot.Sun.Intensity = 0;
+                Gpu.Star(snapshot: snapshot, irradiance: 0);
                 snapshot.Ambient.Intensity = 0;
             }
         );
@@ -146,7 +269,10 @@ public sealed class AutoExposureRenderTests
     public void UnderLightTooBrightForTheClampTheExposureStopsAtTheLowestStops()
     {
         // The square then shows a radiance of about 16,000, which wants about −16 stops.
-        float settled = SettledOnTheGraySquare(AutoExposure.Default, (_, snapshot) => snapshot.Sun.Intensity = 1e5f);
+        float settled = SettledOnTheGraySquare(
+            AutoExposure.Default,
+            (_, snapshot) => Gpu.Star(snapshot: snapshot, irradiance: 1e5f)
+        );
 
         settled.Should().Be(AutoExposure.Default.MinStops);
     }
@@ -168,7 +294,7 @@ public sealed class AutoExposureRenderTests
         {
             RenderSnapshot snapshot = RampView(renderer, sunOut: false);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
             FilmFrame[] film = Film(
                 renderer: renderer,
                 snapshot: snapshot,
@@ -243,9 +369,9 @@ public sealed class AutoExposureRenderTests
             try
             {
                 RenderSnapshot snapshot = RampView(renderer, sunOut: fromDark);
-                float sun = Sunlit().Sun.Intensity;
+                float sun = Gpu.StarIrradiance(Sunlit());
                 FilmFrame settled = Still(renderer: renderer, snapshot: snapshot, time: 0);
-                snapshot.Sun.Intensity = fromDark ? sun : 0;
+                Gpu.Star(snapshot: snapshot, irradiance: fromDark ? sun : 0);
                 FilmFrame[] film = Film(
                     renderer: renderer,
                     snapshot: snapshot,

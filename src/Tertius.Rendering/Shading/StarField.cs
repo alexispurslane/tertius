@@ -14,7 +14,14 @@ internal static class StarField
     public const float CellsPerUnit = 150f;
     public const float CellWidth = 1f / CellsPerUnit;
     public const float StarShare = 0.02f;
-    public const float MeanBrightness = 0.05f + 3f / 9f;
+
+    /// <summary>
+    /// The peak radiance, in W/(m²·sr), of a star of brightness 1 (docs/plans/local-light-shadows.md, settled fork 1,
+    /// physical stars). At 1080p and a 60° view, the brightest stars then send about 10⁻⁸ W/m².
+    /// </summary>
+    public const float UnitRadiance = 1f / 1024;
+
+    public const float MeanBrightness = UnitRadiance * (0.05f + 3f / 9f);
 
     /// <summary>The tint of a star whose hash's z is 0.</summary>
     private static readonly Vector3 WarmTint = new(1f, 0.82f, 0.62f);
@@ -59,7 +66,7 @@ internal static class StarField
         if (hash.X > StarShare)
             return null;
         var direction = Vector3.Normalize(cell + Hash33(cell + new Vector3(17)));
-        float brightness = 0.05f + 3f * MathF.Pow(hash.Y, 8);
+        float brightness = UnitRadiance * (0.05f + 3f * MathF.Pow(hash.Y, 8));
         return new(direction, Vector3.Lerp(WarmTint, CoolTint, hash.Z) * brightness);
     }
 

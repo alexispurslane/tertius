@@ -8,8 +8,8 @@
 
 // One surface of an environment face, drawn with mesh.vert in one of the face's three depth ranges
 // (EnvironmentFacePass.cs). It is impostor_capture.frag without the ambient light (docs/plans/environment-map.md, "How a
-// face is lit"): the sun, by the finest cascade whose box holds the point, the point and spot lights, and the emission,
-// in plain radiance. The map is the light that arrives at the camera's eye, so V points toward the eye at the origin.
+// face is lit"): every light, a cascade set by the finest cascade whose box holds the point, and the emission, in plain
+// radiance. The map is the light that arrives at the camera's eye, so V points toward the eye at the origin.
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -39,5 +39,5 @@ void main()
     shading.map = draw.map;
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
-    outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding, draw.map), 0.0);
+    outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding, draw.map), 0.0);
 }

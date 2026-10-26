@@ -292,7 +292,13 @@ public sealed class RenderSnapshotChainTests
                 Pose = TestWorld.At(0, 10, 0),
                 Render = new()
                 {
-                    Light = new PointLightData(Offset: Pose.Identity, Color: Vector3.One, Intensity: 3, Range: 20),
+                    Light = new PointLightData(
+                        Offset: Pose.Identity,
+                        Color: Vector3.One,
+                        Power: 40,
+                        Radius: 0.05f,
+                        CastsShadow: false
+                    ),
                 },
             }
         );
@@ -307,8 +313,9 @@ public sealed class RenderSnapshotChainTests
                     Light = new SpotLightData(
                         Offset: Pose.Identity,
                         Color: Vector3.One,
-                        Intensity: 50,
-                        Range: 10,
+                        Power: 500,
+                        Radius: 0.1f,
+                        CastsShadow: false,
                         InnerConeAngle: 0.5f,
                         OuterConeAngle: 0.8f
                     ),

@@ -676,7 +676,7 @@ Profiler:
 Debug panel:
 
 - Renderer, per view: impostors, shadows, exposure, and a display mode. The modes are lit, base color, normals, specular, emissive, distance, depth range, and impostor tint. The specular mode shows the four channels of the specular target: metallic, roughness, reflectance and the lobe's sky share. Each mode is a switch of the tone map shader, computed from the G-buffer.
-- Overlays: bubbles, orbits, frame axes, grid, light ranges and collision shapes.
+- Overlays: bubbles, orbits, frame axes, grid, light reaches and collision shapes. A light's reach is the distance at which its light falls below the cutoff of the highest exposure (docs/plans/local-light-shadows.md, "The cutoff and the reach").
 - Physics: the collision shapes with a color per motion type (static grey, kinematic blue, dynamic green, character yellow).
 
 Packages panel:

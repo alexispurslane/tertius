@@ -5,17 +5,14 @@ using System.Runtime.InteropServices;
 namespace Tertius.Simulation;
 
 /// <summary>
-/// What a render snapshot shows, apart from the entities: the tick, the camera, the lights of the scene, and whether it
-/// shows the outlines of the frames (<see cref="World.ShowFrameOutlines"/>).
+/// What a render snapshot shows, apart from the entities: the tick, the camera, the ambient light of the scene, and
+/// whether it shows the outlines of the frames (<see cref="World.ShowFrameOutlines"/>). The lights are the entities'.
 /// </summary>
 internal readonly record struct RenderView(
     long Tick,
     double Time,
     Entity Camera,
     float VerticalFov,
-    FrameHandle SunFrame,
-    Vector3 SunColor,
-    float SunIntensity,
     AmbientLight Ambient,
     bool ShowFrameOutlines
 );
@@ -184,7 +181,7 @@ internal sealed partial class RenderSnapshotBuilder
     }
 
     /// <summary>
-    /// Fills <paramref name="snapshot"/> with the current state: the instances, the sun, the frame outlines when the view
+    /// Fills <paramref name="snapshot"/> with the current state: the instances, the lights, the frame outlines when the view
     /// shows them, and the puffs of <paramref name="puffs"/>, placed after the instances through the same frame poses.
     /// Without a live camera, the snapshot has the view settings but nothing in it, and the next build does not interpolate.
     /// </summary>
@@ -200,12 +197,6 @@ internal sealed partial class RenderSnapshotBuilder
             Rotation = Quaternion.Identity,
             PreviousRotation = Quaternion.Identity,
             VerticalFov = view.VerticalFov,
-        };
-        snapshot.Sun = new()
-        {
-            Direction = Vector3.UnitY,
-            Color = view.SunColor,
-            Intensity = view.SunIntensity,
         };
         snapshot.OriginInFrame = Double3.Zero;
         renderHasCamera = renderFollowsTick = false;
@@ -250,7 +241,6 @@ internal sealed partial class RenderSnapshotBuilder
         // The instances and the puffs read the depths, so the chain comes first.
         BuildChain(snapshot, cameraFrame);
         BuildInstances(snapshot);
-        BuildSun(snapshot, view);
         if (view.ShowFrameOutlines)
             BuildOutlines(snapshot);
         BuildPuffs(snapshot, puffs);
@@ -479,47 +469,78 @@ internal sealed partial class RenderSnapshotBuilder
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
 
-            AddLight(lights: lights, light: render.Light, carrier: current, chainDepth: (ushort)chainDepth[dense]);
+            AddLight(
+                lights: lights,
+                entity: entity.Index,
+                light: render.Light,
+                current: current,
+                previous: previous,
+                origin: origin,
+                chainDepth: (ushort)chainDepth[dense]
+            );
         }
     }
 
     /// <summary>
-    /// Adds <paramref name="light"/>, carried by an entity at <paramref name="carrier"/> relative to the camera's physics
-    /// home, to <paramref name="lights"/>, relative to the render origin. The default light adds nothing.
+    /// Adds the <see cref="RenderLight"/> of <paramref name="light"/>, carried by <paramref name="entity"/> at
+    /// <paramref name="current"/> and at <paramref name="previous"/> in the camera's frame, relative to
+    /// <paramref name="origin"/>, with the entity's <paramref name="chainDepth"/>. The default light holds no case, so the
+    /// entity adds no light.
     /// </summary>
-    private void AddLight(RefList<RenderLight> lights, in LightData light, in DPose carrier, ushort chainDepth)
+    private static void AddLight(
+        RefList<RenderLight> lights,
+        uint entity,
+        in LightData light,
+        in DPose current,
+        in DPose previous,
+        Double3 origin,
+        ushort chainDepth
+    )
     {
         switch (light)
         {
-            case PointLightData { Offset: var offset, Color: var color, Intensity: var intensity, Range: var range }:
+            case PointLightData
             {
-                DPose pose = LightPose(carrier, offset);
+                Offset: var offset,
+                Color: var color,
+                Power: var power,
+                Radius: var radius,
+                CastsShadow: var castsShadow
+            }:
                 lights.AddRef() = new PointRenderLight(
-                    Position: (pose.Position - renderOrigin).ToVector3(),
+                    EntityIndex: entity,
+                    Position: (LightPose(current, offset).Position - origin).ToVector3(),
+                    PreviousPosition: (LightPose(previous, offset).Position - origin).ToVector3(),
                     Color: color,
-                    Intensity: intensity,
-                    Range: range,
+                    Power: power,
+                    Radius: radius,
+                    CastsShadow: castsShadow,
                     ChainDepth: chainDepth
                 );
                 break;
-            }
             case SpotLightData
             {
                 Offset: var offset,
                 Color: var color,
-                Intensity: var intensity,
-                Range: var range,
+                Power: var power,
+                Radius: var radius,
+                CastsShadow: var castsShadow,
                 InnerConeAngle: var innerConeAngle,
                 OuterConeAngle: var outerConeAngle
             }:
             {
-                DPose pose = LightPose(carrier, offset);
+                DPose pose = LightPose(current, offset);
+                DPose previousPose = LightPose(previous, offset);
                 lights.AddRef() = new SpotRenderLight(
-                    Position: (pose.Position - renderOrigin).ToVector3(),
+                    EntityIndex: entity,
+                    Position: (pose.Position - origin).ToVector3(),
+                    PreviousPosition: (previousPose.Position - origin).ToVector3(),
                     Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
+                    PreviousDirection: previousPose.Rotation.Rotate(LightForward).ToVector3(),
                     Color: color,
-                    Intensity: intensity,
-                    Range: range,
+                    Power: power,
+                    Radius: radius,
+                    CastsShadow: castsShadow,
                     InnerConeAngle: innerConeAngle,
                     OuterConeAngle: outerConeAngle,
                     ChainDepth: chainDepth
@@ -658,20 +679,6 @@ internal sealed partial class RenderSnapshotBuilder
         && (uint)frame.Index < (uint)frameSeen.Length
         && frameSeen[frame.Index] == buildStamp
         && genOfFrame[frame.Index] == frame.Generation;
-
-    private void BuildSun(RenderSnapshot snapshot, in RenderView view)
-    {
-        FrameHandle sun = view.SunFrame;
-        if (!frames.IsAlive(sun) || !FrameSeen(sun))
-            return;
-        Double3 toSun = relCurrent[denseOfFrame[sun.Index]].Position - renderOrigin;
-        double distance = toSun.Length;
-        if (!(distance > 0))
-            return;
-        float radius = entities.IsAlive(sun.Entity) ? entities.FrontRender(sun.Entity).BoundingRadius : 0;
-        snapshot.Sun.Direction = (toSun / distance).ToVector3();
-        snapshot.Sun.AngularRadius = radius > 0 ? (float)Math.Atan(radius / distance) : 0;
-    }
 
     /// <summary>
     /// Adds the outline of each frame that has a parent to <paramref name="snapshot"/>, in the dense order of the tree, on

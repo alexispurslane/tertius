@@ -590,16 +590,14 @@ public static partial class DemoScenes
             StationExit.Spawn(world: world, station: frame, scene: scene, resources: resources);
             WheelCoda.Spawn(world: world, station: frame, scene: scene, resources: resources);
 
-            // The bay lamps: glowing panels flat on the bay's walls, each with its light 0.3 m out from the wall, in the
-            // station's axes. Three stand near the slot, 8 m in from it, and one in the middle of the far end wall.
+            // The bay lamps: floodlights behind glowing panels 1.2 m square, flat on the bay's walls, each with its light
+            // 0.3 m out from the wall, in the station's axes. Three stand near the slot, 8 m in from it, and one in the
+            // middle of the far end wall.
             Vector3 bay = HubHalf - new Vector3(HubWall);
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
+            MaterialId lampMaterial = LampPanelMaterial(
+                resources: resources,
+                power: FloodlightPower,
+                area: 1.2f * 1.2f
             );
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
@@ -622,12 +620,7 @@ public static partial class DemoScenes
                             Material = lampMaterial,
                             BoundingRadius = 0.85f,
                             Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                            Light = new PointLightData(
-                                Offset: new(inward * 0.3f, Quaternion.Identity),
-                                Color: new(1, 0.9f, 0.75f),
-                                Intensity: 100,
-                                Range: 20
-                            ),
+                            Light = LampLight(offset: inward * 0.3f, power: FloodlightPower),
                         },
                     }
                 );

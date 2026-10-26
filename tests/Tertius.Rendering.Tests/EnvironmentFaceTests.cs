@@ -26,7 +26,7 @@ internal static class EnvironmentScenes
         );
 
     /// <summary>A snapshot with no sunlight: only emission and lamps light the faces.</summary>
-    public static RenderSnapshot Dark() => Gpu.Snapshot(sunDirection: Vector3.UnitY, sunIntensity: 0f);
+    public static RenderSnapshot Dark() => Gpu.Snapshot(starDirection: Vector3.UnitY, starIrradiance: 0f);
 
     /// <summary>A black material that emits <paramref name="radiance"/> and reflects nothing.</summary>
     public static MaterialId Emissive(VulkanRenderer renderer, Vector3 radiance) =>
@@ -274,7 +274,7 @@ public sealed class EnvironmentFaceTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId matte = EnvironmentScenes.Matte(renderer);
-            RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: new(1, 1, 0), sunIntensity: 3f);
+            RenderSnapshot snapshot = Gpu.Snapshot(starDirection: new(1, 1, 0), starIrradiance: 3f);
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: plane,
@@ -321,7 +321,9 @@ public sealed class EnvironmentFaceTests
     [Fact]
     public void AFaceIsLitByALampThatTheMainViewDoesNotSee()
     {
-        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        // At −10 stops the cutoff irradiance is π · 2^−13 · 2^10 ≈ 0.39 W/m², so a lamp of 50 W/sr reaches
+        // √(50 / 0.39) ≈ 11.3 m. The faces store radiance, which the exposure does not scale.
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(exposure: new FixedExposure(-10));
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
@@ -330,18 +332,17 @@ public sealed class EnvironmentFaceTests
                 EnvironmentScenes.Square(
                     plane: plane,
                     material: EnvironmentScenes.Matte(renderer),
-                    center: new(0, 0, 10),
+                    center: new(0, 0, 22),
                     halfSize: 5
                 )
             );
-            // Its reach, from z = 4 to 12, lies wholly behind the camera.
+            // Its reach, from z ≈ 8.7 to 31.3, lies wholly behind the camera.
             snapshot.Lights.Add(
-                new PointRenderLight(
-                    Position: new(0, 0, 8),
-                    Color: Vector3.One,
-                    Intensity: 50,
-                    Range: 4,
-                    ChainDepth: TestChains.CamerasFrame
+                Gpu.Lamp(
+                    position: new(0, 0, 20),
+                    color: Vector3.One,
+                    intensity: 50,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -475,7 +476,7 @@ public sealed class EnvironmentFaceTests
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-                RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: -Vector3.UnitX, sunIntensity: 3f);
+                RenderSnapshot snapshot = Gpu.Snapshot(starDirection: -Vector3.UnitX, starIrradiance: 3f);
                 snapshot.Instances.Add(
                     EnvironmentScenes.Square(
                         plane: plane,

@@ -156,15 +156,6 @@ public sealed partial class World : IDisposable
     /// </summary>
     public bool ShowFrameOutlines { get; set; }
 
-    /// <summary>The frame whose origin is the sun. If it is null, the sun shines straight down the camera frame's -Y axis.</summary>
-    public FrameHandle SunFrame { get; set; }
-
-    /// <summary>Linear color of the sun.</summary>
-    public Vector3 SunColor { get; set; } = Vector3.One;
-
-    /// <summary>Intensity of the sun.</summary>
-    public float SunIntensity { get; set; } = 1;
-
     /// <summary>
     /// The hemisphere ambient light of the render snapshot. It lights only a renderer whose environment map is off
     /// (ARCHITECTURE.md, "The environment map").
@@ -496,9 +487,6 @@ public sealed partial class World : IDisposable
                 Time: Time,
                 Camera: Camera,
                 VerticalFov: VerticalFov,
-                SunFrame: SunFrame,
-                SunColor: SunColor,
-                SunIntensity: SunIntensity,
                 Ambient: Ambient,
                 ShowFrameOutlines: ShowFrameOutlines
             ),

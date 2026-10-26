@@ -20,16 +20,18 @@ public sealed class ShaderInputTests
     private static PreparedScene Prepare(RenderSnapshot snapshot)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(
-            snapshot: snapshot,
-            alpha: 1f,
-            width: 1600,
-            height: 900,
-            meshes: Meshes,
-            materialCount: 1,
-            environment: new WithoutMap(),
-            scene: scene
-        );
+        Batchers
+            .Default()
+            .Prepare(
+                snapshot: snapshot,
+                alpha: 1f,
+                width: 1600,
+                height: 900,
+                meshes: Meshes,
+                materialCount: 1,
+                environment: new WithoutMap(),
+                scene: scene
+            );
         return scene;
     }
 
@@ -58,114 +60,40 @@ public sealed class ShaderInputTests
     }
 
     [Fact]
-    public void ALightWithANumberThatIsNotFiniteIsLeftOut()
+    public void AnIntensityIsReadAsItsNearestValueFromZeroToTheLargestIntensityAndANaNAsZero()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-        Vector3 ahead = new(0, 0, -5);
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: ahead,
-                Color: Vector3.One,
-                Intensity: float.NaN,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: ahead,
-                Color: new(float.NaN),
-                Intensity: 1,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: ahead,
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: float.PositiveInfinity,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(float.NaN),
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-        foreach (
-            (Vector3 direction, float inner, float outer) in new[]
-            {
-                (new Vector3(float.PositiveInfinity, -1, 0), 0.3f, 0.5f),
-                (-Vector3.UnitY, float.NaN, 0.5f),
-                (-Vector3.UnitY, 0.3f, float.NaN),
-            }
-        )
-            snapshot.Lights.Add(
-                new SpotRenderLight(
-                    Position: ahead,
-                    Direction: direction,
-                    Color: Vector3.One,
-                    Intensity: 1,
-                    Range: 10,
-                    InnerConeAngle: inner,
-                    OuterConeAngle: outer,
-                    ChainDepth: TestChains.CamerasFrame
-                )
-            );
-        // One that draws, to show that the others were left out and not everything.
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: ahead,
-                Color: Vector3.One,
-                Intensity: 2,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot);
-
-        scene.LightCount.Should().Be(1, "only the last light holds finite numbers");
-        scene.Lights[0].RadianceKind.X.Should().Be(2);
-    }
-
-    [Fact]
-    public void ALightsRadianceReachesTheShaderInsideTheRadianceRange()
-    {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(0, 0, -5),
-                Color: new(1, -1, 1e30f),
-                Intensity: 1e10f,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot);
-
-        Rgb(scene.Lights[0].RadianceKind)
+        // An intensity is not a radiance: a star's 10^25 W/sr passes, far above the radiance limit of 2^64.
+        ShaderInput
+            .Intensity(new(float.NaN, float.NegativeInfinity, -2))
             .Should()
-            .Be(
-                new Vector3(1e10f, 0, ShaderInput.RadianceLimit),
-                "a negative channel sends no light, and a product past the limit shines at the limit"
-            );
+            .Be(Vector3.Zero, "a NaN and a negative intensity send no light");
+        ShaderInput
+            .Intensity(new(float.PositiveInfinity, 1e35f, 1e25f))
+            .Should()
+            .Be(new Vector3((float)LightUnits.MaxIntensity, (float)LightUnits.MaxIntensity, 1e25f));
     }
 
     [Fact]
-    public void TheSunAndTheAmbientLightReachTheShaderInsideTheRadianceRange()
+    public void ALightsRadiusPastTheLimitReachesTheShaderAtThePositionLimit()
+    {
+        // The shaders square the radius, and float.MaxValue squared is infinite.
+        var light = new PreparedLight
+        {
+            Position = new(0, 0, -5),
+            RadiantIntensity = Vector3.One,
+            Radius = float.MaxValue,
+            Reach = 10,
+            Distance = 5,
+            Spread = new(new EveryDirection()),
+        };
+
+        GpuLight.From(light).SpotRadius.Y.Should().Be(ShaderInput.PositionLimit);
+    }
+
+    [Fact]
+    public void TheAmbientLightReachesTheShaderInsideTheRadianceRange()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-        snapshot.Sun.Color = new(float.NaN, 1e30f, 1);
-        snapshot.Sun.Intensity = 2;
-        snapshot.Sun.AngularRadius = float.NaN;
         snapshot.Ambient = new()
         {
             SkyColor = new(float.PositiveInfinity, 1, 1),
@@ -175,8 +103,6 @@ public sealed class ShaderInputTests
 
         GpuFrameConstants constants = Prepare(snapshot).Constants;
 
-        Rgb(constants.SunRadiance).Should().Be(new Vector3(0, ShaderInput.RadianceLimit, 2));
-        constants.SunDirection.W.Should().Be(0, "an angular radius that is not finite is a point sun");
         Rgb(constants.AmbientSky).Should().Be(new Vector3(ShaderInput.RadianceLimit, 0.5f, 0.5f));
         Rgb(constants.AmbientGround).Should().Be(new Vector3(0, 0.5f, 0));
     }
@@ -408,40 +334,6 @@ public sealed class ShaderInputTests
     }
 
     [Fact]
-    public void ALightRangePastTheLimitReachesTheShaderAtTheLimit()
-    {
-        // The shaders square the range, and float.MaxValue squared is infinite.
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
-        snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(0, 0, -5),
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: float.MaxValue,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-        snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: new(0, 0, -5),
-                Direction: -Vector3.UnitY,
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 1e30f,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot);
-
-        scene.LightCount.Should().Be(2);
-        scene.Lights[0].PositionRange.W.Should().Be(ShaderInput.RangeLimit, "a point light reaches every drawn point");
-        scene.Lights[1].PositionRange.W.Should().Be(ShaderInput.RangeLimit, "a spot light reaches every drawn point");
-    }
-
-    [Fact]
     public void AnInstanceThatReachesPastThePositionLimitIsLeftOut()
     {
         // The mesh's extent, 10^21 m, is finite, but the shaders square the distance of its surface from the eye. The box
@@ -477,30 +369,24 @@ public sealed class ShaderInputTests
     [Fact]
     public void ALightPastThePositionLimitIsLeftOut()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        // No star: a snapshot of Gpu.Snapshot with no irradiance holds a star that does not shine.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(0, 0, -1e19f),
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
+            Gpu.Lamp(
+                position: new(0, 0, -1e19f),
+                color: Vector3.One,
+                intensity: 1e30f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(0, 0, -5),
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                ChainDepth: TestChains.CamerasFrame
-            )
+            Gpu.Lamp(position: new(0, 0, -5), color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
         );
 
         PreparedScene scene = Prepare(snapshot);
 
         scene.LightCount.Should().Be(1);
-        scene.Lights[0].PositionRange.Z.Should().Be(-5);
+        scene.Lights[0].Position.Z.Should().Be(-5);
     }
 
     [Fact]

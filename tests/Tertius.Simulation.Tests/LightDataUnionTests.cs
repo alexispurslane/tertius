@@ -20,13 +20,20 @@ public sealed class LightDataUnionTests
     private static readonly Vector3 Warm = new(0.9f, 0.8f, 0.7f);
 
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
-    private static readonly PointLightData Lamp = new(Offset: Above, Color: Warm, Intensity: 4, Range: 10);
+    private static readonly PointLightData Lamp = new(
+        Offset: Above,
+        Color: Warm,
+        Power: 4,
+        Radius: 10,
+        CastsShadow: true
+    );
 
     private static readonly SpotLightData Beam = new(
         Offset: Above,
         Color: Warm,
-        Intensity: 4,
-        Range: 10,
+        Power: 4,
+        Radius: 10,
+        CastsShadow: true,
         InnerConeAngle: 0.3f,
         OuterConeAngle: 0.5f
     );
@@ -53,7 +60,7 @@ public sealed class LightDataUnionTests
     private static string ArmOf(LightData light) =>
         light switch
         {
-            PointLightData { Intensity: var intensity, Range: var range } => $"point {intensity} {range}",
+            PointLightData { Power: var power, Radius: var radius } => $"point {power} {radius}",
             SpotLightData { InnerConeAngle: var inner, OuterConeAngle: var outer } => $"spot {inner} {outer}",
             null => "none",
         };
@@ -119,12 +126,13 @@ public sealed class LightDataUnionTests
     public void EveryFieldOfEveryCaseSurvivesTheRoundTrip()
     {
         // The numbers of each case differ from each other, so a swap of two fields shows.
-        var point = new PointLightData(Offset: Turned, Color: new(4, 5, 6), Intensity: 7, Range: 8);
+        var point = new PointLightData(Offset: Turned, Color: new(4, 5, 6), Power: 7, Radius: 8, CastsShadow: true);
         var spot = new SpotLightData(
             Offset: Turned,
             Color: new(4, 5, 6),
-            Intensity: 7,
-            Range: 8,
+            Power: 7,
+            Radius: 8,
+            CastsShadow: true,
             InnerConeAngle: 9,
             OuterConeAngle: 10
         );
@@ -132,13 +140,15 @@ public sealed class LightDataUnionTests
         new LightData(point).TryGetValue(out PointLightData heldPoint).Should().BeTrue();
         heldPoint.Offset.Should().Be(Turned);
         heldPoint.Color.Should().Be(new Vector3(4, 5, 6));
-        heldPoint.Intensity.Should().Be(7);
-        heldPoint.Range.Should().Be(8);
+        heldPoint.Power.Should().Be(7);
+        heldPoint.Radius.Should().Be(8);
+        heldPoint.CastsShadow.Should().BeTrue();
         new LightData(spot).TryGetValue(out SpotLightData heldSpot).Should().BeTrue();
         heldSpot.Offset.Should().Be(Turned);
         heldSpot.Color.Should().Be(new Vector3(4, 5, 6));
-        heldSpot.Intensity.Should().Be(7);
-        heldSpot.Range.Should().Be(8);
+        heldSpot.Power.Should().Be(7);
+        heldSpot.Radius.Should().Be(8);
+        heldSpot.CastsShadow.Should().BeTrue();
         heldSpot.InnerConeAngle.Should().Be(9);
         heldSpot.OuterConeAngle.Should().Be(10);
     }
@@ -189,24 +199,24 @@ public sealed class LightDataUnionTests
         LightData[] lights = [Lamp, Beam, default];
         float total = 0;
         foreach (LightData light in lights)
-            total += ReadRange(light);
+            total += ReadRadius(light);
         long allocated = Allocations.Fewest(() =>
         {
             total = 0;
             for (int round = 0; round < 100; round++)
                 foreach (LightData light in lights)
-                    total += ReadRange(light);
+                    total += ReadRadius(light);
         });
 
         allocated.Should().Be(0);
-        total.Should().Be(2 * 10 * 100, "a point and a spot light of range 10 each, over 100 rounds");
+        total.Should().Be(2 * 10 * 100, "a point and a spot light of radius 10 each, over 100 rounds");
     }
 
-    private static float ReadRange(in LightData light) =>
+    private static float ReadRadius(in LightData light) =>
         light switch
         {
-            PointLightData { Range: var range } => range,
-            SpotLightData { Range: var range } => range,
+            PointLightData { Radius: var radius } => radius,
+            SpotLightData { Radius: var radius } => radius,
             null => 0,
         };
 
@@ -217,12 +227,13 @@ public sealed class LightDataUnionTests
     {
         LightData[] first =
         [
-            new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
+            new PointLightData(Offset: Above, Color: Warm, Power: 4, Radius: 10, CastsShadow: true),
             new SpotLightData(
                 Offset: Above,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 InnerConeAngle: 0.3f,
                 OuterConeAngle: 0.5f
             ),
@@ -230,12 +241,13 @@ public sealed class LightDataUnionTests
         ];
         LightData[] second =
         [
-            new PointLightData(Offset: Above, Color: Warm, Intensity: 4, Range: 10),
+            new PointLightData(Offset: Above, Color: Warm, Power: 4, Radius: 10, CastsShadow: true),
             new SpotLightData(
                 Offset: Above,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 InnerConeAngle: 0.3f,
                 OuterConeAngle: 0.5f
             ),
@@ -259,8 +271,9 @@ public sealed class LightDataUnionTests
 
         light.Should().NotBe(new LightData(Lamp with { Offset = Turned }), "another offset");
         light.Should().NotBe(new LightData(Lamp with { Color = new(0.9f, 0.8f, 0.6f) }), "another color");
-        light.Should().NotBe(new LightData(Lamp with { Intensity = 5 }), "another intensity");
-        light.Should().NotBe(new LightData(Lamp with { Range = 11 }), "another range");
+        light.Should().NotBe(new LightData(Lamp with { Power = 5 }), "another power");
+        light.Should().NotBe(new LightData(Lamp with { Radius = 11 }), "another radius");
+        light.Should().NotBe(new LightData(Lamp with { CastsShadow = false }), "another shadow flag");
     }
 
     [Fact]
@@ -270,8 +283,9 @@ public sealed class LightDataUnionTests
 
         light.Should().NotBe(new LightData(Beam with { Offset = Turned }), "another offset");
         light.Should().NotBe(new LightData(Beam with { Color = new(0.9f, 0.8f, 0.6f) }), "another color");
-        light.Should().NotBe(new LightData(Beam with { Intensity = 5 }), "another intensity");
-        light.Should().NotBe(new LightData(Beam with { Range = 11 }), "another range");
+        light.Should().NotBe(new LightData(Beam with { Power = 5 }), "another power");
+        light.Should().NotBe(new LightData(Beam with { Radius = 11 }), "another radius");
+        light.Should().NotBe(new LightData(Beam with { CastsShadow = false }), "another shadow flag");
         light.Should().NotBe(new LightData(Beam with { InnerConeAngle = 0.31f }), "another inner cone angle");
         light.Should().NotBe(new LightData(Beam with { OuterConeAngle = 0.51f }), "another outer cone angle");
     }
@@ -279,14 +293,15 @@ public sealed class LightDataUnionTests
     [Fact]
     public void LightsOfDifferentCasesAreNotEqualEvenWhenTheirSharedFieldsMatch()
     {
-        // The point light and the spot light share offset, color, intensity and range, so only the case can tell them apart.
+        // The point light and the spot light share every field of a point light, so only the case can tell them apart.
         LightData point = Lamp;
         LightData spot = Beam;
         LightData spotWithoutCone = new SpotLightData(
             Offset: Above,
             Color: Warm,
-            Intensity: 4,
-            Range: 10,
+            Power: 4,
+            Radius: 10,
+            CastsShadow: true,
             InnerConeAngle: 0,
             OuterConeAngle: 0
         );
@@ -306,22 +321,28 @@ public sealed class LightDataUnionTests
     {
         LightData empty = default;
 
-        new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0))
+        new LightData(new PointLightData(Offset: default, Color: default, Power: 0, Radius: 0, CastsShadow: true))
             .Should()
             .NotBe(empty);
         new LightData(
             new SpotLightData(
                 Offset: default,
                 Color: default,
-                Intensity: 0,
-                Range: 0,
+                Power: 0,
+                Radius: 0,
+                CastsShadow: true,
                 InnerConeAngle: 0,
                 OuterConeAngle: 0
             )
         )
             .Should()
             .NotBe(empty);
-        (empty != new LightData(new PointLightData(Offset: default, Color: default, Intensity: 0, Range: 0)))
+        (
+            empty
+            != new LightData(
+                new PointLightData(Offset: default, Color: default, Power: 0, Radius: 0, CastsShadow: true)
+            )
+        )
             .Should()
             .BeTrue();
     }
@@ -343,7 +364,7 @@ public sealed class LightDataUnionTests
         [
             Lamp with
             {
-                Intensity = float.NaN,
+                Power = float.NaN,
             },
             Beam with
             {
@@ -385,7 +406,7 @@ public sealed class LightDataUnionTests
             .Should()
             .StartWith("LightData(")
             .And.Contain(nameof(PointLightData))
-            .And.Contain("Range = 10");
+            .And.Contain("Radius = 10");
         new LightData(Beam)
             .ToString()
             .Should()

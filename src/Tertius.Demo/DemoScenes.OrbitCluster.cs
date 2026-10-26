@@ -40,11 +40,11 @@ public static partial class DemoScenes
     public static Vector3 ClusterCrateHalfExtents { get; } = new(0.5f);
 
     /// <summary>
-    /// The light that a marker of <paramref name="color"/> gives off, as linear radiance: half its color. That is about
-    /// half as bright as the color in full sunlight, which the scene's sun gives at 2.5 times the color over pi, so a
+    /// The light that a marker of <paramref name="color"/> gives off, as radiance in W/(m²·sr): 270 times its color. That
+    /// is about 60 % as bright as the color in full sunlight, which the Sun gives at 1,361 times the color over pi, so a
     /// sunlit face still shows brighter than a face in shadow.
     /// </summary>
-    private static Vector3 MarkerGlow(Vector4 color) => new Vector3(color.X, color.Y, color.Z) * 0.5f;
+    private static Vector3 MarkerGlow(Vector4 color) => new Vector3(color.X, color.Y, color.Z) * 270;
 
     /// <summary>
     /// The pose and the velocity in earth, at <paramref name="time"/>, of a point at rest relative to the ship of the orbit

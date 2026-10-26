@@ -22,19 +22,26 @@ public sealed class RenderLightUnionTests
 
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointRenderLight Lamp = new(
+        EntityIndex: 7,
         Position: Here,
+        PreviousPosition: Here,
         Color: Warm,
-        Intensity: 4,
-        Range: 10,
+        Power: 4,
+        Radius: 10,
+        CastsShadow: true,
         ChainDepth: TestChains.CamerasFrame
     );
 
     private static readonly SpotRenderLight Beam = new(
+        EntityIndex: 7,
         Position: Here,
+        PreviousPosition: Here,
         Direction: Down,
+        PreviousDirection: Down,
         Color: Warm,
-        Intensity: 4,
-        Range: 10,
+        Power: 4,
+        Radius: 10,
+        CastsShadow: true,
         InnerConeAngle: 0.3f,
         OuterConeAngle: 0.5f,
         ChainDepth: TestChains.CamerasFrame
@@ -62,8 +69,8 @@ public sealed class RenderLightUnionTests
     private static string ArmOf(RenderLight light) =>
         light switch
         {
-            PointRenderLight { Position: var position, Intensity: var intensity, Range: var range } =>
-                $"point {position.X} {intensity} {range}",
+            PointRenderLight { Position: var position, Power: var power, Radius: var radius } =>
+                $"point {position.X} {power} {radius}",
             SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
                 $"spot {direction.Y} {inner} {outer}",
             null => "none",
@@ -121,36 +128,52 @@ public sealed class RenderLightUnionTests
     {
         // Every field of each case differs from every other field, so a swap of two fields shows.
         var point = new PointRenderLight(
-            Position: new(1, 2, 3),
-            Color: new(4, 5, 6),
-            Intensity: 7,
-            Range: 8,
-            ChainDepth: TestChains.CamerasFrame
+            EntityIndex: 1,
+            Position: new(2, 3, 4),
+            PreviousPosition: new(5, 6, 7),
+            Color: new(8, 9, 10),
+            Power: 11,
+            Radius: 12,
+            CastsShadow: true,
+            ChainDepth: 21
         );
         var spot = new SpotRenderLight(
-            Position: new(1, 2, 3),
-            Direction: new(4, 5, 6),
-            Color: new(7, 8, 9),
-            Intensity: 10,
-            Range: 11,
-            InnerConeAngle: 12,
-            OuterConeAngle: 13,
-            ChainDepth: TestChains.CamerasFrame
+            EntityIndex: 1,
+            Position: new(2, 3, 4),
+            PreviousPosition: new(5, 6, 7),
+            Direction: new(8, 9, 10),
+            PreviousDirection: new(11, 12, 13),
+            Color: new(14, 15, 16),
+            Power: 17,
+            Radius: 18,
+            CastsShadow: true,
+            InnerConeAngle: 19,
+            OuterConeAngle: 20,
+            ChainDepth: 22
         );
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
-        heldPoint.Position.Should().Be(new Vector3(1, 2, 3));
-        heldPoint.Color.Should().Be(new Vector3(4, 5, 6));
-        heldPoint.Intensity.Should().Be(7);
-        heldPoint.Range.Should().Be(8);
+        heldPoint.EntityIndex.Should().Be(1);
+        heldPoint.Position.Should().Be(new Vector3(2, 3, 4));
+        heldPoint.PreviousPosition.Should().Be(new Vector3(5, 6, 7));
+        heldPoint.Color.Should().Be(new Vector3(8, 9, 10));
+        heldPoint.Power.Should().Be(11);
+        heldPoint.Radius.Should().Be(12);
+        heldPoint.CastsShadow.Should().BeTrue();
+        heldPoint.ChainDepth.Should().Be(21);
         new RenderLight(spot).TryGetValue(out SpotRenderLight heldSpot).Should().BeTrue();
-        heldSpot.Position.Should().Be(new Vector3(1, 2, 3));
-        heldSpot.Direction.Should().Be(new Vector3(4, 5, 6));
-        heldSpot.Color.Should().Be(new Vector3(7, 8, 9));
-        heldSpot.Intensity.Should().Be(10);
-        heldSpot.Range.Should().Be(11);
-        heldSpot.InnerConeAngle.Should().Be(12);
-        heldSpot.OuterConeAngle.Should().Be(13);
+        heldSpot.EntityIndex.Should().Be(1);
+        heldSpot.Position.Should().Be(new Vector3(2, 3, 4));
+        heldSpot.PreviousPosition.Should().Be(new Vector3(5, 6, 7));
+        heldSpot.Direction.Should().Be(new Vector3(8, 9, 10));
+        heldSpot.PreviousDirection.Should().Be(new Vector3(11, 12, 13));
+        heldSpot.Color.Should().Be(new Vector3(14, 15, 16));
+        heldSpot.Power.Should().Be(17);
+        heldSpot.Radius.Should().Be(18);
+        heldSpot.CastsShadow.Should().BeTrue();
+        heldSpot.InnerConeAngle.Should().Be(19);
+        heldSpot.OuterConeAngle.Should().Be(20);
+        heldSpot.ChainDepth.Should().Be(22);
     }
 
     [Fact]
@@ -189,24 +212,24 @@ public sealed class RenderLightUnionTests
         RenderLight[] lights = [Lamp, Beam, default];
         float total = 0;
         foreach (RenderLight light in lights)
-            total += ReadRange(light);
+            total += ReadRadius(light);
         long allocated = Allocations.Fewest(() =>
         {
             total = 0;
             for (int round = 0; round < 100; round++)
                 foreach (RenderLight light in lights)
-                    total += ReadRange(light);
+                    total += ReadRadius(light);
         });
 
         allocated.Should().Be(0);
-        total.Should().Be(2 * 10 * 100, "a point and a spot light of range 10 each, over 100 rounds");
+        total.Should().Be(2 * 10 * 100, "a point and a spot light of radius 10 each, over 100 rounds");
     }
 
-    private static float ReadRange(in RenderLight light) =>
+    private static float ReadRadius(in RenderLight light) =>
         light switch
         {
-            PointRenderLight { Range: var range } => range,
-            SpotRenderLight { Range: var range } => range,
+            PointRenderLight { Radius: var radius } => radius,
+            SpotRenderLight { Radius: var radius } => radius,
             null => 0,
         };
 
@@ -218,18 +241,25 @@ public sealed class RenderLightUnionTests
         RenderLight[] first =
         [
             new PointRenderLight(
+                EntityIndex: 7,
                 Position: Here,
+                PreviousPosition: Here,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 ChainDepth: TestChains.CamerasFrame
             ),
             new SpotRenderLight(
+                EntityIndex: 7,
                 Position: Here,
+                PreviousPosition: Here,
                 Direction: Down,
+                PreviousDirection: Down,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 InnerConeAngle: 0.3f,
                 OuterConeAngle: 0.5f,
                 ChainDepth: TestChains.CamerasFrame
@@ -239,18 +269,25 @@ public sealed class RenderLightUnionTests
         RenderLight[] second =
         [
             new PointRenderLight(
+                EntityIndex: 7,
                 Position: Here,
+                PreviousPosition: Here,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 ChainDepth: TestChains.CamerasFrame
             ),
             new SpotRenderLight(
+                EntityIndex: 7,
                 Position: Here,
+                PreviousPosition: Here,
                 Direction: Down,
+                PreviousDirection: Down,
                 Color: Warm,
-                Intensity: 4,
-                Range: 10,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
                 InnerConeAngle: 0.3f,
                 OuterConeAngle: 0.5f,
                 ChainDepth: TestChains.CamerasFrame
@@ -273,10 +310,15 @@ public sealed class RenderLightUnionTests
     {
         RenderLight light = Lamp;
 
+        light.Should().NotBe(new RenderLight(Lamp with { EntityIndex = 8 }), "another entity");
         light.Should().NotBe(new RenderLight(Lamp with { Position = new(1, 2, 4) }), "another position");
+        light
+            .Should()
+            .NotBe(new RenderLight(Lamp with { PreviousPosition = new(1, 2, 4) }), "another previous position");
         light.Should().NotBe(new RenderLight(Lamp with { Color = new(0.9f, 0.8f, 0.6f) }), "another color");
-        light.Should().NotBe(new RenderLight(Lamp with { Intensity = 5 }), "another intensity");
-        light.Should().NotBe(new RenderLight(Lamp with { Range = 11 }), "another range");
+        light.Should().NotBe(new RenderLight(Lamp with { Power = 5 }), "another power");
+        light.Should().NotBe(new RenderLight(Lamp with { Radius = 11 }), "another radius");
+        light.Should().NotBe(new RenderLight(Lamp with { CastsShadow = false }), "another shadow flag");
     }
 
     [Fact]
@@ -284,11 +326,19 @@ public sealed class RenderLightUnionTests
     {
         RenderLight light = Beam;
 
+        light.Should().NotBe(new RenderLight(Beam with { EntityIndex = 8 }), "another entity");
         light.Should().NotBe(new RenderLight(Beam with { Position = new(1, 2, 4) }), "another position");
+        light
+            .Should()
+            .NotBe(new RenderLight(Beam with { PreviousPosition = new(1, 2, 4) }), "another previous position");
         light.Should().NotBe(new RenderLight(Beam with { Direction = new(0, 0, -1) }), "another direction");
+        light
+            .Should()
+            .NotBe(new RenderLight(Beam with { PreviousDirection = new(0, 0, -1) }), "another previous direction");
         light.Should().NotBe(new RenderLight(Beam with { Color = new(0.9f, 0.8f, 0.6f) }), "another color");
-        light.Should().NotBe(new RenderLight(Beam with { Intensity = 5 }), "another intensity");
-        light.Should().NotBe(new RenderLight(Beam with { Range = 11 }), "another range");
+        light.Should().NotBe(new RenderLight(Beam with { Power = 5 }), "another power");
+        light.Should().NotBe(new RenderLight(Beam with { Radius = 11 }), "another radius");
+        light.Should().NotBe(new RenderLight(Beam with { CastsShadow = false }), "another shadow flag");
         light.Should().NotBe(new RenderLight(Beam with { InnerConeAngle = 0.31f }), "another inner cone angle");
         light.Should().NotBe(new RenderLight(Beam with { OuterConeAngle = 0.51f }), "another outer cone angle");
     }
@@ -296,15 +346,19 @@ public sealed class RenderLightUnionTests
     [Fact]
     public void LightsOfDifferentCasesAreNotEqualEvenWhenTheirSharedFieldsMatch()
     {
-        // The point light and the spot light share position, color, intensity and range, so only the case can tell them apart.
+        // The point light and the spot light share every field of a point light, so only the case can tell them apart.
         RenderLight point = Lamp;
         RenderLight spot = Beam;
         RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(
+            EntityIndex: 7,
             Position: Here,
+            PreviousPosition: Here,
             Direction: default,
+            PreviousDirection: default,
             Color: Warm,
-            Intensity: 4,
-            Range: 10,
+            Power: 4,
+            Radius: 10,
+            CastsShadow: true,
             InnerConeAngle: 0,
             OuterConeAngle: 0,
             ChainDepth: TestChains.CamerasFrame
@@ -328,45 +382,9 @@ public sealed class RenderLightUnionTests
     {
         RenderLight empty = default;
 
-        new RenderLight(
-            new PointRenderLight(
-                Position: default,
-                Color: default,
-                Intensity: 0,
-                Range: 0,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        )
-            .Should()
-            .NotBe(empty);
-        new RenderLight(
-            new SpotRenderLight(
-                Position: default,
-                Direction: default,
-                Color: default,
-                Intensity: 0,
-                Range: 0,
-                InnerConeAngle: 0,
-                OuterConeAngle: 0,
-                ChainDepth: TestChains.CamerasFrame
-            )
-        )
-            .Should()
-            .NotBe(empty);
-        (
-            empty
-            != new RenderLight(
-                new PointRenderLight(
-                    Position: default,
-                    Color: default,
-                    Intensity: 0,
-                    Range: 0,
-                    ChainDepth: TestChains.CamerasFrame
-                )
-            )
-        )
-            .Should()
-            .BeTrue();
+        new RenderLight(default(PointRenderLight)).Should().NotBe(empty);
+        new RenderLight(default(SpotRenderLight)).Should().NotBe(empty);
+        (empty != new RenderLight(default(PointRenderLight))).Should().BeTrue();
     }
 
     [Fact]
@@ -385,7 +403,7 @@ public sealed class RenderLightUnionTests
         [
             Lamp with
             {
-                Intensity = float.NaN,
+                Power = float.NaN,
             },
             Beam with
             {
@@ -427,7 +445,7 @@ public sealed class RenderLightUnionTests
             .Should()
             .StartWith("RenderLight(")
             .And.Contain(nameof(PointRenderLight))
-            .And.Contain("Range = 10");
+            .And.Contain("Radius = 10");
         new RenderLight(Beam)
             .ToString()
             .Should()
@@ -463,11 +481,13 @@ public sealed class RenderLightUnionTests
     }
 
     [Fact]
-    public void ALightTakesFiftySixBytesTheFieldsOfOneSpotLightAndItsKindByte()
+    public void ALightTakesEightyFourBytesTheFieldsOfOneSpotLight()
     {
-        // The cases share the storage of position, color, intensity, range and chain depth, so the union holds one spot
-        // light's 54 bytes of fields and a kind byte, padded to 4. Storing each case whole would take 92 bytes.
-        Unsafe.SizeOf<SpotRenderLight>().Should().Be(56);
-        Unsafe.SizeOf<RenderLight>().Should().Be(56);
+        // The cases share the storage of every field of a point light, so the union holds one spot light's 83 bytes of
+        // fields. Its slots are packed by type, so the shadow flag, the chain depth and the kind byte fill 4 bytes, and the
+        // union takes 84, less than a spot light alone, which pads to 88. Storing each case whole would take 140 bytes.
+        Unsafe.SizeOf<PointRenderLight>().Should().Be(52);
+        Unsafe.SizeOf<SpotRenderLight>().Should().Be(88);
+        Unsafe.SizeOf<RenderLight>().Should().Be(84);
     }
 }

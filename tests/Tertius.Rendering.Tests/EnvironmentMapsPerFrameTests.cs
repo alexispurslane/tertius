@@ -244,13 +244,7 @@ public sealed class EnvironmentMapsPerFrameTests
             var room = new RoomScenes(renderer);
             RenderSnapshot snapshot = room.Scene(lampsOn: false);
             snapshot.Lights.Add(
-                new PointRenderLight(
-                    Position: new(0, -2, 0),
-                    Color: Vector3.One,
-                    Intensity: 20,
-                    Range: 10,
-                    ChainDepth: RoomScenes.InRoom
-                )
+                Gpu.Lamp(position: new(0, -2, 0), color: Vector3.One, intensity: 20, chainDepth: RoomScenes.InRoom)
             );
 
             renderer.Render(snapshot, 1f);

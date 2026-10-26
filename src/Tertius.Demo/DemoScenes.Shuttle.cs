@@ -458,20 +458,17 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the <see cref="Lamps"/> in <paramref name="cabin"/>, the shuttle's frame, with their scene ids: each a
-        /// warm glowing panel with a point light 0.3 m in front of it, toward the cabin's middle, of range 10 m and intensity
-        /// 50. The four give the light of the two roof lamps of intensity 100 that the box hull had. A point light casts no
-        /// shadow yet, so the lamps also light faces that the hull hides from them.
+        /// warm glowing panel with a cabin lamp's light 0.3 m in front of it, toward the cabin's middle, which casts shadows
+        /// within the renderer's budget.
         /// </summary>
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
-            MaterialId material = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
+            // The panel's face toward the cabin is LampHalf's Y by Z, twice over.
+            MaterialId material = LampPanelMaterial(
+                resources: resources,
+                power: CabinLampPower,
+                area: 4 * LampHalf.Y * LampHalf.Z
             );
             foreach ((string id, BoundingBox panel) in Lamps)
                 scene.Add(
@@ -487,11 +484,9 @@ public static partial class DemoScenes
                                 Material = material,
                                 BoundingRadius = LampHalf.Length(),
                                 Flags = RenderFlags.Visible,
-                                Light = new PointLightData(
-                                    Offset: new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
-                                    Color: new(1, 0.9f, 0.75f),
-                                    Intensity: 50,
-                                    Range: 10
+                                Light = LampLight(
+                                    offset: new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0),
+                                    power: CabinLampPower
                                 ),
                             },
                         }

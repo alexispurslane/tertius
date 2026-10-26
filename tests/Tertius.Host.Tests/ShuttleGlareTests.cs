@@ -31,9 +31,11 @@ public sealed class ShuttleGlareTests : IDisposable
     /// In <c>demo-surface</c>, the camera of a window film sees the mirror image of a lamp in the inner face of the
     /// pane that the film looks through. The test renders the view with the real renderer and reads the pixel of the
     /// mirror image, where the lamp's reflection is brightest. Its brightest channel stays below 224 of 255, short of
-    /// the white that hides the view. It does not check that the reflection or the view shows. The coated glass gives
-    /// 186 at the nose pane and 200 at the port pane. Glass that reflects 16 % head-on, as the orbit scene's glass
-    /// does, gives 254 at all three: a white blob.
+    /// the white that hides the view. It does not check that the reflection or the view shows. Before the scenes moved to
+    /// SI units, the lamps sent many times the sunlight, and at 0 stops the coated glass gave 186 at the nose pane and 200
+    /// at the port pane, while glass that reflects 16 % head-on, as the orbit scene's glass does, gave 254 at all three: a
+    /// white blob. In SI units the lamps send less than a thousandth of the sunlit view outside, which sets the film's
+    /// exposure, so their reflection stays far below white (docs/plans/local-light-shadows.md, Part 5).
     /// </summary>
     [Theory]
     [InlineData("window-camera", "pane-nose", "lamp-port-fore")]
@@ -86,7 +88,8 @@ public sealed class ShuttleGlareTests : IDisposable
             """
         );
         using World world = NewJoltWorld();
-        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+        // The scene is in SI units, from sunlight to cabin lamps, so the view shows it as a window film does.
+        VulkanRenderer renderer = GpuTesting.LikeAScriptedRun(16, 16);
         DPose view;
         double verticalFov;
         try
