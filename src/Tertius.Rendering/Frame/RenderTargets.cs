@@ -25,7 +25,7 @@ namespace Tertius.Rendering;
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
 /// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
-/// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) when ambient occlusion is off.
+/// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight.
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
 /// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections the HDR target is
 /// also a storage image, which the trace writes; without them it is not, so a frame is the frame from before them.

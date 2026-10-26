@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion depth pass, under <see cref="GroundTruthOcclusion"/> (docs/plans/ambient-occlusion.md, "The occlusion
+/// The occlusion depth pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/ambient-occlusion.md, "The occlusion
 /// depth pass"): the view depth of each half-resolution texel, from the distance of its representative pixel.
 /// </summary>
 internal sealed class OcclusionDepthPass(
@@ -9,7 +9,7 @@ internal sealed class OcclusionDepthPass(
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    GroundTruthOcclusion setting
+    VisibilityBitmaskLight setting
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(

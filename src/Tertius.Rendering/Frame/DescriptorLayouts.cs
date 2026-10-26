@@ -180,8 +180,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
-    /// 3), and the source and the destination term of a denoise dispatch (bindings 6 and 7), as storage images
-    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
+    /// 3), the sector masks buffer (binding 4), and the source and the destination term of a denoise dispatch (bindings
+    /// 6 and 7), as storage images (docs/plans/screen-space-illumination.md, "Push constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 
@@ -496,8 +496,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            // Seven per frame set, and the two of the exposure set.
-            new(DescriptorType.StorageBuffer, 7 * frames + 2),
+            // Seven per frame set, the two of the exposure set and one for each of the two occlusion sets.
+            new(DescriptorType.StorageBuffer, 7 * frames + 4),
             // Two per frame set (the material sampler and the immutable linear clamp sampler), the immutable samplers
             // of the G-buffer, atlas, post and reflection sets, and one per glow source set.
             new(DescriptorType.Sampler, 2 * frames + 4 + glowSourceSets),
@@ -558,8 +558,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The layout of the occlusion set, whose bindings the compute stage reads. Bindings 4 and 5 stay free for the
-    /// sector masks and the depth pyramid (docs/plans/screen-space-illumination.md, "Order of the work").
+    /// The layout of the occlusion set, whose bindings the compute stage reads. Binding 5 stays free for the depth
+    /// pyramid (docs/plans/screen-space-illumination.md, "Order of the work").
     /// </summary>
     private DescriptorSetLayout CreateOcclusionSetLayout()
     {
@@ -569,6 +569,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageImage(binding: 1),
             StorageImage(binding: 2),
             StorageImage(binding: 3),
+            new(
+                binding: 4,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
             StorageImage(binding: 6),
             StorageImage(binding: 7),
         ];

@@ -9,7 +9,7 @@ public sealed class OcclusionPushConstantsTests
     [Fact]
     public void TheRadiusTheSlicesAndTheStepsComeFromTheSetting()
     {
-        var setting = new GroundTruthOcclusion(RadiusMeters: 0.75f, Slices: 5, StepsPerSide: 7);
+        var setting = new VisibilityBitmaskLight(RadiusMeters: 0.75f, Slices: 5, StepsPerSide: 7);
 
         var push = OcclusionPushConstants.For(setting: setting, lastDenoise: false);
 
@@ -23,7 +23,7 @@ public sealed class OcclusionPushConstantsTests
     [InlineData(false, 0u)]
     public void OnlyTheLastDenoiseDispatchIsMarked(bool lastDenoise, uint expected)
     {
-        var push = OcclusionPushConstants.For(setting: GroundTruthOcclusion.Default, lastDenoise: lastDenoise);
+        var push = OcclusionPushConstants.For(setting: VisibilityBitmaskLight.Default, lastDenoise: lastDenoise);
 
         push.LastDenoise.Should().Be(expected);
     }

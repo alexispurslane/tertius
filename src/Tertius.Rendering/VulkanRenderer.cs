@@ -28,8 +28,8 @@ namespace Tertius.Rendering;
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of the sun
 /// and of the point and spot lights plus the emission, pre-exposed and capped.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
-/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the a channel of the
-/// estimate target.</item>
+/// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
+/// the surfaces that block its hemisphere nearby and the share that nothing blocks, in the estimate target.</item>
 /// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
 /// the ambient light with the estimate target applied, capped.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
@@ -142,7 +142,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
-            occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
+            occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
             Own(Graph);
@@ -304,7 +304,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
         if (options.Exposure.Problem is { } problem)
             throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (options.AmbientOcclusion.Problem is { } occlusionProblem)
+        if (options.ScreenSpaceLight.Problem is { } occlusionProblem)
             throw new ArgumentOutOfRangeException(nameof(options), occlusionProblem);
         if (options.Bloom.Problem is { } bloomProblem)
             throw new ArgumentOutOfRangeException(nameof(options), bloomProblem);
@@ -767,6 +767,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// Occlusion term A of the last frame at half resolution, RGBA per texel, row by row from the top: rgb the bounce,
+    /// pre-exposed, a the occlusion. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionTerm() =>
+        ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0);
+
+    /// <summary>
+    /// The view depth image of the last frame at half resolution, in m, row by row from the top. A test hook: it waits for
+    /// the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Depths, int Width, int Height) ReadOcclusionViewDepth() =>
+        ReadLevel(image: OcclusionImagesOrThrow().ViewDepth, layer: 0, mip: 0);
+
+    /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -856,6 +872,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// Copies one mip of one layer of a float color image to the CPU, channel by channel, row by row from the top, with
     /// the mip's size.
     /// </summary>
+    private OcclusionImages OcclusionImagesOrThrow() =>
+        occlusionImages ?? throw new InvalidOperationException("The screen-space light is off.");
+
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
         (int channels, bool halves) = image.Format switch
@@ -1167,24 +1186,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Under <see cref="GroundTruthOcclusion"/>, makes the occlusion images, which the renderer owns, and adds the four
-    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoAmbientOcclusion"/>.
+    /// Under <see cref="VisibilityBitmaskLight"/>, makes the occlusion images, which the renderer owns, and adds the four
+    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoScreenSpaceLight"/>.
     /// </summary>
-    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, AmbientOcclusionSetting setting) =>
+    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, ScreenSpaceLightSetting setting) =>
         setting switch
         {
-            GroundTruthOcclusion occlusion => AddOcclusionPasses(shaders: shaders, setting: occlusion),
-            NoAmbientOcclusion => null,
+            VisibilityBitmaskLight light => AddOcclusionPasses(shaders: shaders, setting: light),
+            NoScreenSpaceLight => null,
         };
 
     /// <summary>
     /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
     /// <paramref name="setting"/> to the graph. Returns the images.
     /// </summary>
-    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, GroundTruthOcclusion setting)
+    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, VisibilityBitmaskLight setting)
     {
         OcclusionImages images = Own(
-            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+            new OcclusionImages(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                targets: targets,
+                slices: setting.Slices
+            )
         );
         Graph.Add(
             FrameGraph.Stage.AmbientOcclusion,
@@ -1192,7 +1217,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         Graph.Add(
             FrameGraph.Stage.AmbientOcclusion,
-            new OcclusionHorizonsPass(
+            new OcclusionSectorsPass(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,

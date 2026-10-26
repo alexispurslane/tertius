@@ -6,7 +6,6 @@
 #include "depth_pyramid.glsl"
 #include "screen.glsl"
 
-const float ThicknessShare = 0.1;         // ScreenRay.ThicknessShare
 const float ConeTangentPerAlpha = 1.7602; // ReflectionCone.TangentPerAlpha: sqrt((1 − 0.244) / 0.244)
 const float EdgeFadeShare = 0.1;          // CameraView.EdgeFadeShare
 const float CrossingNudge = 0.01;         // ScreenRay.CrossingNudge, in pixels

@@ -24,7 +24,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [Fact]
     public void AnInnerCornerGetsLessAmbientLightThanTheOpenFloor()
     {
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -107,8 +107,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [InlineData(0.6)]
     public void AFloorBesideAWallLosesTheShareOfItsHemisphereThatTheWallHidesWithinTheRadius(double distance)
     {
-        var setting = new GroundTruthOcclusion(RadiusMeters: 1, Slices: 16, StepsPerSide: 16);
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting);
+        var setting = new VisibilityBitmaskLight(RadiusMeters: 1, Slices: 16, StepsPerSide: 16);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
             RenderSnapshot snapshot = UnderWhiteAmbientLight(CornerView);
@@ -199,9 +199,9 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [Fact]
     public void TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion()
     {
-        static float[] DirectImage(AmbientOcclusionSetting setting)
+        static float[] DirectImage(ScreenSpaceLightSetting setting)
         {
-            VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting);
+            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
             try
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), sunIntensity: 3);
@@ -227,8 +227,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             }
         }
 
-        float[] on = DirectImage(GroundTruthOcclusion.Default);
-        float[] off = DirectImage(new NoAmbientOcclusion());
+        float[] on = DirectImage(VisibilityBitmaskLight.Default);
+        float[] off = DirectImage(new NoScreenSpaceLight());
 
         Vector2 corner = PixelOf(FloorAtTheCorner, CornerView);
         on[((int)corner.Y * Width + (int)corner.X) * 4]
@@ -240,7 +240,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [Fact]
     public void AStillSceneHasTheSameOcclusionInEveryFrame()
     {
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -264,7 +264,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     {
         const int newWidth = 800,
             newHeight = 450;
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -299,7 +299,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     public void TheGroundBesideAnImpostorDarkensAsBesideItsGeometry()
     {
         Quaternion view = Gpu.PitchDown(0.25f);
-        VulkanRenderer renderer = Gpu.Headless(impostors: true, ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(impostors: true, screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             MeshId box = UnitBox(renderer);
@@ -375,14 +375,14 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// One capture of <paramref name="scene"/> under <see cref="GroundTruthOcclusion.Default"/> and one with occlusion off,
+    /// One capture of <paramref name="scene"/> under <see cref="VisibilityBitmaskLight.Default"/> and one with occlusion off,
     /// each by a renderer of its own.
     /// </summary>
     private static (Capture On, Capture Off) OnAndOff(Func<VulkanRenderer, RenderSnapshot> scene, string name)
     {
-        static Capture Render(Func<VulkanRenderer, RenderSnapshot> scene, AmbientOcclusionSetting setting, string name)
+        static Capture Render(Func<VulkanRenderer, RenderSnapshot> scene, ScreenSpaceLightSetting setting, string name)
         {
-            VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting);
+            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
             try
             {
                 return Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(renderer), name: name);
@@ -394,8 +394,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         }
 
         return (
-            Render(scene: scene, setting: GroundTruthOcclusion.Default, name: name + "-on"),
-            Render(scene: scene, setting: new NoAmbientOcclusion(), name: name + "-off")
+            Render(scene: scene, setting: VisibilityBitmaskLight.Default, name: name + "-on"),
+            Render(scene: scene, setting: new NoScreenSpaceLight(), name: name + "-off")
         );
     }
 

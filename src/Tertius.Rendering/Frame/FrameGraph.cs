@@ -184,7 +184,7 @@ internal abstract class RenderPass : IDisposable
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="GroundTruthOcclusion"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
+/// <see cref="VisibilityBitmaskLight"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
 /// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
@@ -194,6 +194,12 @@ internal sealed class FrameGraph : IDisposable
     private readonly List<(Stage Stage, int Order, RenderPass Pass)> passes = [];
 
     public IEnumerable<RenderPass> Passes => passes.Select(p => p.Pass);
+
+    /// <summary>
+    /// The names of the passes that <see cref="Record"/> leaves out. A test hook: a test reads an image as an earlier pass
+    /// left it, such as the near estimate before the denoise.
+    /// </summary>
+    public HashSet<string> Skipped { get; } = [];
 
     public enum Stage
     {
@@ -215,7 +221,7 @@ internal sealed class FrameGraph : IDisposable
         DirectLight,
 
         /// <summary>
-        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
+        /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
         /// normals they read, and after the direct pass, whose image the bounce light's sector pass will read. Before the
         /// ambient pass, which reads their estimate target.
         /// </summary>
@@ -277,6 +283,8 @@ internal sealed class FrameGraph : IDisposable
         context.Timer.Begin(context.CommandBuffer, slot);
         foreach ((_, _, RenderPass pass) in passes)
         {
+            if (Skipped.Contains(pass.Name))
+                continue;
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);

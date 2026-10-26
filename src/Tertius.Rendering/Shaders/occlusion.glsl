@@ -13,11 +13,16 @@
 
 layout(set = 3, binding = 0, r32f) uniform image2D viewDepth;          // half: view depth in m, SkyDepth for sky
 layout(set = 3, binding = 1, r8) uniform image2D occlusionEdges;       // half: XeGTAO's packed edges
-layout(set = 3, binding = 2, r16f) uniform image2D occlusionTermA;     // half
-layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;  // full: rgb the bounce G, pre-exposed, a V
-// Bindings 4 and 5, the sector masks and the depth pyramid, come with the sectors and the far rays.
-layout(set = 3, binding = 6, r16f) uniform image2D denoiseSource;
-layout(set = 3, binding = 7, r16f) uniform image2D denoiseDestination;
+layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the bounce G, pre-exposed, a V
+layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
+// Slices words per half-resolution texel, row by row: each slice's mask of the sectors that its near steps block.
+layout(set = 3, binding = 4, std430) buffer SectorMasks
+{
+    uint sectorMasks[];
+};
+// Binding 5, the depth pyramid, comes with the far rays.
+layout(set = 3, binding = 6, rgba16f) uniform image2D denoiseSource;
+layout(set = 3, binding = 7, rgba16f) uniform image2D denoiseDestination;
 
 layout(push_constant, std430) uniform OcclusionPush
 {
@@ -49,6 +54,13 @@ ivec2 halfSize()
 bool insideHalf(ivec2 texel)
 {
     return all(greaterThanEqual(texel, ivec2(0))) && all(lessThan(texel, halfSize()));
+}
+
+// The index of a slice's mask in the sector masks buffer. The texel lies inside the half image, so the index lies inside
+// the buffer, which holds Slices words per texel.
+uint maskIndex(ivec2 texel, int slice)
+{
+    return (uint(texel.y) * uint(halfSize().x) + uint(texel.x)) * occlusion.slices + uint(slice);
 }
 
 // The screen position of the center of a full-resolution pixel, from (0, 0) at the top left to (1, 1).

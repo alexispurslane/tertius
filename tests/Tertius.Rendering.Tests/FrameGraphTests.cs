@@ -26,7 +26,7 @@ public sealed class FrameGraphTests
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
-        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion horizons"));
+        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion sectors"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
@@ -34,7 +34,7 @@ public sealed class FrameGraphTests
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["G-buffer", "direct light", "occlusion depth", "occlusion horizons", "ambient light"],
+                ["G-buffer", "direct light", "occlusion depth", "occlusion sectors", "ambient light"],
                 "the occlusion passes read the finished G-buffer and the direct image, and the ambient pass reads their "
                     + "estimate target"
             );

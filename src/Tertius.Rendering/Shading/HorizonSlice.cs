@@ -1,8 +1,9 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// One slice of GTAO in view space (docs/plans/ambient-occlusion.md, "The visibility of a slice"). gtao.glsl computes
-/// the same, and AmbientOcclusionRenderTests pins it.
+/// One slice of GTAO in view space (docs/plans/ambient-occlusion.md, "The visibility of a slice"): the geometry of the
+/// sectors' slices, and its horizons the reference that the sectors reduce to at infinite thickness. gtao.glsl's
+/// gtaoSliceGeometry computes the same geometry, and BounceLightShaderTests pins it.
 /// </summary>
 internal readonly record struct HorizonSlice
 {

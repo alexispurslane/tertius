@@ -623,7 +623,7 @@ public sealed class ReflectionRenderTests
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
-            ambientOcclusion: GroundTruthOcclusion.Default,
+            screenSpaceLight: VisibilityBitmaskLight.Default,
             exposure: new FixedExposure(0),
             reflections: reflections
         );

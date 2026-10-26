@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion upsample pass, under <see cref="GroundTruthOcclusion"/> (docs/plans/ambient-occlusion.md, "The
+/// The occlusion upsample pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/ambient-occlusion.md, "The
 /// upsample"): term A to the a channel of the full-resolution estimate target, weighted by each texel's distance from
 /// the pixel's plane.
 /// </summary>
@@ -10,7 +10,7 @@ internal sealed class OcclusionUpsamplePass(
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    GroundTruthOcclusion setting
+    VisibilityBitmaskLight setting
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(

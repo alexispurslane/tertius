@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion denoise pass, under <see cref="GroundTruthOcclusion"/> (docs/plans/ambient-occlusion.md, "The denoise"):
+/// The occlusion denoise pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/ambient-occlusion.md, "The denoise"):
 /// XeGTAO's 3 × 3 edge-aware blur, run twice, from term A to term B and back, so that term A holds the result.
 /// </summary>
 internal sealed class OcclusionDenoisePass(
@@ -9,7 +9,7 @@ internal sealed class OcclusionDenoisePass(
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    GroundTruthOcclusion setting
+    VisibilityBitmaskLight setting
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(

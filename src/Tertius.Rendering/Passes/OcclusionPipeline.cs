@@ -16,7 +16,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly OcclusionImages images;
-    private readonly GroundTruthOcclusion setting;
+    private readonly VisibilityBitmaskLight setting;
     private readonly Pipeline pipeline;
 
     /// <param name="shader">The shader's name without its extension, such as <c>occlusion_depth</c>.</param>
@@ -25,7 +25,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         OcclusionImages images,
-        GroundTruthOcclusion setting,
+        VisibilityBitmaskLight setting,
         string shader
     )
     {

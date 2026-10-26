@@ -78,7 +78,7 @@ public static class GpuTesting
     public static readonly Scene DarkAndBrightScene = new("dark-and-bright", DarkAndBright);
 
     /// <summary>
-    /// A validating headless renderer with no impostors, as a scripted run makes one, with no ambient occlusion, so that
+    /// A validating headless renderer with no impostors, as a scripted run makes one, with no screen-space light, so that
     /// the tests see the ambient light in full, and with a fixed exposure of 0 stops, so that a pixel does not depend on
     /// the frames before it. Reflections are off, as in the renderer tests' fixtures.
     /// </summary>
@@ -90,7 +90,7 @@ public static class GpuTesting
                 Width = width,
                 Height = height,
                 Impostors = false,
-                AmbientOcclusion = new NoAmbientOcclusion(),
+                ScreenSpaceLight = new NoScreenSpaceLight(),
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,

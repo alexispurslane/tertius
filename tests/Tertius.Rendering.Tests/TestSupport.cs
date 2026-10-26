@@ -52,7 +52,7 @@ internal static class Gpu
         int framesInFlight = 2,
         bool impostors = false,
         int impostorTiles = 16,
-        AmbientOcclusionSetting ambientOcclusion = default,
+        ScreenSpaceLightSetting screenSpaceLight = default,
         ExposureSetting exposure = default,
         AntiAliasing antiAliasing = AntiAliasing.None,
         ReflectionSetting reflections = default
@@ -66,7 +66,7 @@ internal static class Gpu
                 FramesInFlight = framesInFlight,
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
-                AmbientOcclusion = ambientOcclusion,
+                ScreenSpaceLight = screenSpaceLight,
                 Exposure = exposure,
                 Bloom = new NoBloom(),
                 AntiAliasing = antiAliasing,

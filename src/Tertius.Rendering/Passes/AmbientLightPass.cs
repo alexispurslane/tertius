@@ -34,7 +34,7 @@ internal sealed unsafe class AmbientLightPass : RenderPass
         BarrierBatch barriers = context.Barriers;
         foreach (GpuImage image in targets.GBuffer)
             barriers.Image(image, ImageUse.SampledFragment);
-        // After the upsample's write, or the clear's under no ambient occlusion.
+        // After the upsample's write, or the clear's under NoScreenSpaceLight.
         barriers.Image(targets.Estimate, ImageUse.SampledFragment);
         barriers.Image(targets.Direct, ImageUse.SampledFragment);
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);

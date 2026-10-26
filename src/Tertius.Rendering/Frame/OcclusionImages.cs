@@ -4,29 +4,34 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The half-resolution images of the occlusion passes and their sets (docs/plans/ambient-occlusion.md, "Images"). The
-/// images stay in the General layout. Only <see cref="GroundTruthOcclusion"/> makes them.
+/// The half-resolution images of the occlusion passes, the sector masks buffer and their sets
+/// (docs/plans/screen-space-illumination.md, "Images and buffers"). The images stay in the General layout. Only
+/// <see cref="VisibilityBitmaskLight"/> makes them.
 /// </summary>
 internal sealed class OcclusionImages : IDisposable
 {
     public const Format ViewDepthFormat = Format.R32Sfloat;
     public const Format EdgesFormat = Format.R8Unorm;
-    public const Format TermFormat = Format.R16Sfloat;
+    public const Format TermFormat = Format.R16G16B16A16Sfloat;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+    private readonly int slices;
 
+    /// <param name="slices">The slices of each texel, each of which keeps one mask in <see cref="SectorMasks"/>.</param>
     public OcclusionImages(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
-        RenderTargets targets
+        RenderTargets targets,
+        int slices
     )
     {
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        this.slices = slices;
         CheckFormats(device);
         SetAToB = layouts.AllocateOcclusionSet();
         SetBToA = layouts.AllocateOcclusionSet();
@@ -42,11 +47,14 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>XeGTAO's packed depth edges, which the denoise reads.</summary>
     public GpuImage Edges { get; private set; }
 
-    /// <summary>The occlusion: the horizons pass's estimate, then the result of the last denoise dispatch.</summary>
+    /// <summary>The estimate, rgb the bounce and a the occlusion: the sector pass's, then the result of the last denoise dispatch.</summary>
     public GpuImage TermA { get; private set; }
 
-    /// <summary>The occlusion after the first denoise dispatch.</summary>
+    /// <summary>The estimate after the first denoise dispatch.</summary>
     public GpuImage TermB { get; private set; }
+
+    /// <summary>Slices words per half-resolution texel, row by row: each slice's mask of sectors blocked nearby.</summary>
+    public GpuBuffer SectorMasks { get; private set; }
 
     /// <summary>
     /// Set 3 of <see cref="DescriptorLayouts.OcclusionLayout"/> with term A as the denoise source and term B as its
@@ -57,7 +65,10 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>Set 3 with term B as the denoise source and term A as its destination: for the last denoise dispatch.</summary>
     public DescriptorSet SetBToA { get; }
 
-    /// <summary>Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle.</summary>
+    /// <summary>
+    /// Recreates the images and the sector masks buffer at the half of the targets' size and rewrites both sets. The
+    /// device must be idle.
+    /// </summary>
     public void Resize(RenderTargets targets)
     {
         // Always, even at the same half size: the sets point at the targets, which a resize recreates.
@@ -65,7 +76,7 @@ internal sealed class OcclusionImages : IDisposable
         Create(targets);
     }
 
-    [MemberNotNull(nameof(ViewDepth), nameof(Edges), nameof(TermA), nameof(TermB))]
+    [MemberNotNull(nameof(ViewDepth), nameof(Edges), nameof(TermA), nameof(TermB), nameof(SectorMasks))]
     private void Create(RenderTargets targets)
     {
         HalfExtent = new((targets.Extent.Width + 1) / 2, (targets.Extent.Height + 1) / 2);
@@ -73,6 +84,14 @@ internal sealed class OcclusionImages : IDisposable
         Edges = CreateImage(format: EdgesFormat, name: "occlusion edges");
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
         TermB = CreateImage(format: TermFormat, name: "occlusion term B");
+        SectorMasks = GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: (ulong)HalfExtent.Width * HalfExtent.Height * (ulong)slices * sizeof(uint),
+            usage: BufferUsageFlags.StorageBufferBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "occlusion sector masks"
+        );
 
         WriteSet(set: SetAToB, targets: targets, denoiseSource: TermA, denoiseDestination: TermB);
         WriteSet(set: SetBToA, targets: targets, denoiseSource: TermB, denoiseDestination: TermA);
@@ -85,6 +104,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: 1, image: Edges);
         layouts.WriteStorageImage(set: set, binding: 2, image: TermA);
         layouts.WriteStorageImage(set: set, binding: 3, image: targets.Estimate);
+        layouts.WriteBuffer(set: set, binding: 4, type: DescriptorType.StorageBuffer, buffer: SectorMasks);
         layouts.WriteStorageImage(set: set, binding: 6, image: denoiseSource);
         layouts.WriteStorageImage(set: set, binding: 7, image: denoiseDestination);
     }
@@ -95,7 +115,8 @@ internal sealed class OcclusionImages : IDisposable
             allocator: allocator,
             extent: HalfExtent,
             format: format,
-            usage: ImageUsageFlags.StorageBit,
+            // Transfer source for the renderer's test hooks, which read term A and the view depth back.
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
             name: name
         );
@@ -113,6 +134,7 @@ internal sealed class OcclusionImages : IDisposable
         Edges.Dispose();
         TermA.Dispose();
         TermB.Dispose();
+        SectorMasks.Dispose();
     }
 
     // The pool of the layouts frees the sets.

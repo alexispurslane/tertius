@@ -14,14 +14,14 @@ public sealed class GpuTimingTests
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
-        AmbientOcclusionSetting ambientOcclusion = default
+        ScreenSpaceLightSetting screenSpaceLight = default
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
             framesInFlight: framesInFlight,
-            ambientOcclusion: ambientOcclusion
+            screenSpaceLight: screenSpaceLight
         );
         if (!renderer.TimesPasses)
         {
@@ -109,9 +109,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
+    public void WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -128,7 +128,7 @@ public sealed class GpuTimingTests
                         "G-buffer",
                         "direct light",
                         "occlusion depth",
-                        "occlusion horizons",
+                        "occlusion sectors",
                         "occlusion denoise",
                         "occlusion upsample",
                         "ambient light",
@@ -143,9 +143,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoAmbientOcclusionTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
+    public void WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: new NoAmbientOcclusion());
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();

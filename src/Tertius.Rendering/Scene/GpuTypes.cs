@@ -277,7 +277,7 @@ internal struct OcclusionPushConstants
     public uint LastDenoise;
 
     /// <summary>The push constants of one dispatch.</summary>
-    public static OcclusionPushConstants For(GroundTruthOcclusion setting, bool lastDenoise) =>
+    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
         new()
         {
             RadiusMeters = setting.RadiusMeters,

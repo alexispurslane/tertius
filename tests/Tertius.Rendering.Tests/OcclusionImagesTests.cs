@@ -4,7 +4,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The GPU plumbing of the occlusion passes (docs/plans/screen-space-illumination.md, "Images and buffers" and "Push
-/// constants and sets"): the half-resolution images, their sets, a resize, and the layout that the four shaders share.
+/// constants and sets"): the half-resolution images, the sector masks buffer, their sets, a resize, and the layout that
+/// the four shaders share.
 /// Validation is on.
 /// </summary>
 public sealed class OcclusionImagesTests
@@ -32,8 +33,31 @@ public sealed class OcclusionImagesTests
 
         images.ViewDepth.Format.Should().Be(Format.R32Sfloat, "occlusion.glsl declares viewDepth r32f");
         images.Edges.Format.Should().Be(Format.R8Unorm, "occlusion.glsl declares occlusionEdges r8");
-        images.TermA.Format.Should().Be(Format.R16Sfloat, "occlusion.glsl declares the terms r16f");
-        images.TermB.Format.Should().Be(Format.R16Sfloat, "occlusion.glsl declares the terms r16f");
+        images.TermA.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+        images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+    }
+
+    [Fact]
+    public void TheSectorMasksBufferHoldsOneWordForEachSliceOfEachTexel()
+    {
+        using var plumbing = new Plumbing(641, 361);
+        using OcclusionImages images = plumbing.CreateImages(slices: 5);
+
+        images
+            .SectorMasks.Size.Should()
+            .Be(321ul * 181 * 5 * sizeof(uint), "occlusion.glsl's maskIndex reads this many");
+    }
+
+    [Fact]
+    public void AResizeRecreatesTheSectorMasksBufferForTheNewHalfSize()
+    {
+        using var plumbing = new Plumbing(640, 360);
+        using OcclusionImages images = plumbing.CreateImages(slices: 3);
+
+        plumbing.Resize(new(801, 451));
+        images.Resize(plumbing.Targets);
+
+        images.SectorMasks.Size.Should().Be(401ul * 226 * 3 * sizeof(uint));
     }
 
     [Fact]
@@ -79,7 +103,7 @@ public sealed class OcclusionImagesTests
 
     [Theory]
     [InlineData("occlusion_depth.comp")]
-    [InlineData("occlusion_horizons.comp")]
+    [InlineData("occlusion_sectors.comp")]
     [InlineData("occlusion_denoise.comp")]
     [InlineData("occlusion_upsample.comp")]
     public unsafe void EachOcclusionShaderMakesAPipelineWithTheOcclusionLayout(string shader)
@@ -127,8 +151,8 @@ public sealed class OcclusionImagesTests
         public DescriptorLayouts Layouts { get; }
         public RenderTargets Targets { get; }
 
-        public OcclusionImages CreateImages() =>
-            new(device: Device, allocator: Allocator, layouts: Layouts, targets: Targets);
+        public OcclusionImages CreateImages(int slices = 3) =>
+            new(device: Device, allocator: Allocator, layouts: Layouts, targets: Targets, slices: slices);
 
         /// <summary>Resizes the targets, as the renderer does, with the device idle.</summary>
         public void Resize(Extent2D extent)
