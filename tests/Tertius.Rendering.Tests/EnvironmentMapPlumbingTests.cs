@@ -2,7 +2,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The GPU plumbing of the environment map (docs/plans/environment-map.md, "Images and buffers" and "Portable Vulkan"):
-/// the descriptors that its compute passes need, and what a map that fails to start leaves behind. Validation is on.
+/// the descriptors that its compute passes need, what a map that fails to start leaves behind, and the map's frame when a
+/// drawn frame fails before its submission. Validation is on.
 /// </summary>
 public sealed class EnvironmentMapPlumbingTests
 {
@@ -48,6 +49,35 @@ public sealed class EnvironmentMapPlumbingTests
         plumbing.Allocator.LiveAllocations.Should().Be(0, "the map releases its images and buffers when it fails");
     }
 
+    [Fact]
+    public void AFrameThatWasNeverSubmittedLeavesTheNextFrameToDrawEveryFace()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = plumbing.Map();
+        // The first frame chooses its faces, then throws before its submission, so it records no drawn frame.
+        map.FacesFor(frame: 0, originFrameId: 4, longStep: false);
+
+        map.FacesFor(frame: 1, originFrameId: 4, longStep: false)
+            .Should()
+            .Be(FaceMask.All, "no frame has drawn the faces, so their level 0 holds the image's undefined content");
+    }
+
+    [Fact]
+    public void AfterASubmittedFrameTheNextFrameOfTheSameCameraFrameDrawsItsFacesInTurn()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = plumbing.Map();
+        map.FacesFor(frame: 0, originFrameId: 4, longStep: false);
+        map.Drew(originFrameId: 4);
+
+        map.FacesFor(frame: 1, originFrameId: 4, longStep: false)
+            .Should()
+            .Be(
+                EnvironmentFaces.InTurn(frame: 1, facesPerFrame: 1),
+                "the submitted frame drew every face in these axes"
+            );
+    }
+
     /// <summary>A validating headless device with the descriptor layouts.</summary>
     private sealed class Plumbing : IDisposable
     {
@@ -61,6 +91,20 @@ public sealed class EnvironmentMapPlumbingTests
         public VulkanDevice Device { get; }
         public DeviceAllocator Allocator { get; }
         public DescriptorLayouts Layouts { get; }
+
+        /// <summary>A map of 32-texel faces that draws one face per frame in turn.</summary>
+        public EnvironmentMap Map() =>
+            new(
+                device: Device,
+                allocator: Allocator,
+                layouts: Layouts,
+                setting: SceneEnvironmentMap.Default with
+                {
+                    FaceSize = 32,
+                    FacesPerFrame = 1,
+                },
+                framesInFlight: 2
+            );
 
         /// <summary>Allocates one more prefilter set from the pool, and says whether it fit.</summary>
         public bool FitsAnotherPrefilterSet()

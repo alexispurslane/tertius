@@ -485,6 +485,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
+        // Only now, so that a frame that threw above leaves the map's frame as it was.
+        environmentMap?.Drew(snapshot.OriginFrameId);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -543,7 +545,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// What the batcher prepares for the map in the frame that the renderer draws next: no map, or the faces that
-    /// <see cref="EnvironmentMap.FacesFor"/> chooses with the latest irradiance reading.
+    /// <see cref="EnvironmentMap.FacesFor"/> chooses with the latest irradiance reading. It changes no state, so a frame
+    /// that throws before its submission leaves the map as it was.
     /// </summary>
     private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool longStep)
     {
