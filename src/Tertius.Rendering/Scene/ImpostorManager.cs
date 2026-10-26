@@ -222,6 +222,18 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
+    /// Whether <paramref name="instance"/> may become an impostor: no flag excludes it, a capture can draw its material, it
+    /// has a volume, and the eye is not nearly inside it.
+    /// </summary>
+    private static bool MayBecomeImpostor(in PreparedInstance instance)
+    {
+        bool excluded = (instance.Flags & Excluded) != 0;
+        bool hasVolume = instance.Radius > 0f;
+        bool nearlyInside = instance.Distance < MinimumDistance * instance.Radius;
+        return !excluded && Capturable(instance.Alpha) && hasVolume && !nearlyInside;
+    }
+
+    /// <summary>
     /// Whether a capture can draw an object whose material draws as <paramref name="alpha"/>. A capture has no transparent
     /// pass, so glass and a fringe cannot be captured (docs/plans/skin-and-hair.md, decision 24).
     /// </summary>
@@ -263,12 +275,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
-            if (
-                (instance.Flags & Excluded) != 0
-                || !Capturable(instance.Alpha)
-                || !(instance.Radius > 0f)
-                || instance.Distance < MinimumDistance * instance.Radius
-            )
+            if (!MayBecomeImpostor(instance))
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
             var key = ImpostorKey.Of(instance);
@@ -286,25 +293,34 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                 continue;
 
             decisions[i] = slot;
-            if (state.Tile >= 0)
-            {
-                float error = CaptureError(state, instance, light) * height;
-                bool current = error <= RecaptureError;
-                // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An
-                // object that just became an impostor again, or came back into view, waits as geometry instead.
-                state.Drawable = current || state.DrawnFrame == Frame - 1;
-                if (!current)
-                    recaptures.Push(state.Drawable ? error : MathF.PI * height, i);
-            }
-            else
-            {
-                state.Drawable = false;
-                firstCaptures.Push(MathF.PI * height, i);
-            }
+            QueueCapture(state: ref state, index: i, instance: instance, light: light);
         }
 
         SelectCaptures(visible, light, camera);
         EmitDraws(scene, visible);
+    }
+
+    /// <summary>
+    /// Decides whether the impostor of visible instance <paramref name="index"/> draws this frame, and queues its first
+    /// capture or its recapture when it needs one.
+    /// </summary>
+    private void QueueCapture(ref State state, int index, in PreparedInstance instance, in SceneLight light)
+    {
+        float height = state.Height;
+        if (state.Tile < 0)
+        {
+            state.Drawable = false;
+            firstCaptures.Push(MathF.PI * height, index);
+            return;
+        }
+
+        float error = CaptureError(state, instance, light) * height;
+        bool current = error <= RecaptureError;
+        // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An object that
+        // just became an impostor again, or came back into view, waits as geometry instead.
+        state.Drawable = current || state.DrawnFrame == Frame - 1;
+        if (!current)
+            recaptures.Push(state.Drawable ? error : MathF.PI * height, index);
     }
 
     /// <summary>Takes the highest-priority candidates, up to the budget, and records their captures.</summary>
