@@ -57,9 +57,10 @@ internal sealed class BrdfTableImages : IDisposable
             image: LobeSky,
             texels: MemoryMarshal.AsBytes(tables.LobeSky)
         );
-        // The shading passes of this frame read the tables, so the barrier makes the copies visible to them first.
-        barriers.Image(Dfg, ImageUse.SampledFragment);
-        barriers.Image(LobeSky, ImageUse.SampledFragment);
+        // The shading passes of this frame read the tables, the lighting in fragment shaders and the reflections' trace
+        // in a compute shader, so the barrier makes the copies visible to both stages. No pass declares the tables later.
+        barriers.Image(Dfg, ImageUse.SampledFragmentCompute);
+        barriers.Image(LobeSky, ImageUse.SampledFragmentCompute);
         barriers.Flush(device.Vk, commandBuffer);
         uploaded = true;
     }

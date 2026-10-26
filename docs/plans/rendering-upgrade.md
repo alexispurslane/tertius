@@ -17,18 +17,20 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-gcm3` | Anti-aliasing with SMAA 1x | PBR | In the ticket |
 | `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
 | `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
-| `ter-jxv9` | Screen-space reflections | PBR | Two designs, in the ticket |
+| `ter-jxv9` | Screen-space reflections | PBR, exposure | [screen-space-reflections.md](screen-space-reflections.md) |
 | `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
 | `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
+| `ter-pq5y` | The coda: profile every pass and hold the whole frame to 12 ms of GPU time at 1080p | Every member above | [rendering-performance.md](rendering-performance.md) |
 
 ## Order
 
 - PBR comes first. The look and the tuning of every other feature depend on the BRDF. SSR weights its reflections by the Fresnel term and blurs them by the roughness. SSAO and SSGI scale the diffuse and ambient light. Exposure, the tone curve and bloom are tuned against the radiance that the BRDF sends.
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
 - SSGI waits for SSAO, as before.
+- The performance coda (`ter-pq5y`) measures the frame that the whole epic makes, so its last part comes after every other member (user, 2026-10-25). Each feature's own profile starts as soon as that feature merges.
 - The atmosphere color comes last, after every other member. The user decided this on 2026-10-25. It waits for the environment map, which captures the sky and so carries the atmosphere's color into the ambient light.
 - The environment map replaces the per-frame sky and ground colors (user, 2026-10-25). It holds the whole scene seen from the camera, so the ambient light comes from what really surrounds the camera, indoors and outdoors.
 - The snapshot tests (`ter-rtxu`) wait for this whole epic. A snapshot locks in a look, and it cannot drive red-green TDD, because its reference image exists only after the feature works.
@@ -39,7 +41,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 - A `RendererOptions` switch for the feature, and its cost measured at 1080p, as "Measuring the cost of a feature" below says.
 - Red-green TDD for the C# parts and the math that CPU tests can reach.
 - The look is reviewed by eye in headless screenshots of the demo scenes. No member adds reference images. The snapshot tests epic adds them after this epic.
-- A temporal effect stays off under the deterministic switch that the snapshot tests epic adds. Until that switch exists, the feature's own switch turns it off.
+- No member blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). Each frame's image comes from that frame alone, so it has no grain that settles, no ghosting and no smearing. See [rendering-performance.md](rendering-performance.md), decision 8.
 - The last step of each member updates ARCHITECTURE.md to match the code.
 
 ### Measuring the cost of a feature
@@ -52,7 +54,7 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
    nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video captures/gpu-branch/run.mkv
    ```
 
-   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`.
+   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes`.
 
 2. Make a checkout of the base, the commit of main that the branch starts from, beside the repository, and run the same script there into its own folder:
 
@@ -62,7 +64,7 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
    git worktree remove ../tertius-base
    ```
 
-3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
 Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 

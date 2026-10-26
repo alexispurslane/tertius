@@ -272,13 +272,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         for (int level = 0; level < views.Length; level++)
         {
             sets[level] = layouts.AllocateEnvironmentLevelSet();
-            layouts.WriteView(
-                set: sets[level],
-                binding: 0,
-                arrayElement: 0,
-                view: views[level],
-                type: DescriptorType.StorageImage
-            );
+            layouts.WriteStorageImage(set: sets[level], binding: 0, view: views[level]);
         }
     }
 

@@ -20,10 +20,9 @@ layout(location = 0, index = 1) out vec4 outTransmittance;
 
 void main()
 {
+    vec3 V = towardEye(inPosition);
     // Sample and take the footprint before the discard below, so implicit derivatives stay defined for the whole quad.
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
-    float distanceToEye = length(inPosition - draw.eye.xyz);
-    vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.normal = s.normal;
     shading.roughness = s.roughness;
@@ -32,11 +31,12 @@ void main()
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.
     float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
+    float distanceToEye = length(inPosition - draw.eye.xyz);
     if (opaqueDistance > 0.0 && distanceToEye > opaqueDistance)
         discard;
 
     shading.baseColor = s.baseColor.rgb;
-    shading.geometricNormal = normalize(inNormal);
+    shading.geometricNormal = normalizedOr(inNormal, V);
     shading.metallic = s.metallic;
     shading.reflectance = s.reflectance;
     // Only the hemisphere reads the sky shares.
@@ -51,13 +51,14 @@ void main()
     SurfaceLobes lobes = lobesOf(shading, V);
     lobes.diffuseColor *= opacity;
     // The glass lets through what it neither reflects nor scatters: T = (1 − opacity)(1 − E · c), per channel.
-    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - compensatedSpecularAlbedo(lobes)), 0.0, 1.0);
-    // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that it plus a target of at most
-    // MaxRadiance times T stays a finite half float: past it, a device may store infinity, which the tone curve turns
-    // into NaN.
+    vec3 transmittance = clamp((1.0 - opacity) * (1.0 - specularWeight(lobes)), 0.0, 1.0);
+    // The pane's pre-exposed radiance takes at most MaxRadiance · (1 − T), so that over a target v the blend's
+    // MaxRadiance · (1 − T) + T · v keeps the surfaces' share and the puffs' inside the half float's range: past it, a
+    // device may store infinity, which the tone curve turns into NaN (ARCHITECTURE.md, "Portable Vulkan").
     float exposure = exposureScale();
+    // The emission is capped before the exposure multiplies it, as every writer's light is (exposure.glsl).
     vec3 radiance = min(
-        lobesRadiance(shading, lobes, s.emissive * exposure, inPosition, V, SunShadowsMainView, exposure),
+        lobesRadiance(shading, lobes, exposed(s.emissive, exposure), inPosition, V, SunShadowsMainView, exposure),
         MaxRadiance * (1.0 - transmittance));
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha

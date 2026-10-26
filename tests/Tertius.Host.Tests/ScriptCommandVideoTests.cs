@@ -130,12 +130,13 @@ public sealed class ScriptCommandVideoTests : IDisposable
         int code = Run(script, "--video", Video);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        output
-            .ToString()
+        string[] lines = output.ToString().Split(Environment.NewLine);
+        lines[..3].Should().Equal(Path.Combine(Out, "start.json"), Path.Combine(Out, "end.json"), Video);
+        lines[3..]
             .Should()
-            .Be(
-                string.Join(Environment.NewLine, Path.Combine(Out, "start.json"), Path.Combine(Out, "end.json"), Video)
-                    + Environment.NewLine
+            .Contain(
+                Path.Combine(Out, ScriptCommand.ExposureFile),
+                "the reports of the renderer follow the files of the run"
             );
         File.Exists(Path.Combine(Out, "end.json")).Should().BeTrue("the dumps still go into the output folder");
     }

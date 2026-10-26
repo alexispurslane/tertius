@@ -27,6 +27,9 @@ public sealed class ExposureSettingTests
             { "bright share below 0", Auto with { BrightShare = -0.01f } },
             { "bright share not finite", Auto with { BrightShare = float.PositiveInfinity } },
             { "shares that add up to 1", Auto with { DarkShare = 0.5f, BrightShare = 0.5f } },
+            // In single floats, (1 − 0.43065) · 14,400 and 0.56934994 · 14,400 round to one value, so the trim keeps no
+            // pixel of a frame of 160 by 90 and the mean divides 0 by 0.
+            { "shares that add up to more than 0.99", Auto with { DarkShare = 0.56934994f, BrightShare = 0.43065f } },
             { "time into the dark below 0", Auto with { IntoDarkSeconds = -1 } },
             { "time into the dark not finite", Auto with { IntoDarkSeconds = float.PositiveInfinity } },
             { "time into the light below 0", Auto with { IntoLightSeconds = -1 } },
@@ -51,7 +54,7 @@ public sealed class ExposureSettingTests
             { "the lowest compensation", Auto with { CompensationStops = -64 } },
             { "a clamp of one value", Auto with { MinStops = 3, MaxStops = 3 } },
             { "shares of 0", Auto with { DarkShare = 0, BrightShare = 0 } },
-            { "shares just below 1 together", Auto with { DarkShare = 0.5f, BrightShare = 0.49f } },
+            { "shares that add up to 0.99", Auto with { DarkShare = 0.5f, BrightShare = 0.49f } },
             { "time constants of 0", Auto with { IntoDarkSeconds = 0, IntoLightSeconds = 0 } },
         };
 

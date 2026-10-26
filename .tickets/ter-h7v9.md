@@ -1,6 +1,6 @@
 ---
 id: ter-h7v9
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-25T04:18:20Z
@@ -17,3 +17,9 @@ TextureStore.FlatNormal is the texel (128, 128, 255), and material.glsl decodes 
 
 A material with no normal map shades with its vertex normal exactly: a GPU test of a roughness-0 metal finds its highlight at the pixel that the geometry predicts.
 
+
+## Notes
+
+**2026-10-25T21:25:57Z**
+
+Closed on 2026-10-25 as fixed by ter-v0yz: a material without a normal map now has no map (GpuMaterial.NoMap) and shades with its exact vertex normal, and ShadingNormalTests finds a mirror's highlight within 1 px of the geometry's prediction.

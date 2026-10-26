@@ -27,15 +27,15 @@ layout(location = 1) out float outDepth;  // R16F: view depth over the center's 
 
 void main()
 {
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    vec3 V = towardEye(inPosition);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
-    shading.geometricNormal = normalize(inNormal);
+    shading.geometricNormal = normalizedOr(inNormal, V);
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
-    vec3 V = normalize(draw.eye.xyz - inPosition);
     shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
     // Only the hemisphere reads the sky shares.
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);

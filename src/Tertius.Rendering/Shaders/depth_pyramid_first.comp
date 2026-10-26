@@ -1,0 +1,24 @@
+#version 460
+// Level 1 of the depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"): each cell merges the bounds
+// of the up to four pixels of the distance target under it. One invocation per texel of the image's mip 0, padding
+// included, which holds the empty bounds because its pixels lie beyond the screen.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "depth_pyramid.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 1, rg32f) uniform writeonly image2D destination;   // level 1
+
+void main()
+{
+    ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(cell, imageSize(destination))))
+        return;
+    vec2 bounds = vec2(0.0, EmptyFar);
+    // Level 0 is the distance target itself, so cellBounds never reads the pyramid that it is given here.
+    for (int y = 0; y < 2; y++)
+        for (int x = 0; x < 2; x++)
+            bounds = mergedBounds(bounds, cellBounds(gbufferDistance, 0u, 2 * cell + ivec2(x, y)));
+    imageStore(destination, cell, vec4(bounds, 0.0, 0.0));
+}

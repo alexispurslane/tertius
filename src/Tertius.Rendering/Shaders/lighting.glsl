@@ -5,9 +5,12 @@
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // The lights add f · E · (N·L), where E is the irradiance of the light. The ambient light comes from one ambient source,
-// which gives a diffuse and a specular term (docs/plans/environment-map.md, "The one source of the ambient light").
-// Ambient occlusion scales the two ambient terms in occludedAmbient alone (docs/plans/ambient-occlusion.md, "The
-// lighting pass"). lobesRadiance pre-exposes the sum and clamps it to the largest finite half float.
+// the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
+// term (docs/plans/environment-map.md, "The one source of the ambient light"). Ambient occlusion scales the two ambient
+// terms in occludedAmbient alone (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient
+// light reads it through ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the
+// ambient light"). lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image
+// (exposure.glsl).
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -125,7 +128,9 @@ float sunVisibility(vec3 position, float beyondMaps)
         float distanceToCenter = length(toCenter);
         if (distanceToCenter <= occluder.w)
             continue;
-        float occluderRadius = asin(occluder.w / distanceToCenter);
+        // The test above makes the ratio below 1 only in exact arithmetic: a division may be off by 2.5 ULP, and for a
+        // distance within 2 ULP of the radius, such as on a planet's own ground, the ratio can come out above 1.
+        float occluderRadius = asin(min(occluder.w / distanceToCenter, 1.0));
         // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
         float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
         visibility *= 1.0 - weight * discCoverage(sunRadius, occluderRadius, separation);
@@ -182,15 +187,16 @@ float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
     return attenuation;
 }
 
-// The compensated specular albedo E · c: the share of a uniform light that the specular part reflects toward the eye.
-// It weights the ambient specular term, and a pane of glass lets through what it leaves (transparent.frag).
-vec3 compensatedSpecularAlbedo(SurfaceLobes lobes)
+// W = E · c, the compensated specular albedo: the weight of the light that arrives along the specular lobe in the light
+// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the
+// reflection trace weight specular light by it, and a pane of glass lets through what it leaves (transparent.frag).
+vec3 specularWeight(SurfaceLobes lobes)
 {
     return lobes.specularAlbedo * lobes.energyCompensation;
 }
 
 // The ambient light that a surface point sends toward the eye, before ambient occlusion, in two terms: the diffuse
-// color times the incoming diffuse light, and the compensated specular albedo times the incoming specular light.
+// color times the incoming diffuse light, and the specular weight times the incoming specular light.
 struct AmbientTerms
 {
     vec3 diffuse;
@@ -204,7 +210,7 @@ AmbientTerms hemisphereAmbient(ShadingInput s, SurfaceLobes lobes)
     vec3 sky = frame.ambientSky.rgb;
     AmbientTerms terms;
     terms.diffuse = lobes.diffuseColor * mix(ground, sky, s.skyFraction);
-    terms.specular = compensatedSpecularAlbedo(lobes) * mix(ground, sky, s.lobeSkyFraction);
+    terms.specular = specularWeight(lobes) * mix(ground, sky, s.lobeSkyFraction);
     return terms;
 }
 
@@ -241,21 +247,25 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
     terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.normal);
     vec3 incoming = environmentSpecular(
         ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
-    terms.specular = compensatedSpecularAlbedo(lobes) * incoming;
+    terms.specular = specularWeight(lobes) * incoming;
     return terms;
 }
 
-// The ambient source of every shading pass: the map while it is on, the hemisphere while it is off.
+// The ambient light of a surface point in its two terms, from the frame's ambient source, the map while it is on and
+// the hemisphere while it is off, then occluded (docs/plans/screen-space-reflections.md, "The one place where SSR
+// reads the ambient light", and docs/plans/environment-map.md, "The one source of the ambient light"). ambientLight
+// and the reflection trace read the ambient light only through this function. V points from the surface to the eye.
 AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
-    return environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
+    AmbientTerms source = environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
+    return occludedAmbient(source, s, lobes);
 }
 
-// The ambient light reflected toward the eye: the terms of the frame's ambient source, occluded in one place.
+// The ambient light reflected toward the eye: both terms of ambientTerms.
 vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
-    AmbientTerms occluded = occludedAmbient(ambientTerms(s, lobes, V), s, lobes);
-    return occluded.diffuse + occluded.specular;
+    AmbientTerms terms = ambientTerms(s, lobes, V);
+    return terms.diffuse + terms.specular;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and by the cascades as sunShadows says.
@@ -293,16 +303,18 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
     return sunLight(s, lobes, position, V, sunShadows) + localLights(s, lobes, position, V);
 }
 
-// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and clamped to what the HDR
-// target holds: the reflected light times `exposure`, plus `preExposedEmission`, which the caller has already
-// multiplied. The clamp applies to the whole sum, because the target's range bounds what it stores, whatever the parts.
+// All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
+// surfaces' share of the HDR image (exposure.glsl): the reflected light times `exposure`, plus `preExposedEmission`,
+// which the caller has already exposed and capped. The cap applies to the whole sum, because the share bounds what a
+// surface writes, whatever the parts.
+// The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass SunShadowsNone and an exposure of 1, because the atlas
 // stores radiance.
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint sunShadows, float exposure)
 {
     vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, sunShadows);
-    return min(reflected * exposure + preExposedEmission, vec3(MaxRadiance));
+    return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
 // lobesRadiance with the lobes of the material itself: every opaque surface.
@@ -312,7 +324,7 @@ vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec
 }
 
 // The light that the sun and the point and spot lights send from a surface point toward V, plus its emission, in plain
-// radiance: no ambient light and no exposure, as the environment faces store it. Clamped to the largest finite half float.
+// radiance: no ambient light and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
 vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint sunShadows)
 {
     SurfaceLobes lobes = lobesOf(s, V);

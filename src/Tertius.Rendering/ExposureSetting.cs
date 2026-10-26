@@ -13,7 +13,7 @@ public readonly record struct FixedExposure(float Stops);
 /// <param name="MaxStops">The highest exposure, in stops, up to 64.</param>
 /// <param name="CompensationStops">Stops added to the target before the clamp, from −64 to 64. +1 makes the settled image twice as bright.</param>
 /// <param name="DarkShare">The share of the surface pixels that the meter drops from the dark end, 0 or more.</param>
-/// <param name="BrightShare">The share that the meter drops from the bright end, 0 or more. The two shares add up to less than 1.</param>
+/// <param name="BrightShare">The share that the meter drops from the bright end, 0 or more. The two shares add up to at most 0.99.</param>
 /// <param name="IntoDarkSeconds">The time constant, in s, 0 or more, while the exposure rises because the view got darker.</param>
 /// <param name="IntoLightSeconds">The time constant, in s, 0 or more, while the exposure falls because the view got brighter.</param>
 public readonly record struct AutoExposure(
@@ -79,9 +79,10 @@ public readonly partial struct ExposureSetting
             return dark;
         if (NonNegativeProblem("AutoExposure.BrightShare", auto.BrightShare) is { } bright)
             return bright;
-        // The meter must keep some pixels, or the trimmed mean has nothing to average.
-        if (auto.DarkShare + auto.BrightShare >= 1)
-            return $"AutoExposure.DarkShare {auto.DarkShare} and BrightShare {auto.BrightShare} must add up to less than 1.";
+        // The meter must keep some pixels, or the trimmed mean divides 0 by 0. Shares that add up to just below 1 can keep
+        // none, because the adapt step computes the trim's two ends in single floats, which can round to one value.
+        if (auto.DarkShare + auto.BrightShare > 0.99f)
+            return $"AutoExposure.DarkShare {auto.DarkShare} and BrightShare {auto.BrightShare} must add up to at most 0.99.";
         if (NonNegativeProblem("AutoExposure.IntoDarkSeconds", auto.IntoDarkSeconds) is { } intoDark)
             return intoDark;
         return NonNegativeProblem("AutoExposure.IntoLightSeconds", auto.IntoLightSeconds);

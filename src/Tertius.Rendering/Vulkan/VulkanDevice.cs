@@ -11,7 +11,8 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The Vulkan instance, the chosen physical device, the logical device and its one graphics and compute queue. Optionally a
 /// validation messenger and a window surface. Requires Vulkan 1.3 with dynamic rendering, synchronization2,
-/// descriptor indexing, multi-draw indirect and depth clamp.
+/// descriptor indexing, multi-draw indirect, depth clamp, dual-source blending and anisotropic filtering
+/// (ARCHITECTURE.md, "Required device features").
 /// </summary>
 internal sealed unsafe class VulkanDevice : IDisposable
 {
@@ -342,7 +343,23 @@ internal sealed unsafe class VulkanDevice : IDisposable
         };
         var f2 = new PhysicalDeviceFeatures2 { SType = StructureType.PhysicalDeviceFeatures2, PNext = &f12 };
         vk.GetPhysicalDeviceFeatures2(device, &f2);
-        PhysicalDeviceFeatures f = f2.Features;
+        return MissingFeature(f2.Features, f12, f13);
+    }
+
+    /// <summary>
+    /// The first feature that the renderer requires and the device lacks, by the features that it reports, or null when it
+    /// has every one (ARCHITECTURE.md, "Required device features").
+    /// </summary>
+    internal static string? MissingFeature(
+        in PhysicalDeviceFeatures f,
+        in PhysicalDeviceVulkan12Features f12,
+        in PhysicalDeviceVulkan13Features f13
+    ) =>
+        // The order only picks which of several missing features the refusal names.
+        MissingCoreFeature(f) ?? MissingVulkan12Feature(f12) ?? MissingVulkan13Feature(f13);
+
+    private static string? MissingCoreFeature(in PhysicalDeviceFeatures f)
+    {
         if (!f.MultiDrawIndirect)
             return "multiDrawIndirect";
         if (!f.DrawIndirectFirstInstance)
@@ -351,8 +368,18 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "depthClamp";
         if (!f.DualSrcBlend)
             return "dualSrcBlend";
+        if (!f.SamplerAnisotropy)
+            return "samplerAnisotropy";
         if (!f.ShaderStorageImageExtendedFormats)
             return "shaderStorageImageExtendedFormats";
+        return null;
+    }
+
+    private static string? MissingVulkan12Feature(in PhysicalDeviceVulkan12Features f12)
+    {
+        // The feature itself, beside its parts, guarantees the limits of 500,000 descriptors after bind.
+        if (!f12.DescriptorIndexing)
+            return "descriptorIndexing";
         if (!f12.RuntimeDescriptorArray)
             return "runtimeDescriptorArray";
         if (!f12.DescriptorBindingPartiallyBound)
@@ -363,6 +390,11 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "descriptorBindingSampledImageUpdateAfterBind";
         if (!f12.ShaderSampledImageArrayNonUniformIndexing)
             return "shaderSampledImageArrayNonUniformIndexing";
+        return null;
+    }
+
+    private static string? MissingVulkan13Feature(in PhysicalDeviceVulkan13Features f13)
+    {
         if (!f13.DynamicRendering)
             return "dynamicRendering";
         if (!f13.Synchronization2)

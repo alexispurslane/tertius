@@ -123,11 +123,15 @@ internal sealed unsafe class ExposureResources : IDisposable
 
     /// <summary>
     /// Reads the exposure of <paramref name="frame"/>, the last frame that <paramref name="slot"/> drew, once its fence
-    /// has signaled. A slot that has drawn no frame leaves <see cref="Latest"/> as it is.
+    /// has signaled. A slot that has drawn no frame, or whose frame is not newer than <see cref="Latest"/>'s, leaves
+    /// <see cref="Latest"/> as it is.
     /// </summary>
     public void Collect(int slot, long frame)
     {
         if (frame < 0)
+            return;
+        // A capture collects its own frame, so the wait on an older slot after it must not take the reading back.
+        if (Latest is { Frame: var latestFrame } && frame <= latestFrame)
             return;
         Latest = new(Frame: frame, Stops: readbacks[slot].AsSpan<float>(1)[0]);
     }

@@ -23,14 +23,15 @@ layout(location = 4) out float outDistance;
 
 void main()
 {
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
+    // A surface at the eye has no direction toward it, and one whose vertex normal has no direction faces the eye.
+    vec3 V = towardEye(inPosition);
+    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
     outBaseColor = vec4(s.baseColor.rgb, 1.0);
     // The shading normal for lighting, and the vertex normal for shadow-map bias: a normal map does not move the
     // surface that the shadow map sees.
-    outNormal = vec4(octEncode(s.normal), octEncode(normalize(inNormal)));
+    outNormal = vec4(octEncode(s.normal), octEncode(normalizedOr(inNormal, V)));
     // The alphas: how much of the hemisphere ambient light the lobe and the normal get from the sky. Both need the
     // instance's up, which only this pass knows. Only the hemisphere reads them, so with the map on they hold 0.
-    vec3 V = normalize(draw.eye.xyz - inPosition);
     float lobeSky = environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
     float normalSky = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
     outSpecular = vec4(s.metallic, s.roughness, s.reflectance, lobeSky);
