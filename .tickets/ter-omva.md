@@ -1,6 +1,6 @@
 ---
 id: ter-omva
-status: open
+status: in_progress
 deps: [ter-torl]
 links: []
 created: 2026-10-26T19:32:59Z
