@@ -48,7 +48,7 @@ internal static class ReflectionTesting
     /// <summary>No sun and no ambient light: only emission lights the scene, so a metal floor shows only what the trace adds.</summary>
     public static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -56,7 +56,7 @@ internal static class ReflectionTesting
     /// <summary>No sun, and an ambient light of <paramref name="gray"/> from the sky and the ground alike.</summary>
     public static RenderSnapshot Gray(float gray)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient = new()
         {
             SkyColor = new(gray),

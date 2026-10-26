@@ -502,7 +502,7 @@ public sealed class BatcherTests
         [.. Placed(scene, face.Far), .. Placed(scene, face.Middle), .. Placed(scene, face.Near)];
 
     /// <summary>A snapshot with no light: the test star of <see cref="Gpu.Snapshot"/> has no power, so it does not shine.</summary>
-    private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+    private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     /// <summary>
     /// A batcher whose exposure is fixed at −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so

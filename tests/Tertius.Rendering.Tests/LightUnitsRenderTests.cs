@@ -38,7 +38,7 @@ public sealed class LightUnitsRenderTests
     /// <summary>A snapshot with no light at all: the test star has no power, and the ambient light is off.</summary>
     private static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -234,6 +234,37 @@ public sealed class LightUnitsRenderTests
     }
 
     [Fact]
+    public void WithinItsReachALampFadesByTheSquareOfItsWindow()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            // Its reach is 1 / 0.7 m, so the square 1 m away lies at 0.7 of it, where the window (1 − 0.7⁴)² ≈ 0.577 is
+            // far from 1: a window without its outer square gives 0.760, and one of the ratio, not its square, 0.260.
+            var lamp = new Double3(0, 0, -2);
+            float intensity = (float)(Cutoff / (0.7 * 0.7));
+            RenderSnapshot snapshot = Dark();
+            snapshot.Instances.Add(Square(renderer));
+            snapshot.Lights.Add(Gpu.Lamp(position: lamp.ToVector3(), color: Vector3.One, intensity: intensity));
+            Double3 point = Seen(Center).Point;
+            Vector3 expected = Lit(
+                point: point,
+                toLight: lamp - point,
+                irradiance: Gray(LampIrradiance(intensity, (lamp - point).Length))
+            );
+
+            // The exposure is 0 stops, so the HDR image holds the radiance itself.
+            Vector3 shown = HdrAtTheCenter(renderer, snapshot);
+
+            shown.X.Should().BeApproximately(expected.X, 0.01f * expected.X, "the lamp's light fades by its window");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AFarStarLightsAsTheSunDidForTheSameIrradiance()
     {
         // The old sun was a direction and an irradiance. A star 1.5 × 10¹¹ m away sends that irradiance from all but the
@@ -242,7 +273,7 @@ public sealed class LightUnitsRenderTests
         try
         {
             var toStar = new Double3(0.2, 0.3, 1);
-            RenderSnapshot snapshot = Gpu.Snapshot(toStar.ToVector3(), sunIntensity: 2);
+            RenderSnapshot snapshot = Gpu.Snapshot(toStar.ToVector3(), starIrradiance: 2);
             snapshot.Ambient.Intensity = 0;
             snapshot.Instances.Add(Square(renderer));
             (Vector2 pixel, Double3 point) = Seen(Center);

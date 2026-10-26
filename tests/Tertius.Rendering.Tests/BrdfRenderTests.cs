@@ -20,10 +20,10 @@ public sealed class BrdfRenderTests
     private static Vector2 Pixel(Double3 point) =>
         Holding(Gpu.Project(point: point.ToVector3(), width: Width, height: Height));
 
-    /// <summary>A snapshot with a sun of <paramref name="sunIntensity"/> along <paramref name="toSun"/> and no ambient light.</summary>
-    private static RenderSnapshot SunOnly(Vector3 toSun, float sunIntensity)
+    /// <summary>A snapshot with a sun of <paramref name="starIrradiance"/> along <paramref name="toSun"/> and no ambient light.</summary>
+    private static RenderSnapshot SunOnly(Vector3 toSun, float starIrradiance)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(toSun, sunIntensity: sunIntensity);
+        RenderSnapshot snapshot = Gpu.Snapshot(toSun, starIrradiance: starIrradiance);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -31,7 +31,7 @@ public sealed class BrdfRenderTests
     /// <summary>A snapshot lit by a hemisphere ambient light of <paramref name="sky"/> and <paramref name="ground"/> alone.</summary>
     private static RenderSnapshot AmbientOnly(Vector3 sky, Vector3 ground)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient = new()
         {
             SkyColor = sky,

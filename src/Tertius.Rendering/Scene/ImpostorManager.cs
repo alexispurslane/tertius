@@ -575,18 +575,25 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     /// </summary>
     private readonly record struct LightSignature(Vector3 Light, AmbientSignature Ambient, Vector3 LightDirection)
     {
-        private float Total => Light.Length() + Ambient.Total;
+        private float Total => LengthInDoubles(Light) + Ambient.Total;
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
             float difference =
-                (a.Light - b.Light).Length()
+                LengthInDoubles(a.Light - b.Light)
                 + AmbientSignature.Difference(a.Ambient, b.Ambient)
-                + (a.LightDirection - b.LightDirection).Length();
+                + LengthInDoubles(a.LightDirection - b.LightDirection);
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
     }
+
+    /// <summary>
+    /// The length of <paramref name="v"/>, squared in doubles: a light at the irradiance cap of 2^64 W/m² per channel
+    /// squares past the range of single floats.
+    /// </summary>
+    private static float LengthInDoubles(Vector3 v) =>
+        (float)Math.Sqrt((double)v.X * v.X + (double)v.Y * v.Y + (double)v.Z * v.Z);
 
     /// <summary>
     /// The hemisphere's two colors, and its up at the object's center in object space, weighted by how much the sky and
@@ -669,7 +676,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                 if (IrradianceAt(light, instance) is not ({ } irradiance, var unit))
                     continue;
                 total += irradiance;
-                direction += Vector3.Transform(unit, inverse) * irradiance.Length();
+                direction += Vector3.Transform(unit, inverse) * LengthInDoubles(irradiance);
             }
 
             return new(Light: total, Ambient: ambientPart, LightDirection: direction);

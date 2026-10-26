@@ -226,7 +226,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless(stops: 64);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
 
             Vector3 center = HdrCenter(renderer, snapshot);
@@ -309,7 +309,7 @@ public sealed class PortableFloatTests
                     Emissive: new(ShaderInput.RadianceLimit)
                 )
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)),
@@ -394,7 +394,7 @@ public sealed class PortableFloatTests
         );
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
             renderer.Render(snapshot, 1f);
 
@@ -449,7 +449,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(0.2f)));
             snapshot.PuffLooks.Add(
                 new(
@@ -519,7 +519,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
             snapshot.PuffLooks.Add(
                 new(

@@ -34,7 +34,7 @@ public sealed class EnvironmentLightingTests
     /// <summary>A snapshot with no sun and no hemisphere light, so that only what a test adds lights its scene.</summary>
     private static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -121,7 +121,7 @@ public sealed class EnvironmentLightingTests
         VulkanRenderer renderer = Renderer(map);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             AddRedSquareBehind(renderer, snapshot, radiance: 1);
             AddSphere(
                 snapshot: snapshot,
@@ -292,7 +292,7 @@ public sealed class EnvironmentLightingTests
             VulkanRenderer renderer = Renderer(map);
             try
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
                 // The pane passes 0.8 of what lies behind it and blends its own light by 0.2, so the square is bright.
                 AddRedSquareBehind(renderer, snapshot, radiance: 40);
                 MaterialId glass = renderer.CreateMaterial(

@@ -442,6 +442,69 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void AnImpostorLitAtTheIrradianceCapRecapturesWhenItsLightMovesToItsOtherSide()
+    {
+        // A lamp of 10³³ W/sr 2 m from the ball sends 2.5 × 10³² W/m², which the cap holds at 2^64 in each channel: a
+        // length of single floats would square past the float range there.
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot Lit(Vector3 side)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(Gpu.Lamp(position: position + side, color: Vector3.One, intensity: 1e33f));
+            return snapshot;
+        }
+
+        harness.Run(Lit(new(2, 0, 0)));
+        harness.Manager.Captures.Length.Should().Be(1, "the lamp changes the light that reaches the object");
+        harness.Run(Lit(new(-2, 0, 0)));
+
+        harness.Manager.Captures.Length.Should().Be(1, "the lamp now lights the other side of the object");
+    }
+
+    [Fact]
+    public void AnImpostorLitAtTheIrradianceCapSettles()
+    {
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 1, position: position));
+        snapshot.Lights.Add(Gpu.Lamp(position: position + new Vector3(2, 0, 0), color: Vector3.One, intensity: 1e33f));
+        harness.Run(snapshot);
+
+        harness.Run(snapshot);
+
+        harness.Manager.Captures.Length.Should().Be(0, "nothing changed since the capture");
+    }
+
+    [Fact]
+    public void AnImpostorUnderManyLampsAtTheIrradianceCapKeepsItsCaptureWhenOneGoesOut()
+    {
+        // 200 lamps at the cap: one that goes out changes the light by 1/200 of it, and its direction weight as much, so
+        // the change of 2/200 stays below 2 / h. Each of the two changes, 2^64 √3 W/m², squares past the float range.
+        const int lamps = 200;
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot Lit(int count)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            for (int i = 0; i < count; i++)
+                snapshot.Lights.Add(
+                    Gpu.Lamp(position: position + new Vector3(2, 0, 0), color: Vector3.One, intensity: 1e33f)
+                );
+            return snapshot;
+        }
+
+        harness.Run(Lit(lamps));
+        harness.Manager.Captures.Length.Should().Be(1, "the lamps change the light that reaches the object");
+        harness.Run(Lit(lamps - 1));
+
+        harness.Manager.Captures.Length.Should().Be(0, "one lamp of 200 changes the light by less than 2 / h");
+    }
+
+    [Fact]
     public void TheHemispheresUpIsBakedSoTurningItAgainstTheObjectRecapturesButASmallTurnDoesNot()
     {
         // The ball was captured with up along +Y. The sky and the ground differ by 0.14, against about 5.3 of light in all.

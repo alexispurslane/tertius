@@ -60,9 +60,9 @@ public sealed class DeviceTests
                 Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f)
                 * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f);
             var turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(1, 1, 0)), 0.7f);
-            RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             inRoot.Camera.Rotation = inRoot.Camera.PreviousRotation = view;
-            RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
             inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
 

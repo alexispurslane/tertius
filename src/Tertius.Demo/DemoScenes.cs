@@ -270,9 +270,10 @@ public static partial class DemoScenes
     /// <summary>
     /// The vertical slice's first scene: a ship falls freely round an Earth that goes round the sun, at the March equinox.
     /// <list type="bullet">
-    /// <item>The sun is the root frame <c>sun</c>, with the sun's gravity, drawn with its real radius. It is the light, and
-    /// it casts no shadow. Its +Y is the pole of Earth's orbit, and its +X points from the sun to Earth's place at the
-    /// September equinox, so the sun, seen from Earth, stands toward +X at the March equinox.</item>
+    /// <item>The sun is the root frame <c>sun</c>, with the sun's gravity, drawn with its real radius. Its light, a point
+    /// light of the Sun's radius at its center, sends 2.5 W/m² to Earth and casts shadows. Its sphere casts none. Its +Y
+    /// is the pole of Earth's orbit, and its +X points from the sun to Earth's place at the September equinox, so the sun,
+    /// seen from Earth, stands toward +X at the March equinox.</item>
     /// <item>The frame <c>earth</c> goes round the sun on Earth's real orbit (1.00000261 AU, eccentricity 0.01671123,
     /// perihelion at longitude 102.94 degrees). It does not turn: it leans by Earth's 23.44 degree obliquity, so its +Y is
     /// Earth's north pole and its +X is the March equinox direction, as for the real Earth-centered inertial frame. It
@@ -887,7 +888,8 @@ public static partial class DemoScenes
     /// A 1 m orange <c>box</c> that falls 2.5 m onto a gray static <c>floor</c>, in the root frame <c>ground</c> with
     /// 9.81 m/s² of gravity along -Y. The top of the floor is at y = 0, and the box starts with its center at y = 3. The
     /// entity <c>camera</c> stands at (0, 2.5, 9) and looks along -Z, tilted down by 6.3 degrees toward (0, 1.5, 0). The
-    /// frame <c>sun</c> at (30, 50, 40) is where the light comes from. The box and the floor cast shadows.
+    /// light is the star <c>sun</c>, 1 AU from the origin along (30, 50, 40), which sends 1 W/m² there and casts shadows.
+    /// The box and the floor cast shadows.
     /// </summary>
     private static SceneInstance DropBox(World world, IRenderResources resources)
     {

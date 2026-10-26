@@ -53,7 +53,7 @@ public sealed class HemisphereTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             MaterialId surface = renderer.CreateMaterial(material);
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Ambient = new()
             {
                 SkyColor = new(0.6f, 0, 0),

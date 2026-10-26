@@ -14,7 +14,7 @@ internal static class LightUnits
     /// <summary>The largest channel of color × intensity, in W/sr, that a light may have.</summary>
     public const double MaxIntensity = 1e34;
 
-    /// <summary>The longest reach, in m. A light is kept only within 2 × MaxReach of the eye.</summary>
+    /// <summary>The longest reach, in m, whose square is a finite single float.</summary>
     public const double MaxReach = 5e18;
 
     /// <summary>The smallest outer half-angle of a spot light's cone, in rad. A narrower cone counts as this one.</summary>

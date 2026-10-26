@@ -70,7 +70,7 @@ public sealed class ShadingNormalTests
         double peak = metal
             .Reflected(normal: Double3.UnitZ, toView: Double3.UnitZ, toLight: Double3.UnitZ, tables: BrdfTables.Shared)
             .X;
-        RenderSnapshot snapshot = Gpu.Snapshot(toSun, sunIntensity: (float)(0.5 / peak));
+        RenderSnapshot snapshot = Gpu.Snapshot(toSun, starIrradiance: (float)(0.5 / peak));
         snapshot.Ambient.Intensity = 0;
         snapshot.Camera.VerticalFov = NarrowFov;
 

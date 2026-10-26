@@ -19,7 +19,7 @@ public sealed class ShadowPassTests
     /// <summary>The scene of two stars, batched with two cascade sets, then fitted as the shadow pass fits it.</summary>
     private static PreparedScene TwoStars()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Lights.Add(Star(Vector3.UnitY, irradiance: 3));
         snapshot.Lights.Add(Star(Vector3.UnitX, irradiance: 1));
         var scene = new PreparedScene();
@@ -56,7 +56,10 @@ public sealed class ShadowPassTests
 
         scene.CascadeSetCount.Should().Be(2);
         Vector3.Distance(scene.CascadeBases[0].Z, Vector3.UnitY).Should().BeLessThan(1e-6f, "set 0 is the star above");
-        Vector3.Distance(scene.CascadeBases[1].Z, Vector3.UnitX).Should().BeLessThan(1e-6f, "set 1 is the star along +X");
+        Vector3
+            .Distance(scene.CascadeBases[1].Z, Vector3.UnitX)
+            .Should()
+            .BeLessThan(1e-6f, "set 1 is the star along +X");
         for (int set = 0; set < 2; set++)
         {
             GpuCascadeSet gpu = scene.Constants.CascadeSets[set];

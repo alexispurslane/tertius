@@ -19,7 +19,7 @@ public sealed class BatcherLightTests
     private static readonly double Cutoff = LightUnits.CutoffIrradiance(TenStopsDown);
 
     /// <summary>A snapshot with no light: the test star of <see cref="Gpu.Snapshot"/> has no power, so it does not shine.</summary>
-    private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+    private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     private static SceneBatcher Batcher(int cascadedLights = 1) =>
         new(exposure: TenStopsDown, cascadedLights: cascadedLights);
@@ -261,7 +261,7 @@ public sealed class BatcherLightTests
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightCount.Should().Be(1);
-        GpuLight point = GpuLight.From(scene.Lights[0]);
+        var point = GpuLight.From(scene.Lights[0]);
         point.DirectionCosOuter.Should().Be(Vector4.Zero);
         point.SpotRadius.X.Should().Be(0);
     }
@@ -276,6 +276,21 @@ public sealed class BatcherLightTests
 
         scene.Lights[0].Spread.TryGetValue(out Cone cone).Should().BeTrue();
         cone.Axis.Should().Be(new Vector3(0, -1, 0));
+    }
+
+    [Theory]
+    [InlineData(0.5f)]
+    [InlineData(0.7f)]
+    public void ASpotLightWhoseInnerConeReachesItsOuterConeStillFadesBetweenTwoDistinctEdges(float inner)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Beam(new(0, 1, -5), new(0, -1, 0)) with { InnerConeAngle = inner, OuterConeAngle = 0.5f });
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        var spot = GpuLight.From(scene.Lights[0]);
+        spot.SpotRadius.X.Should()
+            .BeGreaterThan(spot.DirectionCosOuter.W, "smoothstep has no defined value when its edges meet or cross");
     }
 
     [Fact]
@@ -382,7 +397,9 @@ public sealed class BatcherLightTests
         moving.PreviousPosition = new(0, 2_000, -5_000);
         snapshot.Instances.Add(moving);
         snapshot.Instances.Add(Caster(new(0, 0, -500), 50));
-        snapshot.Instances.Add(Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -20), scale: Vector3.One));
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -20), scale: Vector3.One)
+        );
         snapshot.Lights.Add(Star(Vector3.UnitY));
         snapshot.Lights.Add(Star(Vector3.UnitX, irradiance: 1));
 

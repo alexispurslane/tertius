@@ -307,7 +307,9 @@ vec3 scatteredLight(vec3 albedo, vec3 position)
         vec3 L;
         float d;
         vec3 incoming = lightIrradiance(light, position, L, d);
-        if (incoming == vec3(0.0))
+        // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
+        // nothing either, by its dot(N, L) of 0.
+        if (incoming == vec3(0.0) || d == 0.0)
             continue;
         irradiance += incoming * lightVisibility(light, position, L, d, L, 1.0, ShadowMapsMainView);
     }

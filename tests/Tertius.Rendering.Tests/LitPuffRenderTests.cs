@@ -38,7 +38,7 @@ public sealed class LitPuffRenderTests
     /// <summary>A snapshot with no sun, no ambient light and no lights, so that each test turns on only what it measures.</summary>
     private static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), sunIntensity: 0f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), starIrradiance: 0f);
         snapshot.Ambient.Intensity = 0f;
         return snapshot;
     }
@@ -63,7 +63,7 @@ public sealed class LitPuffRenderTests
         (snapshot.Ambient.SkyColor + snapshot.Ambient.GroundColor) * 0.5f * snapshot.Ambient.Intensity;
 
     /// <summary>The test star's irradiance per channel at the camera, which the puffs near it share.</summary>
-    private static Vector3 SunRadiance(RenderSnapshot snapshot) => Gpu.StarIrradianceRgb(snapshot);
+    private static Vector3 StarIrradiance(RenderSnapshot snapshot) => Gpu.StarIrradianceRgb(snapshot);
 
     /// <summary>
     /// The irradiance of a light of radiant intensity <paramref name="intensity"/>, in W/sr per channel, at a distance: I / d²
@@ -164,11 +164,11 @@ public sealed class LitPuffRenderTests
     [Fact]
     public void ALitPuffScattersTheSunlightAtItsCenterOverFourPi()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), sunIntensity: 6f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), starIrradiance: 6f);
         snapshot.Ambient.Intensity = 0f;
         AddLitPuff(snapshot, new(0, 0, -6));
 
-        ShouldMatchGlowPuffs(snapshot, [Albedo * SunRadiance(snapshot) / (4 * MathF.PI)], "lit-puff-sun");
+        ShouldMatchGlowPuffs(snapshot, [Albedo * StarIrradiance(snapshot) / (4 * MathF.PI)], "lit-puff-sun");
     }
 
     [Fact]
@@ -188,10 +188,24 @@ public sealed class LitPuffRenderTests
     }
 
     [Fact]
+    public void ALitPuffAtALightsExactCenterTakesNoLightFromIt()
+    {
+        // At the lamp's center the direction toward it is a zero vector, which the far shadows' angle cannot take. A
+        // surface there takes nothing either, because dot(N, L) is 0. Within the floor of 1 cm, the lamp would send
+        // I / (1 cm)² = 1 W/m², which the puff would show as a dim glow.
+        RenderSnapshot snapshot = Dark();
+        var center = new Vector3(0, 0, -6);
+        snapshot.Lights.Add(Gpu.Lamp(position: center, color: Vector3.One, intensity: 1e-4f));
+        AddLitPuff(snapshot, center);
+
+        ShouldMatchGlowPuffs(snapshot, [Vector3.Zero], "lit-puff-at-a-lights-center");
+    }
+
+    [Fact]
     public void ALitPuffTakesEveryLight()
     {
         // A star, a lamp and a spot light at once: the puff scatters the sum of their irradiances at its center.
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), sunIntensity: 0.5f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), starIrradiance: 0.5f);
         snapshot.Ambient.Intensity = 0f;
         var puff = new Vector3(0, 0, -6);
         var lamp = new Vector3(1.2f, 1.6f, -6);
@@ -210,7 +224,7 @@ public sealed class LitPuffRenderTests
         AddLitPuff(snapshot, puff);
 
         Vector3 irradiance =
-            SunRadiance(snapshot)
+            StarIrradiance(snapshot)
             + Irradiance(new Vector3(1f, 0.8f, 0.5f) * 2f, Vector3.Distance(lamp, puff))
             + Irradiance(new Vector3(0.6f, 0.8f, 1f) * 3f, Vector3.Distance(spot, puff));
         ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-every-light");
@@ -257,7 +271,7 @@ public sealed class LitPuffRenderTests
                     Reflectance = 0f,
                 }
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.05f), sunIntensity: 6f);
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.05f), starIrradiance: 6f);
             var shaded = new Vector3(-1.5f, 0, -8);
             var open = new Vector3(1.5f, 0, -8);
             snapshot.Instances.Add(
@@ -276,7 +290,7 @@ public sealed class LitPuffRenderTests
             ShouldMatchGlowPuffs(
                 renderer: renderer,
                 snapshot: snapshot,
-                expected: [ambient, ambient + Albedo * SunRadiance(snapshot) / (4 * MathF.PI)],
+                expected: [ambient, ambient + Albedo * StarIrradiance(snapshot) / (4 * MathF.PI)],
                 name: "lit-puff-box-shadow"
             );
         }
@@ -298,7 +312,7 @@ public sealed class LitPuffRenderTests
             MaterialId gray = renderer.CreateMaterial(
                 MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), roughness: 0.65f)
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.2f), sunIntensity: 6f);
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.1f, 1f, 0.2f), starIrradiance: 6f);
             var puff = new Vector3(0, 0, -20);
             snapshot.Instances.Add(
                 Gpu.Instance(
@@ -363,7 +377,7 @@ public sealed class LitPuffRenderTests
                 Reflectance = 0f,
             }
         );
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.9f, 0.3f), sunIntensity: 5f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.9f, 0.3f), starIrradiance: 5f);
         inSun = new(2.5f, 0.2f, -9);
         inShadow = new(-2.8f, 0.2f, -9.6f);
         underLamp = new(-0.6f, 0.2f, -9.6f);

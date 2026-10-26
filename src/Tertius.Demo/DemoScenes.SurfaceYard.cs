@@ -55,7 +55,8 @@ public static partial class DemoScenes
     /// <item>The view <c>yard-camera</c>, the camera at the start, stands 10 m from the stack along +X, 3 m up, and
     /// looks along -X at the person's way. The view <c>stack-camera</c> stands 4 m from the stack along +X, at the
     /// height of the stack's top, and looks along -X at the stack and the floor behind it, where the top crate lands.</item>
-    /// <item>The frame <c>sun</c>, 50 m up and to the side, is where the light comes from.</item>
+    /// <item>The light is the star <c>sun</c>, 1 AU from the yard along (30, 50, 20), up and to the side, which sends
+    /// 1 W/m² there and casts shadows.</item>
     /// </list>
     /// </summary>
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)

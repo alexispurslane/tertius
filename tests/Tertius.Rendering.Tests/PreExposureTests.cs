@@ -49,7 +49,7 @@ public sealed class PreExposureTests
     /// </summary>
     private static RenderSnapshot Scene(VulkanRenderer renderer, Writer writer, float light)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.5f));
         switch (writer)
@@ -254,7 +254,7 @@ public sealed class PreExposureTests
             VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, exposure: exposure);
             try
             {
-                RenderSnapshot sky = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+                RenderSnapshot sky = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
                 sky.Ambient.Intensity = 0;
                 Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: sky, name: "pre-exposure-stars");
                 float sum = 0;
@@ -294,7 +294,7 @@ public sealed class PreExposureTests
                 );
                 // The cutoff irradiance follows the highest exposure, so the star's window differs between the two
                 // renderers. At 4 W/m² the star is so far inside both reaches that both windows round to exactly 1.
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 4);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 4);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Instances.Add(
                     Gpu.Instance(mesh: sphere, material: material, position: FarAhead, scale: Vector3.One, entity: 1)
@@ -340,7 +340,7 @@ public sealed class PreExposureTests
 
             RenderSnapshot Scene(RenderFlags flags)
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0.05f);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0.05f);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Instances.Add(
                     Gpu.Instance(

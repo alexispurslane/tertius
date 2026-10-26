@@ -93,7 +93,7 @@ public sealed class ExposureShaderTests
         VulkanRenderer renderer = Renderer(AutoExposure.Default with { MinStops = 0, MaxStops = 0 });
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
             snapshot.Ambient.Intensity = 0;
             // Saturated hues, so that no star of the sky between the squares shows one of their colors.
             Vector3[] hues = [new(1, 0.2f, 0.2f), new(0.2f, 1, 0.2f), new(0.2f, 0.2f, 1), new(1, 1, 0.2f)];

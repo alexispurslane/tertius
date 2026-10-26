@@ -39,7 +39,8 @@ public static partial class DemoScenes
     /// door along +Z and faces it, along -Z. With W it walks at 3 m/s toward the door, and with S away from it.</item>
     /// <item>The view <c>camera</c>, the camera at the start, stands 8 m to the side along +X, 3 m up, and looks at the
     /// sensor and the door.</item>
-    /// <item>The frame <c>sun</c>, 50 m up and to the side, is where the light comes from.</item>
+    /// <item>The light is the star <c>sun</c>, 1 AU from the origin along (30, 50, 20), up and to the side, which sends
+    /// 1 W/m² there and casts shadows.</item>
     /// </list>
     /// </summary>
     private static SceneInstance Doorway(World world, IRenderResources resources)

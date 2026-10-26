@@ -25,7 +25,7 @@ internal static class EnvironmentScenes
         );
 
     /// <summary>A snapshot with no sunlight: only emission and lamps light the faces.</summary>
-    public static RenderSnapshot Dark() => Gpu.Snapshot(sunDirection: Vector3.UnitY, sunIntensity: 0f);
+    public static RenderSnapshot Dark() => Gpu.Snapshot(starDirection: Vector3.UnitY, starIrradiance: 0f);
 
     /// <summary>A black material that emits <paramref name="radiance"/> and reflects nothing.</summary>
     public static MaterialId Emissive(VulkanRenderer renderer, Vector3 radiance) =>
@@ -273,7 +273,7 @@ public sealed class EnvironmentFaceTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId matte = EnvironmentScenes.Matte(renderer);
-            RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: new(1, 1, 0), sunIntensity: 3f);
+            RenderSnapshot snapshot = Gpu.Snapshot(starDirection: new(1, 1, 0), starIrradiance: 3f);
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: plane,
@@ -468,7 +468,7 @@ public sealed class EnvironmentFaceTests
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-                RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: -Vector3.UnitX, sunIntensity: 3f);
+                RenderSnapshot snapshot = Gpu.Snapshot(starDirection: -Vector3.UnitX, starIrradiance: 3f);
                 snapshot.Instances.Add(
                     EnvironmentScenes.Square(
                         plane: plane,

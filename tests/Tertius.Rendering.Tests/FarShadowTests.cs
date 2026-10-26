@@ -206,7 +206,7 @@ public sealed class FarShadowTests
     [Fact]
     public void WithoutAStarThereAreNoFarShadows()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, starIrradiance: 0);
         snapshot.Instances.Add(Caster(new(0, 0, -3e7f), 6e6f));
         snapshot.Instances.Add(Caster(new(0, 0, -500), 50));
 

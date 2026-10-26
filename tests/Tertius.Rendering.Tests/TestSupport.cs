@@ -178,11 +178,11 @@ internal static class Gpu
 
     /// <summary>
     /// A snapshot with the camera at the origin, the test ambient light, and one light: the test star, a point light
-    /// <see cref="StarDistance"/> along <paramref name="sunDirection"/> that casts shadows, of the color
-    /// <see cref="StarColor"/>, whose power gives the irradiance <paramref name="sunIntensity"/> per unit of color at the
+    /// <see cref="StarDistance"/> along <paramref name="starDirection"/> that casts shadows, of the color
+    /// <see cref="StarColor"/>, whose power gives the irradiance <paramref name="starIrradiance"/> per unit of color at the
     /// camera (<see cref="Star(RenderSnapshot)"/>).
     /// </summary>
-    public static RenderSnapshot Snapshot(Vector3 sunDirection, float sunIntensity = 3f)
+    public static RenderSnapshot Snapshot(Vector3 starDirection, float starIrradiance = 3f)
     {
         var snapshot = new RenderSnapshot
         {
@@ -201,8 +201,8 @@ internal static class Gpu
         };
         snapshot.Lights.Add(
             StarLight(
-                direction: sunDirection,
-                irradiance: sunIntensity,
+                direction: starDirection,
+                irradiance: starIrradiance,
                 angularRadius: StarAngularRadius,
                 color: StarColor
             )

@@ -367,7 +367,7 @@ public sealed class ShaderInputTests
     public void ALightPastThePositionLimitIsLeftOut()
     {
         // No star: a snapshot of Gpu.Snapshot with no irradiance holds a star that does not shine.
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -1e19f), color: Vector3.One, intensity: 1e30f));
         snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -5), color: Vector3.One, intensity: 1));
 
