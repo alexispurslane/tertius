@@ -69,11 +69,8 @@ public sealed class ShaderInputTests
     [InlineData(float.PositiveInfinity, 1024f)]
     [InlineData(-2000f, -1024f)]
     [InlineData(float.NegativeInfinity, -1024f)]
-    public void MorphWeightClampsToTheLargestMorphWeight(float weight, float read)
-    {
-        ShaderInput.LargestMorphWeight.Should().Be(1024);
+    public void MorphWeightClampsToTheLargestMorphWeight(float weight, float read) =>
         ShaderInput.MorphWeight(weight).Should().Be(read);
-    }
 
     [Fact]
     public void ALightWithANumberThatIsNotFiniteIsLeftOut()

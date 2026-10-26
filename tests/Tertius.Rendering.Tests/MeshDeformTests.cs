@@ -666,6 +666,29 @@ public sealed class MeshDeformTests
         deform.Fits(joints: 2, weights: 2).Should().BeFalse();
     }
 
+    [Fact]
+    public void PoseWritesNoRowAfterItsPoseRows()
+    {
+        // The rest of a shared pose buffer: the next job's rows follow this job's.
+        MeshData mesh = TwistingCylinder();
+        MeshDeform deform = Packed(mesh).Deform;
+        RigPose rest = mesh.Rigging!.Rig.Rest;
+        var next = new Vector4(x: 7, y: 7, z: 7, w: 7);
+        var buffer = new Vector4[deform.PoseRows + 4];
+        buffer.AsSpan(deform.PoseRows).Fill(next);
+
+        deform.PoseInto(
+            previousJoints: rest.Joints.AsSpan(),
+            joints: rest.Joints.AsSpan(),
+            previousWeights: rest.Weights.AsSpan(),
+            weights: rest.Weights.AsSpan(),
+            alpha: 1,
+            rows: buffer
+        );
+
+        buffer[deform.PoseRows..].Should().AllBeEquivalentTo(next, "those rows belong to the next job");
+    }
+
     private static Quaternion RandomRotation(Random random) =>
         Quaternion.Normalize(
             new(

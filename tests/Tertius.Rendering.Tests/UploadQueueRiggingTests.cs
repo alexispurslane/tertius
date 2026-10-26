@@ -229,6 +229,40 @@ public sealed class UploadQueueRiggingTests
     }
 
     [Fact]
+    public void AddMeshThrowsWhenTheMorphDeltasAlonePassTheDeviceLimit()
+    {
+        MeshData box = Primitives.MorphingBox(Vector3.One);
+        // Two targets that move every vertex: 2 deltas of 48 bytes, 96 bytes, against 80 bytes of deform vertex.
+        Vector3[] up = [.. box.Vertices.Select(_ => Vector3.UnitY)];
+        MeshData everywhere = WithTargets(
+            box,
+            new MorphTarget(Morph: 0, Positions: up, Normals: [], Tangents: []),
+            new MorphTarget(Morph: 1, Positions: up, Normals: [], Tangents: [])
+        );
+        // Room for the 24 * 80 bytes of deform vertices, and not for the 24 * 96 bytes of deltas.
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 24 * 88);
+
+        FluentActions
+            .Invoking(() => queue.AddMesh(everywhere))
+            .Should()
+            .ThrowExactly<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void AMeshThatTheDeformLimitRefusesTakesNoId()
+    {
+        MeshData box = Primitives.MorphingBox(Vector3.One);
+        // Room for one box's 24 deform vertices of 80 bytes, and not for two.
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 24 * 80 * 3 / 2);
+        MeshId first = queue.AddMesh(box);
+        FluentActions.Invoking(() => queue.AddMesh(box)).Should().ThrowExactly<InvalidOperationException>();
+
+        MeshId next = queue.AddMesh(Primitives.Box(Vector3.One));
+
+        next.Value.Should().Be(first.Value + 1, "the refused mesh took no id");
+    }
+
+    [Fact]
     public void ADrainHandsOverEachMeshsPackedDeformBesideIt()
     {
         UploadQueue queue = Queue();

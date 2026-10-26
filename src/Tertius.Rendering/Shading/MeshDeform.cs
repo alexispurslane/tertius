@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -9,7 +10,7 @@ namespace Tertius.Rendering;
 /// The CPU side of a deforming mesh: its counts, its place in the deform store, and the math of its deformation, the C#
 /// copy of Shaders/deform.comp (docs/plans/skinning-and-morphs.md, "The math, and its C# copy").
 /// </summary>
-internal sealed record MeshDeform
+internal sealed partial record MeshDeform
 {
     /// <summary>The invocations of one group of the deform pass, one per vertex.</summary>
     public const int InvocationsPerGroup = 64;
@@ -23,29 +24,24 @@ internal sealed record MeshDeform
     /// <summary>The most joints whose model poses <see cref="PoseInto"/> keeps on the stack. A larger rig rents them.</summary>
     private const int StackJoints = 128;
 
-    /// <summary>The skin's part of the palette, or null for a mesh without a skin, whose palette is one identity joint.</summary>
-    private readonly Skinning? skinning;
-
-    /// <summary>The influence spheres in model space at the bind, in joint order, one for each palette joint that moves a vertex.</summary>
-    private readonly ImmutableArray<InfluenceSphere> spheres;
+    /// <summary>The palette: the rig's skin poses for a mesh with a skin, one identity joint for a mesh without.</summary>
+    private readonly Palette palette;
 
     /// <summary>The longest position delta of each morph of the rig, 0 for a morph without a target.</summary>
     private readonly ImmutableArray<float> longestDeltas;
 
-    private MeshDeform(
-        int vertexCount,
-        Skinning? skinning,
-        ImmutableArray<InfluenceSphere> spheres,
-        ImmutableArray<float> longestDeltas,
-        int joints
-    )
+    private MeshDeform(int vertexCount, Palette palette, ImmutableArray<float> longestDeltas, int joints)
     {
         VertexCount = vertexCount;
         Joints = joints;
         Morphs = longestDeltas.Length;
-        PaletteJoints = skinning is null ? 1 : joints;
-        this.skinning = skinning;
-        this.spheres = spheres;
+        PaletteJoints = palette switch
+        {
+            SkinnedPalette => joints,
+            IdentityPalette => 1,
+            null => throw new UnreachableException("Pack gives every deforming mesh a palette."),
+        };
+        this.palette = palette;
         this.longestDeltas = longestDeltas;
     }
 
@@ -96,23 +92,18 @@ internal sealed record MeshDeform
         }
 
         int joints = rigging.Rig.Joints.Length;
-        Skinning? skinning;
-        ImmutableArray<InfluenceSphere> spheres;
-        if (rigging.Skin is { } skin)
+        Palette palette = rigging.Skin switch
         {
-            skinning = new([.. rigging.Rig.Joints.Select(joint => joint.Parent)], skin.InverseBinds);
-            spheres = Spheres(vertices, skin, joints);
-        }
-        else
-        {
-            skinning = null;
-            spheres = [new(Joint: 0, Center: Vector3.Zero, Radius: GeometryStore.Radius(vertices))];
-        }
-
+            { } skin => new SkinnedPalette(
+                Parents: [.. rigging.Rig.Joints.Select(joint => joint.Parent)],
+                InverseBinds: skin.InverseBinds,
+                Spheres: Spheres(vertices, skin, joints)
+            ),
+            null => new IdentityPalette(GeometryStore.Radius(vertices)),
+        };
         var deform = new MeshDeform(
             vertexCount: vertices.Length,
-            skinning: skinning,
-            spheres: spheres,
+            palette: palette,
             longestDeltas: LongestDeltas(rigging),
             joints: joints
         );
@@ -135,22 +126,23 @@ internal sealed record MeshDeform
         Span<Vector4> rows
     )
     {
-        float jointReach = skinning switch
+        float jointReach = palette switch
         {
-            { } skin => WritePalette(
-                skin: skin,
+            SkinnedPalette skinned => WritePalette(
+                skinned: skinned,
                 previousJoints: previousJoints,
                 joints: joints,
                 alpha: alpha,
                 rows: rows
             ),
-            null => WriteIdentity(rows),
+            IdentityPalette identity => WriteIdentity(identity, rows),
+            null => throw new UnreachableException("Pack gives every deforming mesh a palette."),
         };
         float morphReach = WriteWeights(
             previous: previousWeights,
             current: weights,
             alpha: alpha,
-            rows: rows[(3 * PaletteJoints)..]
+            rows: rows.Slice(3 * PaletteJoints, (Morphs + 3) / 4)
         );
         return jointReach + morphReach;
     }
@@ -222,7 +214,7 @@ internal sealed record MeshDeform
 
     /// <summary>Writes the skin poses, parents first, and returns the largest reach of an influence sphere.</summary>
     private float WritePalette(
-        Skinning skin,
+        in SkinnedPalette skinned,
         ReadOnlySpan<Pose> previousJoints,
         ReadOnlySpan<Pose> joints,
         float alpha,
@@ -230,7 +222,9 @@ internal sealed record MeshDeform
     )
     {
         Pose[]? rented = Joints > StackJoints ? ArrayPool<Pose>.Shared.Rent(Joints) : null;
-        Span<Pose> model = rented is null ? stackalloc Pose[StackJoints] : rented;
+        // The rig's own count, not StackJoints: the runtime zeroes every stack byte, which doubled the time of a 2-joint rig.
+        Span<Pose> model = rented is null ? stackalloc Pose[Joints] : rented;
+        ImmutableArray<InfluenceSphere> spheres = skinned.Spheres;
         float reach = 0;
         bool finite = true;
         int sphere = 0;
@@ -238,8 +232,8 @@ internal sealed record MeshDeform
         for (int joint = 0; joint < Joints; joint++)
         {
             Pose local = Interpolated(previousJoints[joint], joints[joint], alpha);
-            model[joint] = skin.Parents[joint] is { } parent ? Pose.Compose(model[parent], local) : local;
-            var skinPose = Pose.Compose(model[joint], skin.InverseBinds[joint]);
+            model[joint] = skinned.Parents[joint] is { } parent ? Pose.Compose(model[parent], local) : local;
+            var skinPose = Pose.Compose(model[joint], skinned.InverseBinds[joint]);
             WriteRows(skinPose, rows.Slice(3 * joint, 3));
             finite &= ShaderInput.IsFinite(skinPose.Position);
             if (sphere < spheres.Length && spheres[sphere].Joint == joint)
@@ -255,13 +249,13 @@ internal sealed record MeshDeform
         return finite ? reach : float.PositiveInfinity;
     }
 
-    /// <summary>Writes the one identity joint of a mesh without a skin, and returns its sphere's reach, the mesh's radius.</summary>
-    private float WriteIdentity(Span<Vector4> rows)
+    /// <summary>Writes the one identity joint of a mesh without a skin, and returns its reach, the mesh's radius.</summary>
+    private static float WriteIdentity(in IdentityPalette identity, Span<Vector4> rows)
     {
         rows[0] = new(x: 1, y: 0, z: 0, w: 0);
         rows[1] = new(x: 0, y: 1, z: 0, w: 0);
         rows[2] = new(x: 0, y: 0, z: 1, w: 0);
-        return spheres[0].Radius;
+        return identity.Radius;
     }
 
     /// <summary>Writes the weights four to a row, zero after the last, and returns the sum of each |weight| times its longest delta.</summary>
@@ -440,8 +434,22 @@ internal sealed record MeshDeform
         return [.. longest];
     }
 
-    /// <summary>The skin's part of the palette: each joint's parent, in the rig's order, and its inverse bind.</summary>
-    private readonly record struct Skinning(ImmutableArray<int?> Parents, ImmutableArray<Pose> InverseBinds);
+    /// <summary>
+    /// The palette of a mesh with a skin, one skin pose per rig joint: each joint's parent and inverse bind, in the rig's
+    /// order, and the influence spheres in joint order, one for each joint that moves a vertex.
+    /// </summary>
+    private readonly record struct SkinnedPalette(
+        ImmutableArray<int?> Parents,
+        ImmutableArray<Pose> InverseBinds,
+        ImmutableArray<InfluenceSphere> Spheres
+    );
+
+    /// <summary>The palette of a mesh without a skin: one identity joint, and <paramref name="Radius"/>, the mesh's radius about its origin.</summary>
+    private readonly record struct IdentityPalette(float Radius);
+
+    /// <summary>A mesh's palette: a <see cref="SkinnedPalette"/> or an <see cref="IdentityPalette"/>.</summary>
+    [GeneratedUnion(typeof(SkinnedPalette), typeof(IdentityPalette))]
+    private readonly partial struct Palette;
 
     /// <summary>A sphere in model space at the bind that holds every vertex with a weight above 0 on its joint.</summary>
     private readonly record struct InfluenceSphere(int Joint, Vector3 Center, float Radius);

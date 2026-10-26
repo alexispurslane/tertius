@@ -48,9 +48,10 @@ public sealed class SpawnDesc
 
     /// <summary>
     /// The rig pose at the spawn, or null for none (docs/plans/skinning-and-morphs.md, "The rig pose in the simulation").
-    /// It fixes the counts of joint poses and weights for the entity's life, and needs a <see cref="Render"/> row. A spawn
-    /// refuses, with an <see cref="ArgumentException"/>, a number that is not finite, a zero rotation, or more than
-    /// <see cref="Rig.MaxJoints"/> joint poses.
+    /// It fixes the entity's counts of joint poses and weights, and needs a <see cref="Render"/> row. A spawn throws
+    /// <see cref="ArgumentException"/> for a default array, a number that is not finite, more than
+    /// <see cref="Rig.MaxJoints"/> joint poses, or a rotation whose squared length is not finite or is at most 10^-12, the
+    /// rule of <see cref="Rig"/>.
     /// </summary>
     public RigPose? RigPose { get; init; }
 

@@ -375,8 +375,8 @@ public sealed partial class World
 
     /// <summary>
     /// The reason that a spawn refuses the rig pose of <paramref name="desc"/>, or null (see <see cref="SpawnDesc.RigPose"/>):
-    /// a rig pose without a render row, more joint poses than a rig has, a number that is not finite, or a rotation that is
-    /// not a rotation. A tick can still write any value into it, and the renderer's guards catch that.
+    /// a rig pose without a render row, a default array, more joint poses than a rig has, a number that is not finite, or a
+    /// rotation that is not a rotation. A tick can still write any value into it, and the renderer's guards catch that.
     /// </summary>
     private static string? RigPoseProblem(SpawnDesc desc)
     {
@@ -384,6 +384,8 @@ public sealed partial class World
             return null;
         if (desc.Render is null)
             return "it has no render row to pose";
+        if (pose.Joints.IsDefault || pose.Weights.IsDefault)
+            return "its joint poses or its weights are not set";
         if (pose.Joints.Length > Rig.MaxJoints)
             return $"it has {pose.Joints.Length} joint poses, and a rig has at most {Rig.MaxJoints} joints";
         for (int joint = 0; joint < pose.Joints.Length; joint++)
@@ -394,7 +396,9 @@ public sealed partial class World
             if (!finite)
                 return $"the pose {each} of the joint {joint} is not finite";
             // The rule of Rig for a rest rotation: a rotation that the renderer can normalize.
-            if (!(rotation.LengthSquared() > 1e-12f))
+            float lengthSquared = rotation.LengthSquared();
+            bool isRotation = float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
+            if (!isRotation)
                 return $"the rotation {rotation} of the joint {joint} is not a rotation";
         }
 

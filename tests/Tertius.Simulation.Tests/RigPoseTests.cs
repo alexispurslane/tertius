@@ -328,6 +328,36 @@ public sealed class RigPoseTests
     }
 
     [Fact]
+    public void SpawnRefusesARigPoseWithARotationWhoseSquaredLengthIsNotFinite()
+    {
+        using var test = new TestWorld();
+        // Each number is finite, and the squared length, 1e40, passes the largest float.
+        var pose = new RigPose([new(Vector3.Zero, new(x: 1e20f, y: 0, z: 0, w: 0))], []);
+
+        Action spawn = () => SpawnPosed(test, pose);
+
+        spawn.Should().Throw<ArgumentException>("the rule of Rig refuses a rotation that it cannot normalize");
+    }
+
+    public static TheoryData<string, RigPose> PosesWithADefaultArray =>
+        new()
+        {
+            { "default joint poses", new(default, []) },
+            { "default weights", new([Pose.Identity], default) },
+        };
+
+    [Theory]
+    [MemberData(nameof(PosesWithADefaultArray))]
+    public void SpawnRefusesARigPoseWithADefaultArray(string what, RigPose pose)
+    {
+        using var test = new TestWorld();
+
+        Action spawn = () => SpawnPosed(test, pose);
+
+        spawn.Should().Throw<ArgumentException>(what);
+    }
+
+    [Fact]
     public void SpawnRefusesARigPoseOfMoreJointsThanARigHas()
     {
         using var test = new TestWorld();

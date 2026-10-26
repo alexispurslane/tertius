@@ -12,19 +12,38 @@ public sealed class RigTests
 {
     private static readonly Pose Raised = new(new(0, 0.5f, 0), Quaternion.Identity);
 
-    [Fact]
-    public void RigRefusesAJointWhoseParentIsNotBeforeIt()
+    [Theory]
+    // A joint that is its own parent is the nearest parent that does not come before it.
+    [InlineData(1)]
+    // A negative index names no joint at all.
+    [InlineData(-1)]
+    public void RigRefusesAJointWhoseParentIsNotBeforeIt(int parent)
     {
-        // A joint that is its own parent is the nearest parent that does not come before it.
         ImmutableArray<RigJoint> joints =
         [
             new(Name: "Base", Parent: null, Rest: Pose.Identity),
-            new(Name: "Tip", Parent: 1, Rest: Raised),
+            new(Name: "Tip", Parent: parent, Rest: Raised),
         ];
 
         Action make = () => _ = new Rig(joints, []);
 
         make.Should().Throw<ArgumentException>().WithMessage("*Tip*parent*");
+    }
+
+    [Fact]
+    public void RigRefusesDefaultJoints()
+    {
+        Action make = () => _ = new Rig(default, []);
+
+        make.Should().Throw<ArgumentException>().WithParameterName("joints");
+    }
+
+    [Fact]
+    public void RigRefusesDefaultMorphs()
+    {
+        Action make = () => _ = new Rig([], default);
+
+        make.Should().Throw<ArgumentException>().WithParameterName("morphs");
     }
 
     [Fact]

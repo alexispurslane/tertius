@@ -37,11 +37,15 @@ public sealed class Rig
 
     /// <summary>A rig of <paramref name="joints"/>, parents before children, and <paramref name="morphs"/>.</summary>
     /// <exception cref="ArgumentException">
-    /// A parent that does not come before its joint, a name that repeats, a rest pose or weight that is not finite, a rest
-    /// rotation that is not a rotation, or more than <see cref="MaxJoints"/> joints.
+    /// A default array, a parent that does not come before its joint, a name that repeats, a rest pose or weight that is not
+    /// finite, a rest rotation that is not a rotation, or more than <see cref="MaxJoints"/> joints.
     /// </exception>
     public Rig(ImmutableArray<RigJoint> joints, ImmutableArray<RigMorph> morphs)
     {
+        if (joints.IsDefault)
+            throw new ArgumentException("The rig's joints are not set.", nameof(joints));
+        if (morphs.IsDefault)
+            throw new ArgumentException("The rig's morphs are not set.", nameof(morphs));
         if (joints.Length > MaxJoints)
             throw new ArgumentException($"A rig has at most {MaxJoints} joints, not {joints.Length}.", nameof(joints));
         for (int index = 0; index < joints.Length; index++)
@@ -129,8 +133,7 @@ public sealed class Rig
 /// <param name="Weights">Each morph's weight: 0 adds none of a target's deltas, and 1 adds all of them.</param>
 public sealed record RigPose(ImmutableArray<Pose> Joints, ImmutableArray<float> Weights);
 
-// The renderer copies skins into a GPU buffer, so the field order is the memory layout. The cleanup's member layout leaves
-// a type with StructLayout alone.
+// StructLayout keeps the cleanup's member layout from reordering the members, so that they stay in slot order.
 /// <summary>
 /// A vertex's four joint influences. An unused slot holds joint 0 with weight 0. The weights are each at least 0, with a
 /// sum above 0, and the renderer scales them to sum to 1.
