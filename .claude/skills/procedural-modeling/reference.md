@@ -140,6 +140,71 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 - A dark world hides the faces that point down. The stage adds a weak, cool fill sun from below, on the side of the camera. Without it, the parts under a hull look as if they float free.
 - A camera close to the hull sees whatever stands between it and the hull. The Nostromo's close-up looks along the starboard side of the nose and the bridge. From there the bridge hides the deck conduits, and `s90_checks.py` requires 0 % `Pipes` and `Pipe_Brackets` in that shot.
 
+## A human with MPFB
+
+### The asset names
+
+The MakeHuman system assets in `$TERTIUS_MAKEHUMAN_ASSETS` hold these. Name each one as `<folder>/<folder>.mhclo`, and a skin as `<folder>/<folder>.mhmat`. A name that the pack does not hold stops the build.
+
+| Key | Folders |
+|---|---|
+| `skin_mhmat` | `young_`, `middleage_` and `old_` with `african_`, `asian_` and `caucasian_`, then `female` or `male`, such as `young_african_female`. Also `young_caucasian_female2` and `young_caucasian_male2`. |
+| `eyes` | `high-poly`, `low-poly` |
+| `eyebrows` | `eyebrow001` to `eyebrow012` |
+| `eyelashes` | `eyelashes01` to `eyelashes04` |
+| `teeth` | `teeth_base`, `teeth_shape01` to `teeth_shape05` |
+| `tongue` | `tongue01` |
+| `hair` | `afro01`, `bob01`, `bob02`, `braid01`, `long01`, `ponytail01`, `short01` to `short04` |
+| `rig` | `game_engine` is the tested one. MPFB also has `default`, `default_no_toes`, `game_engine_with_breast`, `mixamo`, `mixamo_unity`, `cmu_mb` and `openpose`. |
+
+Look at a hair before you choose it. `bob02` rendered nearly white, and the fringe of `braid01` covered an eye. `afro01` looks right, but its cards show as straight dark edges up close.
+
+### The bones of `game_engine`
+
+The rig has 53 bones: `pelvis`, `spine_01` to `spine_03`, `neck_01`, `head`, and per side (`_l`, `_r`) `clavicle`, `upperarm`, `lowerarm`, `hand`, `index_01` to `_03` (also `middle`, `ring`, `pinky` and `thumb`), `thigh`, `calf`, `foot` and `ball`. `mpfb.ARM_BONES` holds the name prefixes of both arms.
+
+The axes of `parameters.pose`, as measured on the left side (`_l`). The right side mirrors the sign of `y` and `z`.
+
+| Bone | Axis | What a positive angle does |
+|---|---|---|
+| `upperarm_l` | z | Raises the arm. A negative angle lowers it from the A-pose toward the side: -30 brings it close to the body. |
+| `upperarm_l` | x | Swings the arm forward |
+| `lowerarm_l` | x | Bends the elbow forward |
+| `lowerarm_l` | z | Bends the forearm outward, away from the body. A negative angle bends it inward. |
+| `index_01_l` ... `pinky_03_l` | x | Curls the finger. 15, 25 and 15 degrees for the three joints give a relaxed hand. |
+| `thumb_02_l` | x | Curls the thumb |
+
+### The joints
+
+`mpfb.joints` returns the centers of MPFB's joint helpers. Useful names: `neck`, `head`, `pelvis`, `spine-1` (the chest) to `spine-4`, and per side `l-` or `r-` with `clavicle`, `shoulder`, `elbow`, `hand`, `upper-leg`, `knee`, `ankle` and `foot-1`. Read them before the freeze. They do not move with your later shift, so add the shift yourself, as `s10_human.py` does.
+
+### Garments from the body
+
+The crew member's `s20_jumpsuit.py` shows each method:
+
+- Choose the faces of a garment by bone weight: the summed weight of the bones of the trunk, the arms and the legs, cut at the wrists and ankles by the position along the limb (`along`).
+- Smooth the anatomy away before you push the cloth out. Plain Laplacian smoothing of 40 steps, weighted by the trunk bones, flattens the chest. Smoothing along the normals only, or many more steps, grows spikes at the nipples. Leave the neck out of the trunk smoothing, or the neck tube collapses.
+- Subdivide once, push the surface out along its normals by a thickness per bone (`suit_thickness`), and smooth again a little.
+- Make folds with seeded waves: `rng = np.random.default_rng(model.rng.getrandbits(64))`.
+- Make a ring, such as a collar, a cuff or a belt, with rays cast from an axis out to the garment (`ring`). Limit each ray with `reach`, or a ray finds the far side of another limb. Cast level rays from the middle of the neck for a collar, so no ray leaves through the opening.
+- Make a pocket or a patch with a grid of rays cast at the garment from outside (`patch`), so its edges are straight.
+- Give trims thickness with `finish(..., solidify=...)`, which applies a Solidify modifier through `new_from_object`.
+- Make boots from metaballs: a heel ball, a foot ellipsoid, a toe box and a shaft capsule. A garment that follows the foot shows the toes.
+- Delete the body faces under the cloth, but keep a few rows of faces under each opening (`keep_rings`), so no gap shows at a cuff or a collar.
+- When the arms hang beside the trunk, a ring or a hose around the waist must leave them out. `mpfb.bone_weights(body, points, mpfb.ARM_BONES)` gives the arm weight of the body under each point. Keep the points below 0.5.
+
+### Materials
+
+`mpfb.freeze` gives each part one image texture into one Principled BSDF. glTF holds these as they are, so the parts need no bake. Only the hair, the eyebrows and the eyelashes keep alpha, as `BLEND`. Bake only your garments. A garment material can read the joints, such as a band around the upper arm between two distances from the shoulder joint.
+
+### Pitfalls
+
+- An asset name without its folder, such as `eyebrow001.mhclo`, is not found. Write `eyebrow001/eyebrow001.mhclo`.
+- The eyes of MakeHuman have a clear cornea shell. Drawn opaque, it hides the iris. `freeze` deletes its faces.
+- MPFB 2.0.18 has no expressions: its expression folder is empty, and the asset pack holds none.
+- MPFB adds a collection for the human. Remove it when it is empty after you move the parts.
+- A pose that lowers the arms brings the sleeves next to the trunk. Look at the armpits and the waist from the side, not only from the front.
+
 ## The Nostromo
 
 The Nostromo is a tug in the style of the ship of the film. An earlier agent built it in its own project through the same MCP server. It moved into Tertius as the first scripted model. Its folder is `content/tertius.demo/assets/ships/nostromo.model/`.

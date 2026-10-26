@@ -114,8 +114,6 @@
               ];
               TERTIUS_BLENDER = blender;
               TERTIUS_BLENDER_VERSION = pkgs.blender.version;
-              # The release file of the add-on, from a fixed-output fetch.
-              TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;
               # The unpacked MPFB add-on, pinned by hash. Model scripts run it through tertius_blender.mpfb.
               TERTIUS_MPFB = "${mpfb}";
               # The MakeHuman system assets without the clothes: skins, eyes, eyebrows, eyelashes, teeth, tongue, hair.
