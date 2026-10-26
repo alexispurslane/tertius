@@ -525,6 +525,8 @@ The readers' extra work per lit pixel: one fetch of a quaternion from the frame 
 
 Memory: about 2.1 MB per map at W = 128, 8.4 MB for the cabin's chain of four, and about 134 MB per map at W = 1024. The buffers add 6 KB each.
 
+Part 4 measured the costs (ARCHITECTURE.md, "The environment map", "Cost"). A frame of a film costs the face pass and the prefilter of one map, as expected. The lighting pass grew by about 0.49 ms on `demo-exit.json`, not 0.05 ms, and the transparent pass by about 0.075 ms. Two probes put the lighting pass's growth on the map that varies per pixel, not on the turns, and `ter-51gq` looks for its cause. `SceneBatcherBenchmarks` shows no cost of the larger `GpuInstance`.
+
 ## Tests
 
 The tests follow tests/STYLE.md: one behavior per test, named as a statement. Each is written first and seen to fail for the right reason. No test adds a reference image. The GPU tests use small outputs, 160 × 90 or 320 × 180, and `SceneEnvironmentMap.Default with { FaceSize = 32 }`. A hand-built snapshot states its chain with a test helper, `TestChains.Of(...)`, which names each frame's id and rotation. Each builder makes a hand mutation for each new test (CLAUDE.md, "Testing") and names it in the report.
