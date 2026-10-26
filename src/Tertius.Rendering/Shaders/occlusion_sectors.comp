@@ -39,7 +39,8 @@ void main()
         // The receiver's own surface first, so no step gives light to a direction below it.
         uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
         vec3 light = vec3(0.0);
-        // Where R spans at most the nearest step, the near range holds no step (decision 21).
+        // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
+        // the C# copy of this loop: change both together.
         for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
         {
             vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);

@@ -105,10 +105,12 @@ public sealed class HorizonSearchTests
     public void AStepSnapsToTheNearestTexelAlongItsSlice() =>
         HorizonSearch
             .StepOffset(
-                stepFraction: 1,
-                sliceAngle: Math.PI / 4,
-                radiusInTexels: 10,
-                halfSize: (Width: 960, Height: 540)
+                HorizonSearch.ExactStepOffset(
+                    stepFraction: 1,
+                    sliceAngle: Math.PI / 4,
+                    radiusInTexels: 10,
+                    halfSize: (Width: 960, Height: 540)
+                )
             )
             .Should()
             .Be((7, -7), "the slice at 45° runs right and up the screen, whose rows run down");
@@ -135,11 +137,20 @@ public sealed class HorizonSearchTests
         (int Width, int Height) halfSize = (Width: 960, Height: 540);
 
         HorizonSearch
-            .StepOffset(stepFraction: 1, sliceAngle: 0, radiusInTexels: 1e10, halfSize: halfSize)
+            .StepOffset(
+                HorizonSearch.ExactStepOffset(stepFraction: 1, sliceAngle: 0, radiusInTexels: 1e10, halfSize: halfSize)
+            )
             .Should()
             .Be((961, 0), "one texel past the longer side lies outside the image from every texel in it");
         HorizonSearch
-            .StepOffset(stepFraction: 1, sliceAngle: Math.PI / 2, radiusInTexels: 1e10, halfSize: halfSize)
+            .StepOffset(
+                HorizonSearch.ExactStepOffset(
+                    stepFraction: 1,
+                    sliceAngle: Math.PI / 2,
+                    radiusInTexels: 1e10,
+                    halfSize: halfSize
+                )
+            )
             .Should()
             .Be((0, -961));
     }

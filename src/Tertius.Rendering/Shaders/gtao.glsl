@@ -1,10 +1,9 @@
 // The GLSL port of XeGTAO: ground-truth ambient occlusion (Jimenez and others 2016) at the physical constants of
-// docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO:
-// the edges and their packing, the noise and the Hilbert index, the view position, the texel's setup
-// (gtaoTexelSetup), the slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets
-// (gtaoExactStepOffset),
-// and the denoise. The slice loop is occlusion_sectors.comp's. HorizonSlice, HorizonSearch and OcclusionNoise in
-// Shading/ are its C# copy.
+// docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO: the
+// edges and their packing, the noise and the Hilbert index, the view position, the texel's setup (gtaoTexelSetup), the
+// slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets (gtaoExactStepOffset), and the denoise.
+// The slice loop is occlusion_sectors.comp's. HorizonSlice, HorizonSearch and OcclusionNoise in Shading/ are its C#
+// copy.
 //
 // Source: https://github.com/GameTechDev/XeGTAO, commit a5b1686c7ea37788eeb3576b5be47f7c03db532c,
 // Source/Rendering/Shaders/XeGTAO.hlsli, XeGTAO.h and vaGTAO.hlsl (copies in ThirdParty/XeGTAO).

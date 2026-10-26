@@ -272,7 +272,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     .BeApproximately(
                         share,
                         0.01,
-                        "the occlusion images, the sector masks and their sets follow the new size, at {0}",
+                        "the occlusion images and their sets follow the new size, at {0}",
                         after[i]
                     );
             }

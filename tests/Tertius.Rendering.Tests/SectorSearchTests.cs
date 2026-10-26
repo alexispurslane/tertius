@@ -69,6 +69,31 @@ public sealed class SectorSearchTests
         Math.Sign(Double3.Dot(direction, sectors.Slice.TowardPlusSide))
         * Math.Acos(Math.Clamp(Double3.Dot(direction, sectors.Slice.ToEye), -1, 1));
 
+    /// <summary>
+    /// The near steps of the slice at φ = 0, which runs along a row, from <paramref name="texel"/> of a 320 × 180 half
+    /// image: three per side over 20 texels, on a red wall 5 m ahead that reaches past the image.
+    /// </summary>
+    private static List<NearStep> StepsOnAWall((int X, int Y) texel) =>
+        SectorSearch.SliceSteps(
+            texel: texel,
+            slice: 0,
+            sliceAngle: 0,
+            stepsPerSide: 3,
+            stepNoise: 0,
+            radiusInTexels: 20,
+            halfSize: (Width: 320, Height: 180),
+            rayThrough: WallRayThrough,
+            texelAt: place => new StepTexel(
+                Position: WallRayThrough(place) * 5,
+                GeometricNormal: TowardTheEye,
+                DirectLight: Red
+            )
+        );
+
+    /// <summary>A view ray, whose z is 1, through a place in the half image of <see cref="StepsOnAWall"/>, 90° wide.</summary>
+    private static Double3 WallRayThrough((double X, double Y) place) =>
+        new((place.X - 160) / 160, (90 - place.Y) / 160, 1);
+
     [Fact]
     public void AStepGivesItsLightOnlyToTheSectorsThatNoNearerStepBlocked()
     {
@@ -274,6 +299,36 @@ public sealed class SectorSearchTests
         );
 
         point.Should().BeNull("the step stands for no surface on its slice, as a step on sky");
+    }
+
+    [Fact]
+    public void TheStepsOfASliceComeNearestFirstAndPlusSideFirst()
+    {
+        List<NearStep> steps = StepsOnAWall(texel: (X: 160, Y: 90));
+
+        steps
+            .Select(step => step.Side)
+            .Should()
+            .Equal(SliceSide.Plus, SliceSide.Minus, SliceSide.Plus, SliceSide.Minus, SliceSide.Plus, SliceSide.Minus);
+        steps
+            .Where(step => step.Side == SliceSide.Plus)
+            .Select(step => step.Position.X)
+            .Should()
+            .BeInAscendingOrder("the plus side runs right along the row, and the nearest step comes first");
+    }
+
+    [Fact]
+    public void AStepWhoseTexelLiesOutsideTheImageIsLeftOut()
+    {
+        List<NearStep> steps = StepsOnAWall(texel: (X: 0, Y: 90));
+
+        steps
+            .Select(step => step.Side)
+            .Should()
+            .Equal(
+                [SliceSide.Plus, SliceSide.Plus, SliceSide.Plus],
+                "at the image's left edge every minus step's texel lies left of column 0, though the wall goes on there"
+            );
     }
 
     [Fact]

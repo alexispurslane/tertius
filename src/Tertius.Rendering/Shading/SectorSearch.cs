@@ -19,6 +19,12 @@ internal readonly record struct NearStep(
     SliceSide Side
 );
 
+/// <summary>What a near step reads at its texel's representative pixel, in view space.</summary>
+/// <param name="Position">P(t), the pixel's view position at the texel's view depth.</param>
+/// <param name="GeometricNormal">The unit geometric normal at that pixel.</param>
+/// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
+internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNormal, Double3 DirectLight);
+
 /// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
 internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
 
@@ -44,6 +50,9 @@ internal static class SectorSearch
 
     // The golden ratio's inverse, the R1 sequence of the steps, in single floats as the shader holds it.
     private const float StepSequence = 0.6180339887498948482f;
+
+    // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
+    private static readonly SliceSide[] SidesInOrder = [SliceSide.Plus, SliceSide.Minus];
 
     /// <summary>
     /// θ_f and θ_b: the angles in the slice from V̂ = <paramref name="toEye"/> of the directions from the center to a
@@ -77,6 +86,70 @@ internal static class SectorSearch
         if (!(planeOffset * rayAlongNormal > 0))
             return null;
         return exactRay * (planeOffset / rayAlongNormal);
+    }
+
+    /// <summary>
+    /// GTAO's near steps of one slice, nearest first and plus side first, as occlusion_sectors.comp's loop builds them:
+    /// each reads the texel nearest its exact place and stands at its surface point on the slice. A step outside the
+    /// image, on sky, or whose surface does not reach the slice is left out.
+    /// </summary>
+    /// <param name="texel">The receiver's half-resolution texel.</param>
+    /// <param name="rayThrough">The view ray, whose z is 1, through a place in half-resolution texels, at whole numbers a representative pixel.</param>
+    /// <param name="texelAt">What a step reads at a texel inside the image, or null for sky.</param>
+    public static List<NearStep> SliceSteps(
+        (int X, int Y) texel,
+        int slice,
+        double sliceAngle,
+        int stepsPerSide,
+        float stepNoise,
+        double radiusInTexels,
+        (int Width, int Height) halfSize,
+        Func<(double X, double Y), Double3> rayThrough,
+        Func<(int X, int Y), StepTexel?> texelAt
+    )
+    {
+        var steps = new List<NearStep>();
+        for (int step = 0; HorizonSearch.NearRangeHoldsSteps(radiusInTexels) && step < stepsPerSide; step++)
+        {
+            double fraction = HorizonSearch.StepFraction(
+                step: step,
+                slice: slice,
+                stepsPerSide: stepsPerSide,
+                stepNoise: stepNoise,
+                radiusInTexels: radiusInTexels
+            );
+            (double X, double Y) exact = HorizonSearch.ExactStepOffset(
+                stepFraction: fraction,
+                sliceAngle: sliceAngle,
+                radiusInTexels: radiusInTexels,
+                halfSize: halfSize
+            );
+            (int X, int Y) nearest = HorizonSearch.StepOffset(exact);
+            foreach (SliceSide side in SidesInOrder)
+            {
+                int sign = (int)side;
+                (int X, int Y) stepTexel = (X: texel.X + sign * nearest.X, Y: texel.Y + sign * nearest.Y);
+                bool inside =
+                    stepTexel.X >= 0
+                    && stepTexel.Y >= 0
+                    && stepTexel.X < halfSize.Width
+                    && stepTexel.Y < halfSize.Height;
+                if (!inside || texelAt(stepTexel) is not { } read)
+                    continue;
+                Double3 exactRay = rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y));
+                if (SurfacePoint(exactRay, read.Position, read.GeometricNormal) is not { } position)
+                    continue;
+                steps.Add(
+                    new(
+                        Position: position,
+                        GeometricNormal: read.GeometricNormal,
+                        DirectLight: read.DirectLight,
+                        Side: side
+                    )
+                );
+            }
+        }
+        return steps;
     }
 
     /// <summary>Whether a blocker's geometric normal has a positive cosine with the direction back toward the point that it blocks.</summary>

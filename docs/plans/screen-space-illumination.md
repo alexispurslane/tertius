@@ -985,6 +985,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AThinSlabLetsTheSkyThroughBehindIt`: a pole in front of the slice's sky leaves the sectors past its slab open.
 - `AStepAtTheRadiusOrBeyondItBlocksNothing`.
 - `AStepsSurfacePointIsWhereItsExactRayMeetsItsTexelsPlane`, and `AStepWhosePlaneItsExactRayMeetsOnlyBehindTheEyeOrNeverHasNoSurfacePoint` (`ter-rxjr`).
+- `TheStepsOfASliceComeNearestFirstAndPlusSideFirst`, and `AStepWhoseTexelLiesOutsideTheImageIsLeftOut`: `SectorSearch.SliceSteps`, the C# copy of the step loop of `occlusion_sectors.comp`.
 - `ABlockerThatFacesAwayBlocksWithoutLight`.
 - `TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep`, and `AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt` (decision 39).
 - `ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt`.
@@ -992,7 +993,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `TheFarRayGoesThroughTheCenterOfAnOpenSector`, and `TheFarRayOfASliceWithNoOpenSectorIsNotTraced`.
 - `TheFarRayTakesTheNextValueOfItsSlicesStepSequence`.
 
-`FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy (`ter-rxjr`).
+`FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy, whose step loop is `SectorSearch.SliceSteps` (`ter-rxjr`).
 
 `HorizonSearchTests`: `AStepsExactPlaceLiesOnItsSliceLineBeforeTheSnap`.
 

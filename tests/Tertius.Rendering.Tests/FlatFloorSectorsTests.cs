@@ -84,41 +84,17 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
         {
             double angle = HorizonSearch.SliceAngle(slice, setting.Slices, sliceNoise);
             var sectors = new SliceSectors(new HorizonSlice(toEye, Up, angle));
-            var steps = new List<NearStep>();
-            for (int step = 0; HorizonSearch.NearRangeHoldsSteps(radiusInTexels) && step < setting.StepsPerSide; step++)
-            {
-                double fraction = HorizonSearch.StepFraction(
-                    step: step,
-                    slice: slice,
-                    stepsPerSide: setting.StepsPerSide,
-                    stepNoise: stepNoise,
-                    radiusInTexels: radiusInTexels
-                );
-                (double x, double y) exact = HorizonSearch.ExactStepOffset(
-                    stepFraction: fraction,
-                    sliceAngle: angle,
-                    radiusInTexels: radiusInTexels,
-                    halfSize: HalfSize
-                );
-                (int x, int y) snapped = HorizonSearch.StepOffset(
-                    stepFraction: fraction,
-                    sliceAngle: angle,
-                    radiusInTexels: radiusInTexels,
-                    halfSize: HalfSize
-                );
-                AddStep(
-                    steps: steps,
-                    texel: (X: texel.X + snapped.x, Y: texel.Y + snapped.y),
-                    exact: (X: texel.X + exact.x, Y: texel.Y + exact.y),
-                    side: SliceSide.Plus
-                );
-                AddStep(
-                    steps: steps,
-                    texel: (X: texel.X - snapped.x, Y: texel.Y - snapped.y),
-                    exact: (X: texel.X - exact.x, Y: texel.Y - exact.y),
-                    side: SliceSide.Minus
-                );
-            }
+            List<NearStep> steps = SectorSearch.SliceSteps(
+                texel: texel,
+                slice: slice,
+                sliceAngle: angle,
+                stepsPerSide: setting.StepsPerSide,
+                stepNoise: stepNoise,
+                radiusInTexels: radiusInTexels,
+                halfSize: HalfSize,
+                rayThrough: RayAt,
+                texelAt: FloorAt
+            );
             NearSlice near = SectorSearch.Near(
                 sectors: sectors,
                 center: center,
@@ -131,21 +107,9 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>
-    /// Adds the floor's step from <paramref name="texel"/> at its exact place <paramref name="exact"/>, in
-    /// half-resolution texels, unless the texel lies outside the image or on sky, or the floor does not reach the place.
-    /// </summary>
-    private static void AddStep(List<NearStep> steps, (int X, int Y) texel, (double X, double Y) exact, SliceSide side)
-    {
-        bool inside = texel.X >= 0 && texel.Y >= 0 && texel.X < HalfSize.Width && texel.Y < HalfSize.Height;
-        if (!inside || DepthAt(texel) is not { } z)
-            return;
-        Double3? position = SectorSearch.SurfacePoint(
-            exactRay: RayAt(exact),
-            texelPosition: RayAt((X: texel.X, Y: texel.Y)) * z,
-            texelNormal: Up
-        );
-        if (position is { } onSlice)
-            steps.Add(new(Position: onSlice, GeometricNormal: Up, DirectLight: FloorLight, Side: side));
-    }
+    /// <summary>What a step reads at the floor texel <paramref name="texel"/>, or null for sky.</summary>
+    private static StepTexel? FloorAt((int X, int Y) texel) =>
+        DepthAt(texel) is { } z
+            ? new(Position: RayAt((X: texel.X, Y: texel.Y)) * z, GeometricNormal: Up, DirectLight: FloorLight)
+            : null;
 }

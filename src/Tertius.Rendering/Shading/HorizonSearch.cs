@@ -76,20 +76,10 @@ internal static class HorizonSearch
         );
     }
 
-    /// <summary>The offset of the texel nearest the step's exact place, <see cref="ExactStepOffset"/>: the texel whose depth the step reads.</summary>
-    public static (int X, int Y) StepOffset(
-        double stepFraction,
-        double sliceAngle,
-        double radiusInTexels,
-        (int Width, int Height) halfSize
-    )
-    {
-        (double x, double y) = ExactStepOffset(
-            stepFraction: stepFraction,
-            sliceAngle: sliceAngle,
-            radiusInTexels: radiusInTexels,
-            halfSize: halfSize
-        );
-        return (X: (int)Math.Round(x), Y: (int)Math.Round(y));
-    }
+    /// <summary>
+    /// The offset of the texel nearest a step's exact place, <paramref name="exactOffset"/> from
+    /// <see cref="ExactStepOffset"/>: the texel whose depth the step reads.
+    /// </summary>
+    public static (int X, int Y) StepOffset((double X, double Y) exactOffset) =>
+        (X: (int)Math.Round(exactOffset.X), Y: (int)Math.Round(exactOffset.Y));
 }
