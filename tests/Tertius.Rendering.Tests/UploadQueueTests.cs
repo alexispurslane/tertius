@@ -13,7 +13,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void EachKindOfIdCountsFromZeroAndIsNeverNone()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         MeshId[] meshes = [.. Enumerable.Range(0, 3).Select(_ => queue.AddMesh(Primitives.Box(Vector3.One)))];
         TextureId[] textures = [.. Enumerable.Range(0, 3).Select(_ => queue.AddTexture(Pixels(2, 2)))];
         MaterialId[] materials =
@@ -36,7 +36,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void ADrainHandsOverEachResourceOnceInIdOrder()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         TextureId first = queue.AddTexture(Pixels(1, 1));
         MeshId mesh = queue.AddMesh(Primitives.Box(Vector3.One));
         MaterialId material = queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: first));
@@ -60,7 +60,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void TexturesUpToTheDeviceLimitAreAcceptedAndLargerOrEmptyOnesAreNot()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         queue.AddTexture(Pixels(MaxTextureSize, 1)).Value.Should().Be(0);
         queue.AddTexture(Pixels(1, MaxTextureSize)).Value.Should().Be(1);
         FluentActions
@@ -94,7 +94,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void MissingDataIsRejectedBeforeAnIdIsTaken()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         FluentActions.Invoking(() => queue.AddMesh(null!)).Should().ThrowExactly<ArgumentNullException>();
         FluentActions
             .Invoking(() => queue.AddMesh(new(null!, [0, 0, 0])))
@@ -125,7 +125,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void AMaterialNamesOnlyNoneOrTexturesThisQueueCreated()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         FluentActions
             .Invoking(() => queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.38f, BaseColorMap: new(0))))
             .Should()
@@ -160,7 +160,7 @@ public sealed class UploadQueueTests
     [Fact]
     public void TheBindlessArrayFillsUpBesideTheBuiltInDefaults()
     {
-        var queue = new UploadQueue(MaxTextureSize);
+        var queue = new UploadQueue(maxTextureSize: MaxTextureSize, deformBytesLimit: 1L << 27);
         TextureId last = TextureId.None;
         for (int i = 0; i < TextureStore.UserCapacity; i++)
             last = queue.AddTexture(Pixels(1, 1));

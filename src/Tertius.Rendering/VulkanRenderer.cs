@@ -128,7 +128,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
-            uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
+            uploads = new(
+                maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
+                deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
+            );
             targets = CreateTargets(
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,

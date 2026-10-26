@@ -58,6 +58,24 @@ public sealed class ShaderInputTests
     }
 
     [Fact]
+    public void MorphWeightTurnsNaNIntoZero() =>
+        ShaderInput.MorphWeight(float.NaN).Should().Be(0, "a NaN weight adds none of its target");
+
+    [Theory]
+    [InlineData(0.25f, 0.25f)]
+    [InlineData(-3f, -3f)]
+    [InlineData(1024f, 1024f)]
+    [InlineData(2000f, 1024f)]
+    [InlineData(float.PositiveInfinity, 1024f)]
+    [InlineData(-2000f, -1024f)]
+    [InlineData(float.NegativeInfinity, -1024f)]
+    public void MorphWeightClampsToTheLargestMorphWeight(float weight, float read)
+    {
+        ShaderInput.LargestMorphWeight.Should().Be(1024);
+        ShaderInput.MorphWeight(weight).Should().Be(read);
+    }
+
+    [Fact]
     public void ALightWithANumberThatIsNotFiniteIsLeftOut()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
@@ -354,7 +372,7 @@ public sealed class ShaderInputTests
     [InlineData(0f, float.PositiveInfinity)]
     public void AMeshWithANumberThatIsNotFiniteIsRefused(float position, float texCoord)
     {
-        var queue = new UploadQueue(64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
         MeshData box = Primitives.Box(Vector3.One);
         Vertex[] vertices = [.. box.Vertices];
         vertices[0].Position.X = position;
@@ -369,7 +387,7 @@ public sealed class ShaderInputTests
     [Fact]
     public void AMeshWithANormalOrTangentThatIsNotFiniteIsRefused()
     {
-        var queue = new UploadQueue(64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
         MeshData box = Primitives.Box(Vector3.One);
         Vertex[] normal = [.. box.Vertices];
         normal[0].Normal.Y = float.NaN;
