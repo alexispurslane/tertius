@@ -1,6 +1,6 @@
 ---
 id: ter-4vzc
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T18:16:23Z
