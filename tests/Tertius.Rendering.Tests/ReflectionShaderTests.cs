@@ -43,24 +43,12 @@ public sealed class ReflectionShaderTests
             for (int y = 232; y < Height; y += 4)
             for (int x = 130; x < 510; x += 6)
             {
-                (RayTrace trace, _) = TraceFromFloor(
-                    camera: camera,
-                    distance: distance,
-                    pyramid: pyramid,
-                    pixel: (x, y),
-                    normal: FlatMapNormal,
-                    roughness: 0,
-                    maxSteps: Reflections.MaxSteps
-                );
-                // Only a ray with the full fade, whose hit lies inside one tile, so that its trilinear read is the tile.
                 if (
-                    trace is not RayHit hit
-                    || hit.EntryShare != 0
-                    || camera.EdgeFade(hit.Position) != 1
-                    || !InsideOneTile(lit, hit.Pixel)
+                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: (x, y))
+                    is not { } hit
                 )
                     continue;
-                Vector3 expected = SpecularWeight(Mirror(), camera, (x, y)) * At(lit, hit.Pixel);
+                Vector3 expected = SpecularWeight(Mirror(), camera, (x, y)) * At(lit, hit);
                 Vector3 shown = At(reflected, (x, y));
                 BrdfTesting
                     .LargestChannelDifference(shown, expected)
@@ -70,7 +58,7 @@ public sealed class ReflectionShaderTests
                         "floor pixel ({0}, {1}) reflects the tile of pixel {2}: shown {3}, expected {4}",
                         x,
                         y,
-                        hit.Pixel,
+                        hit,
                         shown,
                         expected
                     );
@@ -105,23 +93,12 @@ public sealed class ReflectionShaderTests
             {
                 // The representative pixel of texel (i, j) is the top-left pixel of its 2 × 2 block.
                 (int X, int Y) representative = (X: 2 * i, Y: 2 * j);
-                (RayTrace trace, _) = TraceFromFloor(
-                    camera: camera,
-                    distance: distance,
-                    pyramid: pyramid,
-                    pixel: representative,
-                    normal: FlatMapNormal,
-                    roughness: 0,
-                    maxSteps: Reflections.MaxSteps
-                );
                 if (
-                    trace is not RayHit hit
-                    || hit.EntryShare != 0
-                    || camera.EdgeFade(hit.Position) != 1
-                    || !InsideOneTile(lit, hit.Pixel)
+                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: representative)
+                    is not { } hit
                 )
                     continue;
-                Vector3 expected = At(lit, hit.Pixel);
+                Vector3 expected = At(lit, hit);
                 Vector3 shown = At(traced, (i, j), tracedWidth);
                 BrdfTesting
                     .LargestChannelDifference(shown, expected)
@@ -131,7 +108,7 @@ public sealed class ReflectionShaderTests
                         "texel ({0}, {1}) holds the tile of pixel {2}: shown {3}, expected {4}",
                         i,
                         j,
-                        hit.Pixel,
+                        hit,
                         shown,
                         expected
                     );
@@ -360,6 +337,36 @@ public sealed class ReflectionShaderTests
                 + fade * (weight * new Vector3(traced.X, traced.Y, traced.Z) - traced.W * weight * CheckeredGray);
             return new(expected, level, weight);
         }
+    }
+
+    /// <summary>
+    /// The pixel that the C# trace from the floor <paramref name="pixel"/> hits, for a mirror, when the ray keeps its
+    /// full fade and the hit lies inside one tile, so that a trilinear read there is the tile; otherwise null.
+    /// </summary>
+    private static (int X, int Y)? TileHitOf(
+        CameraView camera,
+        float[] distance,
+        DepthPyramid pyramid,
+        float[] lit,
+        (int X, int Y) pixel
+    )
+    {
+        (RayTrace trace, _) = TraceFromFloor(
+            camera: camera,
+            distance: distance,
+            pyramid: pyramid,
+            pixel: pixel,
+            normal: FlatMapNormal,
+            roughness: 0,
+            maxSteps: Reflections.MaxSteps
+        );
+        return
+            trace is RayHit hit
+            && hit.EntryShare == 0
+            && camera.EdgeFade(hit.Position) == 1
+            && InsideOneTile(lit, hit.Pixel)
+            ? hit.Pixel
+            : null;
     }
 
     /// <summary>Whether the 5 × 5 pixels around <paramref name="pixel"/> all hold one value: the inside of one tile.</summary>

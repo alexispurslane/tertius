@@ -39,20 +39,11 @@ internal static class ReflectionUpsample
         Func<(int X, int Y), TracedTexel> texelAt
     )
     {
-        (double low, double high) = OcclusionUpsample.AxisWeights(pixel.X);
-        (double top, double bottom) = OcclusionUpsample.AxisWeights(pixel.Y);
         Double3 radiance = default;
         double coverage = 0;
         double weights = 0;
-        for (int b = 0; b < 2; b++)
-        for (int a = 0; a < 2; a++)
+        foreach (((int X, int Y) coordinates, double bilinear) in OcclusionUpsample.BlockTexels(pixel, halfSize))
         {
-            double bilinear = (a == 0 ? low : high) * (b == 0 ? top : bottom);
-            (int X, int Y) coordinates = (X: pixel.X / 2 + a, Y: pixel.Y / 2 + b);
-            bool inside = coordinates.X < halfSize.Width && coordinates.Y < halfSize.Height;
-            // A texel beyond the edge of the half-resolution image gets no weight.
-            if (bilinear == 0 || !inside)
-                continue;
             TracedTexel texel = texelAt(coordinates);
             if (texel.Ray is not { } ray)
                 continue;

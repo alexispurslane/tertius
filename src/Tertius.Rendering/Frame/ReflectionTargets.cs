@@ -154,7 +154,14 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         );
         depthMipViews = MipViews(DepthImage);
         radianceMipViews = MipViews(RadianceImage);
+        WriteLevelSets(hdr);
+        WriteDepthTailSet();
+        WriteTraceSet(extent: extent, depth: DepthImage, radiance: RadianceImage, hdr: hdr);
+    }
 
+    /// <summary>Writes the level sets of both pyramids over the mip views of <see cref="Create"/>.</summary>
+    private void WriteLevelSets(GpuImage hdr)
+    {
         // Level 1 reads the distance target from the G-buffer set, so its binding 0 stays unwritten.
         for (int level = 1; level <= TopLevel; level++)
         {
@@ -185,12 +192,17 @@ internal sealed unsafe class ReflectionTargets : IDisposable
                 );
             layouts.WriteStorageImage(set: radianceLevelSets[level], binding: 1, view: radianceMipViews[level]);
         }
+    }
 
-        WriteDepthTailSet();
-
+    /// <summary>
+    /// Writes the reflection set over the pyramids <paramref name="depth"/> and <paramref name="radiance"/> and the HDR
+    /// image <paramref name="hdr"/>, and makes and binds the half-resolution trace for <see cref="TraceResolution.Half"/>.
+    /// </summary>
+    private void WriteTraceSet(Extent2D extent, GpuImage depth, GpuImage radiance, GpuImage hdr)
+    {
         // The bindings of reflection_trace.comp; binding 2 is the immutable sampler.
-        layouts.WriteImage(set: TraceSet, binding: 0, view: DepthImage.View, layout: ImageLayout.General);
-        layouts.WriteImage(set: TraceSet, binding: 1, view: RadianceImage.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: TraceSet, binding: 0, view: depth.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: TraceSet, binding: 1, view: radiance.View, layout: ImageLayout.General);
         layouts.WriteStorageImage(set: TraceSet, binding: 3, image: hdr);
         if (resolution is TraceResolution.Half)
         {

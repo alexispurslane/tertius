@@ -676,129 +676,235 @@ public sealed class ReflectionRenderTests
     }
 
     [Fact]
-    public void AtHalfResolutionAMirrorBoxOnAMirrorFloorKeepsBothReflectionsApartAtItsSides()
+    public void AtHalfResolutionEachTexelHoldsTheRayOfTheTopLeftPixelOfItsBlock()
     {
-        // A metal mirror box stands on the mirror floor 6 m ahead, before a bright wall 15 m ahead. The box's front face
-        // reflects the dark space behind the eye and shows nothing, and the floor beside it, 9 m ahead at the box's
-        // middle height, reflects the wall. The texels across each side of the box lie on the other surface.
-        static RenderSnapshot Scene(VulkanRenderer renderer)
+        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), StripedWall).Hdr;
+        (float[] traced, int tracedWidth, int tracedHeight) = RenderTrace(StripedWall);
+
+        // The blocks below the row where the wall meets the floor show only the floor.
+        int firstFloorRow = PixelOf(new(0, FloorHeight, -15)).Y / 2 + 1;
+        int compared = 0,
+            atAnEdge = 0;
+        for (int j = firstFloorRow; j < tracedHeight; j++)
+        for (int i = 0; i < tracedWidth; i++)
         {
-            RenderSnapshot snapshot = Dark();
-            snapshot.Instances.Add(Floor(renderer, Mirror()));
-            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: renderer.CreateMaterial(Mirror()),
-                    center: new(0, -1, -6.5f),
-                    size: new(1, 1, 1)
-                )
-            );
-            snapshot.Instances.Add(
-                Block(box: box, material: Glow(renderer, new(Bright)), center: new(0, 2, -15.5f), size: new(60, 7, 1))
-            );
-            return snapshot;
+            Vector3 representative = At(full, (2 * i, 2 * j));
+            Vector3 diagonal = At(full, (2 * i + 1, 2 * j + 1));
+            Vector3 ray = At(traced, (i, j), tracedWidth);
+            if (representative.X + representative.Y < 0.05f * Bright || ray.X + ray.Y <= 0)
+                continue;
+            RedShare(ray)
+                .Should()
+                .BeApproximately(
+                    RedShare(representative),
+                    0.02f,
+                    "texel ({0}, {1}) holds the ray of pixel ({2}, {3}): {4} against {5} at full resolution",
+                    i,
+                    j,
+                    2 * i,
+                    2 * j,
+                    ray,
+                    representative
+                );
+            compared++;
+            if (Math.Abs(RedShare(representative) - RedShare(diagonal)) > 0.3f)
+                atAnEdge++;
         }
 
-        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), Scene).Hdr;
-        float[] half = RenderHdr(ReflectionsAt(TraceResolution.Half), Scene).Hdr;
-
-        int compared = 0;
-        foreach (float height in (float[])[-1.3f, -1.1f, -0.9f, -0.7f])
-        foreach (float side in (float[])[-0.5f, 0.5f])
-        {
-            (int X, int Y) edge = PixelOf(new(side, height, -6));
-            for (int dx = -3; dx <= 3; dx++)
-            {
-                (int X, int Y) pixel = (edge.X + dx, edge.Y);
-                BrdfTesting
-                    .LargestChannelDifference(At(half, pixel), At(full, pixel))
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        0.05f * Bright,
-                        "pixel {0} beside the box's side shows its own surface's reflection: {1} at half, {2} at full",
-                        pixel,
-                        At(half, pixel),
-                        At(full, pixel)
-                    );
-                compared++;
-            }
-        }
-
-        BrdfTesting
-            .LargestChannelDifference(At(full, PixelOf(new(-0.8f, -1, -6))), Vector3.Zero)
-            .Should()
-            .BeGreaterThan(Bright / 4, "the floor beside the box shows the wall");
-        At(full, PixelOf(new(0, -1, -6))).Should().Be(Vector3.Zero, "and the box's face shows nothing");
-        compared.Should().Be(56);
+        compared.Should().BeGreaterThan(1000, "the floor below the wall reflects the stripes");
+        atAnEdge.Should().BeGreaterThan(50, "the stripes' edges cross the rows of the floor's reflection");
     }
 
     [Fact]
-    public void AtHalfResolutionEachTexelHoldsTheRayOfTheTopLeftPixelOfItsBlock()
+    public void AtHalfResolutionAMirrorSlabKeepsItsReflectionApartFromTheFloorBehindIt()
     {
-        // A white mirror floor in the dark reflects a wall of red and green stripes 0.3 m wide, 15 m ahead. The white metal
-        // weighs each channel alike and the dark adds nothing, so the red share of a pixel's HDR value at full resolution is
-        // the red share of its ray. Along the stripes' edges the share changes from one pixel to the next.
-        static RenderSnapshot Scene(VulkanRenderer renderer)
+        // The far edge of the slab splits the blocks of 2 × 2 pixels of its row, so a texel of the trace stands for both
+        // the slab and the floor behind it. Both face up, so only their depths tell them apart.
+        float top = ToAnOddPixelBoundary(
+            start: -1,
+            projected: height => Gpu.Project(point: new(0, height, -6), width: Width, height: Height).Y
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer => MirrorSlab(renderer, top));
+
+        (int X, int Y) edge = PixelOf(new(0, top, -6));
+        At(renders.Full, (edge.X, edge.Y + 3)).Y.Should().BeGreaterThan(Bright / 4, "the slab shows the green half");
+        At(renders.Full, (edge.X, edge.Y - 3))
+            .X.Should()
+            .BeGreaterThan(Bright / 4, "the floor behind it shows the red half");
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: edge, dxs: [-1, 0, 1], dys: [-3, -2, -1, 0, 1, 2, 3]),
+            shows: "by the slab's far edge shows its own surface's reflection"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionTheTwoFacesOfAMirrorCornerKeepTheirReflectionsApart()
+    {
+        // The corner splits the blocks of 2 × 2 pixels of its column. Texels across it lie near the other face's plane,
+        // but face another way.
+        float x = ToAnOddPixelBoundary(
+            start: 0,
+            projected: across => Gpu.Project(point: new(across, -0.5f, -6), width: Width, height: Height).X
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer => MirrorCorner(renderer, x));
+
+        (int X, int Y) corner = PixelOf(new(x, -0.5f, -6));
+        At(renders.Full, (corner.X - 4, corner.Y))
+            .X.Should()
+            .BeGreaterThan(Bright / 4, "the left face shows the red wall");
+        At(renders.Full, (corner.X + 4, corner.Y))
+            .Y.Should()
+            .BeGreaterThan(Bright / 4, "the right face shows the green wall");
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: corner, dxs: [-3, -2, -1, 0, 1, 2, 3], dys: [-6, -3, 0, 3, 6]),
+            shows: "by the corner shows its own face's reflection"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionAMirrorFloorBesideARoughFloorReflectsAsAtFullResolutionUpToTheirSeam()
+    {
+        // The texels across the seam lie on the mirror's plane but start no ray.
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(MirrorBesideRoughFloor);
+
+        foreach (float ahead in (float[])[-4, -6, -9])
         {
-            RenderSnapshot snapshot = Dark();
-            snapshot.Instances.Add(Floor(renderer, Mirror()));
-            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            MaterialId red = Glow(renderer, new(Bright, 0, 0));
-            MaterialId green = Glow(renderer, new(0, Bright, 0));
-            for (int k = -20; k < 20; k++)
-                snapshot.Instances.Add(
-                    Block(
-                        box: box,
-                        material: k % 2 == 0 ? red : green,
-                        center: new((k + 0.5f) * 0.3f, 2, -15.5f),
-                        size: new(0.3f, 7, 1)
-                    )
-                );
-            return snapshot;
+            (int X, int Y) seam = PixelOf(new(0, FloorHeight, ahead));
+            BrdfTesting
+                .LargestChannelDifference(At(renders.Full, (seam.X - 6, seam.Y)), Vector3.Zero)
+                .Should()
+                .BeGreaterThan(Bright / 4, "the mirror shows the wall {0} m ahead", -ahead);
+            ShouldMatchAtHalfResolution(
+                renders: renders,
+                pixels: Around(center: seam, dxs: [-3, -2, -1, 0], dys: [0]),
+                shows: "of the mirror at the seam takes only the texels with a ray"
+            );
         }
+    }
 
-        static float RedShare(Vector3 radiance) => radiance.X / (radiance.X + radiance.Y);
+    /// <summary>
+    /// A white mirror floor in the dark before a wall of red and green stripes 0.3 m wide, 15 m ahead. The white metal
+    /// weighs each channel alike and the dark adds nothing, so the red share of a floor pixel's HDR value is the red
+    /// share of its ray. Along the stripes' edges, the share changes from one pixel to the next.
+    /// </summary>
+    private static RenderSnapshot StripedWall(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        for (int k = -20; k < 20; k++)
+            snapshot.Instances.Add(
+                Block(
+                    box: box,
+                    material: k % 2 == 0 ? red : green,
+                    center: new((k + 0.5f) * 0.3f, 2, -15.5f),
+                    size: new(0.3f, 7, 1)
+                )
+            );
+        return snapshot;
+    }
 
-        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), Scene).Hdr;
+    /// <summary>The share of red in the red and green of <paramref name="radiance"/>.</summary>
+    private static float RedShare(Vector3 radiance) => radiance.X / (radiance.X + radiance.Y);
+
+    /// <summary>
+    /// A mirror slab half a metre above the mirror floor, its top at <paramref name="top"/> and its far edge 6 m ahead,
+    /// before a wall red below the eye's height and green above it. At the far edge's row, the slab reflects the green
+    /// half, and the floor 9 m ahead behind it the red half.
+    /// </summary>
+    private static RenderSnapshot MirrorSlab(VulkanRenderer renderer, float top)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: renderer.CreateMaterial(Mirror()),
+                center: new(0, top - 0.05f, -5),
+                size: new(2, 0.1f, 2)
+            )
+        );
+        snapshot.Instances.Add(Block(box: box, material: red, center: new(0, -0.75f, -15.5f), size: new(60, 1.5f, 1)));
+        snapshot.Instances.Add(Block(box: box, material: green, center: new(0, 2.5f, -15.5f), size: new(60, 5, 1)));
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A mirror box turned by 45° about the vertical, whose corner nearest the eye stands at <paramref name="x"/>, 6 m
+    /// ahead, between a red wall at the left and a green wall at the right. Its left face reflects the red wall, and its
+    /// right face the green wall.
+    /// </summary>
+    private static RenderSnapshot MirrorCorner(VulkanRenderer renderer, float x)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: renderer.CreateMaterial(Mirror()),
+                position: new(x, -0.5f, -6 - MathF.Sqrt(2) / 2),
+                scale: Vector3.One,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                radius: 1
+            )
+        );
+        MaterialId red = Glow(renderer, new(Bright, 0, 0));
+        MaterialId green = Glow(renderer, new(0, Bright, 0));
+        snapshot.Instances.Add(Block(box: box, material: red, center: new(-4.5f, 0, -7), size: new(1, 6, 10)));
+        snapshot.Instances.Add(Block(box: box, material: green, center: new(4.5f, 0, -7), size: new(1, 6, 10)));
+        return snapshot;
+    }
+
+    /// <summary>
+    /// The floor's left half a mirror and its right half rougher than the maximum, both at one height, before a bright
+    /// wall.
+    /// </summary>
+    private static RenderSnapshot MirrorBesideRoughFloor(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+        foreach (
+            (float center, MaterialDesc material) in ((float Center, MaterialDesc Material)[])
+                [(Center: -15, Material: Mirror()), (Center: 15, Material: Mirror(179 / 255f))]
+        )
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: plane,
+                    material: renderer.CreateMaterial(material with { NormalMap = FlatNormalMap(renderer) }),
+                    position: new(center, FloorHeight, -20),
+                    scale: new(15, 1, 30),
+                    radius: 34
+                )
+            );
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(Bright)), center: new(0, 2, -15.5f), size: new(60, 7, 1))
+        );
+        return snapshot;
+    }
+
+    /// <summary>The HDR images of the scene that <paramref name="scene"/> builds, traced at full and at half resolution.</summary>
+    private static (float[] Full, float[] Half) RenderAtBothResolutions(Func<VulkanRenderer, RenderSnapshot> scene) =>
+        (
+            Full: RenderHdr(ReflectionsAt(TraceResolution.Full), scene).Hdr,
+            Half: RenderHdr(ReflectionsAt(TraceResolution.Half), scene).Hdr
+        );
+
+    /// <summary>The half-resolution trace of the scene that <paramref name="scene"/> builds, read after one render.</summary>
+    private static (float[] Rgba, int Width, int Height) RenderTrace(Func<VulkanRenderer, RenderSnapshot> scene)
+    {
         VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
         try
         {
-            renderer.Render(Scene(renderer), 1f);
-            (float[] traced, int tracedWidth, int tracedHeight) = renderer.ReadReflectionTrace();
-
-            // The blocks below the row where the wall meets the floor show only the floor.
-            int firstFloorRow = PixelOf(new(0, FloorHeight, -15)).Y / 2 + 1;
-            int compared = 0,
-                atAnEdge = 0;
-            for (int j = firstFloorRow; j < tracedHeight; j++)
-            for (int i = 0; i < tracedWidth; i++)
-            {
-                Vector3 representative = At(full, (2 * i, 2 * j));
-                Vector3 diagonal = At(full, (2 * i + 1, 2 * j + 1));
-                Vector3 ray = At(traced, (i, j), tracedWidth);
-                if (representative.X + representative.Y < 0.05f * Bright || ray.X + ray.Y <= 0)
-                    continue;
-                RedShare(ray)
-                    .Should()
-                    .BeApproximately(
-                        RedShare(representative),
-                        0.02f,
-                        "texel ({0}, {1}) holds the ray of pixel ({2}, {3}): {4} against {5} at full resolution",
-                        i,
-                        j,
-                        2 * i,
-                        2 * j,
-                        ray,
-                        representative
-                    );
-                compared++;
-                if (Math.Abs(RedShare(representative) - RedShare(diagonal)) > 0.3f)
-                    atAnEdge++;
-            }
-
-            compared.Should().BeGreaterThan(1000, "the floor below the wall reflects the stripes");
-            atAnEdge.Should().BeGreaterThan(50, "the stripes' edges cross the rows of the floor's reflection");
+            renderer.Render(scene(renderer), 1f);
+            return renderer.ReadReflectionTrace();
         }
         finally
         {
@@ -806,193 +912,35 @@ public sealed class ReflectionRenderTests
         }
     }
 
-    [Fact]
-    public void AtHalfResolutionAMirrorSlabKeepsItsReflectionApartFromTheFloorBehindIt()
+    /// <summary>
+    /// Each of <paramref name="pixels"/> of the half-resolution render shows what the full-resolution render shows there,
+    /// within 5 % of <see cref="Bright"/>.
+    /// </summary>
+    private static void ShouldMatchAtHalfResolution(
+        (float[] Full, float[] Half) renders,
+        IEnumerable<(int X, int Y)> pixels,
+        string shows
+    )
     {
-        // A mirror slab hangs half a metre above the mirror floor, its top about 1 m below the eye and its far edge 6 m
-        // ahead, before a wall red below the eye's height and green above it. At the far edge's row, the slab reflects the
-        // green half, and the floor 9 m ahead behind it the red half. Both face up, so only their depths tell them apart.
-        // The far edge splits the blocks of 2 × 2 pixels of its row, so a texel of the trace stands for both surfaces.
-        float top = ToAnOddPixelBoundary(
-            start: -1,
-            projected: height => Gpu.Project(point: new(0, height, -6), width: Width, height: Height).Y
-        );
-        RenderSnapshot Scene(VulkanRenderer renderer)
-        {
-            RenderSnapshot snapshot = Dark();
-            snapshot.Instances.Add(Floor(renderer, Mirror()));
-            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: renderer.CreateMaterial(Mirror()),
-                    center: new(0, top - 0.05f, -5),
-                    size: new(2, 0.1f, 2)
-                )
-            );
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: Glow(renderer, new(Bright, 0, 0)),
-                    center: new(0, -0.75f, -15.5f),
-                    size: new(60, 1.5f, 1)
-                )
-            );
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: Glow(renderer, new(0, Bright, 0)),
-                    center: new(0, 2.5f, -15.5f),
-                    size: new(60, 5, 1)
-                )
-            );
-            return snapshot;
-        }
-
-        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), Scene).Hdr;
-        float[] half = RenderHdr(ReflectionsAt(TraceResolution.Half), Scene).Hdr;
-
-        (int X, int Y) edge = PixelOf(new(0, top, -6));
-        At(full, (edge.X, edge.Y + 3)).Y.Should().BeGreaterThan(Bright / 4, "the slab shows the green half");
-        At(full, (edge.X, edge.Y - 3)).X.Should().BeGreaterThan(Bright / 4, "the floor behind it shows the red half");
-        foreach (int dx in (int[])[-1, 0, 1])
-            for (int dy = -3; dy <= 3; dy++)
-            {
-                (int X, int Y) pixel = (edge.X + dx, edge.Y + dy);
-                BrdfTesting
-                    .LargestChannelDifference(At(half, pixel), At(full, pixel))
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        0.05f * Bright,
-                        "pixel {0} by the slab's far edge shows its own surface's reflection: {1} at half, {2} at full",
-                        pixel,
-                        At(half, pixel),
-                        At(full, pixel)
-                    );
-            }
-    }
-
-    [Fact]
-    public void AtHalfResolutionTheTwoFacesOfAMirrorCornerKeepTheirReflectionsApart()
-    {
-        // A mirror box turned by 45° about the vertical shows the eye a corner 6 m ahead. Its left face reflects the red
-        // wall at the left, and its right face the green wall at the right. Texels across the corner lie near the other
-        // face's plane, but face another way. The corner splits the blocks of 2 × 2 pixels of its column.
-        float x = ToAnOddPixelBoundary(
-            start: 0,
-            projected: across => Gpu.Project(point: new(across, -0.5f, -6), width: Width, height: Height).X
-        );
-        RenderSnapshot Scene(VulkanRenderer renderer)
-        {
-            RenderSnapshot snapshot = Dark();
-            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: box,
-                    material: renderer.CreateMaterial(Mirror()),
-                    position: new(x, -0.5f, -6 - MathF.Sqrt(2) / 2),
-                    scale: Vector3.One,
-                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
-                    radius: 1
-                )
-            );
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: Glow(renderer, new(Bright, 0, 0)),
-                    center: new(-4.5f, 0, -7),
-                    size: new(1, 6, 10)
-                )
-            );
-            snapshot.Instances.Add(
-                Block(
-                    box: box,
-                    material: Glow(renderer, new(0, Bright, 0)),
-                    center: new(4.5f, 0, -7),
-                    size: new(1, 6, 10)
-                )
-            );
-            return snapshot;
-        }
-
-        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), Scene).Hdr;
-        float[] half = RenderHdr(ReflectionsAt(TraceResolution.Half), Scene).Hdr;
-
-        (int X, int Y) corner = PixelOf(new(x, -0.5f, -6));
-        At(full, (corner.X - 4, corner.Y)).X.Should().BeGreaterThan(Bright / 4, "the left face shows the red wall");
-        At(full, (corner.X + 4, corner.Y)).Y.Should().BeGreaterThan(Bright / 4, "the right face shows the green wall");
-        foreach (int dy in (int[])[-6, -3, 0, 3, 6])
-            for (int dx = -3; dx <= 3; dx++)
-            {
-                (int X, int Y) pixel = (corner.X + dx, corner.Y + dy);
-                BrdfTesting
-                    .LargestChannelDifference(At(half, pixel), At(full, pixel))
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        0.05f * Bright,
-                        "pixel {0} by the corner shows its own face's reflection: {1} at half, {2} at full",
-                        pixel,
-                        At(half, pixel),
-                        At(full, pixel)
-                    );
-            }
-    }
-
-    [Fact]
-    public void AtHalfResolutionAMirrorFloorBesideARoughFloorReflectsAsAtFullResolutionUpToTheirSeam()
-    {
-        // The floor's left half is a mirror and its right half rougher than the maximum, both at one height, before a
-        // bright wall. The texels across the seam lie on the mirror's plane but start no ray.
-        static RenderSnapshot Scene(VulkanRenderer renderer)
-        {
-            RenderSnapshot snapshot = Dark();
-            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-            foreach (
-                (float center, MaterialDesc material) in ((float Center, MaterialDesc Material)[])
-                    [(Center: -15, Material: Mirror()), (Center: 15, Material: Mirror(179 / 255f))]
-            )
-                snapshot.Instances.Add(
-                    Gpu.Instance(
-                        mesh: plane,
-                        material: renderer.CreateMaterial(material with { NormalMap = FlatNormalMap(renderer) }),
-                        position: new(center, FloorHeight, -20),
-                        scale: new(15, 1, 30),
-                        radius: 34
-                    )
-                );
-            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-            snapshot.Instances.Add(
-                Block(box: box, material: Glow(renderer, new(Bright)), center: new(0, 2, -15.5f), size: new(60, 7, 1))
-            );
-            return snapshot;
-        }
-
-        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), Scene).Hdr;
-        float[] half = RenderHdr(ReflectionsAt(TraceResolution.Half), Scene).Hdr;
-
-        foreach (float ahead in (float[])[-4, -6, -9])
-        {
-            (int X, int Y) seam = PixelOf(new(0, FloorHeight, ahead));
+        foreach ((int X, int Y) pixel in pixels)
             BrdfTesting
-                .LargestChannelDifference(At(full, (seam.X - 6, seam.Y)), Vector3.Zero)
+                .LargestChannelDifference(At(renders.Half, pixel), At(renders.Full, pixel))
                 .Should()
-                .BeGreaterThan(Bright / 4, "the mirror shows the wall {0} m ahead", -ahead);
-            for (int dx = -3; dx <= 0; dx++)
-            {
-                (int X, int Y) pixel = (seam.X + dx, seam.Y);
-                BrdfTesting
-                    .LargestChannelDifference(At(half, pixel), At(full, pixel))
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        0.05f * Bright,
-                        "mirror pixel {0} at the seam takes only the texels with a ray: {1} at half, {2} at full",
-                        pixel,
-                        At(half, pixel),
-                        At(full, pixel)
-                    );
-            }
-        }
+                .BeLessThanOrEqualTo(
+                    0.05f * Bright,
+                    "pixel {0} {1}: {2} at half, {3} at full",
+                    pixel,
+                    shows,
+                    At(renders.Half, pixel),
+                    At(renders.Full, pixel)
+                );
     }
+
+    /// <summary>The pixels at the offsets <paramref name="dxs"/> × <paramref name="dys"/> from <paramref name="center"/>.</summary>
+    private static IEnumerable<(int X, int Y)> Around((int X, int Y) center, int[] dxs, int[] dys) =>
+        from dy in dys
+        from dx in dxs
+        select (center.X + dx, center.Y + dy);
 
     /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, under GTAO's default.</summary>
     /// <returns>The frame's HDR image, its occlusion target and its camera.</returns>

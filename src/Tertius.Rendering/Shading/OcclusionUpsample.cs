@@ -14,6 +14,28 @@ internal static class OcclusionUpsample
         fullResolutionCoordinate % 2 == 0 ? (1, 0) : (0.5, 0.5);
 
     /// <summary>
+    /// The texels of the 2 × 2 block of the full-resolution <paramref name="pixel"/> that have a bilinear weight above 0
+    /// and lie inside the half-resolution image of <paramref name="halfSize"/>, with that weight. A texel beyond the edge
+    /// of the image gets no weight.
+    /// </summary>
+    public static IEnumerable<((int X, int Y) Coordinates, double Bilinear)> BlockTexels(
+        (int X, int Y) pixel,
+        (int Width, int Height) halfSize
+    )
+    {
+        (double low, double high) = AxisWeights(pixel.X);
+        (double top, double bottom) = AxisWeights(pixel.Y);
+        for (int b = 0; b < 2; b++)
+        for (int a = 0; a < 2; a++)
+        {
+            double bilinear = (a == 0 ? low : high) * (b == 0 ? top : bottom);
+            (int X, int Y) coordinates = (X: pixel.X / 2 + a, Y: pixel.Y / 2 + b);
+            if (bilinear > 0 && coordinates.X < halfSize.Width && coordinates.Y < halfSize.Height)
+                yield return (Coordinates: coordinates, Bilinear: bilinear);
+        }
+    }
+
+    /// <summary>
     /// The occlusion of the full-resolution <paramref name="pixel"/> at the view <paramref name="position"/>, clamped
     /// to [0, 1]: the bilinear weights of its 2 × 2 block of texels cut by each texel's distance from the pixel's
     /// tangent plane, or the texel nearest the plane when none lies on it.
@@ -30,21 +52,12 @@ internal static class OcclusionUpsample
         Func<(int X, int Y), UpsampleTexel> texelAt
     )
     {
-        (double low, double high) = AxisWeights(pixel.X);
-        (double top, double bottom) = AxisWeights(pixel.Y);
         double sum = 0;
         double weights = 0;
         double nearestOffPlane = double.PositiveInfinity;
         double nearestOcclusion = 1;
-        for (int b = 0; b < 2; b++)
-        for (int a = 0; a < 2; a++)
+        foreach (((int X, int Y) coordinates, double bilinear) in BlockTexels(pixel, halfSize))
         {
-            double bilinear = (a == 0 ? low : high) * (b == 0 ? top : bottom);
-            (int X, int Y) coordinates = (X: pixel.X / 2 + a, Y: pixel.Y / 2 + b);
-            bool inside = coordinates.X < halfSize.Width && coordinates.Y < halfSize.Height;
-            // A texel beyond the edge of the half-resolution image gets no weight.
-            if (bilinear == 0 || !inside)
-                continue;
             UpsampleTexel texel = texelAt(coordinates);
             double offPlane = Math.Abs(Double3.Dot(geometricNormal, texel.Position - position));
             double weight = bilinear * Math.Max(0, 1 - offPlane / texelWidth);
