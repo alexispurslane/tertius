@@ -58,6 +58,7 @@ A script reads the rest of `model.json` with `run.load_model(model.folder)`, for
 | `checks` | `attachment(objects, anchors)` and `view_shares(camera)` |
 | `stage` | `build(views, device="auto")`, `use_shot(shot)`, `render(views, folder)`, `remove()`, `camera_name(shot)`. `remove` restores the render settings that `build` changed. |
 | `bake`, `export` | Used by the build tool. `export.roots()`, `export.marked()` and `export.triangles()` also help a check. |
+| `mpfb` | `human(info, name)`, `pose(rig, degrees)`, `joints(body)`, `freeze(body)`, `bone_weights(body, points, prefixes)`, `ARM_BONES`, `services()`. A person from MPFB (see "A human with MPFB"). |
 
 ## The build tool
 
@@ -83,8 +84,10 @@ The build runs Blender twice. The first run runs the scripts, bakes, saves `mode
 If the MCP server is not approved in this session, drive the same functions through a headless Blender:
 
 ```bash
-nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factory-startup --python-exit-code 3 --python-expr "$(cat <scratch>/look.py)"'
+nix develop .#assets --command bash -c 'BLENDER_USER_RESOURCES=<scratch>/user "$TERTIUS_BLENDER" --background --factory-startup --python-exit-code 3 --python-expr "$(cat <scratch>/look.py)"'
 ```
+
+`BLENDER_USER_RESOURCES` gives Blender a user folder in the scratch folder. MPFB writes its logs and settings there, and `mpfb.services()` refuses to run without it, so never leave it out and never point it at your own Blender folder. Delete the scratch folder after the work.
 
 `look.py` holds the code of the authoring loop: `run.new_scene()`, the scripts, `stage.build`, `stage.use_shot` and `bpy.ops.render.render(write_still=True)` with `scene.render.filepath` set to a scratch path. Print a marked JSON line for the numbers that you need, and read it from the output. Each call starts a new Blender, so it is slower than the bridge. For the bake and the export, use the build tool.
 
@@ -92,7 +95,7 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 
 ### The bridge and Blender
 
-- The add-on opens its socket only in online mode. `bridge.sh` starts `blender --background --online-mode --command blender_mcp`.
+- The add-on opens its socket only in online mode. `bridge.sh` starts `blender --background --factory-startup --online-mode --addons bl_ext.system.mcp --command blender_mcp`.
 - `execute_blender_code` runs each call in a new namespace. `sys.path` and the scene stay between calls. Deferred completion (`check_is_finished`) is rejected in background mode.
 - The render tools write into `blender_mcp/` of the bridge's temporary folder, `~/.local/state/tertius/blender-bridge-9876/tmp/`. `bridge.sh stop` deletes that folder.
 - `render_viewport_to_path` renders with the stage settings: 1920 x 1080 at 192 samples for the Nostromo, about 12 to 25 s on Metal. `stage.build` picks the GPU. Without it, the bridge renders on the CPU, because the factory settings of `run.new_scene()` do. Lower `resolution_percentage` and `scene.cycles.samples` for quick looks. `render_thumbnail_to_path` overrides them by itself.
@@ -103,6 +106,7 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 - `nix develop` sets a new `TMPDIR` on every call. So the bridge keeps its pid, log and temporary folder in `~/.local/state/tertius/`.
 - The nixpkgs Blender lacks the Python module `requests`, so each start prints a traceback from the extension add-on. It is harmless.
 - Blender 5 materials always have a node tree. `use_nodes` is deprecated.
+- Now and then a build on Metal aborts at the start of the bake: `blender.log` ends with an `NSInvalidArgumentException` from `MetalKernelPipeline::compile`, and the build tool exits with code 3 and no `build.json` (ticket ter-jnyk). Delete the output folder and build again. A build with `--device cpu` never meets it.
 
 ### Determinism
 
@@ -142,9 +146,35 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 
 ## A human with MPFB
 
+### The macro sliders
+
+`parameters.human.phenotype` holds them. Each runs from 0 to 1, and MPFB's default is 0.5. MPFB blends targets between the named points, linearly.
+
+| Slider | 0 | 0.5 | 1 | Note |
+|---|---|---|---|---|
+| `gender` | Female | Between | Male | |
+| `age` | Baby | Young adult | Old | 0.1875 is a child. On MakeHuman's scale, 0, 0.1875, 0.5 and 1 are about 1, 10, 25 and 90 years. |
+| `muscle` | Least | Average | Most | |
+| `weight` | Thinnest | Average | Heaviest | |
+| `height` | Shortest | Average | Tallest | Between 0.49 and 0.51 no height target loads. |
+| `proportions` | Uncommon | Neither | Ideal | |
+| `cupsize` | Smallest | Average | Largest | The breasts. MPFB does not weigh them by gender, so keep 0.5 for a man. |
+| `firmness` | Least | Average | Most | The breasts, as `cupsize` |
+
+`race` holds the shares of `african`, `asian` and `caucasian`. They weigh the race targets and should sum to 1. MPFB's default is 0.33 each. The test `tools/blender/tests/test_mpfb.py` checks MPFB's slider formula against an independent copy, `mpfb_reference.py`, which shows how each slider weighs its targets.
+
+### The detail targets
+
+`parameters.human.targets` holds the detail targets: the shape of the nose, the ears, the chin, the cheeks, the eyes, the mouth, the head and the parts of the body. It is a list of `{"target": "<name>", "value": <0 to 1>}`. Two people with the same sliders and no detail targets have the same shape.
+
+- The names are the file names without `.target.gz` in the folders of `$TERTIUS_MPFB/data/targets/`, one folder per part, such as `nose`, `ears`, `chin`, `cheek`, `mouth`, `eyes`, `head`, `neck`, `torso`, `arms`, `hands`, `legs` and `asym` (small asymmetries). For example, `ls $TERTIUS_MPFB/data/targets/nose` in the assets shell.
+- Most come in pairs, such as `nose-scale-vert-decr` and `nose-scale-vert-incr`, or `l-ear-lobe-decr` and `l-ear-lobe-incr`. Give one side of a pair. `$TERTIUS_MPFB/data/targets/target.json` lists the pairs of each folder.
+- Give the exact name. A name that MPFB does not hold stops the build. MPFB alone would skip it without a word, or take the first target whose name starts with it.
+- Leave out the folders `macrodetails` (the sliders make those) and `expression`.
+
 ### The asset names
 
-The MakeHuman system assets in `$TERTIUS_MAKEHUMAN_ASSETS` hold these. Name each one as `<folder>/<folder>.mhclo`, and a skin as `<folder>/<folder>.mhmat`. A name that the pack does not hold stops the build.
+The MakeHuman system assets in `$TERTIUS_MAKEHUMAN_ASSETS` hold these. Name each one as `<folder>/<folder>.mhclo`, and a skin as `<folder>/<folder>.mhmat`. MPFB finds an asset by its file name, and the folder chooses between two files of the same name. A name that the pack does not hold stops the build.
 
 | Key | Folders |
 |---|---|
@@ -157,7 +187,13 @@ The MakeHuman system assets in `$TERTIUS_MAKEHUMAN_ASSETS` hold these. Name each
 | `hair` | `afro01`, `bob01`, `bob02`, `braid01`, `long01`, `ponytail01`, `short01` to `short04` |
 | `rig` | `game_engine` is the tested one. MPFB also has `default`, `default_no_toes`, `game_engine_with_breast`, `mixamo`, `mixamo_unity`, `cmu_mb` and `openpose`. |
 
-Look at a hair before you choose it. `bob02` rendered nearly white, and the fringe of `braid01` covered an eye. `afro01` looks right, but its cards show as straight dark edges up close.
+Look at a hair before you choose it. `bob02` rendered nearly white, and the fringe of `braid01` covered an eye. `afro01` looks right, but its cards show as straight dark edges up close (ticket ter-omuj). Each hair has one color: to change the color, choose another hair.
+
+The eyes are brown. `alternative_materials` gives them another color: it maps the UUID of the eyes asset to a material of `eyes/materials/`. The UUID of `high-poly` is `2c12f43b-1303-432c-b7ce-d78346baf2e6`, and of `low-poly` `1cc97a30-85a1-42e6-a9f7-b3e753732baa`. The colors are `blue`, `bluegreen`, `brown`, `brownlight`, `deepblue`, `green`, `grey`, `ice` and `lightblue`:
+
+```json
+"alternative_materials": {"2c12f43b-1303-432c-b7ce-d78346baf2e6": "materials/green.mhmat"}
+```
 
 ### The bones of `game_engine`
 
@@ -199,9 +235,10 @@ The crew member's `s20_jumpsuit.py` shows each method:
 
 ### Pitfalls
 
-- An asset name without its folder, such as `eyebrow001.mhclo`, is not found. Write `eyebrow001/eyebrow001.mhclo`.
+- MPFB's own presets, saved from its interface, can hold `"skin_material_type": "ENHANCED_SSS"` and `"eyes_material_type": "PROCEDURAL_EYES"`. `freeze` cannot rewire those for glTF, so `mpfb.human` stops on them. Leave both keys out.
+- A human without a `rig` cannot be posed, and its garments find no bone weights. `freeze` still turns its parts into plain meshes.
 - The eyes of MakeHuman have a clear cornea shell. Drawn opaque, it hides the iris. `freeze` deletes its faces.
-- MPFB 2.0.18 has no expressions: its expression folder is empty, and the asset pack holds none.
+- MPFB 2.0.18 has no expressions: its folder of expression presets is empty, its expressions need the face unit pack `faceunits01`, which is not pinned, and the asset pack holds none.
 - MPFB adds a collection for the human. Remove it when it is empty after you move the parts.
 - A pose that lowers the arms brings the sleeves next to the trunk. Look at the armpits and the waist from the side, not only from the front.
 

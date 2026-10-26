@@ -129,12 +129,20 @@ reference.md, "Pitfalls", explains each one.
 
 ## 10. A human with MPFB
 
-A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the build through `tertius_blender.mpfb`. MPFB makes the body, the skin, the eyes, eyebrows, eyelashes, teeth, tongue, hair and the rig. Your scripts make every garment and every piece of equipment. Never use a clothes asset or a finished model of a person, a garment or equipment. The design is in `docs/plans/asset-pipeline.md`, "Humans from MPFB". reference.md, "A human with MPFB", has the asset names, the bone axes, the garment methods and the pitfalls.
+A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the build through `tertius_blender.mpfb`. MPFB makes the body, the skin, the eyes, eyebrows, eyelashes, teeth, tongue, hair and the rig. Your scripts make every garment and every piece of equipment. Never use a clothes asset or a finished model of a person, a garment or equipment. The design is in `docs/plans/asset-pipeline.md`, "Humans from MPFB". reference.md, "A human with MPFB", has the slider table, the asset names, the bone axes, the garment methods and the pitfalls.
 
-1. Copy the crew member, `content/tertius.demo/assets/characters/crew.model/`. It is a complete human in a jumpsuit, with the face and the hair in view. The astronaut next to it is the example of a person inside equipment.
-2. In `model.json`, set `parameters.human` to MPFB's human description: `phenotype` (the macro sliders gender, age, muscle, weight, proportions, height, and `race`), `rig` (`game_engine`), `skin_mhmat`, `skin_material_type` (`MAKESKIN`), `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue` and `hair`. Name each asset by its folder and file, such as `eyebrow001/eyebrow001.mhclo` or `young_african_female/young_african_female.mhmat`. Leave out `hair` under a helmet or a cap.
-3. Set `parameters.pose`: bone name -> `[x, y, z]` Euler degrees from the rest pose, MakeHuman's A-pose. The crew member's pose lowers the arms to the sides, bends the elbows a little and curls the fingers.
-4. The human script calls, in this order:
+1. The assets shell holds MPFB and the MakeHuman body-part assets (section 2). MPFB runs only in a Blender whose `BLENDER_USER_RESOURCES` names a scratch folder: the build tool and the bridge set it. For a Blender that you start yourself, see reference.md, "Without the MCP tools".
+2. Copy the crew member, `content/tertius.demo/assets/characters/crew.model/`. It is a complete human in a jumpsuit, with the face and the hair in view. The astronaut next to it is the example of a person inside equipment.
+3. In `model.json`, set `parameters.human` to MPFB's human description. A key that you leave out keeps MPFB's default.
+   - `phenotype`: the macro sliders `gender`, `age`, `muscle`, `weight`, `proportions`, `height`, `cupsize` and `firmness`, each from 0 to 1 with the default 0.5, and `race`, the shares of `african`, `asian` and `caucasian`, which sum to 1. gender 0 is female and 1 male. age 0.5 is a young adult and 1 old. reference.md, "The macro sliders", says what each value does.
+   - `targets`: the detail targets of the face and the body, a list of `{"target": "nose-scale-vert-incr", "value": 0.6}` with values from 0 to 1. They make one person differ from another with the same sliders. reference.md, "The detail targets", says where the names are.
+   - `rig`: `game_engine`. The pose and the bone weights of the garments need it.
+   - `skin_mhmat`: a skin such as `young_african_female/young_african_female.mhmat`. Match it to the sliders: the age, the gender and the race of the skin.
+   - `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue` and `hair`: one asset each, such as `eyebrow001/eyebrow001.mhclo`. Leave out `hair` under a helmet or a cap. The eyes are brown, and `alternative_materials` gives them another color (reference.md, "The asset names").
+   - Leave out `skin_material_type` and `eyes_material_type`. Both are `MAKESKIN`, the only kind that `freeze` rewires for glTF, and any other value stops the build.
+   - A name of an asset or a detail target that MPFB does not hold stops the build with an error that names it, and so does a key that MPFB's presets lack.
+4. Set `parameters.pose`: bone name -> `[x, y, z]` Euler degrees from the rest pose, MakeHuman's A-pose. The crew member's pose lowers the arms to the sides, bends the elbows a little and curls the fingers. A bone that the rig lacks stops the build.
+5. The human script calls, in this order:
 
    ```python
    from tertius_blender import mpfb
@@ -145,11 +153,23 @@ A person comes from MPFB 2.0.18, the MakeHuman add-on, which runs inside the bui
    parts = mpfb.freeze(body)    # Body, Eyes, Eyebrows, Eyelashes, Teeth, Tongue, Hair: plain meshes, rig removed
    ```
 
-   Then move every part so the lowest skin point stands on the sole height, link the parts into your collection, and share the joints with later scripts through a scene property that `s80_assemble.py` deletes.
-5. Make each garment from the faces of `Body`: choose faces by the bone weights of their vertices (the vertex groups that `freeze` keeps) and by the joints, smooth away the anatomy, push the surface out along its normals, and give it thickness. Place trims, rings and pockets with rays cast at the garment. Delete the body faces that a garment covers, so skin never shows through the cloth.
-6. Build twice with `--device cpu` and compare the hash of every mesh in the two `.glb` files. The meshes must be the same. Only the normal map of a large mesh can differ.
+   `joints` must come before `freeze`, because the joints are helper geometry that `freeze` removes. Then move every part so the lowest skin point stands on the sole height, link the parts into your collection, remove MPFB's empty collection, and share the joints with later scripts through a scene property that `s80_assemble.py` deletes.
+6. Make each garment from the faces of `Body`: choose faces by the bone weights of their vertices (the vertex groups that `freeze` keeps) and by the joints, smooth away the anatomy, push the surface out along its normals, and give it thickness. Place trims, rings and pockets with rays cast at the garment. Delete the body faces that a garment covers, so skin never shows through the cloth. A garment made away from the body reads the bones under it with `mpfb.bone_weights` (reference.md, "Garments from the body").
+7. Build twice with `--device cpu` and compare the hash of every mesh in the two `.glb` files. The meshes must be the same. Only the normal map of a large bake object can differ (ticket ter-b4k3).
 
-The freeze is final: the importer ignores skins, so the model is static, and the pose is part of the meshes.
+The freeze is final. It applies the pose, the shape keys and the helper mask, removes the rig, keeps only the bone weights as vertex groups, rewires each part's material into one image texture that feeds the base color, and deletes the clear cornea of the eyes. The reason: the importer ignores skins and the renderer has no skinning, so the pose must be in the meshes, and glTF holds only that simple material.
+
+What reaches `model.glb` from the person: the meshes in their pose, with their UV maps, normals and tangents, and one material per part with its MakeHuman image as the base color. The hair, the eyebrows and the eyelashes keep the alpha of their image and draw blended (`BLEND`). The skin and the eyes are opaque. No rig, no bone weights, no shape keys and no MPFB settings reach the file.
+
+Limits, and the tickets that lift them:
+
+- The person cannot move: no rig and no animation reach the game. Ticket ter-0ok3 keeps the rig and the weights once the engine can skin.
+- Up close, hair cards show straight dark edges. Ticket ter-omuj makes card hair read as hair.
+- Every exported material is double-sided, so closed meshes draw their back faces too. Ticket ter-m0ux.
+- Every mesh with a UV map carries tangents, also without a normal map. Ticket ter-74ng.
+- The CPU bake of a large garment can differ in a few pixels of its normal map between builds. Ticket ter-b4k3.
+- The renderer has no alpha cutout, so hair, eyebrows and eyelashes draw blended, and their sort order can show (asset pipeline, "Out of scope and later").
+- No facial expressions: MPFB 2.0.18 ships no expression presets, and the face unit pack is not pinned. No ticket yet.
 
 ## 11. The worked example: the Nostromo
 

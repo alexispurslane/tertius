@@ -3,7 +3,7 @@ makes the bodies that an independent copy of its formula (mpfb_reference.py) pre
 
 Run them in the assets shell:
     nix develop .#assets --command python3 tools/blender/tests/test_mpfb.py
-tools/test-all.sh runs them with the module Blender. They start Blender three times and take about 20 seconds.
+tools/test-all.sh runs them with the module Blender. They start Blender five times and take about 20 seconds.
 """
 
 import json
@@ -119,9 +119,9 @@ class AFrozenHuman(unittest.TestCase):
     def setUpClass(cls):
         cls.scratch = pathlib.Path(tempfile.mkdtemp(prefix="tertius-mpfb-test-"))
         code = (
-            "import json, sys\n"
+            "import hashlib, json, sys\n"
             "sys.path.insert(0, {lib!r})\n"
-            "import bpy\n"
+            "import bpy, numpy as np\n"
             "from tertius_blender import mpfb, run\n"
             "run.new_scene()\n"
             "bpy.data.materials.new('M_Later')\n"
@@ -153,10 +153,15 @@ class AFrozenHuman(unittest.TestCase):
             "    'lowest': min((o.matrix_world @ v.co).z for v in parts['Body'].data.vertices for o in [parts['Body']]),\n"
             "    'hair': links('Hair'), 'body': links('Body'), 'eyes': links('Eyes'),\n"
             "    'arm': [round(w, 3) for w in arm],\n"
+            "    'hashes': {{n: hashlib.sha256(np.array([v.co[:] for v in ob.data.vertices], dtype=np.float32).tobytes()\n"
+            "                                  + repr([p.vertices[:] for p in ob.data.polygons]).encode()).hexdigest()\n"
+            "               for n, ob in sorted(parts.items())}},\n"
             "    'later': [m.use_fake_user for m in bpy.data.materials if m.name == 'M_Later']}}))\n"
         ).format(lib=str(LIBRARY))
         env = {**os.environ, "BLENDER_USER_RESOURCES": str(cls.scratch / "user")}
         cls.report, cls.done = blender(code, env)
+        # A second Blender makes the same human, for the test of determinism.
+        cls.again, cls.done_again = blender(code, env)
 
     @classmethod
     def tearDownClass(cls):
@@ -164,6 +169,11 @@ class AFrozenHuman(unittest.TestCase):
 
     def setUp(self):
         self.assertIsNotNone(self.report, self.done.stdout[-3000:] + self.done.stderr[-3000:])
+
+    def test_two_blenders_make_the_same_frozen_meshes(self):
+        self.assertIsNotNone(self.again, self.done_again.stdout[-3000:] + self.done_again.stderr[-3000:])
+        self.assertEqual(sorted(self.report["hashes"]), ["Body", "Eyes", "Hair"])
+        self.assertEqual(self.again["hashes"], self.report["hashes"])
 
     def test_a_material_of_an_earlier_script_survives_mpfb_without_a_lasting_fake_user(self):
         self.assertEqual(self.report["later"], [False])
@@ -215,6 +225,140 @@ class AFrozenHuman(unittest.TestCase):
         self.assertEqual(self.report["body"]["color"], "ShaderNodeTexImage")
         self.assertEqual(self.report["body"]["nodes"],
                          ["ShaderNodeBsdfPrincipled", "ShaderNodeOutputMaterial", "ShaderNodeTexImage"])
+
+
+class TheChoicesOfAHuman(unittest.TestCase):
+    """tertius_blender.mpfb.human, pose and freeze: the guards that stop a wrong human description or pose with an
+    error that names the mistake, and the choices that the skill procedural-modeling teaches: detail targets, eye
+    colors, the default skin material and a human without a rig."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = pathlib.Path(tempfile.mkdtemp(prefix="tertius-mpfb-test-"))
+        code = (
+            "import json, sys\n"
+            "sys.path.insert(0, {lib!r})\n"
+            "import bpy, numpy as np\n"
+            "from tertius_blender import mpfb, run\n"
+            "S = mpfb.services()\n"
+            "out = {{'outcomes': {{}}}}\n"
+            "def outcome(name, call):\n"
+            "    run.new_scene()\n"
+            "    try:\n"
+            "        call()\n"
+            "        out['outcomes'][name] = None\n"
+            "    except Exception as ex:\n"
+            "        out['outcomes'][name] = [type(ex).__name__, str(ex)]\n"
+            "SKIN = 'young_african_female/young_african_female.mhmat'\n"
+            "outcome('unknown key', lambda: mpfb.human({{'hairstyle': 'afro01/afro01.mhclo'}}))\n"
+            "outcome('missing asset', lambda: mpfb.human({{'hair': 'afro02/afro02.mhclo'}}))\n"
+            "outcome('enhanced skin', lambda: mpfb.human({{'skin_mhmat': SKIN, 'skin_material_type': 'ENHANCED_SSS'}}))\n"
+            "outcome('procedural eyes', lambda: mpfb.human({{'eyes': 'high-poly/high-poly.mhclo',\n"
+            "                                                'eyes_material_type': 'PROCEDURAL_EYES'}}))\n"
+            "outcome('mistyped target', lambda: mpfb.human({{'targets': [{{'target': 'nose-scale-vert-incr-x',\n"
+            "                                                               'value': 1.0}}]}}))\n"
+            "outcome('partial target', lambda: mpfb.human({{'targets': [{{'target': 'nose-scale-vert', 'value': 1.0}}]}}))\n"
+            "outcome('unknown bone', lambda: mpfb.pose(mpfb.human({{'rig': 'game_engine'}}).parent,\n"
+            "                                          {{'upperarm_left': [0, 0, -30]}}))\n"
+            "outcome('default in the name', lambda: mpfb.pose(mpfb.human({{'rig': 'game_engine'}}, 'default_pilot').parent,\n"
+            "                                                 {{'upperarm_l': [0, 0, -30]}}))\n"
+            "run.new_scene()\n"
+            "plain = mpfb.human({{}}, 'Plain')\n"
+            "nosed = mpfb.human({{'targets': [{{'target': 'nose-scale-vert-incr', 'value': 1.0}}]}}, 'Nosed')\n"
+            "depsgraph = bpy.context.evaluated_depsgraph_get()\n"
+            "def coords(ob):\n"
+            "    return np.array([v.co[:] for v in ob.evaluated_get(depsgraph).data.vertices])\n"
+            "shift = np.linalg.norm(coords(nosed) - coords(plain), axis=1)\n"
+            "out['target'] = {{'moved': int((shift > 1e-4).sum()), 'vertices': len(shift), 'largest': float(shift.max())}}\n"
+            "run.new_scene()\n"
+            "mpfb.human({{'eyes': 'high-poly/high-poly.mhclo',\n"
+            "            'alternative_materials': {{'2c12f43b-1303-432c-b7ce-d78346baf2e6': 'materials/blue.mhmat'}}}})\n"
+            "eyes = next(o for o in bpy.data.objects if S.ObjectService.get_object_type(o) == 'Eyes')\n"
+            "out['eye_images'] = sorted(n.image.name for m in eyes.data.materials for n in m.node_tree.nodes\n"
+            "                           if n.bl_idname == 'ShaderNodeTexImage' and n.image)\n"
+            "run.new_scene()\n"
+            "parts = mpfb.freeze(mpfb.human({{'skin_mhmat': SKIN, 'eyes': 'high-poly/high-poly.mhclo',\n"
+            "                                 'hair': 'short02/short02.mhclo'}}, 'Bare'))\n"
+            "body_images = [n.image.name for m in parts['Body'].data.materials for n in m.node_tree.nodes\n"
+            "               if n.bl_idname == 'ShaderNodeTexImage' and n.image]\n"
+            "out['bare'] = {{'parts': sorted(parts), 'objects': sorted(o.name for o in bpy.data.objects),\n"
+            "               'modifiers': sum(len(o.modifiers) for o in bpy.data.objects),\n"
+            "               'shape_keys': sum(o.data.shape_keys is not None for o in bpy.data.objects),\n"
+            "               'children': sorted(o.name for o in bpy.data.objects if o.parent is not None),\n"
+            "               'body_images': body_images}}\n"
+            "print('TERTIUS-TEST', json.dumps(out))\n"
+        ).format(lib=str(LIBRARY))
+        env = {**os.environ, "BLENDER_USER_RESOURCES": str(cls.scratch / "user")}
+        cls.report, cls.done = blender(code, env)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.scratch, ignore_errors=True)
+
+    def setUp(self):
+        self.assertIsNotNone(self.report, self.done.stdout[-3000:] + self.done.stderr[-3000:])
+
+    def refusal(self, name):
+        found = self.report["outcomes"][name]
+        self.assertIsNotNone(found, "{:s}: no error".format(name))
+        return found
+
+    def test_a_key_that_mpfb_presets_lack_stops_with_its_name(self):
+        kind, message = self.refusal("unknown key")
+        self.assertEqual(kind, "ValueError")
+        self.assertIn("hairstyle", message)
+
+    def test_an_asset_that_the_pack_lacks_stops_with_its_name(self):
+        kind, message = self.refusal("missing asset")
+        self.assertEqual(kind, "MpfbError")
+        self.assertIn("afro02/afro02.mhclo", message)
+
+    def test_a_skin_material_that_freeze_cannot_rewire_stops_before_mpfb_builds(self):
+        # MPFB's own presets can save ENHANCED_SSS skins and procedural eyes. freeze rewires only MakeSkin materials.
+        for name, value in (("enhanced skin", "ENHANCED_SSS"), ("procedural eyes", "PROCEDURAL_EYES")):
+            with self.subTest(name):
+                kind, message = self.refusal(name)
+                self.assertEqual(kind, "MpfbError")
+                self.assertIn(value, message)
+                self.assertIn("MAKESKIN", message)
+
+    def test_a_detail_target_that_mpfb_does_not_hold_by_that_exact_name_stops_with_its_name(self):
+        # MPFB itself skips an unknown target without a word, and takes the first target whose name starts with a
+        # partial one.
+        for name, target in (("mistyped target", "nose-scale-vert-incr-x"), ("partial target", "nose-scale-vert")):
+            with self.subTest(name):
+                kind, message = self.refusal(name)
+                self.assertEqual(kind, "MpfbError")
+                self.assertIn(target, message)
+
+    def test_a_pose_of_a_bone_that_the_rig_lacks_stops_with_its_name(self):
+        kind, message = self.refusal("unknown bone")
+        self.assertEqual(kind, "ValueError")
+        self.assertIn("upperarm_left", message)
+
+    def test_a_human_whose_name_holds_the_word_default_can_be_posed(self):
+        # MPFB reads "default" in the skeleton type as its rig "default", whose bones the game_engine rig lacks.
+        self.assertIsNone(self.report["outcomes"]["default in the name"])
+
+    def test_a_detail_target_moves_only_its_own_part_of_the_body(self):
+        target = self.report["target"]
+        self.assertGreater(target["largest"], 0.002)
+        self.assertGreater(target["moved"], 0)
+        self.assertLess(target["moved"], target["vertices"] / 20)
+
+    def test_an_alternative_material_of_the_eyes_gives_them_another_color(self):
+        self.assertTrue([i for i in self.report["eye_images"] if i.startswith("blue_eye")], self.report["eye_images"])
+
+    def test_a_named_skin_is_a_makeskin_material_when_the_description_names_no_type(self):
+        self.assertTrue(self.report["bare"]["body_images"])
+
+    def test_freeze_turns_every_part_of_a_human_without_a_rig_into_a_plain_mesh(self):
+        bare = self.report["bare"]
+        self.assertEqual(bare["parts"], ["Body", "Eyes", "Hair"])
+        self.assertEqual(bare["objects"], ["Body", "Eyes", "Hair"])
+        self.assertEqual(bare["modifiers"], 0)
+        self.assertEqual(bare["shape_keys"], 0)
+        self.assertEqual(bare["children"], [])
 
 
 class AUserFolderOfItsOwn(unittest.TestCase):

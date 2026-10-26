@@ -4,7 +4,9 @@
 #
 # The pack also holds clothes, shoes, hats and proxy meshes. This derivation keeps none of them: every garment and
 # every piece of equipment of a Tertius model comes from the model's own scripts (docs/plans/asset-pipeline.md,
-# "Scripted models"). It also leaves out the two skins named "special_suit" and the toon skin.
+# decision 27). It also leaves out the two skins named "special_suit" and the toon skin.
+# The pack is an input of the build tool, like Blender, and not a third-party source of a content package
+# (docs/plans/asset-pipeline.md, decision 26 and "Humans from MPFB"): no asset id names it, and Nix pins its bytes.
 # Source: the MakeHuman community, https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
 # (280,737,770 bytes, last modified 2024-04-14). License: CC0, every asset of the pack (its packs/*.json and the
 # header of each file say so).

@@ -48,4 +48,5 @@ under each opening of the cloth stay.
 - The hair is a set of alpha cards. Up close, the cards show as dark straight edges in the curls.
 - The hair, the eyebrows and the eyelashes draw with alpha blending (`BLEND` in glTF), so their sort order can show
   in the engine.
-- No facial expression: MPFB 2.0.18 ships no expression data, and the MakeHuman system assets hold none.
+- No facial expression: MPFB 2.0.18 ships no expression presets, its expressions need a face unit pack that the
+  build does not pin, and the MakeHuman system assets hold none.

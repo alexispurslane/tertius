@@ -1,10 +1,12 @@
 """MPFB 2, the MakeHuman add-on for Blender, for model scripts (docs/plans/asset-pipeline.md, "Humans from MPFB").
 
-A model script makes a human with MPFB's own code:
+A model script makes a human with MPFB's own code, in this order:
 
     from tertius_blender import mpfb
-    S = mpfb.services()
-    body = S.HumanService.deserialize_from_dict(info, mpfb.deserialization_settings())
+    body = mpfb.human(model.params["human"], "Crew")
+    mpfb.pose(body.parent, model.params["pose"])
+    joints = mpfb.joints(body)
+    parts = mpfb.freeze(body)
 
 The assets shell gives Blender MPFB as a system extension (BLENDER_SYSTEM_EXTENSIONS, native/blender-extensions.nix),
 and the MakeHuman system assets without clothes as TERTIUS_MAKEHUMAN_ASSETS (native/makehuman-assets.nix). services()
@@ -64,15 +66,20 @@ CLEAR_FACES_REMOVED = ("Eyes",)
 
 def human(info, name="Human"):
     """Makes a human with MPFB's HumanService.deserialize_from_dict and returns its body. `info` is MPFB's own
-    human preset format (what MPFB saves as a .json human): "phenotype" holds the macro sliders, and "rig", "eyes",
-    "eyebrows", "eyelashes", "teeth", "tongue", "hair" and "skin_mhmat" name assets such as "short02/short02.mhclo".
-    A key that `info` leaves out keeps MPFB's default, and phenotype values merge over MPFB's default sliders.
+    human preset format (what MPFB saves as a .json human): "phenotype" holds the macro sliders, "targets" the
+    detail targets, and "rig", "eyes", "eyebrows", "eyelashes", "teeth", "tongue", "hair" and "skin_mhmat" name
+    assets such as "short02/short02.mhclo". A key that `info` leaves out keeps MPFB's default, and phenotype values
+    merge over MPFB's default sliders. An asset or a detail target that MPFB does not hold stops with an error.
+
+    The skin and the eyes are MakeSkin materials, the only kind that freeze rewires for glTF. So both material types
+    default to "MAKESKIN", and any other type stops with an error: MPFB's own presets can save "ENHANCED_SSS" skins
+    and "PROCEDURAL_EYES".
 
     The body is a child of the rig when info names one. It keeps MPFB's shape keys and modifiers until freeze."""
     S = services()
     full = {"phenotype": S.TargetService.get_default_macro_info_dict(), "rig": "", "eyes": "", "eyebrows": "",
             "eyelashes": "", "teeth": "", "tongue": "", "hair": "", "proxy": "", "targets": [], "clothes": [],
-            "skin_mhmat": "", "skin_material_type": "NONE", "eyes_material_type": "MAKESKIN",
+            "skin_mhmat": "", "skin_material_type": "MAKESKIN", "eyes_material_type": "MAKESKIN",
             "skin_material_settings": {}, "eyes_material_settings": {}, "expressions": [],
             "alternative_materials": {}}
     for key, value in info.items():
@@ -84,10 +91,18 @@ def human(info, name="Human"):
         else:
             full[key] = value
     full["name"] = name
+    wrong = ["{:s} {:s}".format(k, str(full[k])) for k in ("skin_material_type", "eyes_material_type")
+             if full[k] != "MAKESKIN"]
+    if wrong:
+        raise MpfbError("freeze rewires only MakeSkin materials, so leave out or set to MAKESKIN: {:s}".format(
+            ", ".join(wrong)))
     missing = [full[k] for k in ("eyes", "eyebrows", "eyelashes", "teeth", "tongue", "hair", "skin_mhmat")
                if full[k] and S.AssetService.find_asset_absolute_path(full[k], _subdir(k)) is None]
     if missing:
         raise MpfbError("MPFB finds no asset {:s}".format(", ".join(missing)))
+    unknown = [t["target"] for t in full["targets"] if not _holds_target(S, t["target"])]
+    if unknown:
+        raise MpfbError("MPFB holds no detail target named {:s}".format(", ".join(unknown)))
     # MPFB deletes every material of the file that has no users when it sets the skin
     # (MaterialService.delete_all_materials). The materials that earlier scripts made for later ones have none yet,
     # so they hold a fake user while MPFB works.
@@ -105,6 +120,14 @@ def _subdir(key):
     return "skins" if key == "skin_mhmat" else key
 
 
+def _holds_target(S, name):
+    """Whether MPFB holds a detail target of exactly the name `name`. MPFB itself skips a target that it does not
+    find without a word, and it takes the first target whose name starts with a partial name."""
+    path = S.TargetService.target_full_path(name)
+    return path is not None and os.path.basename(path).lower() in (name.lower() + ".target.gz",
+                                                                    name.lower() + ".target")
+
+
 def pose(rig, degrees):
     """Poses the rig with MPFB's RigService.set_pose_from_dict. `degrees` maps a bone name to its XYZ Euler rotation
     in degrees, relative to the rest pose of the rig."""
@@ -116,8 +139,9 @@ def pose(rig, degrees):
     view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="POSE")
     try:
+        # MPFB's own type of the rig, such as "game_engine". MPFB reads "default" in it as its rig "default".
         S.RigService.set_pose_from_dict(rig, {
-            "skeleton_type": rig.name, "bone_translations": {},
+            "skeleton_type": S.RigService.identify_rig(rig), "bone_translations": {},
             "bone_rotations": {b: [math.radians(a) for a in r] for b, r in sorted(degrees.items())}})
     finally:
         bpy.ops.object.mode_set(mode="OBJECT")
@@ -176,12 +200,14 @@ def bone_weights(body, points, prefixes):
 def freeze(body):
     """Turns the human of `body` into plain static meshes and returns them by part name (PART_NAMES): the shape
     keys, the pose and the helper mask are applied, the rig is removed, and each mesh keeps only the vertex groups of
-    the rig's bones. glTF then carries the human as it stands, and the importer, which ignores skins, sees the pose.
+    the rig's bones, or none without a rig. glTF then carries the human as it stands, and the importer, which
+    ignores skins, sees the pose.
 
     Each part keeps MPFB's MakeSkin material, rewired as an image texture into one Principled BSDF, which glTF
     holds: the image gives the base color, and only the parts of ALPHA_PARTS keep its alpha, drawn blended."""
     rig = body.parent if body.parent is not None and body.parent.type == "ARMATURE" else None
-    objects = [body] if rig is None else sorted(rig.children, key=lambda o: o.name)
+    # MPFB parents the body and its parts to the rig, or the parts to the body when the human has no rig.
+    objects = sorted(rig.children if rig is not None else [body, *body.children], key=lambda o: o.name)
     bones = set(b.name for b in rig.data.bones) if rig is not None else set()
     S = services()
     depsgraph = bpy.context.evaluated_depsgraph_get()

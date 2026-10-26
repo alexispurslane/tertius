@@ -79,8 +79,8 @@ trap 'exit 130' INT TERM
 # folder is a folder of this build too: an add-on that a model script enables, such as MPFB, writes its logs and
 # settings there, and never into the user's own Blender folder.
 run_blender() {
-    TMPDIR="$tmp" BLENDER_USER_RESOURCES="$tmp/user" "$TERTIUS_BLENDER" --background --factory-startup --disable-autoexec --python-exit-code 3 "$@" \
-        >> "$out/blender.log" 2>&1 &
+    TMPDIR="$tmp" BLENDER_USER_RESOURCES="$tmp/user" "$TERTIUS_BLENDER" --background --factory-startup \
+        --disable-autoexec --python-exit-code 3 "$@" >> "$out/blender.log" 2>&1 &
     blender_pid=$!
     wait "$blender_pid" || true
     blender_pid=""
