@@ -104,6 +104,22 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
 
     public MemoryAllocation Allocate(in MemoryRequirements requirements, MemoryUsage usage, bool linear, string name)
     {
+        int type = MemoryTypeOf(requirements: requirements, usage: usage, name: name);
+        bool mapped = usage != MemoryUsage.GpuOnly;
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            CountTowardFailure(name);
+            return requirements.Size > BlockSize / 2
+                ? AllocateDedicated(size: requirements.Size, type: type, mapped: mapped, name: name)
+                : AllocateInBlock(requirements: requirements, type: type, mapped: mapped, linear: linear);
+        }
+    }
+
+    /// <summary>The memory type for <paramref name="usage"/> among the types that <paramref name="requirements"/> allows.</summary>
+    /// <exception cref="NotSupportedException">No memory type fits.</exception>
+    private int MemoryTypeOf(in MemoryRequirements requirements, MemoryUsage usage, string name)
+    {
         (MemoryPropertyFlags required, MemoryPropertyFlags preferred) = usage switch
         {
             MemoryUsage.GpuOnly => (MemoryPropertyFlags.DeviceLocalBit, MemoryPropertyFlags.None),
@@ -125,80 +141,79 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             );
         if (type < 0)
             throw new NotSupportedException($"No memory type for {name} ({usage}).");
-        bool mapped = usage != MemoryUsage.GpuOnly;
+        return type;
+    }
 
-        lock (gate)
-        {
-            ObjectDisposedException.ThrowIf(disposed, this);
-            if (allocationsBeforeFailure is { } granted)
-            {
-                if (granted == 0)
-                    throw new VulkanException($"vkAllocateMemory for {name}", Result.ErrorOutOfDeviceMemory);
-                allocationsBeforeFailure = granted - 1;
-            }
+    /// <summary>
+    /// Counts one allocation toward <see cref="AllocationsBeforeFailure"/>, and throws as a device out of memory would
+    /// when none is left. Under the gate.
+    /// </summary>
+    private void CountTowardFailure(string name)
+    {
+        if (allocationsBeforeFailure is not { } granted)
+            return;
+        if (granted == 0)
+            throw new VulkanException($"vkAllocateMemory for {name}", Result.ErrorOutOfDeviceMemory);
+        allocationsBeforeFailure = granted - 1;
+    }
 
-            if (requirements.Size > BlockSize / 2)
-            {
-                var allocation = new Dedicated(
-                    AllocateMemory(size: requirements.Size, type: (uint)type, map: mapped, pointer: out byte* pointer),
-                    pointer
-                );
-                dedicated.Add(allocation);
-                liveAllocations++;
-                device.SetName(ObjectType.DeviceMemory, allocation.Memory.Handle, name);
-                return new(
-                    memory: allocation.Memory,
-                    offset: 0,
-                    size: requirements.Size,
-                    mapped: pointer,
-                    owner: allocation
-                );
-            }
+    /// <summary>An allocation of its own <c>VkDeviceMemory</c>, for a resource of more than half a block. Under the gate.</summary>
+    private MemoryAllocation AllocateDedicated(ulong size, int type, bool mapped, string name)
+    {
+        var allocation = new Dedicated(
+            AllocateMemory(size: size, type: (uint)type, map: mapped, pointer: out byte* pointer),
+            pointer
+        );
+        dedicated.Add(allocation);
+        liveAllocations++;
+        device.SetName(ObjectType.DeviceMemory, allocation.Memory.Handle, name);
+        return new(memory: allocation.Memory, offset: 0, size: size, mapped: pointer, owner: allocation);
+    }
 
-            ulong alignment = Math.Max(requirements.Alignment, 16);
-            foreach (Block block in blocks)
-                if (
-                    block.Type == type
-                    && block.Linear == linear
-                    && block.Space.Allocate(requirements.Size, alignment) is { } offset
-                )
-                {
-                    liveAllocations++;
-                    return new(
-                        memory: block.Memory,
-                        offset: offset,
-                        size: requirements.Size,
-                        mapped: block.Mapped == null ? null : block.Mapped + offset,
-                        owner: block
-                    );
-                }
+    /// <summary>
+    /// An allocation in the first block of <paramref name="type"/> and <paramref name="linear"/> with room for it, or in a
+    /// new block. Under the gate.
+    /// </summary>
+    private MemoryAllocation AllocateInBlock(in MemoryRequirements requirements, int type, bool mapped, bool linear)
+    {
+        ulong alignment = Math.Max(requirements.Alignment, 16);
+        foreach (Block block in blocks)
+            if (
+                block.Type == type
+                && block.Linear == linear
+                && block.Space.Allocate(requirements.Size, alignment) is { } offset
+            )
+                return InBlock(block: block, offset: offset, size: requirements.Size);
 
-            var created = new Block(
-                memory: AllocateMemory(size: BlockSize, type: (uint)type, map: mapped, pointer: out byte* blockPointer),
-                mapped: blockPointer,
-                type: type,
-                linear: linear
-            );
-            device.SetName(
-                ObjectType.DeviceMemory,
-                created.Memory.Handle,
-                $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})"
-            );
-            blocks.Add(created);
-            ulong first =
-                created.Space.Allocate(requirements.Size, alignment)
-                ?? throw new InvalidOperationException(
-                    "A new block cannot hold an allocation smaller than half a block."
-                );
-            liveAllocations++;
-            return new(
-                memory: created.Memory,
-                offset: first,
-                size: requirements.Size,
-                mapped: blockPointer == null ? null : blockPointer + first,
-                owner: created
-            );
-        }
+        var created = new Block(
+            memory: AllocateMemory(size: BlockSize, type: (uint)type, map: mapped, pointer: out byte* blockPointer),
+            mapped: blockPointer,
+            type: type,
+            linear: linear
+        );
+        device.SetName(
+            ObjectType.DeviceMemory,
+            created.Memory.Handle,
+            $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})"
+        );
+        blocks.Add(created);
+        ulong first =
+            created.Space.Allocate(requirements.Size, alignment)
+            ?? throw new InvalidOperationException("A new block cannot hold an allocation smaller than half a block.");
+        return InBlock(block: created, offset: first, size: requirements.Size);
+    }
+
+    /// <summary>The allocation of <paramref name="size"/> bytes at <paramref name="offset"/> of <paramref name="block"/>. Under the gate.</summary>
+    private MemoryAllocation InBlock(Block block, ulong offset, ulong size)
+    {
+        liveAllocations++;
+        return new(
+            memory: block.Memory,
+            offset: offset,
+            size: size,
+            mapped: block.Mapped == null ? null : block.Mapped + offset,
+            owner: block
+        );
     }
 
     public void Free(in MemoryAllocation allocation)
