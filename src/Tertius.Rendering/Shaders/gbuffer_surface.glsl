@@ -23,16 +23,22 @@ vec3 dominantDirectionAt(ivec2 pixel)
     return ambientSpecularDirection(normal, texelFetch(gbufferSpecular, pixel, 0).g, -view);
 }
 
-// f, in rad: how far d moves to the next pixel along x and along y, at least p, the main view's pixel angle. In the
-// image's last column or row, the step goes back one pixel.
+// f, in rad: how far d moves to a neighboring pixel along x and along y, at least p, the main view's pixel angle. Along
+// each axis, the smaller of the steps to the next and to the previous pixel, so that a crease, a seam or a silhouette on
+// one side leaves f at the rate of the pixel's own surface. In the image's first or last column or row, both steps go
+// to the one neighbor there.
 float reflectionFootprintAt(ivec2 pixel)
 {
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
-    int nextX = pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0);
-    int nextY = pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0);
+    ivec2 next = ivec2(pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0),
+        pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0));
+    ivec2 previous = ivec2(pixel.x > 0 ? pixel.x - 1 : min(pixel.x + 1, last.x),
+        pixel.y > 0 ? pixel.y - 1 : min(pixel.y + 1, last.y));
     vec3 d = dominantDirectionAt(pixel);
-    float alongX = length(dominantDirectionAt(ivec2(nextX, pixel.y)) - d);
-    float alongY = length(dominantDirectionAt(ivec2(pixel.x, nextY)) - d);
+    float alongX = min(length(dominantDirectionAt(ivec2(next.x, pixel.y)) - d),
+        length(dominantDirectionAt(ivec2(previous.x, pixel.y)) - d));
+    float alongY = min(length(dominantDirectionAt(ivec2(pixel.x, next.y)) - d),
+        length(dominantDirectionAt(ivec2(pixel.x, previous.y)) - d));
     return max(frame.params.z, max(alongX, alongY));
 }
 

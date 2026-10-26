@@ -27,6 +27,12 @@ public sealed class ReflectionShaderTests
     /// </summary>
     private const float CheckeredGray = 1;
 
+    /// <summary>
+    /// How many pixels around a hit the half trace's cone draws on over the mirror floor: its radius stays under 2 pixels,
+    /// so it reads at most level 1, whose 13-tap texels, read bilinearly, draw on 5 pixels around the read.
+    /// </summary>
+    private const int HalfTraceReach = 5;
+
     [Fact]
     public void TheGpuTraceReflectsThePixelThatTheCSharpTraceHits()
     {
@@ -45,7 +51,7 @@ public sealed class ReflectionShaderTests
             for (int x = 130; x < 510; x += 6)
             {
                 if (
-                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: (x, y))
+                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: (x, y), reach: 2)
                     is not { } hit
                 )
                     continue;
@@ -95,7 +101,14 @@ public sealed class ReflectionShaderTests
                 // The representative pixel of texel (i, j) is the top-left pixel of its 2 × 2 block.
                 (int X, int Y) representative = (X: 2 * i, Y: 2 * j);
                 if (
-                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: representative)
+                    TileHitOf(
+                        camera: camera,
+                        distance: distance,
+                        pyramid: pyramid,
+                        lit: lit,
+                        pixel: representative,
+                        reach: HalfTraceReach
+                    )
                     is not { } hit
                 )
                     continue;
@@ -409,8 +422,10 @@ public sealed class ReflectionShaderTests
             Vector3 hitPoint = Vector3.Normalize(Camera.ViewRayThrough(hit.Position)) * hitDistance;
             Vector3 origin =
                 point + Vector3.UnitY * ScreenRay.OriginOffset(Vector3.Dot(point, Camera.Forward), Camera.PixelAngle);
+            // A flat floor's d moves by about one pixel angle to the next pixel, which the lobe's spread at 0.3 and 0.5
+            // passes 30 times over, so f takes p, its floor.
             float level = ReflectionCone
-                .OfRoughness(roughness)
+                .Of(roughness: roughness, footprint: Camera.PixelAngle, texelSide: 1)
                 .Level(
                     rayLength: (hitPoint - origin).Length(),
                     hitDistance: hitDistance,
@@ -517,12 +532,14 @@ public sealed class ReflectionShaderTests
     /// The pixel that the C# trace from the floor <paramref name="pixel"/> hits, for a mirror, when the ray keeps its
     /// full fade and the hit lies inside one tile, so that a trilinear read there is the tile; otherwise null.
     /// </summary>
+    /// <param name="reach">How many pixels around the hit the cone's read draws on, which must all lie in the tile.</param>
     private static (int X, int Y)? TileHitOf(
         CameraView camera,
         float[] distance,
         DepthPyramid pyramid,
         float[] lit,
-        (int X, int Y) pixel
+        (int X, int Y) pixel,
+        int reach
     )
     {
         (RayTrace trace, _) = TraceFromFloor(
@@ -538,17 +555,20 @@ public sealed class ReflectionShaderTests
             trace is RayHit hit
             && hit.EntryShare == 0
             && camera.EdgeFade(hit.Position) == 1
-            && InsideOneTile(lit, hit.Pixel)
+            && InsideOneTile(lit: lit, pixel: hit.Pixel, reach: reach)
             ? hit.Pixel
             : null;
     }
 
-    /// <summary>Whether the 5 × 5 pixels around <paramref name="pixel"/> all hold one value: the inside of one tile.</summary>
-    private static bool InsideOneTile(float[] lit, (int X, int Y) pixel)
+    /// <summary>
+    /// Whether the pixels up to <paramref name="reach"/> away from <paramref name="pixel"/> along x and y all hold one
+    /// value: the inside of one tile.
+    /// </summary>
+    private static bool InsideOneTile(float[] lit, (int X, int Y) pixel, int reach)
     {
         Vector3 center = At(lit, pixel);
-        for (int dy = -2; dy <= 2; dy++)
-        for (int dx = -2; dx <= 2; dx++)
+        for (int dy = -reach; dy <= reach; dy++)
+        for (int dx = -reach; dx <= reach; dx++)
             if (BrdfTesting.LargestChannelDifference(At(lit, (pixel.X + dx, pixel.Y + dy)), center) > 1e-3f)
                 return false;
         return center.Y > 0;

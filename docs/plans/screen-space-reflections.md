@@ -32,7 +32,7 @@ Today a glossy surface reflects only the lights and the ambient specular term. T
 | Entry share, q | Where the ray enters the slab of the pixel that it hits: 0 at the front of the slab, 1 at its back. |
 | The radiance pyramid | One RGBA16F image with levels 0 to L. Level 0 holds the lit image times the surface coverage in RGB, and the coverage in A. Each next level is a filtered half-size copy of the one before. |
 | Surface coverage, m | 1 for a pixel with D > 0, 0 for sky. |
-| The cone | The cone around the ray that stands for the specular lobe. Its half angle θ_c has tan θ_c = 1.7602 α. |
+| The cone | The cone around the ray that stands for the specular lobe and the gap to the next ray. Its half angle θ_c has tan θ_c = max(1.7602 α, f · s). |
 | Cone level, λ | The level of the radiance pyramid that the cone's footprint at the hit selects. |
 | Traced radiance C, traced coverage a | The RGB and the A of the radiance pyramid at the hit and the cone level. C is premultiplied by the coverage. |
 | The fade, f | The product of four factors from 0 to 1: the roughness fade, the surface fade, the edge fade and 1 − q. |
@@ -311,6 +311,18 @@ At the hit, the cone's radius is t tan θ_c in m, where t is the length of the r
 - D_hit and t come from the hit pixel's distance: X_hit = normalize(r(S_hit)) · D(hit pixel), t = |X_hit − O|. The ray's own inverse depth near a far hit has too little precision (see "Precision and determinism").
 - Example at 1080p and a vertical field of view of 60°, θ_px = 0.00097: a floor of roughness 0.2, 4 m from the eye, reflects a box 2 m away from the reflecting point. ρ_px = 2 · 0.0704 / (4 · 0.00097) = 36 px, so λ = 5.2.
 
+The cone also covers the gap to the next ray (ticket `ter-cuf9`, the user's choice of 2026-10-26: soft mirrors at half resolution over full-resolution rays). A mirror's lobe alone gives a point read, and the rays of neighboring texels hit points 2 or more pixels apart, so the point reads alias and reflected edges snap to the grid of the texels. The cone's tangent is the larger of two spreads, both lengths at the hit per metre of ray:
+
+```
+tan θ_c = max(1.7602 α, f · s)
+```
+
+- f is the pixel's reflection footprint (docs/plans/environment-map.md, decision 33): the chord from d to the d of a neighboring pixel. f · s is the distance between this ray's point and the next ray's point at the same length t, for small f · s.
+- s is the side of the trace's texel in pixels: 1 for the full-resolution trace, 2 for the half-resolution trace. Each trace passes its own s as a constant to the one `traceReflection`.
+- The rough lobe keeps its cone wherever its spread is the larger: a flat floor's f is about θ_px, so at r = 0.2 the lobe's 0.0704 passes f · s by 36 times or more.
+- The term holds the spread of the rays' directions, not of their origins, which lie s pixels apart on the surface. A flat mirror's cone covers s · t / D_hit pixels, so the reflections of far objects soften and a reflection near the contact stays sharp. A curved mirror's f is many times θ_px, and its cone covers the gap at both resolutions.
+- Where neighboring rays hit different surfaces, as at the outline of an object before a farther one in the reflection, the hits lie far apart and each cone blurs only its own surroundings, so the half-resolution trace keeps its steps there.
+
 The trace reads the radiance pyramid once, at the hit position and the cone level, with a trilinear sampler:
 
 ```
@@ -457,7 +469,7 @@ At `Half`, two passes replace the trace:
 1. "reflection trace" (`reflection_half_trace.comp`): one invocation for each texel (i, j) of an RGBA16F image of ⌈W / 2⌉ × ⌈H / 2⌉ texels. The texel traces the ray of its representative pixel (2i, 2j), the top-left pixel of its block, through the same gates and the same trace as the full-resolution pass. `reflection_pixel.glsl` holds the gates and the delta, and `reflection_ray.glsl` the ray, and both passes include them. The texel stores the ray's result (C, a) times the ray's own fades, 0 for a miss, or a coverage of −1 when the representative pixel starts no ray.
 2. "reflections" (`reflection_upsample.comp`): one invocation for each pixel. A pixel that the gates let through takes the mean of the results of the up to four texels around it under the weight bilinear · max(0, 1 − h / p) · max(0, n · n_t)^8, and adds the delta of "8. The reflection replaces the ambient specular term" with that mean in place of its own ray. Here h is the distance of the texel's representative pixel from the pixel's tangent plane, p is the width of a texel at the pixel (2 pixel footprints), n is the pixel's geometric normal, and n_t the texel's. A texel with a coverage of −1 gets no weight. If no texel keeps a weight, the pixel keeps the ambient specular term, as for a ray that finds nothing. A sum of weights below the smallest normal float, 2^−126, counts as none: a GPU may flush it to 0, and Vulkan bounds a division's error only for a larger divisor.
 
-The delta's fallback k · T_s is the pixel's own, not a texel's. The pixel's gates read its surface through `surfaceAt`, which also sets the reflection's footprint f by `reflectionFootprintAt` (docs/plans/environment-map.md, decision 33), so `ambientTerms` gives the very term that the lighting pass added at that pixel: the map's specular term and its reflected stars while the map is on, the hemisphere's while it is off. Only the rays' results (C, a) cross from the texels to the pixel. The trace's texel reads its representative pixel through the same gates, so its footprint is that pixel's, but the trace adds no delta and so reads no ambient light. Its compiled code holds no access of the map.
+The delta's fallback k · T_s is the pixel's own, not a texel's. The pixel's gates read its surface through `surfaceAt`, which also sets the reflection's footprint f by `reflectionFootprintAt` (docs/plans/environment-map.md, decision 33), so `ambientTerms` gives the very term that the lighting pass added at that pixel: the map's specular term and its reflected stars while the map is on, the hemisphere's while it is off. Only the rays' results (C, a) cross from the texels to the pixel. The trace's texel reads its representative pixel through the same gates, so its footprint is that pixel's, which its cone reads ("The cone"), but the trace adds no delta and so reads no ambient light. Its compiled code holds no access of the map.
 
 The plane weight is SSAO's: a texel across a silhouette lies off the pixel's plane and gives it nothing. The normal weight is new, because a reflection turns with the normal and occlusion barely does: a texel across a crease lies on the pixel's plane at the crease, but its ray leaves a surface that faces another way. The power 8 keeps 0.89 of the weight for a turn of 10°, about the turn between two facets of a sphere of 32 segments, and 0.06 for 45°. The upsample computes it by three squarings, because `pow` is `exp2` of a `log2`, which is infinite at 0, and fast math can assume finite values. The fallback to the ambient specular term is the miss of decision 5, so the pure model needs no nearest-texel rule like SSAO's.
 
@@ -1045,11 +1057,14 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     return false;
 }
 
-// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The floor keeps log2
-// finite for a hit at the origin; any level below 0 reads level 0.
-float coneLevel(float alpha, float rayLength, float hitDistance, float topLevel)
+// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The cone's tangent is the
+// larger of the lobe's spread and the chord f · texelSide to the next texel's ray, so that the read covers the gap
+// between neighboring rays ("The cone"). The floor keeps log2 finite for a hit at the origin; any level below 0 reads
+// level 0.
+float coneLevel(float alpha, float footprint, float texelSide, float rayLength, float hitDistance, float topLevel)
 {
-    float radiusPixels = rayLength * ConeTangentPerAlpha * alpha / (hitDistance * frame.params.z);
+    float spread = max(ConeTangentPerAlpha * alpha, footprint * texelSide);
+    float radiusPixels = rayLength * spread / (hitDistance * frame.params.z);
     return clamp(log2(max(radiusPixels, 1e-6)), 0.0, topLevel);
 }
 
@@ -1093,6 +1108,8 @@ layout(push_constant, std430) uniform ReflectionPush
     uint maxSteps;
 } reflection;
 
+const float TexelSide = 1.0;  // in pixels: each pixel traces its own ray ("The cone")
+
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -1128,7 +1145,7 @@ void main()
     // The hit's surface point from its own distance, not from the ray's inverse depth, which is coarse far away.
     float hitDistance = texelFetch(gbufferDistance, hitPixel, 0).r;
     vec3 hitPoint = normalize(viewRayThrough(hit)) * hitDistance;
-    float level = coneLevel(alpha, length(hitPoint - origin), hitDistance,
+    float level = coneLevel(alpha, s.reflectionFootprint, TexelSide, length(hitPoint - origin), hitDistance,
         float(textureQueryLevels(radiancePyramid) - 1));
     vec4 traced = textureLod(sampler2D(radiancePyramid, mipSampler), hit * frame.viewport.zw, level);
 
@@ -1242,6 +1259,9 @@ internal readonly record struct ReflectionCone(float TanHalfAngle)
 
     /// <summary>The cone of a roughness r₀, floored as the BRDF floors it: tan θ_c = TangentPerAlpha · r².</summary>
     public static ReflectionCone OfRoughness(float roughness);
+
+    /// <summary>The cone of a ray in a trace of texel side s: tan θ_c = max(TangentPerAlpha · r², f · s).</summary>
+    public static ReflectionCone Of(float roughness, float footprint, int texelSide);
 
     /// <summary>log₂ of the cone's radius at the hit in pixels, clamped to 0 to topLevel.</summary>
     public float Level(float rayLength, float hitDistance, float pixelAngle, int topLevel);

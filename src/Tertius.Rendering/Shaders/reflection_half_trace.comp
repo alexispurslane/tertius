@@ -11,6 +11,8 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D tracedImage;  // ⌈W / 2⌉ × ⌈H / 2⌉
 
+const float TexelSide = 2.0;  // in pixels: one ray for each block of 2 × 2
+
 void main()
 {
     ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
@@ -26,7 +28,7 @@ void main()
     }
     vec4 rayResult;
     // A miss keeps the ambient specular term: no radiance and no coverage.
-    if (!traceReflection(p, rayResult))
+    if (!traceReflection(p, TexelSide, rayResult))
         rayResult = vec4(0.0);
     imageStore(tracedImage, texel, rayResult);
 }

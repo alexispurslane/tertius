@@ -11,7 +11,8 @@ layout(set = 3, binding = 2) uniform sampler mipSampler;         // linear, line
 
 // The result of the pixel's ray: the radiance pyramid's read at the hit and the cone level, premultiplied radiance in
 // RGB and coverage in A, both times the ray's fade, the edge fade and 1 − q. False for a ray that hits nothing.
-bool traceReflection(ReflectingPixel p, out vec4 rayResult)
+// texelSide is the side of the trace's texel in pixels, the distance to the next ray: 1 at full resolution, 2 at half.
+bool traceReflection(ReflectingPixel p, float texelSide, out vec4 rayResult)
 {
     vec3 origin = p.toSurface * p.distanceToEye + p.s.geometricNormal * originOffset(p.viewDepth);
     vec2 hit;
@@ -24,7 +25,7 @@ bool traceReflection(ReflectingPixel p, out vec4 rayResult)
     // The hit's surface point from its own distance, not from the ray's inverse depth, which is coarse far away.
     float hitDistance = texelFetch(gbufferDistance, hitPixel, 0).r;
     vec3 hitPoint = normalize(viewRayThrough(hit)) * hitDistance;
-    float level = coneLevel(p.alpha, length(hitPoint - origin), hitDistance,
+    float level = coneLevel(p.alpha, p.s.reflectionFootprint, texelSide, length(hitPoint - origin), hitDistance,
         float(textureQueryLevels(radiancePyramid) - 1));
     vec4 traced = textureLod(sampler2D(radiancePyramid, mipSampler), hit * frame.viewport.zw, level);
     rayResult = edgeFade(hit) * (1.0 - entryShare) * traced;
