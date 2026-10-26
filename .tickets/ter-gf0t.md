@@ -18,3 +18,9 @@ Decision 47 of docs/plans/local-light-shadows.md. Every light now has the radius
 
 A smooth sphere under the Sun and under a lamp shows a highlight of the light's angular size; the widened lobe's energy matches its point-light lobe within the tests' bounds; the tests pass in Checked and Release; ARCHITECTURE.md, "Shading", describes the lobe.
 
+
+## Notes
+
+**2026-10-26T20:35:11Z**
+
+2026-10-26: taken out of the rendering upgrade epic. The user closed that epic's scope on 2026-10-26 with skinning, morph targets and skin and hair shading ('and then that'll be it'), and decision 47 of local-light-shadows.md keeps this lobe out of the lights epic. It waits for the user to ask for it.

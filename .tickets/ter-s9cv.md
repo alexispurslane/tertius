@@ -1,6 +1,6 @@
 ---
 id: ter-s9cv
-status: in_progress
+status: closed
 deps: [ter-zzyr, ter-2t5o, ter-63wr, ter-ptft]
 links: []
 created: 2026-10-11T13:52:12Z
@@ -32,3 +32,7 @@ On performance, the doc's plan holds for local lights: one shared atlas, a tile 
 **2026-10-26T18:15:01Z**
 
 2026-10-26: coverage of the changed lines at 37f99148 (Parts 1 to 6), Debug and Release: lines 1528/1564 (97.7%), branches 473/498. Uncovered: demo scene numbers that only headless runs read (DemoScenes.PbrSpheres, Puffs, Reflections); UnreachableException arms in SceneBatcher and RenderSnapshotBuilder; ShadowAtlas's dispose-and-rethrow when a layer view fails; DescriptorLayouts' throw for a device with too few storage buffers (StorageBufferProblem itself is tested); FrameResources' rewrite of the tile buffer after it grows; ImpostorManager's arm for a light with atlas tiles (an impostor lit by a shadowed lamp).
+
+**2026-10-26T20:35:11Z**
+
+2026-10-26: merged into main in ef755699, after the merge of main into the branch (14aff809) and its review fixes (205494f0). Coverage of the epic's changed lines, Debug and Release: 1851/1878 lines (98.6%), 505/530 branches (95.3%). The uncovered lines are demo scenes that no test runs, a catch that disposes ShadowAtlas when a layer view fails, and single guards. The coverage run's only failures were three Physics allocation tests, which the coverage instrumentation's own allocations break; the plain Checked and Release runs pass. Demo-exit's cost after the epic: lighting 7.3 ms against 2.0 ms and frame span about 17.4 ms against 11.7 ms at 1080p; ter-p1u7 is the epic's profile (decisions 3 and 5 of rendering-performance.md). Follow-ups: ter-p1u7, ter-gf0t, ter-mgap, ter-6pzm, ter-74nr.

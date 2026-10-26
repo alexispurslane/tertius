@@ -1,6 +1,6 @@
 ---
 id: ter-p1u7
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T18:23:33Z
@@ -24,3 +24,10 @@ lamp-hall-16 costs the lighting pass at most 2 ms more than under --local-shadow
 **2026-10-26T18:31:42Z**
 
 The demo run scripts/demo-exit.json at 1080p shows the same cost (Part 7, 2026-10-26): the lighting pass takes 7.2 and 7.3 ms on the branch against 1.9 and 2.1 ms on the base 9546afbe, and the frame span 17.1 and 17.7 ms against 11.4 and 12.0 ms, under a 1-minute load of 15 to 27.
+
+**2026-10-26T20:35:11Z**
+
+2026-10-26, the user's decisions on the light list (after a talk on deferred shading and light volumes):
+1. The bound on the lights per pixel is decided per pixel, in the shared light loop of lighting.glsl, with no tile or cluster list and no light volumes. Light volumes were ruled out: every reach sphere covers the whole screen in the station (a 10 W lamp reaches 1.46 km), so 21 full-screen volumes would move about 1.9 GB per frame.
+2. Two steps per pixel. Step 1 sums every kept light's irradiance without shadow. Step 2 shades only the lights whose share (their unshadowed irradiance over the sum) is at least 1/256, the analogue of FarShadows.Share, which cannot show; and samples a light's shadow only above a shadow share picked from captures, with a fade band so that no contour shows. Below it, a dim lamp lights without its faint shadow. The user had no preference here and the orchestrator settled it by its recommendation; the user sees the captures of the halls and demo-exit before the change merges.
+3. The ticket's first step is a profile of the lighting pass on lamp-hall-16 and demo-exit, and every shading pass that shares the loop gains (lighting, transparent, environment faces, impostor captures, puffs).
