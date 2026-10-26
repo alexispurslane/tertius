@@ -12,6 +12,7 @@ import math
 
 import bpy
 import numpy as np
+from mathutils import Vector
 
 from tertius_blender.geometry import MB
 
@@ -37,6 +38,7 @@ def side_of(name):
     return "l" if name.endswith("_l") else "r"
 
 
+FINGERS = [f + "_0" + str(k) for f in ("index", "middle", "ring", "pinky", "thumb") for k in (1, 2, 3)]
 HAND = {s: bone_weight(["hand_" + s] + [f + "_0{}_{}".format(k, s) for f in ("index", "middle", "ring", "pinky",
                                                                              "thumb") for k in (1, 2, 3)])
         for s in "lr"}
@@ -139,9 +141,12 @@ def subdivide(pos, quads, values):
 
 def finish(name, pos, quads, material, collection, smooth_angle=60.0):
     mb = MB()
-    vs = [mb.bm.verts.new(tuple(p)) for p in pos]
+    vs = {}
     for q in quads:
         ring = list(dict.fromkeys(q.tolist()))
+        for i in ring:
+            if i not in vs:
+                vs[i] = mb.bm.verts.new(tuple(pos[i]))
         mb.bm.faces.new([vs[i] for i in ring])
     return mb.finish(name, bpy.data.materials[material], collection, smooth_angle=smooth_angle)
 
@@ -201,6 +206,15 @@ se = edges_of(sq)
 sb = boundary_mask(len(sp), sq)
 sp = smooth(sp, se, P["suit_smooth"], fixed=sb)
 thick = thickness_of(sw, P["suit_thickness"])
+# The sleeves narrow toward the wrist, so the wrist ring of s30_hardware.py can close them.
+for s in "lr":
+    on_arm = np.clip(sum(sw[:, i] for i, b in enumerate(BONES)
+                         if b in ("lowerarm_" + s, "hand_" + s) or (b.endswith("_" + s) and b[:-2] in FINGERS)),
+                     0.0, 1.0)
+    t = along(sp, s + "-elbow", s + "-hand")
+    taper = np.clip((t - P["wrist_taper_start"]) / (P["sleeve_end"] - P["wrist_taper_start"]), 0.0, 1.0)
+    taper = taper * taper * (3 - 2 * taper) * on_arm
+    thick = thick + (P["wrist_thickness"] - thick) * taper
 sp = sp + normals(sp, sq) * thick[:, None]
 sp = smooth(sp, se, P["suit_smooth_after"], fixed=sb)
 
@@ -252,6 +266,8 @@ sp = sp + n_suit * (bulge + wrinkle)[:, None]
 suit = finish("Suit", sp, sq, "M_Suit", "Suit", smooth_angle=70.0)
 
 # --- Gloves -------------------------------------------------------------------------------------------------------
+# Each glove is the hand pushed out a little. The faces on the last bone of each finger become a separate
+# fingertip cap of grip rubber.
 gloves = {}
 for s in "lr":
     gfaces = faces_where(in_glove & (ARM[s] > 0.5))
@@ -262,25 +278,86 @@ for s in "lr":
     gt = thickness_of(W[gids], P["glove_thickness"])
     gp = gp + normals(gp, gq) * gt[:, None]
     gp = smooth(gp, ge, 2, fixed=gb)
-    gloves[s] = finish("Glove_" + s.upper(), gp, gq, "M_Glove", "Suit", smooth_angle=70.0)
+    tip_weight = sum(W[gids][:, i] for i, b in enumerate(BONES) if b.endswith("_03_" + s))
+    tip_face = tip_weight[gq].mean(axis=1) > P["tip_weight"]
+    gloves[s] = finish("Glove_" + s.upper(), gp, gq[~tip_face], "M_Glove", "Suit", smooth_angle=70.0)
+    # The caps stand a hair proud of the glove, so the two surfaces do not fight where they meet.
+    tips = gp + normals(gp, gq) * 0.0012
+    finish("Glove_Tips_" + s.upper(), tips, gq[tip_face], "M_GloveTip", "Suit", smooth_angle=70.0)
 
 # --- Boots --------------------------------------------------------------------------------------------------------
+# Each boot is a metaball: a heel ball, a long foot ellipsoid, a toe box and a shaft capsule up the shin, placed from
+# the measured foot, and fused into one smooth, puffy boot. The bottom is cut flat onto the sole of
+# s30_hardware.py. The suit leg ends inside the shaft.
 sole = P["sole"]
+B = P["boot"]
+FIELD = 0.575  # Measured in Blender 5.2: a lone ball of radius 0.1 has a surface of diameter 0.115.
 boots = {}
+boot_report = {}
 for s in "lr":
-    bfaces = faces_where(in_boot & (LEG[s] > 0.5))
-    bp, bq, bids = submesh(bfaces)
-    be = edges_of(bq)
-    bb = boundary_mask(len(bp), bq)
-    bp = smooth(bp, be, P["boot_smooth"], fixed=bb)
-    bt = thickness_of(W[bids], P["boot_thickness"])
-    bp = bp + normals(bp, bq) * bt[:, None]
-    bp = smooth(bp, be, 3, fixed=bb)
-    # The boot rests flat on its sole.
+    foot = X[(LEG[s] > 0.5) & (z < ankle_z[s])]
+    heel_y, toe_y = float(foot[:, 1].max()), float(foot[:, 1].min())
+    mid_x = float(foot[:, 0].mean())
+    length = heel_y - toe_y
+    ball = J[s + "-foot-1"]
+    # The shin is sparse in the base mesh, a ring every few centimeters, so its radius is the farthest skin point
+    # from the ankle-knee line over the height of the shaft.
+    shin = X[(LEG[s] > 0.5) & (z > ankle_z[s] + 0.04) & (z < ankle_z[s] + P["boot_top"])]
+    shin_axis = (J[s + "-knee"] - J[s + "-ankle"]) / np.linalg.norm(J[s + "-knee"] - J[s + "-ankle"])
+    rel = shin - J[s + "-ankle"]
+    shin_r = float(np.linalg.norm(rel - np.outer(rel @ shin_axis, shin_axis), axis=1).max())
+    shin_c = J[s + "-ankle"] + shin_axis * (P["boot_top"] / shin_axis[2])
+    data = bpy.data.metaballs.new("Boot" + s.upper())
+    data.resolution = B["resolution"]
+    data.render_resolution = B["resolution"]
+    data.threshold = B["threshold"]
+
+    def element(kind, co, radius, semi=None):
+        """A metaball element whose lone surface has the radius (BALL, CAPSULE) or semi-axes (ELLIPSOID) given, in
+        meters. FIELD is the share of an element's radius where its lone surface lies, at this threshold and
+        stiffness."""
+        e = data.elements.new(type=kind)
+        e.co = tuple(co)
+        e.radius = radius / FIELD if semi is None else 1.0
+        e.stiffness = B["stiffness"]
+        if semi is not None:
+            e.size_x, e.size_y, e.size_z = (v / FIELD for v in semi)
+        return e
+
+    t = B["thickness"]
+    element("BALL", (mid_x, heel_y - 0.05, sole + 0.05), 0.05 + t)
+    element("ELLIPSOID", (mid_x, (heel_y + toe_y) / 2, sole + 0.045), None,
+            (B["width"] / 2 + t, length / 2 + t * 0.5, 0.045 + t * 0.5))
+    element("ELLIPSOID", (ball[0], toe_y + 0.065, sole + 0.035), None, (B["width"] / 2 + t, 0.075, 0.038 + t * 0.4))
+    top = np.array((shin_c[0], shin_c[1], ankle_z[s] + P["boot_top"]))
+    low = np.array((shin_c[0], heel_y - 0.07, sole + 0.1))
+    # A capsule's size_x is the half length of its core along its local X axis, which turns to run from low to top.
+    axis = top - low
+    e = element("CAPSULE", (top + low) / 2, shin_r + t)
+    e.size_x = float(np.linalg.norm(axis)) / 2
+    e.rotation = Vector((1.0, 0.0, 0.0)).rotation_difference(Vector(axis / np.linalg.norm(axis)))
+    ball_ob = bpy.data.objects.new("Boot" + s.upper(), data)
+    bpy.data.collections["Suit"].objects.link(ball_ob)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    evaluated = ball_ob.evaluated_get(depsgraph)
+    me = evaluated.to_mesh()
+    bp = np.array([v.co[:] for v in me.vertices])
+    polys = [list(p.vertices) for p in me.polygons]
+    evaluated.to_mesh_clear()
+    bpy.data.objects.remove(ball_ob)
+    bpy.data.metaballs.remove(data)
+    # Keep what lies below the top of the shaft, flatten the bottom onto the sole.
+    keep = [f for f in polys if all(bp[i][2] < top[2] for i in f)]
+    bq = np.array([(f + f[-1:])[:4] for f in keep], dtype=np.int64)
     bp[:, 2] = np.maximum(bp[:, 2], sole + 0.004)
     boots[s] = finish("Boot_" + s.upper(), bp, bq, "M_Boot", "Suit", smooth_angle=60.0)
+    boot_report[s] = {"shin_r": round(shin_r, 3), "length": round(length, 3), "top": round(float(top[2]), 3),
+                      "size": [round(float(v), 3) for v in bp[np.unique(bq)].max(axis=0) - bp[np.unique(bq)].min(axis=0)]}
 
 result = {
+    "boots": boot_report,
+    "folds": {"bulge_max": round(float(bulge.max()), 4), "bulge_vertices": int((bulge > 0.005).sum()),
+              "wrinkle_max": round(float(np.abs(wrinkle).max()), 4)},
     "joints": {k: [round(float(c), 3) for c in J[k]] for k in ("neck", "head", "pelvis", "l-shoulder", "l-elbow",
                                                                 "l-hand", "l-knee", "l-ankle", "spine-1")},
     "faces": {"head": len(head.data.polygons), "suit": len(suit.data.polygons),

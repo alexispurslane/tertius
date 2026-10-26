@@ -164,28 +164,27 @@ for s, sign in (("l", 1), ("r", -1)):
     tr = section(SUIT, tc, leg, 0.02, th["reach"], side=sign)
     band(metal, tc, leg, rounded(-th["width"] / 2, th["width"] / 2, 0, -0.02, 0, th["out"]), [tr])
 
-    # --- Gauntlet and wrist disconnect. -------------------------------------------------------------------------------
+    # --- Wrist disconnect and gauntlet: a colored ring over the end of the sleeve, a metal lip, and a short white
+    # gauntlet that flares over the glove. Positions along the forearm are measured from the ring.
     g = P["gauntlet"]
     fore = J[s + "-hand"] - J[s + "-elbow"]
+    unit = fore / np.linalg.norm(fore)
     glove = points_of("Glove_" + s.upper())
-    c0 = J[s + "-elbow"] + g["t0"] * fore
-    c1 = J[s + "-elbow"] + g["t1"] * fore
-    cw = J[s + "-elbow"] + g["wrist"] * fore
-    c0 = centroid(SUIT, c0, fore, 0.012, 0.15)
-    sleeve = section(SUIT, c0, fore, 0.015, 0.15)
-    cw = centroid(glove, cw, fore, 0.01, 0.1)
-    wrist = section(glove, cw, fore, 0.012, 0.1)
-    length = (g["t1"] - g["t0"]) * np.linalg.norm(fore)
-    # A cone from the sleeve to past the wrist, wider at the hand end.
-    band(white, c0, fore, [(0.0, 0, -0.006), (0.0, 0, g["out0"]), (length, 0, g["out1"]), (length, 0, g["out1"] - 0.01)],
-         [sleeve])
-    ring_s = (cw - c0) @ (fore / np.linalg.norm(fore))
-    band(red if s == "l" else blue, c0, fore,
-         [(ring_s - 0.014, 1, -0.004), (ring_s - 0.014, 0, g["out1"] + 0.004), (ring_s, 0, g["out1"] + 0.004),
-          (ring_s, 1, -0.004)], [sleeve, wrist])
-    band(metal, c0, fore,
-         [(ring_s - 0.004, 1, -0.004), (ring_s - 0.004, 1, g["lip"]), (ring_s + 0.008, 1, g["lip"]),
-          (ring_s + 0.008, 1, -0.004)], [sleeve, wrist])
+    cw = centroid(glove, J[s + "-elbow"] + g["ring"] * fore, fore, 0.01, 0.1)
+    sleeve_at = J[s + "-elbow"] + (model.params["suit"]["sleeve_end"] - 0.03) * fore
+    sleeve = section(SUIT, cw + ((sleeve_at - cw) @ unit) * unit, fore, 0.012, 0.13)
+    wrist = section(glove, cw + g["cuff"] * unit, fore, 0.01, 0.1)
+    outer = np.maximum(sleeve, wrist)
+    radii = [wrist, outer]
+    band(red if s == "l" else blue, cw, fore,
+         [(-0.012, 0, -0.004), (-0.012, 1, g["ring_out"] - 0.004), (-0.009, 1, g["ring_out"]),
+          (0.003, 1, g["ring_out"]), (0.006, 1, g["ring_out"] - 0.004), (0.006, 0, -0.004)], radii)
+    band(metal, cw, fore,
+         [(0.006, 0, -0.004), (0.006, 1, g["ring_out"] - 0.006), (0.013, 1, g["ring_out"] - 0.008),
+          (0.013, 0, -0.004)], radii)
+    band(white, cw, fore,
+         [(0.013, 0, -0.004), (0.013, 1, g["ring_out"] - 0.01), (0.013 + g["length"], 0, g["flare"]),
+          (0.013 + g["length"], 0, g["flare"] - 0.006), (0.02, 0, -0.004)], radii)
 
     # --- Boot cuff and sole. ---------------------------------------------------------------------------------------
     b = P["boot"]
@@ -196,6 +195,13 @@ for s, sign in (("l", 1), ("r", -1)):
     leg_r = section(SUIT, cc + np.array((0, 0, b["cuff_height"])), up, 0.02, 0.14, side=sign)
     band(white, cc, up, [(0.0, 0, -0.004), (0.0, 0, b["cuff_out"]), (b["cuff_height"] + 0.012, 0, b["cuff_out"]),
                          (b["cuff_height"] + 0.012, 1, 0.002), (b["cuff_height"], 1, -0.006)], [cuff, leg_r])
+    # The rand: a rubber strip around the boot just above the sole, which hides the line where the boot meets it.
+    rz = np.array((0.0, 0.0, model.params["suit"]["sole"] + b["rand_height"] / 2))
+    foot_pts = boot[boot[:, 2] < model.params["suit"]["sole"] + b["rand_height"] + 0.02]
+    rc = centroid(foot_pts, np.array((foot_pts[:, 0].mean(), foot_pts[:, 1].mean(), rz[2])), up, 0.01, 0.25)
+    rand = section(boot, rc, up, b["rand_height"] / 2 + 0.004, 0.25)
+    band(rubber, rc, up, rounded(-b["rand_height"] / 2 - 0.006, b["rand_height"] / 2, 0, -0.01, 0, b["rand_out"],
+                                 r=0.003), [rand])
     # The sole: the outline of the foot, as a convex hull, pushed out a little and given the sole thickness.
     low = boot[boot[:, 2] < model.params["suit"]["sole"] + b["outline_height"]][:, :2]
     hull = convex_hull(low)

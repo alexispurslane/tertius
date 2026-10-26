@@ -49,7 +49,7 @@
         "foot": 0.05,
         "ball": 0.05
       },
-      "convolute": {"half_length": 0.1, "pitch": 0.045, "depth": 0.014},
+      "convolute": {"half_length": 0.11, "pitch": 0.05, "depth": 0.02},
       "glove_smooth": 2,
       "glove_thickness": {
         "hand": 0.012,
@@ -60,10 +60,12 @@
         "thumb": 0.008,
         "lowerarm": 0.02
       },
-      "boot_smooth": 20,
-      "boot_thickness": {"foot": 0.026, "ball": 0.03, "calf": 0.06},
       "torso_smooth": 150,
-      "wrinkles": {"pitch": [0.07, 0.11], "bend": 1.2, "depth": 0.007}
+      "wrinkles": {"pitch": [0.07, 0.11], "bend": 1.2, "depth": 0.007},
+      "wrist_taper_start": 0.7,
+      "wrist_thickness": 0.018,
+      "tip_weight": 0.5,
+      "boot": {"resolution": 0.008, "threshold": 0.6, "stiffness": 2.0, "thickness": 0.022, "width": 0.1}
     },
     "hardware": {
       "segments": 48,
@@ -79,8 +81,16 @@
       "waist_ring": {"above_pelvis": 0.09, "reach": 0.33, "height": 0.035, "out": 0.012},
       "shoulder_bearing": {"t": 0.22, "reach": 0.14, "width": 0.05, "out": 0.012},
       "thigh_bearing": {"t": 0.2, "reach": 0.16, "width": 0.035, "out": 0.01},
-      "gauntlet": {"t0": 0.72, "t1": 0.96, "wrist": 0.99, "out0": 0.004, "out1": 0.014, "lip": 0.008},
-      "boot": {"cuff_height": 0.03, "cuff_out": 0.01, "outline_height": 0.02, "sole_grow": 0.008, "sole_over": 0.012}
+      "gauntlet": {"ring": 0.95, "cuff": 0.05, "ring_out": 0.016, "length": 0.045, "flare": 0.016},
+      "boot": {
+        "cuff_height": 0.03,
+        "cuff_out": 0.01,
+        "outline_height": 0.02,
+        "sole_grow": 0.008,
+        "sole_over": 0.012,
+        "rand_height": 0.03,
+        "rand_out": 0.006
+      }
     },
     "helmet": {
       "radius": 0.178,
@@ -115,8 +125,9 @@
       "dcm_size": [0.27, 0.12, 0.13],
       "dcm_below_neck": 0.28,
       "dcm_sink": 0.035,
-      "hose_clearance": 0.05,
-      "hose_radius": 0.016
+      "hose_clearance": 0.035,
+      "hose_radius": 0.016,
+      "hose_drop": 0.13
     },
     "materials": {
       "fabric": {
@@ -149,21 +160,21 @@
     "shots": [
       {
         "name": "front",
-        "camera": [0.0, -6.2, 1.15],
+        "camera": [0.0, -5.4, 1.1],
         "target": [0.0, 0.0, 1.0],
         "lens": 50,
         "sun": [-0.45, -0.75, 0.55]
       },
       {
         "name": "three-quarter",
-        "camera": [-3.9, -4.7, 1.7],
+        "camera": [-3.4, -4.1, 1.6],
         "target": [0.0, 0.0, 1.0],
         "lens": 50,
         "sun": [-0.6, -0.55, 0.6]
       },
       {
         "name": "back",
-        "camera": [3.4, 5.0, 1.8],
+        "camera": [3.0, 4.3, 1.7],
         "target": [0.0, 0.0, 1.0],
         "lens": 50,
         "sun": [0.5, 0.6, 0.65]

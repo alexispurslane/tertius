@@ -80,19 +80,23 @@ for k, x in enumerate((-0.08, -0.03, 0.03, 0.08)):
 metal.cyl((cw / 2 + 0.008, cy, cz), (1, 0, 0), 0.02, 0.025, segs=16)
 accents.cyl((-cw / 2 - 0.008, cy, cz), (-1, 0, 0), 0.02, 0.025, segs=16)
 
-# --- Hoses: from each side of the backpack, around the waist, to the bottom of the chest box. -----------------------
+# --- Hoses: from each side of the chest box, under the arm, back to the front edge of the backpack. ---------------
 hoses = MB()
 for sign in (1, -1):
-    start = Vector((sign * (w / 2 - 0.02), y0 + 0.05, bottom + 0.12))
-    side_z = (bottom + cz) / 2 - 0.05
-    pts = [start, start + Vector((sign * 0.05, -0.02, 0.0))]
-    rel = SUIT[(np.abs(SUIT[:, 2] - side_z) < 0.02) & (np.abs(SUIT[:, 0]) < 0.35)]
-    side_x = float(np.abs(rel[:, 0]).max()) if len(rel) else 0.3
-    pts.append(Vector((sign * (side_x + P["hose_clearance"]), 0.0, side_z)))
-    end = Vector((sign * (cw / 2 - 0.04), cy, cz - ch / 2))
-    pts.append(end + Vector((sign * 0.1, -0.09, -0.12)))
-    pts.append(end + Vector((0.0, 0.0, -0.02)))
-    hoses.tube([tuple(p) for p in pts], P["hose_radius"], segs=10, bend=0.08)
+    start = Vector((sign * (cw / 2 + 0.01), cy + 0.01, cz - 0.02))
+    hz = cz - P["hose_drop"]
+    rel = SUIT[(np.abs(SUIT[:, 2] - hz) < 0.02) & (np.abs(SUIT[:, 0]) < 0.32) & (np.abs(SUIT[:, 1]) < 0.06)]
+    side_x = float(np.abs(rel[:, 0]).max())
+    front_x = float(np.abs(SUIT[(np.abs(SUIT[:, 2] - hz) < 0.02) & (np.abs(SUIT[:, 0]) < 0.32)
+                                & (SUIT[:, 1] < -0.1)][:, 0]).max())
+    pts = [start, start + Vector((sign * 0.05, 0.0, -0.02)),
+           Vector((sign * (front_x + P["hose_clearance"]), cy + 0.06, hz)),
+           Vector((sign * (side_x + P["hose_clearance"]), 0.0, hz)),
+           Vector((sign * (w / 2 - 0.05), y0 + 0.02, hz + 0.02)),
+           Vector((sign * (w / 2 - 0.05), y0 + 0.06, hz + 0.02))]
+    hoses.tube([tuple(p) for p in pts], P["hose_radius"], segs=10, bend=0.05)
+    # Connector collars at both ends.
+    metal.cyl(tuple(start), (sign, 0, 0), P["hose_radius"] + 0.006, 0.025, segs=16)
 hoses.finish("Hoses", M["M_Hose"], "Backpack", smooth_angle=60.0)
 
 gray.finish("Backpack_Gray", M["M_PackGray"], "Backpack", smooth_angle=35.0)
