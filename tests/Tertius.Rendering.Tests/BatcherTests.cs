@@ -827,6 +827,52 @@ public sealed class BatcherTests
                 .Equal([axes[i] * 10], $"face {i} sees the box on its axis");
     }
 
+    /// <summary>
+    /// The main view and a face that both see an instance draw it with the same GPU instance, bit for bit: its place,
+    /// its rotation interpolated between the two ticks, its scale, its material and its up. So one interpolation of the
+    /// instance serves every view.
+    /// </summary>
+    [Fact]
+    public void AFaceDrawsAnInstanceThatTheMainViewSeesWithTheMainViewsGpuInstance()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Camera.PreviousPosition = new(0, 0, 1);
+        RenderInstance box = Gpu.Instance(
+            mesh: new(1),
+            material: new(3),
+            position: new(1, 2, -10),
+            rotation: Quaternion.CreateFromYawPitchRoll(0.7f, 0.2f, -0.4f),
+            scale: new(1, 2, 0.5f)
+        );
+        box.PreviousPosition = new(-1, 2, -12);
+        box.PreviousRotation = Quaternion.CreateFromYawPitchRoll(-0.3f, 0.5f, 0.1f);
+        snapshot.Instances.Add(box);
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.3f, environment: MapOf(FaceMask.NegativeZ));
+
+        CommandRange main = scene.Opaque[DepthRanges.Near];
+        CommandRange face = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near];
+        GpuInstance seen = scene.Instances[scene.Commands[main.First].FirstInstance];
+        GpuInstance reflected = scene.Instances[scene.Commands[face.First].FirstInstance];
+        reflected.Should().Be(seen, "the face and the main view draw one interpolation of the instance");
+        seen.ModelRow0.W.Should().NotBe(1, "the place is interpolated");
+    }
+
+    [Fact]
+    public void AFaceDrawsOnlyTheInstancesOfTheSnapshotThatTheBatcherPreparesNow()
+    {
+        var batcher = new SceneBatcher();
+        RenderSnapshot before = Empty();
+        before.Instances.Add(Box(new(0, 0, -10)));
+        RenderSnapshot now = Empty();
+        now.Instances.Add(Box(new(0, 1, -12)));
+
+        Prepare(snapshot: before, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
+        PreparedScene scene = Prepare(snapshot: now, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
+
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(0, 1, -12));
+    }
+
     [Fact]
     public void TheFacesCommandsAndInstancesFollowTheMainViews()
     {

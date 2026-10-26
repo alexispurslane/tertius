@@ -38,6 +38,7 @@ internal sealed class SceneBatcher
 
     // The opaque instances that the map's faces may draw, interpolated once for every face of the frame.
     private PreparedInstance[] mapInstances = new PreparedInstance[256];
+    private int mapInstanceCount;
 
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly CommandRange[] faceRanges = new CommandRange[DepthRanges.Count];
@@ -89,7 +90,14 @@ internal sealed class SceneBatcher
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
-        CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materialCount: materialCount, scene: scene);
+        CollectVisible(
+            snapshot: snapshot,
+            alpha: alpha,
+            meshes: meshes,
+            materialCount: materialCount,
+            forMap: faces != FaceMask.None,
+            scene: scene
+        );
         CollectPuffs(snapshot, alpha, scene.Camera);
         // Before the processors: impostor captures are lit with the sun as the far shadows leave it.
         CollectLights(snapshot: snapshot, faces: faces, scene: scene);
@@ -98,14 +106,7 @@ internal sealed class SceneBatcher
             processor.Process(scene);
         Batch(scene, meshes);
         // After the main view, so that its instances and commands keep the places that they have without the map.
-        BatchFaces(
-            snapshot: snapshot,
-            alpha: alpha,
-            meshes: meshes,
-            materialCount: materialCount,
-            faces: faces,
-            scene: scene
-        );
+        BatchFaces(meshes: meshes, faces: faces, scene: scene);
         WriteConstants(snapshot, scene);
     }
 
@@ -188,36 +189,55 @@ internal sealed class SceneBatcher
         return float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
     }
 
-    private static void CollectVisible(
+    /// <summary>
+    /// Interpolates each instance that a view can draw once, for every view: the instances that the main view does not
+    /// cull go into the scene's visible instances, and when <paramref name="forMap"/> holds, the opaque ones go into the
+    /// map's instances too, before any face culls them.
+    /// </summary>
+    private void CollectVisible(
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
         int materialCount,
+        bool forMap,
         PreparedScene scene
     )
     {
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         scene.SubmittedInstances = instances.Length;
+        mapInstanceCount = 0;
         CameraView camera = scene.Camera;
         foreach (ref readonly RenderInstance instance in instances)
         {
-            if (
-                Place(instance: instance, alpha: alpha, meshes: meshes, eye: camera.Offset) is not { } placement
-                || camera.Culls(placement.Position, placement.Radius)
-            )
+            if (Place(instance: instance, alpha: alpha, meshes: meshes, eye: camera.Offset) is not { } placement)
+                continue;
+            bool inMap = forMap && (instance.Flags & RenderFlags.Transparent) == 0;
+            bool inView = !camera.Culls(placement.Position, placement.Radius);
+            if (!inMap && !inView)
                 continue;
 
-            scene.AddVisible() = Prepared(
+            PreparedInstance prepared = Prepared(
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
                 materialCount: materialCount
-            ) with
-            {
-                Depth = Vector3.Dot(placement.Position, camera.Forward),
-                Distance = placement.Position.Length(),
-            };
+            );
+            if (inMap)
+                AddMapInstance(prepared);
+            if (inView)
+                scene.AddVisible() = prepared with
+                {
+                    Depth = Vector3.Dot(placement.Position, camera.Forward),
+                    Distance = placement.Position.Length(),
+                };
         }
+    }
+
+    private void AddMapInstance(in PreparedInstance instance)
+    {
+        if (mapInstanceCount == mapInstances.Length)
+            Array.Resize(ref mapInstances, mapInstances.Length * 2);
+        mapInstances[mapInstanceCount++] = instance;
     }
 
     /// <summary>
@@ -268,26 +288,14 @@ internal sealed class SceneBatcher
     /// <summary>
     /// Prepares one view for each face of <paramref name="faces"/>, in layer order, after the main view's instances and
     /// commands: the opaque instances of the snapshot that the face does not cull, by their depth along its axis, as
-    /// geometry and with no impostor (docs/plans/environment-map.md, "Culling and level of detail").
+    /// geometry and with no impostor (docs/plans/environment-map.md, "Culling and level of detail"). The instances are the
+    /// map's, which <see cref="CollectVisible"/> interpolated with the main view's.
     /// </summary>
-    private void BatchFaces(
-        RenderSnapshot snapshot,
-        float alpha,
-        ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
-        FaceMask faces,
-        PreparedScene scene
-    )
+    private void BatchFaces(ReadOnlySpan<MeshInfo> meshes, FaceMask faces, PreparedScene scene)
     {
         if (faces == FaceMask.None)
             return;
-        Span<PreparedInstance> instances = CollectMapInstances(
-            snapshot: snapshot,
-            alpha: alpha,
-            meshes: meshes,
-            materialCount: materialCount,
-            eye: scene.Camera.Offset
-        );
+        Span<PreparedInstance> instances = mapInstances.AsSpan(0, mapInstanceCount);
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
             var face = (CubeFace)layer;
@@ -323,36 +331,6 @@ internal sealed class SceneBatcher
                 )
             );
         }
-    }
-
-    /// <summary>The opaque instances of the snapshot that a face may draw, interpolated, before any face culls them.</summary>
-    private Span<PreparedInstance> CollectMapInstances(
-        RenderSnapshot snapshot,
-        float alpha,
-        ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
-        Vector3 eye
-    )
-    {
-        int count = 0;
-        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
-        {
-            if (
-                (instance.Flags & RenderFlags.Transparent) != 0
-                || Place(instance: instance, alpha: alpha, meshes: meshes, eye: eye) is not { } placement
-            )
-                continue;
-            if (count == mapInstances.Length)
-                Array.Resize(ref mapInstances, mapInstances.Length * 2);
-            mapInstances[count++] = Prepared(
-                instance: instance,
-                placement: placement,
-                alpha: alpha,
-                materialCount: materialCount
-            );
-        }
-
-        return mapInstances.AsSpan(0, count);
     }
 
     /// <summary>
