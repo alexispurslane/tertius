@@ -436,6 +436,52 @@ public sealed class EnvironmentPrefilterTests
     }
 
     /// <summary>
+    /// The irradiance of each frame is the projection of that frame's map, frame after frame: the blocks of every frame
+    /// add up into it, whichever block finishes last, and no frame's sum carries into the next. The six faces are drawn in
+    /// every frame, under a sun that moves between frames, so each frame's map differs from the one before.
+    /// </summary>
+    [Fact]
+    public void EachFramesIrradianceIsTheProjectionOfThatFramesMap()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
+        try
+        {
+            RenderSnapshot colorful = Colorful(renderer);
+            RenderSnapshot moved = Gpu.Snapshot(sunDirection: new(-0.6f, 0.2f, 0.4f), sunIntensity: 1f);
+            moved.Instances.AddRange(colorful.Instances);
+            Irradiance? before = null;
+            foreach (RenderSnapshot snapshot in (RenderSnapshot[])[colorful, moved, colorful])
+            {
+                renderer.Render(snapshot, 1f);
+
+                var expected = Irradiance.Project(
+                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
+                    Size
+                );
+                Irradiance read = renderer.ReadEnvironmentIrradiance();
+                float total = 0;
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    total += expected[i].Length();
+                if (before is { } last)
+                    Vector3
+                        .Distance(last[0], expected[0])
+                        .Should()
+                        .BeGreaterThan(1e-2f * total, "the sun's move changes the map");
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    Vector3
+                        .Distance(read[i], expected[i])
+                        .Should()
+                        .BeLessThan(1e-4f * total, "coefficient {0} is this frame's projection", i);
+                before = expected;
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
     /// The smallest face size, the default and the largest: the projection's partial sums cover every texel of every
     /// face, however many blocks of rows the face splits into.
     /// </summary>
