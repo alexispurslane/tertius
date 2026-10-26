@@ -1,6 +1,7 @@
 // The reflection's footprint f of a forward pass, from the screen derivatives: the transparent pass and the impostor
-// capture. The lighting pass and the reflection trace take f from the G-buffer in surfaceAt (gbuffer_surface.glsl), so
-// that both see the same f (docs/plans/environment-map.md, "Where it runs").
+// capture. The lighting pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample
+// at half resolution) take f from the G-buffer in surfaceAt (gbuffer_surface.glsl), so that both see the same f
+// (docs/plans/environment-map.md, "Where it runs").
 #ifndef TERTIUS_REFLECTION_FOOTPRINT_GLSL
 #define TERTIUS_REFLECTION_FOOTPRINT_GLSL
 

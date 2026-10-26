@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Silk.NET.Vulkan;
@@ -5,9 +6,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The two pyramids of the screen-space reflections, their level sets and the trace's set
-/// (docs/plans/screen-space-reflections.md, "Images" and "Descriptor sets"). Both images stay in the General layout for
-/// their whole life. <see cref="RenderTargets"/> owns one under <see cref="ConeTracedReflections"/>.
+/// The two pyramids of the screen-space reflections, the image of their trace (<see cref="Trace"/>), the pyramids' level
+/// sets and the trace's set (docs/plans/screen-space-reflections.md, "Images" and "Descriptor sets"). The
+/// images stay in the General layout for their whole life. <see cref="RenderTargets"/> owns one under <see cref="ConeTracedReflections"/>.
 /// </summary>
 /// <remarks>
 /// A Vulkan mip halves its image and rounds down. A level of the depth pyramid halves the screen and rounds up, so the
@@ -39,13 +40,17 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     private ImageView[] depthMipViews = [];
     private ImageView[] radianceMipViews = [];
 
-    /// <summary>Allocates the sets for the largest pyramids, and makes the images for a screen of <paramref name="extent"/>.</summary>
+    /// <summary>
+    /// Allocates the sets for the largest pyramids, and makes the images for a screen of <paramref name="extent"/> and a
+    /// trace at <paramref name="resolution"/>.
+    /// </summary>
     public ReflectionTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
-        GpuImage hdr
+        GpuImage hdr,
+        TraceResolution resolution
     )
     {
         this.device = device;
@@ -55,8 +60,9 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             depthLevelSets[i] = layouts.AllocatePyramidLevelSet();
         for (int i = 0; i < radianceLevelSets.Length; i++)
             radianceLevelSets[i] = layouts.AllocatePyramidLevelSet();
+        DepthTailSet = layouts.AllocateDepthTailSet();
         TraceSet = layouts.AllocateReflectionSet();
-        Create(extent, hdr);
+        Create(extent: extent, hdr: hdr, resolution: resolution);
     }
 
     /// <summary>The depth pyramid image, RG32F: mip m holds level m + 1, for m from 0 to <see cref="TopLevel"/> − 1, padded.</summary>
@@ -65,13 +71,31 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     /// <summary>The radiance pyramid, RGBA16F: mip k holds level k, from the screen's size to 1 × 1.</summary>
     public GpuImage RadianceImage { get; private set; }
 
+    /// <summary>The trace's own image: none for <see cref="FullTrace"/>, or the half-resolution trace's. Remade on a resize, in the same case.</summary>
+    public ReflectionTrace Trace { get; private set; }
+
+    /// <summary>The resolution of <see cref="Trace"/>.</summary>
+    public TraceResolution Resolution =>
+        Trace switch
+        {
+            FullTrace => TraceResolution.Full,
+            HalfTrace => TraceResolution.Half,
+            null => throw new UnreachableException("Create sets a trace."),
+        };
+
     /// <summary>The depth pyramid's top level L, whose one cell covers the screen (<see cref="DepthPyramid.LevelCount"/>).</summary>
     public int TopLevel { get; private set; }
 
     /// <summary>The radiance pyramid's top level, whose one texel covers the screen: its mip count − 1.</summary>
     public int RadianceTopLevel => (int)RadianceImage.MipLevels - 1;
 
-    /// <summary>Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids and the HDR image.</summary>
+    /// <summary>Set 3 of <see cref="DescriptorLayouts.DepthTailLayout"/>, written when the depth image has a tail (<see cref="DepthPyramidTail"/>).</summary>
+    public DescriptorSet DepthTailSet { get; }
+
+    /// <summary>
+    /// Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids, the HDR image and, for a
+    /// <see cref="HalfTrace"/>, its image at binding 4.
+    /// </summary>
     public DescriptorSet TraceSet { get; }
 
     /// <summary>Why the pyramids cannot cover a screen of <paramref name="width"/> by <paramref name="height"/> px, or null when they can.</summary>
@@ -122,9 +146,12 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         return radianceLevelSets[level];
     }
 
-    /// <summary>Makes the images for a screen of <paramref name="extent"/> and writes every set in use. The device must be idle.</summary>
+    /// <summary>
+    /// Makes the images for a screen of <paramref name="extent"/> and a trace at <paramref name="resolution"/>, and writes
+    /// every set in use. The device must be idle.
+    /// </summary>
     [MemberNotNull(nameof(DepthImage), nameof(RadianceImage))]
-    internal void Create(Extent2D extent, GpuImage hdr)
+    internal void Create(Extent2D extent, GpuImage hdr, TraceResolution resolution)
     {
         TopLevel = DepthPyramid.LevelCount((int)extent.Width, (int)extent.Height);
         DepthImage = CreateImage(
@@ -139,9 +166,31 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             mipLevels: (uint)BitOperations.Log2(Math.Max(extent.Width, extent.Height)) + 1,
             name: "radiance pyramid"
         );
+        Trace = resolution switch
+        {
+            TraceResolution.Full => new FullTrace(),
+            TraceResolution.Half => new HalfTrace(
+                GpuImage.Create(
+                    device: device,
+                    allocator: allocator,
+                    extent: new((extent.Width + 1) / 2, (extent.Height + 1) / 2),
+                    format: RadianceFormat,
+                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+                    mipLevels: 1,
+                    name: "reflection trace"
+                )
+            ),
+        };
         depthMipViews = MipViews(DepthImage);
         radianceMipViews = MipViews(RadianceImage);
+        WriteLevelSets(hdr);
+        WriteDepthTailSet();
+        WriteTraceSet(hdr);
+    }
 
+    /// <summary>Writes the level sets of both pyramids over the mip views of <see cref="Create"/>.</summary>
+    private void WriteLevelSets(GpuImage hdr)
+    {
         // Level 1 reads the distance target from the G-buffer set, so its binding 0 stays unwritten.
         for (int level = 1; level <= TopLevel; level++)
         {
@@ -172,11 +221,30 @@ internal sealed unsafe class ReflectionTargets : IDisposable
                 );
             layouts.WriteStorageImage(set: radianceLevelSets[level], binding: 1, view: radianceMipViews[level]);
         }
+    }
 
-        // The bindings of reflection_trace.comp; binding 2 is the immutable sampler.
+    /// <summary>
+    /// Writes the reflection set over the pyramids of <see cref="Create"/>, the HDR image <paramref name="hdr"/> and the
+    /// image of a <see cref="HalfTrace"/>.
+    /// </summary>
+    private void WriteTraceSet(GpuImage hdr)
+    {
+        // The bindings of DescriptorLayouts.ReflectionLayout; binding 2 is the immutable sampler.
         layouts.WriteImage(set: TraceSet, binding: 0, view: DepthImage.View, layout: ImageLayout.General);
         layouts.WriteImage(set: TraceSet, binding: 1, view: RadianceImage.View, layout: ImageLayout.General);
         layouts.WriteStorageImage(set: TraceSet, binding: 3, image: hdr);
+        switch (Trace)
+        {
+            case HalfTrace half:
+                layouts.WriteStorageImage(set: TraceSet, binding: 4, image: half.Traced);
+                break;
+            case FullTrace:
+                // The full-resolution trace writes the HDR image only, so binding 4 stays unwritten.
+                break;
+            case null:
+            default:
+                throw new UnreachableException();
+        }
     }
 
     /// <summary>Destroys the views and the images. Safe to call twice. The device must be idle.</summary>
@@ -188,6 +256,16 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         radianceMipViews = [];
         DepthImage.Dispose();
         RadianceImage.Dispose();
+        switch (Trace)
+        {
+            case HalfTrace half:
+                half.Traced.Dispose();
+                break;
+            case FullTrace or null:
+                break;
+            default:
+                throw new UnreachableException();
+        }
     }
 
     // The pool of the layouts frees the sets.
@@ -204,6 +282,25 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             mipLevels: mipLevels,
             name: name
         );
+
+    /// <summary>
+    /// Writes the depth tail set: the mip before the tail, and the tail's mips from the first array element. The elements
+    /// past the tail repeat its last mip: the shader never writes them, but each must hold a view.
+    /// </summary>
+    private void WriteDepthTailSet()
+    {
+        int first = DepthPyramidTail.FirstMip(DepthImage);
+        if (first >= depthMipViews.Length)
+            return;
+        layouts.WriteImage(set: DepthTailSet, binding: 0, view: depthMipViews[first - 1], layout: ImageLayout.General);
+        for (int element = 0; element < DepthPyramidTail.Mips; element++)
+            layouts.WriteStorageImage(
+                set: DepthTailSet,
+                binding: 1,
+                arrayElement: (uint)element,
+                view: depthMipViews[Math.Min(first + element, depthMipViews.Length - 1)]
+            );
+    }
 
     private static ImageView[] MipViews(GpuImage image)
     {

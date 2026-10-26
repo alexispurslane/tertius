@@ -27,14 +27,15 @@ namespace Tertius.Rendering;
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
-/// inverse depth of the distance target, level by level.</item>
+/// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
 /// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
-/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: one ray per pixel
-/// through the depth pyramid, whose hit adds its reflection to the lit image.</item>
+/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
+/// block of 2 × 2 pixels through the depth pyramid into the half-resolution trace, and its upsample, which adds each
+/// pixel's reflection to the lit image; at full resolution, one ray per pixel, whose hit adds it.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
@@ -857,6 +858,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadDistance() => ReadLevel(image: targets.Distance, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The G-buffer's normal target of the last frame, row by row from the top: per pixel the octahedral form of the
+    /// shading normal in RG and of the geometric normal in BA, in world axes. A test hook, like <see cref="ReadDistance"/>.
+    /// </summary>
+    internal float[] ReadNormals() => ReadLevel(image: targets.Normal, layer: 0, mip: 0).Values;
+
+    /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -873,6 +880,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
         return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
+    }
+
+    /// <summary>
+    /// The last frame's half-resolution trace of the reflections: for each texel, the radiance and the coverage of its
+    /// representative pixel's ray, times the ray's fade, or a negative coverage for no ray. A test hook, like
+    /// <see cref="ReadRadiancePyramidLevel"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadReflectionTrace()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuImage traced = pyramids.Trace switch
+        {
+            HalfTrace half => half.Traced,
+            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        return ReadLevel(image: traced, layer: 0, mip: 0);
     }
 
     /// <summary>
@@ -1016,18 +1041,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
+    /// <summary>How <see cref="ReadLevel"/> finds each channel of an image in memory.</summary>
+    private enum StoredChannel
+    {
+        /// <summary>A 16-bit float.</summary>
+        Half,
+
+        /// <summary>A 32-bit float.</summary>
+        Float,
+
+        /// <summary>A 16-bit signed normalized integer, for −1 to 1.</summary>
+        Snorm16,
+    }
+
     /// <summary>
-    /// Copies one mip of one layer of a float color image to the CPU, channel by channel, row by row from the top, with
-    /// the mip's size.
+    /// Copies one mip of one layer of a color image of floats or of 16-bit signed normalized integers to the CPU, as
+    /// floats, channel by channel, row by row from the top, with the mip's size.
     /// </summary>
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
-        (int channels, bool halves) = image.Format switch
+        (int channels, StoredChannel stored) = image.Format switch
         {
-            Format.R16Sfloat => (1, true),
-            Format.R16G16B16A16Sfloat => (4, true),
-            Format.R32Sfloat => (1, false),
-            Format.R32G32Sfloat => (2, false),
+            Format.R16Sfloat => (1, StoredChannel.Half),
+            Format.R16G16B16A16Sfloat => (4, StoredChannel.Half),
+            Format.R32Sfloat => (1, StoredChannel.Float),
+            Format.R32G32Sfloat => (2, StoredChannel.Float),
+            Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1038,7 +1077,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: (ulong)(count * (halves ? 2 : 4)),
+            size: (ulong)(count * (stored is StoredChannel.Float ? 4 : 2)),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: $"{image.Name} readback"
@@ -1056,15 +1095,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
 
         float[] values = new float[count];
-        if (halves)
+        switch (stored)
         {
-            var stored = new ReadOnlySpan<Half>(buffer.Mapped, count);
-            for (int i = 0; i < count; i++)
-                values[i] = (float)stored[i];
-        }
-        else
-        {
-            new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
+            case StoredChannel.Half:
+                var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = (float)halves[i];
+                break;
+            case StoredChannel.Float:
+                new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
+                break;
+            case StoredChannel.Snorm16:
+                // Vulkan's conversion of a signed normalized integer, which maps both −32,768 and −32,767 to −1.
+                var integers = new ReadOnlySpan<short>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = Math.Max(integers[i] / 32767f, -1f);
+                break;
+            default:
+                throw new UnreachableException();
         }
 
         return (values, (int)extent.Width, (int)extent.Height);
@@ -1260,7 +1308,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 extent: extent,
                 glowLevels: glowLevels,
                 smaaTables: smaaTables,
-                reflections: reflections is ConeTracedReflections
+                reflections: reflections switch
+                {
+                    NoReflections => null,
+                    ConeTracedReflections on => on.Resolution,
+                }
             )
         );
     }
@@ -1443,19 +1495,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
         );
-        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and writes the
-        // image that the pyramid read.
-        Graph.Add(
-            FrameGraph.Stage.Reflections,
-            new ReflectionPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                targets: pyramids,
-                setting: setting,
-                constants: ShadingConstants
-            )
-        );
+        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and the step that
+        // writes the reflections writes the image that the pyramid read. The upsample reads the half-resolution trace.
+        ReflectionStep[] steps = pyramids.Trace switch
+        {
+            FullTrace => [ReflectionStep.Trace],
+            HalfTrace => [ReflectionStep.Trace, ReflectionStep.Upsample],
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        foreach (ReflectionStep step in steps)
+            Graph.Add(
+                FrameGraph.Stage.Reflections,
+                new ReflectionPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    targets: pyramids,
+                    setting: setting,
+                    constants: ShadingConstants,
+                    step: step
+                )
+            );
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

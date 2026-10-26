@@ -1,6 +1,6 @@
 ---
 id: ter-542e
-status: open
+status: in_progress
 deps: [ter-cnam, ter-iz58]
 links: []
 created: 2026-10-25T16:58:27Z

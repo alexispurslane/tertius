@@ -650,16 +650,93 @@ public sealed class EnvironmentMapsPerFrameTests
         BlueOverRed(outside).Should().BeGreaterThan(0.3f, "the mirror outside reflects the blue square: {0}", outside);
     }
 
-    [Fact]
-    public void TheReflectionsFallBackToTheMapOfTheirPixel()
+    /// <summary>The traces of the reflections: one ray per pixel, and one per block of 2 × 2 pixels with the upsample.</summary>
+    public static TheoryData<TraceResolution> Resolutions => [TraceResolution.Full, TraceResolution.Half];
+
+    /// <summary>The reflections of the default setting, traced at <paramref name="resolution"/>.</summary>
+    private static ConeTracedReflections TracedAt(TraceResolution resolution) =>
+        ConeTracedReflections.Default with
+        {
+            Resolution = resolution,
+        };
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void TheReflectionsFallBackToTheMapOfTheirPixel(TraceResolution resolution)
     {
         // The rays leave the screen toward the camera, so each falls back to its pixel's map.
-        (Vector3 inside, Vector3 outside) = Mirrors(ConeTracedReflections.Default, "maps-mirrors-traced");
+        (Vector3 inside, Vector3 outside) = Mirrors(TracedAt(resolution), $"maps-mirrors-traced-{resolution}");
 
         BlueOverRed(inside).Should().BeLessThan(-0.3f, "the room's mirror falls back to the room's map: {0}", inside);
         BlueOverRed(outside)
             .Should()
             .BeGreaterThan(0.3f, "the mirror outside falls back to the outside's: {0}", outside);
+    }
+
+    // A hit in the room. A mirror on the floor reflects the view ray up and away from the eye, toward a green square at
+    // the room's open side, which the room's map holds there and the outside's map does not. A dark screen in front of the
+    // square catches the mirror's rays, but not the map's direction from the room's center, which passes above it.
+
+    /// <summary>The center of the mirror on the floor, 1 m below the eye and 2.5 m ahead.</summary>
+    private static readonly Vector3 FloorMirror = new(0, -1, -2.5f);
+
+    /// <summary>The radiance of the green square, which only the room's map holds.</summary>
+    private const float GreenRadiance = 4;
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AHitInTheRoomTakesAwayTheRoomsMapFromItsPixel(TraceResolution resolution)
+    {
+        VulkanRenderer renderer = Renderer(reflections: TracedAt(resolution));
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = MirrorRoom(renderer, plane);
+            MaterialId green = EnvironmentScenes.Emissive(renderer, new(0, GreenRadiance, 0));
+            snapshot.Instances.Add(
+                RoomScenes.In(
+                    RoomScenes.InRoom,
+                    EnvironmentScenes.Square(plane: plane, material: green, center: new(0, 0, -3.2f), halfSize: 2)
+                )
+            );
+            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            snapshot.Instances.Add(
+                RoomScenes.In(
+                    RoomScenes.InRoom,
+                    EnvironmentScenes.Facing(
+                        plane: plane,
+                        material: mirror,
+                        center: FloorMirror,
+                        normal: Vector3.UnitY,
+                        halfSize: 0.3f
+                    )
+                )
+            );
+            // The mirror's rays meet the plane z = −3 from y = −0.93 to −0.64 and x within ±0.36.
+            snapshot.Instances.Add(
+                RoomScenes.In(
+                    RoomScenes.InRoom,
+                    EnvironmentScenes.Facing(
+                        plane: plane,
+                        material: EnvironmentScenes.Emissive(renderer, Vector3.Zero),
+                        center: new(0, -0.7f, -3),
+                        normal: Vector3.UnitZ,
+                        halfSize: 0.4f
+                    )
+                )
+            );
+
+            Vector3 shown = Shown(renderer, snapshot, $"maps-mirror-hit-{resolution}")
+                .Color(Gpu.Project(point: FloorMirror, width: Width, height: Height));
+
+            // The lighting pass added the room's map, the green square. The delta takes away the map of the mirror's own
+            // pixel, so the dark screen replaces the square. Taking away the outside's map, dark there, would leave it green.
+            shown.Y.Should().BeLessThan(0.1f, "the hit replaces the room's map in the mirror: {0}", shown);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     [Fact]
@@ -842,7 +919,7 @@ public sealed class EnvironmentMapsPerFrameTests
             MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
             for (int map = 0; map < colors.Length; map++)
             {
-                var depth = (ushort)(colors.Length - 1 - map);
+                ushort depth = (ushort)(colors.Length - 1 - map);
                 // Dim, so that the tone map keeps each hue apart: a bright green comes out pale, nearer yellow than green.
                 MaterialId glow = EnvironmentScenes.Emissive(renderer, colors[map] * 0.5f);
                 float distance = 60 - 8 * map;

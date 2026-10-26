@@ -75,7 +75,7 @@ Settled by this design:
 17. The snapshot builder finds every frame's chain depth in one pass over the frames in dense order, before the instances. A frame on the chain has its own depth. Any other frame takes its tree parent's depth, and a root of another tree takes N − 1. The tree keeps each parent before its children, so the parent's depth is known first. A numeric frame lies in the tree between its semantic frame and that frame's semantic children, so it passes its semantic frame's depth on to them. Reason: one pass of O(frames). Each instance then reads the depth of the dense frame that `TryGetRenderPoses` already gives it.
 18. The radiance maps and the specular maps of all maps are two cube array images of 6 × capacity layers. Map i holds layers 6i to 6i + 5. The readers sample one `samplerCubeArray` at the layer of the map. Reason: one descriptor serves every map. An array of cube descriptors, one per map, goes past the spec's least `maxPerStageDescriptorSampledImages`, 16, beside the G-buffer's and the tables' images. A cube array needs the device feature `imageCubeArray`, which every target driver offers (see "Portable Vulkan").
 19. MaxMaps is 42: ⌊256 / 6⌋, the most cubes that one cube array holds within the spec's least `maxImageArrayLayers`, 256. A chain of more than 42 frames merges its outermost frames into map 0, whose frame is the 42nd from the camera. Reason: a portable limit. No scene comes near it. `demo-surface` has four.
-20. The map code. The base color target is `R8G8B8A8_SRGB`. Vulkan applies the sRGB curve to R, G and B only, so the alpha is a plain 8-bit UNORM value. `gbuffer.frag` writes 1.0 there, and `impostor.frag` writes 0, which marks an unlit pixel whose light is baked (`lighting.frag` and `reflection_trace.comp` test `alpha == 0.0`). The clear value is 0 too. The spec lets a conversion from float to UNORM return either of the two codes nearest the value, and asks only that it should round to nearest. So each map owns two codes, and the written value lies between them: map i writes min((255.5 − 2i) / 255, 1), and a reader decodes i = (256 − c) >> 1 from the code c = round(alpha · 255). Map 0 writes exactly 1.0, as today, which the spec converts to 255 exactly. The code can name 128 maps, 0 to 127, with codes 1 to 255, and code 0 stays the unlit mark. The renderer uses at most 42, codes 173 to 255. Reason: the user's decision 6, written to the spec, and with one map the G-buffer holds today's bits.
+20. The map code. The base color target is `R8G8B8A8_SRGB`. Vulkan applies the sRGB curve to R, G and B only, so the alpha is a plain 8-bit UNORM value. `gbuffer.frag` writes 1.0 there, and `impostor.frag` writes 0, which marks an unlit pixel whose light is baked (`lighting.frag`, and `reflectingPixel` in `reflection_pixel.glsl` for the full-resolution trace, the half-resolution trace and the upsample, test `alpha == 0.0`). The clear value is 0 too. The spec lets a conversion from float to UNORM return either of the two codes nearest the value, and asks only that it should round to nearest. So each map owns two codes, and the written value lies between them: map i writes min((255.5 − 2i) / 255, 1), and a reader decodes i = (256 − c) >> 1 from the code c = round(alpha · 255). Map 0 writes exactly 1.0, as today, which the spec converts to 255 exactly. The code can name 128 maps, 0 to 127, with codes 1 to 255, and code 0 stays the unlit mark. The renderer uses at most 42, codes 173 to 255. Reason: the user's decision 6, written to the spec, and with one map the G-buffer holds today's bits.
 21. `GpuInstance` gains `Map` (80 to 96 bytes), `GpuPuff` gains `Map` (32 to 48 bytes), and `GpuLight` holds its `Map` in the unused part of its last vector (64 bytes as before). `DrawPushConstants` gains `Map` (80 to 84 bytes). The frame constants gain `mapAxes`, 42 quaternions (720 to 1,392 bytes). Reason: each is the honest field. The instance's growth is the one with a cost, which Part 4 measures. If the benchmark shows it, a later change can pack the map into the instance's material word, as "Later" says.
 22. The irradiance buffer holds MaxMaps × 9 `vec4`, 6,048 bytes, from creation, and map i's nine coefficients start at 9i. Each slot's readback buffer has the same size, and its copy takes the first M maps. Reason: it is small, so it never needs to grow, and its binding is written once.
 23. The capacity grows in `EnvironmentMap.FacesFor`, before batching, when M passes it. The growth waits for the device to be idle, makes the cube arrays anew for M maps, rewrites the map's own sets, empties "drawn for", and counts a version that tells each frame slot to rewrite binding 12 of its frame set. So every map refreshes in that frame. The capacity never shrinks. Reason: memory follows the longest chain that the camera has seen, and the growth is the path of a resize (`DrawFrame` waits for the device when the swapchain changes size). At the first frame nothing is in flight, so the first growth costs no wait. A camera that goes back and forth between a cabin and the ground grows once.
@@ -353,7 +353,7 @@ float mapCode(uint map) { return min((255.5 - 2.0 * float(map)) / 255.0, 1.0); }
 outBaseColor = vec4(s.baseColor.rgb, mapCode(inMaterialAndMap.y));
 ```
 
-`surfaceAt` in `gbuffer_surface.glsl`, which the lighting pass and the reflection trace read a lit pixel through, decodes it:
+`surfaceAt` in `gbuffer_surface.glsl`, which the lighting pass and the reflections' passes read a lit pixel through, decodes it:
 
 ```glsl
 uint mapOfCode(float alpha) { return (256u - uint(round(alpha * 255.0))) >> 1; }
@@ -394,12 +394,14 @@ where
 | Pass | Where the map comes from |
 |---|---|
 | Lighting, a lit pixel | The map code, through `surfaceAt` |
-| Reflections' fallback (`reflection_trace.comp`) | The map code, through `surfaceAt` |
+| Reflections' fallback (`reflectionDelta` in `reflection_pixel.glsl`, in the full-resolution trace or the upsample) | The map code of the pixel that the delta lights, through `surfaceAt` |
 | Transparent, a mesh | The instance, through `mesh.vert` |
 | Impostor capture | The instance, through `mesh.vert` |
 | Lit puffs (`scatteredLight`) | `GpuPuff.map` |
 | Environment faces | None: no ambient light. `draw.map` filters the lights |
 | Sky pixels, impostor billboards | None |
+
+The reflections' delta f · (W · C − a · k · T_s) reads a map only in T_s, the ambient specular term, through `ambientTerms` with the `ShadingInput` of the pixel that it lights. The full-resolution trace computes it at its own pixel. At half resolution, the trace stores only each block's ray result, C and a, from the radiance pyramid, which reads no map, and the upsample computes the delta at each full-resolution pixel from its own `surfaceAt`. So every pixel takes away the very term that the lighting pass added there, from its own map, also where a block's four pixels lie in different maps, and the upsample's weights need no map.
 
 `ShadingInput` gains `uint map`. `environmentAmbient` reads `s.map`. `localLights` and `directRadiance` gain `uint lastMap`: the face shader passes `draw.map`, and every other caller passes `EveryMap`, 0xFFFFFFFF, so the main view adds the same lights in the same order as today.
 
@@ -460,7 +462,7 @@ The new shader sites for the site table of ARCHITECTURE.md, "Portable Vulkan":
 | Site | The input that would break it | Verdict |
 |---|---|---|
 | `mapCode` (`gbuffer.frag`): the base color's alpha, converted to an 8-bit UNORM code | A conversion that returns either of the two codes nearest the value, which the spec allows ("should round to nearest") | Safe: map i owns two codes and writes the value between them, so either code decodes to i. Map 0 writes 1.0, which the spec converts to 255 exactly. Map 41, the last, writes codes 173 or 174, so no lit pixel writes the unlit code 0 |
-| `mapOfCode` (`gbuffer_surface.glsl`): round(alpha · 255) and (256 − c) >> 1 | A code of 0, which gives 128, past the maps | Safe: `lighting.frag` and `reflection_trace.comp` return for an alpha of 0 before `surfaceAt`. A lit pixel holds a code from 173 to 255, which the G-buffer pass wrote, so the map is at most 41. The round of a finite value in [0, 255] is an integer in range |
+| `mapOfCode` (`gbuffer_surface.glsl`): round(alpha · 255) and (256 − c) >> 1 | A code of 0, which gives 128, past the maps | Safe: `lighting.frag`, and `reflectingPixel` in the full-resolution trace, the half-resolution trace and the upsample, return for an alpha of 0 before `surfaceAt`. A lit pixel holds a code from 173 to 255, which the G-buffer pass wrote, so the map is at most 41. The round of a finite value in [0, 255] is an integer in range |
 | `inMapAxes` (`environment.glsl`): a quaternion turns a direction | A quaternion that is not unit or not finite | Safe: `SceneBatcher.Interpolate` normalizes it, and counts one whose squared length is not finite as unset, as for the root rotation. A turn by a unit quaternion keeps a unit vector unit. The identity turns a vector to itself exactly, because its vector part is 0 |
 | The cube array's layer `float(map)`, and the irradiance at 9 · map + i | A map past the served maps | Safe: every map index comes from the batcher, below M ≤ 42, or from a code of a lit pixel. The buffer holds 42 maps. Vulkan rounds a layer coordinate to the nearest integer and clamps it to the layers |
 | The prefilter shaders' layer 6 · Map + face and coefficient 9 · Map + i | A map past the capacity | Safe: the pass dispatches only maps below M, and the growth makes the capacity at least M before batching |
@@ -487,7 +489,7 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame": 3 batch
 | `draw.map` | `EnvironmentFacePass` | Step 5 | `environment_face.frag`'s light filter | Step 5 | Push constants | `draw.eye` |
 | Map i's faces, level 0 | `EnvironmentFacePass` | Step 5 of a frame that draws them | The prefilter | Step 6 of that frame and of every later frame until drawn again | The radiance map, layers 6i to 6i + 5 | Today's faces |
 | Map i's mips, specular levels and irradiance | `EnvironmentPrefilterPass` | Step 6 of a frame that draws one of its faces | The impostor captures, lighting, reflections, transparent, lit puffs | Steps 7 to 14 of that frame and later ones | The radiance map's levels 1 and up, the specular map's layers, the irradiance's coefficients 9i to 9i + 8 | Today's |
-| The map code | `gbuffer.frag` | Step 8 | `surfaceAt`, in the lighting pass and the reflection trace | Steps 11, 13 | The base color target's alpha | Today's 1.0 |
+| The map code | `gbuffer.frag` | Step 8 | `surfaceAt`, in the lighting pass and the reflections' passes | Steps 11, 13 | The base color target's alpha | Today's 1.0 |
 | `ShadingInput.map` | Each caller, from its source | Per pixel | `environmentAmbient`, `scatteredLight` | Per pixel | A value in the shader | `ShadingInput.reflectionFootprint` |
 | The readback of a slot | The copy after the last prefilter | Step 6 | `EnvironmentMap.Collect` | After the slot's fence | The readback buffers | Today's |
 | The maps of a slot's readback | `Drew` | After `SubmitAndPresent` | `EnvironmentMap.Collect` | After the slot's fence | `EnvironmentMap` | `FrameResources.Number` |
@@ -640,7 +642,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `GlassOutsideReflectsTheOutsidesMap`
 - `ALitPuffOutsideTakesTheMeanRadianceOfTheOutsidesMap`
 - `AnImpostorOutsideBakesTheOutsidesMap`
-- `TheReflectionsFallBackToTheMapOfTheirPixel`, under `ConeTracedReflections`.
+- `TheReflectionsFallBackToTheMapOfTheirPixel`, under `ConeTracedReflections`, at both trace resolutions.
+- `AHitInTheRoomTakesAwayTheRoomsMapFromItsPixel`, at both trace resolutions: a ray's hit takes away the ambient specular term of the map of the pixel that the delta lights.
 - `TheGBufferCarriesTheMapCodeThatMapCodeGives`: pins `gbuffer.frag` and `surfaceAt` to `MapCode`, through a mirror that shows which map a pixel read.
 - `WithEveryObjectInTheCamerasFrameAChainOfTwoGivesTheBytesOfAChainOfOne`: the camera's frame's map is the same map whatever lies above it.
 
