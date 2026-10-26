@@ -130,14 +130,12 @@ public sealed class ReflectionUpsampleTests
     }
 
     [Fact]
-    public void HitsOnOneSurfaceAgree()
-    {
+    public void HitsOnOneSurfaceAgree() =>
         // The second hit lies deeper by less than the slab thickness, a tenth of the depth.
         ReflectionUpsample
             .RaysDisagree([new TexelHit(Result: Dim, HitDepth: 9), new TexelHit(Result: Bright, HitDepth: 9.5)])
             .Should()
             .BeFalse();
-    }
 
     [Fact]
     public void AHitBesideAMissDisagrees() =>
@@ -148,8 +146,7 @@ public sealed class ReflectionUpsampleTests
         ReflectionUpsample.RaysDisagree([new TexelMiss(), new TexelHit(Result: Bright, HitDepth: 9)]).Should().BeTrue();
 
     [Fact]
-    public void HitsWhoseDepthsDifferByMoreThanTheSlabThicknessDisagree()
-    {
+    public void HitsWhoseDepthsDifferByMoreThanTheSlabThicknessDisagree() =>
         // 10 m lies past 9 m by 11 %, outside the slab that a surface 9 m away fills, to 9.9 m.
         ReflectionUpsample
             .RaysDisagree([
@@ -159,7 +156,6 @@ public sealed class ReflectionUpsampleTests
             ])
             .Should()
             .BeTrue("the nearest and the farthest hit decide, whatever lies between them");
-    }
 
     [Fact]
     public void MissesAloneAgree() =>
