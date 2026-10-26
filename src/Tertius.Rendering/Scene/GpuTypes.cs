@@ -447,6 +447,14 @@ internal struct OutlinePushConstants
     public uint EncodeSrgb;
 }
 
+/// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct DepthTailPushConstants
+{
+    /// <summary>The mips of the tail, from its first to 1 × 1: 1 to <see cref="DepthPyramidTail.Mips"/>.</summary>
+    public uint MipCount;
+}
+
 /// <summary>
 /// The push constants of the environment sky pass (Shaders/environment_sky.frag): the basis of the face it draws, each
 /// axis a <see cref="Vector4"/>. 48 bytes, inside the scene layout's 80-byte range.
@@ -494,8 +502,9 @@ internal struct EnvironmentDownsamplePushConstants
 }
 
 /// <summary>
-/// The push constants of reflection_trace.comp: the setting of the reflections (docs/plans/screen-space-reflections.md,
-/// "Descriptor sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
+/// The push constants of reflection_trace.comp, reflection_half_trace.comp and reflection_upsample.comp, which share the
+/// block of reflection_pixel.glsl: the setting of the reflections (docs/plans/screen-space-reflections.md, "Descriptor
+/// sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ReflectionPushConstants

@@ -27,8 +27,22 @@ internal static class ReflectionTesting
         new(x: 128 / 255f * 2 - 1, y: 1, z: -(128 / 255f * 2 - 1))
     );
 
-    /// <summary>The setting of most tests: the renderer's default.</summary>
-    public static ConeTracedReflections Reflections => ConeTracedReflections.Default;
+    /// <summary>
+    /// The setting of most tests: the renderer's default with the full-resolution trace, which the C# copy of the trace
+    /// describes pixel by pixel.
+    /// </summary>
+    public static ConeTracedReflections Reflections =>
+        ConeTracedReflections.Default with
+        {
+            Resolution = TraceResolution.Full,
+        };
+
+    /// <summary>The renderer's default, traced at <paramref name="resolution"/>.</summary>
+    public static ConeTracedReflections ReflectionsAt(TraceResolution resolution) =>
+        ConeTracedReflections.Default with
+        {
+            Resolution = resolution,
+        };
 
     /// <summary>A white metal floor of <paramref name="roughness"/>: a mirror at 0, which the BRDF floors to 0.045.</summary>
     public static MaterialDesc Mirror(float roughness = 0) =>

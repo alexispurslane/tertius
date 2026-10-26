@@ -117,7 +117,7 @@ public sealed class OcclusionImagesTests
                 extent: new(width, height),
                 glowLevels: 0,
                 smaaTables: null,
-                reflections: false
+                reflections: null
             );
         }
 

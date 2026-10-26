@@ -152,8 +152,9 @@ float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
 }
 
 // W = E · c, the compensated specular albedo: the weight of the light that arrives along the specular lobe in the light
-// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the
-// reflection trace weight specular light by it, and a pane of glass lets through what it leaves (transparent.frag).
+// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the pass
+// that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution) weight specular
+// light by it, and a pane of glass lets through what it leaves (transparent.frag).
 vec3 specularWeight(SurfaceLobes lobes)
 {
     return lobes.specularAlbedo * lobes.energyCompensation;
@@ -225,7 +226,8 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 // The ambient light of a surface point in its two terms, from the frame's ambient source, the map while it is on and
 // the hemisphere while it is off, then occluded (docs/plans/screen-space-reflections.md, "The one place where SSR
 // reads the ambient light", and docs/plans/environment-map.md, "The one source of the ambient light"). ambientLight
-// and the reflection trace read the ambient light only through this function. V points from the surface to the eye.
+// and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution) read
+// the ambient light only through this function. V points from the surface to the eye.
 AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
     AmbientTerms source = environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);

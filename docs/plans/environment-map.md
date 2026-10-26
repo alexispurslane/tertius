@@ -84,7 +84,7 @@ Settled by this design:
 30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
-33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and SSR's trace take it from the G-buffer, by one function, so that the trace takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and the pass that adds SSR's delta (the full-resolution trace, or the upsample at half resolution) take it from the G-buffer, by one function, so that the delta takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
@@ -185,7 +185,7 @@ The batcher interpolates each instance it keeps by the frame's alpha, as for the
 
 ### Which faces a frame draws
 
-`EnvironmentMap.FacesFor` is the one choke point of the map's automatic machinery. It runs on the CPU for each drawn frame, after the output gives the frame an image and before batching, and it calls two pure predicates:
+`EnvironmentMap.FacesFor` chooses the faces of a frame. It runs on the CPU for each drawn frame, after the output gives the frame an image and before batching. It is a pure read that calls two pure predicates. `EnvironmentMap.Drew` sets the map's frame once the frame is submitted, so that the map's frame describes the last finished step (ter-uhls):
 
 ```csharp
 internal static class EnvironmentFaces
@@ -195,15 +195,15 @@ internal static class EnvironmentFaces
         mapFrameId != originFrameId || longStep;
 }
 
-public FaceMask FacesFor(long frame, long originFrameId, bool longStep)
-{
-    FaceMask faces = EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
+public FaceMask FacesFor(long frame, long originFrameId, bool longStep) =>
+    EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
         ? FaceMask.All
         : EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame);
-    FrameId = originFrameId;
-    return faces;
-}
+
+public void Drew(long originFrameId) => FrameId = originFrameId;
 ```
+
+`VulkanRenderer.DrawFrame` calls `Drew` right after `SubmitAndPresent`. A frame that throws before then leaves the map's frame as it was, so the next frame draws again every face that it would have refreshed. Without this, a first frame that throws would leave 6 − F faces that no frame drew, in their undefined content, and the prefilter would spread that content, which can be a NaN or an infinity on a Linux driver, into every level and the irradiance.
 
 where
 
@@ -491,7 +491,7 @@ where
 
 Derivatives are defined only in uniform control flow, so each of these shaders computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
 
-The lighting pass and SSR's trace read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
+The lighting pass and SSR's passes read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
 
 ```glsl
 float reflectionFootprintAt(ivec2 pixel)
@@ -512,7 +512,7 @@ where
 - `nextX`, `nextY` = the next pixel in x and in y, or the pixel before it in the image's last column or row.
 - `alongX`, `alongY` = how far d moves to those pixels, in rad.
 
-So the trace, which is a compute shader, subtracts the same T_s that the lighting pass added: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes.
+So the pass that adds SSR's delta, a compute shader (the full-resolution trace, or the upsample at half resolution), subtracts the same T_s that the lighting pass added at the pixel: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes, the lighting pass and the pass that adds the delta. The half-resolution trace reads no ambient light, so it never uses the footprint.
 
 The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
@@ -678,7 +678,7 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 
 No pass of the map blends into a half-float target, so no result depends on a blend that stops at 65,504, which Metal does and other GPUs do not. No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SPIR-V leaves undefined. Instead, no step of the map makes a NaN or an infinity:
 
-- The face shader clamps `directRadiance` to 65,504 with `min`, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
+- `directRadiance` caps the face shader's light at `MaxRadiance`, 32,256, with `min` of a finite sum, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
 - The prefilter's first Hammersley point is (0, 0), whose half vector is n, so l = n and the weight sum is at least 1. Its division never divides by 0.
 - The reflected stars compute k(w) only where t < 1. There a ≥ 0.25, where the closed form is finite and loses under 10⁻⁵ to cancellation. Where t = 1, the shader adds M alone and never multiplies an unused k by 0.
 - The width w is at least p > 0, so a = c² / w² and the star Gaussians are finite.
@@ -714,7 +714,7 @@ Push constants:
 |---|---|---|---|---|---|---|
 | `RendererOptions.EnvironmentMap` | The host, tests | Before the renderer is made | `CheckOptions`, and `VulkanRenderer`, which makes the map and its passes and sets the shader constant | At creation | `RendererOptions` | `RendererOptions.Bloom` |
 | The shader constant `environmentMapOn` | `VulkanRenderer`, from the setting | When each shading pipeline is made | `ambientTerms` in `lighting.glsl`, `gbuffer.frag`, `transparent.frag`, `impostor_capture.frag`, `lighting.frag` | Every draw | The pipelines | None today |
-| The map's frame, `EnvironmentMap.FrameId` | `FacesFor` | Each drawn frame | `FacesFor` | Each drawn frame | `EnvironmentMap` | An impostor's capture record: CPU state that describes what a GPU image holds |
+| The map's frame, `EnvironmentMap.FrameId` | `Drew`, after the frame's submission | Each drawn frame | `FacesFor` | Each drawn frame | `EnvironmentMap` | An impostor's capture record: CPU state that describes what a GPU image holds |
 | The faces of a frame, a `FaceMask` | `FacesFor` | Step 2, before batching | `SceneBatcher` | Step 2 | `EnvironmentDraw.WithMap.Faces`, then `PreparedScene.EnvironmentFaces` | `ImpostorManager.Captures` |
 | A face's commands per range | `SceneBatcher` | Step 2 | `EnvironmentFacePass` | Step 3a | `PreparedScene.EnvironmentFaces`, `Instances`, `Commands` | The capture instances that `ImpostorPass.Prepare` appends |
 | The light list | `SceneBatcher` | Step 2 | Every pass that shades, the faces included | Steps 3a to 7 | `PreparedScene.Lights` | Today's list, with the faces' lights added |
@@ -1260,6 +1260,7 @@ internal sealed class EnvironmentMap : IDisposable
     public long? FrameId { get; }
     public IrradianceReading? Latest { get; }
     public FaceMask FacesFor(long frame, long originFrameId, bool longStep);
+    public void Drew(long originFrameId);
     public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot);
     public void Collect(int slot, long frame);
     public void Dispose();
@@ -1331,7 +1332,7 @@ internal sealed class EnvironmentMap : IDisposable
 
   // reflection_footprint.glsl, for fragment shaders only.
   float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
-  // gbuffer_surface.glsl, for the lighting pass and the reflection trace.
+  // gbuffer_surface.glsl, for the lighting pass and the pass that adds SSR's delta.
   float reflectionFootprintAt(ivec2 pixel);                                 // max(p, |d(next x) − d|, |d(next y) − d|)
   ```
 

@@ -20,9 +20,15 @@ public sealed class PyramidRenderTests
     /// </summary>
     private const float InverseDepthTolerance = 1e-6f;
 
+    // At 640 × 360 the depth image is 512 × 256, and levels 5 to 10 are the tail, which one workgroup builds
+    // (DepthPyramidTail.FirstMip).
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(9)]
     [InlineData(10)]
     public void EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(int level)
     {
@@ -243,6 +249,57 @@ public sealed class PyramidRenderTests
                         x,
                         y
                     );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheHalfResolutionTraceFollowsAResizeAndRoundsUp()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            reflections: ConeTracedReflections.Default with
+            {
+                Resolution = TraceResolution.Half,
+            }
+        );
+        try
+        {
+            RenderSnapshot snapshot = Scene(renderer);
+            renderer.Render(snapshot, 1f);
+            renderer.Resize(321, 181);
+            renderer.Render(snapshot, 1f);
+
+            (_, int width, int height) = renderer.ReadReflectionTrace();
+
+            (width, height).Should().Be((161, 91), "each texel stands for a block of 2 × 2 pixels, cut by the edge");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFullResolutionTraceKeepsNoHalfResolutionImage()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            reflections: ConeTracedReflections.Default with
+            {
+                Resolution = TraceResolution.Full,
+            }
+        );
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+
+            FluentActions
+                .Invoking(() => renderer.ReadReflectionTrace())
+                .Should()
+                .Throw<InvalidOperationException>()
+                .WithMessage("*full resolution*");
         }
         finally
         {

@@ -115,17 +115,22 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public ImageView FaceView(CubeFace face) => faceViews[(int)face];
 
     /// <summary>
-    /// The one choke point of the map's automatic machinery: the faces that drawn frame <paramref name="frame"/> draws, and
-    /// the map's frame after it (docs/plans/environment-map.md, "Which faces a frame draws").
+    /// The faces that drawn frame <paramref name="frame"/> draws (docs/plans/environment-map.md, "Which faces a frame
+    /// draws"). A pure read: the map's frame changes only in <see cref="Drew"/>, once the frame is submitted.
     /// </summary>
-    public FaceMask FacesFor(long frame, long originFrameId, bool longStep)
-    {
-        FaceMask faces = EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
+    public FaceMask FacesFor(long frame, long originFrameId, bool longStep) =>
+        EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
             ? FaceMask.All
             : EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame);
-        FrameId = originFrameId;
-        return faces;
-    }
+
+    /// <summary>
+    /// Records that a drawn frame in camera frame <paramref name="originFrameId"/> was submitted with the faces that
+    /// <see cref="FacesFor"/> chose, so that the map's frame describes the last finished step. A frame that throws before
+    /// its submission leaves the map's frame as it was, and the next frame draws again every face that it would have
+    /// refreshed: a face that no frame has drawn holds the image's undefined content, which can be a NaN or an infinity
+    /// on a Linux driver (ARCHITECTURE.md, "Portable Vulkan").
+    /// </summary>
+    public void Drew(long originFrameId) => FrameId = originFrameId;
 
     /// <summary>
     /// Copies the irradiance that this frame's prefilter wrote into the readback buffer of <paramref name="slot"/>, right

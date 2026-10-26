@@ -13,16 +13,34 @@ public readonly record struct NoReflections;
 /// </summary>
 /// <param name="MaxRoughness">The roughness at which reflections have faded out, above 0.045 and at most 1. Surfaces up to half of it reflect in full.</param>
 /// <param name="MaxSteps">The most cells that one ray examines, 1 to <see cref="MaxStepsLimit"/>. A ray that uses them all misses.</param>
-public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps)
+/// <param name="Resolution">The pixels that start a ray: one of each block of 2 × 2, or every pixel.</param>
+public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps, TraceResolution Resolution)
 {
     /// <summary>The most steps a ray takes. 8 times the default, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
-    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 128 steps.</summary>
-    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 128);
+    /// <summary>
+    /// The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 128 steps, traced at
+    /// half resolution, which brings the reflections' passes to their share of the frame (ticket ter-ff6y).
+    /// </summary>
+    public static ConeTracedReflections Default =>
+        new(MaxRoughness: 0.6f, MaxSteps: 128, Resolution: TraceResolution.Half);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);
+}
+
+/// <summary>
+/// The pixels of <see cref="ConeTracedReflections"/> that start a ray (docs/plans/screen-space-reflections.md, "The
+/// half-resolution trace").
+/// </summary>
+public enum TraceResolution
+{
+    /// <summary>One ray for each block of 2 × 2 pixels, from its top-left pixel; an upsample that respects depth and normal edges spreads the rays.</summary>
+    Half,
+
+    /// <summary>One ray for every pixel.</summary>
+    Full,
 }
 
 /// <summary>
@@ -49,6 +67,8 @@ public readonly partial struct ReflectionSetting
             return $"ConeTracedReflections.MaxRoughness must lie above the roughness floor {GgxLobe.MinRoughness} and at most 1, not {reflections.MaxRoughness}.";
         if (reflections.MaxSteps is < 1 or > ConeTracedReflections.MaxStepsLimit)
             return $"ConeTracedReflections.MaxSteps must be 1 to {ConeTracedReflections.MaxStepsLimit}, not {reflections.MaxSteps}.";
+        if (reflections.Resolution is not (TraceResolution.Half or TraceResolution.Full))
+            return $"ConeTracedReflections.Resolution must be Half or Full, not {(int)reflections.Resolution}.";
         return null;
     }
 }

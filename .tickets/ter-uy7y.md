@@ -1,6 +1,6 @@
 ---
 id: ter-uy7y
-status: open
+status: in_progress
 deps: [ter-nl5u]
 links: []
 created: 2026-10-25T15:09:02Z
@@ -20,3 +20,9 @@ Design to decide (two designs, then the user chooses): what a place is (a room v
 
 From inside the lit cabin, the apron seen through the canopy keeps its own ambient light and its shadows. The cost is measured, and captures show it.
 
+
+## Notes
+
+**2026-10-26T12:44:27Z**
+
+2026-10-26, user: one map per semantic frame on the camera's chain (the camera's frame, its parent, up to the root), only those. An object takes the map of the frame that holds it, chosen per draw; an object in a frame off the chain takes the map of its nearest ancestor on the chain. Every map is captured at the eye; the map of a chain frame leaves out the subtree of the chain frame below it. No box projection; updates in turn. The deferred passes read each pixel's map index from the G-buffer.
