@@ -120,11 +120,14 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// </summary>
     public FaceMask FacesFor(long frame, long originFrameId, bool longStep)
     {
-        FaceMask faces = EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
-            ? FaceMask.All
-            : EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame);
+        ReadOnlySpan<long> served = [originFrameId];
+        ReadOnlySpan<long> drawnFor = FrameId is { } frameId ? [frameId] : [];
+        Span<FaceMask> faces = [FaceMask.None];
+        EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
+        if (EnvironmentFaces.RefreshesAll(drawnFor: drawnFor, served: served, map: 0, longStep: longStep))
+            faces[0] = FaceMask.All;
         FrameId = originFrameId;
-        return faces;
+        return faces[0];
     }
 
     /// <summary>
