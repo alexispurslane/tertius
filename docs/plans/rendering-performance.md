@@ -80,7 +80,7 @@ Each profile follows the same steps:
 3. Make the changes that the profile justifies, each one measured on its own before the next one.
 4. Measure the cost again on a quiet machine, two runs, and write the numbers into the feature's section of ARCHITECTURE.md.
 
-The feature's design gives the target: 1 to 3 ms for the reflections' trace ([screen-space-reflections.md](screen-space-reflections.md)), 0.1 to 0.2 ms for the prefilter ([environment-map.md](environment-map.md), "Cost"), and the occlusion passes as `ter-izsu` says.
+The feature's design gives the target: 1 to 3 ms for the reflections' trace ([screen-space-reflections.md](screen-space-reflections.md)), 0.1 to 0.2 ms for the prefilter ([environment-map.md](environment-map.md), "Cost"), and the occlusion passes as `ter-izsu` says. Part 2b brought the reflections' three passes to 3.27 ms in the mean of two traces (3.29 and 3.25 ms), with the half-resolution trace as the default. The user decided on 2026-10-26 that the half-resolution trace stays the default, after seeing its captures beside the full-resolution ones, and that the 0.27 ms above 3 ms gets no more work in Part 2b: the frame span of demo-exit is 9.76 ms, under the budget, and Part 3 shares out the budget. (User)
 
 ### Part 3: the whole frame
 

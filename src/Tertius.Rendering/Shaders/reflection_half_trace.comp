@@ -1,0 +1,32 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+// The half-resolution trace of the screen-space reflections (docs/plans/screen-space-reflections.md, "The
+// half-resolution trace"): texel (i, j) stands for the block of pixels from (2i, 2j) to (2i + 1, 2j + 1), and holds the
+// result of the ray of its representative pixel (2i, 2j), as the full-resolution trace computes it, or a coverage of
+// −1 when that pixel starts no ray.
+#include "reflection_ray.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D tracedImage;  // ⌈W / 2⌉ × ⌈H / 2⌉
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(texel, imageSize(tracedImage))))
+        return;
+    // Inside the screen: the image rounds the screen's size up, so 2i is at most W − 1.
+    ivec2 representative = 2 * texel;
+    ReflectingPixel p;
+    if (!reflectingPixel(representative, p))
+    {
+        imageStore(tracedImage, texel, vec4(0.0, 0.0, 0.0, -1.0));
+        return;
+    }
+    vec4 rayResult;
+    // A miss keeps the ambient specular term: no radiance and no coverage.
+    if (!traceReflection(p, rayResult))
+        rayResult = vec4(0.0);
+    imageStore(tracedImage, texel, rayResult);
+}

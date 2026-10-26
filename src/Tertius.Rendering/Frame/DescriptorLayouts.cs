@@ -40,8 +40,11 @@ namespace Tertius.Rendering;
 /// is on, its screen-sized images rewritten on resize.</description></item>
 /// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of a
 /// pyramid's build reads and the level that it writes. One per level of each pyramid, rewritten on resize.</description></item>
+/// <item><term>depth tail</term><description>set 3 of <see cref="DepthTailLayout"/> for the tail of the depth pyramid's
+/// build: the mip before the tail and the tail's mips. One, rewritten on resize.</description></item>
 /// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
-/// sampler (immutable) and the HDR image as a storage image, for the trace. One, rewritten on resize.</description></item>
+/// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image as a storage image at
+/// binding 4, for the trace and the upsample. One, rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
@@ -95,7 +98,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         (EnvironmentPrefilterSet, EnvironmentLevelSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
         (OcclusionSet, DenoiseSet) = CreateOcclusionSetLayouts();
         SmaaSet = CreateSmaaSetLayout();
-        (PyramidLevelSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
+        (PyramidLevelSet, DepthTailSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -122,8 +125,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(graphics, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
             name: "smaa layout"
         );
-        (ExposureLayout, EnvironmentPrefilterLayout, OcclusionLayout, PyramidLayout, ReflectionLayout) =
-            CreateComputeLayouts();
+        (
+            ExposureLayout,
+            EnvironmentPrefilterLayout,
+            OcclusionLayout,
+            PyramidLayout,
+            DepthTailLayout,
+            ReflectionLayout
+        ) = CreateComputeLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
@@ -243,15 +252,31 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout PyramidLevelSet { get; }
 
     /// <summary>
+    /// The mip before the depth pyramid's tail, a sampled image (binding 0), and the tail's mips, an array of
+    /// <see cref="DepthPyramidTail.Mips"/> storage images (binding 1), for the compute stage.
+    /// </summary>
+    public DescriptorSetLayout DepthTailSet { get; }
+
+    /// <summary>
     /// The trace's set: the depth pyramid and the radiance pyramid, sampled with all their mips (bindings 0 and 1),
-    /// <see cref="AtlasSampler"/> (binding 2, immutable), and the HDR image as a storage image (binding 3).
+    /// <see cref="AtlasSampler"/> (binding 2, immutable), the HDR image as a storage image (binding 3), and the
+    /// half-resolution trace as a storage image (binding 4), written only when the trace runs at half resolution.
     /// </summary>
     public DescriptorSetLayout ReflectionSet { get; }
 
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and a pyramid level set, with no push constants, for the four pyramid builds.</summary>
+    /// <summary>
+    /// Sets 0 to 2 of <see cref="SceneLayout"/>, a pyramid level set and <see cref="DepthTailPushConstants"/>, for the
+    /// pyramid builds' dispatches of one level, which read no push constants.
+    /// </summary>
     public PipelineLayout PyramidLayout { get; }
 
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace.</summary>
+    /// <summary>
+    /// <see cref="PyramidLayout"/> with the depth tail set in place of the level set, for the tail. Its push constants
+    /// are the same, so the scene sets that the builds bind stay bound across the two layouts.
+    /// </summary>
+    public PipelineLayout DepthTailLayout { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace and the upsample.</summary>
     public PipelineLayout ReflectionLayout { get; }
 
     /// <summary>
@@ -285,6 +310,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
     public DescriptorSet AllocatePyramidLevelSet() => Allocate(pool, PyramidLevelSet, null);
+
+    public DescriptorSet AllocateDepthTailSet() => Allocate(pool, DepthTailSet, null);
 
     public DescriptorSet AllocateReflectionSet() => Allocate(pool, ReflectionSet, null);
 
@@ -370,10 +397,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>Writes a view of a storage image in the General layout, such as one mip of a pyramid.</summary>
     public void WriteStorageImage(DescriptorSet set, uint binding, ImageView view) =>
+        WriteStorageImage(set: set, binding: binding, arrayElement: 0, view: view);
+
+    /// <summary>Writes a view of a storage image in the General layout into one element of an array binding.</summary>
+    public void WriteStorageImage(DescriptorSet set, uint binding, uint arrayElement, ImageView view) =>
         WriteView(
             set: set,
             binding: binding,
-            arrayElement: 0,
+            arrayElement: arrayElement,
             type: DescriptorType.StorageImage,
             view: view,
             layout: ImageLayout.General
@@ -523,6 +554,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout EnvironmentPrefilter,
         PipelineLayout Occlusion,
         PipelineLayout Pyramid,
+        PipelineLayout DepthTail,
         PipelineLayout Reflection
     ) CreateComputeLayouts()
     {
@@ -541,17 +573,27 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<OcclusionPushConstants>()),
             name: "occlusion layout"
         );
+        var tailPush = new PushConstantRange(
+            ShaderStageFlags.ComputeBit,
+            0,
+            (uint)Unsafe.SizeOf<DepthTailPushConstants>()
+        );
         PipelineLayout pyramid = CreatePipelineLayout(
             sets: [FrameSet, TextureSet, GBufferSet, PyramidLevelSet],
-            push: null,
+            push: tailPush,
             name: "pyramid layout"
+        );
+        PipelineLayout depthTail = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, DepthTailSet],
+            push: tailPush,
+            name: "depth tail layout"
         );
         PipelineLayout reflection = CreatePipelineLayout(
             sets: [FrameSet, TextureSet, GBufferSet, ReflectionSet],
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ReflectionPushConstants>()),
             name: "reflection layout"
         );
-        return (exposure, environmentPrefilter, occlusion, pyramid, reflection);
+        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection);
     }
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
@@ -567,21 +609,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 18 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
-            // glow source set, two each for the meter set and the occlusion set, one per pyramid level set, two for the
-            // reflection set and one for the prefilter set.
-            new(DescriptorType.SampledImage, 18 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 2 + 1),
-            // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, one for the
-            // reflection set and one per environment level set.
-            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + 1 + EnvironmentLevelSets),
+            // glow source set, two each for the meter set and the occlusion set, one per pyramid level set, one for the
+            // depth tail set, two for the reflection set and one for the prefilter set.
+            new(DescriptorType.SampledImage, 18 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
+            // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
+            // set's mips, two for the reflection set and one per environment level set.
+            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 2 + EnvironmentLevelSets),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
         // The frame sets, the G-buffer, post, atlas, meter, exposure, occlusion, SMAA, reflection and prefilter sets, the
-        // two denoise sets, the glow source sets, the pyramid level sets and the environment level sets. The reflection
-        // sets exist even with reflections off: they cost nothing per frame.
+        // two denoise sets, the glow source sets, the pyramid level sets, the depth tail set and the environment level
+        // sets. The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: frames + 11 + glowSourceSets + PyramidLevelSets + EnvironmentLevelSets,
+            maxSets: frames + 12 + glowSourceSets + PyramidLevelSets + EnvironmentLevelSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -670,15 +712,27 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The layouts of the pyramid level set and the reflection set (docs/plans/screen-space-reflections.md, "Descriptor
+    /// The layouts of the pyramid level set, the depth tail set and the reflection set (docs/plans/screen-space-reflections.md, "Descriptor
     /// sets"), whose bindings the compute stage reads. <paramref name="mipSampler"/> is the trace's immutable sampler.
     /// </summary>
-    private (DescriptorSetLayout Level, DescriptorSetLayout Reflection) CreateReflectionSetLayouts(Sampler mipSampler)
+    private (
+        DescriptorSetLayout Level,
+        DescriptorSetLayout DepthTail,
+        DescriptorSetLayout Reflection
+    ) CreateReflectionSetLayouts(Sampler mipSampler)
     {
         Span<DescriptorSetLayoutBinding> level =
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             StorageImage(binding: 1),
+        ];
+        Span<DescriptorSetLayoutBinding> tail =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            StorageImage(binding: 1) with
+            {
+                DescriptorCount = DepthPyramidTail.Mips,
+            },
         ];
         Span<DescriptorSetLayoutBinding> reflection =
         [
@@ -686,9 +740,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
             ImmutableSampler(binding: 2, stages: ShaderStageFlags.ComputeBit, sampler: &mipSampler),
             StorageImage(binding: 3),
+            StorageImage(binding: 4),
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),
+            CreateLayout(bindings: tail, name: "depth tail set"),
             CreateLayout(bindings: reflection, name: "reflection set")
         );
     }
@@ -1016,6 +1072,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, OcclusionLayout, null);
         vk.DestroyPipelineLayout(device.Device, SmaaLayout, null);
         vk.DestroyPipelineLayout(device.Device, PyramidLayout, null);
+        vk.DestroyPipelineLayout(device.Device, DepthTailLayout, null);
         vk.DestroyPipelineLayout(device.Device, ReflectionLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
@@ -1031,6 +1088,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, DenoiseSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, SmaaSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, PyramidLevelSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, DepthTailSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ReflectionSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);

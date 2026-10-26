@@ -69,7 +69,10 @@ internal sealed class GraphicsPipelineDesc
     /// </summary>
     public FrontFace FrontFace { get; init; } = FrontFace.CounterClockwise;
 
-    /// <summary>The specialization constants of both stages, or null for a pipeline whose shaders declare none.</summary>
+    /// <summary>
+    /// The specialization constants of both stages, or null. A stage ignores the constants that its compiled module does
+    /// not hold, as a vertex shader does (<see cref="ComputePipelineDesc.Constants"/>).
+    /// </summary>
     public ShaderConstants? Constants { get; init; }
 
     /// <summary>
