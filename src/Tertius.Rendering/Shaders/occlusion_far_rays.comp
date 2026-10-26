@@ -9,6 +9,12 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+// The half-resolution texel of the invocation.
+ivec2 texel()
+{
+    return ivec2(gl_GlobalInvocationID.xy);
+}
+
 // What a far ray decides for its slice's open sectors: the share that it blocks, from 0 to 1, and that share times its
 // light, pre-exposed (FarOutcome).
 struct FarOutcome
@@ -41,30 +47,22 @@ FarOutcome farRay(GtaoTexel setup, vec3 direction)
     return FarOutcome(fade, fade * blockerLight(hitPixel, geometricNormalAt(hitPixel), -direction));
 }
 
-void main()
+// The direction of slice g's far ray through the center of the open sector of a rank.
+vec3 farRayDirection(SliceGeometry g, uint open, uint rank)
 {
-    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
-    if (!insideHalf(texel))
-        return;
-    float z = viewDepthAt(texel);
-    // Sky holds the open estimate, which the sectors pass wrote.
-    if (z >= SkyDepth)
-        return;
-    GtaoTexel setup = gtaoTexelSetup(texel, z, occlusion.radiusMeters / texelWidth(z));
-    int slices = int(occlusion.slices);
+    float angle = sectorCenterAngle(g, openSectorOfRank(open, rank));
+    return cos(angle) * g.toEye + sin(angle) * g.side;
+}
+
+// Option A of fork 2 (FarRays.OnePerSlice): each slice with an open sector traces one ray, whose outcome moves the slice's
+// open share U = W · count / (32 ΣW).
+vec4 farRaysPerSlice(GtaoTexel setup, float totalWeight, vec4 estimate)
+{
     int stepsPerSide = int(occlusion.stepsPerSide);
-    float totalWeight = 0.0;
-    for (int slice = 0; slice < slices; slice++)
-        totalWeight += gtaoSliceGeometry(setup, slice).weight;
-    // A texel with no weight holds the open estimate, which the sectors pass wrote (decision 17).
-    if (!(totalWeight > MinTotalWeight))
-        return;
-    // Each invocation reads and writes its own texel only.
-    vec4 estimate = imageLoad(occlusionTermA, texel);
-    for (int slice = 0; slice < slices; slice++)
+    for (int slice = 0; slice < int(occlusion.slices); slice++)
     {
         SliceGeometry g = gtaoSliceGeometry(setup, slice);
-        uint open = ~sectorMasks[maskIndex(texel, slice)];
+        uint open = ~sectorMasks[maskIndex(texel(), slice)];
         uint count = uint(bitCount(open));
         if (count == 0u)
             continue;
@@ -73,11 +71,66 @@ void main()
         // The next value of the slice's R1 sequence past its steps, k + n² (SectorSearch.FarRayNoise).
         float noise = fract(setup.noise.y + float(slice + stepsPerSide * stepsPerSide) * 0.6180339887498948482);
         // The rank is below the count, so findLSB never meets 0.
-        uint sector = openSectorOfRank(open, min(uint(noise * float(count)), count - 1u));
-        float angle = sectorCenterAngle(g, sector);
-        FarOutcome outcome = farRay(setup, cos(angle) * g.toEye + sin(angle) * g.side);
+        FarOutcome outcome = farRay(setup, farRayDirection(g, open, min(uint(noise * float(count)), count - 1u)));
         estimate.a -= share * outcome.blocked;
         estimate.rgb += share * outcome.light;
     }
-    imageStore(occlusionTermA, texel, estimate);
+    return estimate;
+}
+
+// Option B of fork 2 (FarRays.OnePerTexel): one ray through an open sector of any slice, rank ⌊η Σ W c⌋ of the open
+// sectors in slice order, each counting its slice's weight, with η slice 0's noise (SectorSearch.TexelFarRay). Its
+// outcome moves the texel's whole open share, which is the near V that term A holds (AmbientEstimate.WithTexelFarRay).
+vec4 farRayPerTexel(GtaoTexel setup, vec4 estimate)
+{
+    int slices = int(occlusion.slices);
+    float openWeight = 0.0;
+    for (int slice = 0; slice < slices; slice++)
+        openWeight += gtaoSliceGeometry(setup, slice).weight * float(bitCount(~sectorMasks[maskIndex(texel(), slice)]));
+    int stepsPerSide = int(occlusion.stepsPerSide);
+    float target = fract(setup.noise.y + float(stepsPerSide * stepsPerSide) * 0.6180339887498948482) * openWeight;
+    bool picked = false;
+    vec3 direction = vec3(0.0);
+    for (int slice = 0; slice < slices; slice++)
+    {
+        SliceGeometry g = gtaoSliceGeometry(setup, slice);
+        uint open = ~sectorMasks[maskIndex(texel(), slice)];
+        uint count = uint(bitCount(open));
+        float share = g.weight * float(count);
+        if (!(share > 0.0))
+            continue;
+        // A noise that rounds up to 1 falls through every slice and keeps the last open sector. The rank is below the
+        // count, so findLSB never meets 0.
+        picked = true;
+        direction = farRayDirection(g, open, min(uint(target / g.weight), count - 1u));
+        if (target < share)
+            break;
+        target -= share;
+    }
+    if (!picked)
+        return estimate;
+    FarOutcome outcome = farRay(setup, direction);
+    return vec4(estimate.rgb + estimate.a * outcome.light, estimate.a - estimate.a * outcome.blocked);
+}
+
+void main()
+{
+    if (!insideHalf(texel()))
+        return;
+    float z = viewDepthAt(texel());
+    // Sky holds the open estimate, which the sectors pass wrote.
+    if (z >= SkyDepth)
+        return;
+    GtaoTexel setup = gtaoTexelSetup(texel(), z, occlusion.radiusMeters / texelWidth(z));
+    float totalWeight = 0.0;
+    for (int slice = 0; slice < int(occlusion.slices); slice++)
+        totalWeight += gtaoSliceGeometry(setup, slice).weight;
+    // A texel with no weight holds the open estimate, which the sectors pass wrote (decision 17).
+    if (!(totalWeight > MinTotalWeight))
+        return;
+    // Each invocation reads and writes its own texel only.
+    vec4 estimate = imageLoad(occlusionTermA, texel());
+    estimate = occlusion.farRayPerTexel != 0u ? farRayPerTexel(setup, estimate)
+                                              : farRaysPerSlice(setup, totalWeight, estimate);
+    imageStore(occlusionTermA, texel(), estimate);
 }

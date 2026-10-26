@@ -13,10 +13,36 @@ public readonly record struct NoScreenSpaceLight;
 /// <param name="Slices">How many slices each half-resolution texel takes, 1 to 16.</param>
 /// <param name="StepsPerSide">How many depth samples each slice takes on each side within the radius, 1 to 16.</param>
 /// <param name="FarSteps">The most cells of the depth pyramid that one far ray examines, 1 to 1,024.</param>
-public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide, int FarSteps)
+/// <param name="FarRays">How many far rays each texel traces: one per slice, or one for the texel.</param>
+public readonly record struct VisibilityBitmaskLight(
+    float RadiusMeters,
+    int Slices,
+    int StepsPerSide,
+    int FarSteps,
+    FarRays FarRays
+)
 {
-    /// <summary>The renderer's default: 1 m, 3 slices, 3 steps on each side, 64 far steps, until captures pick them.</summary>
-    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3, FarSteps: 64);
+    /// <summary>
+    /// The renderer's default: 1 m, 3 slices, 3 steps on each side, 64 far steps and one far ray per slice, until
+    /// captures pick them.
+    /// </summary>
+    public static VisibilityBitmaskLight Default =>
+        new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3, FarSteps: 64, FarRays: FarRays.OnePerSlice);
+}
+
+/// <summary>
+/// How many far rays a half-resolution texel traces beyond the radius (docs/plans/screen-space-illumination.md, fork 2).
+/// </summary>
+public enum FarRays
+{
+    /// <summary>Option A: one ray per slice, through an open sector of that slice, which decides the slice's open share.</summary>
+    OnePerSlice,
+
+    /// <summary>
+    /// Option B: one ray per texel, through an open sector of any slice, picked by its slice's weight, which decides the
+    /// texel's whole open share: a third of the rays at 3 slices, and more noise.
+    /// </summary>
+    OnePerTexel,
 }
 
 /// <summary>
@@ -59,6 +85,8 @@ public readonly partial struct ScreenSpaceLightSetting
         // No far step would leave the far range out, against the one estimate in two ranges (decision 36).
         if (light.FarSteps is < 1 or > MaxFarSteps)
             return $"VisibilityBitmaskLight.FarSteps must be 1 to {MaxFarSteps}, not {light.FarSteps}.";
+        if (light.FarRays is not (FarRays.OnePerSlice or FarRays.OnePerTexel))
+            return $"VisibilityBitmaskLight.FarRays must be OnePerSlice or OnePerTexel, not {(int)light.FarRays}.";
         return null;
     }
 }

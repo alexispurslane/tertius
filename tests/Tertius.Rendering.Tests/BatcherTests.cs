@@ -1828,10 +1828,11 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()
             .Be(4);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(20);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(24);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.FarSteps))).Should().Be(12);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(16);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.FarRayPerTexel))).Should().Be(20);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
     }

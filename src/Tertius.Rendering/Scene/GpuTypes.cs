@@ -301,7 +301,7 @@ internal struct DrawPushConstants
 
 /// <summary>
 /// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from the
-/// frame constants, so the occlusion passes and the lighting passes read the one store. 20 bytes.
+/// frame constants, so the occlusion passes and the lighting passes read the one store. 24 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
@@ -316,6 +316,9 @@ internal struct OcclusionPushConstants
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
 
+    /// <summary>1 when each texel traces one far ray (<see cref="FarRays.OnePerTexel"/>), 0 for one per slice.</summary>
+    public uint FarRayPerTexel;
+
     /// <summary>The push constants of one dispatch.</summary>
     public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
         new()
@@ -325,6 +328,7 @@ internal struct OcclusionPushConstants
             StepsPerSide = (uint)setting.StepsPerSide,
             FarSteps = (uint)setting.FarSteps,
             LastDenoise = lastDenoise ? 1u : 0u,
+            FarRayPerTexel = setting.FarRays == FarRays.OnePerTexel ? 1u : 0u,
         };
 }
 

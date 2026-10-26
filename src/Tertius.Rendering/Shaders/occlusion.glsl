@@ -31,6 +31,7 @@ layout(push_constant, std430) uniform OcclusionPush
     uint stepsPerSide;
     uint farSteps;
     uint lastDenoise;
+    uint farRayPerTexel;
 } occlusion;
 
 // (t_x, t_y): the tangents of half the horizontal and half the vertical field of view. The frame constants carry them

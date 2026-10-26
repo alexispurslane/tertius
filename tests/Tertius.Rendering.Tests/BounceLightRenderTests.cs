@@ -74,6 +74,54 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void WithOneFarRayPerTexelTheFarRaysLeaveEachTexelAllOpenOrAllBlocked()
+    {
+        // Fork 2's option B: the texel's one ray decides its whole open share, which is the near V. So where the ray
+        // meets a wall well inside the screen, V falls to 0, and where it meets nothing, V stays. Under option A, each
+        // of three slices decides its own share, and a texel whose slices disagree keeps part of its open share.
+        VulkanRenderer renderer = Gpu.Headless(
+            screenSpaceLight: VisibilityBitmaskLight.Default with
+            {
+                RadiusMeters = 0.25f,
+                FarRays = FarRays.OnePerTexel,
+            }
+        );
+        try
+        {
+            RenderSnapshot scene = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
+            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            renderer.Render(scene, 1f);
+            float[] near = renderer.ReadOcclusionTerm().Rgba;
+            renderer.Graph.Skipped.Remove("occlusion far rays");
+            renderer.Render(scene, 1f);
+            float[] far = renderer.ReadOcclusionTerm().Rgba;
+
+            int blocked = 0;
+            int partly = 0;
+            for (int i = 3; i < near.Length; i += 4)
+            {
+                if (near[i] < 0.1f || far[i] > near[i] - 0.01f)
+                    continue;
+                blocked++;
+                // The edge fade lets a hit near the screen's edge block part of the share, so only a remainder above
+                // a tenth of the open share counts. Measured on 2026-10-26: 14 % of the blocked texels under option B,
+                // 99 % under option A.
+                if (far[i] > 0.1f * near[i])
+                    partly++;
+            }
+            output.WriteLine($"texels whose far rays block: {blocked}, of them partly: {partly}");
+            blocked.Should().BeGreaterThan(1000, "the test needs far rays that meet the walls");
+            partly
+                .Should()
+                .BeLessThan(blocked / 4, "one ray decides a texel's whole open share, except where the edge fades it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ALitWallOffTheScreenGivesTheFloorNoBounce()
     {
         (float[] estimate, float[] direct, Vector2[] measured) = WallOffTheLeftEdge();

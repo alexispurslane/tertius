@@ -93,6 +93,16 @@ public sealed class ScreenSpaceLightSettingTests
             .Problem.Should()
             .Contain("FarSteps");
 
+    [Fact]
+    public void TheDefaultTracesOneFarRayPerSlice() =>
+        VisibilityBitmaskLight.Default.FarRays.Should().Be(FarRays.OnePerSlice, "fork 2's option A, until Part 7 decides");
+
+    [Fact]
+    public void AFarRayCountThatTheEnumDoesNotNameIsRefused() =>
+        new ScreenSpaceLightSetting(VisibilityBitmaskLight.Default with { FarRays = (FarRays)2 })
+            .Problem.Should()
+            .Contain("FarRays");
+
     // CreateHeadless refuses a width of 0 just before it makes the device. So the message names the slices only when
     // the setting's refusal comes before that, and so before the device.
     [Fact]

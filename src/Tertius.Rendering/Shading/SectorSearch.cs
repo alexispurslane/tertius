@@ -262,6 +262,35 @@ internal static class SectorSearch
         return open.SectorOfRank(Math.Min((int)(farRayNoise * count), count - 1));
     }
 
+    /// <summary>
+    /// The slice and the open sector of a texel's one far ray under <see cref="FarRays.OnePerTexel"/>: rank ⌊η Σ W c⌋ of
+    /// the texel's open sectors in slice order, where each open sector of slice k counts W_k, so the pick follows each
+    /// sector's share of the estimate. Null when no slice of weight above 0 has an open sector: the texel traces no ray.
+    /// </summary>
+    /// <param name="farRayNoise">η, from 0 to 1: <see cref="FarRayNoise"/> of slice 0.</param>
+    public static (int Slice, int Sector)? TexelFarRay(ReadOnlySpan<NearSlice> slices, float farRayNoise)
+    {
+        double openWeight = 0;
+        foreach (NearSlice slice in slices)
+            openWeight += slice.Sectors.Weight * slice.Blocked.Open.Count;
+        double target = farRayNoise * openWeight;
+        (int Slice, int Sector)? picked = null;
+        for (int k = 0; k < slices.Length; k++)
+        {
+            SectorMask open = slices[k].Blocked.Open;
+            double weight = slices[k].Sectors.Weight;
+            double share = weight * open.Count;
+            if (!(share > 0))
+                continue;
+            // A noise that rounds up to 1 falls through every slice and keeps the last open sector.
+            picked = (Slice: k, Sector: open.SectorOfRank(Math.Min((int)(target / weight), open.Count - 1)));
+            if (target < share)
+                break;
+            target -= share;
+        }
+        return picked;
+    }
+
     /// <summary>σ acos(V̂ · d / |d|): the signed angle of the direction <paramref name="direction"/> in the slice.</summary>
     private static double SliceAngle(Double3 toEye, Double3 direction, SliceSide side) =>
         (int)side * Math.Acos(Math.Clamp(Double3.Dot(direction.Normalized(), toEye), -1, 1));

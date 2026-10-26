@@ -47,4 +47,10 @@ internal readonly record struct AmbientEstimate(Double3 Bounce, double Occlusion
     /// <param name="openShare">U, the share of the estimate that the ray decides, from <see cref="OpenShare"/>.</param>
     public AmbientEstimate WithFarRay(double openShare, FarOutcome outcome) =>
         new(Bounce: Bounce + outcome.Light * openShare, Occlusion: Occlusion - openShare * outcome.Blocked);
+
+    /// <summary>
+    /// The estimate after a texel's one far ray under <see cref="FarRays.OnePerTexel"/>: the ray decides the texel's
+    /// whole open share, which is the near estimate's V.
+    /// </summary>
+    public AmbientEstimate WithTexelFarRay(FarOutcome outcome) => WithFarRay(openShare: Occlusion, outcome: outcome);
 }
