@@ -1,6 +1,6 @@
 ---
 id: ter-of1p
-status: open
+status: in_progress
 deps: [ter-nl5u, ter-nydu]
 links: []
 created: 2026-10-25T22:22:45Z
