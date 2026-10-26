@@ -11,19 +11,12 @@ public sealed class EnvironmentMapPlumbingTests
     private const uint StorageImagesOfEveryDevice = 4;
 
     [Fact]
-    public void TheMapsComputeLayoutsNeedNoMoreStorageImagesThanEveryVulkanDeviceOffers()
+    public void TheMapsComputeLayoutNeedsNoMoreStorageImagesThanEveryVulkanDeviceOffers()
     {
         using var plumbing = new Plumbing();
 
         plumbing
             .Layouts.StorageImagesOf(plumbing.Layouts.EnvironmentPrefilterLayout)
-            .Should()
-            .BeLessThanOrEqualTo(
-                StorageImagesOfEveryDevice,
-                "the layout is made at every start, and the specification guarantees only 4 per stage"
-            );
-        plumbing
-            .Layouts.StorageImagesOf(plumbing.Layouts.EnvironmentSpecularLayout)
             .Should()
             .BeLessThanOrEqualTo(
                 StorageImagesOfEveryDevice,

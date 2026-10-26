@@ -48,6 +48,51 @@ public sealed class EnvironmentPrefilterTests
         return [.. all];
     }
 
+    /// <summary>A headless renderer with a map of <paramref name="faceSize"/> texels, 160 × 90.</summary>
+    private static VulkanRenderer Renderer(int faceSize) =>
+        Gpu.Headless(
+            width: 160,
+            height: 90,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = faceSize,
+            }
+        );
+
+    /// <summary>Every level of the radiance map, then each face in layer order, RGBA, rows from the top.</summary>
+    private static Half[][][] RadianceMips(VulkanRenderer renderer, int faceSize)
+    {
+        var mips = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
+        for (int level = 0; level < mips.Length; level++)
+        {
+            mips[level] = new Half[CubeFaces.Count][];
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                mips[level][layer] = renderer.ReadEnvironmentFace(
+                    face: (CubeFace)layer,
+                    level: level,
+                    image: EnvironmentImage.Radiance
+                );
+        }
+
+        return mips;
+    }
+
+    /// <summary>The mean of the four children of texel (x, y) of a face of <paramref name="size"/>, by their solid angles.</summary>
+    private static Vector4 ChildrenMean(Half[] children, int size, int x, int y)
+    {
+        Vector4 light = Vector4.Zero;
+        double solidAngle = 0;
+        for (int dy = 0; dy < 2; dy++)
+        for (int dx = 0; dx < 2; dx++)
+        {
+            double childAngle = CubeFaces.TexelSolidAngle(2 * x + dx, 2 * y + dy, 2 * size);
+            light += EnvironmentScenes.Texel(face: children, size: 2 * size, x: 2 * x + dx, y: 2 * y + dy) * (float)childAngle;
+            solidAngle += childAngle;
+        }
+
+        return light / (float)solidAngle;
+    }
+
     /// <summary>
     /// The light of one level of the specular map, Σ radiance × solid angle over every texel, by luminance, and its
     /// light-weighted mean angle from <paramref name="axis"/>, in rad.
@@ -91,32 +136,13 @@ public sealed class EnvironmentPrefilterTests
     [InlineData(128)]
     public void EveryTexelOfARoughLevelIsTheSumOverItsSamplesOfTheRadianceMap(int faceSize)
     {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: 160,
-            height: 90,
-            environmentMap: SceneEnvironmentMap.Default with
-            {
-                FaceSize = faceSize,
-            }
-        );
+        VulkanRenderer renderer = Renderer(faceSize);
         int levels = PrefilterLevels.Count(faceSize);
         try
         {
             renderer.Render(Colorful(renderer), 1f);
 
-            var mips = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
-            for (int level = 0; level < mips.Length; level++)
-            {
-                mips[level] = new Half[CubeFaces.Count][];
-                for (int layer = 0; layer < CubeFaces.Count; layer++)
-                    mips[level][layer] = renderer.ReadEnvironmentFace(
-                        face: (CubeFace)layer,
-                        level: level,
-                        image: EnvironmentImage.Radiance
-                    );
-            }
-
-            var reference = new PrefilterReference(mips, faceSize);
+            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
             // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
             var worstOfLevel = new float[levels];
             for (int level = 1; level < levels; level++)
@@ -146,6 +172,46 @@ public sealed class EnvironmentPrefilterTests
 
             // Within 0.35 % of a texel's light: the GPU's filter weights and the halves of the stored levels.
             worstOfLevel[1..].Should().OnlyContain(worst => worst < 3.5e-3f, "each level's texels sum over their samples");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Every texel of every mip of the radiance map is the mean of its four children in the level above, by their exact
+    /// solid angles. At 32 texels the chain takes two dispatches and at 128 three, so a dispatch makes each of its levels
+    /// from the one above, and reads the last level that the dispatch before made.
+    /// </summary>
+    [Theory]
+    [InlineData(Size)]
+    [InlineData(128)]
+    public void EveryMipTexelIsTheMeanOfItsChildrenByTheirSolidAngles(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            Half[][][] mips = RadianceMips(renderer, faceSize);
+            var worstOfLevel = new float[mips.Length];
+            for (int level = 1; level < mips.Length; level++)
+            {
+                int size = faceSize >> level;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    Vector4 expected = ChildrenMean(children: mips[level - 1][layer], size: size, x: x, y: y);
+                    Vector4 read = EnvironmentScenes.Texel(face: mips[level][layer], size: size, x: x, y: y);
+                    float error = (read - expected).Length() / (1 + expected.Length());
+                    worstOfLevel[level] = MathF.Max(worstOfLevel[level], error);
+                }
+            }
+
+            // Within 0.1 % of a texel's light: the halves of the stored levels.
+            worstOfLevel[1..].Should().OnlyContain(worst => worst < 1e-3f, "each mip texel is its children's mean");
         }
         finally
         {
@@ -379,14 +445,7 @@ public sealed class EnvironmentPrefilterTests
     [InlineData(EnvironmentMapSetting.MaxFaceSize)]
     public void AtEveryFaceSizeTheIrradianceIsTheProjectionOfEveryTexel(int size)
     {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: 160,
-            height: 90,
-            environmentMap: SceneEnvironmentMap.Default with
-            {
-                FaceSize = size,
-            }
-        );
+        VulkanRenderer renderer = Renderer(size);
         try
         {
             renderer.Render(Colorful(renderer), 1f);

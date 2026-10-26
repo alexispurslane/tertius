@@ -408,7 +408,7 @@ internal struct EnvironmentPrefilterLevels
 
 /// <summary>
 /// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
-/// <see cref="DescriptorLayouts.EnvironmentSpecularLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>). 72
+/// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>). 72
 /// bytes. environment_irradiance.comp reads none.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -425,15 +425,18 @@ internal struct EnvironmentPrefilterPushConstants
 }
 
 /// <summary>
-/// The push constants of environment_downsample.comp, for the level of the radiance map that set 2 holds, k ≥ 1, made
-/// from level k − 1 in set 1. 4 bytes, which fit in the prefilter layout's range of
-/// <see cref="EnvironmentPrefilterPushConstants"/>.
+/// The push constants of environment_downsample.comp, for the run of levels of the radiance map that bindings 1 to 3 of
+/// set 1 hold, k + 1 to k + 3, made from level k in binding 0 (<see cref="PrefilterLevels.LevelsOfDownsample"/>). 8
+/// bytes, which fit in the prefilter layout's range of <see cref="EnvironmentPrefilterPushConstants"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentDownsamplePushConstants
 {
-    /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>W / 2^(k + 1): the texels along one side of each face of the run's first level.</summary>
     public uint LevelSize;
+
+    /// <summary>The levels of the run, 1 to <see cref="PrefilterLevels.LevelsPerDownsample"/>.</summary>
+    public uint LevelCount;
 }
 
 /// <summary>

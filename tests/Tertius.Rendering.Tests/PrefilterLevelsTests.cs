@@ -79,6 +79,37 @@ public sealed class PrefilterLevelsTests
     }
 
     /// <summary>
+    /// One dispatch of the downsample makes a run of levels of the radiance map from the level above the run: the last
+    /// level of the run before, so that each dispatch waits on one barrier, and a workgroup's 8 by 8 texels of the run's
+    /// first level hold the children of its texels of the two levels below.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void TheDownsampleMakesTheMipsInOrderAtMostThreeFromTheLastLevelMade(int faceSize)
+    {
+        int levels = PrefilterLevels.RadianceLevels(faceSize);
+        var made = new List<int>();
+        int lastMade = 0;
+
+        for (int dispatch = 0; dispatch < PrefilterLevels.DownsampleDispatches(levels); dispatch++)
+        {
+            (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: levels);
+            source.Should().Be(lastMade, "dispatch {0} reads the last level that the chain made", dispatch);
+            count.Should().BeInRange(1, 3, "dispatch {0} binds its source and one storage image per level", dispatch);
+            made.AddRange(Enumerable.Range(source + 1, count));
+            lastMade = source + count;
+        }
+
+        made.Should().Equal(Enumerable.Range(1, levels - 1), "each mip is made once, in order");
+        PrefilterLevels
+            .DownsampleDispatches(levels)
+            .Should()
+            .Be((levels - 1 + 2) / 3, "every dispatch but the last makes three levels");
+    }
+
+    /// <summary>
     /// A level of a dispatch takes the workgroups that its texels need, <see cref="PrefilterLevels.GroupInvocations"/> /
     /// <see cref="PrefilterLevels.Lanes"/> texels each, and no workgroup more, so the next level's workgroups follow.
     /// </summary>

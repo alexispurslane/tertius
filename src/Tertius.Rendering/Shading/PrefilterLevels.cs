@@ -49,6 +49,27 @@ internal static class PrefilterLevels
     }
 
     /// <summary>
+    /// The levels of the radiance map that one dispatch of environment_downsample.comp makes at most: a workgroup's 8 by
+    /// 8 texels of the first hold the children of its 4 by 4 of the second and its 2 by 2 of the third. With the level
+    /// that it reads, a dispatch needs four storage images.
+    /// </summary>
+    public const int LevelsPerDownsample = 3;
+
+    /// <summary>The dispatches of environment_downsample.comp for a radiance map of <paramref name="levels"/> levels.</summary>
+    public static int DownsampleDispatches(int levels) => (levels - 1 + LevelsPerDownsample - 1) / LevelsPerDownsample;
+
+    /// <summary>
+    /// The level that dispatch <paramref name="dispatch"/> of the downsample reads, the last that the dispatch before it
+    /// made, and the count of levels below it that it makes: <see cref="LevelsPerDownsample"/>, or the levels left for
+    /// the last dispatch.
+    /// </summary>
+    public static (int Source, int Count) LevelsOfDownsample(int dispatch, int levels)
+    {
+        int source = dispatch * LevelsPerDownsample;
+        return (source, Math.Min(LevelsPerDownsample, levels - 1 - source));
+    }
+
+    /// <summary>
     /// The workgroups of level <paramref name="level"/> of a map of <paramref name="faceSize"/>: one for each
     /// <see cref="GroupInvocations"/> / <see cref="Lanes"/> texels of its six faces.
     /// </summary>
