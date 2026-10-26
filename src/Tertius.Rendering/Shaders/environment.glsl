@@ -9,6 +9,9 @@
 #include "sky.glsl"
 #include "spherical_harmonics.glsl"
 
+// subgroupBroadcastFirst: a device without it in fragment and compute shaders is refused (VulkanDevice).
+#extension GL_KHR_shader_subgroup_ballot : require
+
 // ShaderConstants.EnvironmentMap: true while the renderer's setting is SceneEnvironmentMap, fixed for its life.
 layout(constant_id = 0) const bool environmentMapOn = false;
 
@@ -32,14 +35,26 @@ vec3 inMapAxes(uint map, vec3 v)
 }
 
 // D(n): the ambient diffuse radiance of map `map` on a surface with the unit normal n, max(Σ E_lm Y_lm(n), 0) / π.
+// The coefficients are read at a map that is uniform over the subgroup (ARCHITECTURE.md, "Reading the map"): each turn of
+// the loop serves the invocations whose map is the first active invocation's, so a subgroup whose pixels share one map
+// takes one turn. Read at each invocation's own map, the nine coefficients took registers per invocation, and the
+// lighting pass ran at a lower occupancy.
 vec3 environmentDiffuse(uint map, vec3 normal)
 {
     float basis[9];
     shBasis(inMapAxes(map, normal), basis);
-    uint first = 9u * map;
     vec3 irradiance = vec3(0.0);
-    for (uint i = 0u; i < 9u; i++)
-        irradiance += environmentIrradiance[first + i].xyz * basis[i];
+    for (;;)
+    {
+        uint subgroupMap = subgroupBroadcastFirst(map);
+        if (subgroupMap == map)
+        {
+            uint first = 9u * subgroupMap;
+            for (uint i = 0u; i < 9u; i++)
+                irradiance += environmentIrradiance[first + i].xyz * basis[i];
+            break;
+        }
+    }
     return max(irradiance, vec3(0.0)) / PI;
 }
 

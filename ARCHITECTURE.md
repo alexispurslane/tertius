@@ -1425,6 +1425,30 @@ where
 - `E · c` = the compensated specular albedo of the DFG table.
 - `stars` = the reflected stars, below. They stay in world axes at d.
 
+`environmentDiffuse` reads the nine coefficients at a map that is uniform over the subgroup, not at each invocation's own map (`ter-51gq`):
+
+```glsl
+for (;;)
+{
+    uint subgroupMap = subgroupBroadcastFirst(map);
+    if (subgroupMap == map)
+    {
+        uint first = 9u * subgroupMap;
+        for (uint i = 0u; i < 9u; i++)
+            irradiance += environmentIrradiance[first + i].xyz * basis[i];
+        break;
+    }
+}
+```
+
+where
+
+- `map` = the invocation's own map, `ShadingInput.map`, which varies per pixel.
+- `subgroupBroadcastFirst(map)` = the map of the subgroup's first active invocation, the same value in every active invocation.
+- `subgroupMap` = that map. The invocations whose map it is read their coefficients in this turn and leave the loop. The others take the next turn.
+
+Each turn serves at least the first active invocation, so the loop ends for every invocation. A subgroup whose pixels share one map, which is nearly every subgroup, takes one turn, and the sum is the same per invocation as a read at its own map, so the image does not change. With the map uniform, the GPU holds the coefficients once per subgroup. Read at each invocation's own map, they took registers per invocation, and on the M1 Max the lighting pass ran at a fragment occupancy of 13 % against 17 % with the uniform read (see "Cost"). The specular read keeps each invocation's own layer: a probe that fixed the layer at 0 saved nothing, and the loop around the specular read as well cost as much as the per-invocation read. The device requires the ballot operations in the fragment and compute stages (see "Required device features").
+
 `occludedAmbient` then applies the occlusion to both terms, the reflected stars included (see "Ambient occlusion").
 
 The reflected stars (`reflectedStars` in `sky.glsl`) are the stars of the sky pixels as a lobe reflects them. `starOfCell` defines each star once, so the sky and the mirrors hold the same stars.
@@ -1566,7 +1590,20 @@ The maps per frame (`ter-uy7y`, 2026-10-26) were measured by the same recipe aga
 | Every pass, the frame span | 14.63 ms (p95 18.24 ms) | 15.05 to 15.16 ms (p95 18.51 to 18.67 ms) |
 
 - A frame of a film draws one face and prefilters one map, as before, and the face pass and the prefilter cost what they cost with one map.
-- The lighting pass grows by about 0.49 ms, ten times the 0.05 ms that the design expected, and the transparent pass by about 0.075 ms. The frame span grows by 0.4 to 0.5 ms. Two probes, each one run, located the lighting pass's growth. With every pixel's map fixed at 0 in `surfaceAt`, the pass took 1.803 ms, the base's time. With the turn into the map's axes left out and the map read from the G-buffer, it took 2.200 ms. So the cost follows the map that varies per pixel, not the two quaternion turns. `ter-51gq` looks for its cause.
+- The lighting pass grows by about 0.49 ms, ten times the 0.05 ms that the design expected, and the transparent pass by about 0.075 ms. The frame span grows by 0.4 to 0.5 ms. Two probes, each one run, located the lighting pass's growth. With every pixel's map fixed at 0 in `surfaceAt`, the pass took 1.803 ms, the base's time. With the turn into the map's axes left out and the map read from the G-buffer, it took 2.200 ms. So the cost follows the map that varies per pixel, not the two quaternion turns. `ter-51gq` found the cause and removed most of the cost, below.
+
+`ter-51gq` (2026-10-26) measured on the same script and machine, under the load of other agents' builds and GPU tests, with the 1-minute load from 11 to 71. The load makes every pass slower than in the table above, so only runs taken close together compare:
+
+| Probe, one change to the maps per frame | Lighting pass | Base runs beside it |
+|---|---|---|
+| The coefficients read at map 0, the specular layer at each pixel's map | 1.896 to 2.154 ms, 4 runs | 2.356 to 2.578 ms |
+| The specular layer at 0, the coefficients at each pixel's map | 2.453 to 2.607 ms, 2 runs | |
+| The coefficients at a map uniform over the subgroup (the fix) | 1.964 to 2.154 ms, 6 runs | |
+| The specular read inside the same loop as well | 2.422 to 2.472 ms, 2 runs | |
+
+- The cost was the read of the nine irradiance coefficients at each pixel's own map. The specular layer per pixel and the turns cost almost nothing. A Metal System Trace of 120 frames of the deck (`tools/gpu-trace.sh --start 399`) shows why: the lighting pass took 3.53 ms of its own work before the fix and 2.96 ms after, at loads of 33 and 11, and its fragment occupancy rose from 13.2 % to 17.2 % while its buffer reads stayed at about 2 % of the GPU's limit. The coefficients read per invocation took registers per invocation, which let fewer pixels run at once. Its ALU limiter rose from 41 % to 52 %, because the same work ran in less time.
+- The fix reads the coefficients at a map uniform over the subgroup (see "Reading the map"). In two pairs of runs taken in turn, at a 1-minute load from 17 to 24, the lighting pass fell from 2.539 and 2.543 ms to 2.154 and 2.081 ms, about 0.42 ms of the 0.49 ms, and the transparent pass from 0.285 and 0.268 ms to 0.212 and 0.225 ms. The frame span fell from 12.10 ms to 12.00 and 11.68 ms, and the other base run, at 16.3 ms, was disturbed. The fix costs what the probe with every coefficient at map 0 costs, so the rest of the 0.49 ms is the specular layer and the turns, within the noise of the runs.
+- `cabin-light.json`, whose views show several maps, captures the same bytes before and after the fix.
 - The other passes match the base within the spread of the runs, which is up to 0.1 ms for some passes because each timestamp waits for the commands before it.
 - `demo-surface.json` times only 7 frames per run, and which of a still's two draws the run collects depends on which finished last, so its numbers are too noisy to compare. On the branch, the face pass took at most 0.26 to 0.34 ms, the prefilter at most 1.13 to 1.26 ms, and the largest frame span of its stills was 12.9 to 13.1 ms. The two base runs were disturbed by the machine's load, with largest spans of 18.3 and 28.0 ms.
 
@@ -2187,7 +2224,7 @@ The sites in the shaders, with their verdicts:
 | `environment_irradiance.comp`: the sums, the shared tree and the store | A blinding map at 32,256 in every texel, W = 1024 | Safe: \|E_lm\| ≤ A_l × 32,256 × 4π × max \|Y_lm\|, with A_l = π, 2π/3 and π/4 and max \|Y_lm\| on the unit sphere = 0.282, 0.489 and 0.631 for the bands 0, 1 and 2. The largest is band 1's, 2π/3 × 0.489 × 32,256 × 4π, about 4.2 · 10^5, and the coefficients sit in an std430 buffer of single floats, not half floats. One workgroup of 128 invocations and 27 × 128 × 4 = 13,824 B of shared memory lie within the spec's least limits of 128 invocations, 128 in x, and 16,384 B. Each barrier() runs in uniform control flow, because the strides are the same in every invocation |
 | `environment_irradiance.comp`: texels = 6 W², t / W², inLayer % W, inLayer / W, (texel + 0.5) / W, and the layer that `faceBasis` takes | W of 0, 6 W² past 2^32, a layer past 5 | Safe: W from `textureSize` is 16 to 1024, so 6 W² ≤ 6,291,456 and every divisor is at least 16. t < 6 W² keeps layer = t / W² ≤ 5 |
 | `shBasis`, `shBand` and `ShClampedCosine` (`spherical_harmonics.glsl`), called from `environment_irradiance.comp` and `environmentDiffuse` | A zero or long direction, a band past 2 | Safe: `shBasis` only multiplies the direction's parts by constants. It has no division, no root and no transcendental, so for a unit direction each \|Y_lm\| ≤ 1.093. The irradiance passes `normalize(ray)` of a face ray whose forward part is ±1, so it divides by at least 1. `environmentDiffuse` passes the shading normal, which is unit through `normalizedOr` and `normalMapped` in `sampleMaterial` or through `octDecode` in `surfaceAt`, turned into its map's axes by `inMapAxes`, which keeps a unit vector unit. `shBand(j)` ≤ 2 for the nine invocations j < 9 that read it |
-| `environmentDiffuse` (`environment.glsl`): max(Σ E_lm Y_lm(n), 0) / π | A black map, ringing that makes the sum negative, a blinding map | Safe: the coefficients are finite, so max sees no NaN. The division is by the constant π. D is at most about 32,256, which `exposed` caps after the product |
+| `environmentDiffuse` (`environment.glsl`): max(Σ E_lm Y_lm(n), 0) / π, read in a loop over the subgroup's maps | A black map, ringing that makes the sum negative, a blinding map. A loop that never ends | Safe: the coefficients are finite, so max sees no NaN. The division is by the constant π. D is at most about 32,256, which `exposed` caps after the product. Each turn of the loop serves the first active invocation, whose map `subgroupBroadcastFirst` returns, so every invocation leaves it after at most as many turns as the subgroup has invocations, on any driver and with any set of active invocations |
 | `environmentSpecular` (`environment.glsl`): the lod r (L − 1) and the trilinear cube read | Roughness at the floor or at 1, d at a face's edge or corner | Safe: the floored r lies in [0.045, 1], and L is at least 3 for W ≥ 16. d is unit, because `specularDominantDirection` falls back to N. The read is a weighted mean of texels of at most 32,256, and its alpha lies in [0, 1]. Vulkan filters a cube across its faces |
 | `starWidth` (`sky.glsl`): √(f² + 4α²) | f at p, f at a silhouette, a field of view near π | Safe: α = r² with r ≥ 0.045, so w is at least 0.004. d is unit, so each step of it is at most 2, and f is at most max(p, 2). p stays below about 10^8 for every field of view below π, so f² is a finite single float |
 | `reflectedStars` and `starKernel` (`sky.glsl`): p² / w² and exp(−θ² / w²) | A footprint below the sky's p floor of 10^−5, a star far from d | Safe: every caller floors f at p = `frame.params.z` (`reflectionFootprint` and `reflectionFootprintAt`, and p itself in the face shader), and w = √(f² + 4α²) ≥ max(f, 2α) ≥ max(p, 0.004). So w ≥ max(p, 10^−5) = `starPixelAngle()`, and the peak scale p'² / w² is at most 1. A window of 0 or less returns 0 before the exponential, which only underflows. The 27 cells add at most 27 × 3.05 |
@@ -2230,6 +2267,7 @@ The renderer requires these, and `VulkanDevice` refuses a device without them. T
 | Descriptor indexing: `descriptorIndexing`, `runtimeDescriptorArray`, `descriptorBindingPartiallyBound`, `descriptorBindingVariableDescriptorCount`, `descriptorBindingSampledImageUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing` | The bindless texture array of 4,096 slots. The device enables `descriptorIndexing`, and only that feature, not its five parts, guarantees the limits of at least 500,000 sampled images per stage after bind, so the device checks it too | NVIDIA, RADV and ANV offer them, as vkd3d-proton needs them for Direct3D 12. lavapipe sets all six |
 | `shaderStorageImageExtendedFormats` | The occlusion passes' storage images in R8 (the edges, the occlusion target) and R16F (terms A and B): only this feature makes the spec require storage use of those formats. The reflections' depth pyramid in RG32F: the spec requires storage use of the format, but a shader that declares `rg32f` needs SPIR-V's `StorageImageExtendedFormats` capability, which this feature enables. R32F, the view depth, and RGBA16F, the radiance pyramid and the HDR image that the trace writes, need no feature | NVIDIA, RADV and ANV report it on every GPU that they support, as it carries the typed storage formats of Direct3D 11 and 12 that DXVK and vkd3d-proton use. lavapipe sets it |
 | `imageCubeArray` | The environment maps: one cube array image holds the maps of the served chain, 6 × M layers, and the shaders read it as a `textureCubeArray` (see "The environment map") | NVIDIA, RADV and ANV offer it on every GPU that they support with Vulkan 1.3, as the D3D11 feature level requires cube arrays. lavapipe sets it from llvmpipe's cube map array cap |
+| Subgroup ballot in the fragment and compute stages: `BALLOT` in `subgroupSupportedOperations`, and `FRAGMENT` and `COMPUTE` in `subgroupSupportedStages` (`VkPhysicalDeviceVulkan11Properties`) | `environmentDiffuse` reads the map's coefficients at a map that `subgroupBroadcastFirst` makes uniform over the subgroup (see "The environment map", "Reading the map"). The lighting, transparent and impostor capture passes call it in fragment shaders, and the reflections' trace and upsample keep the call in compute shaders. These are properties, not features, so the device enables nothing. The spec guarantees subgroup operations only in the compute stage, and only the basic ones | NVIDIA, RADV and ANV report every stage and the ballot operations on every GPU that they support, as vkd3d-proton needs them for the wave operations of Direct3D 12's Shader Model 6 in pixel shaders. lavapipe reports the fragment and compute stages with the ballot operations (`lvp_device.c`) |
 | `maxPerStageDescriptorStorageImages` of at least 10, under `ConeTracedReflections` | The depth pyramid's tail binds its 10 mips as one array of storage images in one compute stage (`DepthPyramidTail.Mips`). The spec guarantees only 4. `RenderTargets.CheckFormats` refuses a device below 10 with reflections on | NVIDIA, RADV and ANV report a million or more, which vkd3d-proton needs for Direct3D 12's highest resource binding tier. lavapipe reports its descriptor maximum (`MAX_DESCRIPTORS` in `lvp_device.c`), far above 10 |
 | One queue family with graphics and compute | The exposure's compute pass in the frame's one command buffer | The Vulkan spec requires such a family of a device that has graphics |
 | Not required: `shaderSignedZeroInfNanPreserve`, `drawIndirectCount` | The shaders keep NaN and infinity out instead, and the CPU sets the draw count | |
