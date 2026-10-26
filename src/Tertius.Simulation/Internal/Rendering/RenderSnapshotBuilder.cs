@@ -479,57 +479,57 @@ internal sealed partial class RenderSnapshotBuilder
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
 
-            // The default light holds no case, so the entity adds no light.
-            switch (render.Light)
+            AddLight(lights: lights, light: render.Light, carrier: current, chainDepth: (ushort)chainDepth[dense]);
+        }
+    }
+
+    /// <summary>
+    /// Adds <paramref name="light"/>, carried by an entity at <paramref name="carrier"/> relative to the camera's physics
+    /// home, to <paramref name="lights"/>, relative to the render origin. The default light adds nothing.
+    /// </summary>
+    private void AddLight(RefList<RenderLight> lights, in LightData light, in DPose carrier, ushort chainDepth)
+    {
+        switch (light)
+        {
+            case PointLightData { Offset: var offset, Color: var color, Intensity: var intensity, Range: var range }:
             {
-                case PointLightData
-                {
-                    Offset: var offset,
-                    Color: var color,
-                    Intensity: var intensity,
-                    Range: var range
-                }:
-                {
-                    DPose pose = LightPose(current, offset);
-                    lights.AddRef() = new PointRenderLight(
-                        Position: (pose.Position - origin).ToVector3(),
-                        Color: color,
-                        Intensity: intensity,
-                        Range: range,
-                        ChainDepth: (ushort)chainDepth[dense]
-                    );
-                    break;
-                }
-                case SpotLightData
-                {
-                    Offset: var offset,
-                    Color: var color,
-                    Intensity: var intensity,
-                    Range: var range,
-                    InnerConeAngle: var innerConeAngle,
-                    OuterConeAngle: var outerConeAngle
-                }:
-                {
-                    DPose pose = LightPose(current, offset);
-                    lights.AddRef() = new SpotRenderLight(
-                        Position: (pose.Position - origin).ToVector3(),
-                        Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
-                        Color: color,
-                        Intensity: intensity,
-                        Range: range,
-                        InnerConeAngle: innerConeAngle,
-                        OuterConeAngle: outerConeAngle,
-                        ChainDepth: (ushort)chainDepth[dense]
-                    );
-                    break;
-                }
-                case null:
-                    break;
-                default:
-                    throw new UnreachableException(
-                        $"The light {render.Light} has a case that the snapshot does not draw."
-                    );
+                DPose pose = LightPose(carrier, offset);
+                lights.AddRef() = new PointRenderLight(
+                    Position: (pose.Position - renderOrigin).ToVector3(),
+                    Color: color,
+                    Intensity: intensity,
+                    Range: range,
+                    ChainDepth: chainDepth
+                );
+                break;
             }
+            case SpotLightData
+            {
+                Offset: var offset,
+                Color: var color,
+                Intensity: var intensity,
+                Range: var range,
+                InnerConeAngle: var innerConeAngle,
+                OuterConeAngle: var outerConeAngle
+            }:
+            {
+                DPose pose = LightPose(carrier, offset);
+                lights.AddRef() = new SpotRenderLight(
+                    Position: (pose.Position - renderOrigin).ToVector3(),
+                    Direction: pose.Rotation.Rotate(LightForward).ToVector3(),
+                    Color: color,
+                    Intensity: intensity,
+                    Range: range,
+                    InnerConeAngle: innerConeAngle,
+                    OuterConeAngle: outerConeAngle,
+                    ChainDepth: chainDepth
+                );
+                break;
+            }
+            case null:
+                break;
+            default:
+                throw new UnreachableException($"The light {light} has a case that the snapshot does not draw.");
         }
     }
 
