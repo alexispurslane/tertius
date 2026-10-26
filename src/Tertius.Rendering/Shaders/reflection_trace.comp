@@ -32,11 +32,8 @@ void main()
     // Sky starts no ray, and neither does an impostor, whose light the atlas holds.
     if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
         return;
+    // surfaceAt gives the footprint that the lighting pass took, so the fallback is the term that it added.
     ShadingInput s = surfaceAt(pixel);
-    // A compute shader has no derivatives, so the fallback's reflected stars take the footprint's lower bound, p, the
-    // main view's pixel angle (docs/plans/environment-map.md, decision 33). The stars matter only where the map sees open
-    // sky along d, where a ray seldom hits a surface.
-    s.reflectionFootprint = frame.params.z;
     float roughness = flooredRoughness(s.roughness);
     float roughnessFade = clamp(2.0 - 2.0 * roughness / reflection.maxRoughness, 0.0, 1.0);
     if (roughnessFade <= 0.0)

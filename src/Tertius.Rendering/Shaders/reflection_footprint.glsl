@@ -1,5 +1,6 @@
-// The reflection's footprint f, for fragment shaders only: a compute shader has no derivatives, so SSR passes its own
-// (docs/plans/environment-map.md, "Where it runs").
+// The reflection's footprint f of a forward pass, from the screen derivatives: the transparent pass and the impostor
+// capture. The lighting pass and the reflection trace take f from the G-buffer in surfaceAt (gbuffer_surface.glsl), so
+// that both see the same f (docs/plans/environment-map.md, "Where it runs").
 #ifndef TERTIUS_REFLECTION_FOOTPRINT_GLSL
 #define TERTIUS_REFLECTION_FOOTPRINT_GLSL
 

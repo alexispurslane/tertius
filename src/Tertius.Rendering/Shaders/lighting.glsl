@@ -232,11 +232,18 @@ AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lo
     return occluded;
 }
 
-// d: the specular dominant direction of the surface's lobe, toward which it reflects the ambient light.
+// d: the specular dominant direction of the lobe of roughness r₀ about the shading normal, toward which it reflects the
+// ambient light.
+vec3 ambientSpecularDirection(vec3 normal, float roughness, vec3 V)
+{
+    float floored = flooredRoughness(roughness);
+    return specularDominantDirection(normal, reflect(-V, normal), floored * floored);
+}
+
+// d of the surface's lobe.
 vec3 ambientSpecularDirection(ShadingInput s, vec3 V)
 {
-    float roughness = flooredRoughness(s.roughness);
-    return specularDominantDirection(s.normal, reflect(-V, s.normal), roughness * roughness);
+    return ambientSpecularDirection(s.normal, s.roughness, V);
 }
 
 // The map as the ambient source: the diffuse term from the irradiance at the normal, the specular term from the

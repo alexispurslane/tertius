@@ -593,6 +593,63 @@ public sealed class EnvironmentLightingTests
         skyPixels.Should().BeGreaterThan(Width * Height / 2);
     }
 
+    [Fact]
+    public void ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsLastColumnAndRow()
+    {
+        // Two mirror ellipsoids 20 m long: a tall one cut by the right edge and a wide one cut by the bottom edge. The d of
+        // each moves by several star cells per pixel across its long axis and by less than one along it. The last column
+        // and the last row have no next pixel, so their footprint takes the step back, and the stars there stay at their
+        // mean, which a quarter turn of the root axes keeps.
+        static (float[] Hdr, float[] Distance) Render(Quaternion root)
+        {
+            VulkanRenderer renderer = Renderer(SmallMap);
+            try
+            {
+                RenderSnapshot snapshot = Dark();
+                snapshot.RootRotation = root;
+                snapshot.PreviousRootRotation = root;
+                MeshId sphere = Sphere(renderer);
+                MaterialId mirror = Metal(renderer, roughness: 0);
+                snapshot.Instances.Add(
+                    Gpu.Instance(mesh: sphere, material: mirror, position: new(4.1f, 0, -4), scale: new(1, 20, 1))
+                );
+                snapshot.Instances.Add(
+                    Gpu.Instance(mesh: sphere, material: mirror, position: new(0, -2.3f, -4), scale: new(20, 1, 1))
+                );
+                renderer.Render(snapshot, 1f);
+                return (renderer.ReadHdr(), renderer.ReadDistance());
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        (float[] still, float[] distance) = Render(Quaternion.Identity);
+        float[] turned = Render(Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)).Hdr;
+
+        int[] edge =
+        [
+            .. Enumerable.Range(0, Height).Select(y => y * Width + Width - 1),
+            .. Enumerable.Range(0, Width).Select(x => (Height - 1) * Width + x),
+        ];
+        edge.Where(pixel => distance[pixel] <= 0).Should().BeEmpty("the ellipsoids fill the last column and row");
+        int[] differing =
+        [
+            .. edge.Where(pixel =>
+                Enumerable.Range(4 * pixel, 3).Max(channel => MathF.Abs(turned[channel] - still[channel]))
+                > still[4 * pixel + 1] / 1024
+            ),
+        ];
+        differing
+            .Should()
+            .BeEmpty(
+                "the footprint there holds the step back across the long axis; the first pixel that differs is ({0}, {1})",
+                differing.FirstOrDefault() % Width,
+                differing.FirstOrDefault() / Width
+            );
+    }
+
     /// <summary>
     /// The reflected stars (docs/plans/environment-map.md, "The reflected stars"), which render many frames each
     /// (tests/STYLE.md, "Long tests"). The view is 10° high at 320 × 180, so a pixel spans about 9.7 · 10⁻⁴ rad, as at

@@ -528,7 +528,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Collects what the last frame of <paramref name="frame"/>'s slot left behind, once its fence has signaled: the
-    /// releases it waited for, its GPU timings and its exposure. A slot collected twice changes nothing the second time.
+    /// releases it waited for, its GPU timings, its exposure and its irradiance. A slot collected twice changes nothing
+    /// the second time.
     /// </summary>
     private void Collect(FrameResources frame)
     {

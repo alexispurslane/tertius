@@ -84,7 +84,7 @@ Settled by this design:
 30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
-33. The reflection's footprint f comes from the screen derivatives of d in each fragment shader, at least p. A compute caller, such as SSR, passes its own. A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and SSR's trace take it from the G-buffer, by one function, so that the trace takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
@@ -376,7 +376,7 @@ If this ticket merges before SSAO, it adds `AmbientTerms` and `hemisphereAmbient
 | Design | What it does to the ambient light | Where |
 |---|---|---|
 | SSAO (`ter-b3h5`) | T_d · V + T_s · V_s | `occludedAmbient`, on the terms of whichever source `ambientTerms` picks. The occlusion also dims the reflected stars, because they are part of T_s. |
-| SSR (`ter-jxv9`) | Replaces S by the radiance that its ray hits, and fades back to T_s where the ray misses | Its compute pass calls `ambientTerms` for the fallback, with a footprint that it computes itself in `ShadingInput.reflectionFootprint`. With the map on, that is the map and the stars. With it off, it is the hemisphere. |
+| SSR (`ter-jxv9`) | Replaces S by the radiance that its ray hits, and fades back to T_s where the ray misses | Its compute pass calls `ambientTerms` for the fallback, with the footprint that `surfaceAt` takes from the G-buffer for the lighting pass too. With the map on, that is the map and the stars. With it off, it is the hemisphere. |
 | The glass blend (`ter-mgze`) | Lets through (1 − opacity)(1 − E) of what lies behind | E is the DFG table's specular albedo, which the map does not change |
 
 ### The reflected stars
@@ -474,7 +474,7 @@ A reflected star stays steady while the camera's frame turns, for three reasons:
 
 #### Where it runs
 
-`environmentSpecular` adds the term for every pixel that the map lights: in the lighting pass, the transparent pass and the impostor capture, and in SSR's fallback later. A pixel with t = 1 skips the 27 cells and adds M alone. In a fragment shader, `reflectionFootprint` gives f from the screen derivatives of d:
+`environmentSpecular` adds the term for every pixel that the map lights: in the lighting pass, the transparent pass and the impostor capture, and in SSR's fallback. A pixel with t = 1 skips the 27 cells and adds M alone. In the forward fragment shaders, the transparent pass and the impostor capture, `reflectionFootprint` gives f from the screen derivatives of d:
 
 ```glsl
 float reflectionFootprint(vec3 d)
@@ -489,7 +489,30 @@ where
 - `dFdx`, `dFdy` = the change of d to the neighbor pixel in x and in y.
 - `frame.params.z` = p, the lower bound.
 
-Derivatives are defined only in uniform control flow, so each fragment shader computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. So `lighting.frag` reads the normal and the roughness from the G-buffer before its test for sky pixels. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
+Derivatives are defined only in uniform control flow, so each of these shaders computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
+
+The lighting pass and SSR's trace read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
+
+```glsl
+float reflectionFootprintAt(ivec2 pixel)
+{
+    ivec2 last = textureSize(gbufferDistance, 0) - 1;
+    int nextX = pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0);
+    int nextY = pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0);
+    vec3 d = dominantDirectionAt(pixel);
+    float alongX = length(dominantDirectionAt(ivec2(nextX, pixel.y)) - d);
+    float alongY = length(dominantDirectionAt(ivec2(pixel.x, nextY)) - d);
+    return max(frame.params.z, max(alongX, alongY));
+}
+```
+
+where
+
+- `dominantDirectionAt(pixel)` = d at a pixel: a surface's dominant direction for the view ray through the pixel's center, and a sky pixel's view ray.
+- `nextX`, `nextY` = the next pixel in x and in y, or the pixel before it in the image's last column or row.
+- `alongX`, `alongY` = how far d moves to those pixels, in rad.
+
+So the trace, which is a compute shader, subtracts the same T_s that the lighting pass added: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes.
 
 The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
@@ -497,7 +520,7 @@ The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until th
 
 | Pass | Reads | Notes |
 |---|---|---|
-| Lighting, a lit pixel | D at the shading normal, S at d with the reflected stars | Through `surfaceRadiance`. The footprint comes from the derivatives of d. |
+| Lighting, a lit pixel | D at the shading normal, S at d with the reflected stars | Through `surfaceRadiance`. The footprint comes from the G-buffer, through `surfaceAt`. |
 | Transparent, a mesh | The same | Glass reflects the map and the stars (User) |
 | Impostor capture | The same, with V from the main view's eye | The capture bakes the map's light |
 | Lit puffs (`scatteredLight`) | The mean radiance, without the stars | Was the mean of the sky and the ground color. Decision 32 leaves the stars out. |
@@ -704,7 +727,7 @@ Push constants:
 | The readback of a slot | The copy at the end of step 3b | Each drawn frame | `EnvironmentMap.Collect` | After the slot's fence, in `Render` | The readback buffers | The exposure's readback buffers |
 | `EnvironmentMap.Latest`, an `IrradianceReading` | `Collect` | Each `Render`, after the fence wait | `VulkanRenderer`, into `EnvironmentDraw.WithMap.Irradiance`, then `PreparedScene.Ambient`, and `ImpostorManager` | Step 2 | `EnvironmentMap` | `ExposureResources.Latest` |
 | The ambient source of a frame, `AmbientSource` | `SceneBatcher` | Step 2 | `ImpostorManager`, `WriteConstants` | Step 2 | `PreparedScene.Ambient` | Today's `PreparedScene.Ambient`, which held the hemisphere alone |
-| The reflection's footprint f | Each fragment shader that shades, at the top of `main`. SSR computes its own. | Per pixel | `environmentSpecular` | Per pixel | `ShadingInput.reflectionFootprint`, a value in the shader | `ShadingInput.occlusion` of ambient-occlusion.md |
+| The reflection's footprint f | The transparent pass and the impostor capture, at the top of `main`. `surfaceAt`, from the G-buffer, for the lighting pass and SSR. | Per pixel | `environmentSpecular` | Per pixel | `ShadingInput.reflectionFootprint`, a value in the shader | `ShadingInput.occlusion` of ambient-occlusion.md |
 | The reflected stars | `environmentSpecular`, from d, the root rotation and p | Per pixel | `environmentAmbient`, as part of T_s | Per pixel | None: a derived read of the frame's root rotation | The sky pixels' stars, which read the same root rotation |
 
 The steps are those of ARCHITECTURE.md, "The order of a rendered frame". This doc adds 3a, the environment faces, and 3b, the environment prefilter, between the shadow maps (3) and the impostor captures (4). Each ordering rule has its reason:
@@ -1308,6 +1331,8 @@ internal sealed class EnvironmentMap : IDisposable
 
   // reflection_footprint.glsl, for fragment shaders only.
   float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
+  // gbuffer_surface.glsl, for the lighting pass and the reflection trace.
+  float reflectionFootprintAt(ivec2 pixel);                                 // max(p, |d(next x) − d|, |d(next y) − d|)
   ```
 
   `L` comes from `textureQueryLevels` of the specular map, so no other store holds it.
