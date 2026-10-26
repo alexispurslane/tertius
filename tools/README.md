@@ -262,7 +262,7 @@ A scripted model is a model whose only source is a folder of Blender Python scri
 | `bridge.sh` | Starts and stops the bridge: a headless Blender that serves the MCP server of `.mcp.json` |
 | `tests/` | The example model `crate.model` and the tests of the build tool |
 
-All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The first start of the shell downloads about 600 MiB, which take 1.7 GiB in the Nix store (measured on 2026-10-26).
+All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. It also gives `TERTIUS_MPFB`, the folder of the MPFB 2.0.18 add-on, unpacked from a fetch pinned by hash in `native/mpfb.nix` (44 MiB to download). The astronaut, `content/tertius.demo/assets/characters/astronaut.model/`, reads the MakeHuman base mesh and targets in its `data/` folder to make its body. No model runs the add-on's code. Outside it, the scripts run themselves again inside it. The first start of the shell downloads about 600 MiB, which take 1.7 GiB in the Nix store (measured on 2026-10-26).
 
 ### Build a model
 

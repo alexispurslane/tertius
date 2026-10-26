@@ -421,7 +421,7 @@ The cache key of a scripted model uses the key inputs of "Caching and determinis
 |---|---|
 | `source` | The SHA-256 of a canonical JSON object. The object maps the path of `model.json` and of each script that it names to the SHA-256 of its bytes. The paths are relative to the model folder. `README.md` is not in the key, because the build never reads it. |
 | `dependencies` | The repository path and the SHA-256 of each file of the build tool and the model library: `tools/blender/build.sh`, `tools/blender/build.py` and every `.py` file in `tools/blender/tertius_blender/` |
-| `tools` | The tools of a glTF source, and also `blender`: the Nix store path of Blender, which names its version. SharpGLTF, meshoptimizer, the .NET runtime and the others still process `build/model.glb`. |
+| `tools` | The tools of a glTF source, and also `blender`: the Nix store path of Blender, which names its version. SharpGLTF, meshoptimizer, the .NET runtime and the others still process `build/model.glb`. Also `mpfb`: the Nix store path of the MPFB data (`TERTIUS_MPFB`), because a model such as the astronaut reads its MakeHuman base mesh and targets. |
 
 The bake device is not a key input, because the importer always bakes on the CPU.
 
@@ -461,6 +461,7 @@ The agent looks at the scene through the render tools of the MCP server. They ne
 | `tools/blender/build.py` | Engine authors | Blender, started by the build tool, and the importer (the cache key) |
 | `tools/blender/build.sh` | Engine authors | The importer (it runs the tool, and the file is in the cache key), agents |
 | `tools/blender/setup.sh`, `tools/blender/bridge.sh` | Engine authors | Agents and people |
+| `native/mpfb.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MPFB`: the unpacked MPFB 2.0.18 add-on, pinned by hash. Model scripts read its `data/` folder, and no model runs its code. |
 | `.mcp.json` | Engine authors | Claude Code |
 | `build/model.glb` | `build.py` | The importer, agents |
 | `build/model.blend` | `build.py` | Agents and people in Blender. The importer does not read it. |
@@ -1616,6 +1617,7 @@ devShells.assets = pkgs.mkShell (common // {
   TERTIUS_BLENDER = pkgs.lib.getExe pkgs.blender;
   TERTIUS_BLENDER_VERSION = pkgs.blender.version;
   TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;               # the fixed-output fetch of mcp-1.0.3.zip
+  TERTIUS_MPFB = "${mpfb}";                                   # native/mpfb.nix: MPFB 2.0.18, unpacked, for its data
   BLENDER_PATH = pkgs.lib.getExe pkgs.blender;                # for the tools of blender-mcp that start Blender
   BLENDER_MCP_HOST = "localhost";                             # the bridge, for the MCP server and bridge.sh
   BLENDER_MCP_PORT = "9876";

@@ -49,7 +49,7 @@
         "foot": 0.05,
         "ball": 0.05
       },
-      "convolute": {"half_length": 0.11, "pitch": 0.05, "depth": 0.02},
+      "convolute": {"half_length": 0.12, "pitch": 0.042, "depth": 0.024},
       "glove_smooth": 2,
       "glove_thickness": {
         "hand": 0.012,
@@ -65,7 +65,9 @@
       "wrist_taper_start": 0.7,
       "wrist_thickness": 0.018,
       "tip_weight": 0.5,
-      "boot": {"resolution": 0.008, "threshold": 0.6, "stiffness": 2.0, "thickness": 0.022, "width": 0.1}
+      "boot": {"resolution": 0.008, "threshold": 0.6, "stiffness": 2.0, "thickness": 0.022, "width": 0.1},
+      "junction_smooth": 12,
+      "junction_gain": 1.5
     },
     "hardware": {
       "segments": 48,
@@ -109,10 +111,13 @@
       "lamp_size": [0.05, 0.1, 0.045],
       "cap_lower": -0.06,
       "cap_thickness": 0.006,
-      "face_depth": -0.035,
-      "face_top": 0.04,
-      "face_half_width": 0.062,
-      "ear_cup_radius": 0.035
+      "face_depth": -0.02,
+      "face_half_width": 0.066,
+      "ear_cup_radius": 0.035,
+      "camera_above_deg": 16,
+      "face_half_height": 0.085,
+      "face_center_dz": -0.03,
+      "cap_edge_smooth": 10
     },
     "backpack": {
       "size": [0.56, 0.24, 0.74],
@@ -127,7 +132,8 @@
       "dcm_sink": 0.035,
       "hose_clearance": 0.035,
       "hose_radius": 0.016,
-      "hose_drop": 0.13
+      "hose_drop": 0.13,
+      "checklist": {"t": 0.55, "sink": 0.006, "size": [0.08, 0.11, 0.014]}
     },
     "materials": {
       "fabric": {
@@ -141,7 +147,7 @@
       },
       "stripe_z": [0.66, 0.71],
       "stripe_color": [0.62, 0.06, 0.04],
-      "patch": {"t": 0.35, "toward": [1.0, -0.7, 0.2], "radius": 0.04, "color": [0.08, 0.16, 0.45]},
+      "patch": {"t": 0.35, "toward": [1.0, -0.7, 0.2], "radius": 0.05, "color": [0.08, 0.16, 0.45]},
       "dust_height": 0.45,
       "dust_color": [0.42, 0.38, 0.33],
       "pack": {
@@ -152,7 +158,8 @@
         "color": [0.86, 0.86, 0.84],
         "color_alt": [0.8, 0.8, 0.79]
       }
-    }
+    },
+    "pose": {"finger_curl_deg": [18, 28, 18], "curl_sign": {"l": 1, "r": -1}}
   },
   "views": {
     "resolution": [1920, 1080],
@@ -188,5 +195,5 @@
       }
     ]
   },
-  "bake": {"objects": ["Suit", "Backpack"], "size": 512, "samples": 8, "margin": 8}
+  "bake": {"objects": ["Suit", "Backpack"], "size": 2048, "samples": 8, "margin": 16}
 }

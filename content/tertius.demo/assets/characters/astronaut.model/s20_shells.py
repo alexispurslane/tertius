@@ -251,7 +251,8 @@ for s in "lr":
         mask = limb_weight(sw, [n + s for n in bones])
         d, _ = limb_frame(sp, b, c)
         window = np.clip(1.0 - (np.abs(d) / fold["half_length"]) ** 2, 0.0, 1.0)
-        wave = 0.5 + 0.5 * np.cos(2.0 * math.pi * d / fold["pitch"])
+        # A squared cosine: rounded ridges with narrow valleys between them, like the convolutes of a real joint.
+        wave = (0.5 + 0.5 * np.cos(2.0 * math.pi * d / fold["pitch"])) ** 2
         bulge = np.maximum(bulge, mask * fold["depth"] * wave * window)
         # Fabric wrinkles on each limb segment: waves across the limb, bent and faded around it, seeded per segment.
         for j0, j1, bone in ((a, b, bones[0] + s), (b, c, bones[1] + s)):
@@ -263,6 +264,12 @@ for s in "lr":
             fade = np.clip(0.55 + 0.45 * np.sin(th + p3), 0.0, 1.0)
             wrinkle += m * wr["depth"] * wave * fade
 sp = sp + n_suit * (bulge + wrinkle)[:, None]
+# Where a limb meets the trunk, the offset surfaces of the two cross and crumple. Smoothing along the normals there,
+# weighted most where the trunk and the limb bones share a vertex equally, irons them out.
+trunk = np.clip(sum(sw[:, i] for i, b in enumerate(BONES) if b.startswith(("spine", "pelvis", "clavicle", "neck"))),
+                0.0, 1.0)
+junction = np.clip(4.0 * trunk * (1.0 - trunk) * P["junction_gain"], 0.0, 1.0)
+sp = smooth(sp, se, P["junction_smooth"], fixed=sb, weight=junction, quads=sq)
 suit = finish("Suit", sp, sq, "M_Suit", "Suit", smooth_angle=70.0)
 
 # --- Gloves -------------------------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@
 # (x, -z, y) / 10 here, as in MPFB, so the face looks toward -Y. MakeHuman's "l" side is the person's left, at +X.
 import gzip
 import json
+import math
 import os
 
 import bmesh
@@ -126,13 +127,46 @@ for group in vgroups:
     if group.startswith("joint-"):
         joints[group[6:]] = coords[indices(group)].mean(axis=0)
 shift[1] = -joints["pelvis"][1]
+
+with open(os.path.join(DATA, "rigs", "standard", "weights.game_engine.json"), encoding="utf-8") as fh:
+    weights = json.load(fh)["weights"]
+
+
+# --- A relaxed hand: the fingers curl a little, by linear blend skinning with the rig's weights. ----------------------
+def turn(center, axis, degrees):
+    """The 4x4 rotation by `degrees` about the line through `center` along `axis`."""
+    a = np.asarray(axis) / np.linalg.norm(axis)
+    t = math.radians(degrees)
+    k = np.array(((0, -a[2], a[1]), (a[2], 0, -a[0]), (-a[1], a[0], 0)))
+    r = np.eye(3) + math.sin(t) * k + (1 - math.cos(t)) * (k @ k)
+    m = np.eye(4)
+    m[:3, :3] = r
+    m[:3, 3] = center - r @ center
+    return m
+
+
+curl = model.params["pose"]["finger_curl_deg"]
+posed = coords[:n_body].copy()
+for s in "lr":
+    # Across the knuckles, from the little finger to the index finger. The sign of the curl turns the fingers toward
+    # the palm.
+    across = joints[s + "-finger-2-1"] - joints[s + "-finger-5-1"]
+    sign = model.params["pose"]["curl_sign"][s]
+    for f, finger in ((2, "index"), (3, "middle"), (4, "ring"), (5, "pinky")):
+        m = np.eye(4)
+        for k in (1, 2, 3):
+            m = m @ turn(joints["{}-finger-{}-{}".format(s, f, k)], across, sign * curl[k - 1])
+            bone = "{}_0{}_{}".format(finger, k, s)
+            for i, w in weights[bone]:
+                if i < n_body and w > 0.0:
+                    p = np.append(coords[i], 1.0)
+                    posed[i] += w * ((m @ p)[:3] - coords[i])
+coords[:n_body] = posed
 coords += shift
 joints = {k: [round(float(c), 6) for c in v + shift] for k, v in sorted(joints.items())}
 bpy.context.scene["astronaut_joints"] = json.dumps(joints)
 
 # --- Body: the skin with the bone weights as vertex groups --------------------------------------------------------
-with open(os.path.join(DATA, "rigs", "standard", "weights.game_engine.json"), encoding="utf-8") as fh:
-    weights = json.load(fh)["weights"]
 
 bm = bmesh.new()
 bverts = [bm.verts.new(tuple(c)) for c in coords[:n_body]]

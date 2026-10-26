@@ -9,7 +9,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from tertius_blender.geometry import MB, beam, rod
+from tertius_blender.geometry import MB, beam, frame_matrix, rod
 
 P = model.params["backpack"]
 J = {k: np.array(v) for k, v in json.loads(bpy.context.scene["astronaut_joints"]).items()}
@@ -98,6 +98,22 @@ for sign in (1, -1):
     # Connector collars at both ends.
     metal.cyl(tuple(start), (sign, 0, 0), P["hose_radius"] + 0.006, 0.025, segs=16)
 hoses.finish("Hoses", M["M_Hose"], "Backpack", smooth_angle=60.0)
+
+# --- The cuff checklist: a small booklet strapped to the left forearm. ----------------------------------------------
+cl = P["checklist"]
+fore = J["l-hand"] - J["l-elbow"]
+unit = fore / np.linalg.norm(fore)
+mid = J["l-elbow"] + cl["t"] * fore
+near = SUIT[np.abs((SUIT - mid) @ unit) < 0.015]
+up_dir = np.array((0.0, 0.0, 1.0)) - unit * unit[2]
+up_dir /= np.linalg.norm(up_dir)
+# The booklet lies on the top of the forearm: the suit point farthest along "up" across the arm.
+top_pt = near[np.argmax((near - mid) @ up_dir)]
+frame = frame_matrix(tuple(top_pt - up_dir * cl["sink"]), tuple(up_dir), tangent_hint=tuple(unit))
+book = MB()
+book.box_local(frame, (0, 0, cl["size"][2] / 2), tuple(cl["size"]), bevel=0.004)
+book.finish("Checklist", M["M_Checklist"], "Backpack", smooth_angle=35.0)
+metal.box_local(frame, (0, 0, cl["size"][2] + 0.002), (cl["size"][0] * 1.02, 0.012, 0.004), bevel=0.001)
 
 gray.finish("Backpack_Gray", M["M_PackGray"], "Backpack", smooth_angle=35.0)
 metal.finish("Backpack_Metal", M["M_Metal"], "Backpack", smooth_angle=35.0)

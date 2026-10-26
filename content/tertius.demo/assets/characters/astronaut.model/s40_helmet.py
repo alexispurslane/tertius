@@ -137,6 +137,13 @@ for sign in (1, -1):
     lamps.box_local(frame, (0, 0, h / 2), (w, d, h), bevel=0.006)
     lens_center = frame @ Vector((0, d / 2 + 0.002, h / 2))
     lenses.cyl(tuple(lens_center), tuple(front), w * 0.36, 0.008, segs=20)
+# A small camera on top of the right lamp.
+phi = -math.radians(P["lamp_azimuth_deg"])
+normal = direction(math.pi / 2 - math.radians(P["lamp_elevation_deg"] + P["camera_above_deg"]), phi)
+origin = C + normal * (R + P["shell_gap"] + P["shell_thickness"] - 0.004)
+frame = frame_matrix(origin, normal, tangent_hint=front)
+lamps.box_local(frame, (0, 0.01, 0.018), (0.034, 0.07, 0.032), bevel=0.005)
+lenses.cyl(tuple(frame @ Vector((0, 0.047, 0.018))), tuple(front), 0.011, 0.008, segs=16)
 lamps.finish("Helmet_Lamps", M["M_HardWhite"], "Helmet", smooth_angle=40.0)
 lenses.finish("Helmet_Lenses", M["M_Lamp"], "Helmet", smooth_angle=40.0)
 
@@ -149,32 +156,49 @@ cap_lower = hc[2] + P["cap_lower"]
 
 
 def in_face(p):
-    return p[1] < hc[1] + P["face_depth"] and p[2] < eye_center[2] + P["face_top"] and abs(p[0]) < P["face_half_width"]
+    """The face opening of the cap: an ellipse in front view, from the brow to under the chin, on the front half."""
+    ex = p[0] / P["face_half_width"]
+    ez = (p[2] - (eye_center[2] + P["face_center_dz"])) / P["face_half_height"]
+    return p[1] < hc[1] + P["face_depth"] and ex * ex + ez * ez < 1.0
 
 
 bm = bmesh.new()
 bm.from_mesh(head)
 bm.verts.ensure_lookup_table()
-keep_faces = [f for f in bm.faces if f.calc_center_median().z > cap_lower and not in_face(f.calc_center_median())]
+covered = [v.co.z > cap_lower and not in_face(v.co) for v in bm.verts]
+keep_faces = [f for f in bm.faces if all(covered[v.index] for v in f.verts)]
 cap = MB()
 index = {}
 for f in keep_faces:
     vs = []
     for v in f.verts:
         if v.index not in index:
-            n = v.normal
-            index[v.index] = cap.bm.verts.new(tuple(v.co + n * P["cap_thickness"]))
+            index[v.index] = cap.bm.verts.new(tuple(v.co + v.normal * P["cap_thickness"]))
         vs.append(index[v.index])
     cap.bm.faces.new(vs)
 bm.free()
-# Ear cups: a disc over each ear.
-for sign in (1, -1):
-    ear = Vector((sign * (hi[0] - lo[0]) / 2 + sign * (P["cap_thickness"] + 0.004), hc[1] + 0.012, eye_center[2] - 0.02))
-    cap.cyl(tuple(ear), (sign, 0, 0), P["ear_cup_radius"], 0.02, segs=20)
-    mouth = Vector((sign * 0.022, lo[1] + 0.012, eye_center[2] - 0.085))
-    cap.tube([tuple(ear + Vector((0, -0.01, -0.01))), tuple(mouth + Vector((sign * 0.03, 0.02, 0.0))), tuple(mouth)],
-             0.0035, segs=8, bend=0.03)
+# Smooth the edge of the cap along itself, so the face opening and the lower edge are clean curves, not the steps of
+# the head's faces.
+edge = [v for v in cap.bm.verts if any(e.is_boundary for e in v.link_edges)]
+for _ in range(P["cap_edge_smooth"]):
+    moved = []
+    for v in edge:
+        ring = [e.other_vert(v).co for e in v.link_edges if e.is_boundary]
+        moved.append(v.co * 0.5 + (ring[0] + ring[1]) * 0.25 if len(ring) == 2 else v.co.copy())
+    for v, co in zip(edge, moved):
+        v.co = co
 cap.finish("Cap", M["M_Cap"], "Body", smooth_angle=60.0)
+
+# The headset: an ear cup over each ear, and a microphone boom from each cup to the corner of the mouth.
+headset = MB()
+for sign in (1, -1):
+    ear = Vector((sign * (hi[0] - lo[0]) / 2 + sign * (P["cap_thickness"] + 0.004), hc[1] + 0.012,
+                  eye_center[2] - 0.02))
+    headset.cyl(tuple(ear), (sign, 0, 0), P["ear_cup_radius"], 0.02, segs=20)
+    mouth = Vector((sign * 0.022, lo[1] + 0.012, eye_center[2] - 0.085))
+    headset.tube([tuple(ear + Vector((0, -0.01, -0.01))), tuple(mouth + Vector((sign * 0.03, 0.02, 0.0))),
+                  tuple(mouth)], 0.0035, segs=8, bend=0.03)
+headset.finish("Headset", M["M_Headset"], "Body", smooth_angle=60.0)
 
 # --- Irises: a dark disc on the front of each eyeball, looking ahead. --------------------------------------------
 irises = MB()
