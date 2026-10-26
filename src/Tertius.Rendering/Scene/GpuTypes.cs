@@ -408,7 +408,7 @@ internal struct EnvironmentPrefilterLevels
 
 /// <summary>
 /// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
-/// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>). 72
+/// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>). 76
 /// bytes. environment_irradiance.comp reads none.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -422,6 +422,12 @@ internal struct EnvironmentPrefilterPushConstants
 
     /// <summary>The levels of the dispatch, 1 to <see cref="PrefilterLevels.LevelsPerDispatch"/>.</summary>
     public uint LevelCount;
+
+    /// <summary>
+    /// The workgroups of the dispatch's levels. Its grid (<see cref="PrefilterLevels.Grid"/>) may hold a few more, which
+    /// return at once.
+    /// </summary>
+    public uint GroupCount;
 }
 
 /// <summary>

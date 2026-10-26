@@ -206,7 +206,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// <summary>
     /// Dispatches a run of levels of the specular map (<see cref="PrefilterLevels.LevelsOfDispatch"/>): the workgroups
     /// of each level follow those of the level before, with <see cref="PrefilterLevels.Lanes"/> invocations per texel of
-    /// its six faces.
+    /// its six faces, in rows of at most 65,535 workgroups (<see cref="PrefilterLevels.Grid"/>).
     /// </summary>
     private void DispatchLevels(Vk vk, CommandBuffer commandBuffer, int dispatch)
     {
@@ -231,6 +231,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             groups += (uint)PrefilterLevels.Workgroups(level: level, faceSize: map.Setting.FaceSize);
         }
 
+        push.GroupCount = groups;
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.EnvironmentPrefilterLayout,
@@ -239,7 +240,9 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             size: (uint)sizeof(EnvironmentPrefilterPushConstants),
             pValues: &push
         );
-        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: groups, groupCountY: 1, groupCountZ: 1);
+        // The rows keep each count within the limit of every device.
+        (int x, int y) = PrefilterLevels.Grid((int)groups);
+        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: (uint)x, groupCountY: (uint)y, groupCountZ: 1);
     }
 
     /// <summary>Binds <paramref name="sets"/> to the prefilter layout from set <paramref name="firstSet"/> on.</summary>

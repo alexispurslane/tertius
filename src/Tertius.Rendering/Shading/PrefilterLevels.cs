@@ -80,6 +80,23 @@ internal static class PrefilterLevels
         return (CubeFaces.Count * size * size + texelsPerGroup - 1) / texelsPerGroup;
     }
 
+    /// <summary>
+    /// The workgroups that a dispatch may count along each of X, Y and Z on every Vulkan device: the least
+    /// <c>maxComputeWorkGroupCount</c> that the specification allows.
+    /// </summary>
+    public const int MaxGroupsPerDimension = 65535;
+
+    /// <summary>
+    /// The grid of a dispatch of environment_prefilter.comp of <paramref name="groups"/> workgroups: as few rows as hold
+    /// them with at most <see cref="MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the grid ends
+    /// fewer than <c>Y</c> workgroups past the last, which return at once. At W = 1024 the first dispatch needs 172,032.
+    /// </summary>
+    public static (int X, int Y) Grid(int groups)
+    {
+        int rows = (groups + MaxGroupsPerDimension - 1) / MaxGroupsPerDimension;
+        return ((groups + rows - 1) / rows, rows);
+    }
+
     /// <summary>The roughness that level <paramref name="level"/> of <paramref name="levels"/> holds, linear in perceptual roughness.</summary>
     public static float Roughness(int level, int levels) => (float)level / (levels - 1);
 

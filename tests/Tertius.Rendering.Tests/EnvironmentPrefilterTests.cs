@@ -405,6 +405,65 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// On the largest map the first dispatch of the specular map spreads its 172,032 workgroups over three rows
+    /// (<see cref="PrefilterLevels.Grid"/>), so each workgroup rebuilds its place from its row and column. Level 0, whose
+    /// workgroups fill the first row and part of the second, is the radiance map texel for texel. Levels 1 to 3, whose
+    /// workgroups lie in the second and third rows, hold at texels spread over every face the sum over their samples.
+    /// </summary>
+    [Fact]
+    public void OnTheLargestMapEveryWorkgroupOfTheGridsRowsWritesItsOwnTexels()
+    {
+        const int faceSize = EnvironmentMapSetting.MaxFaceSize;
+        VulkanRenderer renderer = Renderer(faceSize);
+        int levels = PrefilterLevels.Count(faceSize);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            Half[] radiance = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance);
+            Half[] mirror = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Specular);
+            int differing = 0;
+            for (int i = 0; i < radiance.Length; i++)
+                if (!radiance[i].Equals(mirror[i]))
+                    differing++;
+            differing.Should().Be(0, "the mirror level reads the radiance map texel for texel");
+
+            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
+            for (int level = 1; level < PrefilterLevels.LevelsPerDispatch; level++)
+            {
+                int size = faceSize >> level;
+                float roughness = PrefilterLevels.Roughness(level, levels);
+                float worst = 0;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                {
+                    Half[] face = renderer.ReadEnvironmentFace(
+                        face: (CubeFace)layer,
+                        level: level,
+                        image: EnvironmentImage.Specular
+                    );
+                    // About 200 texels spread over each face, in row order.
+                    int stride = Math.Max(1, size * size / 200 + 1);
+                    for (int texel = 0; texel < size * size; texel += stride)
+                    {
+                        int x = texel % size;
+                        int y = texel / size;
+                        Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+                        Vector4 expected = reference.Prefilter(n, roughness);
+                        Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
+                        worst = MathF.Max(worst, (read - expected).Length() / (1 + expected.Length()));
+                    }
+                }
+
+                worst.Should().BeLessThan(3.5e-3f, "level {0}'s workgroups write their own texels", level);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheIrradianceIsTheProjectionOfTheMapsTexels()
     {

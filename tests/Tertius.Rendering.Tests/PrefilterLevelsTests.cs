@@ -125,10 +125,70 @@ public sealed class PrefilterLevelsTests
             long texelsPerGroup = PrefilterLevels.GroupInvocations / PrefilterLevels.Lanes(level);
             long groups = PrefilterLevels.Workgroups(level: level, faceSize: faceSize);
 
-            (groups * texelsPerGroup).Should().BeGreaterThanOrEqualTo(texels, "level {0} reaches its last texel", level);
+            (groups * texelsPerGroup)
+                .Should()
+                .BeGreaterThanOrEqualTo(texels, "level {0} reaches its last texel", level);
             ((groups - 1) * texelsPerGroup).Should().BeLessThan(texels, "level {0} has no idle workgroup", level);
         }
     }
+
+    /// <summary>
+    /// A dispatch of the specular map counts its workgroups along X and Y, each at most 65,535, the least
+    /// <c>maxComputeWorkGroupCount</c> that the Vulkan specification allows (Intel's and lavapipe's), and its grid holds
+    /// every workgroup of its levels with no idle row. At 1024 texels the first dispatch needs 172,032 workgroups.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void EveryDispatchOfTheSpecularMapFitsTheLeastWorkgroupCountOfEveryDevice(int faceSize)
+    {
+        const int leastLimit = 65535;
+        int levels = PrefilterLevels.Count(faceSize);
+        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(levels); dispatch++)
+        {
+            (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: levels);
+            long groups = Enumerable
+                .Range(first, count)
+                .Sum(level => (long)PrefilterLevels.Workgroups(level: level, faceSize: faceSize));
+
+            (int x, int y) = PrefilterLevels.Grid((int)groups);
+
+            x.Should()
+                .BeInRange(
+                    1,
+                    leastLimit,
+                    "dispatch {0} of a map of {1} texels counts X within the limit",
+                    dispatch,
+                    faceSize
+                );
+            y.Should()
+                .BeInRange(
+                    1,
+                    leastLimit,
+                    "dispatch {0} of a map of {1} texels counts Y within the limit",
+                    dispatch,
+                    faceSize
+                );
+            ((long)x * y)
+                .Should()
+                .BeGreaterThanOrEqualTo(groups, "the grid of dispatch {0} holds every workgroup", dispatch);
+            ((long)x * (y - 1)).Should().BeLessThan(groups, "the grid of dispatch {0} has no idle row", dispatch);
+        }
+    }
+
+    /// <summary>
+    /// The grid of any count of workgroups has as few rows as hold them at 65,535 per row, and rows as short as hold them,
+    /// so it holds every workgroup and ends fewer than a row's count of rows past the last.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 1, 1)]
+    [InlineData(65535, 65535, 1)]
+    [InlineData(65536, 32768, 2)]
+    [InlineData(131071, 43691, 3)]
+    [InlineData(172032, 57344, 3)]
+    public void TheGridHoldsTheWorkgroupsInTheFewestAndShortestRows(int groups, int x, int y) =>
+        PrefilterLevels.Grid(groups).Should().Be((x, y));
 
     [Fact]
     public void LevelKHoldsRoughnessKOverTheLastLevel()

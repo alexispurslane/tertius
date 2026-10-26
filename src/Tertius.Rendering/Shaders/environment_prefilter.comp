@@ -50,6 +50,7 @@ layout(push_constant, std430) uniform PrefilterPush
     Level levels[MaxLevels];  // in binding order
     uint samples;             // N, at most MaxSamples
     uint levelCount;          // 1 to MaxLevels
+    uint groupCount;          // the workgroups of the levels, which the grid's rows may pass by a few
 } prefilter;
 
 // Sample i of the level: xyz the direction l in the axes of n (tangent, bitangent, n), so z is n·l, and w the level of the
@@ -98,10 +99,16 @@ void store(uint binding, ivec3 texel, vec4 value)
 
 void main()
 {
+    // The workgroup's place in the dispatch. The workgroups lie in rows of at most 65,535, the least
+    // maxComputeWorkGroupCount of the specification (PrefilterLevels.Grid), and those past the last row's end return
+    // before any barrier, as a whole workgroup.
+    uint group = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+    if (group >= prefilter.groupCount)
+        return;
     // The level of this workgroup: the last of the dispatch whose first workgroup is at most this one.
     uint binding = 0u;
     for (uint m = 1u; m < prefilter.levelCount; m++)
-        if (gl_WorkGroupID.x >= prefilter.levels[m].firstGroup)
+        if (group >= prefilter.levels[m].firstGroup)
             binding = m;
     Level level = prefilter.levels[binding];
 
@@ -109,7 +116,7 @@ void main()
     uint lane = index % level.lanes;
     uint slot = index / level.lanes;
     uint levelTexels = level.levelSize * level.levelSize;
-    uint texel = (gl_WorkGroupID.x - level.firstGroup) * (Invocations / level.lanes) + slot;
+    uint texel = (group - level.firstGroup) * (Invocations / level.lanes) + slot;
     bool inLevel = texel < 6u * levelTexels;
     uint layer = texel / max(levelTexels, 1u);
     uint inLayer = texel - layer * levelTexels;
