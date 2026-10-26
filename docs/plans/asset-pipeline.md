@@ -366,7 +366,7 @@ The outputs in the output folder:
 | `model.blend` | The built scene before the stage, with the procedural materials kept for a new bake |
 | `textures/<object>_<pass>.png` | The baked maps, which `model.blend` loads |
 | `views/<name>.png` | Only with `--views`: one image per shot |
-| `build.json` | The report: status, Blender version, bake device, the seconds and `result` of each script, each baked map, the pieces, the triangle count and the list of outputs. On a failure: the stage, the script, the message and the traceback. |
+| `build.json` | The report: status, Blender version, bake device, the seconds and `result` of each script, each baked map, the pieces, the triangle count and the list of outputs. On a failure: the step of the build, the script, the message and the traceback. |
 | `blender.log` | Blender's own output |
 
 Exit codes:
@@ -383,6 +383,7 @@ The export conventions live in one function, `export.write_glb`. The converter o
 
 - `export_format='GLB'`, `export_yup=True`, `export_apply=True`, `export_extras=True`, `export_tangents=True`, `export_lights=True`, `export_cameras=False`, `export_materials='EXPORT'`, `export_image_format='AUTO'`, `export_import_convert_lighting_mode='SPEC'`, and no Draco compression.
 - Before the export, the function makes sure that the scene holds no camera. A camera there means that the stage leaked into the model, and the build fails.
+- The exporter computes tangents only for triangles and quads. So the function adds a Triangulate modifier at the end of the modifier stack of each mesh for the time of the export. glTF holds triangles in any case, and the scene keeps its polygons.
 
 Determinism: the same model folder, model library and Blender build on the same machine and bake device give the same `model.glb` bytes. A test in `tools/blender/tests/` builds a small model twice and compares the bytes. A GPU bake of the same bytes on every run is a belief, and the first build of the Nostromo tests it. `model.blend` and `build.json` hold times and paths, so their bytes differ.
 
@@ -427,7 +428,7 @@ run.new_scene()
 result = run.run_script("/path/to/tertius/content/tertius.demo/assets/ships/nostromo.model", "s10_hull.py")
 ```
 
-The agent looks at the scene through the render tools of the MCP server. For the full build, the bake and the views, it runs the build tool with `--views` into a scratch folder. The project skill `procedural-modeling` holds the way of work, and the Nostromo is its worked example.
+The agent looks at the scene through the render tools of the MCP server. They need a scene camera, so the agent first adds the stage with `stage.build` and picks a shot with `stage.use_shot`. A render tool writes its image into the temporary folder of the bridge and returns the path, which the agent opens with the Read tool. `stage.remove()` deletes the stage again before the next model script runs. For the full build, the bake and the views, the agent runs the build tool with `--views` into a scratch folder. The project skill `procedural-modeling` holds the way of work, and the Nostromo is its worked example.
 
 #### Readers and writers
 

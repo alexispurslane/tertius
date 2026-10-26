@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -249,6 +249,84 @@ How the script reads the trace:
 - The exported counters of 120 frames take more than a gigabyte of XML. A trace of 120 frames at 1080p takes about two minutes in all, and about 80 MB. The script deletes the exported tables after the report, unless `--keep-exports` is given.
 
 What the trace does not give headless: the counters per draw or per dispatch, and the shader costs per line. In Instruments, open `run.trace`, select a frame's encoder on the GPU track, and read the counters and the shader timeline in the detail pane below it.
+
+## Scripted models in Blender
+
+A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". `tools/blender/` holds the tools:
+
+| Path | What it is |
+|---|---|
+| `tertius_blender/` | The model library: the Python package that model scripts import. `run` runs scripts. `geometry` and `nodes` build meshes and shader node trees. `checks` holds the attachment check and the view check. `bake` and `export` make the maps and the files. `stage` adds the cameras and lights of the views. |
+| `build.sh`, `build.py` | The build tool. It builds one model folder in headless Blender, with no MCP server. |
+| `setup.sh` | Installs the Blender MCP add-on into Blender, once per machine |
+| `bridge.sh` | Starts and stops the bridge: a headless Blender that serves the MCP server of `.mcp.json` |
+| `tests/` | The example model `crate.model` and the tests of the build tool |
+
+All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The first start of the shell downloads Blender, about 3 GB.
+
+### Build a model
+
+```bash
+tools/blender/build.sh content/tertius.demo/assets/ships/nostromo.model --out /tmp/nostromo-build --views
+```
+
+The build starts from an empty scene and runs the scripts that `model.json` names, in order. Then it bakes the objects of `bake.objects`, saves `model.blend`, exports `model.glb`, and with `--views` renders each shot into `views/<name>.png`. It prints `build.json`, the report, and also writes it into the output folder. Blender's own output goes to `blender.log` there.
+
+- `--out` is required. The folder must be new, empty, or the output of an earlier build, which the build replaces. A folder with other files stops the build with exit code 2, so a wrong path never loses files. Put the outputs in a scratch folder, not in `bin/assets/`: the importer owns that folder.
+- `--device cpu` bakes and renders on the CPU. With the default, `auto`, the build uses the GPU that Cycles finds, such as Metal on this Mac. Without one, it uses the CPU. On Linux, the Blender of nixpkgs has no CUDA or OptiX, so it uses the CPU.
+- The first bake on Metal in a new Blender compiles the GPU kernels, and that takes about three minutes. Later bakes start at once.
+- Exit codes: 0 built, 2 bad input, 3 the build failed, 5 Blender is missing, 6 less than 30 GB free. Bad input is a wrong argument, a broken `model.json`, a missing script or an output folder with other files. After a failed build, `build.json` names the step and the script.
+
+The build tool stops Blender on every exit and deletes Blender's temporary folder. Blender ignores Ctrl+C, so do not start Blender for a build by hand.
+
+### Model through the MCP server
+
+`.mcp.json` registers the official Blender Lab MCP server as the server `blender`. Claude Code starts it with `nix develop .#assets --command blender-mcp`, and asks once to approve the servers of the project. The server sends each tool call to the bridge.
+
+1. Once per machine, install the add-on: `tools/blender/setup.sh`. If version 1.0.3 is already installed and enabled, the script changes nothing.
+2. Start the bridge: `tools/blender/bridge.sh start`. It listens on `localhost:9876` and writes its log to `~/.local/state/tertius/blender-bridge-9876/bridge.log`.
+3. Run model scripts through the tool `execute_blender_code`, with the same function as the build tool:
+
+   ```python
+   import sys
+   sys.path.insert(0, "<repository>/tools/blender")
+   from tertius_blender import run
+
+   run.new_scene()
+   result = run.run_script("<repository>/content/tertius.demo/assets/ships/nostromo.model", "s10_hull.py")
+   ```
+
+   `<repository>` is the absolute path of the checkout. `run_script` reads `model.json` again and reloads the model library on each call, so an edit applies at once. The code of a tool call runs in a new namespace each time, but `sys.path` and the scene stay.
+4. To look at the scene, add the stage and pick a shot, then call a render tool:
+
+   ```python
+   from tertius_blender import run, stage
+   views = run.load_model(MODEL)["views"]
+   stage.build(views)
+   stage.use_shot(views["shots"][0])
+   ```
+
+   `render_thumbnail_to_path` makes a fast, small image, and `render_viewport_to_path` uses the render settings of the stage. Both write into the temporary folder of the bridge and return the path. Open that path with the Read tool before you stop the bridge, because the stop deletes the folder. Call `stage.remove()` before you run model scripts again: a camera in the scene fails the export.
+5. At the end of the work, stop the bridge: `tools/blender/bridge.sh stop`. A running bridge holds memory, and other agents wait for Blender to quit before they time GPU work.
+
+The render tools need a camera, and only the stage adds one. The other tools of the server, such as `get_objects_summary` and `search_api_docs`, need no camera.
+
+### Rules for model scripts
+
+- Use `model.rng` for every random choice. It is seeded from the `seed` of `model.json` and the script name. The build also seeds the `random` module the same way before each script, as a guard.
+- Never iterate over a `set` of Blender objects or BMesh elements: its order follows memory addresses. `dict.fromkeys(...)` keeps a fixed order.
+- Write no files. The bake, the save and the export belong to the build tool.
+- Build only the model, in meters, with +Z up and the front toward -Y. Add no cameras and no lights for the views.
+- Mark a piece below the root with the custom property `tertius_piece = 1`.
+- Set `result` to a dictionary to report numbers. `build.json` keeps the `result` of each script.
+
+### The tests
+
+```bash
+nix develop .#assets --command python3 tools/blender/tests/test_build.py
+```
+
+The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, the attachment check, the view check and the stage. They start Blender about a dozen times and take about 30 seconds on the CPU.
 
 ## Git hooks
 
