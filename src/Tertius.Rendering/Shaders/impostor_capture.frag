@@ -9,7 +9,7 @@
 // One object alone, rendered with mesh.vert into its impostor atlas tile (ImpostorPass.cs). draw.viewProj is a
 // perspective projection from the main view's eye, fitted to the bounding sphere's tangent cone, with clip w equal
 // to the view depth over the center's distance; draw.eye is that eye, so view-dependent shading matches what the
-// camera sees. Lighting is the lighting pass's
+// camera sees. Lighting is the one-pass
 // surfaceRadiance with the hemisphere ambient and its specular part, the sun with the analytic eclipse term, and the
 // point and spot lights, but not the shadow maps: they cover the main view, not the capture. ImpostorManager recaptures when any of that
 // light changes at the object.
@@ -37,8 +37,9 @@ void main()
     shading.reflectance = s.reflectance;
     shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     shading.lobeSkyFraction = lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // A capture has no screen around it for the occlusion passes to search.
+    // A capture has no screen around it for the occlusion passes to search, so no estimate.
     shading.occlusion = 1.0;
+    shading.bounce = vec3(0.0);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, false, 1.0);
     outColor = vec4(color, 1.0);

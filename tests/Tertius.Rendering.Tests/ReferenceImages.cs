@@ -108,8 +108,7 @@ internal static class ReferenceImages
         int visible = map.CountAbove(tolerance);
         if (visible == 0)
         {
-            File.Delete(actualPath);
-            File.Delete(heatMapPath);
+            Pass(referencePath: referencePath, actualPath: actualPath, heatMapPath: heatMapPath, map: map);
             return;
         }
 
@@ -122,6 +121,19 @@ internal static class ReferenceImages
                 + $"{tolerance} (the largest is {map.Max:F3}, the mean over the image {map.Mean:F5}). The actual image is at "
                 + $"{actualPath} and the FLIP heat map at {heatMapPath}. Open all three. If the change is intended, approve it "
                 + $"with {ApproveVariable}=1."
+        );
+    }
+
+    /// <summary>
+    /// Removes the actual image and the heat map of an earlier failure, and reports the largest FLIP value, which every
+    /// change to the renderer reports for each reference image (CLAUDE.md, "Testing").
+    /// </summary>
+    private static void Pass(string referencePath, string actualPath, string heatMapPath, FlipMap map)
+    {
+        File.Delete(actualPath);
+        File.Delete(heatMapPath);
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{Path.GetFileName(referencePath)}: largest FLIP value {map.Max:F4}, mean {map.Mean:F6}."
         );
     }
 

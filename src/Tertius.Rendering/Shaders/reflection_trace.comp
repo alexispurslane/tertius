@@ -65,7 +65,7 @@ void main()
 
     SurfaceLobes lobes = lobesOf(s, V);
     float fade = roughnessFade * surfaceFade * edgeFade(hit) * (1.0 - entryShare);
-    // The ambient specular term as the lighting pass wrote it, pre-exposed (the one place: ambientTerms).
+    // The ambient specular term as the ambient pass wrote it, pre-exposed (the one place: ambientTerms).
     vec3 ambientSpecular = preExposed(ambientTerms(s, lobes, V).specular);
     vec3 delta = fade * (specularWeight(lobes) * traced.rgb - traced.a * ambientSpecular);
     vec4 lit = imageLoad(hdrImage, pixel);

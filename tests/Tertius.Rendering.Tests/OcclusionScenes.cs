@@ -114,6 +114,19 @@ internal static class OcclusionScenes
     public static Vector2 PixelOf(Vector3 point, Quaternion view, (int Width, int Height) size) =>
         BrdfTesting.Holding(Gpu.Project(point: point, cameraRotation: view, width: size.Width, height: size.Height));
 
+    /// <summary>
+    /// The occlusion V of each pixel of the last frame of <paramref name="renderer"/>, row by row from the top: the a
+    /// channel of its estimate target.
+    /// </summary>
+    public static float[] ReadOcclusion(VulkanRenderer renderer)
+    {
+        float[] estimate = renderer.ReadEstimate();
+        float[] occlusion = new float[estimate.Length / 4];
+        for (int i = 0; i < occlusion.Length; i++)
+            occlusion[i] = estimate[4 * i + 3];
+        return occlusion;
+    }
+
     /// <summary>The occlusion of <paramref name="pixel"/> in <paramref name="occlusion"/>, an image of <paramref name="width"/> pixels per row.</summary>
     public static float OcclusionAt(float[] occlusion, Vector2 pixel, int width = Width) =>
         occlusion[(int)pixel.Y * width + (int)pixel.X];

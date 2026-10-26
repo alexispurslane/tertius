@@ -218,7 +218,7 @@ internal sealed class PreparedScene
     /// <summary>The sun shadow cascades of this frame. Valid when <see cref="ShadowCascadeCount"/> is not 0.</summary>
     public ShadowCascadeArray Cascades;
 
-    /// <summary>Cascades the shadow pass renders and the lighting pass samples: 0 or <see cref="ShadowCascades.Count"/>.</summary>
+    /// <summary>Cascades the shadow pass renders and the direct pass samples: 0 or <see cref="ShadowCascades.Count"/>.</summary>
     public int ShadowCascadeCount;
 
     /// <summary>Caster commands per cascade, appended after batching by the shadow pass.</summary>

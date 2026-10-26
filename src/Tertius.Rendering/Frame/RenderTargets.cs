@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the HDR target, the bloom
-/// levels, the occlusion target, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct image, the estimate
+/// target, the HDR target, the bloom levels, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
 /// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
@@ -23,8 +23,9 @@ namespace Tertius.Rendering;
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// </list>
-/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The occlusion target is
-/// R8_UNORM: the occlusion V of each pixel, 1 when ambient occlusion is off (docs/plans/ambient-occlusion.md, "Images").
+/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
+/// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
+/// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) when ambient occlusion is off.
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
 /// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections the HDR target is
 /// also a storage image, which the trace writes; without them it is not, so a frame is the frame from before them.
@@ -38,14 +39,21 @@ internal sealed class RenderTargets : IDisposable
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
-    public const Format OcclusionFormat = Format.R8Unorm;
+    public const Format DirectFormat = Format.R16G16B16A16Sfloat;
+    public const Format EstimateFormat = Format.R16G16B16A16Sfloat;
 
-    /// <summary>The binding of the occlusion target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
-    public const uint OcclusionBinding = 7;
+    /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
+    public const uint EstimateBinding = 7;
 
-    // The upsample pass writes the target as a storage image, the clear as a transfer, and the lighting pass samples it.
-    // VulkanRenderer.ReadOcclusion copies it out.
-    private const FormatFeatureFlags OcclusionFeatures =
+    /// <summary>
+    /// The binding of the direct image in the G-buffer set. Binding 8 is the lights' shadow atlas
+    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
+    /// </summary>
+    public const uint DirectBinding = 9;
+
+    // The upsample pass writes the target as a storage image, the clear as a transfer, and the ambient pass samples it.
+    // VulkanRenderer.ReadEstimate copies it out.
+    private const FormatFeatureFlags EstimateFeatures =
         FormatFeatureFlags.SampledImageBit
         | FormatFeatureFlags.StorageImageBit
         | FormatFeatureFlags.TransferDstBit
@@ -65,8 +73,8 @@ internal sealed class RenderTargets : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
-    // True from the creation of the occlusion target until the first frame after it records the clear to 1.
-    private bool occlusionNeedsClear;
+    // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
+    private bool estimateNeedsClear;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
@@ -110,8 +118,14 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
 
-    /// <summary>The occlusion target: V of each pixel, full size. Cleared to 1 in the first frame after each creation.</summary>
-    public GpuImage Occlusion { get; private set; }
+    /// <summary>The direct light of each pixel, pre-exposed, 0 for sky. The direct pass writes it.</summary>
+    public GpuImage Direct { get; private set; }
+
+    /// <summary>
+    /// The estimate of each pixel: rgb the bounce, pre-exposed, a the occlusion. Cleared to (0, 0, 0, 1) in the first
+    /// frame after each creation.
+    /// </summary>
+    public GpuImage Estimate { get; private set; }
 
     /// <summary>The images of SMAA, or null when SMAA is off.</summary>
     public SmaaTargets? Smaa { get; }
@@ -119,7 +133,7 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The pyramids of the reflections, or null under <see cref="NoReflections"/>.</summary>
     public ReflectionTargets? Reflections { get; }
 
-    /// <summary>Set 2: the G-buffer for the lighting and transparent passes.</summary>
+    /// <summary>Set 2: the G-buffer, the estimate target and the direct image, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
 
     /// <summary>The HDR image for tone mapping.</summary>
@@ -171,7 +185,8 @@ internal sealed class RenderTargets : IDisposable
         nameof(Distance),
         nameof(Depth),
         nameof(Hdr),
-        nameof(Occlusion)
+        nameof(Direct),
+        nameof(Estimate)
     )]
     private void Create(Extent2D extent, bool hdrStorage)
     {
@@ -197,23 +212,25 @@ internal sealed class RenderTargets : IDisposable
             readable: true,
             extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
         );
-        Occlusion = GpuImage.Create(
+        Direct = ColorTarget(extent: extent, format: DirectFormat, name: "direct", readable: true);
+        Estimate = GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
-            format: OcclusionFormat,
+            format: EstimateFormat,
             usage: ImageUsageFlags.SampledBit
                 | ImageUsageFlags.StorageBit
                 | ImageUsageFlags.TransferDstBit
                 | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
-            name: "occlusion"
+            name: "estimate"
         );
-        occlusionNeedsClear = true;
+        estimateNeedsClear = true;
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
         for (int i = 0; i < GBuffer.Length; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
-        layouts.WriteImage(set: GBufferSet, binding: OcclusionBinding, arrayElement: 0, image: Occlusion);
+        layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
+        layouts.WriteImage(set: GBufferSet, binding: DirectBinding, arrayElement: 0, image: Direct);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
@@ -261,14 +278,17 @@ internal sealed class RenderTargets : IDisposable
             name: name
         );
 
-    /// <summary>Clears the occlusion target to 1 if this is the first frame since its creation, and does nothing otherwise.</summary>
-    public void RecordOcclusionClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
+    /// <summary>
+    /// Clears the estimate target to (0, 0, 0, 1), no bounce and full visibility, if this is the first frame since its
+    /// creation, and does nothing otherwise.
+    /// </summary>
+    public void RecordEstimateClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
     {
-        if (!occlusionNeedsClear)
+        if (!estimateNeedsClear)
             return;
-        barriers.Image(Occlusion, ImageUse.TransferDestination, discard: true);
+        barriers.Image(Estimate, ImageUse.TransferDestination, discard: true);
         barriers.Flush(vk, commandBuffer);
-        var fullVisibility = new ClearColorValue(float32_0: 1, float32_1: 1, float32_2: 1, float32_3: 1);
+        var openEstimate = new ClearColorValue(float32_0: 0, float32_1: 0, float32_2: 0, float32_3: 1);
         var whole = new ImageSubresourceRange(
             aspectMask: ImageAspectFlags.ColorBit,
             baseMipLevel: 0,
@@ -278,18 +298,18 @@ internal sealed class RenderTargets : IDisposable
         );
         vk.CmdClearColorImage(
             commandBuffer: commandBuffer,
-            image: Occlusion.Handle,
+            image: Estimate.Handle,
             imageLayout: ImageLayout.TransferDstOptimal,
-            pColor: in fullVisibility,
+            pColor: in openEstimate,
             rangeCount: 1,
             pRanges: in whole
         );
-        occlusionNeedsClear = false;
+        estimateNeedsClear = false;
     }
 
     private static void CheckFormats(VulkanDevice device, bool reflections)
     {
-        foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
+        foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat, DirectFormat])
         {
             FormatFeatureFlags features = device.FormatProperties(format).OptimalTilingFeatures;
             if (
@@ -310,9 +330,9 @@ internal sealed class RenderTargets : IDisposable
             == 0
         )
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
-        if ((device.FormatProperties(OcclusionFormat).OptimalTilingFeatures & OcclusionFeatures) != OcclusionFeatures)
+        if ((device.FormatProperties(EstimateFormat).OptimalTilingFeatures & EstimateFeatures) != EstimateFeatures)
             throw new NotSupportedException(
-                $"{OcclusionFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
+                $"{EstimateFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
             );
         if (reflections)
             CheckReflectionFormats(device);
@@ -343,7 +363,8 @@ internal sealed class RenderTargets : IDisposable
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
-        Occlusion?.Dispose();
+        Direct?.Dispose();
+        Estimate?.Dispose();
         foreach (GpuImage? level in Glow)
             level?.Dispose();
         GBuffer = [];

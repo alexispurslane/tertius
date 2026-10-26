@@ -5,9 +5,9 @@ using static Tertius.Rendering.Tests.OcclusionScenes;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The test that pins the lighting pass's use of the occlusion to the C# copy (docs/plans/ambient-occlusion.md, "GPU
+/// The test that pins the ambient pass's use of the occlusion to the C# copy (docs/plans/ambient-occlusion.md, "GPU
 /// tests of the acceptance criteria"): the corner under a sky and a ground of distinct colors, where each of four pixels
-/// must show the C# ambient light at the occlusion that the occlusion target holds there, as an emissive square of
+/// must show the C# ambient light at the occlusion that the estimate target holds there, as an emissive square of
 /// that light on its line of sight shows.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -36,7 +36,7 @@ public sealed class AmbientOcclusionShaderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TheLightingPassDimsTheAmbientLightOfEachPixelAsTheCSharpCopyDoes(bool smoothMetal)
+    public void TheAmbientPassDimsTheAmbientLightOfEachPixelAsTheCSharpCopyDoes(bool smoothMetal)
     {
         MaterialDesc desc = MaterialOf(smoothMetal);
         VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
@@ -54,7 +54,7 @@ public sealed class AmbientOcclusionShaderTests
                 snapshot: Corner(renderer, renderer.CreateMaterial(desc), lit),
                 name: $"occlusion-shader-{(smoothMetal ? "metal" : "rough")}"
             );
-            float[] occlusion = renderer.ReadOcclusion();
+            float[] occlusion = ReadOcclusion(renderer);
 
             Vector2[] pixels = [.. Points.Select(point => PixelOf(point.Point, CornerView))];
             Vector3[] expected =

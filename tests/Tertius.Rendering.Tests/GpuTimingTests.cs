@@ -109,7 +109,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheGBufferPassAndTheLightingPass()
+    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
     {
         VulkanRenderer renderer = TimedRenderer(ambientOcclusion: GroundTruthOcclusion.Default);
         try
@@ -121,18 +121,19 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(6)
+                .Take(7)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
+                        "direct light",
                         "occlusion depth",
                         "occlusion horizons",
                         "occlusion denoise",
                         "occlusion upsample",
-                        "lighting",
+                        "ambient light",
                     ],
-                    "the occlusion passes read the finished G-buffer, and the lighting pass reads their occlusion target"
+                    "the occlusion passes read the finished G-buffer, and the ambient pass reads their estimate target"
                 );
         }
         finally
@@ -142,7 +143,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoAmbientOcclusionTheFrameHasNoOcclusionPass()
+    public void WithNoAmbientOcclusionTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
     {
         VulkanRenderer renderer = TimedRenderer(ambientOcclusion: new NoAmbientOcclusion());
         try
@@ -151,10 +152,16 @@ public sealed class GpuTimingTests
             for (int i = 0; i < 3; i++)
                 renderer.Render(snapshot, 1f);
 
-            renderer
-                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+            string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
+            passes
+                .SkipWhile(pass => pass != "G-buffer")
+                .Take(3)
                 .Should()
-                .NotContain(pass => pass.Pass.StartsWith("occlusion"), "the lighting pass reads the cleared target");
+                .Equal(
+                    ["G-buffer", "direct light", "ambient light"],
+                    "the ambient pass reads the cleared estimate target"
+                );
+            passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
         }
         finally
         {
@@ -180,7 +187,7 @@ public sealed class GpuTimingTests
                         .BeInRange(0, 1_000, "{0} is a time on a counter that only grows", pass.Pass)
                 );
             passes
-                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "lighting")
+                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "ambient light")
                 .Should()
                 .AllSatisfy(pass => pass.Milliseconds.Should().BePositive("{0} draws the reference scene", pass.Pass));
         }

@@ -68,7 +68,7 @@ internal struct ShadowCascadeArray
 /// n = 5 cm (the camera near plane), f = 2 km, N = 4 and λ = 0.9. That gives cascades ending at about 51 m, 109 m,
 /// 277 m and 2 km. With 2048² maps and a 60° field of view, one texel is then about one pixel at 720p at the far end of
 /// each cascade (6 cm, 13 cm, 32 cm and 2.3 m).</para>
-/// <para><b>Blending.</b> Over the last <see cref="BlendFraction"/> of each cascade's depth interval the lighting pass
+/// <para><b>Blending.</b> Over the last <see cref="BlendFraction"/> of each cascade's depth interval the direct pass
 /// blends into the next cascade. The last cascade fades out to no shadow, so nothing beyond 2 km is shadowed by the
 /// maps; planets and moons shadow through the analytic occluder spheres instead.</para>
 /// <para><b>Stability.</b> Each cascade is the bounding sphere of its view slice (extended back over the previous

@@ -1,14 +1,15 @@
-// The lighting model, shared by the deferred lighting pass, the transparent forward pass, the impostor capture and the
-// lit puffs.
+// The lighting model, shared by the deferred direct and ambient passes, the transparent forward pass, the impostor capture
+// and the lit puffs.
 //
 // The PBR BRDF (docs/plans/pbr-brdf.md, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // The lights add f · E · (N·L), where E is the irradiance of the light. The hemisphere ambient light gives the diffuse
 // color times the mix by the normal's sky share, plus the compensated specular albedo times the mix by the lobe's sky
-// share (hemisphere.glsl). Ambient occlusion scales the two ambient terms in occludedAmbient alone
-// (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient light reads it through
-// ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
+// share (hemisphere.glsl). The estimate of the light around each point, the occlusion V and the bounce G, applies to the
+// two ambient terms in occludedAmbient alone (docs/plans/screen-space-illumination.md, "The ambient pass"). Every reader
+// of the ambient light reads it through ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR
+// reads the ambient light").
 // lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
@@ -32,6 +33,7 @@ struct ShadingInput
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
+    vec3 bounce;              // G, plain radiance: 0 where no estimate exists
 };
 
 // The values that every light at one pixel shares, computed once per pixel.
@@ -202,15 +204,14 @@ float specularOcclusion(float NdotV, float occlusion, float alpha)
     return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
 }
 
-// The one place where ambient occlusion applies (docs/plans/ambient-occlusion.md): the diffuse term by V, the
-// specular term by V_s. It reads nothing about the source of the terms, and keeps them apart, because SSR replaces
-// the occluded specular term where its ray hits.
+// The one place where the estimate applies (docs/plans/screen-space-illumination.md): the open share V of the source's
+// diffuse term, plus the bounce G under the diffuse color, and the specular term by V_s. It reads nothing about the
+// source of the terms, and keeps them apart, because SSR replaces the occluded specular term where its ray hits.
 AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
 {
-    AmbientTerms occluded;
-    occluded.diffuse = terms.diffuse * s.occlusion;
-    occluded.specular = terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
-    return occluded;
+    terms.diffuse = terms.diffuse * s.occlusion + lobes.diffuseColor * s.bounce;
+    terms.specular *= specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    return terms;
 }
 
 // The ambient light of a surface point in its two terms, from the ambient source and occluded
@@ -257,18 +258,25 @@ vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
     return color;
 }
 
+// The light that the sun and the point and spot lights send from a surface point toward V, in plain radiance: no ambient
+// light, no emission and no exposure. The direct pass writes it into the direct image (Shaders/direct.frag).
+vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, bool shadowMaps)
+{
+    return sunLight(s, lobes, position, V, shadowMaps) + localLights(s, lobes, position, V);
+}
+
 // All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
 // surfaces' share of the HDR image (exposure.glsl): the reflected light times `exposure`, plus `preExposedEmission`,
 // which the caller has already exposed and capped. The cap applies to the whole sum, because the share bounds what a
 // surface writes, whatever the parts.
 // The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass shadowMaps false and an exposure of 1, because the atlas
-// stores radiance.
+// stores radiance. The main view's opaque surfaces split the same cap over the direct and the ambient pass
+// (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, bool shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + sunLight(s, lobes, position, V, shadowMaps)
-        + localLights(s, lobes, position, V);
+    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps);
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 

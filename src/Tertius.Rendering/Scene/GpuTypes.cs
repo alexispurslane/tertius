@@ -283,8 +283,8 @@ internal struct OcclusionPushConstants
     public uint LastDenoise;
 
     /// <summary>
-    /// The push constants of one dispatch. The camera is the one that the frame constants hold, so the passes and the
-    /// lighting pass never disagree about it.
+    /// The push constants of one dispatch. The camera is the one that the frame constants hold, so the occlusion passes and
+    /// the direct and ambient passes never disagree about it.
     /// </summary>
     public static OcclusionPushConstants For(in CameraView camera, GroundTruthOcclusion setting, bool lastDenoise) =>
         new()

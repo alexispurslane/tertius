@@ -434,7 +434,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, and the occlusion target. The sampler is immutable because portability implementations may
+    /// immutable sampler, the estimate target and the direct image. The sampler is immutable because portability implementations may
     /// not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
@@ -453,7 +453,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
             Image(binding: 5, stages: graphics),
             ImmutableSampler(binding: 6, stages: graphics, sampler: &shadowSampler),
-            Image(binding: RenderTargets.OcclusionBinding, stages: shading),
+            Image(binding: RenderTargets.EstimateBinding, stages: shading),
+            // Compute too, for the occlusion passes that gather the bounce from the direct image
+            // (docs/plans/screen-space-illumination.md, "Push constants and sets").
+            Image(binding: RenderTargets.DirectBinding, stages: shading),
         ];
         return CreateLayout(bindings: gbuffer, name: "g-buffer set");
     }
@@ -501,9 +504,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Two per frame set (the material sampler and the immutable linear clamp sampler), the immutable samplers
             // of the G-buffer, atlas, post and reflection sets, and one per glow source set.
             new(DescriptorType.Sampler, 2 * frames + 4 + glowSourceSets),
-            // 18 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, two
+            // 19 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, two
             // each for the meter set and the occlusion set, one per pyramid level set and two for the reflection set.
-            new(DescriptorType.SampledImage, 18 + 2 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 2),
+            new(DescriptorType.SampledImage, 19 + 2 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 2),
             // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set and one for
             // the reflection set.
             new(DescriptorType.StorageImage, 8 + PyramidLevelSets + 1),

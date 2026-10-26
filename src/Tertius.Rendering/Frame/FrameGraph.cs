@@ -74,6 +74,39 @@ internal sealed class FrameContext
         DescriptorSet set
     )
     {
+        BeginRenderingInto(target, loadOp);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        SetFullViewport();
+    }
+
+    /// <summary>
+    /// Draws one full-screen triangle of <paramref name="pipeline"/>, whose layout is
+    /// <see cref="DescriptorLayouts.SceneLayout"/>, into <paramref name="target"/> alone, with this frame's sets 0 to 2.
+    /// The pipeline writes every pixel, so the target's old contents are not loaded.
+    /// </summary>
+    public void DrawSceneFullScreen(GpuImage target, Pipeline pipeline)
+    {
+        BeginRenderingInto(target, AttachmentLoadOp.DontCare);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        BindSceneSets();
+        SetFullViewport();
+        Vk.CmdDraw(commandBuffer: CommandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+        Vk.CmdEndRendering(CommandBuffer);
+    }
+
+    /// <summary>Begins rendering into <paramref name="target"/> alone, its whole extent, stored at the end.</summary>
+    private unsafe void BeginRenderingInto(GpuImage target, AttachmentLoadOp loadOp)
+    {
         var color = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -92,18 +125,6 @@ internal sealed class FrameContext
             PColorAttachments = &color,
         };
         Vk.CmdBeginRendering(CommandBuffer, &rendering);
-        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
-        Vk.CmdBindDescriptorSets(
-            commandBuffer: CommandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: layout,
-            firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
-        SetFullViewport();
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
@@ -187,16 +208,26 @@ internal sealed class FrameGraph : IDisposable
         DepthPyramid,
 
         /// <summary>
-        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and before the lighting pass, which reads their occlusion target.
+        /// The direct pass: after the G-buffer pass and the shadow maps, which it reads, and before the occlusion passes,
+        /// which gather the bounce from its direct image (docs/plans/screen-space-illumination.md, "The frame").
         /// </summary>
-        AmbientOcclusion,
-        Lighting,
+        DirectLight,
 
         /// <summary>
-        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the lighting pass,
-        /// whose lit image they read, and before the transparent pass, so glass and puffs neither show in reflections nor
-        /// lose them (docs/plans/screen-space-reflections.md, "The order of a frame").
+        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
+        /// normals they read, and after the direct pass, whose image they read. Before the ambient pass, which reads their
+        /// estimate target.
+        /// </summary>
+        AmbientOcclusion,
+
+        /// <summary>The ambient pass: after the occlusion passes, whose estimate target it reads, into the HDR image.</summary>
+        AmbientLight,
+
+        /// <summary>
+        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the ambient pass,
+        /// whose lit image they read, so that a reflection shows the ambient light and the bounce, and before the
+        /// transparent pass, so glass and puffs neither show in reflections nor lose them
+        /// (docs/plans/screen-space-reflections.md, "The order of a frame").
         /// </summary>
         Reflections,
         Transparent,

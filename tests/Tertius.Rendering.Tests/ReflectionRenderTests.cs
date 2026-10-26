@@ -607,7 +607,7 @@ public sealed class ReflectionRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder(["lighting", "radiance pyramid", "reflections", "transparent"]);
+                .ContainInOrder(["ambient light", "radiance pyramid", "reflections", "transparent"]);
         }
         finally
         {
@@ -616,7 +616,7 @@ public sealed class ReflectionRenderTests
     }
 
     /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, under GTAO's default.</summary>
-    /// <returns>The frame's HDR image, its occlusion target and its camera.</returns>
+    /// <returns>The frame's HDR image, the occlusion V of each pixel and its camera.</returns>
     private static (float[] Hdr, float[] Occlusion, CameraView Camera) RenderUnderOcclusion(
         ReflectionSetting reflections,
         Func<VulkanRenderer, RenderSnapshot> scene
@@ -630,7 +630,7 @@ public sealed class ReflectionRenderTests
         try
         {
             renderer.Render(scene(renderer), 1f);
-            return (renderer.ReadHdr(), renderer.ReadOcclusion(), renderer.LastScene.Camera);
+            return (renderer.ReadHdr(), OcclusionScenes.ReadOcclusion(renderer), renderer.LastScene.Camera);
         }
         finally
         {

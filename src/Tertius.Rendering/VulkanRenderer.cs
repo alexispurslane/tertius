@@ -493,7 +493,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's
+    /// Records the command buffer of a frame: the uploads, the clear of a new estimate target, the batch, the exposure's
     /// readback copy and the passes.
     /// </summary>
     private void RecordFrame(
@@ -507,8 +507,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
-        // Before the frame graph, whose lighting pass reads the target, and whose occlusion passes overwrite it.
-        targets.RecordOcclusionClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
+        // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
+        targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials, textures);
         Batcher.Prepare(
             snapshot: snapshot,
@@ -739,40 +739,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The occlusion target of the last frame, V from 0 to 1 per pixel, row by row from the top. A test hook: it waits for
-    /// the device to be idle and submits its own copy.
+    /// The estimate target of the last frame, RGBA per pixel, row by row from the top: rgb the bounce, pre-exposed, a the
+    /// occlusion V from 0 to 1. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadOcclusion()
-    {
-        GpuImage image = targets.Occlusion;
-        Extent2D extent = targets.Extent;
-        int count = (int)(extent.Width * extent.Height);
-        using var buffer = GpuBuffer.Create(
-            device: device,
-            allocator: Allocator,
-            size: (ulong)count,
-            usage: BufferUsageFlags.TransferDstBit,
-            memoryUsage: MemoryUsage.Readback,
-            name: "occlusion readback"
-        );
-        SubmitAndWait(commandBuffer =>
-            CopyLayer(
-                commandBuffer: commandBuffer,
-                image: image,
-                aspect: ImageAspectFlags.ColorBit,
-                layer: 0,
-                mip: 0,
-                extent: extent,
-                buffer: buffer
-            )
-        );
-
-        float[] occlusion = new float[count];
-        var stored = new ReadOnlySpan<byte>(buffer.Mapped, count);
-        for (int i = 0; i < count; i++)
-            occlusion[i] = stored[i] / 255f;
-        return occlusion;
-    }
+    internal float[] ReadEstimate() => ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values;
 
     /// <summary>
     /// The distance target of the last frame, in m from the eye and 0 for sky, row by row from the top. A test hook: it
@@ -785,6 +755,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The direct image of the last frame, RGBA per pixel, row by row from the top: the pre-exposed direct light, 0 for
+    /// sky. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
 
     /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
@@ -1277,13 +1253,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the passes from lighting to the readback to the graph, each in its own stage, the exposure pass only under
+    /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
     /// on.
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
-        Graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
+        Graph.Add(FrameGraph.Stage.DirectLight, new DirectLightPass(device, shaders, layouts));
+        Graph.Add(FrameGraph.Stage.AmbientLight, new AmbientLightPass(device, shaders, layouts));
         Graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
         if (options.Exposure is AutoExposure auto)
             Graph.Add(

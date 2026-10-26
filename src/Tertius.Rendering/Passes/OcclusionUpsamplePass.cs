@@ -31,8 +31,8 @@ internal sealed class OcclusionUpsamplePass(
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute);
         barriers.Image(targets.Distance, ImageUse.SampledCompute);
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
-        // Discarded, and still after the last frame's lighting pass read it.
-        barriers.Image(targets.Occlusion, ImageUse.StorageCompute, discard: true);
+        // Discarded, and still after the last frame's ambient pass and reflection trace read it.
+        barriers.Image(targets.Estimate, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, targets.Extent);
     }

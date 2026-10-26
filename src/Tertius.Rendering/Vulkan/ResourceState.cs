@@ -29,7 +29,7 @@ internal enum ImageUse
     /// <summary>Sampled or fetched in a compute shader, as the exposure's meter reads the HDR image.</summary>
     SampledCompute,
 
-    /// <summary>Sampled in the fragment and the compute shaders, as the lighting pass and the reflections' trace read the BRDF tables.</summary>
+    /// <summary>Sampled in the fragment and the compute shaders, as the shading passes and the reflections' trace read the BRDF tables.</summary>
     SampledFragmentCompute,
 
     /// <summary>

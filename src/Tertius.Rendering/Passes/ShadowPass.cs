@@ -23,17 +23,17 @@ namespace Tertius.Rendering;
 /// <para>The texel grid passes through the origin of the camera's reference frame, which the snapshot gives as
 /// <see cref="RenderSnapshot.OriginInFrame"/> (<see cref="ShadowCascades.Anchor"/>).</para>
 /// <para>Without a sun (<see cref="SceneBatcher.HasSun"/>: a zero or negative intensity turns it off), or without
-/// any caster, nothing is drawn and the lighting pass skips the shadow maps.</para>
+/// any caster, nothing is drawn and the direct pass skips the shadow maps.</para>
 /// </remarks>
 internal sealed unsafe class ShadowPass : RenderPass
 {
     /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
     public const float SlopeBias = 1.5f;
 
-    /// <summary>How far the lighting pass moves its lookup along the geometric normal, in texels, times sin(angle to the sun).</summary>
+    /// <summary>How far the direct pass moves its lookup along the geometric normal, in texels, times sin(angle to the sun).</summary>
     public const float NormalOffsetTexels = 1f;
 
-    /// <summary>The lighting pass's constant depth bias toward the sun, in texels of depth.</summary>
+    /// <summary>The direct pass's constant depth bias toward the sun, in texels of depth.</summary>
     public const float ConstantBiasTexels = 0.5f;
 
     /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the sun.</summary>

@@ -15,7 +15,7 @@ layout(set = 0, binding = 1) uniform texture2D gbufferNormal;       // RGBA16 SN
 layout(set = 0, binding = 2, r32f) uniform image2D viewDepth;       // half: view depth in m, SkyDepth for sky
 layout(set = 0, binding = 3, r8) uniform image2D occlusionEdges;    // half: XeGTAO's packed edges
 layout(set = 0, binding = 4, r16f) uniform image2D occlusionTermA;  // half
-layout(set = 0, binding = 5, r8) uniform image2D occlusionTarget;   // full
+layout(set = 0, binding = 5, rgba16f) uniform image2D estimateTarget;  // full: rgb the bounce G, pre-exposed, a V
 layout(set = 1, binding = 0, r16f) uniform image2D denoiseSource;
 layout(set = 1, binding = 1, r16f) uniform image2D denoiseDestination;
 

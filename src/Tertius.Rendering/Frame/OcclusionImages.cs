@@ -81,7 +81,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: Set, binding: 2, image: ViewDepth);
         layouts.WriteStorageImage(set: Set, binding: 3, image: Edges);
         layouts.WriteStorageImage(set: Set, binding: 4, image: TermA);
-        layouts.WriteStorageImage(set: Set, binding: 5, image: targets.Occlusion);
+        layouts.WriteStorageImage(set: Set, binding: 5, image: targets.Estimate);
         layouts.WriteStorageImage(set: DenoiseAToB, binding: 0, image: TermA);
         layouts.WriteStorageImage(set: DenoiseAToB, binding: 1, image: TermB);
         layouts.WriteStorageImage(set: DenoiseBToA, binding: 0, image: TermB);

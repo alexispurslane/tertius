@@ -129,7 +129,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                 size: new(40, 40, 1)
             );
             renderer.Render(snapshot, 1f);
-            float[] occlusion = renderer.ReadOcclusion();
+            float[] occlusion = ReadOcclusion(renderer);
 
             // The camera only pitches, so every pixel of a row sees the floor at the same distance from the wall.
             int row = (int)PixelOf(new(0, FloorHeight, BackWallZ + (float)distance), CornerView).Y;
@@ -153,7 +153,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [InlineData(DistantSurface.InnerCornerInTheNearRange)]
     [InlineData(DistantSurface.CliffInTheMiddleRange)]
     [InlineData(DistantSurface.PlanetLimbInTheFarRange)]
-    public void ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLightExactly(DistantSurface surface)
+    public void ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight(DistantSurface surface)
     {
         (Capture on, Capture off) = OnAndOff(
             renderer =>
@@ -189,28 +189,52 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             $"occlusion-distant-{surface}"
         );
 
+        // The fade writes full visibility, but the denoise's sums round in single floats, and a store into the half floats
+        // of term A and the estimate target may round toward zero, which the Vulkan spec allows: one step below 1, 2⁻¹¹.
         LargestDifference(on, off, EveryPixel())
             .Should()
-            .Be(0, "below one texel the fade writes full visibility, and the lighting pass multiplies by exactly 1");
+            .BeLessThanOrEqualTo(1, "below one texel the fade writes full visibility, to within a half float's step");
     }
 
     [Fact]
     public void TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion()
     {
-        (Capture on, Capture off) = OnAndOff(
-            renderer =>
+        static float[] DirectImage(AmbientOcclusionSetting setting)
+        {
+            VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting);
+            try
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), sunIntensity: 3);
-                snapshot.Ambient.Intensity = 0;
+                // A white ambient light too, which the occlusion dims, so that only the direct light stays the same.
+                snapshot.Ambient = new()
+                {
+                    SkyColor = Vector3.One,
+                    GroundColor = Vector3.One,
+                    Intensity = 1,
+                };
                 snapshot.Lights.Add(
                     new PointRenderLight(Position: new(-1.5f, -1, -4.5f), Color: Vector3.One, Intensity: 5, Range: 5)
                 );
-                return Corner(renderer, Matte(renderer), snapshot);
-            },
-            "occlusion-sun-and-lamp"
-        );
+                RenderSnapshot corner = Corner(renderer, Matte(renderer), snapshot);
+                // Twice: in the second frame, the estimate target holds the occlusion of the first.
+                renderer.Render(corner, 1f);
+                renderer.Render(corner, 1f);
+                return renderer.ReadDirect();
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
 
-        LargestDifference(on, off, EveryPixel()).Should().Be(0, "the occlusion scales only the ambient light");
+        float[] on = DirectImage(GroundTruthOcclusion.Default);
+        float[] off = DirectImage(new NoAmbientOcclusion());
+
+        Vector2 corner = PixelOf(FloorAtTheCorner, CornerView);
+        on[((int)corner.Y * Width + (int)corner.X) * 4]
+            .Should()
+            .BePositive("the lamp 0.5 m above the floor beside the corner lights it");
+        on.Should().Equal(off, "the occlusion scales only the ambient light, which the direct image does not hold");
     }
 
     [Fact]
@@ -293,12 +317,12 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             ];
             renderer.Render(Scene(RenderFlags.NoImpostor), 1f);
             renderer.LastFrameStats.Impostors.Should().Be(0, "NoImpostor keeps the box geometry");
-            float[] geometry = renderer.ReadOcclusion();
+            float[] geometry = ReadOcclusion(renderer);
             for (int i = 0; i < 5; i++)
                 renderer.Render(Scene(RenderFlags.None), 1f);
             renderer.LastFrameStats.Impostors.Should().Be(1, "the box is below the height at which it becomes one");
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(0, "the impostor is captured by now");
-            float[] impostor = renderer.ReadOcclusion();
+            float[] impostor = ReadOcclusion(renderer);
 
             foreach (Vector2 pixel in beside)
             {

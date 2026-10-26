@@ -1,6 +1,8 @@
 #version 460
 // The occlusion upsample pass (docs/plans/ambient-occlusion.md, "The upsample"): a joint bilateral upsample of term A
-// to the full-resolution occlusion target, whose range weight is the distance from the pixel's tangent plane.
+// to the a channel of the full-resolution estimate target, whose range weight is the distance from the pixel's tangent
+// plane. The bounce G in rgb stays 0 until the sectors gather it (docs/plans/screen-space-illumination.md, "Part 4:
+// the sectors").
 // OcclusionUpsample in Shading/ is its C# copy. Engine glue: XeGTAO's README suggests the method but has no code for it.
 #extension GL_GOOGLE_include_directive : require
 #include "gtao.glsl"
@@ -14,10 +16,10 @@ void main()
     if (any(greaterThanEqual(pixel, full)))
         return;
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    // Sky: the lighting pass reads no occlusion there.
+    // Sky: the ambient pass reads no estimate there.
     if (distanceToEye == 0.0)
     {
-        imageStore(occlusionTarget, pixel, vec4(1.0));
+        imageStore(estimateTarget, pixel, vec4(0.0, 0.0, 0.0, 1.0));
         return;
     }
     vec3 position = distanceToEye * normalize(gtaoViewPosition(pixelScreenPosition(pixel), 1.0));
@@ -53,5 +55,5 @@ void main()
         }
     }
     float visibility = weights > 0.0 ? sum / weights : nearestOcclusion;
-    imageStore(occlusionTarget, pixel, vec4(clamp(visibility, 0.0, 1.0)));
+    imageStore(estimateTarget, pixel, vec4(0.0, 0.0, 0.0, clamp(visibility, 0.0, 1.0)));
 }

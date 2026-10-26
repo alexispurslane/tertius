@@ -294,7 +294,7 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheLighting()
+    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheAmbientLight()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
         try
@@ -302,7 +302,14 @@ public sealed class PyramidRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder(["G-buffer", "depth pyramid", "lighting", "radiance pyramid", "transparent"]);
+                .ContainInOrder([
+                    "G-buffer",
+                    "depth pyramid",
+                    "direct light",
+                    "ambient light",
+                    "radiance pyramid",
+                    "transparent",
+                ]);
         }
         finally
         {
