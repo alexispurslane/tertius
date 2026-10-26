@@ -1,6 +1,6 @@
 ---
 id: ter-1qce
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T15:56:52Z
@@ -14,3 +14,9 @@ tags: [assets, experiment, blender]
 
 The user asked on 2026-10-26 for an agent that builds on ter-sdmg (branch ter-sdmg-spacesuit) and uses the MPFB add-on itself instead of a hand copy of its data loader. In the user's words: "attempt to actually use the make-human plug-in so that it can properly test out the plug-ins own logic for the different sliders and also all of the other features that not using the plug-in would leave out like hair because I want the procedural model generation to actually be able to do a complete human." The ter-sdmg agent read MPFB's data files directly and copied its slider formula, because the build tool starts Blender with --factory-startup, MPFB expects to be an installed extension, and it feared writes into the read-only Nix store. A later log of its runs also shows that Blender's own extension manager (bl_pkg) fails to register in the Nix Blender: its Python has no requests module. One background agent (Opus, high effort) does the work on its own branch from ter-sdmg-spacesuit. Downloads: MPFB and MakeHuman's own assets for the parts of a human body (skins, eyes, eyebrows, eyelashes, teeth, tongue, hair) from their official sources, under a free license, pinned by hash in Nix. No clothes and no other finished models.
 
+
+## Notes
+
+**2026-10-26T18:19:41Z**
+
+2026-10-26: merged after one review-and-fix pass (fca698b8 merge of main, 352b843d fixes: 14 findings, 61 Blender tests). MPFB's decision is asset pipeline decision 27. Follow-ups: ter-omuj (hair cards), ter-jnyk (one Cycles Metal kernel-compile abort), ter-b4k3 (tangents), and the tickets that the branch filed.
