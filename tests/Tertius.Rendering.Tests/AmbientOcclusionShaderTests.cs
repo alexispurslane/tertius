@@ -42,7 +42,7 @@ public sealed class AmbientOcclusionShaderTests
         VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
         try
         {
-            RenderSnapshot lit = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot lit = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             lit.Ambient = new()
             {
                 SkyColor = Sky,
@@ -143,7 +143,7 @@ public sealed class AmbientOcclusionShaderTests
     /// <summary>A small black square that emits each radiance, 1 m from the eye on its pixel's line of sight, facing the eye.</summary>
     private static RenderSnapshot Glows(VulkanRenderer renderer, Vector2[] pixels, Vector3[] radiances)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         Look(snapshot, CornerView);
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.01f));

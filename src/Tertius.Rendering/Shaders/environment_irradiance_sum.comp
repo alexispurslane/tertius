@@ -3,7 +3,8 @@
 #include "spherical_harmonics.glsl"
 
 // The irradiance of the environment map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
-// the sum of the blocks' partial sums that environment_irradiance.comp wrote, times the clamped cosine's coefficients.
+// the sum of the blocks' partial sums of one map that environment_irradiance.comp wrote, times the clamped cosine's
+// coefficients.
 // One workgroup of 128 invocations, the most that the Vulkan specification guarantees. Invocation j sums the blocks j,
 // j + 128, ... in order, and a tree in shared memory adds the 128 sums in a fixed order, so one map always gives the same
 // bits on one GPU.
@@ -14,11 +15,17 @@ const uint Sums = 27u;       // nine coefficients of three colors
 
 layout(local_size_x = 128) in;
 
-layout(set = 0, binding = 0) uniform textureCube radianceMap;
+layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Coefficient i in vec4 i: xyz E_lm, w 0 (Irradiance.cs).
-layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
+// Coefficient i of map m in vec4 9m + i: xyz E_lm, w 0 (Irradiance.cs).
+layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[]; };
 layout(set = 0, binding = 3, std430) readonly buffer IrradiancePartialsBlock { float partialSums[]; };
+
+// EnvironmentPrefilterPushConstants in GpuTypes.cs, of which this shader reads only the map.
+layout(push_constant, std430) uniform PrefilterPush
+{
+    layout(offset = 76) uint map;  // m: the dispatch writes coefficients 9m to 9m + 8
+} prefilter;
 
 // 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B.
 shared float partials[Sums * Invocations];
@@ -27,7 +34,7 @@ void main()
 {
     uint j = gl_LocalInvocationIndex;
     // Irradiance.Blocks: BlockRows rows of each of the six faces.
-    uint blocks = 6u * uint(textureSize(samplerCube(radianceMap, environmentSampler), 0).x) / BlockRows;
+    uint blocks = 6u * uint(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x) / BlockRows;
     float sums[Sums];
     for (uint c = 0u; c < Sums; c++)
         sums[c] = 0.0;
@@ -52,7 +59,7 @@ void main()
     {
         float cosine = ShClampedCosine[shBand(j)];
         uint c = 3u * j;
-        irradiance[j] = vec4(
+        irradiance[9u * prefilter.map + j] = vec4(
             cosine * partials[c * Invocations],
             cosine * partials[(c + 1u) * Invocations],
             cosine * partials[(c + 2u) * Invocations],

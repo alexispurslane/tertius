@@ -7,7 +7,7 @@
 // the level above it, weighted by each child's solid angle, in all four channels. So a texel holds the mean radiance over
 // its own solid angle, and its alpha the open-sky share of that solid angle, wherever it lies on the face.
 //
-// One invocation per texel of level k + 1, over (W_k+1, W_k+1, 6). A workgroup's 8 by 8 texels of level k + 1 are the
+// One invocation per texel of level k + 1 of one map, over (W_k+1, W_k+1, 6): face z of map m is layer 6m + z. A workgroup's 8 by 8 texels of level k + 1 are the
 // children of 4 by 4 texels of level k + 2, and those of 2 by 2 texels of level k + 3. So the workgroup makes those too,
 // from the texels that it wrote, and the chain takes one dispatch and one barrier for every three levels. It reads them
 // back from the images, not from registers or shared memory, so a level is the mean of the level above as stored, in
@@ -15,7 +15,7 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-// Binding 0 holds level k, and bindings 1 to 3 levels k + 1 to k + 3, each a storage image of six layers
+// Binding 0 holds level k, and bindings 1 to 3 levels k + 1 to k + 3, each a storage image of six layers per map
 // (DescriptorLayouts.EnvironmentLevelsSet). A binding past the run's last level holds that level again, and nothing
 // writes or reads it. The workgroup reads back levels k + 1 and k + 2, so they are coherent.
 layout(set = 1, binding = 0, rgba16f) uniform readonly image2DArray source;
@@ -28,6 +28,7 @@ layout(push_constant, std430) uniform DownsamplePush
 {
     uint levelSize;   // W_k+1, of level k + 1 ≥ 1
     uint levelCount;  // the levels of the run, 1 to 3
+    uint map;         // m: the dispatch reads and writes layers 6m to 6m + 5
 } downsample;
 
 // Texel `texel` of the run's level `level`, 0 for level k.
@@ -54,7 +55,7 @@ void store(uint level, ivec3 texel, vec4 value)
 void main()
 {
     uvec2 local = gl_LocalInvocationID.xy;
-    uint layer = gl_WorkGroupID.z;
+    uint layer = 6u * downsample.map + gl_WorkGroupID.z;
     uint size = 2u * downsample.levelSize;
     uint tile = 16u;
     // The push constants are the same in the whole dispatch, so every invocation reaches each barrier or none does.

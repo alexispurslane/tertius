@@ -3,27 +3,35 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>Which cube of the environment map a test hook reads.</summary>
+/// <summary>Which cube array of the environment maps a test hook reads.</summary>
 internal enum EnvironmentImage
 {
-    /// <summary>The radiance map: the drawn faces and their mips, weighted by solid angle.</summary>
+    /// <summary>The radiance maps: the drawn faces and their mips, weighted by solid angle.</summary>
     Radiance,
 
-    /// <summary>The specular map: the GGX-prefiltered levels.</summary>
+    /// <summary>The specular maps: the GGX-prefiltered levels.</summary>
     Specular,
 }
 
 /// <summary>
-/// The scene environment map (docs/plans/environment-map.md, "Images and buffers"): the radiance map that the face pass
-/// draws, the specular map and the irradiance that the prefilter derives from it, one irradiance readback buffer per frame
-/// slot, and the CPU state of which faces a frame draws. One map serves every frame in flight.
+/// The scene environment maps, one for each served frame of the camera's chain (docs/plans/environment-map.md, "Images and
+/// buffers", and docs/plans/environment-maps-per-frame.md, "Images, buffers, growth and descriptors"): the radiance maps
+/// that the face pass draws, the specular maps and the irradiance that the prefilter derives from them, one irradiance
+/// readback buffer per frame slot, and the CPU state of which faces a frame draws. Map i, root first, is cube i of each
+/// cube array, layers 6i to 6i + 5, and coefficients 9i to 9i + 8 of the irradiance. One set of maps serves every frame in
+/// flight.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
-/// <item>Each face of the radiance map holds the frame that last drew it, in the axes of <see cref="FrameId"/>.</item>
-/// <item>The radiance map's mips, the specular map and the irradiance are a pure function of the six faces' level 0,
-/// rebuilt in every drawn frame.</item>
-/// <item>A slot's readback buffer holds the irradiance of the slot's last drawn frame, once its fence signals.</item>
+/// <item>Each face of map i holds the frame that last drew it, in the axes of map i's frame, for the served chain of
+/// <see cref="DrawnFor"/>.</item>
+/// <item>Map i's mips, specular levels and irradiance are a pure function of its six faces' level 0, rebuilt in every drawn
+/// frame that draws one of its faces.</item>
+/// <item>The images hold <see cref="Capacity"/> maps, at least the served maps of every frame since the last growth.</item>
+/// <item>A slot's readback buffer holds the irradiance of the served maps of the slot's last submitted frame, once its
+/// fence signals.</item>
+/// <item><see cref="DrawnFor"/> and each slot's count of maps change only in <see cref="Drew"/>, after a frame's
+/// submission, so a frame that throws before it leaves them as they were.</item>
 /// </list>
 /// </remarks>
 internal sealed unsafe class EnvironmentMap : IDisposable
@@ -31,16 +39,27 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public const Format RadianceFormat = Format.R16G16B16A16Sfloat;
     public const Format FaceDepthFormat = Format.D32Sfloat;
 
-    /// <summary>The irradiance buffer: one vec4 per coefficient, xyz E_lm and w 0.</summary>
-    private const ulong IrradianceBytes = Rendering.Irradiance.Coefficients * 16;
+    /// <summary>The irradiance of one map: one vec4 per coefficient, xyz E_lm and w 0.</summary>
+    private const ulong MapIrradianceBytes = Rendering.Irradiance.Coefficients * 16;
+
+    /// <summary>The irradiance buffer and each readback buffer: room for every map that the renderer serves (decision 22).</summary>
+    private const ulong IrradianceBytes = EnvironmentChain.MaxMaps * MapIrradianceBytes;
 
     private readonly VulkanDevice device;
-    private readonly ImageView[] faceViews = new ImageView[CubeFaces.Count];
-    private readonly ImageView[] levelViews;
-    private readonly ImageView[] radianceLevelViews;
+    private readonly DeviceAllocator allocator;
+    private readonly DescriptorLayouts layouts;
     private readonly DescriptorSet[] specularDispatchSets;
     private readonly DescriptorSet[] downsampleSets;
     private readonly GpuBuffer[] readbacks;
+
+    /// <summary>The served maps of each slot's last submitted frame, whose irradiance its readback buffer holds.</summary>
+    private readonly int[] readbackMaps;
+
+    private readonly IrradianceReading?[] readings = new IrradianceReading?[EnvironmentChain.MaxMaps];
+    private readonly long[] drawnFor = new long[EnvironmentChain.MaxMaps];
+    private readonly FaceMask[] facesOfMaps = new FaceMask[EnvironmentChain.MaxMaps];
+    private int drawnForLength;
+    private MapImages images;
 
     public EnvironmentMap(
         VulkanDevice device,
@@ -51,34 +70,45 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     )
     {
         this.device = device;
+        this.allocator = allocator;
+        this.layouts = layouts;
         Setting = setting;
         Levels = PrefilterLevels.Count(setting.FaceSize);
-        levelViews = new ImageView[Levels];
-        radianceLevelViews = new ImageView[PrefilterLevels.RadianceLevels(setting.FaceSize)];
         specularDispatchSets = new DescriptorSet[PrefilterLevels.Dispatches(Levels)];
-        downsampleSets = new DescriptorSet[PrefilterLevels.DownsampleDispatches(radianceLevelViews.Length)];
+        downsampleSets = new DescriptorSet[
+            PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(setting.FaceSize))
+        ];
         readbacks = new GpuBuffer[framesInFlight];
+        readbackMaps = new int[framesInFlight];
         try
         {
-            (Radiance, Specular, FaceDepth) = CreateImages(device: device, allocator: allocator, setting: setting);
+            FaceDepth = CreateFaceDepth(device: device, allocator: allocator, setting: setting);
             Irradiance = CreateBuffers(device: device, allocator: allocator, readbacks: readbacks);
             IrradiancePartials = GpuBuffer.Create(
                 device: device,
                 allocator: allocator,
-                size: (ulong)(Rendering.Irradiance.Blocks(setting.FaceSize) * Rendering.Irradiance.PartialFloats * sizeof(float)),
+                size: (ulong)(
+                    Rendering.Irradiance.Blocks(setting.FaceSize) * Rendering.Irradiance.PartialFloats * sizeof(float)
+                ),
                 usage: BufferUsageFlags.StorageBufferBit,
                 memoryUsage: MemoryUsage.GpuOnly,
                 name: "environment irradiance partial sums"
             );
-            for (int layer = 0; layer < CubeFaces.Count; layer++)
-                faceViews[layer] = Radiance.CreateLayerView((uint)layer);
-            for (int level = 0; level < Levels; level++)
-                levelViews[level] = Specular.CreateLevelView((uint)level);
-            for (int level = 0; level < radianceLevelViews.Length; level++)
-                radianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
+            images = new MapImages(device: device, allocator: allocator, setting: setting, levels: Levels, maps: 1);
             // The pool frees the sets when the descriptor layouts are disposed.
             PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
-            WriteSets(layouts);
+            for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
+                specularDispatchSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+            for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
+                downsampleSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+            layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+            layouts.WriteBuffer(
+                set: PrefilterSet,
+                binding: 3,
+                type: DescriptorType.StorageBuffer,
+                buffer: IrradiancePartials
+            );
+            WriteImageSets();
         }
         catch
         {
@@ -89,84 +119,125 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     public SceneEnvironmentMap Setting { get; }
 
-    /// <summary>L, the levels of the specular map: <see cref="PrefilterLevels.Count"/> of the face size.</summary>
+    /// <summary>L, the levels of the specular maps: <see cref="PrefilterLevels.Count"/> of the face size.</summary>
     public int Levels { get; }
 
-    /// <summary>The radiance map: an RGBA16F cube of plain radiance and the open-sky share, with its full mip chain.</summary>
-    public GpuImage Radiance { get; }
+    /// <summary>The maps that the images hold: 1 at first, then the most served maps of any frame. It never shrinks.</summary>
+    public int Capacity => images.Capacity;
 
-    /// <summary>The specular map: an RGBA16F cube whose level k holds the lobe of roughness k / (L − 1).</summary>
-    public GpuImage Specular { get; }
+    /// <summary>
+    /// Counts the growths of the images, which make <see cref="Specular"/> anew. A frame slot rewrites its binding of the
+    /// specular maps when its count differs.
+    /// </summary>
+    public int ImagesVersion { get; private set; }
 
-    /// <summary>The depth target of a face: D32, reversed, cleared for each depth range.</summary>
+    /// <summary>
+    /// The radiance maps: an RGBA16F cube array of plain radiance and the open-sky share, with its full mip chain, one cube
+    /// per map.
+    /// </summary>
+    public GpuImage Radiance => images.Radiance;
+
+    /// <summary>The specular maps: an RGBA16F cube array whose level k holds the lobe of roughness k / (L − 1), one cube per map.</summary>
+    public GpuImage Specular => images.Specular;
+
+    /// <summary>The depth target of a face: D32, reversed, cleared for each depth range. The faces draw one after another.</summary>
     public GpuImage FaceDepth { get; }
 
-    /// <summary>The irradiance: nine vec4, coefficient i in vec4 i, at binding 14 of every frame set.</summary>
+    /// <summary>The irradiance: nine vec4 per map, coefficient i of map m in vec4 9m + i, at binding 14 of every frame set.</summary>
     public GpuBuffer Irradiance { get; }
 
     /// <summary>
-    /// The partial sums of the irradiance's projection: <see cref="Rendering.Irradiance.PartialFloats"/> floats for each
-    /// block of <see cref="Rendering.Irradiance.BlockRows"/> rows of a face, which the prefilter sums into
-    /// <see cref="Irradiance"/>.
+    /// The partial sums of one map's irradiance projection: <see cref="Rendering.Irradiance.PartialFloats"/> floats for
+    /// each block of <see cref="Rendering.Irradiance.BlockRows"/> rows of a face, which the prefilter sums into the map's
+    /// coefficients of <see cref="Irradiance"/>. The maps take turns with it.
     /// </summary>
     public GpuBuffer IrradiancePartials { get; }
 
-    /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written once.</summary>
+    /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written again at each growth.</summary>
     public DescriptorSet PrefilterSet { get; }
 
     /// <summary>
-    /// The levels set of dispatch <paramref name="dispatch"/> of the specular map, written once: binding b holds level
-    /// first + b of <see cref="PrefilterLevels.LevelsOfDispatch"/>, and a binding past the dispatch's last level holds
-    /// that last level again, a valid view that the dispatch never writes.
+    /// The served chain, frame ids root first, that the stored faces were drawn for: the chain of the last submitted frame.
+    /// Empty before the first submitted frame and after a growth.
+    /// </summary>
+    public ReadOnlySpan<long> DrawnFor => drawnFor.AsSpan(0, drawnForLength);
+
+    /// <summary>
+    /// The levels set of dispatch <paramref name="dispatch"/> of the specular maps, every layer, written again at each
+    /// growth: binding b holds level first + b of <see cref="PrefilterLevels.LevelsOfDispatch"/>, and a binding past the
+    /// dispatch's last level holds that last level again, a valid view that the dispatch never writes.
     /// </summary>
     public DescriptorSet SpecularDispatchSet(int dispatch) => specularDispatchSets[dispatch];
 
     /// <summary>
-    /// The levels set of dispatch <paramref name="dispatch"/> of the radiance map's downsample, written once: binding 0
-    /// holds the level that it reads, and binding b ≥ 1 level source + b of <see cref="PrefilterLevels.LevelsOfDownsample"/>.
-    /// A binding past the dispatch's last level holds that last level again, a valid view that the dispatch never
-    /// writes.
+    /// The levels set of dispatch <paramref name="dispatch"/> of the radiance maps' downsample, every layer, written again
+    /// at each growth: binding 0 holds the level that it reads, and binding b ≥ 1 level source + b of
+    /// <see cref="PrefilterLevels.LevelsOfDownsample"/>. A binding past the dispatch's last level holds that last level
+    /// again, a valid view that the dispatch never writes.
     /// </summary>
     public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
 
-    /// <summary>The map's frame: the camera frame whose axes the faces were drawn in, or null before the first drawn frame.</summary>
-    public long? FrameId { get; private set; }
-
-    /// <summary>The irradiance of the last frame whose GPU work finished, or null before one has.</summary>
-    public IrradianceReading? Latest { get; private set; }
-
-    /// <summary>The 2D view of level 0 of <paramref name="face"/>, the face pass's color attachment.</summary>
-    public ImageView FaceView(CubeFace face) => faceViews[(int)face];
+    /// <summary>The 2D view of level 0 of <paramref name="face"/> of map <paramref name="map"/>, the face pass's color attachment.</summary>
+    public ImageView FaceView(int map, CubeFace face) => images.FaceViews[CubeFaces.Count * map + (int)face];
 
     /// <summary>
-    /// The faces that drawn frame <paramref name="frame"/> draws (docs/plans/environment-map.md, "Which faces a frame
-    /// draws"). A pure read: the map's frame changes only in <see cref="Drew"/>, once the frame is submitted.
+    /// The irradiance of the first <paramref name="maps"/> maps from the last frame whose GPU work finished, each null
+    /// before a frame that served it finished.
     /// </summary>
-    public FaceMask FacesFor(long frame, long originFrameId, bool longStep) =>
-        EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
-            ? FaceMask.All
-            : EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame);
+    public ReadOnlyMemory<IrradianceReading?> ReadingsOf(int maps) => readings.AsMemory(0, maps);
 
     /// <summary>
-    /// Records that a drawn frame in camera frame <paramref name="originFrameId"/> was submitted with the faces that
-    /// <see cref="FacesFor"/> chose, so that the map's frame describes the last finished step. A frame that throws before
-    /// its submission leaves the map's frame as it was, and the next frame draws again every face that it would have
-    /// refreshed: a face that no frame has drawn holds the image's undefined content, which can be a NaN or an infinity
-    /// on a Linux driver (ARCHITECTURE.md, "Portable Vulkan").
+    /// The one choke point of the maps' automatic machinery (docs/plans/environment-maps-per-frame.md, "Which faces a frame
+    /// draws", decision 26): grows the images when the served chain is longer than ever before, then returns the faces that
+    /// drawn frame <paramref name="frame"/> draws of each served map. A map draws every face when it is not kept from
+    /// <see cref="DrawnFor"/> or the draw takes a long step, and its slots in turn otherwise. Apart from a growth, which
+    /// empties <see cref="DrawnFor"/> because the new images hold no face, it changes no state: <see cref="Drew"/> stores
+    /// the served chain once the frame is submitted.
     /// </summary>
-    public void Drew(long originFrameId) => FrameId = originFrameId;
+    /// <param name="served">The served chain, frame ids root first: from 1 to <see cref="EnvironmentChain.MaxMaps"/> of them.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The served chain has no frame or more than the renderer serves.</exception>
+    public ReadOnlyMemory<FaceMask> FacesFor(long frame, ReadOnlySpan<long> served, bool longStep)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(served.Length, nameof(served));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(served.Length, EnvironmentChain.MaxMaps, nameof(served));
+        if (served.Length > Capacity)
+            Grow(served.Length);
+        Span<FaceMask> faces = facesOfMaps.AsSpan(0, served.Length);
+        EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame, faces);
+        for (int map = 0; map < faces.Length; map++)
+            if (EnvironmentFaces.RefreshesAll(drawnFor: DrawnFor, served: served, map: map, longStep: longStep))
+                faces[map] = FaceMask.All;
+        return facesOfMaps.AsMemory(0, served.Length);
+    }
 
     /// <summary>
-    /// Copies the irradiance that this frame's prefilter wrote into the readback buffer of <paramref name="slot"/>, right
-    /// after the prefilter, so that a reading is the irradiance that this frame's passes use.
+    /// Records that the drawn frame in frame slot <paramref name="slot"/> was submitted for the served chain
+    /// <paramref name="served"/>, with the faces that <see cref="FacesFor"/> chose, so that <see cref="DrawnFor"/> and the
+    /// slot's count of maps describe the last finished step. A frame that throws before its submission leaves them as they
+    /// were: the next frame draws again every face that it would have refreshed, because a face that no submitted frame
+    /// drew holds the image's undefined content, which can be a NaN or an infinity on a Linux driver (ARCHITECTURE.md,
+    /// "Portable Vulkan"), and the slot's next <see cref="Collect"/> reads only the maps that its last submitted frame
+    /// copied.
     /// </summary>
-    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot)
+    public void Drew(ReadOnlySpan<long> served, int slot)
+    {
+        served.CopyTo(drawnFor);
+        drawnForLength = served.Length;
+        readbackMaps[slot] = served.Length;
+    }
+
+    /// <summary>
+    /// Copies the irradiance of the first <paramref name="maps"/> maps, which this frame's prefilter left in the buffer,
+    /// into the readback buffer of <paramref name="slot"/>, right after the prefilter, so that a reading is the irradiance
+    /// that this frame's passes use. <see cref="Drew"/> records the count once the frame is submitted.
+    /// </summary>
+    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot, int maps)
     {
         GpuBuffer readback = readbacks[slot];
         barriers.Buffer(Irradiance, BufferUse.TransferSource);
         barriers.Buffer(readback, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
-        var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: IrradianceBytes);
+        var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: (ulong)maps * MapIrradianceBytes);
         device.Vk.CmdCopyBuffer(
             commandBuffer: commandBuffer,
             srcBuffer: Irradiance.Handle,
@@ -180,17 +251,23 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Reads the irradiance of <paramref name="frame"/>, the last frame that <paramref name="slot"/> drew, once its fence
-    /// has signaled. A slot that has drawn no frame leaves <see cref="Latest"/> as it is.
+    /// Reads the irradiance of the maps that <paramref name="frame"/>, the last frame that <paramref name="slot"/>
+    /// submitted, served, once its fence has signaled. A slot that has drawn no frame leaves the readings as they are, and so does a
+    /// frame for the maps past the ones that it served.
     /// </summary>
     public void Collect(int slot, long frame)
     {
         if (frame < 0)
             return;
-        Latest = new(
-            Frame: frame,
-            Irradiance: IrradianceOf(readbacks[slot].AsSpan<Vector4>(Rendering.Irradiance.Coefficients))
-        );
+        ReadOnlySpan<Vector4> coefficients = readbacks[slot]
+            .AsSpan<Vector4>(EnvironmentChain.MaxMaps * Rendering.Irradiance.Coefficients);
+        for (int map = 0; map < readbackMaps[slot]; map++)
+            readings[map] = new(
+                Frame: frame,
+                Irradiance: IrradianceOf(
+                    coefficients.Slice(map * Rendering.Irradiance.Coefficients, Rendering.Irradiance.Coefficients)
+                )
+            );
     }
 
     /// <summary>The irradiance in nine vec4 as the irradiance buffer lays them out, xyz E_lm.</summary>
@@ -202,62 +279,38 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         return new(values);
     }
 
-    /// <summary>The radiance map, the specular map and the face depth of <paramref name="setting"/>'s face size.</summary>
-    private static (GpuImage Radiance, GpuImage Specular, GpuImage FaceDepth) CreateImages(
+    /// <summary>
+    /// Makes the images hold <paramref name="maps"/> maps (decision 23): waits for the device, as a resize does, makes the
+    /// cube arrays and their views anew, then disposes the old ones, points the map's own sets at the new ones, and empties
+    /// <see cref="DrawnFor"/>, because the new images hold no face. A growth that throws leaves the old images whole. Each
+    /// frame slot rewrites its binding of the specular maps by <see cref="ImagesVersion"/>.
+    /// </summary>
+    private void Grow(int maps)
+    {
+        device.WaitIdle();
+        var grown = new MapImages(device: device, allocator: allocator, setting: Setting, levels: Levels, maps: maps);
+        images.Dispose();
+        images = grown;
+        WriteImageSets();
+        drawnForLength = 0;
+        ImagesVersion++;
+    }
+
+    /// <summary>The depth target of a face of <paramref name="setting"/>'s face size.</summary>
+    private static GpuImage CreateFaceDepth(
         VulkanDevice device,
         DeviceAllocator allocator,
         SceneEnvironmentMap setting
-    )
-    {
-        var extent = new Extent2D((uint)setting.FaceSize, (uint)setting.FaceSize);
-        // Storage for its mips, and transfer source for the test hook that reads a level back.
-        var radiance = GpuImage.Create(
+    ) =>
+        GpuImage.Create(
             device: device,
             allocator: allocator,
-            extent: extent,
-            format: RadianceFormat,
-            usage: ImageUsageFlags.ColorAttachmentBit
-                | ImageUsageFlags.SampledBit
-                | ImageUsageFlags.StorageBit
-                | ImageUsageFlags.TransferSrcBit,
-            mipLevels: (uint)PrefilterLevels.RadianceLevels(setting.FaceSize),
-            name: "environment radiance",
-            arrayLayers: CubeFaces.Count,
-            cube: true
+            extent: new((uint)setting.FaceSize, (uint)setting.FaceSize),
+            format: FaceDepthFormat,
+            usage: ImageUsageFlags.DepthStencilAttachmentBit,
+            mipLevels: 1,
+            name: "environment face depth"
         );
-        GpuImage? specular = null;
-        try
-        {
-            // Transfer source for the test hook too.
-            specular = GpuImage.Create(
-                device: device,
-                allocator: allocator,
-                extent: extent,
-                format: RadianceFormat,
-                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
-                mipLevels: (uint)PrefilterLevels.Count(setting.FaceSize),
-                name: "environment specular",
-                arrayLayers: CubeFaces.Count,
-                cube: true
-            );
-            var faceDepth = GpuImage.Create(
-                device: device,
-                allocator: allocator,
-                extent: extent,
-                format: FaceDepthFormat,
-                usage: ImageUsageFlags.DepthStencilAttachmentBit,
-                mipLevels: 1,
-                name: "environment face depth"
-            );
-            return (radiance, specular, faceDepth);
-        }
-        catch
-        {
-            specular?.Dispose();
-            radiance.Dispose();
-            throw;
-        }
-    }
 
     /// <summary>
     /// Fills <paramref name="readbacks"/> with one readback buffer per frame slot, then makes the irradiance buffer. The
@@ -285,70 +338,145 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Allocates the levels sets and writes every set once: the radiance map, the irradiance and its partial sums in the
-    /// prefilter set, and the level views of both cubes in the levels sets of their dispatches.
+    /// Points the sets at the current images: the radiance maps in the prefilter set, and the level views of both cube
+    /// arrays in the levels sets of their dispatches.
     /// </summary>
-    private void WriteSets(DescriptorLayouts layouts)
+    private void WriteImageSets()
     {
         layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
-        layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
-        layouts.WriteBuffer(
-            set: PrefilterSet,
-            binding: 3,
-            type: DescriptorType.StorageBuffer,
-            buffer: IrradiancePartials
-        );
         for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
         {
             (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: Levels);
-            specularDispatchSets[dispatch] = WriteLevelsSet(layouts: layouts, views: levelViews[first..(first + count)]);
+            WriteLevelsSet(set: specularDispatchSets[dispatch], views: images.LevelViews.AsSpan(first, count));
         }
 
+        int radianceLevels = images.RadianceLevelViews.Length;
         for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
         {
-            (int source, int count) = PrefilterLevels.LevelsOfDownsample(
-                dispatch: dispatch,
-                levels: radianceLevelViews.Length
-            );
-            downsampleSets[dispatch] = WriteLevelsSet(
-                layouts: layouts,
-                views: radianceLevelViews[source..(source + count + 1)]
-            );
+            (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: radianceLevels);
+            WriteLevelsSet(set: downsampleSets[dispatch], views: images.RadianceLevelViews.AsSpan(source, count + 1));
         }
     }
 
     /// <summary>
-    /// A new levels set whose binding b holds view b of <paramref name="views"/>, or the last view for a binding past
-    /// them.
+    /// Writes binding b of the levels set <paramref name="set"/> with view b of <paramref name="views"/>, or with the last
+    /// view for a binding past them.
     /// </summary>
-    private static DescriptorSet WriteLevelsSet(DescriptorLayouts layouts, ImageView[] views)
+    private void WriteLevelsSet(DescriptorSet set, ReadOnlySpan<ImageView> views)
     {
-        DescriptorSet set = layouts.AllocateEnvironmentLevelsSet();
         for (int binding = 0; binding < PrefilterLevels.LevelsPerDispatch; binding++)
             layouts.WriteStorageImage(set: set, binding: (uint)binding, view: views[Math.Min(binding, views.Length - 1)]);
-        return set;
     }
 
     public void Dispose()
     {
-        foreach (ImageView view in levelViews)
-            if (view.Handle != 0)
-                device.Vk.DestroyImageView(device.Device, view, null);
-        foreach (ImageView view in radianceLevelViews)
-            if (view.Handle != 0)
-                device.Vk.DestroyImageView(device.Device, view, null);
-        foreach (ImageView view in faceViews)
-            if (view.Handle != 0)
-                device.Vk.DestroyImageView(device.Device, view, null);
-        Array.Clear(levelViews);
-        Array.Clear(radianceLevelViews);
-        Array.Clear(faceViews);
+        images?.Dispose();
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();
         Irradiance?.Dispose();
         IrradiancePartials?.Dispose();
         FaceDepth?.Dispose();
-        Specular?.Dispose();
-        Radiance?.Dispose();
+    }
+
+    /// <summary>
+    /// The cube arrays of <see cref="Capacity"/> maps and their views, which a growth makes anew as one. Map i is layers 6i
+    /// to 6i + 5 of each.
+    /// </summary>
+    private sealed class MapImages : IDisposable
+    {
+        private readonly VulkanDevice device;
+
+        /// <summary>Makes the cube arrays and their views, and releases what it made when one of them fails.</summary>
+        public MapImages(
+            VulkanDevice device,
+            DeviceAllocator allocator,
+            SceneEnvironmentMap setting,
+            int levels,
+            int maps
+        )
+        {
+            this.device = device;
+            Capacity = maps;
+            var extent = new Extent2D((uint)setting.FaceSize, (uint)setting.FaceSize);
+            uint layers = (uint)(CubeFaces.Count * maps);
+            int radianceLevels = PrefilterLevels.RadianceLevels(setting.FaceSize);
+            FaceViews = new ImageView[layers];
+            LevelViews = new ImageView[levels];
+            RadianceLevelViews = new ImageView[radianceLevels];
+            try
+            {
+                // Storage for its mips, and transfer source for the test hook that reads a level back.
+                Radiance = GpuImage.Create(
+                    device: device,
+                    allocator: allocator,
+                    extent: extent,
+                    format: RadianceFormat,
+                    usage: ImageUsageFlags.ColorAttachmentBit
+                        | ImageUsageFlags.SampledBit
+                        | ImageUsageFlags.StorageBit
+                        | ImageUsageFlags.TransferSrcBit,
+                    mipLevels: (uint)radianceLevels,
+                    name: "environment radiance",
+                    arrayLayers: layers,
+                    cubeArray: true
+                );
+                // Transfer source for the test hook too.
+                Specular = GpuImage.Create(
+                    device: device,
+                    allocator: allocator,
+                    extent: extent,
+                    format: RadianceFormat,
+                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                    mipLevels: (uint)levels,
+                    name: "environment specular",
+                    arrayLayers: layers,
+                    cubeArray: true
+                );
+                for (int layer = 0; layer < FaceViews.Length; layer++)
+                    FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
+                for (int level = 0; level < LevelViews.Length; level++)
+                    LevelViews[level] = Specular.CreateLevelView((uint)level);
+                for (int level = 0; level < RadianceLevelViews.Length; level++)
+                    RadianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
+            }
+            catch
+            {
+                Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>The maps that the cube arrays hold.</summary>
+        public int Capacity { get; }
+
+        public GpuImage Radiance { get; }
+        public GpuImage Specular { get; }
+
+        /// <summary>The 2D view of level 0 of each layer of <see cref="Radiance"/>, in layer order.</summary>
+        public ImageView[] FaceViews { get; }
+
+        /// <summary>The view of each level of <see cref="Specular"/>, every layer.</summary>
+        public ImageView[] LevelViews { get; }
+
+        /// <summary>The view of each level of <see cref="Radiance"/>, every layer.</summary>
+        public ImageView[] RadianceLevelViews { get; }
+
+        public void Dispose()
+        {
+            DestroyViews(LevelViews);
+            DestroyViews(RadianceLevelViews);
+            DestroyViews(FaceViews);
+            Specular?.Dispose();
+            Radiance?.Dispose();
+        }
+
+        /// <summary>Destroys the views that were made. A view that was not made is a null handle.</summary>
+        private void DestroyViews(ImageView[] views)
+        {
+            foreach (ImageView view in views)
+                if (view.Handle != 0)
+                    device.Vk.DestroyImageView(device.Device, view, null);
+            Array.Clear(views);
+        }
     }
 }

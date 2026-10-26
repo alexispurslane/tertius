@@ -19,7 +19,9 @@ namespace Tertius.Rendering;
 /// <item>CPU batching (<see cref="SceneBatcher"/>): interpolation by alpha, culling, depth ranges, sorting, one indirect
 /// command per (range, mesh) run. The impostor manager (<see cref="IInstanceProcessor"/>) takes the objects it draws
 /// as impostors out of the batch and chooses this frame's captures.</item>
-/// <item>Sun shadow maps (<see cref="ShadowPass"/>): four cascades over the first 2 km, casters from the whole snapshot.</item>
+/// <item>The shadow maps (<see cref="ShadowPass"/>): a set of four cascades over the first 2 km for each far light with a
+/// cascade set, from the frame's casters, then, under <see cref="LocalShadowAtlas"/>, the stale tiles of the near lights
+/// in the local shadow atlas (<see cref="LocalShadowPass"/>).</item>
 /// <item>The environment map, under <see cref="SceneEnvironmentMap"/>: the faces that this frame draws
 /// (<see cref="EnvironmentFacePass"/>), then the specular map and the irradiance (<see cref="EnvironmentPrefilterPass"/>).</item>
 /// <item>Impostor captures (<see cref="ImpostorPass"/>): up to four objects, chosen by <see cref="ImpostorManager"/>
@@ -27,14 +29,15 @@ namespace Tertius.Rendering;
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
-/// inverse depth of the distance target, level by level.</item>
+/// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
 /// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
-/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: one ray per pixel
-/// through the depth pyramid, whose hit adds its reflection to the lit image.</item>
+/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
+/// block of 2 × 2 pixels through the depth pyramid into the half-resolution trace, and its upsample, which adds each
+/// pixel's reflection to the lit image; at full resolution, one ray per pixel, whose hit adds it.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
@@ -87,6 +90,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ExposureResources exposure;
     private readonly ExposureSetting exposureSetting;
     private readonly EnvironmentMap? environmentMap;
+    private readonly ShadowAtlas? shadowAtlas;
+    private readonly LocalShadowPass? localShadows;
+
+    /// <summary>The served chain of the frame being drawn, frame ids root first, in its first M entries.</summary>
+    private readonly long[] servedChain = new long[EnvironmentChain.MaxMaps];
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -108,6 +116,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         this.headless = headless;
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
+        Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
         {
@@ -130,7 +139,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections
             );
-            ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
                 new ExposureResources(
                     device: device,
@@ -140,11 +148,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 )
             );
             environmentMap = CreateEnvironmentMap(options);
-            // Written once: the shadow map never changes, and resizing rewrites only the other G-buffer bindings.
-            layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: ShadowMap.Image);
+            (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             frames = CreateFrames(options.FramesInFlight);
 
-            (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
+            (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
@@ -185,7 +192,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
 
-    internal SceneBatcher Batcher { get; } = new();
+    internal SceneBatcher Batcher { get; }
 
     internal FrameGraph Graph { get; } = new();
 
@@ -301,6 +308,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 $"ShadowMapSize must be at least {ShadowMap.MinimumSize}."
             );
+        if (options.CascadedLights is < 0 or > RendererOptions.MaxCascadedLights)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"CascadedLights must be 0 to {RendererOptions.MaxCascadedLights}, not {options.CascadedLights}."
+            );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
         if (!Enum.IsDefined(options.ToneCurve))
@@ -316,7 +328,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The first problem of the settings in <paramref name="options"/> that are unions, in their order there, or null.</summary>
     private static string? SettingsProblem(RendererOptions options) =>
-        options.Exposure.Problem
+        options.LocalShadows.Problem
+        ?? options.Exposure.Problem
         ?? options.AmbientOcclusion.Problem
         ?? options.Bloom.Problem
         ?? options.Reflections.Problem
@@ -485,8 +498,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        // Only now, so that a frame that threw above leaves the map's frame as it was.
-        environmentMap?.Drew(snapshot.OriginFrameId);
+        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback and the tiles'
+        // records as they were.
+        environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
+        localShadows?.Tiles.Drew();
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -544,17 +559,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// What the batcher prepares for the map in the frame that the renderer draws next: no map, or the faces that
-    /// <see cref="EnvironmentMap.FacesFor"/> chooses with the latest irradiance reading. It changes no state, so a frame
-    /// that throws before its submission leaves the map as it was.
+    /// What the batcher prepares for the maps in the frame that the renderer draws next: no map, or the faces of each map of
+    /// the snapshot's served chain that <see cref="EnvironmentMap.FacesFor"/> chooses, with their latest irradiance
+    /// readings. It writes the served chain, and changes no state of the maps but a growth, so a frame that throws before
+    /// its submission leaves the maps' drawn chain as it was.
     /// </summary>
     private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool longStep)
     {
         if (environmentMap is not { } map)
             return new(new WithoutMap());
-        FaceMask faces = map.FacesFor(frame: frameNumber, originFrameId: snapshot.OriginFrameId, longStep: longStep);
-        return new(new WithMap(faces, map.Latest));
+        Span<long> served = servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
+        EnvironmentChain.Serve(snapshot.Chain, served);
+        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: frameNumber, served: served, longStep: longStep);
+        return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
+
+    /// <summary>The served chain of <paramref name="snapshot"/>, frame ids root first, as <see cref="EnvironmentDrawFor"/> wrote it.</summary>
+    private ReadOnlySpan<long> Served(RenderSnapshot snapshot) =>
+        servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
 
     /// <summary>
     /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's
@@ -713,14 +735,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
             NearCommands = scene.Opaque[DepthRanges.Near].Count,
             TransparentCommands = scene.TransparentCommandCount,
-            ShadowCommands =
-                scene.ShadowCommands[0].Count
-                + scene.ShadowCommands[1].Count
-                + scene.ShadowCommands[2].Count
-                + scene.ShadowCommands[3].Count,
-            ShadowCascades = scene.ShadowCascadeCount,
+            ShadowCommands = ShadowCommandsOf(scene),
+            ShadowCascades = scene.CascadeSetCount * ShadowCascades.Count,
+            CascadeSets = scene.CascadeSetCount,
             ShadowCasters = scene.ShadowCasters,
             ShadowInstances = scene.ShadowInstances,
+            ShadowTilesInUse = scene.ShadowTileCount,
+            ShadowTilesDrawn = scene.DrawnTiles.Count,
             Impostors = impostors?.Draws.Length ?? 0,
             ImpostorCaptures = impostors?.Captures.Length ?? 0,
             ImpostorsWaiting = impostors?.Waiting ?? 0,
@@ -733,6 +754,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Exposure = exposure,
             Rendered = true,
         };
+
+    /// <summary>The caster commands of every cascade of every set that the frame draws.</summary>
+    private static int ShadowCommandsOf(PreparedScene scene)
+    {
+        int count = 0;
+        for (int layer = 0; layer < scene.CascadeSetCount * ShadowCascades.Count; layer++)
+            count += scene.ShadowCommands[layer].Count;
+        return count;
+    }
 
     private void ApplyPendingResize()
     {
@@ -760,15 +790,34 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Reads one cascade of the shadow map back to the CPU, row by row from the top: reversed depth, 1 nearest the
-    /// sun. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+    /// Reads one cascade of one cascade set back to the CPU, row by row from the top: reversed depth, 1 nearest the light.
+    /// A test and tooling hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadShadowCascade(int cascade)
+    internal float[] ReadShadowCascade(int set, int cascade)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)set, (uint)ShadowMap.Sets);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)cascade, (uint)ShadowCascades.Count);
-        GpuImage image = ShadowMap.Image;
-        int size = ShadowMap.Size;
-        int texelBytes = ShadowMap.Format == Format.D32Sfloat ? 4 : 2;
+        return ReadDepthLayer(image: ShadowMap.Image, layer: ShadowMap.Layer(set, cascade), size: ShadowMap.Size);
+    }
+
+    /// <summary>
+    /// Reads one layer of the local shadow atlas back to the CPU, row by row from the top: reversed depth, 1 at the tile's
+    /// near plane, 0 at infinity. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Local shadows are off.</exception>
+    internal float[] ReadShadowTile(int layer)
+    {
+        ShadowAtlas atlas = shadowAtlas ?? throw new InvalidOperationException("Local shadows are off.");
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)layer, (uint)atlas.Tiles);
+        return ReadDepthLayer(image: atlas.Image, layer: layer, size: atlas.TileSize);
+    }
+
+    /// <summary>
+    /// Copies one layer of a square depth image of D32 or D16 to the CPU, as floats from 0 to 1, row by row from the top.
+    /// </summary>
+    private float[] ReadDepthLayer(GpuImage image, int layer, int size)
+    {
+        int texelBytes = image.Format == Format.D32Sfloat ? 4 : 2;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -782,7 +831,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 commandBuffer: commandBuffer,
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
-                layer: cascade,
+                layer: layer,
                 mip: 0,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer
@@ -847,6 +896,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadDistance() => ReadLevel(image: targets.Distance, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The G-buffer's normal target of the last frame, row by row from the top: per pixel the octahedral form of the
+    /// shading normal in RG and of the geometric normal in BA, in world axes. A test hook, like <see cref="ReadDistance"/>.
+    /// </summary>
+    internal float[] ReadNormals() => ReadLevel(image: targets.Normal, layer: 0, mip: 0).Values;
+
+    /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -863,6 +918,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
         return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
+    }
+
+    /// <summary>
+    /// The last frame's half-resolution trace of the reflections: for each texel, the radiance and the coverage of its
+    /// representative pixel's ray, times the ray's fade, or a negative coverage for no ray. A test hook, like
+    /// <see cref="ReadRadiancePyramidLevel"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadReflectionTrace()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuImage traced = pyramids.Trace switch
+        {
+            HalfTrace half => half.Traced,
+            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        return ReadLevel(image: traced, layer: 0, mip: 0);
+    }
+
+    /// <summary>
+    /// The last frame's hit depths of the half-resolution trace: for each texel, the view depth of its ray's hit in m,
+    /// or 0 for a ray that hit nothing or no ray. A test hook, like <see cref="ReadReflectionTrace"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (float[] Depths, int Width, int Height) ReadReflectionHitDepths()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuImage hitDepths = pyramids.Trace switch
+        {
+            HalfTrace half => half.HitDepths,
+            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        return ReadLevel(image: hitDepths, layer: 0, mip: 0);
     }
 
     /// <summary>
@@ -934,19 +1024,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Reads mip <paramref name="level"/> of one face of the environment map's <paramref name="image"/> back to the CPU:
-    /// RGBA halves, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
+    /// Reads mip <paramref name="level"/> of one face of map <paramref name="map"/> of the environment maps'
+    /// <paramref name="image"/> back to the CPU: RGBA halves, row by row from the top. A test hook: it waits for the device
+    /// to be idle and submits its own copy.
     /// </summary>
-    internal Half[] ReadEnvironmentFace(CubeFace face, int level, EnvironmentImage image)
+    internal Half[] ReadEnvironmentFace(int map, CubeFace face, int level, EnvironmentImage image)
     {
-        EnvironmentMap map = environmentMap ?? throw new InvalidOperationException("The environment map is off.");
+        EnvironmentMap environment =
+            environmentMap ?? throw new InvalidOperationException("The environment map is off.");
         GpuImage cube = image switch
         {
-            EnvironmentImage.Radiance => map.Radiance,
-            EnvironmentImage.Specular => map.Specular,
+            EnvironmentImage.Radiance => environment.Radiance,
+            EnvironmentImage.Specular => environment.Specular,
         };
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, cube.MipLevels);
-        int size = Math.Max(1, map.Setting.FaceSize >> level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
+        int size = Math.Max(1, environment.Setting.FaceSize >> level);
         int count = size * size * 4;
         using var buffer = GpuBuffer.Create(
             device: device,
@@ -961,7 +1054,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 commandBuffer: commandBuffer,
                 image: cube,
                 aspect: ImageAspectFlags.ColorBit,
-                layer: (int)face,
+                layer: CubeFaces.Count * map + (int)face,
                 mip: level,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer
@@ -971,13 +1064,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The irradiance that the last drawn frame's prefilter wrote. A test hook: it waits for the device to be idle and
-    /// submits its own copy.
+    /// The irradiance of map <paramref name="map"/> that the prefilter last wrote. A test hook: it waits for the device to
+    /// be idle and submits its own copy.
     /// </summary>
-    internal Irradiance ReadEnvironmentIrradiance()
+    internal Irradiance ReadEnvironmentIrradiance(int map)
     {
-        EnvironmentMap map = environmentMap ?? throw new InvalidOperationException("The environment map is off.");
-        GpuBuffer irradiance = map.Irradiance;
+        EnvironmentMap environment =
+            environmentMap ?? throw new InvalidOperationException("The environment map is off.");
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
+        GpuBuffer irradiance = environment.Irradiance;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -987,7 +1082,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             name: "irradiance readback"
         );
         SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: irradiance, buffer: buffer));
-        return EnvironmentMap.IrradianceOf(new ReadOnlySpan<Vector4>(buffer.Mapped, Irradiance.Coefficients));
+        var coefficients = new ReadOnlySpan<Vector4>(buffer.Mapped, EnvironmentChain.MaxMaps * Irradiance.Coefficients);
+        return EnvironmentMap.IrradianceOf(coefficients.Slice(map * Irradiance.Coefficients, Irradiance.Coefficients));
     }
 
     /// <summary>
@@ -1000,18 +1096,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
+    /// <summary>How <see cref="ReadLevel"/> finds each channel of an image in memory.</summary>
+    private enum StoredChannel
+    {
+        /// <summary>A 16-bit float.</summary>
+        Half,
+
+        /// <summary>A 32-bit float.</summary>
+        Float,
+
+        /// <summary>A 16-bit signed normalized integer, for −1 to 1.</summary>
+        Snorm16,
+    }
+
     /// <summary>
-    /// Copies one mip of one layer of a float color image to the CPU, channel by channel, row by row from the top, with
-    /// the mip's size.
+    /// Copies one mip of one layer of a color image of floats or of 16-bit signed normalized integers to the CPU, as
+    /// floats, channel by channel, row by row from the top, with the mip's size.
     /// </summary>
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
-        (int channels, bool halves) = image.Format switch
+        (int channels, StoredChannel stored) = image.Format switch
         {
-            Format.R16Sfloat => (1, true),
-            Format.R16G16B16A16Sfloat => (4, true),
-            Format.R32Sfloat => (1, false),
-            Format.R32G32Sfloat => (2, false),
+            Format.R16Sfloat => (1, StoredChannel.Half),
+            Format.R16G16B16A16Sfloat => (4, StoredChannel.Half),
+            Format.R32Sfloat => (1, StoredChannel.Float),
+            Format.R32G32Sfloat => (2, StoredChannel.Float),
+            Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1022,7 +1132,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: (ulong)(count * (halves ? 2 : 4)),
+            size: (ulong)(count * (stored is StoredChannel.Float ? 4 : 2)),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: $"{image.Name} readback"
@@ -1040,15 +1150,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
 
         float[] values = new float[count];
-        if (halves)
+        switch (stored)
         {
-            var stored = new ReadOnlySpan<Half>(buffer.Mapped, count);
-            for (int i = 0; i < count; i++)
-                values[i] = (float)stored[i];
-        }
-        else
-        {
-            new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
+            case StoredChannel.Half:
+                var halves = new ReadOnlySpan<Half>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = (float)halves[i];
+                break;
+            case StoredChannel.Float:
+                new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
+                break;
+            case StoredChannel.Snorm16:
+                // Vulkan's conversion of a signed normalized integer, which maps both −32,768 and −32,767 to −1.
+                var integers = new ReadOnlySpan<short>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = Math.Max(integers[i] / 32767f, -1f);
+                break;
+            default:
+                throw new UnreachableException();
         }
 
         return (values, (int)extent.Width, (int)extent.Height);
@@ -1219,6 +1338,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Materials = materials,
             Barriers = barriers,
             Shadows = ShadowMap,
+            ShadowAtlas = shadowAtlas,
             Timer = timer,
             Exposure = exposure,
             Environment = environmentMap,
@@ -1244,7 +1364,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 extent: extent,
                 glowLevels: glowLevels,
                 smaaTables: smaaTables,
-                reflections: reflections is ConeTracedReflections
+                reflections: reflections switch
+                {
+                    NoReflections => null,
+                    ConeTracedReflections on => on.Resolution,
+                }
             )
         );
     }
@@ -1263,6 +1387,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     tables: BrdfTableImages,
                     exposure: exposure.Buffer,
                     environment: environmentMap,
+                    shadowAtlas: shadowAtlas,
                     index: i
                 )
             );
@@ -1270,10 +1395,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Adds the shadow and G-buffer passes to the graph, and the impostors when <paramref name="options"/> turn them on.
-    /// Returns the impostor atlas and manager, or nulls when impostors are off.
+    /// Adds the shadow and G-buffer passes to the graph, the local shadow pass when the renderer has an atlas, and the
+    /// impostors when <paramref name="options"/> turn them on. Returns the impostor atlas and manager, or nulls when
+    /// impostors are off, and the local shadow pass, or null without an atlas.
     /// </summary>
-    private (ImpostorAtlas? Atlas, ImpostorManager? Manager) AddPassesThroughGeometry(
+    private (ImpostorAtlas? Atlas, ImpostorManager? Manager, LocalShadowPass? LocalShadows) AddPassesThroughGeometry(
         ShaderLibrary shaders,
         RendererOptions options
     )
@@ -1282,6 +1408,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.ShadowMaps,
             new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)
         );
+        LocalShadowPass? localShadowPass = null;
+        if (shadowAtlas is { } atlas)
+        {
+            // After the cascades, in the same stage: both only draw depth, and every shading pass reads both.
+            localShadowPass = new LocalShadowPass(device: device, shaders: shaders, layouts: layouts, atlas: atlas);
+            Graph.Add(FrameGraph.Stage.ShadowMaps, localShadowPass);
+        }
+
         if (environmentMap is { } map)
         {
             Graph.Add(
@@ -1302,8 +1436,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
         if (!options.Impostors)
-            return (null, null);
-        return AddImpostors(shaders: shaders, geometryPass: geometryPass, tiles: options.ImpostorTiles);
+            return (null, null, localShadowPass);
+        (ImpostorAtlas impostorAtlas, ImpostorManager manager) = AddImpostors(
+            shaders: shaders,
+            geometryPass: geometryPass,
+            tiles: options.ImpostorTiles
+        );
+        return (impostorAtlas, manager, localShadowPass);
     }
 
     /// <summary>
@@ -1336,6 +1475,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
     private ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
+
+    /// <summary>
+    /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas, which the renderer owns,
+    /// written into the G-buffer set once: neither image changes, and resizing rewrites only the other G-buffer bindings.
+    /// Without the atlas its binding stays empty: it is partially bound.
+    /// </summary>
+    private (ShadowMap Map, ShadowAtlas? Atlas) CreateShadowImages(RendererOptions options)
+    {
+        ShadowMap map = Own(
+            new ShadowMap(
+                device: device,
+                allocator: Allocator,
+                size: options.ShadowMapSize,
+                sets: options.CascadedLights
+            )
+        );
+        ShadowAtlas? atlas = CreateShadowAtlas(options.LocalShadows);
+        layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: map.Image);
+        if (atlas is not null)
+            layouts.WriteImage(
+                set: targets.GBufferSet,
+                binding: ShadowAtlas.AtlasBinding,
+                arrayElement: 0,
+                image: atlas.Image
+            );
+        return (map, atlas);
+    }
+
+    /// <summary>The local shadow atlas that <paramref name="setting"/> asks for, which the renderer owns, or null for none.</summary>
+    private ShadowAtlas? CreateShadowAtlas(LocalShadowSetting setting) =>
+        setting switch
+        {
+            NoLocalShadows => null,
+            LocalShadowAtlas atlas => Own(new ShadowAtlas(device: device, allocator: Allocator, setting: atlas)),
+        };
 
     /// <summary>The environment map that <paramref name="options"/> ask for, which the renderer owns, or null for none.</summary>
     private EnvironmentMap? CreateEnvironmentMap(RendererOptions options) =>
@@ -1427,19 +1601,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
         );
-        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and writes the
-        // image that the pyramid read.
-        Graph.Add(
-            FrameGraph.Stage.Reflections,
-            new ReflectionPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                targets: pyramids,
-                setting: setting,
-                constants: ShadingConstants
-            )
-        );
+        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and the step that
+        // writes the reflections writes the image that the pyramid read. The upsample reads the half-resolution trace.
+        ReflectionStep[] steps = pyramids.Trace switch
+        {
+            FullTrace => [ReflectionStep.Trace],
+            HalfTrace => [ReflectionStep.Trace, ReflectionStep.Upsample],
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        foreach (ReflectionStep step in steps)
+            Graph.Add(
+                FrameGraph.Stage.Reflections,
+                new ReflectionPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    targets: pyramids,
+                    setting: setting,
+                    constants: ShadingConstants,
+                    step: step
+                )
+            );
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

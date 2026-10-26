@@ -26,7 +26,7 @@ public sealed class ImpostorManagerTests
 
     private sealed class Harness
     {
-        public readonly SceneBatcher Batcher = new();
+        public readonly SceneBatcher Batcher = Batchers.Default();
         public readonly PreparedScene Scene = new();
         public readonly ImpostorManager Manager;
 
@@ -111,6 +111,7 @@ public sealed class ImpostorManagerTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: RenderFlags.CastsShadow,
             entityIndex: 9_999,
             part: 0
@@ -373,7 +374,7 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
-    public void TheSunDirectionInObjectSpaceRecapturesAfterTwoOverH()
+    public void AStarThatTurnsAgainstAnObjectRecapturesItByTheTwoOverHRule()
     {
         float height = 100f;
         (Harness harness, float distance) = Captured(height);
@@ -429,16 +430,98 @@ public sealed class ImpostorManagerTests
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse changes the light that reaches the object");
 
-        // Turning the sun off (a zero or negative intensity) is a lighting change too: the capture bakes no sunlight.
+        // A star that stops shining (a zero or negative power) is a lighting change too: the capture bakes no starlight.
         RenderSnapshot clear = Snapshot(intensity: 3f * 1.5f);
         clear.Instances.Add(Ball(entity: 1, position: position));
         harness.Run(clear);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse is over");
-        clear.Sun.Intensity = -1f;
+        Gpu.Star(snapshot: clear, irradiance: -1f);
         harness.Run(clear);
-        harness.Manager.Captures.Length.Should().Be(1, "the sun went out");
+        harness.Manager.Captures.Length.Should().Be(1, "the star went out");
         harness.Run(clear);
-        harness.Manager.Captures.Length.Should().Be(0, "a sun that is off stays off");
+        harness.Manager.Captures.Length.Should().Be(0, "a star that does not shine stays out");
+    }
+
+    [Fact]
+    public void AnImpostorLitAtTheIrradianceCapRecapturesWhenItsLightMovesToItsOtherSide()
+    {
+        // A lamp of 10³³ W/sr 2 m from the ball sends 2.5 × 10³² W/m², which the cap holds at 2^64 in each channel: a
+        // length of single floats would square past the float range there.
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot Lit(Vector3 side)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + side,
+                    color: Vector3.One,
+                    intensity: 1e33f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            return snapshot;
+        }
+
+        harness.Run(Lit(new(2, 0, 0)));
+        harness.Manager.Captures.Length.Should().Be(1, "the lamp changes the light that reaches the object");
+        harness.Run(Lit(new(-2, 0, 0)));
+
+        harness.Manager.Captures.Length.Should().Be(1, "the lamp now lights the other side of the object");
+    }
+
+    [Fact]
+    public void AnImpostorLitAtTheIrradianceCapSettles()
+    {
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 1, position: position));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: position + new Vector3(2, 0, 0),
+                color: Vector3.One,
+                intensity: 1e33f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        harness.Run(snapshot);
+
+        harness.Run(snapshot);
+
+        harness.Manager.Captures.Length.Should().Be(0, "nothing changed since the capture");
+    }
+
+    [Fact]
+    public void AnImpostorUnderManyLampsAtTheIrradianceCapKeepsItsCaptureWhenOneGoesOut()
+    {
+        // 200 lamps at the cap: one that goes out changes the light by 1/200 of it, and its direction weight as much, so
+        // the change of 2/200 stays below 2 / h. Each of the two changes, 2^64 √3 W/m², squares past the float range.
+        const int lamps = 200;
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderSnapshot Lit(int count)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            for (int i = 0; i < count; i++)
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: position + new Vector3(2, 0, 0),
+                        color: Vector3.One,
+                        intensity: 1e33f,
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+            return snapshot;
+        }
+
+        harness.Run(Lit(lamps));
+        harness.Manager.Captures.Length.Should().Be(1, "the lamps change the light that reaches the object");
+        harness.Run(Lit(lamps - 1));
+
+        harness.Manager.Captures.Length.Should().Be(0, "one lamp of 200 changes the light by less than 2 / h");
     }
 
     [Fact]
@@ -556,15 +639,41 @@ public sealed class ImpostorManagerTests
     /// A reading of a map whose irradiance holds <paramref name="band0"/> in every channel of its first coefficient and
     /// <paramref name="band2"/> in its fifth, the first of band 2.
     /// </summary>
-    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default)
+    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default) =>
+        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(band0, band2) });
+
+    /// <summary>A reading as <see cref="MapReading"/> describes it.</summary>
+    private static IrradianceReading Reading(float band0, Vector3 band2 = default)
     {
         var coefficients = new Vector3[Irradiance.Coefficients];
         coefficients[0] = new(band0);
         coefficients[4] = band2;
-        return new WithMap(
-            Faces: FaceMask.None,
-            Irradiance: new IrradianceReading(Frame: 0, Irradiance: new(coefficients))
-        );
+        return new(Frame: 0, Irradiance: new(coefficients));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    public void AnImpostorsSignatureReadsTheIrradianceOfItsOwnMap(int chainDepth)
+    {
+        // Two maps: a ball in the root, one frame above the camera's, takes map 0, and a ball in the camera's frame map 1.
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(float ownMap, float otherMap)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
+            snapshot.Instances.Add(Ball(entity: 1, position: position) with { ChainDepth = (ushort)chainDepth });
+            IrradianceReading?[] readings =
+                chainDepth == 1 ? [Reading(ownMap), Reading(otherMap)] : [Reading(otherMap), Reading(ownMap)];
+            harness.Run(snapshot, new WithMap(Faces: new[] { FaceMask.None, FaceMask.None }, Irradiance: readings));
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(ownMap: 2f, otherMap: 2f).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(ownMap: 2f, otherMap: 6f).Should().Be(0, "the light of another map does not reach it");
+        CapturesUnder(ownMap: 2.4f, otherMap: 6f).Should().Be(1, "its own map's light changed by 0.69 of 9");
     }
 
     [Fact]
@@ -603,7 +712,7 @@ public sealed class ImpostorManagerTests
             return harness.Manager.Captures.Length;
         }
 
-        var unread = new WithMap(Faces: FaceMask.All, Irradiance: null);
+        var unread = new WithMap(Faces: new[] { FaceMask.All }, Irradiance: new IrradianceReading?[1]);
         CapturesUnder(unread).Should().Be(1, "the first sight of an impostor is captured");
         CapturesUnder(unread).Should().Be(0, "nothing changed");
         CapturesUnder(MapReading(1f)).Should().Be(1, "before the first reading the map's irradiance counts as zero");
@@ -679,13 +788,7 @@ public sealed class ImpostorManagerTests
         float distance = DistanceFor(height);
         var position = new Vector3(0, 0, -distance);
 
-        RenderSnapshot Scene(
-            Vector3 lightOffset,
-            float intensity = 5f,
-            float range = 6f,
-            bool spot = false,
-            float spotTurn = 0f
-        )
+        RenderSnapshot Scene(Vector3 lightOffset, float intensity = 5f, bool spot = false, float spotTurn = 0f)
         {
             RenderSnapshot snapshot = Snapshot();
             snapshot.Instances.Add(Ball(entity: 1, position: position));
@@ -698,16 +801,21 @@ public sealed class ImpostorManagerTests
             );
             snapshot.Lights.Add(
                 spot
-                    ? new SpotRenderLight(
-                        Position: lightPosition,
-                        Direction: direction,
-                        Color: color,
-                        Intensity: intensity,
-                        Range: range,
-                        InnerConeAngle: 0.3f,
-                        OuterConeAngle: 0.5f
+                    ? Gpu.Spot(
+                        position: lightPosition,
+                        direction: direction,
+                        color: color,
+                        intensity: intensity,
+                        innerConeAngle: 0.3f,
+                        outerConeAngle: 0.5f,
+                        chainDepth: TestChains.CamerasFrame
                     )
-                    : new PointRenderLight(Position: lightPosition, Color: color, Intensity: intensity, Range: range)
+                    : Gpu.Lamp(
+                        position: lightPosition,
+                        color: color,
+                        intensity: intensity,
+                        chainDepth: TestChains.CamerasFrame
+                    )
             );
             return snapshot;
         }
@@ -724,13 +832,51 @@ public sealed class ImpostorManagerTests
         Captures(Scene(lightOffset: new(-2.5f, 1f, 0))).Should().Be(1);
         // It brightens.
         Captures(Scene(lightOffset: new(-2.5f, 1f, 0), intensity: 8f)).Should().Be(1);
-        // It moves out of reach: the object loses its light. Out there, it can move without effect.
+        // It moves away: the object gets less of its light.
         Captures(Scene(lightOffset: new(-9f, 1f, 0), intensity: 8f)).Should().Be(1);
-        Captures(Scene(lightOffset: new(-12f, 3f, 0), intensity: 8f)).Should().Be(0);
         // A spot light aimed at the object, then turned away from it.
         Captures(Scene(lightOffset: new(0, 3f, 0), spot: true)).Should().Be(1);
         Captures(Scene(lightOffset: new(0, 3f, 0), spot: true)).Should().Be(0);
         Captures(Scene(lightOffset: new(0, 3f, 0), spot: true, spotTurn: 0.8f)).Should().Be(1);
+    }
+
+    [Fact]
+    public void ALampThatBrightensRecapturesTheObjectsItReaches()
+    {
+        var harness = new Harness();
+        var near = new Vector3(0, 0, -DistanceFor(100f));
+        // At the default exposure's highest 10 stops the cutoff irradiance is π · 2^−13 / 2^10 ≈ 3.7e-7 W/m², so a lamp of
+        // 8 W/sr reaches √(8 / 3.7e-7) ≈ 4.6 km. The far ball, 100 m in radius and about 6.2 km away, is beyond it.
+        var far = new Vector3(0, 0, -DistanceFor(20f, 100f));
+
+        // The lamp is the only light, so all the light of the near ball changes with it, and the far ball has none to change.
+        int[] CapturedEntities(float intensity)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Ambient.Intensity = 0;
+            snapshot.Instances.Add(Ball(entity: 1, position: near));
+            snapshot.Instances.Add(Ball(entity: 2, position: far, scale: new Vector3(100f)));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: near + new Vector3(2.5f, 1f, 0),
+                    color: Vector3.One,
+                    intensity: intensity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(snapshot);
+            return
+            [
+                .. harness
+                    .Manager.Captures.ToArray()
+                    .Select(capture => (int)harness.Manager.TileOwner(capture.Tile)!.Value.EntityIndex)
+                    .Order(),
+            ];
+        }
+
+        CapturedEntities(5f).Should().Equal([1, 2], "the first sight of each impostor is captured");
+        CapturedEntities(5f).Should().BeEmpty("nothing changed");
+        CapturedEntities(8f).Should().Equal([1], "only the near ball is within the lamp's reach");
     }
 
     [Fact]
@@ -1040,24 +1186,24 @@ public sealed class ImpostorManagerTests
         Vector3 sun = Vector3.UnitY;
         float sunRadius = 0.00467f;
         Eclipse
-            .SunVisibility(position: Vector3.Zero, sunDirection: sun, sunAngularRadius: sunRadius, occluders: [])
+            .Visibility(position: Vector3.Zero, towardLight: sun, angularRadius: sunRadius, occluders: [])
             .Should()
             .Be(1f);
         // A planet straight toward the sun hides it; one off to the side does not.
         Eclipse
-            .SunVisibility(
+            .Visibility(
                 position: Vector3.Zero,
-                sunDirection: sun,
-                sunAngularRadius: sunRadius,
+                towardLight: sun,
+                angularRadius: sunRadius,
                 occluders: [new(x: 0, y: 1e7f, z: 0, w: 6e6f)]
             )
             .Should()
             .BeApproximately(0f, 1e-6f);
         Eclipse
-            .SunVisibility(
+            .Visibility(
                 position: Vector3.Zero,
-                sunDirection: sun,
-                sunAngularRadius: sunRadius,
+                towardLight: sun,
+                angularRadius: sunRadius,
                 occluders: [new(x: 1e7f, y: 0, z: 0, w: 6e6f)]
             )
             .Should()
@@ -1067,18 +1213,18 @@ public sealed class ImpostorManagerTests
         float moonDistance = 1e6f,
             moonRadius = moonDistance * MathF.Sin(sunRadius);
         Eclipse
-            .SunVisibility(
+            .Visibility(
                 position: Vector3.Zero,
-                sunDirection: sun,
-                sunAngularRadius: sunRadius,
+                towardLight: sun,
+                angularRadius: sunRadius,
                 occluders: [new(x: 0, y: moonDistance, z: 0, w: moonRadius)]
             )
             .Should()
             .BeApproximately(0f, 1e-3f);
-        float partial = Eclipse.SunVisibility(
+        float partial = Eclipse.Visibility(
             position: Vector3.Zero,
-            sunDirection: sun,
-            sunAngularRadius: sunRadius,
+            towardLight: sun,
+            angularRadius: sunRadius,
             occluders: [new(x: moonDistance * MathF.Tan(sunRadius), y: moonDistance, z: 0, w: moonRadius)]
         );
         partial.Should().BeApproximately(1f - (2f * MathF.PI / 3f - MathF.Sqrt(3f) / 2f) / MathF.PI, 0.005f);
@@ -1092,19 +1238,19 @@ public sealed class ImpostorManagerTests
         // The sphere's center lies 5 m toward the sun from a point inside it: its own caster's surface, or the ground of a
         // planet, which faces away from the sun at night anyway.
         Eclipse
-            .SunVisibility(
+            .Visibility(
                 position: Vector3.Zero,
-                sunDirection: sun,
-                sunAngularRadius: sunRadius,
+                towardLight: sun,
+                angularRadius: sunRadius,
                 occluders: [new(x: 0, y: 5, z: 0, w: 10)]
             )
             .Should()
             .Be(1f);
         Eclipse
-            .SunVisibility(
+            .Visibility(
                 position: new(0, -20, 0),
-                sunDirection: sun,
-                sunAngularRadius: sunRadius,
+                towardLight: sun,
+                angularRadius: sunRadius,
                 occluders: [new(x: 0, y: 0, z: 0, w: 10)]
             )
             .Should()
@@ -1142,6 +1288,7 @@ public sealed class ImpostorManagerTests
                 scale: new(6e6f),
                 boundingRadius: 0,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow,
                 entityIndex: 9_998,
                 part: 0

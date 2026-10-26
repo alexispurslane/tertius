@@ -10,7 +10,9 @@ const float PI = 3.14159265358979323846;
 // A run of up to four levels of the environment map's specular map (EnvironmentPrefilterPass.cs,
 // docs/plans/environment-map.md, "The specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
 // with n = v = r, over N Hammersley samples with filtered importance sampling (Křivánek and Colbert 2008), in all four
-// channels, so the alpha is the open-sky share along the lobe.
+// channels, so the alpha is the open-sky share along the lobe. The dispatch prefilters one map m: it reads cube m of the
+// radiance map and writes layers 6m to 6m + 5. A map lies in its own axes, and so do its texels' rays, so the prefilter
+// needs no turn.
 //
 // The workgroups of each level of the dispatch follow those of the level before, so a workgroup prefilters one level,
 // and all its invocations take the same branches. A workgroup prefilters 64 / lanes texels that follow each other in layer, row and column order, with lanes invocations
@@ -26,9 +28,9 @@ const uint MaxLevels = 4u;       // PrefilterLevels.LevelsPerDispatch
 
 layout(local_size_x = 64) in;
 
-layout(set = 0, binding = 0) uniform textureCube radianceMap;
+layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// The levels of the dispatch in order, six layers each (DescriptorLayouts.EnvironmentLevelsSet). A binding past the
+// The levels of the dispatch in order, six layers per map (DescriptorLayouts.EnvironmentLevelsSet). A binding past the
 // last level holds that level again, and nothing writes it.
 layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray specularLevel0;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2DArray specularLevel1;
@@ -51,6 +53,7 @@ layout(push_constant, std430) uniform PrefilterPush
     uint samples;             // N, at most MaxSamples
     uint levelCount;          // 1 to MaxLevels
     uint groupCount;          // the workgroups of the levels, which the grid's rows may pass by a few
+    uint map;                 // m
 } prefilter;
 
 // Sample i of the level: xyz the direction l in the axes of n (tangent, bitangent, n), so z is n·l, and w the level of the
@@ -59,6 +62,13 @@ shared vec4 table[MaxSamples];
 // Each invocation's sum of its lane's samples, weighted by n·l, and in w the sum of those weights.
 shared vec4 laneSums[Invocations];
 shared float laneWeights[Invocations];
+
+// The radiance map's cube m at the direction v and level lod. The layer coordinate float(m) is an integer, which Vulkan
+// rounds to itself.
+vec4 radianceAt(vec3 v, float lod)
+{
+    return textureLod(samplerCubeArray(radianceMap, environmentSampler), vec4(v, float(prefilter.map)), lod);
+}
 
 // The base-2 radical inverse of i: its bits mirrored about the binary point (Hammersley.cs).
 float radicalInverse(uint i)
@@ -121,6 +131,7 @@ void main()
     uint layer = texel / max(levelTexels, 1u);
     uint inLayer = texel - layer * levelTexels;
     uvec2 xy = uvec2(inLayer % level.levelSize, inLayer / level.levelSize);
+    uint mapLayer = 6u * prefilter.map + layer;
     vec3 ray = faceRay(layer, (vec2(xy) + 0.5) / float(level.levelSize));
 
     // The roughness is the same in the whole workgroup, so every invocation takes the same branch, and all reach the
@@ -129,12 +140,12 @@ void main()
     {
         // The exact ray through a texel center reads that texel of level 0 alone, so the mirror level copies it.
         if (inLevel && lane == 0u)
-            store(binding, ivec3(xy, layer), textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0));
+            store(binding, ivec3(xy, mapLayer), radianceAt(ray, 0.0));
         return;
     }
 
     float alpha = level.roughness * level.roughness;
-    float faceSize = float(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
+    float faceSize = float(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x);
     float texelAngle = 4.0 * PI / (6.0 * faceSize * faceSize);
     if (index < prefilter.samples)
         table[index] = levelSample(index, alpha, texelAngle);
@@ -153,7 +164,7 @@ void main()
         if (s.z > 0.0)
         {
             vec3 l = tangent * s.x + bitangent * s.y + n * s.z;
-            sum += textureLod(samplerCube(radianceMap, environmentSampler), l, s.w) * s.z;
+            sum += radianceAt(l, s.w) * s.z;
             weight += s.z;
         }
     }
@@ -172,6 +183,6 @@ void main()
             totalWeight += laneWeights[index + m];
         }
         // Sample 0, the point (0, 0), gives h = n and l = n, so lane 0's weight and the total are at least 1.
-        store(binding, ivec3(xy, layer), total / totalWeight);
+        store(binding, ivec3(xy, mapLayer), total / totalWeight);
     }
 }

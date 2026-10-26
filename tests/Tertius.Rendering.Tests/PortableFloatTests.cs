@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -226,7 +227,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless(stops: 64);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
 
             Vector3 center = HdrCenter(renderer, snapshot);
@@ -247,17 +248,56 @@ public sealed class PortableFloatTests
         {
             RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), Matte(renderer));
             snapshot.Lights.Add(
-                new PointRenderLight(
-                    Position: new(0, 0, -2),
-                    Color: Vector3.One,
-                    Intensity: ShaderInput.RadianceLimit,
-                    Range: 10
+                Gpu.Lamp(
+                    position: new(0, 0, -2),
+                    color: Vector3.One,
+                    intensity: ShaderInput.RadianceLimit,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
             Vector3 center = HdrCenter(renderer, snapshot);
 
             center.Should().Be(new Vector3(ShaderInput.MaxRadiance), "reflected light stops at the HDR image's cap");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheBrightestLightOneCentimeterFromAMirrorShowsTheCap()
+    {
+        // The brightest light that the renderer keeps, 10^34 W/sr, 1 cm in front of a mirror at the roughness floor, on the
+        // view axis. Its irradiance there, 10^38 W/m², is past what a sum of lights can hold, so the shaders cap it at
+        // IrradianceLimit, 2^64 W/m², before the peak of the mirror's BRDF multiplies it.
+        VulkanRenderer renderer = Headless();
+        try
+        {
+            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), mirror);
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
+            // The largest float power whose intensity, P / (4π), is at most 10^34 W/sr.
+            float power = (float)(4 * Math.PI * LightUnits.MaxIntensity);
+            while (LightUnits.PointIntensity(power) > LightUnits.MaxIntensity)
+                power = MathF.BitDecrement(power);
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, -2.99f),
+                    color: Vector3.One,
+                    intensity: 0,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
+                {
+                    Power = power,
+                }
+            );
+
+            Vector3 center = HdrCenter(renderer, snapshot);
+
+            renderer.LastScene.LightCount.Should().Be(1, "the light is the brightest that the renderer keeps");
+            center.Should().Be(new Vector3(ShaderInput.MaxRadiance), "the mirrored light stops at the HDR image's cap");
         }
         finally
         {
@@ -280,7 +320,7 @@ public sealed class PortableFloatTests
                     Emissive: new(ShaderInput.RadianceLimit)
                 )
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)),
@@ -365,7 +405,7 @@ public sealed class PortableFloatTests
         );
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
             renderer.Render(snapshot, 1f);
 
@@ -420,7 +460,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(0.2f)));
             snapshot.PuffLooks.Add(
                 new(
@@ -490,7 +530,7 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
             snapshot.PuffLooks.Add(
                 new(

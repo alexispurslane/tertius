@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -38,7 +39,7 @@ public sealed class BatcherTests
     )
     {
         var scene = new PreparedScene();
-        (batcher ?? new SceneBatcher()).Prepare(
+        (batcher ?? Batchers.Default()).Prepare(
             snapshot: snapshot,
             alpha: alpha,
             width: 1600,
@@ -172,6 +173,7 @@ public sealed class BatcherTests
                 scale: Vector3.One,
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow
             )
         ); // not Visible
@@ -313,236 +315,6 @@ public sealed class BatcherTests
         scene.VisibleSpan.ToArray().Select(v => (v.EntityIndex, v.Part)).Should().Equal((9u, 0), (9u, 3));
     }
 
-    [Theory]
-    [InlineData(0f, 1f, 0f, false)]
-    [InlineData(-2f, 1f, 0f, false)]
-    [InlineData(float.NaN, 1f, 0f, false)]
-    [InlineData(float.PositiveInfinity, 1f, 0f, false)]
-    [InlineData(3f, 0f, 0f, false)] // no direction
-    [InlineData(3f, float.PositiveInfinity, 0f, false)] // a direction that cannot be normalized
-    [InlineData(3f, 1f, 0f, true)]
-    [InlineData(0.001f, 0f, 5f, true)] // need not be normalized
-    public void ASunWithoutAPositiveIntensityOrADirectionIsOff(float intensity, float y, float z, bool lit)
-    {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Sun = new()
-        {
-            Direction = new(0, y, z),
-            Color = Vector3.One,
-            Intensity = intensity,
-            AngularRadius = 0.005f,
-        };
-        SceneBatcher.HasSun(snapshot.Sun).Should().Be(lit);
-        PreparedScene scene = Prepare(snapshot: snapshot);
-        Vector4 radiance = scene.Constants.SunRadiance;
-        if (lit)
-        {
-            radiance.X.Should().BeApproximately(intensity, 1e-6f);
-            new Vector3(scene.Constants.SunDirection.X, scene.Constants.SunDirection.Y, scene.Constants.SunDirection.Z)
-                .Length()
-                .Should()
-                .BeApproximately(1f, 1e-5f);
-        }
-        else
-        {
-            radiance.Should().Be(Vector4.Zero, "a sun that is off sends no light into the lighting shader");
-        }
-    }
-
-    [Fact]
-    public void LightsAreConvertedAndCulled()
-    {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Camera.PreviousPosition = new(0, 0, 2);
-        snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0, 1, -5), Color: new(1, 0.5f, 0.25f), Intensity: 4, Range: 10)
-        );
-        snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: new(0, 3, -5),
-                Direction: new(0, -2, 0),
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 8,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
-            )
-        );
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, 50), Color: Vector3.One, Intensity: 1, Range: 10)); // behind
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 0)); // no range
-        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
-
-        scene.LightCount.Should().Be(2);
-        GpuLight point = scene.Lights[0],
-            spot = scene.Lights[1];
-        point.PositionRange.Should().Be(new Vector4(x: 0, y: 1, z: -6, w: 10));
-        point.RadianceKind.Should().Be(new Vector4(x: 4, y: 2, z: 1, w: 0));
-        // Each case has its own arm in the batcher, so each case's position relative to the camera, and its range, needs its own check.
-        spot.PositionRange.Should().Be(new Vector4(x: 0, y: 3, z: -6, w: 8));
-        spot.RadianceKind.W.Should().Be(1f);
-        new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z)
-            .Should()
-            .Be(new Vector3(0, -1, 0));
-        spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);
-        spot.Spot.X.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
-        scene.Constants.LightCount.Should().Be(2u);
-    }
-
-    [Fact]
-    public void ALightThatCannotLightAnythingIsLeftOutWhateverItsCase()
-    {
-        RenderSnapshot snapshot = Empty();
-        // The negative range is far ahead: close to the eye, the frustum test would leave a light of negative range out by itself.
-        Vector3 ahead = new(0, 0, -5),
-            farAhead = new(0, 0, -50),
-            behind = new(0, 0, 50);
-        // Each reason to leave a light out, once for each case: no range, a negative range, no intensity, and a sphere of reach outside the view.
-        foreach (
-            (Vector3 position, float intensity, float range) in new[]
-            {
-                (ahead, 1f, 0f),
-                (farAhead, 1f, -3f),
-                (ahead, 0f, 10f),
-                (behind, 1f, 10f),
-            }
-        )
-        {
-            snapshot.Lights.Add(
-                new PointRenderLight(Position: position, Color: Vector3.One, Intensity: intensity, Range: range)
-            );
-            snapshot.Lights.Add(
-                new SpotRenderLight(
-                    Position: position,
-                    Direction: -Vector3.UnitY,
-                    Color: Vector3.One,
-                    Intensity: intensity,
-                    Range: range,
-                    InnerConeAngle: 0.3f,
-                    OuterConeAngle: 0.5f
-                )
-            );
-        }
-
-        snapshot.Lights.Add(default);
-        // One of each case that reaches the view, to show that the others were left out and not everything.
-        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: 1, Range: 10));
-        snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: ahead,
-                Direction: -Vector3.UnitY,
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene
-            .LightCount.Should()
-            .Be(2, "the empty light holds no light, and the eight lights that reach nothing are left out");
-        scene.Lights[0].RadianceKind.W.Should().Be(0f);
-        scene.Lights[1].RadianceKind.W.Should().Be(1f);
-    }
-
-    [Fact]
-    public void APointLightLeavesTheDirectionAndTheConeOfItsGpuLightZeroBecauseItHasNone()
-    {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: 1, Range: 10));
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene.LightCount.Should().Be(1);
-        GpuLight point = scene.Lights[0];
-        point.PositionRange.W.Should().Be(10f);
-        point.RadianceKind.W.Should().Be(0f);
-        point.DirectionCosOuter.Should().Be(Vector4.Zero);
-        point.Spot.Should().Be(Vector4.Zero);
-    }
-
-    [Fact]
-    public void ASpotLightWithoutADirectionShinesStraightDown()
-    {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: new(0, 1, -5),
-                Direction: Vector3.Zero,
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene.LightCount.Should().Be(1);
-        GpuLight spot = scene.Lights[0];
-        new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z)
-            .Should()
-            .Be(new Vector3(0, -1, 0));
-    }
-
-    [Fact]
-    public void ASpotLightWhoseInnerConeIsNotNarrowerThanItsOuterConeStillFadesOverANonEmptyInterval()
-    {
-        // The shader's smoothstep needs an inner cosine above the outer one, so the batcher widens an empty or inverted interval.
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: new(0, 1, -5),
-                Direction: -Vector3.UnitY,
-                Color: Vector3.One,
-                Intensity: 1,
-                Range: 10,
-                InnerConeAngle: 0.6f,
-                OuterConeAngle: 0.4f
-            )
-        );
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene.LightCount.Should().Be(1);
-        GpuLight spot = scene.Lights[0];
-        spot.Spot.X.Should().BeGreaterThan(spot.DirectionCosOuter.W);
-        spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.4f), 1e-5f);
-    }
-
-    [Fact]
-    public void ManyLightsOfBothCasesGrowTheLightArrayAndKeepTheirOrder()
-    {
-        // The array starts at 16 lights. Light i has the intensity i + 1 and is a point light when i is even, a spot light when it is odd.
-        RenderSnapshot snapshot = Empty();
-        for (int i = 0; i < 40; i++)
-            snapshot.Lights.Add(
-                i % 2 == 0
-                    ? new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: i + 1, Range: 10)
-                    : new SpotRenderLight(
-                        Position: new(0, 1, -5),
-                        Direction: -Vector3.UnitY,
-                        Color: Vector3.One,
-                        Intensity: i + 1,
-                        Range: 10,
-                        InnerConeAngle: 0.3f,
-                        OuterConeAngle: 0.5f
-                    )
-            );
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene.LightCount.Should().Be(40);
-        for (int i = 0; i < 40; i++)
-        {
-            scene.Lights[i].RadianceKind.X.Should().Be(i + 1, $"light {i} keeps its place");
-            scene.Lights[i].RadianceKind.W.Should().Be(i % 2 == 0 ? 0f : 1f, $"light {i} keeps its case");
-        }
-    }
-
     [Fact]
     public void ProcessorsCanReplaceInstancesBeforeBatching()
     {
@@ -551,7 +323,7 @@ public sealed class BatcherTests
             snapshot.Instances.Add(
                 Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -10 - i * 100), scale: Vector3.One)
             );
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         batcher.Processors.Add(new BillboardSwap());
         PreparedScene scene = Prepare(snapshot: snapshot, batcher: batcher);
         // Objects beyond 300 m became mesh 2 "billboards".
@@ -585,7 +357,7 @@ public sealed class BatcherTests
         var rotation = Quaternion.Normalize(new(x: 0.3f, y: -0.5f, z: 0.2f, w: 0.8f));
         var scale = new Vector3(2, 3, 0.5f);
         var position = new Vector3(10, -20, 30);
-        var instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7);
+        var instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7, map: 0);
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);
         var transformed = new Vector3(
@@ -636,7 +408,8 @@ public sealed class BatcherTests
                 rotation: Quaternion.Identity,
                 scale: Vector3.One,
                 boundingRadius: 1,
-                hemisphere: HemisphereUp.Along(Vector3.UnitX)
+                hemisphere: HemisphereUp.Along(Vector3.UnitX),
+                chainDepth: TestChains.CamerasFrame
             )
         );
         var moving = RenderInstance.Create(
@@ -646,7 +419,8 @@ public sealed class BatcherTests
             rotation: Quaternion.Identity,
             scale: Vector3.One,
             boundingRadius: 1,
-            hemisphere: HemisphereUp.AwayFrom(new(0, -50, 0))
+            hemisphere: HemisphereUp.AwayFrom(new(0, -50, 0)),
+            chainDepth: TestChains.CamerasFrame
         );
         moving.PreviousPosition = new(4, 1, -10);
         snapshot.Instances.Add(moving);
@@ -658,7 +432,8 @@ public sealed class BatcherTests
                 rotation: Quaternion.Identity,
                 scale: Vector3.One,
                 boundingRadius: 1,
-                hemisphere: HemisphereUp.Even
+                hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -678,8 +453,14 @@ public sealed class BatcherTests
     public void TheRootRotationBlendsFromThePreviousTickAsTheCameraDoes()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.PreviousRootRotation = Quaternion.Identity;
-        snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        snapshot.Chain.Add(new(FrameId: 1, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(
+            new(
+                FrameId: 0,
+                Rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2),
+                PreviousRotation: Quaternion.Identity
+            )
+        );
 
         Vector4 root = Prepare(snapshot: snapshot, alpha: 0.25f).Constants.RootRotation;
 
@@ -695,16 +476,20 @@ public sealed class BatcherTests
     public void AnUnsetRootRotationLeavesTheSkyInTheAxesOfTheCamerasFrame()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.RootRotation = default;
-        snapshot.PreviousRootRotation = default;
+        // The camera's frame is the root, and its rotations are left zeroed.
+        snapshot.Chain.Add(new(FrameId: 0, Rotation: default, PreviousRotation: default));
 
         Prepare(snapshot: snapshot).Constants.RootRotation.Should().Be(new Vector4(x: 0, y: 0, z: 0, w: 1));
     }
 
     // The map's faces. The camera sits at the render origin and looks down −Z, so it sees nothing along ±X or ±Y.
 
-    /// <summary>The map is on, draws <paramref name="faces"/> this frame, and has no irradiance reading yet.</summary>
-    private static EnvironmentDraw MapOf(FaceMask faces) => new WithMap(Faces: faces, Irradiance: null);
+    /// <summary>
+    /// The map is on, with one served map for each of <paramref name="faces"/>, root first, which draws those faces this
+    /// frame, and has no irradiance reading yet.
+    /// </summary>
+    private static EnvironmentDraw MapOf(params FaceMask[] faces) =>
+        new WithMap(Faces: faces, Irradiance: new IrradianceReading?[faces.Length]);
 
     /// <summary>A unit box of mesh 0 at <paramref name="position"/>.</summary>
     private static RenderInstance Box(Vector3 position, RenderFlags flags = RenderFlags.None) =>
@@ -731,8 +516,23 @@ public sealed class BatcherTests
     private static List<Vector3> Placed(PreparedScene scene, EnvironmentFaceDraw face) =>
         [.. Placed(scene, face.Far), .. Placed(scene, face.Middle), .. Placed(scene, face.Near)];
 
-    private static Vector3 LightPosition(in GpuLight light) =>
-        new(light.PositionRange.X, light.PositionRange.Y, light.PositionRange.Z);
+    /// <summary>A snapshot with no light: the test star of <see cref="Gpu.Snapshot"/> has no power, so it does not shine.</summary>
+    private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
+
+    /// <summary>
+    /// A batcher whose exposure is fixed at −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so
+    /// that a lamp's reach is a few meters.
+    /// </summary>
+    private static SceneBatcher TenStopsDown() => new(exposure: new FixedExposure(-10), cascadedLights: 1);
+
+    /// <summary>A white lamp at <paramref name="position"/> whose reach is 10 m at −10 stops, or no light at all when <paramref name="shines"/> is false.</summary>
+    private static PointRenderLight Lamp(Vector3 position, bool shines = true) =>
+        Gpu.Lamp(
+            position: position,
+            color: Vector3.One,
+            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(new FixedExposure(-10))) : 0,
+            chainDepth: TestChains.CamerasFrame
+        );
 
     [Fact]
     public void AFaceDrawsTheOpaqueInstancesInItsFrustumAndNoTransparentOne()
@@ -752,6 +552,7 @@ public sealed class BatcherTests
                 scale: Vector3.One,
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow
             )
         ); // not Visible
@@ -861,7 +662,7 @@ public sealed class BatcherTests
     [Fact]
     public void AFaceDrawsOnlyTheInstancesOfTheSnapshotThatTheBatcherPreparesNow()
     {
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         RenderSnapshot before = Empty();
         before.Instances.Add(Box(new(0, 0, -10)));
         RenderSnapshot now = Empty();
@@ -895,7 +696,7 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         snapshot.Instances.Add(Box(new(0, 0, -10)));
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         batcher.Processors.Add(new TakeAllOut());
 
         PreparedScene scene = Prepare(snapshot: snapshot, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
@@ -913,23 +714,31 @@ public sealed class BatcherTests
     [Fact]
     public void AFaceKeepsALightThatTheMainViewLeavesOut()
     {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.PositiveX)
+        );
 
         scene.LightCount.Should().Be(1);
-        scene.Lights[0].PositionRange.Should().Be(new Vector4(x: 50, y: 0, z: 0, w: 10));
-        scene.Constants.LightCount.Should().Be(1u);
+        scene.Lights[0].Position.Should().Be(new Vector3(50, 0, 0));
+        scene.Constants.Counts.X.Should().Be(1u);
     }
 
     [Fact]
     public void ALightThatOnlyAFaceThatThisFrameSkipsCouldReachIsLeftOut()
     {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All & ~FaceMask.PositiveX));
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.All & ~FaceMask.PositiveX)
+        );
 
         scene.LightCount.Should().Be(0);
     }
@@ -939,35 +748,28 @@ public sealed class BatcherTests
     {
         // Faces only, the main view only, faces only, and one that lights nothing.
         Vector3[] places = [new(50, 0, 0), new(0, 0, -5), new(0, 50, 0), new(30, 0, 0)];
-        float[] intensities = [1, 1, 1, 0];
-        RenderSnapshot snapshot = Empty();
+        bool[] shines = [true, true, true, false];
+        RenderSnapshot snapshot = Dark();
         for (int i = 0; i < places.Length; i++)
-            snapshot.Lights.Add(
-                new PointRenderLight(Position: places[i], Color: Vector3.One, Intensity: intensities[i], Range: 10)
-            );
+            snapshot.Lights.Add(Lamp(places[i], shines[i]));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
 
-        scene
-            .Lights.AsSpan(0, scene.LightCount)
-            .ToArray()
-            .Select(light => LightPosition(light))
-            .Should()
-            .Equal(places[0], places[1], places[2]);
+        scene.LightSpan.ToArray().Select(light => light.Position).Should().Equal(places[0], places[1], places[2]);
     }
 
     [Fact]
     public void WithoutTheMapTheLightsAreTheMainViewsAlone()
     {
-        RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
         snapshot.Instances.Add(Box(new(10, 0, 0)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, environment: new WithoutMap());
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
 
         scene.LightCount.Should().Be(1);
-        LightPosition(scene.Lights[0]).Should().Be(new Vector3(0, 0, -5));
+        scene.Lights[0].Position.Should().Be(new Vector3(0, 0, -5));
         scene.EnvironmentFaces.Should().BeEmpty();
     }
 
@@ -1015,12 +817,13 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: Empty(),
-            environment: new WithMap(Faces: FaceMask.None, Irradiance: reading)
+            environment: new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { reading })
         );
 
         scene.Ambient.TryGetValue(out MapAmbient map).Should().BeTrue();
-        map.Irradiance!.Value.Frame.Should().Be(7);
-        map.Irradiance.Value.Irradiance[0].Should().Be(new Vector3(1, 2, 3));
+        IrradianceReading only = map.Irradiance.Span.ToArray().Should().ContainSingle().Subject!.Value;
+        only.Frame.Should().Be(7);
+        only.Irradiance[0].Should().Be(new Vector3(1, 2, 3));
     }
 
     [Fact]
@@ -1029,7 +832,7 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         snapshot.Instances.Add(Box(new(10, 0, 0)));
         var scene = new PreparedScene();
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
@@ -1054,6 +857,286 @@ public sealed class BatcherTests
         );
 
         scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
+    }
+
+    // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
+    // parent, id 1, and the root, id 0, all in the camera's axes: depth 0 takes map 2, depth 1 map 1, and depth 2 map 0.
+
+    /// <summary>An empty snapshot with no light that shines, whose camera's chain has three frames, all in the camera's axes.</summary>
+    private static RenderSnapshot ChainOfThree()
+    {
+        RenderSnapshot snapshot = Dark();
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        return snapshot;
+    }
+
+    /// <summary>A unit box of mesh 0 at <paramref name="position"/> whose chain frame is <paramref name="chainDepth"/> above the camera's.</summary>
+    private static RenderInstance BoxAt(Vector3 position, ushort chainDepth) =>
+        Box(position) with
+        {
+            ChainDepth = chainDepth,
+        };
+
+    /// <summary>A <see cref="Lamp"/>, whose reach is 10 m at −10 stops, carried by an entity at <paramref name="chainDepth"/>.</summary>
+    private static PointRenderLight LampAt(Vector3 position, ushort chainDepth) =>
+        Lamp(position) with
+        {
+            ChainDepth = chainDepth,
+        };
+
+    [Fact]
+    public void AnInstanceTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        // Side by side ahead of the camera, so the main view draws them in the snapshot's order.
+        ushort[] depths = [0, 1, 2, 5];
+        for (int i = 0; i < depths.Length; i++)
+            snapshot.Instances.Add(BoxAt(new(3 * i - 4, 0, -20), depths[i]));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene
+            .Instances.AsSpan(0, scene.InstanceCount)
+            .ToArray()
+            .Select(instance => instance.Map)
+            .Should()
+            .Equal([2u, 1u, 0u, 0u], "a depth past the served chain takes map 0");
+    }
+
+    [Fact]
+    public void ALightTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Lights.Add(LampAt(new(depth, 0, -5), depth));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene.Lights.AsSpan(0, scene.LightCount).ToArray().Select(light => light.Map).Should().Equal(2, 1, 0);
+        scene
+            .Lights.AsSpan(0, scene.LightCount)
+            .ToArray()
+            .Select(light => GpuLight.From(light).Map)
+            .Should()
+            .Equal([2u, 1u, 0u], "the GPU form carries the map that the faces filter by");
+    }
+
+    [Fact]
+    public void ALitPuffTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook with { Shading = PuffShading.Lit(new(0.8f)) });
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        // At one distance across the line of sight, so they sort in the snapshot's order.
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Puffs.Add(Puff(new(4 * depth - 4, 0, -10)) with { ChainDepth = depth });
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        Drawn(scene).OrderBy(puff => puff.PositionRadius.X).Select(puff => puff.Map).Should().Equal(2u, 1u, 0u);
+    }
+
+    [Fact]
+    public void WithoutTheMapEveryObjectTakesMapZero()
+    {
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook);
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        snapshot.Instances.Add(BoxAt(new(0, 0, -20), chainDepth: 0));
+        snapshot.Lights.Add(LampAt(new(0, 0, -5), chainDepth: 0));
+        snapshot.Puffs.Add(Puff(new(4, 0, -10)) with { ChainDepth = 0 });
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
+
+        scene.MapCount.Should().Be(1);
+        scene.Instances[0].Map.Should().Be(0u);
+        scene.Lights.AsSpan(0, scene.LightCount).ToArray().Should().AllSatisfy(light => light.Map.Should().Be(0));
+        Drawn(scene).Should().ContainSingle().Which.Map.Should().Be(0u);
+    }
+
+    /// <summary>The boxes of depths 0, 1 and 2 along +X, one above another, which face +X of every map could see.</summary>
+    private static RenderSnapshot BoxesAlongPositiveX()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Instances.Add(BoxAt(new(10, 2 * depth, 0), depth));
+        return snapshot;
+    }
+
+    [Fact]
+    public void AFaceOfTheCamerasFrameMapDrawsEveryOpaqueInstance()
+    {
+        PreparedScene scene = Prepare(
+            snapshot: BoxesAlongPositiveX(),
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.PositiveX)
+        );
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        face.Map.Should().Be(2);
+        Placed(scene, face).Should().BeEquivalentTo([new Vector3(10, 0, 0), new(10, 2, 0), new(10, 4, 0)]);
+    }
+
+    [Fact]
+    public void AFaceOfAnAncestorsMapLeavesOutTheSubtreeBelowIt()
+    {
+        PreparedScene scene = Prepare(
+            snapshot: BoxesAlongPositiveX(),
+            environment: MapOf(FaceMask.PositiveX, FaceMask.PositiveX, FaceMask.None)
+        );
+
+        scene.EnvironmentFaces.Select(face => face.Map).Should().Equal(0, 1);
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(10, 4, 0));
+        Placed(scene, scene.EnvironmentFaces[1])
+            .Should()
+            .BeEquivalentTo([new Vector3(10, 2, 0), new(10, 4, 0)], "map 1 leaves out the camera's frame, depth 0");
+    }
+
+    [Fact]
+    public void AFaceOfATurnedMapKeepsWhatLiesAlongItsFramesAxis()
+    {
+        // The root's axes are turned a quarter turn about +Y in the camera's axes, so its +X lies along the camera's −Z.
+        RenderSnapshot snapshot = Empty();
+        var quarter = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        TestChains.Of(snapshot, (1, Quaternion.Identity), (0, quarter));
+        snapshot.Instances.Add(BoxAt(new(0, 0, -10), chainDepth: 1));
+        snapshot.Instances.Add(BoxAt(new(10, 0, 0), chainDepth: 1));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX, FaceMask.None));
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        Vector3.Distance(face.Basis.Forward, -Vector3.UnitZ).Should().BeLessThan(1e-6f);
+        Placed(scene, face).Should().Equal(new Vector3(0, 0, -10));
+    }
+
+    [Fact]
+    public void AFaceKeepsNoLightOfTheSubtreeThatItLeavesOut()
+    {
+        // The lamp lies along +X, where the main view does not look, in the camera's frame: map 1.
+        RenderSnapshot snapshot = Dark();
+        TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
+        snapshot.Lights.Add(LampAt(new(50, 0, 0), chainDepth: 0));
+
+        PreparedScene outer = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.PositiveX, FaceMask.None)
+        );
+        PreparedScene inner = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.None, FaceMask.PositiveX)
+        );
+
+        outer.LightCount.Should().Be(0, "the root's map leaves out the camera's frame and its lamp");
+        inner.LightCount.Should().Be(1, "the camera's frame's map keeps its own lamp");
+    }
+
+    [Fact]
+    public void TheMainViewKeepsTheLightsOfEveryMap()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Lights.Add(LampAt(new(depth, 0, -5), depth));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            batcher: TenStopsDown(),
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene
+            .Lights.AsSpan(0, scene.LightCount)
+            .ToArray()
+            .Select(light => light.Position)
+            .Should()
+            .Equal(new Vector3(0, 0, -5), new(1, 0, -5), new(2, 0, -5));
+    }
+
+    [Fact]
+    public void TheTestStarSitsInTheRootSoEveryMapOfTheChainThatATestGivesKeepsIt()
+    {
+        // A real star sits in the root frame, which takes map 0. The test sets the chain after it makes the snapshot.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene.LightSpan.ToArray().Select(light => light.Map).Should().Equal(0);
+    }
+
+    [Fact]
+    public void TheMapAxesAreTheChainsRotationsInterpolatedRootFirst()
+    {
+        RenderSnapshot snapshot = Empty();
+        var parentNow = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.4f);
+        var rootNow = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1.2f);
+        snapshot.Chain.Add(new(FrameId: 2, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(new(FrameId: 1, Rotation: parentNow, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(new(FrameId: 0, Rotation: rootNow, PreviousRotation: Quaternion.Identity));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            alpha: 0.5f,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        Quaternion[] expected =
+        [
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f),
+            Quaternion.Identity,
+        ];
+        scene.MapCount.Should().Be(3);
+        for (int map = 0; map < expected.Length; map++)
+        {
+            Quaternion axes = scene.MapAxes[map];
+            Vector4 constant = scene.Constants.MapAxes[map];
+            Vector4.Distance(AsVector(axes), AsVector(expected[map])).Should().BeLessThan(1e-6f, $"map {map}");
+            constant.Should().Be(AsVector(axes), $"the constants hold map {map}'s axes");
+        }
+
+        scene.MapAxes[2].Should().Be(Quaternion.Identity, "the camera's frame lies in its own axes, bit for bit");
+    }
+
+    private static Vector4 AsVector(Quaternion q) => new(x: q.X, y: q.Y, z: q.Z, w: q.W);
+
+    [Fact]
+    public void ARefreshOfFourMapsPreparesTwentyFourFaces()
+    {
+        RenderSnapshot snapshot = Empty();
+        TestChains.Of(
+            snapshot,
+            (3, Quaternion.Identity),
+            (2, Quaternion.Identity),
+            (1, Quaternion.Identity),
+            (0, Quaternion.Identity)
+        );
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.All, FaceMask.All, FaceMask.All, FaceMask.All)
+        );
+
+        scene
+            .EnvironmentFaces.Select(face => (face.Map, face.Face))
+            .Should()
+            .Equal(
+                Enumerable
+                    .Range(0, 4 * CubeFaces.Count)
+                    .Select(slot => (slot / CubeFaces.Count, (CubeFace)(slot % CubeFaces.Count))),
+                "the face pass takes the maps in index order, and each map's faces in layer order"
+            );
     }
 
     /// <summary>A still puff: its previous place is its place.</summary>
@@ -1380,9 +1463,9 @@ public sealed class BatcherTests
     }
 
     [Fact]
-    public void AGpuPuffIs32BytesAndCarriesTheCaseOfItsShading()
+    public void AGpuPuffIs48BytesAndCarriesTheCaseOfItsShading()
     {
-        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
+        Unsafe.SizeOf<GpuPuff>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.ColorKind))).Should().Be(16);
         RenderSnapshot snapshot = PuffSnapshot(
             GlowLook,
@@ -1422,7 +1505,7 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = PuffSnapshot();
         snapshot.Puffs.Add(Puff(new(0, 0, -10)));
         var scene = new PreparedScene();
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
@@ -1491,19 +1574,46 @@ public sealed class BatcherTests
     [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(80);
+        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
+        ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.Map))).Should().Be(80);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
-        Unsafe.SizeOf<GpuLight>().Should().Be(64);
+        Unsafe.SizeOf<GpuLight>().Should().Be(96);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
-        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
-        Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2224);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
+        Unsafe
+            .SizeOf<GpuCascadeSet>()
+            .Should()
+            .Be(288, "std140 lays out an array of structs at a multiple of 16 bytes");
+        Unsafe.SizeOf<GpuPuff>().Should().Be(48);
+        ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.Map))).Should().Be(32);
+        Unsafe.SizeOf<GpuShadowTile>().Should().Be(80, "std430 rounds a struct with a mat4 up to 16 bytes");
+        ((int)Marshal.OffsetOf<GpuShadowTile>(nameof(GpuShadowTile.Layer))).Should().Be(64);
+        ((int)Marshal.OffsetOf<GpuShadowTile>(nameof(GpuShadowTile.Near))).Should().Be(72);
+        Unsafe.SizeOf<DrawPushConstants>().Should().Be(84);
+        ((int)Marshal.OffsetOf<DrawPushConstants>(nameof(DrawPushConstants.Map))).Should().Be(80);
+        Unsafe.SizeOf<EnvironmentPrefilterLevel>().Should().Be(16);
+        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(80);
+        ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Samples)))
+            .Should()
+            .Be(64);
+        ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Map)))
+            .Should()
+            .Be(76, "the irradiance's two shaders declare it at offset 76");
+        Unsafe.SizeOf<EnvironmentDownsamplePushConstants>().Should().Be(12);
+        ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
+            .Should()
+            .Be(8);
         Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(64);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(48);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(60);

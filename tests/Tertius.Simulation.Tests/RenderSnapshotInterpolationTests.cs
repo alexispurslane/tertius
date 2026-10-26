@@ -225,7 +225,7 @@ public sealed class RenderSnapshotInterpolationTests
     /// from the origin of the root, and Jolt hands it off to B in the step of tick 2. An object in the root moves 1 m along
     /// +X in each tick, and starts 10 m to the side of the camera's line.
     /// </summary>
-    private sealed class HandOffScene : IDisposable
+    internal sealed class HandOffScene : IDisposable
     {
         public HandOffScene()
         {

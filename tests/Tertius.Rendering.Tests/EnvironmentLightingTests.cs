@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -34,7 +35,7 @@ public sealed class EnvironmentLightingTests
     /// <summary>A snapshot with no sun and no hemisphere light, so that only what a test adds lights its scene.</summary>
     private static RenderSnapshot Dark()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -121,7 +122,7 @@ public sealed class EnvironmentLightingTests
         VulkanRenderer renderer = Renderer(map);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             AddRedSquareBehind(renderer, snapshot, radiance: 1);
             AddSphere(
                 snapshot: snapshot,
@@ -292,7 +293,7 @@ public sealed class EnvironmentLightingTests
             VulkanRenderer renderer = Renderer(map);
             try
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
                 // The pane passes 0.8 of what lies behind it and blends its own light by 0.2, so the square is bright.
                 AddRedSquareBehind(renderer, snapshot, radiance: 40);
                 MaterialId glass = renderer.CreateMaterial(
@@ -493,7 +494,7 @@ public sealed class EnvironmentLightingTests
             );
 
             Capture lit = Shown(renderer, snapshot, "environment-lit-puff");
-            Vector3 mean = renderer.ReadEnvironmentIrradiance().MeanRadiance;
+            Vector3 mean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
             snapshot.PuffLooks[0] = look with { Shading = PuffShading.Glow(albedo * mean) };
             Capture glow = Shown(renderer, snapshot, "environment-glow-puff");
 
@@ -594,46 +595,26 @@ public sealed class EnvironmentLightingTests
     }
 
     [Fact]
-    public void ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsLastColumnAndRow()
+    public void ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsFirstAndLastColumnsAndRows()
     {
-        // Two mirror ellipsoids 20 m long: a tall one cut by the right edge and a wide one cut by the bottom edge. The d of
-        // each moves by several star cells per pixel across its long axis and by less than one along it. The last column
-        // and the last row have no next pixel, so their footprint takes the step back, and the stars there stay at their
-        // mean, which a quarter turn of the root axes keeps.
-        static (float[] Hdr, float[] Distance) Render(Quaternion root)
-        {
-            VulkanRenderer renderer = Renderer(SmallMap);
-            try
-            {
-                RenderSnapshot snapshot = Dark();
-                snapshot.RootRotation = root;
-                snapshot.PreviousRootRotation = root;
-                MeshId sphere = Sphere(renderer);
-                MaterialId mirror = Metal(renderer, roughness: 0);
-                snapshot.Instances.Add(
-                    Gpu.Instance(mesh: sphere, material: mirror, position: new(4.1f, 0, -4), scale: new(1, 20, 1))
-                );
-                snapshot.Instances.Add(
-                    Gpu.Instance(mesh: sphere, material: mirror, position: new(0, -2.3f, -4), scale: new(20, 1, 1))
-                );
-                renderer.Render(snapshot, 1f);
-                return (renderer.ReadHdr(), renderer.ReadDistance());
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        (float[] still, float[] distance) = Render(Quaternion.Identity);
-        float[] turned = Render(Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)).Hdr;
+        // Four mirror ellipsoids 20 m long: tall ones cut by the left and the right edge, and wide ones cut by the top and
+        // the bottom edge. The d of each moves by several star cells per pixel across its long axis and by less than one
+        // along it. The first column and row have no previous pixel and the last no next one, so their footprint takes
+        // the step to the one neighbor there, and the stars there stay at their mean, which a quarter turn of the root
+        // axes keeps.
+        (float[] still, float[] distance) = RenderMirrorsCutByTheScreensEdges(Quaternion.Identity);
+        float[] turned = RenderMirrorsCutByTheScreensEdges(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)
+        ).Hdr;
 
         int[] edge =
         [
-            .. Enumerable.Range(0, Height).Select(y => y * Width + Width - 1),
-            .. Enumerable.Range(0, Width).Select(x => (Height - 1) * Width + x),
+            .. Enumerable.Range(0, Height).SelectMany(y => (int[])[y * Width, y * Width + Width - 1]),
+            .. Enumerable.Range(0, Width).SelectMany(x => (int[])[x, (Height - 1) * Width + x]),
         ];
-        edge.Where(pixel => distance[pixel] <= 0).Should().BeEmpty("the ellipsoids fill the last column and row");
+        edge.Where(pixel => distance[pixel] <= 0)
+            .Should()
+            .BeEmpty("the ellipsoids fill the first and last columns and rows");
         int[] differing =
         [
             .. edge.Where(pixel =>
@@ -644,10 +625,48 @@ public sealed class EnvironmentLightingTests
         differing
             .Should()
             .BeEmpty(
-                "the footprint there holds the step back across the long axis; the first pixel that differs is ({0}, {1})",
+                "the footprint there holds the step to the one neighbor across the long axis; the first pixel that differs is ({0}, {1})",
                 differing.FirstOrDefault() % Width,
                 differing.FirstOrDefault() / Width
             );
+    }
+
+    /// <summary>The four mirror ellipsoids of the screen-edge test under a root turned by <paramref name="root"/>.</summary>
+    private static (float[] Hdr, float[] Distance) RenderMirrorsCutByTheScreensEdges(Quaternion root)
+    {
+        VulkanRenderer renderer = Renderer(SmallMap);
+        try
+        {
+            RenderSnapshot snapshot = Dark();
+            TestChains.UnderTurnedRoot(snapshot, root);
+            MeshId sphere = Sphere(renderer);
+            MaterialId mirror = Metal(renderer, roughness: 0);
+            foreach (float side in (ReadOnlySpan<float>)[-1, 1])
+            {
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: sphere,
+                        material: mirror,
+                        position: new(side * 4.1f, 0, -4),
+                        scale: new(1, 20, 1)
+                    )
+                );
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: sphere,
+                        material: mirror,
+                        position: new(0, side * 2.3f, -4),
+                        scale: new(20, 1, 1)
+                    )
+                );
+            }
+            renderer.Render(snapshot, 1f);
+            return (renderer.ReadHdr(), renderer.ReadDistance());
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     /// <summary>
@@ -659,6 +678,12 @@ public sealed class EnvironmentLightingTests
     public sealed class ReflectedStars
     {
         private static readonly float Fov = 10f * MathF.PI / 180;
+
+        /// <summary>
+        /// The stops that undo the physical stars' radiance scale, <see cref="StarField.UnitRadiance"/> = 2⁻¹⁰, so that
+        /// each test below names the stops that it shows a star of brightness 1 at.
+        /// </summary>
+        private static readonly float PhysicalStars = -MathF.Log2(StarField.UnitRadiance);
 
         /// <summary>p, the angle of one pixel in rad, as PreparedScene.PixelAngle gives it.</summary>
         private static readonly float PixelAngle = 2 * MathF.Tan(Fov / 2) / Height;
@@ -683,8 +708,7 @@ public sealed class EnvironmentLightingTests
         {
             RenderSnapshot snapshot = Dark();
             snapshot.Camera.VerticalFov = Fov;
-            snapshot.RootRotation = root;
-            snapshot.PreviousRootRotation = root;
+            TestChains.UnderTurnedRoot(snapshot, root);
             return snapshot;
         }
 
@@ -861,7 +885,7 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void AMirrorReflectsAStarSharpAndSteadyWhileTheCamerasFrameTurns()
         {
-            const float stops = 2;
+            float stops = PhysicalStars + 2;
             Star star = LoneBrightStar();
             float width = StarField.LobeWidth(PixelAngle, roughness: 0);
             float expectedPeak = Luma(star.Peak) * PixelAngle * PixelAngle / (width * width);
@@ -924,9 +948,9 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void AMirrorShowsTheSameStarsInTheLastColumnOfAnOddWidthImageAsInsideAWiderOne()
         {
-            // 10 stops show M in the middle of the curve, so a footprint that fades the stars into their mean shows.
-            const float stops = 10;
-            static Capture Mirror(int width)
+            // 10 stops more show M in the middle of the curve, so a footprint that fades the stars into their mean shows.
+            float stops = PhysicalStars + 10;
+            Capture Mirror(int width)
             {
                 VulkanRenderer renderer = StarRenderer(exposureStops: stops, width: width);
                 try
@@ -967,9 +991,9 @@ public sealed class EnvironmentLightingTests
         {
             Star star = LoneBrightStar();
             Quaternion start = Toward(star);
-            // At 0 stops the star shows at about half the range in the mirror, and the GGX tail of the specular map's
-            // level 1, which reaches past the wall's edge, stays under half a step of 8 bits.
-            VulkanRenderer renderer = StarRenderer(exposureStops: 0);
+            // At no stops beyond the physical scale the star shows at about half the range in the mirror, and the GGX tail
+            // of the specular map's level 1, which reaches past the wall's edge, stays under half a step of 8 bits.
+            VulkanRenderer renderer = StarRenderer(exposureStops: PhysicalStars);
             try
             {
                 Capture WithWall(Quaternion root, string name)
@@ -1073,8 +1097,8 @@ public sealed class EnvironmentLightingTests
         [Fact]
         public void ARoughSurfaceShowsNoSingleStars()
         {
-            // 10 stops show M, about 4 · 10⁻⁴, in the middle of the curve, where 8 bits resolve it to well under 1 %.
-            const float stops = 10;
+            // 10 stops more show M, about 4 · 10⁻⁷, in the middle of the curve, where 8 bits resolve it to well under 1 %.
+            float stops = PhysicalStars + 10;
             Vector3[,] rough = Sphere(roughness: 0.5f, exposureStops: stops, name: "environment-rough-stars");
             Vector3[,] mirror = Sphere(roughness: 0, exposureStops: stops, name: "environment-mirror-stars");
 
@@ -1102,7 +1126,7 @@ public sealed class EnvironmentLightingTests
             // axes, where M = 450 |ω|₁ ... has no crease, so the mean changes evenly between pixels.
             Vector3[,] curved = Sphere(
                 roughness: 0,
-                exposureStops: 10,
+                exposureStops: PhysicalStars + 10,
                 name: "environment-curved-mirror-stars",
                 radius: 0.25f,
                 root: Toward(Vector3.Normalize(Vector3.One))

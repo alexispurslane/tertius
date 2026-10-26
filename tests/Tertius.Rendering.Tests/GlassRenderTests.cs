@@ -37,10 +37,10 @@ public sealed class GlassRenderTests
         return new(0, Math.Sin(radians), Math.Cos(radians));
     }
 
-    /// <summary>A snapshot with no ambient light, and the sun along <paramref name="sunDirection"/>.</summary>
-    private static RenderSnapshot Unlit(Vector3 sunDirection, float sunIntensity)
+    /// <summary>A snapshot with no ambient light, and the sun along <paramref name="starDirection"/>.</summary>
+    private static RenderSnapshot Unlit(Vector3 starDirection, float starIrradiance)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(sunDirection, sunIntensity: sunIntensity);
+        RenderSnapshot snapshot = Gpu.Snapshot(starDirection, starIrradiance: starIrradiance);
         snapshot.Ambient.Intensity = 0;
         return snapshot;
     }
@@ -103,7 +103,7 @@ public sealed class GlassRenderTests
             // The sun stands behind the eye, so its mirror image lies at the pane's center.
             Vector3 opaque = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0.3f),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0.3f),
                 pane: BlackGlass(opacity: 1, roughness: 0.3f),
                 tilt: 0,
                 backdrop: Vector3.Zero,
@@ -111,7 +111,7 @@ public sealed class GlassRenderTests
             );
             Vector3 clear = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0.3f),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0.3f),
                 pane: BlackGlass(opacity: opacity, roughness: 0.3f),
                 tilt: 0,
                 backdrop: Vector3.Zero,
@@ -135,7 +135,7 @@ public sealed class GlassRenderTests
         {
             static RenderSnapshot WhiteSky()
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
                 snapshot.Ambient = new()
                 {
                     SkyColor = Vector3.One,
@@ -175,22 +175,22 @@ public sealed class GlassRenderTests
     public void APaneShowsItsDiffuseLightTimesItsOpacity()
     {
         const float opacity = 0.4f;
-        var sunDirection = Vector3.Normalize(new(0, 0.6f, 0.8f));
+        var starDirection = Vector3.Normalize(new(0, 0.6f, 0.8f));
         var white = new MaterialSample(BaseColor: new(0.8, 0.8, 0.8), Metallic: 0, Roughness: 0.5, Reflectance: 0);
         Double3 full = white.Reflected(
             normal: NormalOf(0),
             toView: ToView,
-            toLight: sunDirection,
+            toLight: starDirection,
             tables: BrdfTables.Shared
         );
         Double3 specular = (white with { BaseColor = Double3.Zero }).Reflected(
             normal: NormalOf(0),
             toView: ToView,
-            toLight: sunDirection,
+            toLight: starDirection,
             tables: BrdfTables.Shared
         );
-        RenderSnapshot snapshot = Unlit(sunDirection, sunIntensity: 1);
-        Double3 irradiance = snapshot.Sun.Color * snapshot.Sun.Intensity;
+        RenderSnapshot snapshot = Unlit(starDirection, starIrradiance: 1);
+        Double3 irradiance = Gpu.StarIrradianceRgb(snapshot);
         Double3 expected = (opacity * (full - specular) + specular) * irradiance;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -236,7 +236,7 @@ public sealed class GlassRenderTests
             // No light reaches the pane, so it shows only what it lets through.
             Vector3 shown = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: BlackGlass(opacity: opacity, roughness: GlassRoughness),
                 tilt: tilt,
                 backdrop: backdrop,
@@ -261,7 +261,7 @@ public sealed class GlassRenderTests
         {
             Vector3 headOn = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: BlackGlass(opacity: 0.2f, roughness: GlassRoughness),
                 tilt: 0,
                 backdrop: backdrop,
@@ -269,7 +269,7 @@ public sealed class GlassRenderTests
             );
             Vector3 grazing = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: BlackGlass(opacity: 0.2f, roughness: GlassRoughness),
                 tilt: Grazing,
                 backdrop: backdrop,
@@ -294,7 +294,7 @@ public sealed class GlassRenderTests
         {
             Vector3 shown = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: BlackGlass(opacity: 1, roughness: GlassRoughness),
                 tilt: 0,
                 backdrop: new(4, 4, 4),
@@ -350,7 +350,7 @@ public sealed class GlassRenderTests
             // the whole pane, so the cap binds on every pixel of the pane.
             ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 1e6f),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 1e6f),
                 pane: BlackGlass(opacity: opacity, roughness: 0.3f),
                 tilt: 0,
                 backdrop: backdrop,
@@ -385,7 +385,7 @@ public sealed class GlassRenderTests
         static Vector3 Shown(VulkanRenderer renderer, Vector3 backdrop, string name) =>
             ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: BlackGlass(opacity: 0.2f, roughness: GlassRoughness),
                 tilt: 0,
                 backdrop: backdrop,
@@ -417,7 +417,7 @@ public sealed class GlassRenderTests
         {
             Vector3 shown = ShownThroughPane(
                 renderer: renderer,
-                snapshot: Unlit(Vector3.UnitZ, sunIntensity: 0),
+                snapshot: Unlit(Vector3.UnitZ, starIrradiance: 0),
                 pane: new(
                     BaseColor: new(x: 0, y: 0, z: 0, w: 0.2f),
                     Roughness: GlassRoughness,

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -85,7 +86,7 @@ public sealed class ShadowTests
             // 20 m along z. Its edge passes between the box, which stays lit, and the patch at x = 4, which it covers. A sun
             // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
             Vector3 eclipsed = new(4f, ground, -10f);
-            snapshot.Sun.AngularRadius = 0f;
+            Gpu.Star(snapshot: snapshot, angularRadius: 0f);
             snapshot.Instances.Add(
                 RenderInstance.Create(
                     mesh: kit.Sphere,
@@ -95,6 +96,7 @@ public sealed class ShadowTests
                     scale: new(20f),
                     boundingRadius: 0,
                     hemisphere: HemisphereUp.Even,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: RenderFlags.CastsShadow,
                     entityIndex: 0,
                     part: 0
@@ -159,6 +161,7 @@ public sealed class ShadowTests
                     scale: new(1_000f),
                     boundingRadius: 0,
                     hemisphere: HemisphereUp.Even,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: Caster,
                     entityIndex: 0,
                     part: 0
@@ -692,6 +695,7 @@ public sealed class ShadowTests
                 scale: new(1f, 3f, 1f),
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                chainDepth: TestChains.CamerasFrame,
                 flags: Caster
             );
             pole.PreviousPosition = new(-3f, ground + 1.5f, -8f);
@@ -752,6 +756,7 @@ public sealed class ShadowTests
                     scale: Vector3.One,
                     boundingRadius: 0f,
                     hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                    chainDepth: TestChains.CamerasFrame,
                     flags: flags
                 );
 
@@ -813,7 +818,7 @@ public sealed class ShadowTests
     }
 
     [Fact]
-    public void WithoutASunOrACasterNoShadowMapIsDrawn()
+    public void WithoutAStarOrACasterNoShadowMapIsDrawn()
     {
         VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180);
         try
@@ -826,7 +831,7 @@ public sealed class ShadowTests
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(0, "nothing casts a shadow");
             renderer.LastFrameStats.IndirectDrawCalls.Should().Be(1);
-            renderer.LastScene.Constants.ShadowCascadeCount.Should().Be(0u);
+            renderer.LastScene.Constants.Counts.Z.Should().Be(0u);
 
             snapshot.Instances[0] = Gpu.Instance(
                 mesh: kit.Box,
@@ -837,17 +842,17 @@ public sealed class ShadowTests
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
-            renderer.LastScene.Constants.ShadowCascadeCount.Should().Be(ShadowCascades.Count);
+            renderer.LastScene.Constants.Counts.Z.Should().Be(ShadowCascades.Count);
 
-            // Sun.Intensity <= 0 turns the sun off, its shadow pass included.
-            foreach (float intensity in (float[])[0f, -2f])
+            // A star of no power, or of a negative power, does not shine, so it has no shadow pass either.
+            foreach (float irradiance in (float[])[0f, -2f])
             {
-                snapshot.Sun.Intensity = intensity;
+                Gpu.Star(snapshot: snapshot, irradiance: irradiance);
                 renderer.Render(snapshot, 1f);
-                renderer.LastFrameStats.ShadowCascades.Should().Be(0, "a sun of intensity {0} is off", intensity);
+                renderer.LastFrameStats.ShadowCascades.Should().Be(0, "a star of irradiance {0} is off", irradiance);
                 renderer.LastFrameStats.ShadowCasters.Should().Be(0);
                 renderer.LastFrameStats.IndirectDrawCalls.Should().Be(1);
-                renderer.LastScene.Constants.SunRadiance.Should().Be(Vector4.Zero);
+                renderer.LastScene.LightCount.Should().Be(0);
             }
         }
         finally
@@ -892,7 +897,7 @@ public sealed class ShadowTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, -0.3f));
         snapshot.Tick = tick;
-        snapshot.OriginFrameId = frameId;
+        TestChains.Of(snapshot, (frameId, Quaternion.Identity));
         snapshot.OriginInFrame = eye;
         snapshot.Camera.Rotation = rotation;
         snapshot.Camera.PreviousRotation = rotation;
@@ -907,7 +912,7 @@ public sealed class ShadowTests
             )
         );
         renderer.Render(snapshot, alpha);
-        renderer.LastScene.ShadowCascadeCount.Should().Be(ShadowCascades.Count, "a caster is in range of the sun");
+        renderer.LastScene.CascadeSetCount.Should().Be(1, "a caster is in range of the star");
         return renderer.LastScene;
     }
 
@@ -922,7 +927,7 @@ public sealed class ShadowTests
                 Vector3 relative = (point - eye).ToVector3() - scene.Camera.Offset;
                 return Enumerable
                     .Range(0, ShadowCascades.Count)
-                    .Select(i => TexelFraction(scene.Cascades[i], relative, size))
+                    .Select(i => TexelFraction(scene.CascadeSets[0][i], relative, size))
                     .ToArray();
             }),
         ];
@@ -988,10 +993,13 @@ public sealed class ShadowTests
                         alpha: alpha,
                         casterInFrame: new(0, -2, -10)
                     );
-                    texels ??= [.. Enumerable.Range(0, ShadowCascades.Count).Select(i => scene.Cascades[i].TexelSize)];
+                    texels ??=
+                    [
+                        .. Enumerable.Range(0, ShadowCascades.Count).Select(i => scene.CascadeSets[0][i].TexelSize),
+                    ];
                     for (int i = 0; i < ShadowCascades.Count; i++)
                         scene
-                            .Cascades[i]
+                            .CascadeSets[0][i]
                             .TexelSize.Should()
                             .Be(texels[i], "turning the camera never changes the texel size");
                     Vector2[][] current = Fractions(scene: scene, eye: eyes[tick], pointsInFrame: points, size: size);

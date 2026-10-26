@@ -4,7 +4,8 @@
 // The PBR BRDF (docs/plans/pbr-brdf.md, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
-// The lights add f · E · (N·L), where E is the irradiance of the light. The ambient light comes from one ambient source,
+// Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
+// shaders"). The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
 // term (docs/plans/environment-map.md, "The one source of the ambient light"). Ambient occlusion scales the two ambient
 // terms in occludedAmbient alone (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient
@@ -12,8 +13,9 @@
 // ambient light"). lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image
 // (exposure.glsl).
 //
-// The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
-// shadow maps (shadows.glsl). The two multiply.
+// A light's shadow slot says how its shadows dim it (shadows.glsl): a far light by its far shadows (a sphere per caster,
+// tested analytically) and, with a cascade set, within 2 km by its cascaded shadow maps, the two multiplied; a near light
+// by its atlas tiles.
 #ifndef TERTIUS_LIGHTING_GLSL
 #define TERTIUS_LIGHTING_GLSL
 
@@ -23,10 +25,19 @@
 #include "exposure.glsl"
 #include "environment.glsl"
 
-// How a view samples the sun's shadow maps (docs/plans/environment-map.md, "The sun's shadow maps in a face").
-const uint SunShadowsNone = 0u;       // far shadows only: the impostor capture
-const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
-const uint SunShadowsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
+// How a view samples every light's shadow maps (docs/plans/environment-map.md, "The shadow maps in a face").
+const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
+const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands, and the tiles: lighting, transparent, lit puffs
+const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point, and the tiles: the environment faces
+
+// LightUnits.NearestDistance: the floor of the distance, in m, by which a light of radius 0 divides its irradiance.
+const float NearestDistance = 0.01;
+
+// ShaderInput.IrradianceLimit, 2^64 W/m²: the most irradiance per channel that one light gives a surface. A kept light's
+// irradiance before the cap is finite, at most 10^34 W/sr over the floor of 10^−4 m², so min sees no infinity. Below the
+// cap, the sum over every light of its product with the BRDF, its visibility and the exposure stays a finite single float
+// (ARCHITECTURE.md, "Portable Vulkan").
+const float IrradianceLimit = 18446744073709551616.0;
 
 struct ShadingInput
 {
@@ -38,9 +49,13 @@ struct ShadingInput
     float reflectance;
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
-    float reflectionFootprint; // f, in rad, at least p: how far d moves to the next pixel, set by the caller
+    float reflectionFootprint; // f, in rad, at least p: how far d moves to a neighboring pixel, set by the caller
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
+    uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
 };
+
+// The lastMap of directLight that keeps every light: every view but an environment face.
+const uint EveryMap = 0xFFFFFFFFu;
 
 // The values that every light at one pixel shares, computed once per pixel.
 struct SurfaceLobes
@@ -83,113 +98,67 @@ vec3 brdf(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
     return (lobes.diffuseColor / PI + lobe) * NdotL;
 }
 
-// The fraction of the sun's disc (angular radius sunRadius) hidden by an occluder's disc (angular radius
-// occluderRadius) whose center is `separation` radians from the sun's center.
-float discCoverage(float sunRadius, float occluderRadius, float separation)
+// The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
+// max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's cone, at most
+// IrradianceLimit. 0 at or beyond the reach. L is the unit direction toward the light, zero when the position is at the
+// light's center, and d its distance.
+vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
 {
-    if (separation >= sunRadius + occluderRadius)
-        return 0.0;
-    if (occluderRadius > 4.0 * sunRadius)
-    {
-        // A planet seen from near its surface. Its limb is almost straight across the small sun disc, so the
-        // hidden part is a circular segment. x is the sun center's distance outside the limb, in sun radii.
-        // This form also avoids the float cancellation of the general formula when the radii differ a lot.
-        float x = clamp((separation - occluderRadius) / sunRadius, -1.0, 1.0);
-        return (acos(x) - x * sqrt(1.0 - x * x)) / PI;
-    }
-    if (separation <= abs(occluderRadius - sunRadius))
-        return occluderRadius >= sunRadius ? 1.0 : (occluderRadius * occluderRadius) / (sunRadius * sunRadius);
-    // Two discs of similar size, such as a moon eclipsing the sun: the exact lens area.
-    float d = separation, r1 = sunRadius, r2 = occluderRadius;
-    float d2 = d * d, r1s = r1 * r1, r2s = r2 * r2;
-    float a1 = r1s * acos(clamp((d2 + r1s - r2s) / (2.0 * d * r1), -1.0, 1.0));
-    float a2 = r2s * acos(clamp((d2 + r2s - r1s) / (2.0 * d * r2), -1.0, 1.0));
-    float k = 0.5 * sqrt(max((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2), 0.0));
-    return clamp((a1 + a2 - k) / (PI * r1s), 0.0, 1.0);
+    vec3 toLight = light.positionReach.xyz - position;
+    // Finite: a kept light lies within 2^62 m of the eye, and so does every shaded point.
+    float distanceSq = dot(toLight, toLight);
+    // The floor keeps inversesqrt finite at the light's center, where L becomes zero.
+    float inverseDistance = inversesqrt(max(distanceSq, 1e-8));
+    L = toLight * inverseDistance;
+    d = distanceSq * inverseDistance;
+    float reach = light.positionReach.w;
+    // Before the division by reach², which is then above distanceSq ≥ 0.
+    if (distanceSq >= reach * reach)
+        return vec3(0.0);
+    float ratio = distanceSq / (reach * reach);
+    float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+    float radius = light.spotRadius.y;
+    float falloff = window * window / max(distanceSq, max(radius * radius, NearestDistance * NearestDistance));
+    if (light.intensityKind.w > 0.5)
+        // Cone.Of keeps cos(inner) above cos(outer), so the edges of smoothstep differ.
+        falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-L, light.directionCosOuter.xyz));
+    return min(light.intensityKind.rgb * falloff, vec3(IrradianceLimit));
 }
 
-// The far shadows: an analytic eclipse test against the bounding sphere of every caster. The soft edge comes from the
-// sun's angular radius. A sphere shadows only points outside it, so a caster never shadows its own surface; a planet's
-// ground faces away from the sun at night anyway. The first frame.counts.w spheres belong to casters that the shadow maps
-// also draw: they count by beyondMaps, the weight of the far shadow where the maps end (beyondShadowMaps). Impostor
-// captures pass 1. Eclipse.SunVisibility is the same test on the CPU.
-float sunVisibility(vec3 position, float beyondMaps)
+// The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
+// direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, and
+// geometricNdotL its cosine with L, which must be positive. The impostor capture, ShadowMapsNone, takes the far shadows
+// alone with weight 1, and no tiles.
+float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float geometricNdotL,
+    uint shadowMaps)
 {
-    vec3 L = frame.sunDirection.xyz;
-    float sunRadius = max(frame.sunDirection.w, 1e-5);
-    float visibility = 1.0;
-    for (uint i = 0u; i < frame.counts.y; i++)
+    uint slot = light.shadow.x;
+    if (slot == NoSlot)
+        return 1.0;
+    if (slot == AtlasTilesSlot)
+        return shadowMaps == ShadowMapsNone ? 1.0 : tileShadow(light, position, L, d, geometricNormal, geometricNdotL);
+    // asin(min(R / d, 1)), the exact angle of a sphere, also inside it; the floor of d keeps the division finite.
+    float angularRadius = asin(min(light.spotRadius.y / max(d, 1e-6), 1.0));
+    if (slot == FarShadowsOnlySlot || shadowMaps == ShadowMapsNone)
+        return farShadowVisibility(position, L, angularRadius, light.occluders, 1.0);
+    uint set = light.shadow.y;
+    if (shadowMaps == ShadowMapsMainView)
     {
-        float weight = i < frame.counts.w ? beyondMaps : 1.0;
-        if (weight <= 0.0)
-            continue;
-        vec4 occluder = occluders[i];
-        vec3 toCenter = occluder.xyz - position;
-        float distanceToCenter = length(toCenter);
-        if (distanceToCenter <= occluder.w)
-            continue;
-        // The test above makes the ratio below 1 only in exact arithmetic: a division may be off by 2.5 ULP, and for a
-        // distance within 2 ULP of the radius, such as on a planet's own ground, the ratio can come out above 1.
-        float occluderRadius = asin(min(occluder.w / distanceToCenter, 1.0));
-        // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
-        float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
-        visibility *= 1.0 - weight * discCoverage(sunRadius, occluderRadius, separation);
+        float visibility = farShadowVisibility(position, L, angularRadius, light.occluders, beyondShadowMaps(position));
+        if (visibility > 0.0)
+            visibility *= cascadeShadow(set, position, geometricNormal, geometricNdotL);
+        return visibility;
     }
+    float visibility = farShadowVisibility(position, L, angularRadius, light.occluders, beyondShadowMapsHolding(set, position));
+    if (visibility > 0.0)
+        visibility *= cascadeShadowHolding(set, position, geometricNormal, geometricNdotL);
     return visibility;
 }
 
-// Smooth range window from Karis 2013: (1 − (d/r)⁴)² / d². It reaches zero exactly at the light's range.
-float distanceAttenuation(float distanceSq, float range)
-{
-    float ratio = distanceSq / (range * range);
-    float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
-    return window * window / max(distanceSq, 1e-4);
-}
-
-// The share of the sun that reaches a position: the far shadows, and the cascades by the rule that sunShadows names.
-// geometricNormal is the surface that the shadow map sees, and geometricNdotL its cosine with the sun direction, which
-// must be positive.
-float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, uint sunShadows)
-{
-    if (sunShadows == SunShadowsMainView)
-    {
-        float visibility = sunVisibility(position, beyondShadowMaps(position));
-        if (visibility > 0.0)
-            visibility *= sunShadow(position, geometricNormal, geometricNdotL);
-        return visibility;
-    }
-    if (sunShadows == SunShadowsHolding)
-    {
-        float visibility = sunVisibility(position, beyondShadowMapsHolding(position));
-        if (visibility > 0.0)
-            visibility *= sunShadowHolding(position, geometricNormal, geometricNdotL);
-        return visibility;
-    }
-    return sunVisibility(position, 1.0);
-}
-
-// The share of a point or spot light's radiance that reaches a position: the distance attenuation times the cone of a
-// spot light. 0 beyond its range. lightDirection is the unit direction from the position toward the light.
-float lightReaches(GpuLight light, vec3 position, out vec3 lightDirection)
-{
-    vec3 toLight = light.positionRange.xyz - position;
-    float distanceSq = dot(toLight, toLight);
-    float range = light.positionRange.w;
-    lightDirection = toLight * inversesqrt(max(distanceSq, 1e-8));
-    if (distanceSq >= range * range)
-        return 0.0;
-    float attenuation = distanceAttenuation(distanceSq, range);
-    if (light.radianceKind.w > 0.5)
-    {
-        float cosAngle = dot(-lightDirection, light.directionCosOuter.xyz);
-        attenuation *= smoothstep(light.directionCosOuter.w, light.spot.x, cosAngle);
-    }
-    return attenuation;
-}
-
 // W = E · c, the compensated specular albedo: the weight of the light that arrives along the specular lobe in the light
-// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the
-// reflection trace weight specular light by it, and a pane of glass lets through what it leaves (transparent.frag).
+// toward the eye, and the share of a uniform light that the specular part reflects. Every ambient source and the pass
+// that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution) weight specular
+// light by it, and a pane of glass lets through what it leaves (transparent.frag).
 vec3 specularWeight(SurfaceLobes lobes)
 {
     return lobes.specularAlbedo * lobes.energyCompensation;
@@ -251,9 +220,9 @@ vec3 ambientSpecularDirection(ShadingInput s, vec3 V)
 AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
     AmbientTerms terms;
-    terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.normal);
+    terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.map, s.normal);
     vec3 incoming = environmentSpecular(
-        ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+        s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
     terms.specular = specularWeight(lobes) * incoming;
     return terms;
 }
@@ -261,7 +230,8 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
 // The ambient light of a surface point in its two terms, from the frame's ambient source, the map while it is on and
 // the hemisphere while it is off, then occluded (docs/plans/screen-space-reflections.md, "The one place where SSR
 // reads the ambient light", and docs/plans/environment-map.md, "The one source of the ambient light"). ambientLight
-// and the reflection trace read the ambient light only through this function. V points from the surface to the eye.
+// and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution) read
+// the ambient light only through this function. V points from the surface to the eye.
 AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
     AmbientTerms source = environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
@@ -275,39 +245,30 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
     return terms.diffuse + terms.specular;
 }
 
-// Sunlight reflected toward V, dimmed by the analytic eclipse term and by the cascades as sunShadows says.
-vec3 sunLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint sunShadows)
-{
-    vec3 L = frame.sunDirection.xyz;
-    // A normal map can tilt the shading normal toward the sun on a surface that itself faces away; that surface is
-    // in its own shadow.
-    float geometricNdotL = dot(s.geometricNormal, L);
-    if (dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
-        return vec3(0.0);
-    float visibility = sunReaches(position, s.geometricNormal, geometricNdotL, sunShadows);
-    return visibility > 0.0 ? brdf(s, lobes, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);
-}
-
-// Light from the point and spot lights reflected toward V. They add in the order of the light list, so the sum rounds
-// the same way on every run.
-vec3 localLights(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V)
+// Every light of the list whose map is at most lastMap reflected toward V, each dimmed by its shadows as shadowMaps says
+// (docs/plans/environment-maps-per-frame.md, decision 13): a face of map i passes i, and every other view EveryMap. The
+// lights add in the order of the list, so the sum rounds the same way on every run. A normal map can tilt the shading
+// normal toward a light on a surface that itself faces away; that surface is in its own shadow, so every light needs both
+// normals to face it.
+vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
 {
     vec3 color = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
-        vec3 lightDirection;
-        float attenuation = lightReaches(light, position, lightDirection);
-        if (attenuation > 0.0)
-            color += brdf(s, lobes, V, lightDirection) * light.radianceKind.rgb * attenuation;
+        if (light.map > lastMap)
+            continue;
+        vec3 L;
+        float d;
+        vec3 irradiance = lightIrradiance(light, position, L, d);
+        float geometricNdotL = dot(s.geometricNormal, L);
+        if (irradiance == vec3(0.0) || dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
+            continue;
+        float visibility = lightVisibility(light, position, L, d, s.geometricNormal, geometricNdotL, shadowMaps);
+        if (visibility > 0.0)
+            color += brdf(s, lobes, V, L) * irradiance * visibility;
     }
     return color;
-}
-
-// The sun and the point and spot lights reflected toward V.
-vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint sunShadows)
-{
-    return sunLight(s, lobes, position, V, sunShadows) + localLights(s, lobes, position, V);
 }
 
 // All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
@@ -315,47 +276,52 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 // which the caller has already exposed and capped. The cap applies to the whole sum, because the share bounds what a
 // surface writes, whatever the parts.
 // The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
-// V points from the surface to the eye. Impostor captures pass SunShadowsNone and an exposure of 1, because the atlas
+// V points from the surface to the eye. Impostor captures pass ShadowMapsNone and an exposure of 1, because the atlas
 // stores radiance.
 vec3 lobesRadiance(
-    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint sunShadows, float exposure)
+    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, sunShadows);
+    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps, EveryMap);
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
 // lobesRadiance with the lobes of the material itself: every opaque surface.
-vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, uint sunShadows, float exposure)
+vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
-    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, sunShadows, exposure);
+    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, shadowMaps, exposure);
 }
 
-// The light that the sun and the point and spot lights send from a surface point toward V, plus its emission, in plain
+// The light that the lights of the maps up to lastMap send from a surface point toward V, plus its emission, in plain
 // radiance: no ambient light and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
-vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint sunShadows)
+vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    return min(directLight(s, lobes, position, V, sunShadows) + emission, vec3(MaxRadiance));
+    return min(directLight(s, lobes, position, V, shadowMaps, lastMap) + emission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
 // surface and no normal: it scatters the light that reaches its center equally in every direction, which is the mean over
-// every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so the sun and
-// each point and spot light give albedo / (4π) times their irradiance. The ambient light gives the albedo times the
-// mean radiance of its source: the map's without the stars, or the mean of the sky and the ground color, whose shares
-// average one half. The sun's visibility samples the cascades with the sun's direction as the normal, which needs no
-// normal offset and no receiver-plane slope.
-vec3 scatteredLight(vec3 albedo, vec3 position)
+// every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so each light
+// gives albedo / (4π) times its irradiance and visibility. The ambient light gives the albedo times the mean radiance of
+// its source: its map's without the stars, or the mean of the sky and the ground color, whose shares average one half. A
+// light's visibility samples its maps with L as the normal, which needs no normal offset and no receiver-plane slope.
+vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 {
     vec3 meanAmbient = environmentMapOn
-        ? environmentMeanRadiance()
+        ? environmentMeanRadiance(map)
         : 0.5 * (frame.ambientSky.rgb + frame.ambientGround.rgb);
-    vec3 irradiance = frame.sunRadiance.rgb * sunReaches(position, frame.sunDirection.xyz, 1.0, SunShadowsMainView);
+    vec3 irradiance = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
-        vec3 lightDirection;
-        irradiance += light.radianceKind.rgb * lightReaches(light, position, lightDirection);
+        vec3 L;
+        float d;
+        vec3 incoming = lightIrradiance(light, position, L, d);
+        // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
+        // nothing either, by its dot(N, L) of 0.
+        if (incoming == vec3(0.0) || d == 0.0)
+            continue;
+        irradiance += incoming * lightVisibility(light, position, L, d, L, 1.0, ShadowMapsMainView);
     }
     return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }

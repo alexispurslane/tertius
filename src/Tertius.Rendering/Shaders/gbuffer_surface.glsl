@@ -1,9 +1,10 @@
 // The lit surface that the G-buffer holds at a pixel (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light"). The lighting pass and the reflection trace read a lit pixel's surface only through it, and
-// the occlusion of ambient occlusion enters the shading input here (docs/plans/ambient-occlusion.md). So does the
-// reflection's footprint, which both passes take from the G-buffer, so that the trace takes away the very ambient
-// specular term that the lighting pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside
-// the G-buffer: texelFetch outside an image is undefined.
+// reads the ambient light"). The lighting pass and the reflections' passes read a lit pixel's surface only through it,
+// and the occlusion of ambient occlusion enters the shading input here (docs/plans/ambient-occlusion.md). So does the
+// reflection's footprint, which the lighting pass and the pass that adds the reflections' delta (the full-resolution
+// trace, or the upsample at half resolution) take from the G-buffer, so that the delta takes away the very ambient
+// specular term that the lighting pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie
+// inside the G-buffer: texelFetch outside an image is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
@@ -22,23 +23,39 @@ vec3 dominantDirectionAt(ivec2 pixel)
     return ambientSpecularDirection(normal, texelFetch(gbufferSpecular, pixel, 0).g, -view);
 }
 
-// f, in rad: how far d moves to the next pixel along x and along y, at least p, the main view's pixel angle. In the
-// image's last column or row, the step goes back one pixel.
+// f, in rad: how far d moves to a neighboring pixel along x and along y, at least p, the main view's pixel angle. Along
+// each axis, the smaller of the steps to the next and to the previous pixel, so that a crease, a seam or a silhouette on
+// one side leaves f at the rate of the pixel's own surface. In the image's first or last column or row, both steps go
+// to the one neighbor there.
 float reflectionFootprintAt(ivec2 pixel)
 {
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
-    int nextX = pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0);
-    int nextY = pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0);
+    ivec2 next = ivec2(pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0),
+        pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0));
+    ivec2 previous = ivec2(pixel.x > 0 ? pixel.x - 1 : min(pixel.x + 1, last.x),
+        pixel.y > 0 ? pixel.y - 1 : min(pixel.y + 1, last.y));
     vec3 d = dominantDirectionAt(pixel);
-    float alongX = length(dominantDirectionAt(ivec2(nextX, pixel.y)) - d);
-    float alongY = length(dominantDirectionAt(ivec2(pixel.x, nextY)) - d);
+    float alongX = min(length(dominantDirectionAt(ivec2(next.x, pixel.y)) - d),
+        length(dominantDirectionAt(ivec2(previous.x, pixel.y)) - d));
+    float alongY = min(length(dominantDirectionAt(ivec2(pixel.x, next.y)) - d),
+        length(dominantDirectionAt(ivec2(pixel.x, previous.y)) - d));
     return max(frame.params.z, max(alongX, alongY));
+}
+
+// The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+// alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
+// which no caller passes here.
+uint mapOfCode(float alpha)
+{
+    return (256u - uint(round(alpha * 255.0))) >> 1;
 }
 
 ShadingInput surfaceAt(ivec2 pixel)
 {
     ShadingInput s;
-    s.baseColor = texelFetch(gbufferBaseColor, pixel, 0).rgb;
+    vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
+    s.baseColor = baseColor.rgb;
+    s.map = mapOfCode(baseColor.a);
     vec4 normals = texelFetch(gbufferNormal, pixel, 0);
     s.normal = octDecode(normals.rg);
     s.geometricNormal = octDecode(normals.ba);

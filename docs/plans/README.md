@@ -19,13 +19,14 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Design review](design-review.md) | `ter-tanj` |
 | [Editor](editor.md) | `ter-631h` |
 | [Scene environment map](environment-map.md) | `ter-nl5u` |
+| [Environment maps per frame on the camera's chain](environment-maps-per-frame.md) | `ter-uy7y` |
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |
 | [Particles: puffs](particles.md) | `ter-4zt6` |
 | [Parts: attached entities that push their chain's root](parts.md) | `ter-ftk4` |
 | [PBR BRDF](pbr-brdf.md) | `ter-ptft` |
-| [Point and spot light shadows](local-light-shadows.md) | `ter-s9cv` |
+| [Shadows of every light, and lights in SI units](local-light-shadows.md) | `ter-s9cv` |
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |

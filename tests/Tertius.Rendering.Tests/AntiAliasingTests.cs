@@ -70,7 +70,7 @@ public sealed class AntiAliasingTests
         const float halfSize = 4;
         MeshId square = renderer.CreateMesh(Primitives.Plane(halfSize));
         MeshId wall = renderer.CreateMesh(Primitives.Plane(30));
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
         Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle) * facing;
@@ -332,7 +332,7 @@ public sealed class AntiAliasingTests
         static RenderSnapshot Outlined(VulkanRenderer renderer)
         {
             MeshId wall = renderer.CreateMesh(Primitives.Plane(30));
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
             snapshot.Ambient.Intensity = 0;
             snapshot.Instances.Add(
                 Gpu.Instance(

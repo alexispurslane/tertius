@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "blender": {
+      "type": "stdio",
+      "command": "nix",
+      "args": ["develop", ".#assets", "--command", "blender-mcp"]
+    }
+  }
+}

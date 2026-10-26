@@ -1,15 +1,17 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Far shadows: every shadow caster is also a sphere of its bounding radius, from any frame, which shadows the sun for
-/// points outside it and never for points inside it. A caster whose bounding sphere comes within 2 km of the camera is also
-/// in the shadow maps: its sphere then counts only where the maps end, for receivers farther than 2 km, and those casters
-/// come first in the list. A sphere counts only while the sun lights the scene, and only when it can be noticed: a caster
-/// beyond the maps must cover a pixel or a fifth of the sun's angular radius seen from the camera, and a caster in the maps
-/// must hide 4% of the sun from 2 km away, where its far receivers start. The output is 1600 by 900 with a 60 degree field
-/// of view, so one pixel is about 1.28e-3 rad, and the sun is 4.67e-3 rad in radius.
+/// Far shadows of the test star, a far light with a cascade set: every shadow caster is also a sphere of its bounding
+/// radius, from any frame, which shadows the star for points outside it and never for points inside it. A caster whose
+/// bounding sphere comes within 2 km of the camera is also in the shadow maps: its sphere then counts only where the maps
+/// end, for receivers farther than 2 km, and those casters come first in the star's run of occluders. A sphere counts only
+/// while the star shines, and only when it can be noticed: a caster beyond the maps must cover a pixel or a fifth of the
+/// star's angular radius seen from the camera, and a caster in the maps must hide 4% of the star from 2 km away, where its
+/// far receivers start. The output is 1600 by 900 with a 60 degree field of view, so one pixel is about 1.28e-3 rad, and
+/// the star is 4.67e-3 rad in radius.
 /// </summary>
 public sealed class FarShadowTests
 {
@@ -25,6 +27,7 @@ public sealed class FarShadowTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow,
             entityIndex: 0,
             part: 0
@@ -33,21 +36,32 @@ public sealed class FarShadowTests
     private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(
-            snapshot: snapshot,
-            alpha: alpha,
-            width: 1600,
-            height: 900,
-            meshes: Meshes,
-            materialCount: 8,
-            environment: default,
-            scene: scene
-        );
+        Batchers
+            .Default()
+            .Prepare(
+                snapshot: snapshot,
+                alpha: alpha,
+                width: 1600,
+                height: 900,
+                meshes: Meshes,
+                materialCount: 8,
+                environment: default,
+                scene: scene
+            );
         return scene;
     }
 
     private static Vector4[] FarShadows(PreparedScene scene) =>
         scene.Occluders.AsSpan(0, scene.OccluderCount).ToArray();
+
+    /// <summary>How many of the star's occluders the star's cascade set also draws.</summary>
+    private static int Mapped(PreparedScene scene) =>
+        scene.Lights[0].Shadow is CascadeSet { Mapped: var mapped }
+            ? mapped
+            : throw new InvalidOperationException("The star has no cascade set.");
+
+    /// <summary>The star's light as the shaders read it, with its run of occluders.</summary>
+    private static GpuLight StarOf(PreparedScene scene) => GpuLight.From(scene.Lights[0]);
 
     // ---- Casters beyond the shadow maps -----------------------------------------------------------------------
 
@@ -60,8 +74,8 @@ public sealed class FarShadowTests
         PreparedScene scene = Prepare(snapshot);
 
         FarShadows(scene).Should().Equal(new Vector4(x: 0, y: 0, z: -3e7f, w: 6e6f));
-        scene.MappedOccluderCount.Should().Be(0);
-        scene.Constants.OccluderCount.Should().Be(1u);
+        Mapped(scene).Should().Be(0);
+        StarOf(scene).Occluders.Y.Should().Be(1u);
     }
 
     [Fact]
@@ -100,9 +114,9 @@ public sealed class FarShadowTests
     public void ACasterUnderAPixelStillCastsAFarShadowWhenItHidesAShareOfASmallSun()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
-        // Near Saturn, the sun is 4.85e-4 rad in radius, less than half a pixel. A moon 9e-4 rad across is under a pixel,
-        // but it can hide the whole sun.
-        snapshot.Sun.AngularRadius = 4.85e-4f;
+        // Near Saturn, the Sun is 4.85e-4 rad in radius, less than half a pixel. A moon 9e-4 rad across is under a pixel,
+        // but it can hide the whole Sun.
+        Gpu.Star(snapshot: snapshot, angularRadius: 4.85e-4f);
         snapshot.Instances.Add(Caster(new(0, 0, -1e9f), 4.5e5f));
 
         FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(x: 0, y: 0, z: -1e9f, w: 4.5e5f));
@@ -140,8 +154,8 @@ public sealed class FarShadowTests
         PreparedScene scene = Prepare(snapshot);
 
         FarShadows(scene).Should().Equal(new Vector4(x: 0, y: 0, z: -500, w: 50));
-        scene.MappedOccluderCount.Should().Be(1);
-        scene.Constants.MappedOccluderCount.Should().Be(1u);
+        Mapped(scene).Should().Be(1);
+        StarOf(scene).Occluders.Z.Should().Be(1u);
     }
 
     [Fact]
@@ -153,7 +167,7 @@ public sealed class FarShadowTests
         PreparedScene scene = Prepare(snapshot);
 
         FarShadows(scene).Should().Equal(new Vector4(x: 0, y: -6.371e6f - 2, z: 0, w: 6.371e6f));
-        scene.MappedOccluderCount.Should().Be(1);
+        Mapped(scene).Should().Be(1);
     }
 
     [Fact]
@@ -168,7 +182,7 @@ public sealed class FarShadowTests
         PreparedScene scene = Prepare(snapshot);
 
         FarShadows(scene).Select(shadow => shadow.Z).Should().Equal(-500f, -700f, -5_000f, -6_000f);
-        scene.MappedOccluderCount.Should().Be(2);
+        Mapped(scene).Should().Be(2);
     }
 
     // ---- Every caster ---------------------------------------------------------------------------------------------
@@ -192,16 +206,16 @@ public sealed class FarShadowTests
     }
 
     [Fact]
-    public void WithoutASunThereAreNoFarShadows()
+    public void WithoutAStarThereAreNoFarShadows()
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, starIrradiance: 0);
         snapshot.Instances.Add(Caster(new(0, 0, -3e7f), 6e6f));
         snapshot.Instances.Add(Caster(new(0, 0, -500), 50));
 
         PreparedScene scene = Prepare(snapshot);
 
-        FarShadows(scene).Should().BeEmpty("a far shadow only blocks the sun");
-        scene.MappedOccluderCount.Should().Be(0);
+        FarShadows(scene).Should().BeEmpty("a far shadow only blocks a far light");
+        scene.LightCount.Should().Be(0, "a star of no power does not shine");
     }
 
     [Fact]
@@ -230,7 +244,7 @@ public sealed class FarShadowTests
             .Select(shadow => shadow.Z)
             .Should()
             .Equal(Enumerable.Range(0, 20).Select(i => -5_000f - i * 2_000));
-        scene.Constants.OccluderCount.Should().Be(20u);
+        StarOf(scene).Occluders.Y.Should().Be(20u);
     }
 
     [Theory]

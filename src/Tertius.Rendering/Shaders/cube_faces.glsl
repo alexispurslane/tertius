@@ -25,6 +25,18 @@ FaceBasis faceBasis(uint face)
     }
 }
 
+// The face, a layer from 0 to 5, that a cube sample in `direction` reads, by the major axis; a tie picks x before y before
+// z. The face of CubeFaces.Locate.
+uint cubeFaceOf(vec3 direction)
+{
+    vec3 size = abs(direction);
+    if (size.x >= size.y && size.x >= size.z)
+        return direction.x >= 0.0 ? 0u : 1u;
+    if (size.y >= size.z)
+        return direction.y >= 0.0 ? 2u : 3u;
+    return direction.z >= 0.0 ? 4u : 5u;
+}
+
 // The direction through the point st of a face, st in [0, 1], before normalizing. At a texel center of a face of a
 // power-of-two size, each component is exact, so a cube sample along it reads that texel alone.
 vec3 faceRay(uint face, vec2 st)

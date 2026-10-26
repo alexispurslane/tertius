@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -53,7 +54,7 @@ public sealed class HemisphereTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             MaterialId surface = renderer.CreateMaterial(material);
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Ambient = new()
             {
                 SkyColor = new(0.6f, 0, 0),
@@ -69,6 +70,7 @@ public sealed class HemisphereTests
                     scale: Vector3.One,
                     boundingRadius: 1f,
                     hemisphere: up,
+                    chainDepth: TestChains.CamerasFrame,
                     flags: RenderFlags.Visible | flags,
                     entityIndex: 1
                 )

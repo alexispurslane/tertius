@@ -18,6 +18,23 @@ public sealed class ReflectionSettingTests
             .BeTrue("the renderer reflects by default, with Unreal Engine 4's maximum roughness");
 
     [Fact]
+    public void BothResolutionsAreAccepted()
+    {
+        new ReflectionSetting(ConeTracedReflections.Default with { Resolution = TraceResolution.Half })
+            .Problem.Should()
+            .BeNull();
+        new ReflectionSetting(ConeTracedReflections.Default with { Resolution = TraceResolution.Full })
+            .Problem.Should()
+            .BeNull();
+    }
+
+    [Fact]
+    public void AResolutionThatTheEnumDoesNotNameIsRefused() =>
+        new ReflectionSetting(ConeTracedReflections.Default with { Resolution = (TraceResolution)2 })
+            .Problem.Should()
+            .Contain("Resolution");
+
+    [Fact]
     public void TheDefaultAndTheLimitsOfEveryFieldAreAccepted()
     {
         ConeTracedReflections smallest = ConeTracedReflections.Default with
@@ -118,7 +135,9 @@ public sealed class ReflectionSettingTests
     [Fact]
     public void TheTracesPushConstantsCarryTheMaximumRoughnessAndTheSteps()
     {
-        var push = ReflectionPushConstants.For(new(MaxRoughness: 0.3f, MaxSteps: 200));
+        var push = ReflectionPushConstants.For(
+            new(MaxRoughness: 0.3f, MaxSteps: 200, Resolution: TraceResolution.Full)
+        );
 
         (push.MaxRoughness, push.MaxSteps).Should().Be((0.3f, 200u));
     }

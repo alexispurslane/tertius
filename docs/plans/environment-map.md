@@ -61,7 +61,7 @@ The user made the decisions marked (User): decisions 1 to 11 in the ticket's not
 9. GPU pixel tests, no reference images: a mirror sphere reflects a bright object behind the camera, and a rough sphere shows it blurred. (User)
 10. The cost is measured at 1080p, and the user sees captures. (User)
 11. The per-frame sky and ground colors (`ter-hro7`) are closed without work. The atmosphere color (`ter-6vhj`) reaches the ambient light through the map. (User)
-12. One map serves every surface, now. A lit room then lights what lies outside it, such as the apron that the cabin's seat sees through the canopy, and the user accepts that for now. Local maps per room are a later ticket (see "Known limits" and "Later"). (User)
+12. One map serves every surface, now. A lit room then lights what lies outside it, such as the apron that the cabin's seat sees through the canopy, and the user accepts that for now. Local maps per room are a later ticket (see "Known limits" and "Later"). (User) `ter-uy7y` replaced the one map with one map per semantic frame on the camera's chain: see [environment-maps-per-frame.md](environment-maps-per-frame.md).
 13. The faces draw no stars. The map's alpha holds the open-sky share of each texel, and the prefilter blurs it with the same GGX lobe as the color. The ambient specular term adds the star field, evaluated at the dominant direction through the same star function as the sky pixels, times the prefiltered open-sky share. The stars fade with roughness so that their light matches what a map that held them gives a rough lobe. See "The reflected stars". (User)
 14. The atmosphere ticket (`ter-6vhj`) stays last, as planned. So while the map is on, the map's sky is black until that ticket, and planet shadows and the ground lose today's sky fill light, 0.08 on demo-surface. No interim sky color comes before the atmosphere. (User)
 15. The setting takes the form that STYLE.md gives struct cases: a `[GeneratedUnion]` of positional `readonly record struct` cases, with `NoEnvironmentMap` as its zero case and a `Problem` check that `CheckOptions` calls, as `ExposureSetting` and `AmbientOcclusionSetting` do. `ter-48qn` converts `BloomSetting` to the same form. (Orchestrator, for every setting of the epic, 2026-10-25)
@@ -70,8 +70,8 @@ Settled by this design:
 16. A face is shaded in a forward pass, as the impostor capture is: one draw per depth range into the face, with the shading in the fragment shader. A face has 16,384 texels, so overdraw costs little, and a G-buffer of six faces adds five images and a lighting pass for nothing. The impostor capture is the existing pass that shades objects off screen.
 17. The capture takes no ambient light. A face holds the light that the sun, the lamps and emission send toward the camera, so the main view's surfaces get one bounce of that light. Three reasons. A face then depends only on the frame that draws it. With the previous map as the capture's ambient, each face depends on every earlier face, a chain with no end, and a still after a camera step needs repeated refreshes to converge. The hemisphere is excluded by decision 4. And SSAO already left out bounced brightening because SSGI (`ter-a24f`) adds real bounced light. The cost: in a room, the parts that only bounced light reaches are black in the map, so interiors are darker than with many bounces.
 18. A face draws the opaque instances, the impostor objects as geometry, emission and the sky, with no stars (decision 13). It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes.
-19. A face samples the sun's cascades by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. See "The sun's shadow maps in a face".
-20. One light list serves every view of a frame. A light is kept when its reach touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
+19. A face samples each far light's cascade set by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. A near light's tiles of the local shadow atlas cover every direction from the light, so a face samples them as the main view does. See "The shadow maps in a face". (The lights plan, [local-light-shadows.md](local-light-shadows.md), gave every far light its set and every near light its tiles. This decision had the one sun's cascades.)
+20. One light list serves every view of a frame. A light is kept when its reach, which the renderer derives from its power (local-light-shadows.md, "The cutoff and the reach"), touches the main view's frustum or a face that the frame draws. The main view loops over the extra lights too, and each adds exactly nothing to its pixels, so the main view stays bit for bit as before.
 21. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
 22. Frame n draws the faces (n · F + k) mod 6 for k from 0 to F − 1, where F is `FacesPerFrame`, in layer order. It is a pure function of the frame number, so no stored cursor has to be reset by a refresh, a film draws the same faces on every run, and every face is at most ⌈6 / F⌉ − 1 frames old. An order that follows the camera's view changes with the view and needs a rule for ties.
 23. A refresh happens when the map's frame differs from the camera's frame, and on a long step. The map starts with no frame, so the first drawn frame refreshes. A change of the camera's frame changes the axes of camera-relative world space, so every old face is wrong, not only old. See "Which faces a frame draws".
@@ -84,7 +84,7 @@ Settled by this design:
 30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
-33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and SSR's trace take it from the G-buffer, by one function, so that the trace takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+33. The reflection's footprint f is how far d moves to the next pixel, at least p. In the G-buffer it is the smaller of the steps to the next and to the previous pixel along each axis, so that a crease or a seam on one side does not count (ticket `ter-cuf9`). A forward fragment shader takes it from the screen derivatives of d. The lighting pass and the pass that adds SSR's delta (the full-resolution trace, or the upsample at half resolution) take it from the G-buffer, by one function, so that the delta takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
@@ -143,18 +143,18 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
 ShadingInput shading = ...;   // as in impostor_capture.frag, both sky shares 0
 vec3 V = normalize(-inPosition);   // toward the eye, which every face shares
-outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, SunShadowsHolding), 0.0);   // alpha: no open sky
+outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding), 0.0);   // alpha: no open sky
 ```
 
 where
 
-- `directRadiance` = the sun and the point and spot lights reflected toward V, plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
-- `SunShadowsHolding` = the rule of the sun's shadow maps for a view that is not the main view (next section).
+- `directRadiance` = every light of the frame's list reflected toward V, each with its shadows (a far light's far shadows and cascade set, a near light's tiles), plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
+- `ShadowMapsHolding` = the rule of the shadow maps for a view that is not the main view (next section).
 - `V` = the unit direction from the surface point to the eye. A face's highlights are those that the camera's eye sees, because the map is the light that arrives at the eye.
 
-#### The sun's shadow maps in a face
+#### The shadow maps in a face
 
-The cascades are fitted to the main view (ARCHITECTURE.md, "Shadows"): cascade i is the bounding sphere of the slice of the main view's frustum that ends at its split, and the shader picks the cascade by the view depth along the camera's forward axis. A point behind the camera has a negative view depth, so that rule picks cascade 0 for it, which does not hold it once it is more than a few meters behind.
+Each far light's cascade set is fitted to the main view, and every set shares the splits and the boxes' sizes (ARCHITECTURE.md, "Shadows"): cascade i is the bounding sphere of the slice of the main view's frustum that ends at its split, and the shader picks the cascade by the view depth along the camera's forward axis. A point behind the camera has a negative view depth, so that rule picks cascade 0 for it, which does not hold it once it is more than a few meters behind.
 
 A face therefore picks the finest cascade whose box holds the point, with the margin of the filter. Every cascade's box holds the sphere of its slice, and the sphere holds a ball around the eye of radius (sphere radius − sphere center's depth). At the demo's 60° field of view and 16:9, that ball is about 9 m for cascade 0, 19 m for cascade 1, 49 m for cascade 2 and 355 m for cascade 3. So every point within 9 m of the camera, in any direction, gets cascade 0's texels of 6 cm. Ahead of the camera, the cascades reach 2 km as before. In the outer tenth of the coarsest box, the map shadow fades out and the far shadow of the casters in the maps fades in, by the same weight, as the main view does over its last blend band. Beyond every box, the far shadows alone decide, as for the main view beyond 2 km.
 
@@ -162,13 +162,15 @@ The shadow pass already culls its casters against every cascade's box, not again
 
 With the far shadows alone, the sun lights the cabin's walls in the map through the hull: a far shadow never shadows a point inside its caster's sphere, and the cabin lies inside the shuttle's sphere.
 
+A near light's tiles need no such rule. A spot light's tile and a point light's six faces look out from the light, not from the camera, so they hold every point that the light reaches in their frustums, whichever view samples them. A face samples them as the main view does (`tileShadow`, ARCHITECTURE.md, "Local shadows").
+
 #### The point and spot lights
 
-`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 20). On a refresh, the six faces see every direction, so every light of positive range and intensity is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
+`SceneBatcher.CollectLights` keeps a light today when its reach touches the main view's frustum. With the map on, it also keeps a light whose reach touches the frustum of a face that this frame draws (decision 20). On a refresh, the six faces see every direction, so every light of positive power is kept. The list keeps the snapshot's order, so the sum still rounds the same way on every run.
 
 #### No ambient light in the capture
 
-Decision 17. A face's surfaces get the sun, the far and map shadows, the point and spot lights, and their emission. A surface that none of these reach is black in the map.
+Decision 17. A face's surfaces get every light of the list with its shadows (far shadows, cascade sets and tiles), and their emission. A surface that none of these reach is black in the map.
 
 ### Culling and level of detail
 
@@ -497,17 +499,21 @@ where
 
 Derivatives are defined only in uniform control flow, so each of these shaders computes f at the top of `main`, before any early return, and stores it in `ShadingInput.reflectionFootprint`. The function lives in `reflection_footprint.glsl`, which only fragment shaders include, because a compute shader has no derivatives.
 
-The lighting pass and SSR's trace read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
+The lighting pass and SSR's passes read a lit pixel only through `surfaceAt` (`gbuffer_surface.glsl`), which sets the footprint from the G-buffer by `reflectionFootprintAt`:
 
 ```glsl
 float reflectionFootprintAt(ivec2 pixel)
 {
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
-    int nextX = pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0);
-    int nextY = pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0);
+    ivec2 next = ivec2(pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0),
+        pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0));
+    ivec2 previous = ivec2(pixel.x > 0 ? pixel.x - 1 : min(pixel.x + 1, last.x),
+        pixel.y > 0 ? pixel.y - 1 : min(pixel.y + 1, last.y));
     vec3 d = dominantDirectionAt(pixel);
-    float alongX = length(dominantDirectionAt(ivec2(nextX, pixel.y)) - d);
-    float alongY = length(dominantDirectionAt(ivec2(pixel.x, nextY)) - d);
+    float alongX = min(length(dominantDirectionAt(ivec2(next.x, pixel.y)) - d),
+        length(dominantDirectionAt(ivec2(previous.x, pixel.y)) - d));
+    float alongY = min(length(dominantDirectionAt(ivec2(pixel.x, next.y)) - d),
+        length(dominantDirectionAt(ivec2(pixel.x, previous.y)) - d));
     return max(frame.params.z, max(alongX, alongY));
 }
 ```
@@ -515,10 +521,10 @@ float reflectionFootprintAt(ivec2 pixel)
 where
 
 - `dominantDirectionAt(pixel)` = d at a pixel: a surface's dominant direction for the view ray through the pixel's center, and a sky pixel's view ray.
-- `nextX`, `nextY` = the next pixel in x and in y, or the pixel before it in the image's last column or row.
-- `alongX`, `alongY` = how far d moves to those pixels, in rad.
+- `next`, `previous` = the next and the previous pixel in x and in y. In the image's last column or row the next pixel is the one before, and in its first the previous pixel is the one after.
+- `alongX`, `alongY` = how far d moves to the nearer of the two neighbors along each axis, in rad. A step across a crease, a seam or a silhouette measures the jump to another surface, so the smaller step keeps f at the rate of the pixel's own surface (ticket `ter-cuf9`).
 
-So the trace, which is a compute shader, subtracts the same T_s that the lighting pass added: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes.
+So the pass that adds SSR's delta, a compute shader (the full-resolution trace, or the upsample at half resolution), subtracts the same T_s that the lighting pass added at the pixel: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of four more pixels per lit pixel in each of the passes that read a surface: the lighting pass, the pass that adds the delta, and the half-resolution trace. The half-resolution trace reads no ambient light, but its cone reads the footprint of its representative pixel (docs/plans/screen-space-reflections.md, "The cone").
 
 The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
@@ -1072,7 +1078,7 @@ If the atmosphere dims the stars, by its transmittance or by its own brightness,
 
 The map is the light at the camera's eye, and decisions 4 and 5 give it to every surface. So a surface far from the camera takes the light of the camera's surroundings, not of its own. Out in the open, where the surroundings are far, the error is small: a far planet's night side takes a little light from the ship beside the camera, about as much as today's fill. In a lit room it is large. In `demo-surface`, the cabin's four lamps of intensity 50 light its walls to a radiance of about 2, while the sun of intensity 1 lights the apron to about 0.1 to 0.2. Seen from the seat, the apron through the canopy takes several times its sunlight as ambient light, and its shadows fill in. The terminal and its lamps of intensity 100 do the same to what lies outside its windows.
 
-The user accepts this for now and keeps one map (decision 12). Part 6's captures from the cabin show how much it shows. Local maps per room are a later ticket, and the one map keeps all of its machinery under them.
+The user accepted this for the first map (decision 12). Part 6's captures from the cabin showed how much it shows. `ter-uy7y` then gave each semantic frame on the camera's chain a map of its own, and the apron now takes earth-surface's map, which leaves out the shuttle and its lamps: see [environment-maps-per-frame.md](environment-maps-per-frame.md), and its "Known limits" for what remains.
 
 ### The black sky until the atmosphere
 
@@ -1084,7 +1090,7 @@ Each item is left out because nothing needs it yet. The orchestrator files the t
 
 | Item | What it adds | When it is needed |
 |---|---|---|
-| Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | When the captures from the cabin, or a later scene, show the outside lit by the room's light |
+| Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | Built in another form by `ter-uy7y`: one map per semantic frame on the camera's chain, at the eye and with no box ([environment-maps-per-frame.md](environment-maps-per-frame.md)) |
 | A larger block for the reflected stars, 5 × 5 × 5 cells | Single stars until about roughness 0.12 on a flat mirror, at 4.6 times the cost per smooth pixel | When a capture shows chrome between roughness 0.06 and 0.12 that misses its stars |
 | The stars' light in the diffuse term, through the irradiance buffer's w components | About 6 · 10⁻⁴ of diffuse light in open space | When an image shows the difference, which decision 32 expects never |
 | A star field defined by each star's light, the same at every resolution, with one evaluation for the sky and the reflections | Stars whose light does not fall with the resolution | When the star field gets its own ticket. It re-approves the reference images. |
@@ -1321,23 +1327,23 @@ internal sealed class EnvironmentMap : IDisposable
   ```
 
   and `FrameContext.Environment`, the barrier states after the prefilter pass (the specular map in `SampledFragment`, the irradiance buffer in `ShaderRead`), and the frame set bindings 12 to 14 as "Images and buffers" gives them.
-- Takes: the exposure branch (`ComputePipelineDesc`, `SampledCompute`, `ComputeWrite`, the compute queue, `FrameClock`, `MeteringStepSeconds`, the draw step), Part 1, Part 2's setting, Part 3's `EnvironmentDraw`, `EnvironmentFaces` and `AmbientSource`, and Part 5's `directRadiance` and `SunShadows*` constants, which the face shader calls.
+- Takes: the exposure branch (`ComputePipelineDesc`, `SampledCompute`, `ComputeWrite`, the compute queue, `FrameClock`, `MeteringStepSeconds`, the draw step), Part 1, Part 2's setting, Part 3's `EnvironmentDraw`, `EnvironmentFaces` and `AmbientSource`, and Part 5's `directRadiance` and `ShadowMaps*` constants (then named `SunShadows*`), which the face shader calls.
 - Done: every test passes in Checked and Release, the six reference images unchanged. The report names the hand mutations. The review goes through "Portable Vulkan" line by line.
 
 ### Part 5: the readers
 
 - Files:
   - New: `src/Tertius.Rendering/Shaders/environment.glsl`, `src/Tertius.Rendering/Shaders/reflection_footprint.glsl` and `tests/Tertius.Rendering.Tests/EnvironmentLightingTests.cs`.
-  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ShadingInput.reflectionFootprint`, `ambientSpecularDirection`, `environmentAmbient`, `ambientTerms`, `ambientLight`, `scatteredLight`'s mean), `lighting.frag` (the footprint at the top of `main`, the G-buffer reads before the sky test, `skyRadiance` plus `starRadiance` for sky pixels, `SunShadowsMainView`), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
+  - Changed: shaders `lighting.glsl` (the shadow modes, `directLight`, `directRadiance`, `ShadingInput.reflectionFootprint`, `ambientSpecularDirection`, `environmentAmbient`, `ambientTerms`, `ambientLight`, `scatteredLight`'s mean), `lighting.frag` (the footprint at the top of `main`, the G-buffer reads before the sky test, `skyRadiance` plus `starRadiance` for sky pixels, `ShadowMapsMainView`), `transparent.frag`, `impostor_capture.frag`, `gbuffer.frag`, then `Passes/LightingPass.cs`, `Passes/TransparentPass.cs` (the transparent and the puff pipelines), `Passes/GeometryPass.cs`, `Passes/ImpostorPass.cs` (the capture pipeline), each taking `ShaderConstants constants` as the last parameter of its constructor and setting it on its shading pipelines, and `PreExposureTests.cs` (the case of the map).
 - Tests first: `EnvironmentLightingTests`, which fail for the right reason once Part 4's map exists: the mirror sphere shows the hemisphere's gray, and the mirror shows no star.
 - First step, before anything else: the new `lighting.glsl` interface with today's behavior behind it, so that Part 4's face shader builds against it.
 - Gives:
 
   ```glsl
   // lighting.glsl
-  const uint SunShadowsNone = 0u;       // far shadows only: the impostor capture
-  const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
-  const uint SunShadowsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
+  const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
+  const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
+  const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
   float sunReaches(vec3 position, vec3 geometricNormal, float geometricNdotL, uint sunShadows);
   struct ShadingInput { ...; float reflectionFootprint; };   // f, in rad, at least p: set by the caller ("Where it runs")
   vec3 ambientSpecularDirection(ShadingInput s, vec3 V);     // d
@@ -1359,8 +1365,8 @@ internal sealed class EnvironmentMap : IDisposable
 
   // reflection_footprint.glsl, for fragment shaders only.
   float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
-  // gbuffer_surface.glsl, for the lighting pass and the reflection trace.
-  float reflectionFootprintAt(ivec2 pixel);                                 // max(p, |d(next x) − d|, |d(next y) − d|)
+  // gbuffer_surface.glsl, for the lighting pass and the pass that adds SSR's delta.
+  float reflectionFootprintAt(ivec2 pixel);                                 // max(p, min over the x neighbors, min over the y neighbors)
   ```
 
   `L` comes from `textureQueryLevels` of the specular map, so no other store holds it.

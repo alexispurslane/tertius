@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -20,9 +21,15 @@ public sealed class PyramidRenderTests
     /// </summary>
     private const float InverseDepthTolerance = 1e-6f;
 
+    // At 640 × 360 the depth image is 512 × 256, and levels 5 to 10 are the tail, which one workgroup builds
+    // (DepthPyramidTail.FirstMip).
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(9)]
     [InlineData(10)]
     public void EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(int level)
     {
@@ -250,6 +257,57 @@ public sealed class PyramidRenderTests
         }
     }
 
+    [Fact]
+    public void TheHalfResolutionTraceFollowsAResizeAndRoundsUp()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            reflections: ConeTracedReflections.Default with
+            {
+                Resolution = TraceResolution.Half,
+            }
+        );
+        try
+        {
+            RenderSnapshot snapshot = Scene(renderer);
+            renderer.Render(snapshot, 1f);
+            renderer.Resize(321, 181);
+            renderer.Render(snapshot, 1f);
+
+            (_, int width, int height) = renderer.ReadReflectionTrace();
+
+            (width, height).Should().Be((161, 91), "each texel stands for a block of 2 × 2 pixels, cut by the edge");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFullResolutionTraceKeepsNoHalfResolutionImage()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            reflections: ConeTracedReflections.Default with
+            {
+                Resolution = TraceResolution.Full,
+            }
+        );
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+
+            FluentActions
+                .Invoking(() => renderer.ReadReflectionTrace())
+                .Should()
+                .Throw<InvalidOperationException>()
+                .WithMessage("*full resolution*");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     // ResizeTargets, not Resize: the output of a device whose largest image is 16,384 px would refuse the size first.
     [Fact]
     public void AResizePastTheLongestSideIsRefusedAndKeepsThePyramids()
@@ -342,7 +400,12 @@ public sealed class PyramidRenderTests
             Block(box: box, material: lamp, center: new(0.3f, -1.25f, -4), size: new(0.3f, 0.5f, 0.3f))
         );
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0.3f, -0.8f, -4), Color: Vector3.One, Intensity: 4, Range: 6)
+            Gpu.Lamp(
+                position: new(0.3f, -0.8f, -4),
+                color: Vector3.One,
+                intensity: 4,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         return snapshot;
     }

@@ -56,7 +56,7 @@ public sealed class BloomTests
         float metersPerPixel = 2 * tanX * Depth / width;
         MeshId plane = renderer.CreateMesh(Primitives.Plane(0.5f));
         var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         snapshot.Instances.Add(
             Gpu.Instance(
@@ -525,7 +525,7 @@ public sealed class BloomTests
             Render(renderer, "bloom-before-resize", Centered(side: 16, radiance: 20));
             renderer.Resize(Width / 2, Height / 2);
             // The next frame applies the new size, and the scene below is placed by the output's size.
-            renderer.Render(Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0), 1f);
+            renderer.Render(Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0), 1f);
 
             Capture image = Render(
                 renderer,

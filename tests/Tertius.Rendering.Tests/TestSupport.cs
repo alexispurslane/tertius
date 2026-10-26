@@ -1,6 +1,7 @@
 using System.Numerics;
 using StbImageSharp;
 using StbImageWriteSharp;
+using Tertius.Testing;
 using ColorComponents = StbImageSharp.ColorComponents;
 
 namespace Tertius.Rendering.Tests;
@@ -45,7 +46,9 @@ internal static class Gpu
     /// so that a pixel does not depend on the frames before it. Anti-aliasing is off unless asked for, so that the pixel
     /// tests keep their values (docs/plans/anti-aliasing.md, "Decisions"). Reflections are off unless asked for, because
     /// the zero case of the setting is off (docs/plans/screen-space-reflections.md, "Existing tests"). The environment map
-    /// is off unless asked for, so the hemisphere lights the tests.
+    /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
+    /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
+    /// the renderer's default.
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -57,7 +60,9 @@ internal static class Gpu
         ExposureSetting exposure = default,
         AntiAliasing antiAliasing = AntiAliasing.None,
         ReflectionSetting reflections = default,
-        EnvironmentMapSetting? environmentMap = null
+        EnvironmentMapSetting? environmentMap = null,
+        int cascadedLights = 1,
+        LocalShadowSetting localShadows = default
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -72,8 +77,10 @@ internal static class Gpu
                 Exposure = exposure,
                 Bloom = new NoBloom(),
                 AntiAliasing = antiAliasing,
+                LocalShadows = localShadows,
                 Reflections = reflections,
                 EnvironmentMap = environmentMap ?? new NoEnvironmentMap(),
+                CascadedLights = cascadedLights,
             }
         );
 
@@ -157,12 +164,29 @@ internal static class Gpu
             scale: scale,
             boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
+            chainDepth: TestChains.CamerasFrame,
             flags: flags | RenderFlags.Visible,
             entityIndex: entity,
             part: part
         );
 
-    public static RenderSnapshot Snapshot(Vector3 sunDirection, float sunIntensity = 3f)
+    /// <summary>How far the test star of <see cref="Snapshot"/> stands from the camera, in m: about 1 AU.</summary>
+    public const double StarDistance = 1.5e11;
+
+    /// <summary>The angular radius of the test star, in rad: about that of the Sun seen from Earth.</summary>
+    public const float StarAngularRadius = 0.00467f;
+
+    /// <summary>The color of the test star, which scales its power per channel.</summary>
+    public static readonly Vector3 StarColor = new(1f, 0.96f, 0.9f);
+
+    /// <summary>
+    /// A snapshot with the camera at the origin, the test ambient light, and one light: the test star, a point light
+    /// <see cref="StarDistance"/> along <paramref name="starDirection"/> in the root (<see cref="TestChains.Root"/>, so
+    /// every map of the chain that a test gives the snapshot keeps it) that casts shadows, of the color
+    /// <see cref="StarColor"/>, whose power gives the irradiance <paramref name="starIrradiance"/> per unit of color at the
+    /// camera (<see cref="Star(RenderSnapshot)"/>).
+    /// </summary>
+    public static RenderSnapshot Snapshot(Vector3 starDirection, float starIrradiance = 3f)
     {
         var snapshot = new RenderSnapshot
         {
@@ -172,13 +196,6 @@ internal static class Gpu
                 PreviousRotation = Quaternion.Identity,
                 VerticalFov = Fov,
             },
-            Sun = new()
-            {
-                Direction = Vector3.Normalize(sunDirection),
-                Color = new(1f, 0.96f, 0.9f),
-                Intensity = sunIntensity,
-                AngularRadius = 0.00467f,
-            },
             Ambient = new()
             {
                 SkyColor = new(0.09f, 0.11f, 0.15f),
@@ -186,8 +203,131 @@ internal static class Gpu
                 Intensity = 1f,
             },
         };
+        snapshot.Lights.Add(
+            StarLight(
+                direction: starDirection,
+                irradiance: starIrradiance,
+                angularRadius: StarAngularRadius,
+                color: StarColor,
+                chainDepth: TestChains.Root
+            )
+        );
         return snapshot;
     }
+
+    /// <summary>
+    /// A star <see cref="StarDistance"/> from the camera along <paramref name="direction"/>, that casts shadows: the power
+    /// that gives the irradiance <paramref name="irradiance"/> per unit of <paramref name="color"/> at the camera,
+    /// 4π d² E, and the radius whose sphere covers <paramref name="angularRadius"/> there, d sin α. Its carrier is at
+    /// <paramref name="chainDepth"/>, which is <see cref="TestChains.Root"/> for a star of the root, as a real star is.
+    /// </summary>
+    public static PointRenderLight StarLight(
+        Vector3 direction,
+        float irradiance,
+        float angularRadius,
+        Vector3 color,
+        ushort chainDepth
+    )
+    {
+        Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
+        return new(
+            EntityIndex: 0,
+            Position: position,
+            PreviousPosition: position,
+            Color: color,
+            Power: (float)(4 * Math.PI * StarDistance * StarDistance * irradiance),
+            Radius: (float)(StarDistance * Math.Sin(angularRadius)),
+            CastsShadow: true,
+            ChainDepth: chainDepth
+        );
+    }
+
+    /// <summary>
+    /// A lamp of radius 0 at <paramref name="position"/> that casts no shadow, with the radiant intensity
+    /// <paramref name="intensity"/>, in W/sr per unit of <paramref name="color"/>: its power is 4π I. Its carrier is at
+    /// <paramref name="chainDepth"/>.
+    /// </summary>
+    public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity, ushort chainDepth) =>
+        new(
+            EntityIndex: 0,
+            Position: position,
+            PreviousPosition: position,
+            Color: color,
+            Power: (float)(4 * Math.PI * intensity),
+            Radius: 0,
+            CastsShadow: false,
+            ChainDepth: chainDepth
+        );
+
+    /// <summary>
+    /// A spot light of radius 0 at <paramref name="position"/> along <paramref name="direction"/> that casts no shadow,
+    /// with the radiant intensity <paramref name="intensity"/> inside its cone, in W/sr per unit of
+    /// <paramref name="color"/>: its power is I · 2π (1 − cos θo). Its carrier is at <paramref name="chainDepth"/>.
+    /// </summary>
+    public static SpotRenderLight Spot(
+        Vector3 position,
+        Vector3 direction,
+        Vector3 color,
+        float intensity,
+        float innerConeAngle,
+        float outerConeAngle,
+        ushort chainDepth
+    )
+    {
+        double sine = Math.Sin(outerConeAngle / 2.0);
+        return new(
+            EntityIndex: 0,
+            Position: position,
+            PreviousPosition: position,
+            Direction: direction,
+            PreviousDirection: direction,
+            Color: color,
+            Power: (float)(intensity * 4 * Math.PI * sine * sine),
+            Radius: 0,
+            CastsShadow: false,
+            InnerConeAngle: innerConeAngle,
+            OuterConeAngle: outerConeAngle,
+            ChainDepth: chainDepth
+        );
+    }
+
+    /// <summary>The test star of a snapshot that <see cref="Snapshot"/> made: its first light.</summary>
+    public static PointRenderLight Star(RenderSnapshot snapshot) =>
+        snapshot.Lights[0].TryGetValue(out PointRenderLight star)
+            ? star
+            : throw new InvalidOperationException("The snapshot's first light is not the test star.");
+
+    /// <summary>
+    /// Changes the test star of <paramref name="snapshot"/>: its irradiance at the camera per unit of color, its angular
+    /// radius, its color or its direction. Each one left out stays as it is.
+    /// </summary>
+    public static void Star(
+        RenderSnapshot snapshot,
+        float? irradiance = null,
+        float? angularRadius = null,
+        Vector3? color = null,
+        Vector3? direction = null
+    )
+    {
+        PointRenderLight star = Star(snapshot);
+        snapshot.Lights[0] = StarLight(
+            direction: direction ?? star.Position,
+            irradiance: irradiance ?? StarIrradiance(snapshot),
+            angularRadius: angularRadius ?? (float)Math.Asin(star.Radius / StarDistance),
+            color: color ?? star.Color,
+            chainDepth: star.ChainDepth
+        );
+    }
+
+    /// <summary>The irradiance of the test star at the camera per unit of its color, P / (4π d²).</summary>
+    public static float StarIrradiance(RenderSnapshot snapshot) =>
+        (float)(Star(snapshot).Power / (4 * Math.PI * StarDistance * StarDistance));
+
+    /// <summary>The irradiance of the test star at the camera per channel: its color times <see cref="StarIrradiance"/>.</summary>
+    public static Vector3 StarIrradianceRgb(RenderSnapshot snapshot) => Star(snapshot).Color * StarIrradiance(snapshot);
+
+    /// <summary>The unit direction from the camera toward the test star.</summary>
+    public static Vector3 StarDirection(RenderSnapshot snapshot) => Vector3.Normalize(Star(snapshot).Position);
 }
 
 /// <summary>
@@ -388,5 +528,16 @@ internal static class TestTextures
         }
 
         return new(Width: size, Height: size, Rgba: rgba, Srgb: false);
+    }
+}
+
+/// <summary>Scene batchers for the CPU tests.</summary>
+internal static class Batchers
+{
+    /// <summary>A batcher with the exposure and the cascaded light budget of a renderer made with default options.</summary>
+    public static SceneBatcher Default()
+    {
+        var options = new RendererOptions();
+        return new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
     }
 }

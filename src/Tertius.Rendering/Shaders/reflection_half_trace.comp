@@ -1,0 +1,45 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+// The half-resolution trace of the screen-space reflections (docs/plans/screen-space-reflections.md, "The
+// half-resolution trace"): texel (i, j) stands for the block of pixels from (2i, 2j) to (2i + 1, 2j + 1), and holds the
+// result of the ray of its representative pixel (2i, 2j), as the full-resolution trace computes it, and the view depth of
+// the ray's hit, which the upsample compares between texels. The texel's class is in its coverage: −1 when that pixel
+// starts no ray, 0 for a miss, at least 2^-14 for a hit. A miss and no ray store a depth of 0.
+#include "reflection_ray.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D tracedImage;  // ⌈W / 2⌉ × ⌈H / 2⌉
+layout(set = 3, binding = 5, r32f) uniform writeonly image2D hitDepthImage;   // the same size
+
+const float TexelSide = 2.0;  // in pixels: one ray for each block of 2 × 2
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(texel, imageSize(tracedImage))))
+        return;
+    // Inside the screen: the image rounds the screen's size up, so 2i is at most W − 1.
+    ivec2 representative = 2 * texel;
+    ReflectingPixel p;
+    if (!reflectingPixel(representative, p))
+    {
+        imageStore(tracedImage, texel, vec4(0.0, 0.0, 0.0, -1.0));
+        imageStore(hitDepthImage, texel, vec4(0.0));
+        return;
+    }
+    vec4 rayResult;
+    float hitDepth;
+    // A miss keeps the ambient specular term: no radiance, no coverage and no depth. So does a hit whose coverage is not
+    // a normal half float, such as one that meets a slab from behind (q = 1): a driver may flush a smaller coverage to 0,
+    // or a rounding may make it negative, so the upsample would class it differently on each GPU.
+    bool hit = traceReflection(p, TexelSide, rayResult, hitDepth) && rayResult.a >= SmallestNormalHalf;
+    if (!hit)
+    {
+        rayResult = vec4(0.0);
+        hitDepth = 0.0;
+    }
+    imageStore(tracedImage, texel, rayResult);
+    imageStore(hitDepthImage, texel, vec4(hitDepth));
+}

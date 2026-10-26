@@ -28,10 +28,15 @@ public sealed class DropBoxSceneTests : IDisposable
     }
 
     [Fact]
-    public void TheSceneNamesItsSunAsTheFrameThatTheLightComesFrom()
+    public void TheScenesSunIsAStarThatCastsShadows()
     {
         SceneInstance scene = Build();
 
-        world.SunFrame.Should().Be(world.GetOwnedFrame(scene["sun"]));
+        world
+            .GetRender(scene["sun"])
+            .Light.Value.Should()
+            .BeOfType<PointLightData>()
+            .Which.CastsShadow.Should()
+            .BeTrue();
     }
 }

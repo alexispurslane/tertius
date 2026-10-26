@@ -26,11 +26,15 @@ public readonly record struct AutoExposure(
     float IntoLightSeconds
 )
 {
-    /// <summary>The renderer's default: −8 to +8 stops, no compensation, a tenth dropped at each end, 3 s into the dark and 1 s into the light.</summary>
+    /// <summary>
+    /// The renderer's default: −14 to +10 stops, no compensation, a tenth dropped at each end, 3 s into the dark and 1 s
+    /// into the light. The clamp keeps 3 stops beyond a sunlit hull at 1 AU and beyond a lamp-lit cabin
+    /// (docs/plans/local-light-shadows.md, decision 42).
+    /// </summary>
     public static AutoExposure Default =>
         new(
-            MinStops: -8,
-            MaxStops: 8,
+            MinStops: -14,
+            MaxStops: 10,
             CompensationStops: 0,
             DarkShare: 0.1f,
             BrightShare: 0.1f,

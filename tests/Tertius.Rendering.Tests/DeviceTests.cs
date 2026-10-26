@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -17,7 +18,8 @@ public sealed class DeviceTests
     [Fact]
     public void EmptySceneRendersStarsOnBlack()
     {
-        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180);
+        // The stars are physical, at most about 3 · 2⁻¹⁰ W/(m²·sr) at their peaks, so 10 stops show them.
+        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, exposure: new FixedExposure(10));
         try
         {
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0));
@@ -51,7 +53,8 @@ public sealed class DeviceTests
     [Fact]
     public void TheStarsStayFixedToTheRootFramesAxesWhateverFrameTheCameraRidesIn()
     {
-        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180);
+        // 10 stops show the physical stars.
+        VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, exposure: new FixedExposure(10));
         try
         {
             // The same view of the sky, from a camera in the root frame and from one in a frame turned by `turn`: in the
@@ -60,11 +63,11 @@ public sealed class DeviceTests
                 Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f)
                 * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f);
             var turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new(1, 1, 0)), 0.7f);
-            RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             inRoot.Camera.Rotation = inRoot.Camera.PreviousRotation = view;
-            RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
-            inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
+            TestChains.UnderTurnedRoot(inTurned, Quaternion.Conjugate(turn));
 
             HashSet<(int X, int Y)> rootStars = Stars(
                 Gpu.RenderAndCapture(renderer: renderer, snapshot: inRoot, name: "stars-root")
@@ -167,7 +170,7 @@ public sealed class DeviceTests
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
-            renderer.ReadShadowCascade(0).Should().HaveCount(1024 * 1024);
+            renderer.ReadShadowCascade(set: 0, cascade: 0).Should().HaveCount(1024 * 1024);
         }
         finally
         {

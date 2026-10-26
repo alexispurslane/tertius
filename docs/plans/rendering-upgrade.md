@@ -18,9 +18,10 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
 | `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
 | `ter-jxv9` | Screen-space reflections | PBR, exposure | [screen-space-reflections.md](screen-space-reflections.md) |
-| `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
+| `ter-s9cv` | Shadows of every light: lights in SI units instead of one sun (`ter-bpvl`), and point and spot light shadows | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
 | `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
+| `ter-uy7y` | Environment maps per frame on the camera's chain, so that a lit interior does not light the outdoors seen through its windows | The environment map | [environment-maps-per-frame.md](environment-maps-per-frame.md) |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
 | `ter-pq5y` | The coda: profile every pass and hold the whole frame to 12 ms of GPU time at 1080p | Every member above | [rendering-performance.md](rendering-performance.md) |
@@ -70,4 +71,4 @@ Run one measurement at a time, with no other build or test on the machine, becau
 
 ## Out of scope
 
-Local reflection probes: maps placed by the scene for each room, with influence boxes and parallax correction. The one map at the camera of `ter-nl5u` is the image-based lighting of this epic ([environment-map.md](environment-map.md), "Later"), and SSR falls back to it where a ray leaves the screen.
+Local reflection probes: maps placed by the scene for each room, with influence boxes and parallax correction. The maps at the camera's eye of `ter-nl5u`, one for each semantic frame on the camera's chain since `ter-uy7y` ([environment-maps-per-frame.md](environment-maps-per-frame.md)), are the image-based lighting of this epic. They replace probes per room: a room is a semantic frame, and its map lights it ([environment-map.md](environment-map.md), "Later"). SSR falls back to them where a ray leaves the screen.

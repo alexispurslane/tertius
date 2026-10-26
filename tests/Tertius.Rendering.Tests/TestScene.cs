@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -212,23 +213,23 @@ internal sealed class TestScene
         );
 
         snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: new(-0.4f, 0.4f, -4.4f),
-                Color: new(1f, 0.7f, 0.4f),
-                Intensity: 6f,
-                Range: 10f
+            Gpu.Lamp(
+                position: new(-0.4f, 0.4f, -4.4f),
+                color: new(1f, 0.7f, 0.4f),
+                intensity: 6f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         Vector3 spotPosition = new(2.5f, 3.5f, -4.2f);
         snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: spotPosition,
-                Direction: Vector3.Normalize(BlueSphere - spotPosition),
-                Color: new(0.6f, 0.8f, 1f),
-                Intensity: 40f,
-                Range: 15f,
-                InnerConeAngle: 0.25f,
-                OuterConeAngle: 0.4f
+            Gpu.Spot(
+                position: spotPosition,
+                direction: Vector3.Normalize(BlueSphere - spotPosition),
+                color: new(0.6f, 0.8f, 1f),
+                intensity: 40f,
+                innerConeAngle: 0.25f,
+                outerConeAngle: 0.4f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;

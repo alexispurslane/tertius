@@ -73,7 +73,7 @@ public sealed class PuffRenderTests
                 Reflectance = 0f,
             }
         );
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), sunIntensity: 0.5f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), starIrradiance: 0.5f);
         snapshot.Instances.Add(
             Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
         );
@@ -156,7 +156,7 @@ public sealed class PuffRenderTests
                 Reflectance = 0f,
             }
         );
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), sunIntensity: 0.6f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), starIrradiance: 0.6f);
         snapshot.Instances.Add(
             Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
         );
@@ -237,7 +237,7 @@ public sealed class PuffRenderTests
                 Reflectance = 0f,
             }
         );
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.7f, 0.6f), sunIntensity: 1.5f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.7f, 0.6f), starIrradiance: 1.5f);
         snapshot.Camera.Rotation = SoftCamera;
         snapshot.Camera.PreviousRotation = SoftCamera;
         snapshot.Instances.Add(
@@ -336,7 +336,7 @@ public sealed class PuffRenderTests
                 Reflectance = 0f,
             }
         );
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), sunIntensity: 2f);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), starIrradiance: 2f);
         snapshot.Instances.Add(
             Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000), scale: new(30_000, 1, 30_000))
         );

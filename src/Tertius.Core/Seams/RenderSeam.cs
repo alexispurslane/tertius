@@ -67,11 +67,13 @@ public enum RenderFlags : uint
     Visible = 1 << 0,
 
     /// <summary>
-    /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
-    /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows, which have its real shape, onto
-    /// what is within 2 km. Every caster also shadows as an analytic sphere of its bounding radius, a far shadow, where the
-    /// maps do not reach, when it is big enough to notice. A sphere never shadows what lies inside it, so a caster never
-    /// shadows itself. Leave it off the sun itself.
+    /// Casts shadows from every light that casts shadows, whether or not the instance is <see cref="Visible"/>, and onto
+    /// objects in any frame. For a far light with a cascade set, a caster whose bounding sphere comes within 2 km of the
+    /// camera casts shadow-map shadows, which have its real shape, onto what is within 2 km. Every caster also shadows as an
+    /// analytic sphere of its bounding radius, a far shadow of a far light, where the maps do not reach, when it is big
+    /// enough to notice. A sphere never shadows what lies inside it, so a caster never shadows itself. For a near light with
+    /// tiles of the local shadow atlas, a caster within the light's reach casts shadows of its real shape. Leave it off a
+    /// light's own emitter, such as a lamp's bulb or panel, so that it does not darken its own light.
     /// </summary>
     CastsShadow = 1 << 1,
 
@@ -93,7 +95,7 @@ public enum RenderFlags : uint
 /// The previous transform uses the same origin, so the render thread can interpolate. A zeroed instance is not
 /// drawable (zero scale and zero rotations), so build instances with <see cref="Create"/>.
 /// Below 200 px of projected height, the renderer may draw the object from a baked capture (an impostor). An
-/// impostor keeps its sun, ambient, eclipse and point or spot lighting, but receives no shadow-map shadows.
+/// impostor keeps its lights, ambient light and far shadows, but receives no shadow-map shadows.
 /// </summary>
 public struct RenderInstance
 {
@@ -102,6 +104,12 @@ public struct RenderInstance
 
     /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
+
+    /// <summary>
+    /// The depth of the object's chain frame: the nearest frame of <see cref="RenderSnapshot.Chain"/> at or above the frame
+    /// that holds it, 0 for the camera's frame (docs/plans/environment-maps-per-frame.md).
+    /// </summary>
+    public ushort ChainDepth;
 
     public MeshId Mesh;
     public MaterialId Material;
@@ -130,6 +138,7 @@ public struct RenderInstance
         Vector3 scale,
         float boundingRadius,
         HemisphereUp hemisphere,
+        ushort chainDepth,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
         ushort part = 0
@@ -138,6 +147,7 @@ public struct RenderInstance
         {
             EntityIndex = entityIndex,
             Part = part,
+            ChainDepth = chainDepth,
             Mesh = mesh,
             Material = material,
             Flags = flags,
@@ -151,6 +161,15 @@ public struct RenderInstance
         };
 }
 
+/// <summary>
+/// A frame of the camera's chain (docs/plans/environment-maps-per-frame.md): its id, and its axes in the axes of the
+/// camera's frame.
+/// </summary>
+/// <param name="FrameId">The frame's generation in the high 32 bits and its index in the low 32 bits.</param>
+/// <param name="Rotation">The frame's axes in the axes of the camera's frame: it turns a direction in the frame's axes into world axes.</param>
+/// <param name="PreviousRotation"><paramref name="Rotation"/> at the previous build, or the same rotation when the build does not interpolate.</param>
+public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation, Quaternion PreviousRotation);
+
 /// <summary>The camera. Its current position is the render origin, so <see cref="Position"/> is zero.</summary>
 public struct RenderCamera
 {
@@ -161,22 +180,6 @@ public struct RenderCamera
 
     /// <summary>Vertical field of view in radians.</summary>
     public float VerticalFov;
-}
-
-/// <summary>The sun as a directional light.</summary>
-public struct RenderSun
-{
-    /// <summary>From the camera toward the sun. It need not be normalized, but it must not be zero.</summary>
-    public Vector3 Direction;
-
-    /// <summary>Linear RGB.</summary>
-    public Vector3 Color;
-
-    /// <summary>Irradiance. Zero or less disables the sun, including its shadow pass.</summary>
-    public float Intensity;
-
-    /// <summary>The sun's apparent angular radius, in radians. It sets the softness of eclipse edges.</summary>
-    public float AngularRadius;
 }
 
 public struct AmbientLight
@@ -203,23 +206,24 @@ public sealed class RenderSnapshot
     /// </summary>
     public Double3 OriginInFrame;
 
-    /// <summary>An opaque id of the camera's reference frame. It changes when the camera changes frame.</summary>
-    public long OriginFrameId;
-
-    public RenderSun Sun;
     public AmbientLight Ambient;
 
     /// <summary>
-    /// The axes of the root frame of the camera's frame tree, in the axes of the camera's frame: it turns a direction
-    /// in root axes into world axes. The star field is fixed to the root's axes. Identity without a camera.
+    /// The chain: the camera's frame first, then each semantic parent up to the root of its tree. Empty without a camera.
     /// </summary>
-    public Quaternion RootRotation;
+    public readonly List<RenderChainFrame> Chain = [];
+
+    /// <summary>The id of the camera's frame, the first of <see cref="Chain"/>. 0 without a camera.</summary>
+    public long OriginFrameId => Chain.Count > 0 ? Chain[0].FrameId : 0;
 
     /// <summary>
-    /// <see cref="RootRotation"/> at the previous snapshot, for interpolation, or the same rotation when the camera
-    /// changed frame or did not interpolate.
+    /// The axes of the root frame of the camera's frame tree, the last of <see cref="Chain"/>, in the axes of the camera's
+    /// frame. The star field is fixed to the root's axes. Identity without a camera.
     /// </summary>
-    public Quaternion PreviousRootRotation;
+    public Quaternion RootRotation => Chain.Count > 0 ? Chain[^1].Rotation : Quaternion.Identity;
+
+    /// <summary><see cref="RootRotation"/> at the previous build, by the rule of <see cref="RenderChainFrame.PreviousRotation"/>.</summary>
+    public Quaternion PreviousRootRotation => Chain.Count > 0 ? Chain[^1].PreviousRotation : Quaternion.Identity;
 
     public readonly List<RenderInstance> Instances = [];
     public readonly List<RenderLight> Lights = [];
@@ -241,9 +245,10 @@ public sealed class RenderSnapshot
     /// </summary>
     public float PuffAgeStep;
 
-    /// <summary>Empties the lists of the snapshot and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
+    /// <summary>Empties the lists of the snapshot, the chain among them, and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
     public void Clear()
     {
+        Chain.Clear();
         Instances.Clear();
         Lights.Clear();
         Outlines.Clear();

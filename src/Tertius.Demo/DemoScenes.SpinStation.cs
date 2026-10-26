@@ -44,9 +44,10 @@ public static partial class DemoScenes
     /// the throw run across its frame, spinward to the left. <c>wide</c> stands 8 m above the floor, 25 m antispinward, and
     /// looks up the ring.</item>
     /// <item>Lamps on both walls, 3.8 m above the floor, one on each wall over every fourth joint, light the floor all
-    /// round the ring. A dim sun, the frame <c>sun</c> at rest in the station 25 m along its +Y from its center, shines from
-    /// near the axis down onto the floor near the views and turns with the station, so the person and the crates cast
-    /// shadows there. The ring and the walls cast none, because the far side of the ring would shade the floor.</item>
+    /// round the ring. The dim <c>hub-lamp</c>, a point light at rest in the station on its spin axis 25 m along +Y from its
+    /// center, lights the floor radially with 0.6 W/m² and turns with the station. It casts shadows once the shadow atlas
+    /// gives point lights shadows, so the person and the crates will cast them there. The ring and the walls cast
+    /// none.</item>
     /// </list>
     /// </summary>
     public static class SpinStation
@@ -81,6 +82,15 @@ public static partial class DemoScenes
         private const int LampEvery = 4;
 
         private const double LampHeight = 3.8;
+
+        /// <summary>How far the hub lamp sits from the station's center along its +Y spin axis, in meters.</summary>
+        private const double HubLampHeight = 25;
+
+        /// <summary>The irradiance that the hub lamp sends to the floor, in W/m²: a dim light, as the old sun was.</summary>
+        private const double HubLampFloorIrradiance = 0.6;
+
+        /// <summary>How far the floor lies from the hub lamp, in meters: about √(100² + 25²).</summary>
+        private const double HubLampReach = 103;
 
         /// <summary>The angle of one facet of the floor, in radians.</summary>
         private static double Facet => Math.Tau / Segments;
@@ -152,7 +162,29 @@ public static partial class DemoScenes
             var scene = new SceneInstance();
             FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
             scene.Add("space", space);
+            FrameHandle frame = SpawnStation(world: world, resources: resources, scene: scene, space: space);
+            SpawnWalls(world: world, resources: resources, scene: scene, frame: frame);
+            SpawnWallLamps(world, resources, frame);
+            SpawnPerson(world: world, resources: resources, scene: scene, frame: frame);
+            SpawnCrates(world: world, resources: resources, scene: scene, frame: frame);
+            SpawnViews(world, scene, frame);
+            Light(world, scene, frame);
 
+            scene.AddView("view");
+            scene.AddView("side");
+            scene.AddView("wide");
+            scene.AddView("person");
+            return scene;
+        }
+
+        /// <summary>The turning ring <c>station</c> in <paramref name="space"/>. Returns its frame.</summary>
+        private static FrameHandle SpawnStation(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle space
+        )
+        {
             // The station turns from its first step: its spawn carries the spin's sample of the step of the next tick, and
             // its SpinMotion writes the samples from the second step on. A kinematic hull keeps its spawn velocities as its
             // frame's velocities.
@@ -189,8 +221,12 @@ public static partial class DemoScenes
                 }
             );
             scene.Add("station", station);
-            FrameHandle frame = world.GetOwnedFrame(station);
+            return world.GetOwnedFrame(station);
+        }
 
+        /// <summary>The two walls at the ring's edges.</summary>
+        private static void SpawnWalls(World world, IRenderResources resources, SceneInstance scene, FrameHandle frame)
+        {
             var wall = RevolvedSolid.Ring(
                 innerRadius: FloorRadius - WallHeight,
                 outerRadius: FloorRadius,
@@ -223,17 +259,15 @@ public static partial class DemoScenes
                         }
                     )
                 );
+        }
 
-            // Each lamp is a glowing panel on the inner face of a wall, with its light just in front of it.
+        /// <summary>The lamps on both walls, one on each wall over every fourth joint.</summary>
+        private static void SpawnWallLamps(World world, IRenderResources resources, FrameHandle frame)
+        {
+            // Each lamp is a glowing panel 0.6 m by 1.2 m on the inner face of a wall, with a cabin lamp's light just in
+            // front of it.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
-            MaterialId lampMaterial = resources.CreateMaterial(
-                new(
-                    BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                    Roughness: UsualRoughness,
-                    Reflectance: 0,
-                    Emissive: new(6, 5.4f, 4.5f)
-                )
-            );
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 0.6f * 1.2f);
             for (int k = 0; k < Segments; k += LampEvery)
             {
                 double theta = k * Facet,
@@ -257,17 +291,16 @@ public static partial class DemoScenes
                                 Material = lampMaterial,
                                 BoundingRadius = 0.85f,
                                 Flags = RenderFlags.Visible,
-                                Light = new PointLightData(
-                                    Offset: new(new((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity),
-                                    Color: new(1, 0.92f, 0.8f),
-                                    Intensity: 80,
-                                    Range: 18
-                                ),
+                                Light = LampLight(offset: new((float)-side * 0.3f, -0.3f, 0), power: CabinLampPower),
                             },
                         }
                     );
             }
+        }
 
+        /// <summary>The <c>person</c> on facet 0.</summary>
+        private static void SpawnPerson(World world, IRenderResources resources, SceneInstance scene, FrameHandle frame)
+        {
             // The person stands on the middle of facet 0, 2 cm above the floor, upright and facing spinward. Physics turns
             // its up against the effective gravity, which points away from the axis.
             var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
@@ -290,7 +323,11 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
+        /// <summary>The <c>carried-crate</c> and the <c>dropped-crate</c>.</summary>
+        private static void SpawnCrates(World world, IRenderResources resources, SceneInstance scene, FrameHandle frame)
+        {
             // The person's left is the station's -Y: its up is toward the axis and its forward spinward.
             var crate = new CrateSpec(
                 HalfExtents: new(CrateHalfSize),
@@ -330,7 +367,11 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
+        /// <summary>The views <c>view</c>, the camera at the start, <c>side</c> and <c>wide</c>.</summary>
+        private static void SpawnViews(World world, SceneInstance scene, FrameHandle frame)
+        {
             Entity view = world.Spawn(
                 new()
                 {
@@ -363,30 +404,37 @@ public static partial class DemoScenes
                 )
             );
             world.Camera = view;
+        }
 
-            Entity sun = world.Spawn(
-                new()
-                {
-                    Frame = frame,
-                    Pose = new(new(0, 25, 0), DQuaternion.Identity),
-                    AsFrame = new(FrameBounds.Sphere(1)),
-                }
+        /// <summary>The <c>hub-lamp</c> on the spin axis and the dim ambient light.</summary>
+        private static void Light(World world, SceneInstance scene, FrameHandle frame)
+        {
+            scene.Add(
+                "hub-lamp",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = frame,
+                        Pose = new(new(0, HubLampHeight, 0), DQuaternion.Identity),
+                        Render = new RenderData
+                        {
+                            Light = new PointLightData(
+                                Offset: new(Vector3.Zero, Quaternion.Identity),
+                                Color: Vector3.One,
+                                Power: (float)(HubLampFloorIrradiance * 4 * Math.PI * HubLampReach * HubLampReach),
+                                Radius: LampRadius,
+                                CastsShadow: true
+                            ),
+                        },
+                    }
+                )
             );
-            scene.Add("sun", sun);
-            world.SunFrame = world.GetOwnedFrame(sun);
-            world.SunIntensity = 0.6f;
             world.Ambient = new()
             {
                 SkyColor = new(0.12f),
                 GroundColor = new(0.12f),
                 Intensity = 1,
             };
-
-            scene.AddView("view");
-            scene.AddView("side");
-            scene.AddView("wide");
-            scene.AddView("person");
-            return scene;
         }
     }
 }

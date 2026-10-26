@@ -3,8 +3,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// A 2D image, a 2D array image or a cube image, with one view over all its mip levels and layers (a 2D array view when
-/// it has more than one layer, a cube view for a cube). Swapchain images are wrapped without owning memory.
+/// A 2D image, a 2D array image or a cube array image, with one view over all its mip levels and layers (a 2D array view
+/// when it has more than one layer, a cube array view for a cube array). Swapchain images are wrapped without owning
+/// memory.
 /// </summary>
 internal sealed unsafe class GpuImage : IDisposable
 {
@@ -58,10 +59,13 @@ internal sealed unsafe class GpuImage : IDisposable
     /// <summary>
     /// Creates an image with its own memory. Its view is a 2D array view when it has more than one layer or when
     /// <paramref name="arrayView"/> is set, so shaders that declare an array can read a single-layer image too. With
-    /// <paramref name="cube"/>, the image is cube-compatible with six square layers, and its view is a cube. With
+    /// <paramref name="cubeArray"/>, the image is cube-compatible with square layers, six for each cube, and its view is a
+    /// cube array, which needs the device feature imageCubeArray. With
     /// <paramref name="mutableFormat"/>, <see cref="CreateFormatView"/> can view it in another format of its class.
     /// </summary>
-    /// <exception cref="ArgumentException"><paramref name="cube"/> is set for an image that is not six square layers.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="cubeArray"/> is set for an image whose layers are not square or not a multiple of six.
+    /// </exception>
     public static GpuImage Create(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -72,14 +76,14 @@ internal sealed unsafe class GpuImage : IDisposable
         string name,
         uint arrayLayers = 1,
         bool arrayView = false,
-        bool cube = false,
+        bool cubeArray = false,
         bool mutableFormat = false
     )
     {
-        CheckShape(extent: extent, arrayLayers: arrayLayers, cube: cube);
+        CheckShape(extent: extent, arrayLayers: arrayLayers, cubeArray: cubeArray);
         ImageAspectFlags aspect = IsDepth(format) ? ImageAspectFlags.DepthBit : ImageAspectFlags.ColorBit;
         ImageCreateFlags flags =
-            (cube ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
+            (cubeArray ? ImageCreateFlags.CreateCubeCompatibleBit : 0)
             | (mutableFormat ? ImageCreateFlags.CreateMutableFormatBit : 0);
         Image image = CreateHandle(
             device: device,
@@ -96,7 +100,7 @@ internal sealed unsafe class GpuImage : IDisposable
         {
             memory = BindMemory(device: device, allocator: allocator, image: image, name: name);
             allocated = true;
-            ImageViewType viewType = ViewTypeOf(cube: cube, arrayed: arrayLayers > 1 || arrayView);
+            ImageViewType viewType = ViewTypeOf(cubeArray: cubeArray, arrayed: arrayLayers > 1 || arrayView);
             ImageView view = CreateView(
                 device: device,
                 image: image,
@@ -133,16 +137,18 @@ internal sealed unsafe class GpuImage : IDisposable
         }
     }
 
-    /// <exception cref="ArgumentException"><paramref name="cube"/> is set for an image that is not six square layers.</exception>
-    private static void CheckShape(Extent2D extent, uint arrayLayers, bool cube)
+    /// <exception cref="ArgumentException">
+    /// <paramref name="cubeArray"/> is set for an image whose layers are not square or not a multiple of six.
+    /// </exception>
+    private static void CheckShape(Extent2D extent, uint arrayLayers, bool cubeArray)
     {
         if (extent.Width == 0 || extent.Height == 0)
             throw new ArgumentOutOfRangeException(nameof(extent), "Images must be at least 1x1.");
         ArgumentOutOfRangeException.ThrowIfZero(arrayLayers);
-        bool cubeShaped = arrayLayers == 6 && extent.Width == extent.Height;
-        if (cube && !cubeShaped)
+        bool cubesShaped = arrayLayers % 6 == 0 && extent.Width == extent.Height;
+        if (cubeArray && !cubesShaped)
             throw new ArgumentException(
-                $"A cube has six square layers, not {arrayLayers} of {extent.Width}×{extent.Height}."
+                $"A cube array has square layers, six per cube, not {arrayLayers} of {extent.Width}×{extent.Height}."
             );
     }
 
@@ -282,11 +288,11 @@ internal sealed unsafe class GpuImage : IDisposable
         return view;
     }
 
-    /// <summary>The type of an image's own view: a cube, a 2D array, or a plain 2D view.</summary>
-    private static ImageViewType ViewTypeOf(bool cube, bool arrayed)
+    /// <summary>The type of an image's own view: a cube array, a 2D array, or a plain 2D view.</summary>
+    private static ImageViewType ViewTypeOf(bool cubeArray, bool arrayed)
     {
-        if (cube)
-            return ImageViewType.TypeCube;
+        if (cubeArray)
+            return ImageViewType.TypeCubeArray;
         return arrayed ? ImageViewType.Type2DArray : ImageViewType.Type2D;
     }
 

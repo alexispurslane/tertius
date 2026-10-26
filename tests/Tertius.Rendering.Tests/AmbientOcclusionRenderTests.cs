@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -202,7 +203,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             {
                 // The map's light alone: no sun, no hemisphere, and a glowing ceiling high above the corner, which the
                 // map holds above its horizon.
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
                 snapshot.Ambient.Intensity = 0;
                 AddSlab(
                     snapshot: snapshot,
@@ -242,10 +243,15 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         (Capture on, Capture off) = OnAndOff(
             renderer =>
             {
-                RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), sunIntensity: 3);
+                RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), starIrradiance: 3);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Lights.Add(
-                    new PointRenderLight(Position: new(-1.5f, -1, -4.5f), Color: Vector3.One, Intensity: 5, Range: 5)
+                    Gpu.Lamp(
+                        position: new(-1.5f, -1, -4.5f),
+                        color: Vector3.One,
+                        intensity: 5,
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
                 return Corner(renderer, Matte(renderer), snapshot);
             },
