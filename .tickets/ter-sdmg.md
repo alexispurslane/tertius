@@ -1,6 +1,6 @@
 ---
 id: ter-sdmg
-status: open
+status: in_progress
 deps: [ter-q218]
 links: []
 created: 2026-10-26T13:03:44Z

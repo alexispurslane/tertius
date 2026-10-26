@@ -1,6 +1,6 @@
 ---
 id: ter-qt5d
-status: open
+status: in_progress
 deps: [ter-q218]
 links: []
 created: 2026-10-26T12:43:56Z
