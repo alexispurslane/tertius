@@ -371,8 +371,9 @@ internal struct DepthTailPushConstants
 }
 
 /// <summary>
-/// The push constants of reflection_trace.comp: the setting of the reflections (docs/plans/screen-space-reflections.md,
-/// "Descriptor sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
+/// The push constants of reflection_trace.comp, reflection_half_trace.comp and reflection_upsample.comp, which share the
+/// block of reflection_pixel.glsl: the setting of the reflections (docs/plans/screen-space-reflections.md, "Descriptor
+/// sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ReflectionPushConstants

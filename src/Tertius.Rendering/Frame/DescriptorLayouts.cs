@@ -37,7 +37,8 @@ namespace Tertius.Rendering;
 /// <item><term>depth tail</term><description>set 3 of <see cref="DepthTailLayout"/> for the tail of the depth pyramid's
 /// build: the mip before the tail and the tail's mips. One, rewritten on resize.</description></item>
 /// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
-/// sampler (immutable) and the HDR image as a storage image, for the trace. One, rewritten on resize.</description></item>
+/// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image as a storage image at
+/// binding 4, for the trace and the upsample. One, rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
@@ -223,7 +224,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public PipelineLayout DepthTailLayout { get; }
 
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace.</summary>
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace and the upsample.</summary>
     public PipelineLayout ReflectionLayout { get; }
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);

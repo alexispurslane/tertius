@@ -24,11 +24,20 @@ public sealed class DepthPyramidTailTests
         };
 
     [Fact]
-    public void TheTailOfA1080pDepthPyramidStartsAtItsMipOf16By16()
-    {
+    public void ADeviceWithTheSpecsMinimumOfFourStorageImagesInAStageCannotBuildTheTail() =>
+        DepthPyramidTail
+            .StorageImageProblem(maxPerStageStorageImages: 4)
+            .Should()
+            .Contain("10 storage images", "the tail binds one storage image for each of its mips");
+
+    [Fact]
+    public void ADeviceWithAStorageImageInAStageForEachMipOfTheTailCanBuildIt() =>
+        DepthPyramidTail.StorageImageProblem(maxPerStageStorageImages: DepthPyramidTail.Mips).Should().BeNull();
+
+    [Fact]
+    public void TheTailOfA1080pDepthPyramidStartsAtItsMipOf16By16() =>
         // At 1920 × 1080 the depth image is padded to 1024 × 1024 (ReflectionTargets.DepthImageExtent).
         DepthPyramidTail.FirstMip(new Extent2D(1024, 1024), mipCount: 11).Should().Be(6, "mip 5 is 32 × 32");
-    }
 
     [Theory]
     [MemberData(nameof(Images))]
@@ -47,16 +56,12 @@ public sealed class DepthPyramidTailTests
     }
 
     [Fact]
-    public void MipZeroIsBuiltOnItsOwnEvenWhenOneWorkgroupHoldsIt()
-    {
+    public void MipZeroIsBuiltOnItsOwnEvenWhenOneWorkgroupHoldsIt() =>
         DepthPyramidTail.FirstMip(new Extent2D(32, 32), mipCount: 6).Should().Be(1, "mip 0 reads the distance target");
-    }
 
     [Fact]
-    public void AnImageOfOneMipHasNoTail()
-    {
+    public void AnImageOfOneMipHasNoTail() =>
         DepthPyramidTail.FirstMip(new Extent2D(1, 1), mipCount: 1).Should().Be(1, "the only mip is mip 0");
-    }
 
     [Theory]
     [MemberData(nameof(Images))]

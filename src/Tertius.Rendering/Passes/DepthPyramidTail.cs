@@ -31,6 +31,15 @@ internal sealed unsafe class DepthPyramidTail : IDisposable
         }.Create(device, shaders);
     }
 
+    /// <summary>
+    /// Why a device that binds at most <paramref name="maxPerStageStorageImages"/> storage images in one shader stage
+    /// cannot build the tail, or null when it can: the tail binds <see cref="Mips"/>, and Vulkan guarantees only 4.
+    /// </summary>
+    internal static string? StorageImageProblem(uint maxPerStageStorageImages) =>
+        maxPerStageStorageImages < Mips
+            ? $"The depth pyramid's tail binds {Mips} storage images in one compute stage, above the device's maxPerStageDescriptorStorageImages of {maxPerStageStorageImages}."
+            : null;
+
     /// <summary>The first mip of <paramref name="image"/> that the tail builds, or its mip count for none.</summary>
     internal static int FirstMip(GpuImage image) => FirstMip(image.Extent, image.MipLevels);
 

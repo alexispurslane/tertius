@@ -24,3 +24,7 @@ A profile of each pass, the changes that it justifies, and the cost measured aga
 **2026-10-25T23:20:19Z**
 
 2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.
+
+**2026-10-26T12:39:32Z**
+
+2026-10-26, the user's two decisions: (1) the half-resolution trace stays the default; the user saw the 2x crops of the mirror spheres, whose reflected edges step by 2 pixels, and the cabin side by side, and accepted them. Full resolution stays the setting TraceResolution.Full. (2) The 0.27 ms over the reflections' own 3 ms goal gets no more work: the three passes take 3.27 ms in the mean of two traces (3.29 and 3.25 ms), the demo-exit frame span is 9.76 ms, under the 12 ms budget, and the coda's whole-frame part (ter-3g1g) shares out the budget.

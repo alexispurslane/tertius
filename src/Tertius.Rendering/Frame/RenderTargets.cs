@@ -158,7 +158,8 @@ internal sealed class RenderTargets : IDisposable
             CheckReflectedScreen(extent);
         DestroyImages();
         Create(extent: extent, hdrStorage: Reflections is not null);
-        Reflections?.Create(extent, Hdr);
+        // The trace keeps its resolution across a resize.
+        Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
         Smaa?.Resize(extent);
     }
 
@@ -184,7 +185,7 @@ internal sealed class RenderTargets : IDisposable
     {
         Extent = extent;
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
-        Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal");
+        Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
@@ -327,10 +328,16 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The builds write both pyramids as storage images and the trace samples them, the radiance pyramid trilinearly, and
-    /// the trace writes the HDR target as a storage image.
+    /// the trace writes the HDR target as a storage image. The depth pyramid's tail binds more storage images in one stage
+    /// than Vulkan guarantees.
     /// </summary>
     private static void CheckReflectionFormats(VulkanDevice device)
     {
+        if (
+            DepthPyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
+            { } storageImages
+        )
+            throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
         const FormatFeatureFlags radiance = pyramid | FormatFeatureFlags.SampledImageFilterLinearBit;
         if ((device.FormatProperties(ReflectionTargets.DepthFormat).OptimalTilingFeatures & pyramid) != pyramid)

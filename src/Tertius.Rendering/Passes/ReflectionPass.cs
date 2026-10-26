@@ -3,59 +3,91 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>The compute steps of the reflections after the pyramids, by the trace's resolution (docs/plans/screen-space-reflections.md, "The passes").</summary>
+/// <summary>The compute steps of the reflections after the pyramids (docs/plans/screen-space-reflections.md, "The passes").</summary>
 internal enum ReflectionStep
 {
-    /// <summary>One ray per pixel, whose hit adds the reflection delta to the lit HDR image in place: "reflections".</summary>
-    FullResolutionTrace,
+    /// <summary>
+    /// The trace of the targets' <see cref="ReflectionTrace"/>: one ray per pixel whose hit adds the delta to the HDR image
+    /// in place, "reflections", or one ray per block of 2 × 2 pixels into the half-resolution trace, "reflection trace".
+    /// </summary>
+    Trace,
 
-    /// <summary>One ray per block of 2 × 2 pixels, from its top-left pixel, into the half-resolution trace: "reflection trace".</summary>
-    HalfResolutionTrace,
-
-    /// <summary>The joint bilateral upsample of the half-resolution trace, which adds the delta of each pixel: "reflections".</summary>
+    /// <summary>
+    /// The joint bilateral upsample of the half-resolution trace, which adds the delta of each pixel: "reflections". Only
+    /// over a <see cref="HalfTrace"/>.
+    /// </summary>
     Upsample,
 }
 
 /// <summary>
 /// One step of the reflections under <see cref="ConeTracedReflections"/> (docs/plans/screen-space-reflections.md, "The
-/// passes"): the full-resolution trace, or the half-resolution trace and its upsample. One invocation per pixel or
+/// passes"): the trace at the targets' resolution, or the half-resolution trace's upsample. One invocation per pixel or
 /// texel, in 8 × 8 workgroups, over sets 0 to 2 of the scene layout and the reflection set.
 /// </summary>
-internal sealed unsafe class ReflectionPass(
-    VulkanDevice device,
-    ShaderLibrary shaders,
-    DescriptorLayouts layouts,
-    ReflectionTargets targets,
-    ConeTracedReflections setting,
-    ReflectionStep step
-) : RenderPass
+internal sealed unsafe class ReflectionPass : RenderPass
 {
     /// <summary>The width and the height of a workgroup, the shaders' local size.</summary>
     private const uint GroupSize = 8;
 
-    private readonly Pipeline pipeline = new ComputePipelineDesc
-    {
-        Name = step switch
-        {
-            ReflectionStep.FullResolutionTrace => "reflection trace",
-            ReflectionStep.HalfResolutionTrace => "reflection half trace",
-            ReflectionStep.Upsample => "reflection upsample",
-        },
-        Shader = step switch
-        {
-            ReflectionStep.FullResolutionTrace => "reflection_trace.comp",
-            ReflectionStep.HalfResolutionTrace => "reflection_half_trace.comp",
-            ReflectionStep.Upsample => "reflection_upsample.comp",
-        },
-        Layout = layouts.ReflectionLayout,
-    }.Create(device, shaders);
+    private readonly VulkanDevice device;
+    private readonly DescriptorLayouts layouts;
+    private readonly ReflectionTargets targets;
+    private readonly ConeTracedReflections setting;
+    private readonly ReflectionStep step;
+    private readonly Pipeline pipeline;
 
-    public override string Name =>
-        step switch
+    /// <exception cref="ArgumentException"><paramref name="step"/> is the upsample, and the targets trace at full resolution.</exception>
+    public ReflectionPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ReflectionTargets targets,
+        ConeTracedReflections setting,
+        ReflectionStep step
+    )
+    {
+        // The targets keep the case of their trace on a resize, so the shader and the name hold for the pass's life.
+        (string name, string shader, string pipelineName) = step switch
         {
-            ReflectionStep.FullResolutionTrace or ReflectionStep.Upsample => "reflections",
-            ReflectionStep.HalfResolutionTrace => "reflection trace",
+            ReflectionStep.Trace => targets.Trace switch
+            {
+                FullTrace => (Name: "reflections", Shader: "reflection_trace.comp", PipelineName: "reflection trace"),
+                HalfTrace => (
+                    Name: "reflection trace",
+                    Shader: "reflection_half_trace.comp",
+                    PipelineName: "reflection half trace"
+                ),
+                null => throw new UnreachableException("The targets always hold a trace."),
+            },
+            ReflectionStep.Upsample => targets.Trace switch
+            {
+                HalfTrace => (
+                    Name: "reflections",
+                    Shader: "reflection_upsample.comp",
+                    PipelineName: "reflection upsample"
+                ),
+                FullTrace => throw new ArgumentException(
+                    "The upsample needs targets that trace at half resolution.",
+                    nameof(step)
+                ),
+                null => throw new UnreachableException("The targets always hold a trace."),
+            },
         };
+        this.device = device;
+        this.layouts = layouts;
+        this.targets = targets;
+        this.setting = setting;
+        this.step = step;
+        Name = name;
+        pipeline = new ComputePipelineDesc
+        {
+            Name = pipelineName,
+            Shader = shader,
+            Layout = layouts.ReflectionLayout,
+        }.Create(device, shaders);
+    }
+
+    public override string Name { get; }
 
     public override void Record(FrameContext context)
     {
@@ -107,24 +139,32 @@ internal sealed unsafe class ReflectionPass(
         barriers.Image(renderTargets.Occlusion, ImageUse.SampledCompute);
         switch (step)
         {
-            case ReflectionStep.FullResolutionTrace:
+            case ReflectionStep.Trace:
                 DeclarePyramids(barriers);
-                barriers.Image(renderTargets.Hdr, ImageUse.StorageCompute);
-                barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
-                break;
-            case ReflectionStep.HalfResolutionTrace:
-                DeclarePyramids(barriers);
-                // Every texel is written in each frame, after the last frame's upsample read it.
-                barriers.Image(TracedImage(), ImageUse.StorageCompute, discard: true);
+                switch (targets.Trace)
+                {
+                    case HalfTrace half:
+                        // Every texel is written in each frame, after the last frame's upsample read it.
+                        barriers.Image(half.Traced, ImageUse.StorageCompute, discard: true);
+                        return;
+                    case FullTrace:
+                        break;
+                    case null:
+                    default:
+                        throw new UnreachableException("The targets always hold a trace.");
+                }
+
                 break;
             case ReflectionStep.Upsample:
-                barriers.Image(TracedImage(), ImageUse.StorageCompute);
-                barriers.Image(renderTargets.Hdr, ImageUse.StorageCompute);
-                barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+                barriers.Image(UpsampledImage(), ImageUse.StorageCompute);
                 break;
             default:
                 throw new UnreachableException();
         }
+
+        // The full-resolution trace and the upsample add the deltas to the lit image in the exposure's scale.
+        barriers.Image(renderTargets.Hdr, ImageUse.StorageCompute);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
     }
 
     private void DeclarePyramids(BarrierBatch barriers)
@@ -133,19 +173,24 @@ internal sealed unsafe class ReflectionPass(
         barriers.Image(targets.RadianceImage, ImageUse.SampledComputeGeneral);
     }
 
-    /// <summary>The half-resolution trace, which the targets make for the steps of <see cref="TraceResolution.Half"/>.</summary>
-    private GpuImage TracedImage()
-    {
-        // VulkanRenderer adds the half-resolution steps only over the targets of a half-resolution trace.
-        Contract.Assert(targets.TracedImage is not null);
-        return targets.TracedImage;
-    }
+    /// <summary>The image that the upsample reads: the half-resolution trace, which the constructor makes sure of.</summary>
+    private GpuImage UpsampledImage() =>
+        targets.Trace switch
+        {
+            HalfTrace half => half.Traced,
+            FullTrace or null => throw new UnreachableException("The constructor refuses a full-resolution trace."),
+        };
 
-    /// <summary>The pixels or the texels of the step: the screen, or ⌈W / 2⌉ × ⌈H / 2⌉ for the half-resolution trace.</summary>
+    /// <summary>The pixels or the texels of the step: the screen, or the half-resolution trace's texels.</summary>
     private Extent2D InvocationExtent(Extent2D screen) =>
         step switch
         {
-            ReflectionStep.FullResolutionTrace or ReflectionStep.Upsample => screen,
-            ReflectionStep.HalfResolutionTrace => new((screen.Width + 1) / 2, (screen.Height + 1) / 2),
+            ReflectionStep.Trace => targets.Trace switch
+            {
+                HalfTrace half => half.Traced.Extent,
+                FullTrace => screen,
+                null => throw new UnreachableException("The targets always hold a trace."),
+            },
+            ReflectionStep.Upsample => screen,
         };
 }

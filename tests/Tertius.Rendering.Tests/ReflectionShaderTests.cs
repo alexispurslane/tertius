@@ -7,7 +7,8 @@ namespace Tertius.Rendering.Tests;
 /// The trace and the cone of reflection_trace.comp pinned to their C# copy (docs/plans/screen-space-reflections.md, "GPU
 /// tests of the reflections"): the C# trace over the frame's own distance finds the pixel that the GPU reflects, and the
 /// C# cone gives the level of the radiance pyramid that the GPU reads, with the share of the ambient specular term that
-/// its coverage keeps. The half-resolution trace holds the same ray for each texel's representative pixel.
+/// its coverage keeps. The half-resolution trace holds the same ray for each texel's representative pixel, and the GPU
+/// upsample mixes the texels' rays under the weights of the C# upsample.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionShaderTests
@@ -150,6 +151,54 @@ public sealed class ReflectionShaderTests
         }
     }
 
+    [Fact]
+    public void TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsample()
+    {
+        float[] lit = RenderHdr(new NoReflections(), MirrorsBeforeTiles).Hdr;
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(MirrorsBeforeTiles(renderer), 1f);
+            float[] shown = renderer.ReadHdr();
+            var frame = UpsampleFrame.Of(renderer);
+
+            int compared = 0,
+                mixed = 0;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                // White metal weighs each channel alike, so the color that the upsample adds is its mean ray's.
+                Vector3 reflected = At(shown, (x, y)) - At(lit, (x, y));
+                if (reflected.X + reflected.Y + reflected.Z < 0.2f)
+                    continue;
+                RayResult? upsampled = frame.Upsampled((x, y));
+                upsampled.Should().NotBeNull("pixel ({0}, {1}) shows a reflection, so a texel keeps a weight", x, y);
+                Vector3 expected = Chroma(upsampled!.Value.Radiance.ToVector3());
+                BrdfTesting
+                    .LargestChannelDifference(Chroma(reflected), expected)
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        0.01f,
+                        "pixel ({0}, {1}) shows the mean ray of its texels: shown {2}, expected {3}",
+                        x,
+                        y,
+                        Chroma(reflected),
+                        expected
+                    );
+                compared++;
+                if (frame.TexelsDisagree((x, y)))
+                    mixed++;
+            }
+
+            compared.Should().BeGreaterThan(5000, "the floor, the sphere, the ramp and the slab reflect the tiles");
+            mixed.Should().BeGreaterThan(200, "the sphere's rim, the crease and the step mix texels of other colors");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     // About 0.3 and 0.5, which the G-buffer's 8 bits hold exactly. At 0.5 the dominant direction leans far from the
     // mirror direction.
@@ -229,6 +278,52 @@ public sealed class ReflectionShaderTests
 
         return snapshot;
     }
+
+    /// <summary>
+    /// <see cref="TiledWall"/> with three white mirrors on its floor, whose texels the upsample weighs apart: a sphere,
+    /// whose rim turns its normal fast; a ramp that rises away from the eye by 20° from a crease with the floor 7 m
+    /// ahead; and a slab whose top lies 3 cm above the floor, about one texel width at its far edge.
+    /// </summary>
+    private static RenderSnapshot MirrorsBeforeTiles(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = TiledWall(renderer);
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId mirror = renderer.CreateMaterial(Mirror());
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Sphere(0.8f)),
+                material: mirror,
+                position: new(-3, FloorHeight + 0.8f, -6.5f),
+                scale: Vector3.One,
+                radius: 0.8f
+            )
+        );
+        // The near end of the ramp goes down: its top's near edge lies on the floor.
+        var tilt = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 20 * MathF.PI / 180);
+        var nearTopEdge = Vector3.Transform(new Vector3(0, 0.05f, 1.5f), tilt);
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: mirror,
+                position: new Vector3(2.5f, FloorHeight, -7) - nearTopEdge,
+                scale: new(2.5f, 0.1f, 3),
+                rotation: tilt,
+                radius: 2
+            )
+        );
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: mirror,
+                center: new(-0.5f, FloorHeight + 0.015f, -4.75f),
+                size: new(1.5f, 0.03f, 1.5f)
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>The share of each channel in the sum of the three.</summary>
+    private static Vector3 Chroma(Vector3 radiance) => radiance / (radiance.X + radiance.Y + radiance.Z);
 
     /// <summary>
     /// A metal floor of <paramref name="roughness"/> before a checkered wall of squares 0.5 m wide, bright and dark in
@@ -336,6 +431,85 @@ public sealed class ReflectionShaderTests
                 new Vector3(lit.X, lit.Y, lit.Z)
                 + fade * (weight * new Vector3(traced.X, traced.Y, traced.Z) - traced.W * weight * CheckeredGray);
             return new(expected, level, weight);
+        }
+    }
+
+    /// <summary>The images of one frame that the upsample test reads back, and the C# upsample over them.</summary>
+    private sealed record UpsampleFrame(
+        (float[] Rgba, int Width, int Height) Traced,
+        float[] Distance,
+        float[] Normals,
+        CameraView Camera
+    )
+    {
+        public static UpsampleFrame Of(VulkanRenderer renderer) =>
+            new(
+                Traced: renderer.ReadReflectionTrace(),
+                Distance: renderer.ReadDistance(),
+                Normals: renderer.ReadNormals(),
+                Camera: renderer.LastScene.Camera
+            );
+
+        private (int Width, int Height) HalfSize => (Traced.Width, Traced.Height);
+
+        /// <summary>The ray that the C# upsample gives <paramref name="pixel"/>, from the GPU's texels.</summary>
+        public RayResult? Upsampled((int X, int Y) pixel) =>
+            ReflectionUpsample.Ray(
+                pixel: pixel,
+                position: PositionOf(pixel),
+                geometricNormal: GeometricNormalOf(pixel),
+                texelWidth: 2 * Camera.PixelAngle * Distance[pixel.Y * Width + pixel.X],
+                halfSize: HalfSize,
+                texelAt: TexelAt
+            );
+
+        /// <summary>Whether two texels with a ray that <paramref name="pixel"/> reads differ in color by more than 0.05.</summary>
+        public bool TexelsDisagree((int X, int Y) pixel)
+        {
+            Vector3[] colors =
+            [
+                .. OcclusionUpsample
+                    .BlockTexels(pixel, HalfSize)
+                    .Select(each => TexelAt(each.Coordinates).Ray)
+                    .Where(ray => ray is { Radiance: var radiance } && radiance.X + radiance.Y + radiance.Z > 0.05)
+                    .Select(ray => Chroma(ray!.Value.Radiance.ToVector3())),
+            ];
+            return colors.Any(a => colors.Any(b => BrdfTesting.LargestChannelDifference(a, b) > 0.05f));
+        }
+
+        private TracedTexel TexelAt((int X, int Y) texel)
+        {
+            (int X, int Y) representative = (X: 2 * texel.X, Y: 2 * texel.Y);
+            int index = 4 * (texel.Y * Traced.Width + texel.X);
+            float coverage = Traced.Rgba[index + 3];
+            RayResult? ray =
+                coverage < 0
+                    ? null
+                    : new RayResult(
+                        Radiance: new(Traced.Rgba[index], Traced.Rgba[index + 1], Traced.Rgba[index + 2]),
+                        Coverage: coverage
+                    );
+            return new(
+                Position: PositionOf(representative),
+                GeometricNormal: GeometricNormalOf(representative),
+                Ray: ray
+            );
+        }
+
+        /// <summary>The camera-relative position of a pixel's surface, in world axes, as the upsample computes it.</summary>
+        private Double3 PositionOf((int X, int Y) pixel) =>
+            Vector3.Normalize(Camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f)))
+            * Distance[pixel.Y * Width + pixel.X];
+
+        /// <summary>The geometric normal of a pixel, decoded from the G-buffer's octahedral form as octahedral.glsl does.</summary>
+        private Double3 GeometricNormalOf((int X, int Y) pixel)
+        {
+            int index = 4 * (pixel.Y * Width + pixel.X);
+            var n = new Vector3(Normals[index + 2], Normals[index + 3], 0);
+            n.Z = 1 - MathF.Abs(n.X) - MathF.Abs(n.Y);
+            if (n.Z < 0)
+                n = new((1 - MathF.Abs(n.Y)) * (n.X >= 0 ? 1 : -1), (1 - MathF.Abs(n.X)) * (n.Y >= 0 ? 1 : -1), n.Z);
+            return Vector3.Normalize(n);
         }
     }
 
