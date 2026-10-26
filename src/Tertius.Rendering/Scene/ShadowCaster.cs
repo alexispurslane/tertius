@@ -18,6 +18,13 @@ internal struct ShadowCaster
     public float Distance;
 
     public int Mesh;
+
+    /// <summary>Index into the material buffer, already checked. The cutout pipelines of the shadow maps read its cutoff.</summary>
+    public uint Material;
+
+    /// <summary>How the material's alpha draws: the <see cref="MaterialInfo"/> of <see cref="Material"/>'s slot.</summary>
+    public AlphaMode Alpha;
+
     public uint EntityIndex;
 
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the caster from frame to frame.</summary>

@@ -326,4 +326,31 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
     return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }
 
+// Only fragment shaders include material.glsl, and only they have the screen derivatives that the footprint takes. The
+// lit puffs' vertex shader and the compute passes include this file without it.
+#ifdef TERTIUS_MATERIAL_GLSL
+#include "reflection_footprint.glsl"
+
+// The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
+// the fringe of the transparent pass (docs/plans/skin-and-hair.md, "The fringe"). The reflection's footprint comes from
+// the screen derivatives, so the caller calls this before any discard. The sky shares serve the hemisphere alone. The
+// occlusion is 1, because a forward surface is not in the G-buffer that the occlusion passes read.
+ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)
+{
+    ShadingInput shading;
+    shading.baseColor = s.baseColor.rgb;
+    shading.normal = s.normal;
+    shading.geometricNormal = normalizedOr(vertexNormal, V);
+    shading.metallic = s.metallic;
+    shading.roughness = s.roughness;
+    shading.reflectance = s.reflectance;
+    shading.map = map;
+    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
+    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(hemisphere, position, s.normal);
+    shading.lobeSkyFraction = environmentMapOn ? 0.0 : lobeSkyFraction(hemisphere, position, s.normal, V, s.roughness);
+    shading.occlusion = 1.0;
+    return shading;
+}
+#endif
+
 #endif

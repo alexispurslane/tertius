@@ -22,10 +22,14 @@ public sealed class ImpostorManagerTests
     private static readonly MaterialId BallMaterial = new(0);
     private static readonly MaterialId OtherMaterial = new(1);
     private static readonly MaterialId GlassMaterial = MaterialSlots.Glass;
-    private static readonly MaterialId FringedMaterial = new(2);
+    private static readonly MaterialId FringedMaterial = MaterialSlots.Fringed;
+    private static readonly MaterialId CutoutMaterial = MaterialSlots.Cutout;
 
-    /// <summary>The material slots: every one opaque but those of <see cref="GlassMaterial"/> and <see cref="FringedMaterial"/>.</summary>
-    private static readonly MaterialInfo[] Materials = Slots();
+    /// <summary>
+    /// The material slots: every one opaque but those of <see cref="GlassMaterial"/>, <see cref="FringedMaterial"/> and
+    /// <see cref="CutoutMaterial"/>.
+    /// </summary>
+    private static readonly MaterialInfo[] Materials = MaterialSlots.Of(8);
 
     private static readonly Vector3 SunDirection = Vector3.Normalize(new(0.3f, 0.8f, 0.5f));
 
@@ -78,13 +82,6 @@ public sealed class ImpostorManagerTests
     }
 
     /// <summary>The key of a ball: its entity and part, the sphere mesh, and its material's slot.</summary>
-    private static MaterialInfo[] Slots()
-    {
-        MaterialInfo[] slots = MaterialSlots.Of(8);
-        slots[MaterialStore.Slot(FringedMaterial)] = new(new FringedAlpha(Cutoff: 0.5f));
-        return slots;
-    }
-
     private static ImpostorKey Key(uint entity, ushort part = 0, MaterialId? material = null) =>
         new(EntityIndex: entity, Part: part, Mesh: Sphere, Material: MaterialStore.Slot(material ?? BallMaterial));
 
@@ -209,6 +206,25 @@ public sealed class ImpostorManagerTests
 
         harness.Manager.Status(Key(3, material: GlassMaterial)).Should().BeNull("a capture has no transparent pass");
         harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
+    }
+
+    [Fact]
+    public void ACutoutMaterialMayBecomeAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: CutoutMaterial));
+
+        harness.Run(snapshot);
+
+        harness
+            .Manager.Status(Key(3, material: CutoutMaterial))!
+            .Value.Impostor.Should()
+            .BeTrue("its capture discards the texels below the cutoff, as the G-buffer pass does");
+        harness
+            .Manager.Captures[0]
+            .Alpha.Should()
+            .Be(new AlphaMode(new CutoutAlpha(Cutoff: 0.5f)), "the capture pass chooses its cutout pipeline by it");
     }
 
     [Fact]

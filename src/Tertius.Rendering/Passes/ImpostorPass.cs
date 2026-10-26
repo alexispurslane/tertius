@@ -33,6 +33,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     private readonly ImpostorAtlas atlas;
     private readonly ImpostorManager manager;
     private readonly Pipeline capturePipeline;
+    private readonly Pipeline cutoutCapturePipeline;
     private readonly Pipeline billboardPipeline;
     private readonly PreparedCapture[] prepared = new PreparedCapture[ImpostorManager.CapturesPerFrame];
     private int preparedCount;
@@ -50,7 +51,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         this.layouts = layouts;
         this.atlas = atlas;
         this.manager = manager;
-        capturePipeline = new GraphicsPipelineDesc
+        var capture = new GraphicsPipelineDesc
         {
             Name = "impostor capture",
             VertexShader = "mesh.vert",
@@ -63,7 +64,24 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
             Constants = constants,
-        }.Create(device, shaders);
+        };
+        capturePipeline = capture.Create(device, shaders);
+        try
+        {
+            cutoutCapturePipeline = (
+                capture with
+                {
+                    Name = "impostor capture cutout",
+                    Constants = constants with { CutoutAlpha = true },
+                }
+            ).Create(device, shaders);
+        }
+        catch
+        {
+            device.Vk.DestroyPipeline(device.Device, capturePipeline, null);
+            throw;
+        }
+
         try
         {
             billboardPipeline = new GraphicsPipelineDesc
@@ -84,6 +102,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         catch
         {
             device.Vk.DestroyPipeline(device.Device, capturePipeline, null);
+            device.Vk.DestroyPipeline(device.Device, cutoutCapturePipeline, null);
             throw;
         }
     }
@@ -119,9 +138,10 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 }
             );
             prepared[preparedCount++] = new(
-                capture.Tile,
-                command,
-                CaptureProjection(
+                Tile: capture.Tile,
+                Command: command,
+                Cutout: OpaqueRuns.InCutoutRun(capture.Alpha),
+                ViewProjection: CaptureProjection(
                     right: capture.Right,
                     up: capture.Up,
                     toward: capture.Toward,
@@ -273,6 +293,12 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         vk.CmdBeginRendering(commandBuffer, &rendering);
         if (bindState)
             BindCaptureState(context, extent);
+        // The capture of a cutout discards its texels below the cutoff, as the G-buffer pass does, and keeps its holes.
+        vk.CmdBindPipeline(
+            commandBuffer,
+            PipelineBindPoint.Graphics,
+            capture.Cutout ? cutoutCapturePipeline : capturePipeline
+        );
 
         // The main view's eye (the origin), so that specular highlights are where the camera would see them.
         GeometryPass.PushDraw(context: context, viewProjection: capture.ViewProjection);
@@ -282,12 +308,11 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         GenerateMips(vk: vk, commandBuffer: commandBuffer, barriers: barriers, layer: layer);
     }
 
-    /// <summary>Binds what every capture of the frame shares: the pipeline, sets 0 and 1, the tile's viewport and the geometry.</summary>
+    /// <summary>Binds what every capture of the frame shares: sets 0 and 1, the tile's viewport and the geometry.</summary>
     private void BindCaptureState(FrameContext context, Extent2D extent)
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, capturePipeline);
         // Frame constants, instances and materials, and the textures. The G-buffer set is not used here.
         DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
         vk.CmdBindDescriptorSets(
@@ -496,11 +521,13 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, capturePipeline, null);
+        device.Vk.DestroyPipeline(device.Device, cutoutCapturePipeline, null);
         device.Vk.DestroyPipeline(device.Device, billboardPipeline, null);
     }
 
     /// <summary>A capture ready to record: its tile, its indirect command and its view-projection matrix.</summary>
-    private readonly record struct PreparedCapture(int Tile, int Command, Matrix4x4 ViewProjection);
+    /// <summary>A capture of this frame: its tile, its indirect command, whether it draws with the cutout pipeline, and its camera.</summary>
+    private readonly record struct PreparedCapture(int Tile, int Command, bool Cutout, Matrix4x4 ViewProjection);
 
     /// <summary>Enumerates the two atlas arrays without allocating.</summary>
     private readonly struct AtlasImages(ImpostorAtlas atlas)

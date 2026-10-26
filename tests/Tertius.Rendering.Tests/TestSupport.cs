@@ -545,20 +545,33 @@ internal static class Batchers
 /// <summary>The material slots that the CPU tests hand the batcher, as a renderer's material store holds them.</summary>
 internal static class MaterialSlots
 {
+    /// <summary>The cutout material of the CPU tests, with a cutoff of 0.5: slot 5 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Cutout = new(4);
+
+    /// <summary>The fringed material of the CPU tests, with a cutoff of 0.5: slot 6 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Fringed = new(5);
+
     /// <summary>The glass material of the CPU tests: slot 7 of <see cref="Of"/>.</summary>
     public static readonly MaterialId Glass = new(6);
 
     /// <summary>
-    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque but that of
-    /// <see cref="Glass"/>, when there is one.
+    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque but those of
+    /// <see cref="Cutout"/>, <see cref="Fringed"/> and <see cref="Glass"/>, when there are such slots.
     /// </summary>
     public static MaterialInfo[] Of(int count = 8)
     {
         var slots = new MaterialInfo[count];
-        uint glass = MaterialStore.Slot(Glass);
-        if (glass < count)
-            slots[glass] = new(new GlassAlpha());
+        Set(slots, Cutout, new CutoutAlpha(Cutoff: 0.5f));
+        Set(slots, Fringed, new FringedAlpha(Cutoff: 0.5f));
+        Set(slots, Glass, new GlassAlpha());
         return slots;
+    }
+
+    private static void Set(MaterialInfo[] slots, MaterialId material, AlphaMode alpha)
+    {
+        uint slot = MaterialStore.Slot(material);
+        if (slot < slots.Length)
+            slots[slot] = new(alpha);
     }
 }
 

@@ -4,18 +4,20 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Forward-shades transparent objects over the lit HDR image with the same lighting function, and adds the puffs to it,
-/// sorted together back to front across all ranges (far range first). A transparent object adds its light and multiplies
-/// what lies behind it by the share that it lets through (<see cref="BlendMode.Transmittance"/>). Each range draws its runs in order:
-/// a <see cref="GlassCommands"/> run with the transparent pipeline, and a <see cref="PuffSprites"/> run with the puff
-/// pipeline, one instanced draw of 6 vertices per puff. So glass dims a puff behind it and leaves one in front of it as
-/// it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth
+/// Forward-shades glass and the fringes of fringed materials over the lit HDR image with the same lighting function, and
+/// adds the puffs to it, sorted together back to front across all ranges (far range first). Glass and a fringe add their
+/// light and multiply what lies behind by the share that they let through (<see cref="BlendMode.Transmittance"/>). Each
+/// range draws its runs in order: a <see cref="GlassCommands"/> run with the glass pipeline, a <see cref="FringeCommands"/>
+/// run with the fringe pipeline, which blends a texel below the cutoff by its coverage (docs/plans/skin-and-hair.md, "The
+/// fringe"), and a <see cref="PuffSprites"/> run with the puff pipeline, one instanced draw of 6 vertices per puff. So
+/// glass dims a puff behind it and leaves one in front of it as it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth
 /// clamping keeps each object and each puff whole inside its range.
 /// </summary>
 internal sealed unsafe class TransparentPass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly Pipeline pipeline;
+    private readonly Pipeline fringePipeline;
     private readonly Pipeline puffPipeline;
 
     public TransparentPass(
@@ -26,7 +28,7 @@ internal sealed unsafe class TransparentPass : RenderPass
     )
     {
         this.device = device;
-        pipeline = new GraphicsPipelineDesc
+        var glass = new GraphicsPipelineDesc
         {
             Name = "transparent",
             VertexShader = "mesh.vert",
@@ -37,7 +39,9 @@ internal sealed unsafe class TransparentPass : RenderPass
             DepthClamp = true,
             Blend = BlendMode.Transmittance,
             Constants = constants,
-        }.Create(device, shaders);
+        };
+        pipeline = glass.Create(device, shaders);
+        fringePipeline = (glass with { Name = "fringes", FragmentShader = "fringe.frag" }).Create(device, shaders);
         puffPipeline = new GraphicsPipelineDesc
         {
             Name = "puffs",
@@ -105,7 +109,7 @@ internal sealed unsafe class TransparentPass : RenderPass
     /// <summary>Draws the transparent runs of each depth range, from far to near, in the order of the scene.</summary>
     private void DrawRuns(FrameContext context, PreparedScene scene, Vk vk, CommandBuffer commandBuffer)
     {
-        // Both pipelines have the scene layout, so the sets and the push constants stay bound when the pipeline changes.
+        // Every pipeline has the scene layout, so the sets and the push constants stay bound when the pipeline changes.
         Pipeline bound = pipeline;
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, bound);
         context.BindSceneSets();
@@ -120,6 +124,10 @@ internal sealed unsafe class TransparentPass : RenderPass
             foreach (TransparentRun run in runs)
                 switch (run)
                 {
+                    case FringeCommands(var fringes):
+                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: fringePipeline);
+                        GeometryPass.DrawIndirect(context, fringes);
+                        break;
                     case GlassCommands(var commands):
                         Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: pipeline);
                         GeometryPass.DrawIndirect(context, commands);
@@ -135,7 +143,7 @@ internal sealed unsafe class TransparentPass : RenderPass
                         );
                         break;
                     case null:
-                        // The scene batcher adds a run of meshes or of puffs, never an empty run.
+                        // The scene batcher adds a run of glass, of fringes or of puffs, never an empty run.
                         throw new UnreachableException("A transparent run is empty.");
                     default:
                         throw new UnreachableException();
@@ -154,6 +162,7 @@ internal sealed unsafe class TransparentPass : RenderPass
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        device.Vk.DestroyPipeline(device.Device, fringePipeline, null);
         device.Vk.DestroyPipeline(device.Device, puffPipeline, null);
     }
 }

@@ -405,7 +405,7 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
-    /// another light or aim, another camera frame, another projection, a turn of the aim, other casters, or a caster that
+    /// another light or aim, another camera frame, another projection, a turn of the aim, other casters or materials, or a caster that
     /// moved by a quarter of a texel where it shows, or by more than float rounding of its pose.
     /// </summary>
     private static bool IsStale(
@@ -434,7 +434,12 @@ internal sealed class ShadowTiles
         {
             RecordedCaster was = record.Casters[i];
             ref readonly ShadowCaster now = ref casters[seen[i]];
-            bool sameCaster = was.EntityIndex == now.EntityIndex && was.Part == now.Part && was.Mesh == now.Mesh;
+            // The material decides which texels cast: a cutout casts only its core.
+            bool sameCaster =
+                was.EntityIndex == now.EntityIndex
+                && was.Part == now.Part
+                && was.Mesh == now.Mesh
+                && was.Material == now.Material;
             if (!sameCaster)
                 return true;
             Vector3 offset = now.Position - light.Position;
@@ -475,6 +480,7 @@ internal sealed class ShadowTiles
                     EntityIndex: caster.EntityIndex,
                     Part: caster.Part,
                     Mesh: caster.Mesh,
+                    Material: caster.Material,
                     Offset: caster.Position - light.Position,
                     Rotation: caster.Rotation,
                     Scale: caster.Scale
@@ -510,6 +516,7 @@ internal sealed class ShadowTiles
         uint EntityIndex,
         ushort Part,
         int Mesh,
+        uint Material,
         Vector3 Offset,
         Quaternion Rotation,
         Vector3 Scale

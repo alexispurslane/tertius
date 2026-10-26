@@ -4,6 +4,11 @@
 
 #include "vectors.glsl"
 
+// ShaderConstants.CutoutAlphaId: true in the cutout pipeline of an opaque pass, false in its solid pipeline and in every
+// other, where the driver drops the test and the pipeline keeps its early depth writes (docs/plans/skin-and-hair.md, "The
+// cutout test").
+layout(constant_id = 1) const bool cutoutAlpha = false;
+
 struct SurfaceSample
 {
     vec4 baseColor;       // linear RGB and alpha
@@ -40,7 +45,16 @@ vec3 normalMapped(uint normalMap, vec2 uv, vec3 n, vec4 vertexTangent)
     return mappedLengthSq > 1e-12 ? mapped * inversesqrt(mappedLengthSq) : n;
 }
 
-// `fallbackNormal` is the unit normal of a surface whose interpolated vertex normal has no direction.
+// Whether a texel of alpha `alpha`, the base color's alpha times its map's, is covered under a cutout or fringed material
+// of cutoff `cutoff`: the core. The alpha lies in [0, 1], from ShaderInput.Fraction and a UNORM map, and the cutoff in
+// (0, 1], so the comparison sees finite values.
+bool reachesCutoff(float alpha, float cutoff)
+{
+    return alpha >= cutoff;
+}
+
+// `fallbackNormal` is the unit normal of a surface whose interpolated vertex normal has no direction. In a cutout
+// pipeline, a texel below the material's cutoff is discarded.
 SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec4 vertexTangent, vec3 fallbackNormal)
 {
     GpuMaterial m = materials[materialIndex];
@@ -61,6 +75,9 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
     s.roughness = m.roughness * metallicRoughness.g;
     s.reflectance = m.reflectance;
     s.emissive = m.emissive;
+    // After every sample, so the implicit derivatives of the quad stay defined: discard demotes to a helper (VulkanDevice).
+    if (cutoutAlpha && !reachesCutoff(s.baseColor.a, m.alphaCutoff))
+        discard;
     return s;
 }
 

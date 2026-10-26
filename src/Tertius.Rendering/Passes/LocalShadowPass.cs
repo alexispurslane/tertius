@@ -18,6 +18,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
     private readonly VulkanDevice device;
     private readonly ShadowAtlas atlas;
     private readonly Pipeline pipeline;
+    private readonly Pipeline cutoutPipeline;
     private readonly List<TileView> views = [];
     private readonly List<TileDraw> draws = [];
 
@@ -26,23 +27,27 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         this.device = device;
         this.atlas = atlas;
         Tiles = new(layers: atlas.Tiles, tileSize: atlas.TileSize);
-        pipeline = new GraphicsPipelineDesc
-        {
-            Name = "local shadow tiles",
-            VertexShader = "shadow.vert",
-            FragmentShader = null,
-            Layout = layouts.SceneLayout,
-            ColorFormats = [],
-            DepthFormat = atlas.Format,
-            VertexInput = VertexInput.PositionOnly,
-            DepthTest = true,
-            DepthWrite = true,
-            DepthCompare = CompareOp.Greater,
-            DepthClamp = true,
-            CullMode = CullModeFlags.None,
-            // Reversed depth: a negative bias moves casters away from the light.
-            DepthBiasSlope = -SlopeBias,
-        }.Create(device, shaders);
+        (pipeline, cutoutPipeline) = ShadowPass.CreatePipelines(
+            device: device,
+            shaders: shaders,
+            desc: new()
+            {
+                Name = "local shadow tiles",
+                VertexShader = "shadow.vert",
+                FragmentShader = null,
+                Layout = layouts.SceneLayout,
+                ColorFormats = [],
+                DepthFormat = atlas.Format,
+                VertexInput = VertexInput.PositionOnly,
+                DepthTest = true,
+                DepthWrite = true,
+                DepthCompare = CompareOp.Greater,
+                DepthClamp = true,
+                CullMode = CullModeFlags.None,
+                // Reversed depth: a negative bias moves casters away from the light.
+                DepthBiasSlope = -SlopeBias,
+            }
+        );
     }
 
     public override string Name => "local shadows";
@@ -68,8 +73,18 @@ internal sealed unsafe class LocalShadowPass : RenderPass
             scene.DrawnTiles.Add(new(View: draw.View, Commands: Emit(scene: scene, meshes: meshes, draw: draw)));
     }
 
-    /// <summary>Appends the casters of <paramref name="draw"/>, already in mesh order, and one indirect command per run of one mesh.</summary>
-    private CommandRange Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, TileDraw draw)
+    /// <summary>
+    /// Appends the casters of <paramref name="draw"/>, already in mesh order: the solid run, then the cutout run, as every
+    /// opaque pass draws them (docs/plans/skin-and-hair.md, decision 25), with one indirect command per stretch of one mesh.
+    /// </summary>
+    private OpaqueRuns Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, TileDraw draw) =>
+        new(
+            Solid: EmitRun(scene: scene, meshes: meshes, draw: draw, cutout: false),
+            Cutout: EmitRun(scene: scene, meshes: meshes, draw: draw, cutout: true)
+        );
+
+    /// <summary>Appends the casters of <paramref name="draw"/> that draw in the cutout run, or those that do not, and their commands.</summary>
+    private CommandRange EmitRun(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, TileDraw draw, bool cutout)
     {
         int first = scene.CommandCount,
             currentMesh = -1;
@@ -77,18 +92,12 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         for (int i = draw.First; i < draw.First + draw.Count; i++)
         {
             ref readonly ShadowCaster caster = ref casters[Tiles.CasterIndices[i]];
-            // The depth-only pass reads no material and no map.
-            var instance = GpuInstance.From(
-                position: caster.Position,
-                rotation: caster.Rotation,
-                scale: caster.Scale,
-                material: MaterialStore.DefaultSlot,
-                map: 0
-            );
+            if (OpaqueRuns.InCutoutRun(caster.Alpha) != cutout)
+                continue;
             ShadowPass.AppendCaster(
                 scene: scene,
                 meshes: meshes,
-                instance: instance,
+                instance: ShadowPass.CasterInstance(caster),
                 mesh: caster.Mesh,
                 currentMesh: ref currentMesh
             );
@@ -105,14 +114,13 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
-        barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
-        barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+        ShadowPass.BarrierCasterInputs(context);
         // Not discarded: the layers of cached views keep what earlier frames drew.
         barriers.Image(atlas.Image, ImageUse.DepthAttachment);
         barriers.Flush(vk, commandBuffer);
 
         var extent = new Extent2D((uint)atlas.TileSize, (uint)atlas.TileSize);
-        ShadowPass.BindDepthOnly(context: context, pipeline: pipeline, extent: extent);
+        ShadowPass.BindDepthOnly(context: context, extent: extent);
         foreach (TileCommands drawn in scene.DrawnTiles)
         {
             ref readonly GpuShadowTile tile = ref scene.ShadowTiles[drawn.View];
@@ -137,12 +145,16 @@ internal sealed unsafe class LocalShadowPass : RenderPass
             if (drawn.Commands.Count > 0)
             {
                 GeometryPass.PushDraw(context: context, viewProjection: tile.ViewProjection);
-                GeometryPass.DrawIndirect(context, drawn.Commands);
+                GeometryPass.DrawRuns(context: context, runs: drawn.Commands, solid: pipeline, cutout: cutoutPipeline);
             }
 
             vk.CmdEndRendering(commandBuffer);
         }
     }
 
-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+    public override void Dispose()
+    {
+        device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        device.Vk.DestroyPipeline(device.Device, cutoutPipeline, null);
+    }
 }

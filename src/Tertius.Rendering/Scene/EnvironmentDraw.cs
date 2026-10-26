@@ -35,20 +35,20 @@ internal readonly partial struct AmbientSource;
 
 /// <summary>
 /// One face of a map that this frame draws, with its axes in world axes, <see cref="CubeFaces.Basis(CubeFace, System.Numerics.Quaternion)"/>
-/// of the map's axes, and its opaque commands per depth range.
+/// of the map's axes, and its opaque commands per depth range: the solid run and the cutout run of each.
 /// </summary>
 internal readonly record struct EnvironmentFaceDraw(
     int Map,
     CubeFace Face,
     FaceBasis Basis,
-    CommandRange Far,
-    CommandRange Middle,
-    CommandRange Near
+    OpaqueRuns Far,
+    OpaqueRuns Middle,
+    OpaqueRuns Near
 )
 {
     /// <summary>The commands of depth range <paramref name="range"/>, indexed by <see cref="DepthRanges"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="range"/> is not a depth range.</exception>
-    public CommandRange this[int range] =>
+    public OpaqueRuns this[int range] =>
         range switch
         {
             DepthRanges.Far => Far,

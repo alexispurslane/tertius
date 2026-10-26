@@ -70,7 +70,7 @@ public sealed class BatcherTests
         scene.VisibleCount.Should().Be(100);
         scene.InstanceCount.Should().Be(100);
         scene.CommandCount.Should().Be(2);
-        scene.Opaque[DepthRanges.Near].Should().Be(new CommandRange(0, 2));
+        scene.Opaque[DepthRanges.Near].Should().Be(new OpaqueRuns(Solid: new(0, 2), Cutout: default));
         DrawIndexedIndirectCommand first = scene.Commands[0],
             second = scene.Commands[1];
         first.InstanceCount.Should().Be(50u);
@@ -106,11 +106,11 @@ public sealed class BatcherTests
         scene.Opaque[DepthRanges.Far].Count.Should().Be(1);
         scene.Opaque[DepthRanges.Middle].Count.Should().Be(2);
         scene.Opaque[DepthRanges.Near].Count.Should().Be(2);
-        scene.Opaque[DepthRanges.Far].First.Should().BeLessThan(scene.Opaque[DepthRanges.Middle].First);
-        scene.Opaque[DepthRanges.Middle].First.Should().BeLessThan(scene.Opaque[DepthRanges.Near].First);
+        scene.Opaque[DepthRanges.Far].Solid.First.Should().BeLessThan(scene.Opaque[DepthRanges.Middle].Solid.First);
+        scene.Opaque[DepthRanges.Middle].Solid.First.Should().BeLessThan(scene.Opaque[DepthRanges.Near].Solid.First);
         // The planet's instance is the first one written, in the far range.
         scene
-            .Instances[scene.Commands[scene.Opaque[DepthRanges.Far].First].FirstInstance]
+            .Instances[scene.Commands[scene.Opaque[DepthRanges.Far].Solid.First].FirstInstance]
             .ModelRow2.W.Should()
             .Be(-3e7f);
     }
@@ -173,8 +173,79 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        scene.Opaque[DepthRanges.Near].Should().Be(new CommandRange(0, 1));
+        scene.Opaque[DepthRanges.Near].Should().Be(new OpaqueRuns(Solid: new(0, 1), Cutout: default));
         scene.Transparent.Should().AllSatisfy(runs => runs.Should().BeEmpty());
+    }
+
+    /// <summary>A unit box of <paramref name="mesh"/> and <paramref name="material"/> at <paramref name="position"/>.</summary>
+    private static RenderInstance BoxOf(MaterialId material, Vector3 position, int mesh = 0) =>
+        Gpu.Instance(mesh: new(mesh), material: material, position: position, scale: Vector3.One);
+
+    [Fact]
+    public void ACutoutMaterialDrawsAfterTheSolidOnesInItsRange()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Cutout, new(0, 0, -10)));
+        snapshot.Instances.Add(BoxOf(new(0), new(0, 0, -12), mesh: 1));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Cutout, new(0, 0, -14), mesh: 1));
+        snapshot.Instances.Add(BoxOf(new(0), new(0, 0, -16)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        OpaqueRuns near = scene.Opaque[DepthRanges.Near];
+        near.Should().Be(new OpaqueRuns(Solid: new(0, 2), Cutout: new(2, 2)), "each run has a command per mesh");
+        Placed(scene, near.Solid).Should().Equal(new Vector3(0, 0, -16), new(0, 0, -12));
+        Placed(scene, near.Cutout).Should().Equal(new Vector3(0, 0, -10), new(0, 0, -14));
+    }
+
+    [Fact]
+    public void AFringedMaterialDrawsItsCoreWithTheCutoutsAndItsFringeWithTheTransparentObjects()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Fringed, new(0, 0, -10)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        OpaqueRuns near = scene.Opaque[DepthRanges.Near];
+        near.Should().Be(new OpaqueRuns(Solid: default, Cutout: new(0, 1)));
+        scene.Transparent[DepthRanges.Near].Should().Equal(new TransparentRun(new FringeCommands(new(1, 1))));
+        Placed(scene, near.Cutout).Should().Equal(new Vector3(0, 0, -10));
+        Placed(scene, new CommandRange(1, 1)).Should().Equal(new Vector3(0, 0, -10));
+    }
+
+    [Fact]
+    public void AFringeSortsWithTheGlassAndThePuffsByItsCenter()
+    {
+        RenderSnapshot snapshot = PuffSnapshot();
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Glass, new(0, 0, -5)));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Fringed, new(0, 0, -15)));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Glass, new(0, 0, -20)));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Fringed, new(0, 0, -17), mesh: 1));
+        snapshot.Puffs.Add(Puff(new(0, 0, -12)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        // Command 0 and 1 draw the cores; the transparent commands follow, back to front.
+        scene
+            .Transparent[DepthRanges.Near]
+            .Should()
+            .Equal(GlassRun(2, 1), new FringeCommands(new(3, 2)), PuffRun(0, 1), GlassRun(5, 1));
+        Placed(scene, new CommandRange(3, 2)).Should().Equal(new Vector3(0, 0, -17), new(0, 0, -15));
+    }
+
+    [Fact]
+    public void AFaceDrawsTheCoreOfAFringedMaterial()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Fringed, new(10, 0, 0)));
+        snapshot.Instances.Add(BoxOf(new(0), new(10, 2, 0)));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Glass, new(10, -2, 0)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
+
+        OpaqueRuns near = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near];
+        Placed(scene, near.Solid).Should().Equal(new Vector3(10, 2, 0));
+        Placed(scene, near.Cutout).Should().Equal([new Vector3(10, 0, 0)], "a face has no transparent pass");
     }
 
     [Fact]
@@ -551,6 +622,10 @@ public sealed class BatcherTests
         return positions;
     }
 
+    /// <summary>The places of the GPU instances that the runs of <paramref name="runs"/> draw: the solid run, then the cutout run.</summary>
+    private static List<Vector3> Placed(PreparedScene scene, OpaqueRuns runs) =>
+        [.. Placed(scene, runs.Solid), .. Placed(scene, runs.Cutout)];
+
     /// <summary>The places of the GPU instances that a face draws over its three depth ranges.</summary>
     private static List<Vector3> Placed(PreparedScene scene, EnvironmentFaceDraw face) =>
         [.. Placed(scene, face.Far), .. Placed(scene, face.Middle), .. Placed(scene, face.Near)];
@@ -677,10 +752,13 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.NegativeZ));
 
-        CommandRange near = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near];
+        OpaqueRuns near = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near];
         near.Should()
-            .Be(new CommandRange(First: 2, Count: 1), "the main view's opaque and transparent commands come first");
-        scene.Commands[near.First].FirstInstance.Should().Be(2u);
+            .Be(
+                new OpaqueRuns(Solid: new(First: 2, Count: 1), Cutout: default),
+                "the main view's opaque and transparent commands come first"
+            );
+        scene.Commands[near.Solid.First].FirstInstance.Should().Be(2u);
         scene.InstanceCount.Should().Be(3);
     }
 
