@@ -25,7 +25,7 @@
 #include "exposure.glsl"
 #include "environment.glsl"
 
-// How a view samples every light's shadow maps (docs/plans/environment-map.md, "The sun's shadow maps in a face").
+// How a view samples every light's shadow maps (docs/plans/environment-map.md, "The shadow maps in a face").
 const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
 const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands, and the tiles: lighting, transparent, lit puffs
 const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point, and the tiles: the environment faces

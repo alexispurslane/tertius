@@ -96,7 +96,7 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL)
 }
 
 // The views that are not the main view, the environment faces, pick the finest cascade whose box holds the point
-// (docs/plans/environment-map.md, "The sun's shadow maps in a face"). View depth along the camera's forward axis holds
+// (docs/plans/environment-map.md, "The shadow maps in a face"). View depth along the camera's forward axis holds
 // only for points in the main view's frustum: a point behind the camera has a negative depth, and cascade 0 does not hold
 // it once it lies more than a few meters back. Each set has its own boxes, along its own light.
 

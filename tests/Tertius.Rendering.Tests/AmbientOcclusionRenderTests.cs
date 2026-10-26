@@ -245,7 +245,14 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), starIrradiance: 3);
                 snapshot.Ambient.Intensity = 0;
-                snapshot.Lights.Add(Gpu.Lamp(position: new(-1.5f, -1, -4.5f), color: Vector3.One, intensity: 5));
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: new(-1.5f, -1, -4.5f),
+                        color: Vector3.One,
+                        intensity: 5,
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
                 return Corner(renderer, Matte(renderer), snapshot);
             },
             "occlusion-sun-and-lamp"

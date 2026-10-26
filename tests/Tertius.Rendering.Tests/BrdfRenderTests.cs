@@ -390,7 +390,14 @@ public sealed class BrdfRenderTests
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
             MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
             RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
-            snapshot.Lights.Add(Gpu.Lamp(position: lamp.ToVector3(), color: Vector3.One, intensity: 1000));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: lamp.ToVector3(),
+                    color: Vector3.One,
+                    intensity: 1000,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
             snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name).Color(Pixel(center));
         }

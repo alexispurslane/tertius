@@ -48,7 +48,12 @@ public sealed class BatcherLightTests
 
     /// <summary>A white lamp of radius 0 at <paramref name="position"/> whose reach at −10 stops is <paramref name="reach"/> m.</summary>
     private static PointRenderLight Lamp(Vector3 position, float reach = 10f) =>
-        Gpu.Lamp(position: position, color: Vector3.One, intensity: (float)(reach * reach * Cutoff));
+        Gpu.Lamp(
+            position: position,
+            color: Vector3.One,
+            intensity: (float)(reach * reach * Cutoff),
+            chainDepth: TestChains.CamerasFrame
+        );
 
     /// <summary>A white spot light of radius 0 at <paramref name="position"/> along <paramref name="direction"/> whose reach is 10 m.</summary>
     private static SpotRenderLight Beam(Vector3 position, Vector3 direction) =>
@@ -58,12 +63,19 @@ public sealed class BatcherLightTests
             color: Vector3.One,
             intensity: (float)(100 * Cutoff),
             innerConeAngle: 0.3f,
-            outerConeAngle: 0.5f
+            outerConeAngle: 0.5f,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A white star 1.5 × 10¹¹ m along <paramref name="direction"/>, that casts shadows.</summary>
     private static PointRenderLight Star(Vector3 direction, float irradiance = 3f, float angularRadius = 0.00467f) =>
-        Gpu.StarLight(direction: direction, irradiance: irradiance, angularRadius: angularRadius, color: Vector3.One);
+        Gpu.StarLight(
+            direction: direction,
+            irradiance: irradiance,
+            angularRadius: angularRadius,
+            color: Vector3.One,
+            chainDepth: TestChains.Root
+        );
 
     /// <summary>A sphere of mesh 0 that casts shadows, drawn or not.</summary>
     private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
@@ -213,8 +225,22 @@ public sealed class BatcherLightTests
         // The largest channel of color × intensity may be at most 10^34 W/sr: a sum of such lights stays finite in the
         // shaders. Each of these is a finite float on the CPU.
         RenderSnapshot snapshot = Dark();
-        snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -5), color: new(0.1f, 2, 0.1f), intensity: 1e34f));
-        snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -6), color: Vector3.One, intensity: 0.5e34f));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(0, 0, -5),
+                color: new(0.1f, 2, 0.1f),
+                intensity: 1e34f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(0, 0, -6),
+                color: Vector3.One,
+                intensity: 0.5e34f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
@@ -230,7 +256,14 @@ public sealed class BatcherLightTests
     {
         RenderSnapshot snapshot = Dark();
         snapshot.Camera.PreviousPosition = new(0, 0, 2);
-        snapshot.Lights.Add(Gpu.Lamp(position: new(0, 1, -5), color: new(1, 0.5f, 0.25f), intensity: 4));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(0, 1, -5),
+                color: new(1, 0.5f, 0.25f),
+                intensity: 4,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
         snapshot.Lights.Add(Beam(new(0, 3, -5), new(0, -2, 0)));
 
         PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);

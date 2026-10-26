@@ -248,7 +248,12 @@ public sealed class PortableFloatTests
         {
             RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), Matte(renderer));
             snapshot.Lights.Add(
-                Gpu.Lamp(position: new(0, 0, -2), color: Vector3.One, intensity: ShaderInput.RadianceLimit)
+                Gpu.Lamp(
+                    position: new(0, 0, -2),
+                    color: Vector3.One,
+                    intensity: ShaderInput.RadianceLimit,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Vector3 center = HdrCenter(renderer, snapshot);
@@ -278,7 +283,12 @@ public sealed class PortableFloatTests
             while (LightUnits.PointIntensity(power) > LightUnits.MaxIntensity)
                 power = MathF.BitDecrement(power);
             snapshot.Lights.Add(
-                Gpu.Lamp(position: new(0, 0, -2.99f), color: Vector3.One, intensity: 0) with
+                Gpu.Lamp(
+                    position: new(0, 0, -2.99f),
+                    color: Vector3.One,
+                    intensity: 0,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
                 {
                     Power = power,
                 }

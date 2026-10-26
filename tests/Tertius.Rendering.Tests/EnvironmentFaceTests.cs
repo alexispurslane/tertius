@@ -337,7 +337,14 @@ public sealed class EnvironmentFaceTests
                 )
             );
             // Its reach, from z ≈ 8.7 to 31.3, lies wholly behind the camera.
-            snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, 20), color: Vector3.One, intensity: 50));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, 20),
+                    color: Vector3.One,
+                    intensity: 50,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
 
             renderer.Render(snapshot, 1f);
 

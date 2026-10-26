@@ -371,8 +371,17 @@ public sealed class ShaderInputTests
     {
         // No star: a snapshot of Gpu.Snapshot with no irradiance holds a star that does not shine.
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
-        snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -1e19f), color: Vector3.One, intensity: 1e30f));
-        snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -5), color: Vector3.One, intensity: 1));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(0, 0, -1e19f),
+                color: Vector3.One,
+                intensity: 1e30f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            Gpu.Lamp(position: new(0, 0, -5), color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+        );
 
         PreparedScene scene = Prepare(snapshot);
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -70,7 +71,8 @@ public sealed class LocalShadowRenderTests
             color: Vector3.One,
             intensity: intensity,
             innerConeAngle: 0.48f,
-            outerConeAngle: 0.6f
+            outerConeAngle: 0.6f,
+            chainDepth: TestChains.CamerasFrame
         ) with
         {
             CastsShadow = true,
@@ -79,7 +81,12 @@ public sealed class LocalShadowRenderTests
 
     /// <summary>A white point light of radius 0 that casts shadows.</summary>
     private static PointRenderLight ShadowingLamp(Vector3 position, uint entity = LampEntity) =>
-        Gpu.Lamp(position: position, color: Vector3.One, intensity: LampIntensity) with
+        Gpu.Lamp(
+            position: position,
+            color: Vector3.One,
+            intensity: LampIntensity,
+            chainDepth: TestChains.CamerasFrame
+        ) with
         {
             CastsShadow = true,
             EntityIndex = entity,

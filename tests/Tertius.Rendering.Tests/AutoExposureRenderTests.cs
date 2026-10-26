@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.ExposureScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -107,7 +108,12 @@ public sealed class AutoExposureRenderTests
                 RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Lights.Add(
-                    Gpu.Lamp(position: Vector3.Zero, color: Vector3.One, intensity: HouseholdBulbPower / (4 * MathF.PI))
+                    Gpu.Lamp(
+                        position: Vector3.Zero,
+                        color: Vector3.One,
+                        intensity: HouseholdBulbPower / (4 * MathF.PI),
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
                 AddWhiteSquare(renderer, snapshot, halfSize: FillsTheView);
                 return snapshot;

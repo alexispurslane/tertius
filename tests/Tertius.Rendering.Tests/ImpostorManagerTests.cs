@@ -453,7 +453,14 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             snapshot.Instances.Add(Ball(entity: 1, position: position));
-            snapshot.Lights.Add(Gpu.Lamp(position: position + side, color: Vector3.One, intensity: 1e33f));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + side,
+                    color: Vector3.One,
+                    intensity: 1e33f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
             return snapshot;
         }
 
@@ -471,7 +478,14 @@ public sealed class ImpostorManagerTests
         var position = new Vector3(0, 0, -distance);
         RenderSnapshot snapshot = Snapshot();
         snapshot.Instances.Add(Ball(entity: 1, position: position));
-        snapshot.Lights.Add(Gpu.Lamp(position: position + new Vector3(2, 0, 0), color: Vector3.One, intensity: 1e33f));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: position + new Vector3(2, 0, 0),
+                color: Vector3.One,
+                intensity: 1e33f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
         harness.Run(snapshot);
 
         harness.Run(snapshot);
@@ -493,7 +507,12 @@ public sealed class ImpostorManagerTests
             snapshot.Instances.Add(Ball(entity: 1, position: position));
             for (int i = 0; i < count; i++)
                 snapshot.Lights.Add(
-                    Gpu.Lamp(position: position + new Vector3(2, 0, 0), color: Vector3.One, intensity: 1e33f)
+                    Gpu.Lamp(
+                        position: position + new Vector3(2, 0, 0),
+                        color: Vector3.One,
+                        intensity: 1e33f,
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
             return snapshot;
         }
@@ -788,9 +807,15 @@ public sealed class ImpostorManagerTests
                         color: color,
                         intensity: intensity,
                         innerConeAngle: 0.3f,
-                        outerConeAngle: 0.5f
+                        outerConeAngle: 0.5f,
+                        chainDepth: TestChains.CamerasFrame
                     )
-                    : Gpu.Lamp(position: lightPosition, color: color, intensity: intensity)
+                    : Gpu.Lamp(
+                        position: lightPosition,
+                        color: color,
+                        intensity: intensity,
+                        chainDepth: TestChains.CamerasFrame
+                    )
             );
             return snapshot;
         }
@@ -832,7 +857,12 @@ public sealed class ImpostorManagerTests
             snapshot.Instances.Add(Ball(entity: 1, position: near));
             snapshot.Instances.Add(Ball(entity: 2, position: far, scale: new Vector3(100f)));
             snapshot.Lights.Add(
-                Gpu.Lamp(position: near + new Vector3(2.5f, 1f, 0), color: Vector3.One, intensity: intensity)
+                Gpu.Lamp(
+                    position: near + new Vector3(2.5f, 1f, 0),
+                    color: Vector3.One,
+                    intensity: intensity,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             harness.Run(snapshot);
             return

@@ -181,7 +181,8 @@ internal static class Gpu
 
     /// <summary>
     /// A snapshot with the camera at the origin, the test ambient light, and one light: the test star, a point light
-    /// <see cref="StarDistance"/> along <paramref name="starDirection"/> that casts shadows, of the color
+    /// <see cref="StarDistance"/> along <paramref name="starDirection"/> in the root (<see cref="TestChains.Root"/>, so
+    /// every map of the chain that a test gives the snapshot keeps it) that casts shadows, of the color
     /// <see cref="StarColor"/>, whose power gives the irradiance <paramref name="starIrradiance"/> per unit of color at the
     /// camera (<see cref="Star(RenderSnapshot)"/>).
     /// </summary>
@@ -207,7 +208,8 @@ internal static class Gpu
                 direction: starDirection,
                 irradiance: starIrradiance,
                 angularRadius: StarAngularRadius,
-                color: StarColor
+                color: StarColor,
+                chainDepth: TestChains.Root
             )
         );
         return snapshot;
@@ -216,9 +218,16 @@ internal static class Gpu
     /// <summary>
     /// A star <see cref="StarDistance"/> from the camera along <paramref name="direction"/>, that casts shadows: the power
     /// that gives the irradiance <paramref name="irradiance"/> per unit of <paramref name="color"/> at the camera,
-    /// 4π d² E, and the radius whose sphere covers <paramref name="angularRadius"/> there, d sin α.
+    /// 4π d² E, and the radius whose sphere covers <paramref name="angularRadius"/> there, d sin α. Its carrier is at
+    /// <paramref name="chainDepth"/>, which is <see cref="TestChains.Root"/> for a star of the root, as a real star is.
     /// </summary>
-    public static PointRenderLight StarLight(Vector3 direction, float irradiance, float angularRadius, Vector3 color)
+    public static PointRenderLight StarLight(
+        Vector3 direction,
+        float irradiance,
+        float angularRadius,
+        Vector3 color,
+        ushort chainDepth
+    )
     {
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
@@ -229,15 +238,16 @@ internal static class Gpu
             Power: (float)(4 * Math.PI * StarDistance * StarDistance * irradiance),
             Radius: (float)(StarDistance * Math.Sin(angularRadius)),
             CastsShadow: true,
-            ChainDepth: TestChains.CamerasFrame
+            ChainDepth: chainDepth
         );
     }
 
     /// <summary>
     /// A lamp of radius 0 at <paramref name="position"/> that casts no shadow, with the radiant intensity
-    /// <paramref name="intensity"/>, in W/sr per unit of <paramref name="color"/>: its power is 4π I.
+    /// <paramref name="intensity"/>, in W/sr per unit of <paramref name="color"/>: its power is 4π I. Its carrier is at
+    /// <paramref name="chainDepth"/>.
     /// </summary>
-    public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity) =>
+    public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity, ushort chainDepth) =>
         new(
             EntityIndex: 0,
             Position: position,
@@ -246,13 +256,13 @@ internal static class Gpu
             Power: (float)(4 * Math.PI * intensity),
             Radius: 0,
             CastsShadow: false,
-            ChainDepth: TestChains.CamerasFrame
+            ChainDepth: chainDepth
         );
 
     /// <summary>
     /// A spot light of radius 0 at <paramref name="position"/> along <paramref name="direction"/> that casts no shadow,
     /// with the radiant intensity <paramref name="intensity"/> inside its cone, in W/sr per unit of
-    /// <paramref name="color"/>: its power is I · 2π (1 − cos θo).
+    /// <paramref name="color"/>: its power is I · 2π (1 − cos θo). Its carrier is at <paramref name="chainDepth"/>.
     /// </summary>
     public static SpotRenderLight Spot(
         Vector3 position,
@@ -260,7 +270,8 @@ internal static class Gpu
         Vector3 color,
         float intensity,
         float innerConeAngle,
-        float outerConeAngle
+        float outerConeAngle,
+        ushort chainDepth
     )
     {
         double sine = Math.Sin(outerConeAngle / 2.0);
@@ -276,7 +287,7 @@ internal static class Gpu
             CastsShadow: false,
             InnerConeAngle: innerConeAngle,
             OuterConeAngle: outerConeAngle,
-            ChainDepth: TestChains.CamerasFrame
+            ChainDepth: chainDepth
         );
     }
 
@@ -303,7 +314,8 @@ internal static class Gpu
             direction: direction ?? star.Position,
             irradiance: irradiance ?? StarIrradiance(snapshot),
             angularRadius: angularRadius ?? (float)Math.Asin(star.Radius / StarDistance),
-            color: color ?? star.Color
+            color: color ?? star.Color,
+            chainDepth: star.ChainDepth
         );
     }
 

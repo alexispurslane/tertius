@@ -135,7 +135,7 @@ public sealed class RenderLightUnionTests
             Power: 11,
             Radius: 12,
             CastsShadow: true,
-            ChainDepth: TestChains.CamerasFrame
+            ChainDepth: 21
         );
         var spot = new SpotRenderLight(
             EntityIndex: 1,
@@ -149,7 +149,7 @@ public sealed class RenderLightUnionTests
             CastsShadow: true,
             InnerConeAngle: 19,
             OuterConeAngle: 20,
-            ChainDepth: TestChains.CamerasFrame
+            ChainDepth: 22
         );
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
@@ -160,6 +160,7 @@ public sealed class RenderLightUnionTests
         heldPoint.Power.Should().Be(11);
         heldPoint.Radius.Should().Be(12);
         heldPoint.CastsShadow.Should().BeTrue();
+        heldPoint.ChainDepth.Should().Be(21);
         new RenderLight(spot).TryGetValue(out SpotRenderLight heldSpot).Should().BeTrue();
         heldSpot.EntityIndex.Should().Be(1);
         heldSpot.Position.Should().Be(new Vector3(2, 3, 4));
@@ -172,6 +173,7 @@ public sealed class RenderLightUnionTests
         heldSpot.CastsShadow.Should().BeTrue();
         heldSpot.InnerConeAngle.Should().Be(19);
         heldSpot.OuterConeAngle.Should().Be(20);
+        heldSpot.ChainDepth.Should().Be(22);
     }
 
     [Fact]
@@ -481,7 +483,7 @@ public sealed class RenderLightUnionTests
     [Fact]
     public void ALightTakesEightyFourBytesTheFieldsOfOneSpotLight()
     {
-        // The cases share the storage of every field of a point light, so the union holds one spot light's 82 bytes of
+        // The cases share the storage of every field of a point light, so the union holds one spot light's 83 bytes of
         // fields. Its slots are packed by type, so the shadow flag, the chain depth and the kind byte fill 4 bytes, and the
         // union takes 84, less than a spot light alone, which pads to 88. Storing each case whole would take 140 bytes.
         Unsafe.SizeOf<PointRenderLight>().Should().Be(52);

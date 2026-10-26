@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -14,7 +15,13 @@ public sealed class ShadowPassTests
 
     /// <summary>A white star 1.5 × 10¹¹ m along <paramref name="direction"/>, that casts shadows.</summary>
     private static PointRenderLight Star(Vector3 direction, float irradiance) =>
-        Gpu.StarLight(direction: direction, irradiance: irradiance, angularRadius: 0.00467f, color: Vector3.One);
+        Gpu.StarLight(
+            direction: direction,
+            irradiance: irradiance,
+            angularRadius: 0.00467f,
+            color: Vector3.One,
+            chainDepth: TestChains.Root
+        );
 
     /// <summary>The scene of two stars, batched with two cascade sets, then fitted as the shadow pass fits it.</summary>
     private static PreparedScene TwoStars()

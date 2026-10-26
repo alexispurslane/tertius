@@ -181,7 +181,9 @@ public sealed class LitPuffRenderTests
         var color = new Vector3(1f, 0.8f, 0.5f);
         // The puff is 2 m from the lamp, far inside the lamp's reach of about 400 m.
         const float intensity = 60f;
-        snapshot.Lights.Add(Gpu.Lamp(position: lamp, color: color, intensity: intensity));
+        snapshot.Lights.Add(
+            Gpu.Lamp(position: lamp, color: color, intensity: intensity, chainDepth: TestChains.CamerasFrame)
+        );
         AddLitPuff(snapshot, puff);
 
         Vector3 irradiance = Irradiance(color * intensity, Vector3.Distance(lamp, puff));
@@ -196,7 +198,9 @@ public sealed class LitPuffRenderTests
         // I / (1 cm)² = 1 W/m², which the puff would show as a dim glow.
         RenderSnapshot snapshot = Dark();
         var center = new Vector3(0, 0, -6);
-        snapshot.Lights.Add(Gpu.Lamp(position: center, color: Vector3.One, intensity: 1e-4f));
+        snapshot.Lights.Add(
+            Gpu.Lamp(position: center, color: Vector3.One, intensity: 1e-4f, chainDepth: TestChains.CamerasFrame)
+        );
         AddLitPuff(snapshot, center);
 
         ShouldMatchGlowPuffs(snapshot, [Vector3.Zero], "lit-puff-at-a-lights-center");
@@ -211,7 +215,9 @@ public sealed class LitPuffRenderTests
         var puff = new Vector3(0, 0, -6);
         var lamp = new Vector3(1.2f, 1.6f, -6);
         var spot = new Vector3(-1.5f, 2f, -6);
-        snapshot.Lights.Add(Gpu.Lamp(position: lamp, color: new(1f, 0.8f, 0.5f), intensity: 2f));
+        snapshot.Lights.Add(
+            Gpu.Lamp(position: lamp, color: new(1f, 0.8f, 0.5f), intensity: 2f, chainDepth: TestChains.CamerasFrame)
+        );
         snapshot.Lights.Add(
             Gpu.Spot(
                 position: spot,
@@ -219,7 +225,8 @@ public sealed class LitPuffRenderTests
                 color: new(0.6f, 0.8f, 1f),
                 intensity: 3f,
                 innerConeAngle: 0.2f,
-                outerConeAngle: 0.3f
+                outerConeAngle: 0.3f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         AddLitPuff(snapshot, puff);
@@ -247,7 +254,8 @@ public sealed class LitPuffRenderTests
                 color: color,
                 intensity: intensity,
                 innerConeAngle: 0.2f,
-                outerConeAngle: 0.3f
+                outerConeAngle: 0.3f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         AddLitPuff(snapshot, inside);
@@ -403,7 +411,12 @@ public sealed class LitPuffRenderTests
             )
         );
         snapshot.Lights.Add(
-            Gpu.Lamp(position: underLamp + new Vector3(0, 1f, 0), color: new(1f, 0.75f, 0.45f), intensity: 8f)
+            Gpu.Lamp(
+                position: underLamp + new Vector3(0, 1f, 0),
+                color: new(1f, 0.75f, 0.45f),
+                intensity: 8f,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.PuffLooks.Add(
             new(

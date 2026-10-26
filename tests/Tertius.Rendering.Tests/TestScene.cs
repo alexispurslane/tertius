@@ -212,7 +212,14 @@ internal sealed class TestScene
             )
         );
 
-        snapshot.Lights.Add(Gpu.Lamp(position: new(-0.4f, 0.4f, -4.4f), color: new(1f, 0.7f, 0.4f), intensity: 6f));
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(-0.4f, 0.4f, -4.4f),
+                color: new(1f, 0.7f, 0.4f),
+                intensity: 6f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
         Vector3 spotPosition = new(2.5f, 3.5f, -4.2f);
         snapshot.Lights.Add(
             Gpu.Spot(
@@ -221,7 +228,8 @@ internal sealed class TestScene
                 color: new(0.6f, 0.8f, 1f),
                 intensity: 40f,
                 innerConeAngle: 0.25f,
-                outerConeAngle: 0.4f
+                outerConeAngle: 0.4f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;

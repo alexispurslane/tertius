@@ -143,7 +143,12 @@ public sealed class LightUnitsRenderTests
             RenderSnapshot snapshot = Dark();
             snapshot.Instances.Add(Square(renderer));
             snapshot.Lights.Add(
-                Gpu.Lamp(position: lamp.ToVector3(), color: Vector3.One, intensity: 0) with
+                Gpu.Lamp(
+                    position: lamp.ToVector3(),
+                    color: Vector3.One,
+                    intensity: 0,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
                 {
                     Power = power,
                 }
@@ -183,7 +188,8 @@ public sealed class LightUnitsRenderTests
                     color: Vector3.One,
                     intensity: 0,
                     innerConeAngle: 0.3f,
-                    outerConeAngle: outer
+                    outerConeAngle: outer,
+                    chainDepth: TestChains.CamerasFrame
                 ) with
                 {
                     Power = power,
@@ -223,8 +229,22 @@ public sealed class LightUnitsRenderTests
                 far = Dark();
             near.Instances.Add(Square(renderer));
             far.Instances.Add(Square(renderer));
-            near.Lights.Add(Gpu.Lamp(position: new(0, 0, -2), color: Vector3.One, intensity: intensity));
-            far.Lights.Add(Gpu.Lamp(position: new(0, 0, -1), color: Vector3.One, intensity: intensity));
+            near.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, -2),
+                    color: Vector3.One,
+                    intensity: intensity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            far.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, -1),
+                    color: Vector3.One,
+                    intensity: intensity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
 
             HdrAtTheCenter(renderer, near).X.Should().BeGreaterThan(0, "the square lies within the lamp's reach");
             HdrAtTheCenter(renderer, far).Should().Be(Vector3.Zero, "the square lies beyond the lamp's reach");
@@ -247,7 +267,14 @@ public sealed class LightUnitsRenderTests
             float intensity = (float)(Cutoff / (0.7 * 0.7));
             RenderSnapshot snapshot = Dark();
             snapshot.Instances.Add(Square(renderer));
-            snapshot.Lights.Add(Gpu.Lamp(position: lamp.ToVector3(), color: Vector3.One, intensity: intensity));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: lamp.ToVector3(),
+                    color: Vector3.One,
+                    intensity: intensity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
             Double3 point = Seen(Center).Point;
             Vector3 expected = Lit(
                 point: point,
@@ -310,14 +337,16 @@ public sealed class LightUnitsRenderTests
                 direction: toFirst.ToVector3(),
                 irradiance: 1,
                 angularRadius: Gpu.StarAngularRadius,
-                color: Vector3.One
+                color: Vector3.One,
+                chainDepth: TestChains.Root
             );
             snapshot.Lights.Add(
                 Gpu.StarLight(
                     direction: toSecond.ToVector3(),
                     irradiance: 0.5f,
                     angularRadius: Gpu.StarAngularRadius,
-                    color: Vector3.One
+                    color: Vector3.One,
+                    chainDepth: TestChains.Root
                 )
             );
             snapshot.Instances.Add(Square(renderer));
@@ -362,14 +391,16 @@ public sealed class LightUnitsRenderTests
                 direction: toRight.ToVector3(),
                 irradiance: 1,
                 angularRadius: Gpu.StarAngularRadius,
-                color: Vector3.One
+                color: Vector3.One,
+                chainDepth: TestChains.Root
             );
             snapshot.Lights.Add(
                 Gpu.StarLight(
                     direction: toLeft.ToVector3(),
                     irradiance: 0.6f,
                     angularRadius: Gpu.StarAngularRadius,
-                    color: Vector3.One
+                    color: Vector3.One,
+                    chainDepth: TestChains.Root
                 )
             );
             snapshot.Instances.Add(Square(renderer, side: 4));
@@ -421,14 +452,16 @@ public sealed class LightUnitsRenderTests
                 direction: -Vector3.UnitZ,
                 irradiance: 1_000,
                 angularRadius: Gpu.StarAngularRadius,
-                color: Vector3.One
+                color: Vector3.One,
+                chainDepth: TestChains.Root
             );
             snapshot.Lights.Add(
                 Gpu.StarLight(
                     direction: toDim.ToVector3(),
                     irradiance: 0.5f,
                     angularRadius: Gpu.StarAngularRadius,
-                    color: Vector3.One
+                    color: Vector3.One,
+                    chainDepth: TestChains.Root
                 )
             );
             snapshot.Instances.Add(Square(renderer));
@@ -478,7 +511,14 @@ public sealed class LightUnitsRenderTests
                     radius: 0.75f
                 )
             );
-            snapshot.Lights.Add(Gpu.Lamp(position: new(0, 0, -3.5f), color: Vector3.One, intensity: 10));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, -3.5f),
+                    color: Vector3.One,
+                    intensity: 10,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
 
             HdrAtTheCenter(renderer, snapshot).Should().Be(Vector3.Zero);
         }

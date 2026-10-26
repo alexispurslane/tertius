@@ -530,7 +530,8 @@ public sealed class BatcherTests
         Gpu.Lamp(
             position: position,
             color: Vector3.One,
-            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(new FixedExposure(-10))) : 0
+            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(new FixedExposure(-10))) : 0,
+            chainDepth: TestChains.CamerasFrame
         );
 
     [Fact]
@@ -1011,6 +1012,21 @@ public sealed class BatcherTests
             .Select(light => light.Position)
             .Should()
             .Equal(new Vector3(0, 0, -5), new(1, 0, -5), new(2, 0, -5));
+    }
+
+    [Fact]
+    public void TheTestStarSitsInTheRootSoEveryMapOfTheChainThatATestGivesKeepsIt()
+    {
+        // A real star sits in the root frame, which takes map 0. The test sets the chain after it makes the snapshot.
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene.LightSpan.ToArray().Select(light => light.Map).Should().Equal(0);
     }
 
     [Fact]
