@@ -1,6 +1,6 @@
 ---
 id: ter-iz58
-status: open
+status: in_progress
 deps: [ter-nl5u, ter-b3h5, ter-mgze, ter-3att, ter-cl86]
 links: []
 created: 2026-10-25T16:58:27Z

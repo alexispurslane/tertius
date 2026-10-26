@@ -1,7 +1,7 @@
 ---
 id: ter-6vhj
 status: open
-deps: [ter-nl5u]
+deps: [ter-nl5u, ter-a24f, ter-s9cv]
 links: []
 created: 2026-10-25T12:01:26Z
 type: feature
