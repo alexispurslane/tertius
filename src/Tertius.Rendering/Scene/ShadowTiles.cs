@@ -98,9 +98,11 @@ internal sealed class ShadowTiles
     /// record is stale, with its casters. It only reads the records and the layers' owners: <see cref="Drew"/> keeps the
     /// frame's.
     /// </summary>
+    /// <param name="deformed">The frame meshes that the casters name, which tell a posed caster's static mesh and pose rows.</param>
     public void Update(
         Span<PreparedLight> lights,
         ReadOnlySpan<ShadowCaster> casters,
+        DeformedMeshes deformed,
         long originFrameId,
         List<TileView> views,
         List<TileDraw> draws
@@ -128,6 +130,7 @@ internal sealed class ShadowTiles
                 light: light,
                 lights: lights,
                 casters: casters,
+                deformed: deformed,
                 originFrameId: originFrameId,
                 views: views,
                 draws: draws
@@ -350,6 +353,7 @@ internal sealed class ShadowTiles
         int light,
         ReadOnlySpan<PreparedLight> lights,
         ReadOnlySpan<ShadowCaster> casters,
+        DeformedMeshes deformed,
         long originFrameId,
         List<TileView> views,
         List<TileDraw> draws
@@ -375,6 +379,7 @@ internal sealed class ShadowTiles
                     frustum: frustum,
                     light: lights[light],
                     casters: casters,
+                    deformed: deformed,
                     seen: seen,
                     tileSize: TileSize,
                     originFrameId: originFrameId
@@ -386,6 +391,7 @@ internal sealed class ShadowTiles
                 frustum: frustum,
                 light: lights[light],
                 casters: casters,
+                deformed: deformed,
                 seen: seen,
                 originFrameId: originFrameId
             );
@@ -406,13 +412,15 @@ internal sealed class ShadowTiles
     /// <summary>
     /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
     /// another light or aim, another camera frame, another projection, a turn of the aim, other casters, or a caster that
-    /// moved by a quarter of a texel where it shows, or by more than float rounding of its pose.
+    /// moved by a quarter of a texel where it shows, or by more than float rounding of its pose, or a caster of another
+    /// static mesh or other pose rows (docs/plans/skinning-and-morphs.md, fork 1).
     /// </summary>
     private static bool IsStale(
         TileRecord record,
         in TileFrustum frustum,
         in PreparedLight light,
         ReadOnlySpan<ShadowCaster> casters,
+        DeformedMeshes deformed,
         ReadOnlySpan<int> seen,
         int tileSize,
         long originFrameId
@@ -434,8 +442,10 @@ internal sealed class ShadowTiles
         {
             RecordedCaster was = record.Casters[i];
             ref readonly ShadowCaster now = ref casters[seen[i]];
-            bool sameCaster = was.EntityIndex == now.EntityIndex && was.Part == now.Part && was.Mesh == now.Mesh;
-            if (!sameCaster)
+            // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh.
+            bool sameCaster =
+                was.EntityIndex == now.EntityIndex && was.Part == now.Part && was.Mesh == deformed.SourceOf(now.Mesh);
+            if (!sameCaster || !SamePose(record: record, was: was, now: deformed.PoseOf(now.Mesh)))
                 return true;
             Vector3 offset = now.Position - light.Position;
             float nearest = MathF.Max(offset.Length() - now.Radius, frustum.Near);
@@ -450,14 +460,26 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>
-    /// Writes the record of the layer's tile in this frame, with its <paramref name="seen"/> casters, into
-    /// <see cref="drawnRecords"/>, which <see cref="Drew"/> keeps.
+    /// Whether a caster's pose rows <paramref name="now"/> are the recorded caster's, bit for bit: an empty span for a
+    /// static mesh on both sides, or the same rows of a still rig (docs/plans/skinning-and-morphs.md, decision 21).
+    /// </summary>
+    private static bool SamePose(TileRecord record, in RecordedCaster was, ReadOnlySpan<Vector4> now)
+    {
+        ReadOnlySpan<Vector4> recorded = CollectionsMarshal.AsSpan(record.Poses).Slice(was.PoseStart, was.PoseCount);
+        // Bits, not values: a NaN equals itself here, and −0 differs from +0.
+        return MemoryMarshal.Cast<Vector4, uint>(recorded).SequenceEqual(MemoryMarshal.Cast<Vector4, uint>(now));
+    }
+
+    /// <summary>
+    /// Writes the record of the layer's tile in this frame, with its <paramref name="seen"/> casters and the pose rows of
+    /// the posed ones, into <see cref="drawnRecords"/>, which <see cref="Drew"/> keeps.
     /// </summary>
     private void Record(
         int layer,
         in TileFrustum frustum,
         in PreparedLight light,
         ReadOnlySpan<ShadowCaster> casters,
+        DeformedMeshes deformed,
         ReadOnlySpan<int> seen,
         long originFrameId
     )
@@ -467,19 +489,24 @@ internal sealed class ShadowTiles
         record.OriginFrameId = originFrameId;
         record.Frustum = frustum;
         record.Casters.Clear();
+        record.Poses.Clear();
         foreach (int index in seen)
         {
             ref readonly ShadowCaster caster = ref casters[index];
+            ReadOnlySpan<Vector4> pose = deformed.PoseOf(caster.Mesh);
             record.Casters.Add(
                 new(
                     EntityIndex: caster.EntityIndex,
                     Part: caster.Part,
-                    Mesh: caster.Mesh,
+                    Mesh: deformed.SourceOf(caster.Mesh),
                     Offset: caster.Position - light.Position,
                     Rotation: caster.Rotation,
-                    Scale: caster.Scale
+                    Scale: caster.Scale,
+                    PoseStart: record.Poses.Count,
+                    PoseCount: pose.Length
                 )
             );
+            record.Poses.AddRange(pose);
         }
 
         drawnRecords.Add((layer, record));
@@ -505,14 +532,19 @@ internal sealed class ShadowTiles
             a.Irradiance != b.Irradiance ? b.Irradiance.CompareTo(a.Irradiance) : a.Light.CompareTo(b.Light);
     }
 
-    /// <summary>A caster as a tile record holds it: its position relative to the light.</summary>
+    /// <summary>
+    /// A caster as a tile record holds it: its static mesh, its position relative to the light, and its pose rows,
+    /// TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
+    /// </summary>
     private readonly record struct RecordedCaster(
         uint EntityIndex,
         ushort Part,
         int Mesh,
         Vector3 Offset,
         Quaternion Rotation,
-        Vector3 Scale
+        Vector3 Scale,
+        int PoseStart,
+        int PoseCount
     );
 
     /// <summary>
@@ -624,5 +656,8 @@ internal sealed class ShadowTiles
         public long OriginFrameId;
         public TileFrustum Frustum;
         public readonly List<RecordedCaster> Casters = [];
+
+        /// <summary>The pose rows of the posed casters, which they name.</summary>
+        public readonly List<Vector4> Poses = [];
     }
 }

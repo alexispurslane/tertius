@@ -80,6 +80,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly FrameResources[] frames;
     private readonly UploadQueue uploads;
     private readonly GeometryStore geometry;
+    private readonly DeformStore deforms;
+
+    /// <summary><see cref="RendererOptions.Deformation"/>: off, every frame passes the batcher an empty deform region.</summary>
+    private readonly bool deformation;
     private readonly TextureStore textures;
     private readonly MaterialStore materials;
     private readonly RenderTargets targets;
@@ -116,6 +120,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         this.headless = headless;
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
+        deformation = options.Deformation;
         Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
@@ -130,6 +135,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
+            deforms = Own(
+                new DeformStore(
+                    device: device,
+                    allocator: Allocator,
+                    maxBytes: device.Properties.Limits.MaxStorageBufferRange
+                )
+            );
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
@@ -597,9 +609,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
+        DeformRegion region = ReserveRegion(snapshot, commandBuffer);
         // Before the frame graph, whose lighting pass reads the target, and whose occlusion passes overwrite it.
         targets.RecordOcclusionClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
-        frame.UpdateSharedDescriptors(materials, textures);
+        frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
@@ -608,6 +621,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             meshes: geometry.Meshes,
             materialCount: materials.Count,
             environment: environment,
+            region: region,
             scene: LastScene
         );
         SetContext(
@@ -625,6 +639,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
         device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
+    }
+
+    /// <summary>
+    /// Grows the deform region to the copies that <paramref name="snapshot"/> needs and gives it, or gives the empty region
+    /// with the deformation off. After the uploads, because the need reads this frame's meshes, and before the batch,
+    /// which fills the region (docs/plans/skinning-and-morphs.md, "Every new value, its writers and its readers").
+    /// </summary>
+    private DeformRegion ReserveRegion(RenderSnapshot snapshot, CommandBuffer commandBuffer)
+    {
+        if (!deformation)
+            return DeformRegion.None;
+        geometry.ReserveDeformed(
+            vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes),
+            commandBuffer: commandBuffer,
+            barriers: barriers,
+            releases: releases,
+            frame: frameNumber
+        );
+        return geometry.Region;
     }
 
     private void WaitFor(Fence fence) =>
@@ -691,6 +724,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             geometry.Upload(
                 commandBuffer: commandBuffer,
                 pending: pending.Meshes,
+                deforms: pending.Deforms,
+                deformStore: deforms,
+                staging: frame.Staging,
+                barriers: barriers,
+                releases: releases,
+                frame: frameNumber
+            );
+            deforms.Upload(
+                commandBuffer: commandBuffer,
                 staging: frame.Staging,
                 barriers: barriers,
                 releases: releases,
@@ -753,6 +795,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Lights = scene.LightCount,
             Outlines = scene.OutlineCount,
             Puffs = scene.PuffCount,
+            DeformedInstances = scene.DeformedInstances,
+            DeformedVertices = scene.DeformedVertices,
+            UndeformedPosedInstances = scene.UndeformedPosedInstances,
             GpuTimings = gpuTimings,
             Exposure = exposure,
             Rendered = true,
@@ -969,6 +1014,55 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentOutOfRangeException.ThrowIfNegative(level);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.RadianceTopLevel);
         return ReadLevel(image: pyramids.RadianceImage, layer: 0, mip: level);
+    }
+
+    /// <summary>
+    /// The deformed copies of the last frame, job after job, as the deform pass wrote them. A test hook: it waits for the
+    /// device to be idle and submits its own copy.
+    /// </summary>
+    internal Vertex[] ReadDeformedVertices()
+    {
+        ReadOnlySpan<DeformJob> jobs = LastScene.Deforms;
+        ReadOnlySpan<MeshInfo> meshes = geometry.Meshes;
+        var copies = new BufferCopy[jobs.Length];
+        ulong vertexSize = (ulong)sizeof(Vertex),
+            read = 0;
+        for (int i = 0; i < jobs.Length; i++)
+        {
+            ulong count = (ulong)(meshes[jobs[i].Mesh].Deform?.VertexCount ?? 0);
+            ulong first = (ulong)(geometry.Region.Base + jobs[i].Target);
+            copies[i] = new(srcOffset: first * vertexSize, dstOffset: read * vertexSize, size: count * vertexSize);
+            read += count;
+        }
+
+        if (read == 0)
+            return [];
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: read * vertexSize,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "deformed vertices readback"
+        );
+        SubmitAndWait(commandBuffer =>
+        {
+            var local = new BarrierBatch();
+            local.Buffer(geometry.VertexBuffer, BufferUse.TransferSource);
+            local.Buffer(buffer, BufferUse.TransferDestination);
+            local.Flush(device.Vk, commandBuffer);
+            fixed (BufferCopy* regions = copies)
+                device.Vk.CmdCopyBuffer(
+                    commandBuffer: commandBuffer,
+                    srcBuffer: geometry.VertexBuffer.Handle,
+                    dstBuffer: buffer.Handle,
+                    regionCount: (uint)copies.Length,
+                    pRegions: regions
+                );
+            local.Buffer(buffer, BufferUse.HostRead);
+            local.Flush(device.Vk, commandBuffer);
+        });
+        return new ReadOnlySpan<Vertex>(buffer.Mapped, (int)read).ToArray();
     }
 
     /// <summary>
@@ -1407,6 +1501,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         RendererOptions options
     )
     {
+        if (options.Deformation)
+            Graph.Add(
+                FrameGraph.Stage.Deformation,
+                new DeformPass(device: device, shaders: shaders, layouts: layouts, deforms: deforms)
+            );
         Graph.Add(
             FrameGraph.Stage.ShadowMaps,
             new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)

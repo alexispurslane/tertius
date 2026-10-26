@@ -11,7 +11,10 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 public sealed class ShadowPassTests
 {
-    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f)];
+    private static readonly MeshInfo[] Meshes =
+    [
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+    ];
 
     /// <summary>A white star 1.5 × 10¹¹ m along <paramref name="direction"/>, that casts shadows.</summary>
     private static PointRenderLight Star(Vector3 direction, float irradiance) =>
@@ -38,6 +41,7 @@ public sealed class ShadowPassTests
             meshes: Meshes,
             materialCount: 1,
             environment: new WithoutMap(),
+            region: DeformRegion.None,
             scene: scene
         );
         ShadowPass.FitSets(scene: scene, anchor: Double3.Zero, mapSize: 2048, depthRangeScale: 16f);

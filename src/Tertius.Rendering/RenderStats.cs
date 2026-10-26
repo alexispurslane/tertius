@@ -95,6 +95,18 @@ public readonly record struct RenderStats
     /// </summary>
     public ExposureReading? Exposure { get; init; }
 
+    /// <summary>The posed instances that drew a deformed copy of their mesh.</summary>
+    public int DeformedInstances { get; init; }
+
+    /// <summary>The vertices of every deformed copy that the deform pass wrote.</summary>
+    public int DeformedVertices { get; init; }
+
+    /// <summary>
+    /// The posed instances drawn as uploaded: a rig pose that does not fit the mesh, a posed bound out of range, a full
+    /// deform region, or the deformation off.
+    /// </summary>
+    public int UndeformedPosedInstances { get; init; }
+
     /// <summary>False when the frame was skipped, for example because the swapchain was out of date.</summary>
     public bool Rendered { get; init; }
 

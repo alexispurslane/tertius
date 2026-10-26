@@ -89,4 +89,11 @@ public sealed class RendererOptions
     /// 2 MB (docs/plans/environment-map.md, "The setting").
     /// </summary>
     public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
+
+    /// <summary>
+    /// Whether posed instances draw their meshes deformed by their rig poses, in every pass. Off, each draws as uploaded.
+    /// On by default. Each deformed instance takes 48 bytes of device memory per vertex (docs/plans/skinning-and-morphs.md,
+    /// "Memory and cost").
+    /// </summary>
+    public bool Deformation { get; set; } = true;
 }

@@ -29,7 +29,10 @@ public class SceneBatcherBenchmarks
     private const int Height = 1080;
     private const int MaterialCount = 8;
 
-    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f)];
+    private static readonly MeshInfo[] Meshes =
+    [
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+    ];
 
     private readonly SceneBatcher batcher = new(exposure: AutoExposure.Default, cascadedLights: 1);
     private readonly PreparedScene scene = new();
@@ -81,6 +84,7 @@ public class SceneBatcherBenchmarks
             meshes: Meshes,
             materialCount: MaterialCount,
             environment: environment,
+            region: DeformRegion.None,
             scene: scene
         );
 

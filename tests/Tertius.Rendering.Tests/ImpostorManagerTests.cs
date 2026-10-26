@@ -12,11 +12,21 @@ public sealed class ImpostorManagerTests
     private const int Width = 1280,
         Height = 720;
     private const int Sphere = 1;
+    private const int MorphingBox = 2;
+
+    private static readonly MeshData MorphingBoxData = Primitives.MorphingBox(new(0.5f));
 
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f)),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(
+            FirstIndex: 636,
+            IndexCount: (uint)MorphingBoxData.Indices.Length,
+            VertexOffset: 324,
+            Radius: GeometryStore.Radius(MorphingBoxData.Vertices),
+            Deform: MeshDeform.Pack(MorphingBoxData)!.Deform
+        ),
     ];
 
     private static readonly MaterialId BallMaterial = new(0);
@@ -30,10 +40,13 @@ public sealed class ImpostorManagerTests
         public readonly PreparedScene Scene = new();
         public readonly ImpostorManager Manager;
 
-        public Harness(int tiles = 64)
+        private readonly DeformRegion region;
+
+        public Harness(int tiles = 64, DeformRegion region = default)
         {
             Manager = new(tiles);
             Batcher.Processors.Add(Manager);
+            this.region = region;
         }
 
         public PreparedScene Run(RenderSnapshot snapshot, EnvironmentDraw environment = default)
@@ -46,6 +59,7 @@ public sealed class ImpostorManagerTests
                 meshes: Meshes,
                 materialCount: 8,
                 environment: environment,
+                region: region,
                 scene: Scene
             );
             return Scene;
@@ -185,6 +199,53 @@ public sealed class ImpostorManagerTests
         harness.Manager.Status(Key(2)).Should().BeNull("Celestial objects are never impostors");
         harness.Manager.Status(Key(3)).Should().BeNull("Transparent objects are never impostors");
         harness.Status(4).Impostor.Should().BeTrue();
+    }
+
+    /// <summary>A snapshot with one posed morphing box at rest, 150 px high on the output.</summary>
+    private static RenderSnapshot SmallPosedBox()
+    {
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: new(MorphingBox),
+                material: BallMaterial,
+                position: new(0, 0, -DistanceFor(150, radius: Meshes[MorphingBox].Radius)),
+                scale: Vector3.One,
+                entity: 1
+            )
+        );
+        RigPose rest = MorphingBoxData.Rigging!.Rig.Rest;
+        snapshot.AddRigPose(
+            instance: 0,
+            joints: rest.Joints.AsSpan(),
+            previousJoints: rest.Joints.AsSpan(),
+            weights: rest.Weights.AsSpan(),
+            previousWeights: rest.Weights.AsSpan()
+        );
+        return snapshot;
+    }
+
+    [Fact]
+    public void DeformedInstanceNeverBecomesAnImpostor()
+    {
+        var harness = new Harness(region: new(Base: 1_024, Capacity: 1_000));
+
+        PreparedScene scene = harness.Run(SmallPosedBox());
+
+        scene.Deforms.Length.Should().Be(1);
+        harness.Manager.Draws.Length.Should().Be(0, "an impostor's capture knows nothing of the pose");
+        scene.VisibleCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void PosedInstanceDrawnAsUploadedCanBecomeAnImpostor()
+    {
+        var harness = new Harness(region: DeformRegion.None);
+
+        PreparedScene scene = harness.Run(SmallPosedBox());
+
+        scene.UndeformedPosedInstances.Should().Be(1);
+        harness.Manager.Draws.Length.Should().Be(1, "drawn as uploaded, it is a static instance");
     }
 
     [Fact]

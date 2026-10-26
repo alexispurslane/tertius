@@ -252,8 +252,11 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
+            // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
+            // (docs/plans/skinning-and-morphs.md, decision 25).
             if (
                 (instance.Flags & Excluded) != 0
+                || scene.IsDeformed(instance.Mesh)
                 || !(instance.Radius > 0f)
                 || instance.Distance < MinimumDistance * instance.Radius
             )

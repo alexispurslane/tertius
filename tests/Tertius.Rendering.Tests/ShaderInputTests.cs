@@ -13,8 +13,8 @@ public sealed class ShaderInputTests
     /// <summary>A box, and a mesh that reaches 10^21 m from its origin.</summary>
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f),
-        new(FirstIndex: 36, IndexCount: 36, VertexOffset: 24, Radius: 1e21f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 36, IndexCount: 36, VertexOffset: 24, Radius: 1e21f, Deform: null),
     ];
 
     private static PreparedScene Prepare(RenderSnapshot snapshot)
@@ -30,6 +30,7 @@ public sealed class ShaderInputTests
                 meshes: Meshes,
                 materialCount: 1,
                 environment: new WithoutMap(),
+                region: DeformRegion.None,
                 scene: scene
             );
         return scene;

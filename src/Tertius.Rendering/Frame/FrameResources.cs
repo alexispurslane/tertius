@@ -7,8 +7,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// What one frame in flight owns: its command buffer, fence and acquire semaphore, the host-visible buffers the CPU
-/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs and, with the
-/// local shadow atlas, the tile views), its descriptor
+/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs, the deform
+/// pass's pose rows and, with the local shadow atlas, the tile views), its descriptor
 /// sets and its staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other
 /// synchronization is needed for them.
 /// </summary>
@@ -25,6 +25,12 @@ internal sealed unsafe class FrameResources : IDisposable
 
     /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that binding 12 points at, or −1 before it is written.</summary>
     private int environmentVersion = -1;
+
+    /// <summary>The vertex buffer whose deform region binding 0 of the deform set points at, or null before it is written.</summary>
+    private GpuBuffer? windowBuffer;
+
+    /// <summary>The <see cref="DeformStore.Version"/> that bindings 1 and 2 of the deform set point at, or −1 before.</summary>
+    private int deformVersion = -1;
 
     public FrameResources(
         VulkanDevice device,
@@ -66,12 +72,15 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders = StorageArray<Vector4>(allocator, "occluders", 16);
         Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
         Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
+        Poses = StorageArray<Vector4>(allocator, "pose rows", 256);
         // Without the atlas the binding stays empty: it is partially bound.
         ShadowTiles = shadowAtlas is null ? null : StorageArray<GpuShadowTile>(allocator, "tile views", 64);
         Staging = new(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
         TextureSet = layouts.AllocateTextureSet();
+        DeformSet = layouts.AllocateDeformSet();
+        WritePoses(Poses);
         WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
         // The irradiance buffer lives as long as the renderer, so its binding is written once. The specular maps grow, so
         // UpdateSharedDescriptors writes their binding. With the map off both stay empty: they are partially bound.
@@ -102,11 +111,17 @@ internal sealed unsafe class FrameResources : IDisposable
     public HostArray<GpuOutline> Outlines { get; }
     public HostArray<GpuPuff> Puffs { get; }
 
+    /// <summary>The pose rows of the frame's deform jobs, which the deform pass reads.</summary>
+    public HostArray<Vector4> Poses { get; }
+
     /// <summary>The tile views of the local shadows, or null without the atlas.</summary>
     public HostArray<GpuShadowTile>? ShadowTiles { get; }
     public StagingArena Staging { get; }
     public DescriptorSet FrameSet { get; }
     public DescriptorSet TextureSet { get; }
+
+    /// <summary>The deform pass's set, which <see cref="UpdateSharedDescriptors"/> and <see cref="Write"/> keep current.</summary>
+    public DescriptorSet DeformSet { get; }
 
     /// <summary>The frame number this slot last recorded.</summary>
     public long Number { get; set; } = -1;
@@ -138,7 +153,12 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
         if (ShadowTiles?.Write(scene.ShadowTiles.AsSpan(0, scene.ShadowTileCount)) == true)
             WriteShadowTiles(ShadowTiles);
+        if (Poses.Write(scene.Poses))
+            WritePoses(Poses);
     }
+
+    private void WritePoses(HostArray<Vector4> poses) =>
+        layouts.WriteBuffer(set: DeformSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: poses.Buffer);
 
     private void WriteShadowTiles(HostArray<GpuShadowTile> tiles) =>
         layouts.WriteBuffer(
@@ -251,11 +271,18 @@ internal sealed unsafe class FrameResources : IDisposable
     }
 
     /// <summary>
-    /// Points this frame's sets at the current material buffer and the current specular maps, and writes textures added
-    /// since its last frame. A growth of the maps waited for the device, so no submitted frame still uses the set.
+    /// Points this frame's sets at the current material buffer, the current specular maps, the deform region and the
+    /// deform store, and writes textures added since its last frame. A growth of the maps waited for the device, so no
+    /// submitted frame still uses the set.
     /// </summary>
-    public void UpdateSharedDescriptors(MaterialStore materials, TextureStore textures)
+    public void UpdateSharedDescriptors(
+        MaterialStore materials,
+        TextureStore textures,
+        GeometryStore geometry,
+        DeformStore deforms
+    )
     {
+        UpdateDeformSet(geometry, deforms);
         if (environment is not null && environmentVersion != environment.ImagesVersion)
         {
             layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
@@ -282,6 +309,46 @@ internal sealed unsafe class FrameResources : IDisposable
             );
     }
 
+    /// <summary>
+    /// Points the deform set at the region of the current vertex buffer and at the current deform store. An empty region
+    /// has no window, and no job reads it.
+    /// </summary>
+    private void UpdateDeformSet(GeometryStore geometry, DeformStore deforms)
+    {
+        DeformRegion region = geometry.Region;
+        // A growth of the region or of the static capacity makes a new vertex buffer, so the buffer names the window.
+        if (region.Capacity > 0 && windowBuffer != geometry.VertexBuffer)
+        {
+            ulong vertexSize = (ulong)Unsafe.SizeOf<Vertex>();
+            layouts.WriteBuffer(
+                set: DeformSet,
+                binding: 0,
+                type: DescriptorType.StorageBuffer,
+                buffer: geometry.VertexBuffer,
+                offset: (ulong)region.Base * vertexSize,
+                range: (ulong)region.Capacity * vertexSize
+            );
+            windowBuffer = geometry.VertexBuffer;
+        }
+
+        if (deformVersion != deforms.Version)
+        {
+            layouts.WriteBuffer(
+                set: DeformSet,
+                binding: 1,
+                type: DescriptorType.StorageBuffer,
+                buffer: deforms.Vertices.Buffer
+            );
+            layouts.WriteBuffer(
+                set: DeformSet,
+                binding: 2,
+                type: DescriptorType.StorageBuffer,
+                buffer: deforms.Deltas.Buffer
+            );
+            deformVersion = deforms.Version;
+        }
+    }
+
     public void Dispose()
     {
         Vk vk = device.Vk;
@@ -291,6 +358,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders.Dispose();
         Outlines.Dispose();
         Puffs.Dispose();
+        Poses.Dispose();
         ShadowTiles?.Dispose();
         Constants.Dispose();
         Staging.Dispose();

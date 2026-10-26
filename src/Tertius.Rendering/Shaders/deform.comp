@@ -1,0 +1,112 @@
+#version 460
+// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one invocation per vertex of one job writes the
+// vertex after its morphs and its skin into the job's copy in the deform region. MeshDeform.Deformed is its C# copy, with
+// the same order of every sum, because a float sum depends on its order.
+#extension GL_GOOGLE_include_directive : require
+#include "vectors.glsl"
+
+// MeshDeform.InvocationsPerGroup.
+layout(local_size_x = 64) in;
+
+// A vertex as uploaded, with its morph list and its skin: GpuDeformVertex, 80 bytes.
+struct DeformVertex
+{
+    vec3 position;
+    uint morphStart;   // the vertex's first delta, counted from the mesh's first delta
+    vec3 normal;
+    uint morphCount;   // its deltas, in morph order
+    vec4 tangent;
+    vec2 texCoord;
+    uvec2 joints;      // the four joints, two 16-bit halves per word, joint 0 in the low half of x
+    vec4 weights;      // each at least 0, with a sum of 1
+};
+
+// One morph's deltas for one vertex: GpuMorphDelta, 48 bytes.
+struct MorphDelta
+{
+    vec3 position;
+    uint morph;
+    vec3 normal;
+    float pad0;
+    vec3 tangent;
+    float pad1;
+};
+
+// The region's range of the global vertex buffer, as floats: std430 pads a vec3 to 16 bytes, and a Vertex is 48.
+layout(set = 0, binding = 0, std430) writeonly buffer RegionBlock { float region[]; };
+layout(set = 0, binding = 1, std430) readonly buffer SourceBlock { DeformVertex sources[]; };
+layout(set = 0, binding = 2, std430) readonly buffer DeltaBlock { MorphDelta deltas[]; };
+// The frame's pose rows: per job, three rows per palette joint, then the weights four to a row.
+layout(set = 0, binding = 3, std430) readonly buffer PoseBlock { vec4 poses[]; };
+
+// DeformPushConstants: one job.
+layout(push_constant, std430) uniform DeformPush
+{
+    uint source;    // the mesh's first deform vertex
+    uint deltas;    // the mesh's first morph delta
+    uint target;    // the copy's first vertex, counted from the region's base
+    uint count;     // the mesh's vertex count
+    uint palette;   // the job's first pose row
+    uint weights;   // the job's first weight row
+} job;
+
+// The joint index of skin slot s.
+uint jointOf(uvec2 joints, uint s)
+{
+    uint word = s < 2u ? joints.x : joints.y;
+    return (s & 1u) == 0u ? word & 0xFFFFu : word >> 16u;
+}
+
+// Writes the 12 floats of Vertex k of the region.
+void writeVertex(uint k, vec3 position, vec3 normal, vec4 tangent, vec2 texCoord)
+{
+    uint f = 12u * k;
+    region[f] = position.x;
+    region[f + 1u] = position.y;
+    region[f + 2u] = position.z;
+    region[f + 3u] = normal.x;
+    region[f + 4u] = normal.y;
+    region[f + 5u] = normal.z;
+    region[f + 6u] = tangent.x;
+    region[f + 7u] = tangent.y;
+    region[f + 8u] = tangent.z;
+    region[f + 9u] = tangent.w;
+    region[f + 10u] = texCoord.x;
+    region[f + 11u] = texCoord.y;
+}
+
+void main()
+{
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= job.count)
+        return;
+    DeformVertex v = sources[job.source + i];
+    vec3 p = v.position, n = v.normal, t = v.tangent.xyz;
+    // Morph order, as MeshDeform.Deformed sums them.
+    for (uint e = 0u; e < v.morphCount; e++)
+    {
+        MorphDelta d = deltas[job.deltas + v.morphStart + e];
+        float w = poses[job.weights + d.morph / 4u][d.morph % 4u];
+        p += w * d.position;
+        n += w * d.normal;
+        t += w * d.tangent;
+    }
+    // Slot order. A slot of weight 0 adds exactly 0, and joint 0 always exists, so no slot needs a branch.
+    vec3 sp = vec3(0), sn = vec3(0), st = vec3(0);
+    for (uint s = 0u; s < 4u; s++)
+    {
+        uint r = job.palette + 3u * jointOf(v.joints, s);
+        float a = v.weights[s];
+        vec4 point = vec4(p, 1);
+        sp += a * vec3(dot(poses[r], point), dot(poses[r + 1u], point), dot(poses[r + 2u], point));
+        sn += a * vec3(dot(poses[r].xyz, n), dot(poses[r + 1u].xyz, n), dot(poses[r + 2u].xyz, n));
+        st += a * vec3(dot(poses[r].xyz, t), dot(poses[r + 1u].xyz, t), dot(poses[r + 2u].xyz, t));
+    }
+    writeVertex(
+        job.target + i,
+        sp,
+        normalizedOr(sn, vec3(0)),
+        vec4(normalizedOr(st, vec3(0)), v.tangent.w),
+        v.texCoord
+    );
+}
