@@ -7,8 +7,10 @@ namespace Tertius.Rendering.Tests;
 /// The acceptance criteria of the bounce light on the GPU (docs/plans/screen-space-illumination.md, "GPU tests of the
 /// acceptance criteria"): a lit surface lights the surfaces near it with its own color, near and through the far rays
 /// beyond the radius, a lit surface off the screen gives no light, no direct light gives no bounce, and in a furnace the
-/// open and the blocked shares sum to the light of an open surface. At 640 × 360 under
-/// <see cref="VisibilityBitmaskLight.Default"/>, unless a test says otherwise.
+/// open and the blocked shares sum to the light of an open surface. A still scene has the same bounce in every frame, a
+/// resized renderer bounces light at its new size, and the direct and the ambient passes keep a pixel within the
+/// surfaces' share of the HDR image. At 640 × 360 under <see cref="VisibilityBitmaskLight.Default"/>, unless a test says
+/// otherwise.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class BounceLightRenderTests(ITestOutputHelper output)
@@ -198,47 +200,191 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void AStillSceneHasTheSameBounceInEveryFrame()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot redWall = RedWall(renderer, CornerView);
+            renderer.Render(redWall, 1f);
+            float[] first = renderer.ReadHdr();
+            for (int i = 0; i < 4; i++)
+                renderer.Render(redWall, 1f);
+            float[] fifth = renderer.ReadHdr();
+
+            MeanRedShare(first, FloorPixels(fromTheWall: [0.1f, 0.2f, 0.3f], view: CornerView))
+                .Should()
+                .BeGreaterThan(
+                    MeanRedShare(first, FloorPixels(fromTheWall: [3.1f, 3.2f, 3.3f], view: CornerView)),
+                    "the red wall bounces its light onto the floor beside it"
+                );
+            fifth.Should().Equal(first, "nothing of the estimate carries over from one frame to the next");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AResizedRendererStillBouncesLightAtItsNewSize()
+    {
+        const int newWidth = 800,
+            newHeight = 450;
+        // The floor beside the wall from x = −3.5 m to 3.5 m, which at the new size reaches past the old 640 pixels.
+        float[] fromTheWall = [0.1f, 0.2f, 0.3f];
+        float[] across = [-3.5f, 0f, 3.5f];
+        Vector2[] before = FloorPixels(
+            fromTheWall: fromTheWall,
+            across: across,
+            view: CornerView,
+            size: (Width, Height)
+        );
+        Vector2[] after = FloorPixels(
+            fromTheWall: fromTheWall,
+            across: across,
+            view: CornerView,
+            size: (newWidth, newHeight)
+        );
+        Vector2[] away = FloorPixels(fromTheWall: [3.1f, 3.2f, 3.3f], view: CornerView);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot redWall = RedWall(renderer, CornerView);
+            renderer.Render(redWall, 1f);
+            float[] first = renderer.ReadHdr();
+            renderer.Resize(newWidth, newHeight);
+            renderer.Render(redWall, 1f);
+            float[] resized = renderer.ReadHdr();
+
+            MeanRedShare(first, before)
+                .Should()
+                .BeGreaterThanOrEqualTo(MeanRedShare(first, away) + 0.02, "the red wall tints the floor beside it");
+            after.Should().Contain(pixel => pixel.X >= Width, "the measured pixels reach past the old width");
+            for (int i = 0; i < before.Length; i++)
+            {
+                double share = MeanRedShare(first, [before[i]]);
+                double resizedShare = MeanRedShare(resized, [after[i]], newWidth);
+                output.WriteLine($"{before[i]} → {after[i]}: red share {share:0.0000} → {resizedShare:0.0000}");
+                resizedShare
+                    .Should()
+                    .BeApproximately(
+                        share,
+                        0.01,
+                        "the occlusion images, the sector masks and their sets follow the new size, at {0}",
+                        after[i]
+                    );
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ThePassesKeepAPixelWithinTheSurfacesShare()
+    {
+        const float cap = ShaderInput.MaxRadiance;
+        // A lamp 1 m above the floor and 8 m ahead, whose mirror image the eye sees on the floor at 4.8 m.
+        var lamp = new Vector3(0, FloorHeight + 1, -8);
+        Vector2 highlight = PixelOf(new(0, FloorHeight, -4.8f), Quaternion.Identity);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            // Bright, but below the cap on its own: the cap binds only on the sum of the two passes.
+            snapshot.Ambient = new()
+            {
+                SkyColor = Vector3.One,
+                GroundColor = Vector3.One,
+                Intensity = 20_000,
+            };
+            snapshot.Lights.Add(new PointRenderLight(Position: lamp, Color: Vector3.One, Intensity: 1e6f, Range: 50));
+            AddSlab(
+                snapshot: snapshot,
+                box: UnitBox(renderer),
+                material: renderer.CreateMaterial(
+                    new(BaseColor: new(x: 1, y: 1, z: 1, w: 1), Roughness: 0.2f, Metallic: 1)
+                ),
+                center: new(0, FloorHeight - 0.5f, -10),
+                size: new(40, 1, 40)
+            );
+            renderer.Render(snapshot, 1f);
+            float[] direct = renderer.ReadDirect();
+            float[] hdr = renderer.ReadHdr();
+
+            (int X, int Y) pixel = ((int)highlight.X, (int)highlight.Y);
+            output.WriteLine(
+                $"{highlight}: direct {ReflectionTesting.At(direct, pixel)}, HDR {ReflectionTesting.At(hdr, pixel)}"
+            );
+            ReflectionTesting
+                .At(direct, pixel)
+                .Should()
+                .Be(new Vector3(cap), "the lamp's mirror highlight passes the cap in the direct image");
+            ReflectionTesting
+                .At(hdr, pixel)
+                .Should()
+                .Be(new Vector3(cap), "the ambient pass caps the sum of the direct and the ambient light");
+            hdr.Should().OnlyContain(value => value <= cap, "every pixel keeps the surfaces' share of the HDR image");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>
-    /// The HDR image of the floor and the red back wall of the corner, without the side wall, under the sun and a dim
-    /// white ambient light, seen through <paramref name="view"/> and rendered by a renderer of <paramref name="setting"/>.
+    /// The HDR image of <see cref="RedWall"/> seen through <paramref name="view"/>, rendered by a renderer of
+    /// <paramref name="setting"/>.
     /// </summary>
     private static float[] RedWallHdr(ScreenSpaceLightSetting setting, Quaternion view)
     {
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(SunDirection, sunIntensity: 3);
-            snapshot.Ambient = new()
-            {
-                SkyColor = Vector3.One,
-                GroundColor = Vector3.One,
-                Intensity = 0.3f,
-            };
-            Look(snapshot, view);
-            MeshId box = UnitBox(renderer);
-            AddSlab(
-                snapshot: snapshot,
-                box: box,
-                material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
-                center: new(0, FloorHeight - 0.5f, BackWallZ + 5),
-                size: new(20, 1, 20)
-            );
-            AddSlab(
-                snapshot: snapshot,
-                box: box,
-                material: renderer.CreateMaterial(
-                    MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
-                ),
-                center: new(0, FloorHeight + 5, BackWallZ - 0.5f),
-                size: new(20, 20, 1)
-            );
-            renderer.Render(snapshot, 1f);
+            renderer.Render(RedWall(renderer, view), 1f);
             return renderer.ReadHdr();
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The floor and the red back wall of the corner, without the side wall, under the sun and a dim white ambient light,
+    /// seen through <paramref name="view"/>.
+    /// </summary>
+    private static RenderSnapshot RedWall(VulkanRenderer renderer, Quaternion view)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(SunDirection, sunIntensity: 3);
+        snapshot.Ambient = new()
+        {
+            SkyColor = Vector3.One,
+            GroundColor = Vector3.One,
+            Intensity = 0.3f,
+        };
+        Look(snapshot, view);
+        MeshId box = UnitBox(renderer);
+        AddSlab(
+            snapshot: snapshot,
+            box: box,
+            material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
+            center: new(0, FloorHeight - 0.5f, BackWallZ + 5),
+            size: new(20, 1, 20)
+        );
+        AddSlab(
+            snapshot: snapshot,
+            box: box,
+            material: renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
+            ),
+            center: new(0, FloorHeight + 5, BackWallZ - 0.5f),
+            size: new(20, 20, 1)
+        );
+        return snapshot;
     }
 
     /// <summary>
@@ -250,8 +396,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     {
         float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
         // The side plane's normal toward the inside of the view, and its direction away from the eye.
-        Vector3 inward = Vector3.Normalize(new(1, 0, -tanHalfX));
-        Vector3 along = Vector3.Normalize(new(-tanHalfX, 0, -1));
+        var inward = Vector3.Normalize(new(1, 0, -tanHalfX));
+        var along = Vector3.Normalize(new(-tanHalfX, 0, -1));
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
@@ -312,16 +458,28 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
 
     /// <summary>The floor pixels at <paramref name="fromTheWall"/> m in front of the back wall, at x of −1, 0 and 1 m, seen through <paramref name="view"/>.</summary>
     private static Vector2[] FloorPixels(float[] fromTheWall, Quaternion view) =>
+        FloorPixels(fromTheWall: fromTheWall, across: [-1f, 0f, 1f], view: view, size: (Width, Height));
+
+    /// <summary>
+    /// The floor pixels at <paramref name="fromTheWall"/> m in front of the back wall, at <paramref name="across"/> m
+    /// along x, seen through <paramref name="view"/> in an image of <paramref name="size"/>.
+    /// </summary>
+    private static Vector2[] FloorPixels(
+        float[] fromTheWall,
+        float[] across,
+        Quaternion view,
+        (int Width, int Height) size
+    ) =>
         [
             .. fromTheWall.SelectMany(distance =>
-                new[] { -1f, 0f, 1f }.Select(x => PixelOf(new(x, FloorHeight, BackWallZ + distance), view))
+                across.Select(x => PixelOf(new(x, FloorHeight, BackWallZ + distance), view, size))
             ),
         ];
 
-    /// <summary>The mean over <paramref name="pixels"/> of R / (R + G + B) in the HDR image <paramref name="hdr"/>.</summary>
-    private static double MeanRedShare(float[] hdr, Vector2[] pixels) =>
+    /// <summary>The mean over <paramref name="pixels"/> of R / (R + G + B) in the HDR image <paramref name="hdr"/>, <paramref name="width"/> pixels per row.</summary>
+    private static double MeanRedShare(float[] hdr, Vector2[] pixels, int width = Width) =>
         pixels
-            .Select(pixel => ReflectionTesting.At(hdr, ((int)pixel.X, (int)pixel.Y)))
+            .Select(pixel => ReflectionTesting.At(hdr, ((int)pixel.X, (int)pixel.Y), width))
             .Average(color => color.X / (double)(color.X + color.Y + color.Z));
 
     /// <summary>

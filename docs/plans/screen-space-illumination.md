@@ -1047,9 +1047,9 @@ These tests build each far outcome themselves. How a trace decides its outcome i
 - `AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the far rays, the denoise and the upsample skipped: no floor texel's slice blocks a sector, and term A's rgb is 0 at every floor texel (`ter-rxjr`).
 - `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor beside a low box, whose top faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's sector masks, read with `ReadSectorMasks`, and its near estimate, read with `ReadOcclusionTerm`, after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The masks match bit for bit, except a sector next to a boundary 32 m + ½ within 10⁻³ of a tie. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
 - `TheAmbientPassAddsTheBounceAsTheCSharpCopyDoes`: as `AmbientOcclusionShaderTests` today, with V and G read from the estimate target and `MaterialSample.ReflectedHemisphere(..., occlusion: V, bounce: G / k)`.
-- `AStillSceneHasTheSameBounceInEveryFrame`: the red wall rendered five times, the first and the fifth captures the same bytes.
-- `AResizedRendererStillBouncesLightAtItsNewSize`.
-- `ThePassesKeepAPixelWithinTheSurfacesShare`: a lamp's mirror highlight at the cap with a bright ambient light: no HDR value above c.
+- `AStillSceneHasTheSameBounceInEveryFrame`: the red wall rendered five times, the first and the fifth HDR images the same bits.
+- `AResizedRendererStillBouncesLightAtItsNewSize`: the red wall at 640 × 360, then at 800 × 450. Each floor point 0.1 to 0.3 m from the wall, at x of −3.5, 0 and 3.5 m, which at the new size reach past the old 640 pixels, keeps its red share within 0.01.
+- `ThePassesKeepAPixelWithinTheSurfacesShare`: a lamp's mirror highlight at the cap with a bright ambient light, below c on its own: the direct image and the HDR image are c at the highlight, and no HDR value lies above c.
 
 In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFiveOcclusionPassesRunBetweenTheDirectAndTheAmbientPass`, and `WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass`.
 
