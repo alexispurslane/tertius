@@ -963,7 +963,9 @@ Each item is left out because nothing needs it yet.
 | Skinned colliders | Hit boxes on limbs | When gameplay needs them |
 | More than four joints per vertex | Smoother skin where many joints meet | When an asset shows the loss |
 
-## Open forks
+## Settled forks
+
+The orchestrator settled fork 1 as B on 2026-10-26 and told the user. B keeps the image exactly, as A does, and the tile cache's rule redraws a tile only when its result can change. A would redraw 24 tiles per frame for a still crew member in a lit cabin, about 1 ms at the measured 0.04 ms per tile.
 
 ### Fork 1: the shadow tiles' cache with a posed caster
 
