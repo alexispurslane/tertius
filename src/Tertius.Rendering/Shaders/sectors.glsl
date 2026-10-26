@@ -74,11 +74,27 @@ uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
            | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
 }
 
-// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
-// geometric normal faces towardReceiver (view space), and none when the receiver sees its back.
-vec3 blockerLight(ivec2 pixel, vec3 towardReceiver)
+// s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
+// plane of its texel's surface, through texelPosition at right angles to texelNormal (SectorSearch.SurfacePoint). False
+// where the ray meets the plane only behind the eye or never: the surface does not reach the slice there, and the step
+// blocks nothing. Also false at a view depth of farthestDepth or more, which lies beyond the radius: the tests by
+// products before the quotient keep the depth finite.
+bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, float farthestDepth, out vec3 point)
 {
-    return dot(geometricNormalAt(pixel), towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
+    float planeOffset = dot(texelNormal, texelPosition);
+    float rayAlongNormal = dot(texelNormal, exactRay);
+    bool inFront = planeOffset * rayAlongNormal > 0.0;
+    if (!inFront || !(abs(planeOffset) < abs(rayAlongNormal) * farthestDepth))
+        return false;
+    point = exactRay * (planeOffset / rayAlongNormal);
+    return true;
+}
+
+// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
+// view-space geometric normal faces towardReceiver, and none when the receiver sees its back.
+vec3 blockerLight(ivec2 pixel, vec3 geometricNormal, vec3 towardReceiver)
+{
+    return dot(geometricNormal, towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
 }
 
 // θ at the center of a sector: the inverse of measureFraction at (sector + ½) / 32, by halving, since m has no closed

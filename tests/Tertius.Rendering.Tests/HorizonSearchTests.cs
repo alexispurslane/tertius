@@ -114,6 +114,20 @@ public sealed class HorizonSearchTests
             .Be((7, -7), "the slice at 45° runs right and up the screen, whose rows run down");
 
     [Fact]
+    public void AStepsExactPlaceLiesOnItsSliceLineBeforeTheSnap()
+    {
+        (double x, double y) = HorizonSearch.ExactStepOffset(
+            stepFraction: 1,
+            sliceAngle: Math.PI / 4,
+            radiusInTexels: 10,
+            halfSize: (Width: 960, Height: 540)
+        );
+
+        x.Should().BeApproximately(10 * Math.Sqrt(0.5), 1e-12, "the slice at 45° runs right");
+        y.Should().BeApproximately(-10 * Math.Sqrt(0.5), 1e-12, "and up the screen, whose rows run down");
+    }
+
+    [Fact]
     public void AStepFarBeyondTheImageLandsJustPastItsFarthestEdge()
     {
         // A radius of 10^6 m on a surface at the 0.05 m near plane is about 10^10 texels at 1080p, past the range of an

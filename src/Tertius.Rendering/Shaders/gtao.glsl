@@ -1,7 +1,8 @@
 // The GLSL port of XeGTAO: ground-truth ambient occlusion (Jimenez and others 2016) at the physical constants of
 // docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO:
 // the edges and their packing, the noise and the Hilbert index, the view position, the texel's setup
-// (gtaoTexelSetup), the slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets (gtaoStepOffset),
+// (gtaoTexelSetup), the slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets
+// (gtaoExactStepOffset),
 // and the denoise. The slice loop is occlusion_sectors.comp's. HorizonSlice, HorizonSearch and OcclusionNoise in
 // Shading/ are its C# copy.
 //
@@ -217,9 +218,11 @@ SliceGeometry gtaoSliceGeometry(GtaoTexel t, int slice)
     return g;
 }
 
-// The offset in half-resolution texels of a step of a slice, on its plus side: an even place in its share of the
-// radius, shifted by the R1 sequence, beyond the nearest step, snapped to a texel (lines 410 to 440).
-ivec2 gtaoStepOffset(GtaoTexel t, int slice, int stepIndex)
+// The offset in half-resolution texels of a step of a slice, on its plus side, at its exact place on the slice line:
+// an even place in its share of the radius, shifted by the R1 sequence, beyond the nearest step (lines 410 to 440). The
+// step reads the texel nearest that place, but its surface point stays on the slice line (sectors.glsl,
+// stepSurfacePoint): XeGTAO measures the snapped texel's own point, which lies off the slice.
+vec2 gtaoExactStepOffset(GtaoTexel t, int slice, int stepIndex)
 {
     int stepsPerSide = int(occlusion.stepsPerSide);
     float phi = gtaoSliceAngle(t, slice);
@@ -233,7 +236,7 @@ ivec2 gtaoStepOffset(GtaoTexel t, int slice, int stepIndex)
     // A step beyond the image stays one texel past its longer side, where it still blocks nothing (decision 21): the
     // conversion of a float past the range of an int is undefined, and ρ reaches 10^10 at the largest radius.
     vec2 stepBound = vec2(float(max(halfSize().x, halfSize().y) + 1));
-    return ivec2(round(clamp(s * omega, -stepBound, stepBound)));
+    return clamp(s * omega, -stepBound, stepBound);
 }
 
 // ---- The denoise -------------------------------------------------------------------------------------------------

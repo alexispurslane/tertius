@@ -241,6 +241,42 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
+    public void AStepsSurfacePointIsWhereItsExactRayMeetsItsTexelsPlane()
+    {
+        // The texel's point lies on a floor 1 m below the eye. The exact ray, off the texel's own ray, meets the floor
+        // at a view depth of 1 / 0.3.
+        Double3 exactRay = new(0.05, -0.3, 1);
+
+        Double3? point = SectorSearch.SurfacePoint(
+            exactRay: exactRay,
+            texelPosition: new(0.1, -1, 3),
+            texelNormal: Double3.UnitY
+        );
+
+        point.Should().NotBeNull();
+        point!.Value.Y.Should().BeApproximately(-1, 1e-12, "the point lies on the texel's plane");
+        (point.Value - exactRay * point.Value.Z)
+            .Length.Should()
+            .BeLessThan(1e-12, "the point lies on the exact ray, so on the slice");
+        point.Value.Z.Should().BeApproximately(1 / 0.3, 1e-12);
+    }
+
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(0)]
+    public void AStepWhosePlaneItsExactRayMeetsOnlyBehindTheEyeOrNeverHasNoSurfacePoint(double rise)
+    {
+        // The exact ray rises above the floor, or runs along it: the floor does not reach the slice there.
+        Double3? point = SectorSearch.SurfacePoint(
+            exactRay: new(0, rise, 1),
+            texelPosition: new(0, -1, 3),
+            texelNormal: Double3.UnitY
+        );
+
+        point.Should().BeNull("the step stands for no surface on its slice, as a step on sky");
+    }
+
+    [Fact]
     public void ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt()
     {
         // The direction from the step back to the center is (−0.6, 0, 0.8). One wall faces it head on, the other at a

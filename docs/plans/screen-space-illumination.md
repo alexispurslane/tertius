@@ -192,7 +192,7 @@ The angle at the center of sector j is the inverse of m at (j + ½) / 32. m has 
 
 ### A near step
 
-The steps are GTAO's: `StepsPerSide` on each side of the slice, at the R1-shifted fractions of the radius beyond 1.3 texels, snapped to texels, with GTAO's clamp beyond the image (ambient-occlusion.md, "The occlusion horizons pass"). For the step at texel t on the side σ (+1 or −1):
+The steps are GTAO's: `StepsPerSide` on each side of the slice, at the R1-shifted fractions of the radius beyond 1.3 texels, with GTAO's clamp beyond the image (ambient-occlusion.md, "The occlusion horizons pass"). Each step has an exact place on the slice line, and it reads the texel t nearest that place. For the step at the exact place x on the side σ (+1 or −1):
 
 ```
 before the first step:
@@ -200,9 +200,10 @@ blocked = run(0, floor(32 · m(γ_g − π/2) + ½))  |  run(floor(32 · m(γ_g 
 γ_g     = γ + atan2(dot(n_g, û⊥), dot(n_g, û)),  none when |(dot(n_g, û), dot(n_g, û⊥))| < 10⁻⁶
 
 for each step:
-s_f = P(t)                                       the step's surface point, view space
+t   = round(x)                                   the texel nearest the exact place, whose depth, plane and light the step reads
+s_f = r(x) · dot(n_g(2t), P(t)) / dot(n_g(2t), r(x))     the step's surface point on the slice, view space
 s_b = s_f · (1 + κ)                              the back of its slab: the same view ray, at the view depth z (1 + κ)
-skip the step when t lies outside the image, or when |s_f − c| ≥ R
+skip the step when t lies outside the image or on sky, when the quotient of s_f is not positive, or when |s_f − c| ≥ R
 θ_f = σ · acos(clamp(dot(normalize(s_f − c), V̂), −1, 1))
 θ_b = σ · acos(clamp(dot(normalize(s_b − c), V̂), −1, 1))
 sectors = run(floor(32 · m(min(θ_f, θ_b)) + ½),  floor(32 · m(max(θ_f, θ_b)) + ½))
@@ -213,16 +214,22 @@ blocked |= fresh
 
 where
 
+- `x` = the step's exact place on the slice line, in half-resolution texels: the center texel plus σ times the offset of `gtaoExactStepOffset`, before any snap.
+- `r(x)` = the view ray, whose z is 1, through the exact place.
 - `P(t)` = the view position of texel t's representative pixel at its view depth, `gtaoTexelPosition`.
+- `s_f` = where the view ray through the exact place meets the plane of the texel's surface, `stepSurfacePoint`. It lies on the slice, since every view ray through a place on the slice line lies in the slice plane. A quotient that is not positive means the ray meets that plane only behind the eye or never: the surface does not reach the slice there, and the step blocks nothing, as a step on sky.
 - `σ` = the side of the step. A step on the plus side lies on ô's side of V̂, so its angles are positive.
 - `run(a, b)` = the bits from a to b − 1, none when b ≤ a.
 - `blocked` = the slice's sector mask: before its first step, the sectors whose centers lie below the receiver's geometric plane (decision 39).
 - `n_g` = the receiver's view-space geometric normal, at the representative pixel of its texel.
 - `û`, `û⊥` = cos γ V̂ + sin γ ô, the unit projected shading normal's direction in the slice, and −sin γ V̂ + cos γ ô, at right angles to it toward the plus side.
 - `γ_g` = the angle of the projected geometric normal in the slice, taken within π of γ, so the geometric plane's two edges in the slice are γ_g ± π/2. A direction lies below the plane where its angle lies farther than π/2 from γ_g.
-- `faces(t)` = dot(n_g(2t), c − s_f) > 0, with `n_g(2t)` the view-space geometric normal of the step's representative pixel.
+- `n_g(2t)` = the view-space geometric normal of the step's representative pixel.
+- `faces(t)` = dot(n_g(2t), c − s_f) > 0.
 - `direct(2t)` = the direct image at that pixel, pre-exposed.
 - `light` = the slice's sum of newly blocked sectors times their light. The slice's weight W / 32 multiplies it at the end.
+
+Why the surface point lies on the slice (`ter-rxjr`). GTAO's step reads the texel nearest its exact place, and XeGTAO measures that texel's own point, P(t). P(t) lies off the slice plane by up to half a texel's diagonal on the screen, and θ is the angle of its full direction from V̂. On a floor seen at a grazing angle, one texel row spans several texel widths of floor in depth. So a texel one row nearer the eye than the slice line holds a floor point whose direction lies well inside the hemisphere, though the floor's own line in the slice is the hemisphere's edge. The slab of that step then blocks a run of sectors at the edge of the slice, and CenterBias lifts the center a little above the floor, so the step faces the center and gives it the floor's own light. On a sunlit flat floor at 640 × 360, 4,293 of 26,000 floor texels blocked sectors, and the bounce reached 1.2 % of the floor's direct light. A projection of P(t) onto the slice plane at right angles does not remove it: the projection of a floor point leaves the floor, and the largest bounce that remained fell only from 1.15 × 10⁻³ to 0.89 × 10⁻³. The step's surface point on the slice, the meeting of the exact ray and the texel's plane, lies on the floor for every floor step, so a floor step's angle is the floor's own edge, up to the lift of CenterBias, and it blocks nothing above the floor. A curved surface keeps the texel's tangent plane over at most half a texel's diagonal. The step reads the normal of its texel for every step, before the radius, not only for a step that blocks.
 
 The receiver's own surface comes first, so a step gives no light to a direction below it. The two sides of a step index run in XeGTAO's order, plus side first. A step adds light only to the sectors that no nearer step has blocked, so the nearest blocker of each direction owns it. The back point lies on the step's own view ray, so it stays on the step's side of V̂. As z grows along that ray, the direction from c turns away from the eye, so the run reaches from the surface's angle toward the edge of the hemisphere on that side.
 
@@ -378,11 +385,24 @@ uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
            | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
 }
 
-// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
-// geometric normal faces towardReceiver (view space), and none when the receiver sees its back.
-vec3 blockerLight(ivec2 pixel, vec3 towardReceiver)
+// s_f: where the view ray through a step's exact place meets the plane of its texel's surface (ter-rxjr). False where
+// the ray meets the plane only behind the eye, never, or at a view depth of farthestDepth or more.
+bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, float farthestDepth, out vec3 point)
 {
-    return dot(geometricNormalAt(pixel), towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
+    float planeOffset = dot(texelNormal, texelPosition);
+    float rayAlongNormal = dot(texelNormal, exactRay);
+    bool inFront = planeOffset * rayAlongNormal > 0.0;
+    if (!inFront || !(abs(planeOffset) < abs(rayAlongNormal) * farthestDepth))
+        return false;
+    point = exactRay * (planeOffset / rayAlongNormal);
+    return true;
+}
+
+// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
+// view-space geometric normal faces towardReceiver, and none when the receiver sees its back.
+vec3 blockerLight(ivec2 pixel, vec3 geometricNormal, vec3 towardReceiver)
+{
+    return dot(geometricNormal, towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
 }
 
 // θ at the center of a sector: the inverse of measureFraction at (sector + ½) / 32, by halving.
@@ -413,7 +433,7 @@ uint openSectorOfRank(uint open, uint rank)
 #endif
 ```
 
-`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoStepOffset(slice, step, ...)`, which computes the snapped offset as today. `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`:
+`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoExactStepOffset(slice, step, ...)`, which computes the offset of today before its snap (`ter-rxjr`). `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`:
 
 ```glsl
 for (int slice = 0; slice < slices; slice++)
@@ -425,21 +445,26 @@ for (int slice = 0; slice < slices; slice++)
     // Where R spans at most the nearest step, the near range holds no step (decision 21).
     for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
     {
-        ivec2 offset = gtaoStepOffset(setup, slice, stepIndex, radiusInTexels);
+        vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);
+        ivec2 offset = ivec2(round(exactOffset));
         for (int sideIndex = 0; sideIndex < 2; sideIndex++)
         {
             float side = sideIndex == 0 ? 1.0 : -1.0;
             ivec2 t = texel + (sideIndex == 0 ? offset : -offset);
-            if (!insideHalf(t))
+            if (!insideHalf(t) || viewDepthAt(t) >= SkyDepth)
                 continue;
-            vec3 samplePosition = gtaoTexelPosition(t);
-            if (!(length(samplePosition - setup.center) < occlusion.radiusMeters))
+            vec3 sampleNormal = geometricNormalAt(2 * t);
+            vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
+            vec3 samplePosition;
+            bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0), gtaoTexelPosition(t), sampleNormal,
+                                            setup.center.z + occlusion.radiusMeters, samplePosition);
+            if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                 continue;
             uint fresh = stepSectors(g, setup.center, samplePosition, side) & ~blocked;
             if (fresh == 0u)
                 continue;
             blocked |= fresh;
-            light += float(bitCount(fresh)) * blockerLight(2 * t, setup.center - samplePosition);
+            light += float(bitCount(fresh)) * blockerLight(2 * t, sampleNormal, setup.center - samplePosition);
         }
     }
     sectorMasks[maskIndex(texel, slice)] = blocked;
@@ -473,7 +498,7 @@ for (int slice = 0; slice < slices; slice++)
 imageStore(occlusionTermA, texel, estimate);
 ```
 
-where `farRay` applies the steps of "The far ray of a slice" and returns the blocked share b and the light b · L. It returns `FarOutcome(1, 0)` into its own surface, and `FarOutcome(0, 0)` for a start at the near plane and for every trace without a hit. A hit gives `FarOutcome(e, e · blockerLight(hitPixel, −ω))`. A sky texel returns before the loop, and so does a texel whose total weight is below `MinTotalWeight`.
+where `farRay` applies the steps of "The far ray of a slice" and returns the blocked share b and the light b · L. It returns `FarOutcome(1, 0)` into its own surface, and `FarOutcome(0, 0)` for a start at the near plane and for every trace without a hit. A hit gives `FarOutcome(e, e · blockerLight(hitPixel, n_g(hitPixel), −ω))`. A sky texel returns before the loop, and so does a texel whose total weight is below `MinTotalWeight`.
 
 ### The denoise and the upsample
 
@@ -799,6 +824,7 @@ No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SP
 | Site | The input that breaks it | Verdict |
 |---|---|---|
 | `sliceAngle`'s `acos` | A dot product that rounding puts past ±1 | Fixed: clamped to [−1, 1] |
+| `stepSurfacePoint`'s quotient | A view ray along the texel's plane, or one that meets it behind the eye or far beyond R | Fixed: the quotient is taken only when its two terms share a sign and the depth lies below z_c + R, tested by products, so it is positive and finite. A point at that depth or beyond lies R or more from c, so the test skips only steps that the hard edge skips |
 | `sliceAngle`'s `normalize` | A step at the center | Safe: a step lies at least 1.3 texels away on another view ray, so s − c and s (1 + κ) − c are at least about one texel width long, far above the smallest normal float |
 | `measureFraction`'s division by T | T = 0 | Safe: T = cos γ + γ sin γ is at least 1 for γ in [−π/2, π/2] |
 | `sectorBoundary`'s conversion to `uint` | A value outside 0 to 32 | Safe: m lies in [0, 1] after its clamp, so 32 m + ½ lies in [½, 32.5] |
@@ -926,7 +952,6 @@ This design has the same parts, with these differences:
 - Glass and puffs neither block nor bounce.
 - An impostor bounces its captured light, its ambient light included (decision 30).
 - Off the screen, or within a tenth of the shorter side of its edge, the ambient light replaces the blockers.
-- A flat floor's own near steps block a few sectors at the edge of its hemisphere and bounce its own light: on a sunlit floor 4 m away, V of 0.998 and about 0.15 % of its direct light after the denoise. The steps are snapped to texels off their slice, and a grazing view stretches a texel row across several texel widths of floor. `ter-rxjr` finds the cause and removes it.
 - On a normal-mapped surface, the near hemisphere follows the shading normal, and the far ray's test of its own surface uses the geometric normal.
 
 ## Tests
@@ -959,12 +984,17 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons`: against `HorizonSlice.Visibility` of the same steps, to within one sector.
 - `AThinSlabLetsTheSkyThroughBehindIt`: a pole in front of the slice's sky leaves the sectors past its slab open.
 - `AStepAtTheRadiusOrBeyondItBlocksNothing`.
+- `AStepsSurfacePointIsWhereItsExactRayMeetsItsTexelsPlane`, and `AStepWhosePlaneItsExactRayMeetsOnlyBehindTheEyeOrNeverHasNoSurfacePoint` (`ter-rxjr`).
 - `ABlockerThatFacesAwayBlocksWithoutLight`.
 - `TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep`, and `AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt` (decision 39).
 - `ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt`.
 - `WhereTheRadiusSpansAtMostTheNearestStepTheNearRangeHoldsNoStep`.
 - `TheFarRayGoesThroughTheCenterOfAnOpenSector`, and `TheFarRayOfASliceWithNoOpenSectorIsNotTraced`.
 - `TheFarRayTakesTheNextValueOfItsSlicesStepSequence`.
+
+`FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy (`ter-rxjr`).
+
+`HorizonSearchTests`: `AStepsExactPlaceLiesOnItsSliceLineBeforeTheSnap`.
 
 `AmbientEstimateTests`:
 
@@ -1013,7 +1043,8 @@ These tests build each far outcome themselves. How a trace decides its outcome i
 - `ASceneWithNoDirectLightGetsNoBounce` (User): the corner of the crease tests under only the ambient light. The estimate target's rgb is 0 in every pixel, bit for bit.
 - `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins the one estimate: a power on V fails it.
 - `AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays`: a lit red wall 3 m from the floor's measured pixels, with R = 0.5 m. The red share rises with the setting on.
-- `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: V is at least 0.98 at the floor, as on an open floor, and the estimate's rgb is at most 0.5 % of the floor's direct light. It would be 0, but the floor's own near steps bounce about 0.15 % of its light (see "Known limits", `ter-rxjr`).
+- `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: V is at least 0.98 at the floor, as on an open floor, and the estimate's rgb is 0.
+- `AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the far rays, the denoise and the upsample skipped: no floor texel's slice blocks a sector, and term A's rgb is 0 at every floor texel (`ter-rxjr`).
 - `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor beside a low box, whose top faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's sector masks, read with `ReadSectorMasks`, and its near estimate, read with `ReadOcclusionTerm`, after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The masks match bit for bit, except a sector next to a boundary 32 m + ½ within 10⁻³ of a tie. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
 - `TheAmbientPassAddsTheBounceAsTheCSharpCopyDoes`: as `AmbientOcclusionShaderTests` today, with V and G read from the estimate target and `MaterialSample.ReflectedHemisphere(..., occlusion: V, bounce: G / k)`.
 - `AStillSceneHasTheSameBounceInEveryFrame`: the red wall rendered five times, the first and the fifth captures the same bytes.
@@ -1055,7 +1086,7 @@ The table gives the memory traffic per frame at 1080p and the default setting, b
 |---|---|---|---|---|
 | Direct light | Lighting: 1.64 ms | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms |
 | Occlusion depth | 0.13 ms | 2.1 MB | 2.1 MB | 0.13 ms, unchanged |
-| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), and up to 149.3 MB more where every step blocks: 16 B of normal and light for each of 18 steps | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms |
+| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 74.6 MB of the 8 B normal of each of 18 steps, which finds its surface point on the slice (`ter-rxjr`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms |
 | Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more |
 | Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms |
 | Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms |

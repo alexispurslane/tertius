@@ -8,8 +8,8 @@ internal enum SliceSide
 }
 
 /// <summary>One near step as the search sees it, in view space.</summary>
-/// <param name="Position">s_f, the surface point of the step's representative pixel.</param>
-/// <param name="GeometricNormal">The unit geometric normal at that pixel.</param>
+/// <param name="Position">s_f, the step's surface point on its slice, <see cref="SectorSearch.SurfacePoint"/>.</param>
+/// <param name="GeometricNormal">The unit geometric normal at the step texel's representative pixel.</param>
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
 /// <param name="Side">σ, the side of the slice on which the step lies.</param>
 internal readonly record struct NearStep(
@@ -60,6 +60,24 @@ internal static class SectorSearch
             Front: SliceAngle(toEye, position - center, side),
             Back: SliceAngle(toEye, position * (1 + thicknessShare) - center, side)
         );
+
+    /// <summary>
+    /// s_f: a step's surface point on its slice, where the view ray through its exact place,
+    /// <paramref name="exactRay"/>, meets the plane of its texel's surface. Null where that ray meets the plane only
+    /// behind the eye or never: the surface does not reach the slice there, and the step blocks nothing.
+    /// </summary>
+    /// <param name="exactRay">The view ray, whose z is 1, through the step's exact place on the slice line.</param>
+    /// <param name="texelPosition">P(t), the view position of the step texel's representative pixel.</param>
+    /// <param name="texelNormal">The unit view-space geometric normal at that pixel.</param>
+    public static Double3? SurfacePoint(Double3 exactRay, Double3 texelPosition, Double3 texelNormal)
+    {
+        // The quotient is the meeting point's view depth: one that is not positive lies behind the eye or nowhere.
+        double planeOffset = Double3.Dot(texelNormal, texelPosition);
+        double rayAlongNormal = Double3.Dot(texelNormal, exactRay);
+        if (!(planeOffset * rayAlongNormal > 0))
+            return null;
+        return exactRay * (planeOffset / rayAlongNormal);
+    }
 
     /// <summary>Whether a blocker's geometric normal has a positive cosine with the direction back toward the point that it blocks.</summary>
     public static bool Faces(Double3 geometricNormal, Double3 towardReceiver) =>

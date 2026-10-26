@@ -59,10 +59,10 @@ internal static class HorizonSearch
 
     /// <summary>
     /// The offset in half-resolution texels of the step at <paramref name="stepFraction"/> of the radius along the slice
-    /// at <paramref name="sliceAngle"/>, snapped to a texel. Screen rows run down, so y is −sin φ. A step beyond the
-    /// image stays one texel past its longer side, where it still hides nothing, so that it fits an int.
+    /// at <paramref name="sliceAngle"/>: its exact place on the slice line. Screen rows run down, so y is −sin φ. A step
+    /// beyond the image stays one texel past its longer side, where it still hides nothing, so that it fits an int.
     /// </summary>
-    public static (int X, int Y) StepOffset(
+    public static (double X, double Y) ExactStepOffset(
         double stepFraction,
         double sliceAngle,
         double radiusInTexels,
@@ -70,8 +70,26 @@ internal static class HorizonSearch
     )
     {
         double bound = Math.Max(halfSize.Width, halfSize.Height) + 1;
-        double x = Math.Clamp(stepFraction * radiusInTexels * Math.Cos(sliceAngle), -bound, bound);
-        double y = Math.Clamp(-stepFraction * radiusInTexels * Math.Sin(sliceAngle), -bound, bound);
+        return (
+            X: Math.Clamp(stepFraction * radiusInTexels * Math.Cos(sliceAngle), -bound, bound),
+            Y: Math.Clamp(-stepFraction * radiusInTexels * Math.Sin(sliceAngle), -bound, bound)
+        );
+    }
+
+    /// <summary>The offset of the texel nearest the step's exact place, <see cref="ExactStepOffset"/>: the texel whose depth the step reads.</summary>
+    public static (int X, int Y) StepOffset(
+        double stepFraction,
+        double sliceAngle,
+        double radiusInTexels,
+        (int Width, int Height) halfSize
+    )
+    {
+        (double x, double y) = ExactStepOffset(
+            stepFraction: stepFraction,
+            sliceAngle: sliceAngle,
+            radiusInTexels: radiusInTexels,
+            halfSize: halfSize
+        );
         return (X: (int)Math.Round(x), Y: (int)Math.Round(y));
     }
 }

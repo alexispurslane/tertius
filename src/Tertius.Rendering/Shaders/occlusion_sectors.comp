@@ -28,6 +28,8 @@ void main()
     GtaoTexel setup = gtaoTexelSetup(texel, z, radiusInTexels);
     int slices = int(occlusion.slices);
     int stepsPerSide = int(occlusion.stepsPerSide);
+    // The screen place of the texel's representative pixel, where every slice line passes.
+    vec2 centerPlace = pixelScreenPosition(2 * texel);
     float totalWeight = 0.0;
     float open = 0.0;
     vec3 bounce = vec3(0.0);
@@ -40,7 +42,9 @@ void main()
         // Where R spans at most the nearest step, the near range holds no step (decision 21).
         for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
         {
-            ivec2 offset = gtaoStepOffset(setup, slice, stepIndex);
+            vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);
+            // The texel nearest the step's exact place, whose depth, plane and light the step reads.
+            ivec2 offset = ivec2(round(exactOffset));
             // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
             for (int sideIndex = 0; sideIndex < 2; sideIndex++)
             {
@@ -53,15 +57,21 @@ void main()
                 // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
                 if (sampleDepth >= SkyDepth)
                     continue;
-                vec3 samplePosition = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
+                vec3 sampleNormal = geometricNormalAt(2 * t);
+                // A half-resolution texel spans two pixels, 2 / W of the screen.
+                vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
+                vec3 samplePosition;
+                bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
+                                                gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
+                                                sampleNormal, setup.center.z + occlusion.radiusMeters, samplePosition);
                 // GTAO's hard edge: a step blocks only within the radius.
-                if (!(length(samplePosition - setup.center) < occlusion.radiusMeters))
+                if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                     continue;
                 uint fresh = stepSectors(g, setup.center, samplePosition, side) & ~blocked;
                 if (fresh == 0u)
                     continue;
                 blocked |= fresh;
-                light += float(bitCount(fresh)) * blockerLight(2 * t, setup.center - samplePosition);
+                light += float(bitCount(fresh)) * blockerLight(2 * t, sampleNormal, setup.center - samplePosition);
             }
         }
         sectorMasks[maskIndex(texel, slice)] = blocked;

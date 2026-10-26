@@ -450,14 +450,32 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     stepNoise: stepNoise,
                     radiusInTexels: radiusInTexels
                 );
-                (int x, int y) = HorizonSearch.StepOffset(
+                (double x, double y) exact = HorizonSearch.ExactStepOffset(
                     stepFraction: fraction,
                     sliceAngle: sliceAngle,
                     radiusInTexels: radiusInTexels,
                     halfSize: HalfSize
                 );
-                AddStep(steps: steps, texel: (X: texel.X + x, Y: texel.Y + y), side: SliceSide.Plus, facing: facing);
-                AddStep(steps: steps, texel: (X: texel.X - x, Y: texel.Y - y), side: SliceSide.Minus, facing: facing);
+                (int x, int y) snapped = HorizonSearch.StepOffset(
+                    stepFraction: fraction,
+                    sliceAngle: sliceAngle,
+                    radiusInTexels: radiusInTexels,
+                    halfSize: HalfSize
+                );
+                AddStep(
+                    steps: steps,
+                    texel: (X: texel.X + snapped.x, Y: texel.Y + snapped.y),
+                    exact: (X: texel.X + exact.x, Y: texel.Y + exact.y),
+                    side: SliceSide.Plus,
+                    facing: facing
+                );
+                AddStep(
+                    steps: steps,
+                    texel: (X: texel.X - snapped.x, Y: texel.Y - snapped.y),
+                    exact: (X: texel.X - exact.x, Y: texel.Y - exact.y),
+                    side: SliceSide.Minus,
+                    facing: facing
+                );
             }
             return steps;
         }
@@ -510,20 +528,37 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         private static double TanHalfX => Math.Tan(Gpu.Fov / 2) * Width / Height;
 
         /// <summary>
-        /// Adds the step at <paramref name="texel"/> unless it lies outside the image or on sky, with its normal toward
-        /// <paramref name="facing"/> if one is given.
+        /// Adds the step from <paramref name="texel"/> at its exact place <paramref name="exact"/>, in half-resolution
+        /// texels, unless the texel lies outside the image or on sky, or its surface does not reach the place, with its
+        /// normal toward <paramref name="facing"/> if one is given.
         /// </summary>
-        private void AddStep(List<NearStep> steps, (int X, int Y) texel, SliceSide side, Double3? facing)
+        private void AddStep(
+            List<NearStep> steps,
+            (int X, int Y) texel,
+            (double X, double Y) exact,
+            SliceSide side,
+            Double3? facing
+        )
         {
             bool inside = texel.X >= 0 && texel.Y >= 0 && texel.X < HalfSize.Width && texel.Y < HalfSize.Height;
             if (!inside || DepthAt(texel) >= HorizonSearch.SkyDepth)
                 return;
-            Double3 position = ViewPosition(texel, DepthAt(texel));
+            Double3 texelPosition = ViewPosition(texel, DepthAt(texel));
+            Double3 texelNormal = NormalAt(texelPosition);
+            if (
+                SectorSearch.SurfacePoint(
+                    exactRay: ViewPosition(exact, 1),
+                    texelPosition: texelPosition,
+                    texelNormal: texelNormal
+                )
+                is not { } position
+            )
+                return;
             int pixel = (2 * texel.Y * Width + 2 * texel.X) * 4;
             steps.Add(
                 new(
                     Position: position,
-                    GeometricNormal: facing is { } center ? (center - position).Normalized() : NormalAt(position),
+                    GeometricNormal: facing is { } center ? (center - position).Normalized() : texelNormal,
                     DirectLight: new(Direct[pixel], Direct[pixel + 1], Direct[pixel + 2]),
                     Side: side
                 )
@@ -532,12 +567,15 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
         private double DepthAt((int X, int Y) texel) => ViewDepth[texel.Y * HalfSize.Width + texel.X];
 
-        /// <summary>The view position at view depth <paramref name="z"/> on the ray through the texel's representative pixel.</summary>
-        private static Double3 ViewPosition((int X, int Y) texel, double z)
+        /// <summary>
+        /// The view position at view depth <paramref name="z"/> on the ray through the place <paramref name="place"/>
+        /// in half-resolution texels, where whole numbers are a texel's representative pixel.
+        /// </summary>
+        private static Double3 ViewPosition((double X, double Y) place, double z)
         {
             double tanHalfY = Math.Tan(Gpu.Fov / 2);
-            double screenX = (2 * texel.X + 0.5) / Width;
-            double screenY = (2 * texel.Y + 0.5) / Height;
+            double screenX = (2 * place.X + 0.5) / Width;
+            double screenY = (2 * place.Y + 0.5) / Height;
             return new Double3((2 * screenX - 1) * TanHalfX, (1 - 2 * screenY) * tanHalfY, 1) * z;
         }
 

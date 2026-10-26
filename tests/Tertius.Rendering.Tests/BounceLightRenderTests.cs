@@ -83,15 +83,52 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             estimate[i + 3]
                 .Should()
                 .BeGreaterThanOrEqualTo(0.98f, "a ray that leaves the screen is open, at {0}", pixel);
-            // Not 0: the floor's own near steps, snapped to texels off their slice, block a few sectors at the edge of
-            // the hemisphere and bounce the floor's own light, about 0.15 % of it here (ter-rxjr).
             bounce
                 .Should()
-                .Match<Vector3>(
-                    b => b.X <= 0.005f * floorLight.X && b.Y <= 0.005f * floorLight.Y && b.Z <= 0.005f * floorLight.Z,
-                    "no pixel shows the wall, and a ray that leaves the screen brings no light, at {0}",
+                .Be(
+                    Vector3.Zero,
+                    "no pixel shows the wall, a ray that leaves the screen brings no light, and the floor bounces nothing on itself, at {0}",
                     pixel
                 );
+        }
+    }
+
+    [Fact]
+    public void AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            // The term and the masks that the sector pass leaves: the far rays add nothing where no ray meets a surface.
+            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            renderer.Render(SunlitFloor(renderer), 1f);
+            (float[] term, int halfWidth, _) = renderer.ReadOcclusionTerm();
+            uint[] masks = renderer.ReadSectorMasks();
+            float[] depths = renderer.ReadOcclusionViewDepth().Depths;
+            int slices = VisibilityBitmaskLight.Default.Slices;
+
+            int[] floor = [.. Enumerable.Range(0, depths.Length).Where(i => depths[i] < (float)HorizonSearch.SkyDepth)];
+            int[] blocking =
+            [
+                .. floor.Where(i => Enumerable.Range(0, slices).Any(slice => masks[i * slices + slice] != 0)),
+            ];
+            int[] bouncing = [.. floor.Where(i => term[i * 4] != 0 || term[i * 4 + 1] != 0 || term[i * 4 + 2] != 0)];
+            output.WriteLine(
+                $"of {floor.Length} floor texels, {blocking.Length} block sectors and {bouncing.Length} bounce light"
+                    + (
+                        blocking.Length > 0
+                            ? $"; the first at ({blocking[0] % halfWidth}, {blocking[0] / halfWidth})"
+                            : ""
+                    )
+            );
+
+            floor.Length.Should().BeGreaterThan(20_000, "the floor fills the lower half of the 320 × 180 texels");
+            blocking.Should().BeEmpty("a flat floor's own steps block nothing above it (decisions 12 and 39)");
+            bouncing.Should().BeEmpty("a flat floor bounces none of its own light on itself");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
         }
     }
 
@@ -218,27 +255,12 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            // The sun lights the floor and the wall's face, which faces the inside of the view.
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.5f, 0.8f, -0.3f), sunIntensity: 3);
-            snapshot.Ambient = new()
-            {
-                SkyColor = Vector3.One,
-                GroundColor = Vector3.One,
-                Intensity = 0.3f,
-            };
-            MeshId box = UnitBox(renderer);
-            AddSlab(
-                snapshot: snapshot,
-                box: box,
-                material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
-                center: new(0, FloorHeight - 0.5f, -10),
-                size: new(40, 1, 40)
-            );
+            RenderSnapshot snapshot = SunlitFloor(renderer);
             // From the eye to 8 m along the side plane, past the measured floor's 6.5 m.
             Vector3 face = along * 4 - inward * 0.02f;
             snapshot.Instances.Add(
                 Gpu.Instance(
-                    mesh: box,
+                    mesh: UnitBox(renderer),
                     material: renderer.CreateMaterial(
                         MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
                     ),
@@ -263,6 +285,29 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// A white floor 40 m square, its top 1.5 m below the level camera's eye, under a sun high ahead to the right and a
+    /// dim white ambient light.
+    /// </summary>
+    private static RenderSnapshot SunlitFloor(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.5f, 0.8f, -0.3f), sunIntensity: 3);
+        snapshot.Ambient = new()
+        {
+            SkyColor = Vector3.One,
+            GroundColor = Vector3.One,
+            Intensity = 0.3f,
+        };
+        AddSlab(
+            snapshot: snapshot,
+            box: UnitBox(renderer),
+            material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
+            center: new(0, FloorHeight - 0.5f, -10),
+            size: new(40, 1, 40)
+        );
+        return snapshot;
     }
 
     /// <summary>The floor pixels at <paramref name="fromTheWall"/> m in front of the back wall, at x of −1, 0 and 1 m, seen through <paramref name="view"/>.</summary>
