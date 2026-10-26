@@ -185,7 +185,7 @@ The batcher interpolates each instance it keeps by the frame's alpha, as for the
 
 ### Which faces a frame draws
 
-`EnvironmentMap.FacesFor` is the one choke point of the map's automatic machinery. It runs on the CPU for each drawn frame, after the output gives the frame an image and before batching, and it calls two pure predicates:
+`EnvironmentMap.FacesFor` chooses the faces of a frame. It runs on the CPU for each drawn frame, after the output gives the frame an image and before batching. It is a pure read that calls two pure predicates. `EnvironmentMap.Drew` sets the map's frame once the frame is submitted, so that the map's frame describes the last finished step (ter-uhls):
 
 ```csharp
 internal static class EnvironmentFaces
@@ -195,15 +195,15 @@ internal static class EnvironmentFaces
         mapFrameId != originFrameId || longStep;
 }
 
-public FaceMask FacesFor(long frame, long originFrameId, bool longStep)
-{
-    FaceMask faces = EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
+public FaceMask FacesFor(long frame, long originFrameId, bool longStep) =>
+    EnvironmentFaces.RefreshesAll(FrameId, originFrameId, longStep)
         ? FaceMask.All
         : EnvironmentFaces.InTurn(frame, Setting.FacesPerFrame);
-    FrameId = originFrameId;
-    return faces;
-}
+
+public void Drew(long originFrameId) => FrameId = originFrameId;
 ```
+
+`VulkanRenderer.DrawFrame` calls `Drew` right after `SubmitAndPresent`. A frame that throws before then leaves the map's frame as it was, so the next frame draws again every face that it would have refreshed. Without this, a first frame that throws would leave 6 − F faces that no frame drew, in their undefined content, and the prefilter would spread that content, which can be a NaN or an infinity on a Linux driver, into every level and the irradiance.
 
 where
 
@@ -678,7 +678,7 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 
 No pass of the map blends into a half-float target, so no result depends on a blend that stops at 65,504, which Metal does and other GPUs do not. No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SPIR-V leaves undefined. Instead, no step of the map makes a NaN or an infinity:
 
-- The face shader clamps `directRadiance` to 65,504 with `min`, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
+- `directRadiance` caps the face shader's light at `MaxRadiance`, 32,256, with `min` of a finite sum, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
 - The prefilter's first Hammersley point is (0, 0), whose half vector is n, so l = n and the weight sum is at least 1. Its division never divides by 0.
 - The reflected stars compute k(w) only where t < 1. There a ≥ 0.25, where the closed form is finite and loses under 10⁻⁵ to cancellation. Where t = 1, the shader adds M alone and never multiplies an unused k by 0.
 - The width w is at least p > 0, so a = c² / w² and the star Gaussians are finite.
@@ -714,7 +714,7 @@ Push constants:
 |---|---|---|---|---|---|---|
 | `RendererOptions.EnvironmentMap` | The host, tests | Before the renderer is made | `CheckOptions`, and `VulkanRenderer`, which makes the map and its passes and sets the shader constant | At creation | `RendererOptions` | `RendererOptions.Bloom` |
 | The shader constant `environmentMapOn` | `VulkanRenderer`, from the setting | When each shading pipeline is made | `ambientTerms` in `lighting.glsl`, `gbuffer.frag`, `transparent.frag`, `impostor_capture.frag`, `lighting.frag` | Every draw | The pipelines | None today |
-| The map's frame, `EnvironmentMap.FrameId` | `FacesFor` | Each drawn frame | `FacesFor` | Each drawn frame | `EnvironmentMap` | An impostor's capture record: CPU state that describes what a GPU image holds |
+| The map's frame, `EnvironmentMap.FrameId` | `Drew`, after the frame's submission | Each drawn frame | `FacesFor` | Each drawn frame | `EnvironmentMap` | An impostor's capture record: CPU state that describes what a GPU image holds |
 | The faces of a frame, a `FaceMask` | `FacesFor` | Step 2, before batching | `SceneBatcher` | Step 2 | `EnvironmentDraw.WithMap.Faces`, then `PreparedScene.EnvironmentFaces` | `ImpostorManager.Captures` |
 | A face's commands per range | `SceneBatcher` | Step 2 | `EnvironmentFacePass` | Step 3a | `PreparedScene.EnvironmentFaces`, `Instances`, `Commands` | The capture instances that `ImpostorPass.Prepare` appends |
 | The light list | `SceneBatcher` | Step 2 | Every pass that shades, the faces included | Steps 3a to 7 | `PreparedScene.Lights` | Today's list, with the faces' lights added |
@@ -1260,6 +1260,7 @@ internal sealed class EnvironmentMap : IDisposable
     public long? FrameId { get; }
     public IrradianceReading? Latest { get; }
     public FaceMask FacesFor(long frame, long originFrameId, bool longStep);
+    public void Drew(long originFrameId);
     public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot);
     public void Collect(int slot, long frame);
     public void Dispose();
