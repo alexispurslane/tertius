@@ -71,21 +71,54 @@ internal static class SectorSearch
         );
 
     /// <summary>
-    /// s_f: a step's surface point on its slice, where the view ray through its exact place,
-    /// <paramref name="exactRay"/>, meets the plane of its texel's surface. Null where that ray meets the plane only
-    /// behind the eye or never: the surface does not reach the slice there, and the step blocks nothing.
+    /// s_f: where the view ray through a step's exact place, <paramref name="exactRay"/>, meets the plane of its texel's
+    /// surface. Null where it meets the plane behind the eye or never. At a view depth outside
+    /// <paramref name="depthsAround"/>, widened by 1 − <see cref="HorizonSearch.CenterBias"/>, the plane does not reach
+    /// the place, and the step stands at <paramref name="texelPosition"/>, the real point that it read.
     /// </summary>
     /// <param name="exactRay">The view ray, whose z is 1, through the step's exact place on the slice line.</param>
     /// <param name="texelPosition">P(t), the view position of the step texel's representative pixel.</param>
     /// <param name="texelNormal">The unit view-space geometric normal at that pixel.</param>
-    public static Double3? SurfacePoint(Double3 exactRay, Double3 texelPosition, Double3 texelNormal)
+    /// <param name="depthsAround">The least and the greatest view depth of the texels around the exact place, <see cref="DepthsAround"/>.</param>
+    public static Double3? SurfacePoint(
+        Double3 exactRay,
+        Double3 texelPosition,
+        Double3 texelNormal,
+        (double Least, double Greatest) depthsAround
+    )
     {
         // The quotient is the meeting point's view depth: one that is not positive lies behind the eye or nowhere.
         double planeOffset = Double3.Dot(texelNormal, texelPosition);
         double rayAlongNormal = Double3.Dot(texelNormal, exactRay);
         if (!(planeOffset * rayAlongNormal > 0))
             return null;
-        return exactRay * (planeOffset / rayAlongNormal);
+        double depth = planeOffset / rayAlongNormal;
+        bool betweenAround =
+            depth >= depthsAround.Least * HorizonSearch.CenterBias
+            && depth <= depthsAround.Greatest / HorizonSearch.CenterBias;
+        return betweenAround ? exactRay * depth : texelPosition;
+    }
+
+    /// <summary>
+    /// The least and the greatest view depth of the texels around a step's exact place: its texel and that texel's two
+    /// neighbors toward the place, along the row and along the column, whose triangle holds the place.
+    /// </summary>
+    /// <param name="texelDepth">The view depth of the step's texel.</param>
+    /// <param name="towardPlace">The exact place minus the step's texel, in half-resolution texels: at most ½ on each axis.</param>
+    /// <param name="depthAt">The view depth of a texel, <see cref="HorizonSearch.SkyDepth"/> for sky.</param>
+    public static (double Least, double Greatest) DepthsAround(
+        (int X, int Y) texel,
+        double texelDepth,
+        (double X, double Y) towardPlace,
+        Func<(int X, int Y), double> depthAt
+    )
+    {
+        double alongRow = depthAt((X: texel.X + Math.Sign(towardPlace.X), texel.Y));
+        double alongColumn = depthAt((texel.X, Y: texel.Y + Math.Sign(towardPlace.Y)));
+        return (
+            Least: Math.Min(texelDepth, Math.Min(alongRow, alongColumn)),
+            Greatest: Math.Max(texelDepth, Math.Max(alongRow, alongColumn))
+        );
     }
 
     /// <summary>
@@ -109,17 +142,20 @@ internal static class SectorSearch
     )
     {
         var steps = new List<NearStep>();
+        // A texel outside the image reads the border texel, as the shader's viewDepthAt does.
+        double DepthAt((int X, int Y) t) =>
+            texelAt((X: Math.Clamp(t.X, 0, halfSize.Width - 1), Y: Math.Clamp(t.Y, 0, halfSize.Height - 1)))?.Position.Z
+            ?? HorizonSearch.SkyDepth;
         for (int step = 0; HorizonSearch.NearRangeHoldsSteps(radiusInTexels) && step < stepsPerSide; step++)
         {
-            double fraction = HorizonSearch.StepFraction(
-                step: step,
-                slice: slice,
-                stepsPerSide: stepsPerSide,
-                stepNoise: stepNoise,
-                radiusInTexels: radiusInTexels
-            );
             (double X, double Y) exact = HorizonSearch.ExactStepOffset(
-                stepFraction: fraction,
+                stepFraction: HorizonSearch.StepFraction(
+                    step: step,
+                    slice: slice,
+                    stepsPerSide: stepsPerSide,
+                    stepNoise: stepNoise,
+                    radiusInTexels: radiusInTexels
+                ),
                 sliceAngle: sliceAngle,
                 radiusInTexels: radiusInTexels,
                 halfSize: halfSize
@@ -136,8 +172,18 @@ internal static class SectorSearch
                     && stepTexel.Y < halfSize.Height;
                 if (!inside || texelAt(stepTexel) is not { } read)
                     continue;
-                Double3 exactRay = rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y));
-                if (SurfacePoint(exactRay, read.Position, read.GeometricNormal) is not { } position)
+                Double3? surfacePoint = SurfacePoint(
+                    exactRay: rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)),
+                    texelPosition: read.Position,
+                    texelNormal: read.GeometricNormal,
+                    depthsAround: DepthsAround(
+                        texel: stepTexel,
+                        texelDepth: read.Position.Z,
+                        towardPlace: (X: sign * (exact.X - nearest.X), Y: sign * (exact.Y - nearest.Y)),
+                        depthAt: DepthAt
+                    )
+                );
+                if (surfacePoint is not { } position)
                     continue;
                 steps.Add(
                     new(

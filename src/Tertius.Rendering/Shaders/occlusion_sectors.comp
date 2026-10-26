@@ -61,10 +61,12 @@ void main()
                 vec3 sampleNormal = geometricNormalAt(2 * t);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.
                 vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
+                vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
                 vec3 samplePosition;
                 bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
                                                 gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
-                                                sampleNormal, setup.center.z + occlusion.radiusMeters, samplePosition);
+                                                sampleNormal, around, setup.center.z + occlusion.radiusMeters,
+                                                samplePosition);
                 // GTAO's hard edge: a step blocks only within the radius.
                 if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                     continue;

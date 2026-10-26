@@ -28,16 +28,16 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     /// <summary>The share of the light within which the GPU's single floats and its decoded normals match the C# copy.</summary>
     private const double FloatError = 1e-4;
 
-    /// <summary>The low box beside the open floor, 0.2 m tall, whose top the floor beside it sees from below.</summary>
+    /// <summary>The low box beside the open floor, 0.2 m tall, whose front face the floor beside it sees from behind.</summary>
     private static readonly Vector3 LowBoxCenter = new(0.5f, FloorHeight + 0.1f, -3);
 
     private static readonly Vector3 LowBoxSize = new(0.3f, 0.2f, 0.3f);
 
     /// <summary>
-    /// The floor beside the low box, on its side away from the camera, which sees the box's top past it: its
-    /// blockers include that top, which faces away from it.
+    /// The floor 5 cm beside the low box, on its side away from the camera, behind the plane of the box's front face:
+    /// its blockers include that face, which faces away from it.
     /// </summary>
-    private static readonly Vector3 BesideTheLowBox = new(0.85f, FloorHeight, -3);
+    private static readonly Vector3 BesideTheLowBox = new(0.7f, FloorHeight, -3);
 
     /// <summary>
     /// A platform 5 cm above the floor, whose top's normal map tilts the shading normal 38° toward +x, so its shading
@@ -127,7 +127,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 - images.Near(TexelOf(BesideTheLowBox), setting, everyBlockerFaces: false).Estimate.Bounce
             )
                 .Length.Should()
-                .BePositive("the test needs a blocker that faces away: the box's top, seen from below");
+                .BePositive("the test needs a blocker that faces away: the box's front face, seen from behind");
             images
                 .Near(TexelOf(OnThePlatform), setting, everyBlockerFaces: false)
                 .OwnSurface.Sum(sectors => sectors.Count)

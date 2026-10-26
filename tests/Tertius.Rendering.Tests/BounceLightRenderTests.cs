@@ -21,6 +21,9 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     /// <summary>The raised box's bottom face, 0.3 m above the floor and 0.2 m above the eye, which sees it from below.</summary>
     private const float Underside = 0.2f;
 
+    /// <summary>The view depth of the convex edge's front face, in m.</summary>
+    private const float FrontFaceDepth = 5;
+
     /// <summary>Toward the sun: above the open side of the corner, so it lights the floor and the back wall.</summary>
     private static readonly Vector3 SunDirection = new(0.4f, 0.8f, 0.45f);
 
@@ -132,6 +135,71 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Fact]
+    public void AFaceBesideAGrazingConvexEdgeBlocksNothingAndGetsNoBounce()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            // The term and the masks that the sector pass leaves: the far rays add nothing where no ray meets a surface.
+            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            renderer.Render(SunlitConvexEdge(renderer), 1f);
+            (float[] term, int halfWidth, _) = renderer.ReadOcclusionTerm();
+            uint[] masks = renderer.ReadSectorMasks();
+            float[] depths = renderer.ReadOcclusionViewDepth().Depths;
+            int slices = VisibilityBitmaskLight.Default.Slices;
+
+            // The side face lies 6 cm and more behind the front face at every texel that shows it.
+            int[] front =
+            [
+                .. Enumerable.Range(0, depths.Length).Where(i => Math.Abs(depths[i] - FrontFaceDepth) < 0.01f),
+            ];
+            int[] blocking =
+            [
+                .. front.Where(i => Enumerable.Range(0, slices).Any(slice => masks[i * slices + slice] != 0)),
+            ];
+            int[] bouncing = [.. front.Where(i => term[i * 4] != 0 || term[i * 4 + 1] != 0 || term[i * 4 + 2] != 0)];
+            output.WriteLine(
+                $"of {front.Length} texels of the front face, {blocking.Length} block sectors and {bouncing.Length} get a bounce"
+                    + (
+                        blocking.Length > 0
+                            ? $"; the first at ({blocking[0] % halfWidth}, {blocking[0] / halfWidth})"
+                            : ""
+                    )
+            );
+
+            front
+                .Length.Should()
+                .BeGreaterThan(8_000, "the front face spans 47 of the 320 texel columns, in every row");
+            blocking.Should().BeEmpty("nothing in view rises above the front face's plane (decision 39)");
+            bouncing.Should().BeEmpty("the lit side face lies behind the front face's plane");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AWallSquareToTheViewBlocksAsMuchWhicheverWayTheCameraFaces()
+    {
+        // Turned 63°, the wall's normal is no longer a view axis, so the rounding of its decoded normal moves each
+        // step's surface point off the wall's one view depth by about 10⁻⁷ of it. Without the depths' precision, such a
+        // step would stand at its texel's own point, off its slice.
+        long straight = BlockedSectorsBeforeASquareWall(turn: 0);
+        long turned = BlockedSectorsBeforeASquareWall(turn: 1.1f);
+        output.WriteLine($"blocked sectors: {straight} with the camera along −Z, {turned} turned 63°");
+
+        straight.Should().BeGreaterThan(100_000, "the wall blocks the floor before it");
+        turned
+            .Should()
+            .BeCloseTo(
+                straight,
+                (ulong)(straight / 10_000),
+                "the same scene in view space blocks the same sectors: the depths' precision keeps every step on its slice"
+            );
     }
 
     [Fact]
@@ -514,6 +582,67 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             );
             renderer.Render(snapshot, 1f);
             return renderer.ReadHdr();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A white box under the sun, seen by the level camera: its front face 5 m ahead from x = 0.5 m to 2 m, and its side
+    /// face at x = 0.5 m from 5 m to 6 m, which the eye sees about 6° off its view rays. The box reaches past the image
+    /// up and down.
+    /// </summary>
+    private static RenderSnapshot SunlitConvexEdge(VulkanRenderer renderer)
+    {
+        // Toward the sun: up, ahead and to the left, so it lights both faces.
+        RenderSnapshot snapshot = Gpu.Snapshot(new(-0.5f, 0.6f, 0.6f), sunIntensity: 3);
+        AddSlab(
+            snapshot: snapshot,
+            box: UnitBox(renderer),
+            material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.8f)),
+            center: new(1.25f, 0, -FrontFaceDepth - 0.5f),
+            size: new(1.5f, 40, 1)
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// The number of blocked sectors of all the sector masks, the far rays skipped, when the camera and a scene turn
+    /// together by <paramref name="turn"/> rad about the vertical: the floor 1.5 m below the eye, and a wall square to
+    /// the view 3 m ahead.
+    /// </summary>
+    private static long BlockedSectorsBeforeASquareWall(float turn)
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Transform(new(0.5f, 0.8f, 0.3f), rotation), sunIntensity: 3);
+            Look(snapshot, rotation);
+            MeshId box = UnitBox(renderer);
+            MaterialId matte = Matte(renderer);
+            foreach (
+                (Vector3 center, Vector3 size) in (ReadOnlySpan<(Vector3 Center, Vector3 Size)>)
+                    [
+                        (Center: new(0, FloorHeight - 0.5f, -10), Size: new(40, 1, 40)),
+                        (Center: new(0, 5, -3.5f), Size: new(40, 20, 1)),
+                    ]
+            )
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: box,
+                        material: matte,
+                        position: Vector3.Transform(center, rotation),
+                        scale: size,
+                        rotation: rotation,
+                        radius: size.Length() / 2
+                    )
+                );
+            renderer.Render(snapshot, 1f);
+            return renderer.ReadSectorMasks().Sum(mask => (long)BitOperations.PopCount(mask));
         }
         finally
         {

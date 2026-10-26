@@ -74,17 +74,43 @@ uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
            | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
 }
 
+// The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
+// neighbors toward the place, along the row and along the column. The place lies within half a texel of t on each axis,
+// so their triangle holds it. towardPlace is the place minus t, in half-resolution texels (SectorSearch.DepthsAround).
+vec2 depthsAround(ivec2 t, float tDepth, vec2 towardPlace)
+{
+    ivec2 across = ivec2(sign(towardPlace));
+    float alongRow = viewDepthAt(t + ivec2(across.x, 0));
+    float alongColumn = viewDepthAt(t + ivec2(0, across.y));
+    return vec2(min(tDepth, min(alongRow, alongColumn)), max(tDepth, max(alongRow, alongColumn)));
+}
+
 // s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
 // plane of its texel's surface, through texelPosition at right angles to texelNormal (SectorSearch.SurfacePoint). False
 // where the ray meets the plane only behind the eye or never: the surface does not reach the slice there, and the step
-// blocks nothing. Also false at a view depth of farthestDepth or more, which lies beyond the radius: the tests by
-// products before the quotient keep the depth finite.
-bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, float farthestDepth, out vec3 point)
+// blocks nothing. At a view depth outside the depths around the exact place, widened by the depths' precision,
+// 1 − CenterBias, the plane does not reach the place, as beside a convex edge, and the step stands at texelPosition,
+// the real point that it read. Also false at a view depth of farthestDepth or more, which lies beyond the radius. The
+// tests by products before the quotient keep the depth finite.
+bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 depthsAround, float farthestDepth,
+                      out vec3 point)
 {
     float planeOffset = dot(texelNormal, texelPosition);
     float rayAlongNormal = dot(texelNormal, exactRay);
     bool inFront = planeOffset * rayAlongNormal > 0.0;
-    if (!inFront || !(abs(planeOffset) < abs(rayAlongNormal) * farthestDepth))
+    // The depth is |planeOffset| / |rayAlongNormal| where the two share a sign.
+    float depthTimesRay = abs(planeOffset);
+    float rayLength = abs(rayAlongNormal);
+    bool betweenAround = depthTimesRay >= rayLength * depthsAround.x * CenterBias
+                         && depthTimesRay <= rayLength * depthsAround.y / CenterBias;
+    if (!inFront)
+        return false;
+    if (!betweenAround)
+    {
+        point = texelPosition;
+        return true;
+    }
+    if (!(depthTimesRay < rayLength * farthestDepth))
         return false;
     point = exactRay * (planeOffset / rayAlongNormal);
     return true;
