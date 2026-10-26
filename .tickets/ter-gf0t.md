@@ -7,7 +7,6 @@ created: 2026-10-26T18:21:30Z
 type: feature
 priority: 3
 assignee: Alexis Purslane
-parent: ter-sglu
 tags: [rendering, lights]
 ---
 # A sized light's highlight: the widened GGX lobe of a sphere light
