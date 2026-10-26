@@ -25,7 +25,9 @@ internal static class ReflectionUpsample
     /// <summary>
     /// The ray of the full-resolution <paramref name="pixel"/> at the view <paramref name="position"/>: the mean of the
     /// rays of its 2 × 2 block of texels under their bilinear weights, cut by each texel's distance from the pixel's
-    /// tangent plane and by the turn of its normal, or null when no texel with a ray keeps a weight.
+    /// tangent plane and by the turn of its normal, or null when no texel with a ray keeps a weight. A sum of weights
+    /// below the smallest normal single float counts as none: a GPU may flush it to 0, and Vulkan bounds the error of a
+    /// division only for a divisor of at least 2^−126.
     /// </summary>
     /// <param name="texelWidth">The width of one texel at the pixel: a texel this far from the plane gets no weight.</param>
     /// <param name="halfSize">The size of the half-resolution image, in texels.</param>
@@ -55,6 +57,8 @@ internal static class ReflectionUpsample
             weights += weight;
         }
 
-        return weights > 0 ? new RayResult(Radiance: radiance / weights, Coverage: coverage / weights) : null;
+        return weights >= ShaderInput.SmallestNormal
+            ? new RayResult(Radiance: radiance / weights, Coverage: coverage / weights)
+            : null;
     }
 }

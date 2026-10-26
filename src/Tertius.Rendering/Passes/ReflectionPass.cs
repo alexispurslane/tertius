@@ -85,7 +85,9 @@ internal sealed unsafe class ReflectionPass : RenderPass
             Name = pipelineName,
             Shader = shader,
             Layout = layouts.ReflectionLayout,
-            // The fallback reads the ambient light through ambientTerms, which reads the map while it is on.
+            // The step that adds the delta, the full-resolution trace or the upsample, reads its fallback through
+            // ambientTerms, which reads the map while it is on. The half-resolution trace reads no ambient light, so its
+            // compiled module holds no constant and ignores them (ComputePipelineDesc.Constants).
             Constants = constants,
         }.Create(device, shaders);
     }

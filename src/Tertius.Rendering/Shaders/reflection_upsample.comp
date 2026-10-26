@@ -92,8 +92,10 @@ void main()
             weights += weight;
         }
     }
-    // No texel with a ray lies on the pixel's surface: the pixel keeps the ambient specular term.
-    if (weights <= 0.0)
+    // No texel with a ray lies on the pixel's surface: the pixel keeps the ambient specular term. A sum below the
+    // smallest normal float counts as none: a GPU may flush it to 0, and Vulkan bounds the error of a division only for
+    // a divisor of at least 2^-126.
+    if (weights < SmallestNormal)
         return;
     vec3 delta = reflectionDelta(p, sum / weights);
     vec4 lit = imageLoad(hdrImage, pixel);

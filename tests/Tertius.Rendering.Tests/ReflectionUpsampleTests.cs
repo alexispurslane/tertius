@@ -167,6 +167,27 @@ public sealed class ReflectionUpsampleTests
     }
 
     [Fact]
+    public void APixelWhoseTexelsWeighLessThanTheSmallestNormalFloatReflectsNothing()
+    {
+        // The texel's normal turns from the pixel's by all but 2^−16 rad of a right angle, as at a sphere's silhouette, so
+        // its normal weight (2^−16)^8 = 2^−128 lies below the smallest normal single float. A GPU may flush that to 0,
+        // and Vulkan bounds a division's error only for a divisor of at least 2^−126.
+        double facing = Math.ScaleB(1, -16);
+        Dictionary<(int X, int Y), TracedTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(
+                Position: Pixel,
+                GeometricNormal: new Double3(Math.Sqrt(1 - facing * facing), facing, 0),
+                Ray: Bright
+            ),
+        };
+
+        RayOf(pixel: (X: 6, Y: 10), texels: texels)
+            .Should()
+            .BeNull("a weight sum below the smallest normal float counts as no texel of weight on every driver");
+    }
+
+    [Fact]
     public void ATexelBeyondTheHalfImageIsNeverRead()
     {
         // Pixel (1919, 1079) lies in the last texel (959, 539); its neighbors past the edge do not exist.

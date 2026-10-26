@@ -1,9 +1,10 @@
 // The lit surface that the G-buffer holds at a pixel (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light"). The lighting pass and the reflection trace read a lit pixel's surface only through it, and
-// the occlusion of ambient occlusion enters the shading input here (docs/plans/ambient-occlusion.md). So does the
-// reflection's footprint, which both passes take from the G-buffer, so that the trace takes away the very ambient
-// specular term that the lighting pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside
-// the G-buffer: texelFetch outside an image is undefined.
+// reads the ambient light"). The lighting pass and the reflections' passes read a lit pixel's surface only through it,
+// and the occlusion of ambient occlusion enters the shading input here (docs/plans/ambient-occlusion.md). So does the
+// reflection's footprint, which the lighting pass and the pass that adds the reflections' delta (the full-resolution
+// trace, or the upsample at half resolution) take from the G-buffer, so that the delta takes away the very ambient
+// specular term that the lighting pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie
+// inside the G-buffer: texelFetch outside an image is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
