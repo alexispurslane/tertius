@@ -10,8 +10,8 @@
 #              Release's optimized code, see Directory.Build.targets)
 #   -m <list>  test modules, separated by commas
 #              (default Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop,Blender).
-#              Blender is the test script of the build tool of scripted models, tools/blender/tests/test_build.py. It
-#              runs once, after the .NET tests, in the assets shell, and it ignores -c and the arguments after --.
+#              Blender is the tests of the build tool of scripted models and of MPFB in it, tools/blender/tests/test_*.py.
+#              They run once, after the .NET tests, in the assets shell, and they ignore -c and the arguments after --.
 #   -o <dir>   folder for the logs (default a new temporary folder)
 #   -j <runs>  the most test runs at once (default 0: every configuration and module at once)
 #   -- <args>  everything after -- goes to each dotnet test command unchanged, for example a filter
@@ -131,7 +131,8 @@ done
 if [[ $blender_tests -eq 1 ]]; then
   log="$out/blender.log"
   code=0
-  nix develop "$root#assets" --command python3 tools/blender/tests/test_build.py > "$log" 2>&1 || code=$?
+  nix develop "$root#assets" --command python3 -m unittest discover -s tools/blender/tests -p "test_*.py" > "$log" 2>&1 \
+    || code=$?
   ran=$(sed -n 's/^Ran \([0-9]*\) tests\{0,1\} in .*/\1/p' "$log" | tail -1)
   if [[ -z "$ran" ]]; then
     echo "Blender: no summary, exit code $code, see $log"

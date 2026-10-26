@@ -31,6 +31,11 @@
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
           blenderMcp = pkgs.callPackage ./native/blender-mcp.nix { };
           mpfb = pkgs.callPackage ./native/mpfb.nix { };
+          makehumanAssets = pkgs.callPackage ./native/makehuman-assets.nix { };
+          blenderExtensions = pkgs.callPackage ./native/blender-extensions.nix {
+            inherit mpfb;
+            mcpAddon = blenderMcp.addon;
+          };
           blender = pkgs.lib.getExe pkgs.blender;
           vulkanLibs = [
             pkgs.vulkan-loader
@@ -98,8 +103,8 @@
           default = pkgs.mkShell common;
 
           # The assets shell: the default shell plus Blender and the Blender MCP server, for scripted models and
-          # conversions (docs/plans/asset-pipeline.md, decision 4 and "Scripted models"). tools/blender/setup.sh
-          # installs the add-on into Blender once per machine.
+          # conversions (docs/plans/asset-pipeline.md, decision 4 and "Scripted models"). Blender finds the MCP add-on
+          # and MPFB in the system extension repository of BLENDER_SYSTEM_EXTENSIONS, so nothing is installed.
           assets = pkgs.mkShell (
             common
             // {
@@ -111,8 +116,13 @@
               TERTIUS_BLENDER_VERSION = pkgs.blender.version;
               # The release file of the add-on, from a fixed-output fetch.
               TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;
-              # The unpacked MPFB add-on, pinned by hash. Model scripts read its MakeHuman base mesh and targets.
+              # The unpacked MPFB add-on, pinned by hash. Model scripts run it through tertius_blender.mpfb.
               TERTIUS_MPFB = "${mpfb}";
+              # The MakeHuman system assets without the clothes: skins, eyes, eyebrows, eyelashes, teeth, tongue, hair.
+              TERTIUS_MAKEHUMAN_ASSETS = "${makehumanAssets}";
+              # Blender's system extension repository: MPFB and the MCP add-on, read from the Nix store. Every Blender
+              # of the shell finds them as bl_ext.system.mpfb and bl_ext.system.mcp.
+              BLENDER_SYSTEM_EXTENSIONS = "${blenderExtensions}";
               # blender-mcp runs Blender for some of its tools, and it reaches the bridge at this host and port.
               # tools/blender/bridge.sh starts the bridge on the same port.
               BLENDER_PATH = blender;

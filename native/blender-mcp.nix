@@ -12,8 +12,8 @@
 let
   version = "1.0.3";
 
-  # The official release file of the add-on. tools/blender/setup.sh installs it with Blender's own
-  # `extension install-file` command.
+  # The official release file of the add-on. native/blender-extensions.nix unpacks it into the system extension
+  # repository of the assets shell, and tools/blender/bridge.sh enables it with --addons.
   addon = fetchurl {
     url = "https://projects.blender.org/lab/blender_mcp/releases/download/v${version}/mcp-${version}.zip";
     hash = "sha256-p6nagWGSUC5aCiAqOWRE4ma0fY/E90rUaYBIvUMEBwc=";

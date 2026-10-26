@@ -75,9 +75,11 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# Runs Blender in the background, so a signal reaches the trap at once, and waits for it.
+# Runs Blender in the background, so a signal reaches the trap at once, and waits for it. Blender's user resource
+# folder is a folder of this build too: an add-on that a model script enables, such as MPFB, writes its logs and
+# settings there, and never into the user's own Blender folder.
 run_blender() {
-    TMPDIR="$tmp" "$TERTIUS_BLENDER" --background --factory-startup --disable-autoexec --python-exit-code 3 "$@" \
+    TMPDIR="$tmp" BLENDER_USER_RESOURCES="$tmp/user" "$TERTIUS_BLENDER" --background --factory-startup --disable-autoexec --python-exit-code 3 "$@" \
         >> "$out/blender.log" 2>&1 &
     blender_pid=$!
     wait "$blender_pid" || true
