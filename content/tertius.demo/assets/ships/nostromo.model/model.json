@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "scripts": [
+    "s00_scene.py",
+    "s10_hull.py",
+    "s15_union.py",
+    "s20_engines.py",
+    "s30_greebles.py",
+    "s40_pipes.py",
+    "s50_structures.py",
+    "s60_windows.py",
+    "s70_materials.py",
+    "s75_uv.py",
+    "s80_assemble.py",
+    "s90_checks.py"
+  ],
+  "seed": 1979,
+  "parameters": {
+    "seeds": { "greebles": 1979, "windows": 7 }
+  },
+  "bake": { "objects": ["Hull_Fore", "Hull_Mid", "Hull_Aft", "Engines"], "size": 4096, "samples": 8, "margin": 16 },
+  "views": {
+    "resolution": [1920, 1080],
+    "samples": 192,
+    "shots": [
+      { "name": "three-quarter", "camera": [-185, -235, 75], "target": [0, 2, -2], "lens": 50, "sun": [-0.55, -0.7, 0.6] },
+      { "name": "side", "camera": [-370, 4, 22], "target": [0, 4, 0], "lens": 50, "sun": [-0.75, -0.35, 0.65] },
+      { "name": "rear-low", "camera": [-70, 255, -80], "target": [0, 95, 2], "lens": 42, "sun": [-0.45, 0.75, -0.25] },
+      { "name": "closeup", "camera": [-36, -96, 12], "target": [-12, -84, 10], "lens": 35, "sun": [-0.8, -0.2, 0.35] }
+    ]
+  }
+}

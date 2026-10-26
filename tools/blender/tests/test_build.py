@@ -213,6 +213,46 @@ class StrayRandomness(unittest.TestCase):
             shutil.rmtree(scratch, ignore_errors=True)
 
 
+class WeldedMeshes(unittest.TestCase):
+    """MB.finish welds coincident vertices. The weld rebuilds faces in an order that follows memory addresses."""
+
+    def test_a_mesh_with_welded_vertices_builds_the_same_glb_bytes_twice(self):
+        scratch = pathlib.Path(tempfile.mkdtemp(prefix="tertius-build-test-"))
+        try:
+            model = scratch / "beads.model"
+            model.mkdir()
+            (model / "model.json").write_text('{"format": 1, "scripts": ["s00_beads.py"], "seed": 3}')
+            # The BMesh operators of spheres and lathes, and the weld of MB.finish, order what they make by memory
+            # address. Neighboring spheres sit 4 micrometers apart, so the weld merges two vertices that are not
+            # equal, and the one that stays depends on the order. Caps of posts and conduit stubs are polygons
+            # whose first corner decides the triangles of the export. Two boxes in one place weld into one.
+            (model / "s00_beads.py").write_text(
+                "from mathutils import Matrix\n"
+                "from tertius_blender.geometry import MB, rod\n"
+                "mb = MB()\n"
+                "for k in range(24):\n"
+                "    mb.sphere((k * 0.900004, 0.0, 0.0), 0.45, segs=12, rings=6)\n"
+                "    mb.box((k * 1.0, 2.0, 0.0), (0.6, 0.6, 0.6), bevel=0.05)\n"
+                "    mb.cyl((k * 1.0, 2.0, 0.5), (0, 0, 1), 0.2, 0.6, segs=10 + 2 * (k % 8))\n"
+                "    rod(mb, (k * 1.0, 2.0, 0.8), (k * 1.0 + 0.5, 2.5, 1.5), 0.05)\n"
+                "    mb.box((k * 1.0, 4.0, 0.0), (0.5, 0.5, 0.4), bevel=0.04)\n"
+                "    mb.cyl((k * 1.0, 4.0 + 0.25 + 0.4, 0.16), (0, 1, 0), 0.06, 0.9, segs=10)\n"
+                "    mb.lathe([(0.3, 0.0), (0.5, 0.4), (0.2, 0.6)], Matrix.Translation((k * 1.0, 6.0, 0.0)), segs=16)\n"
+                "    mb.box((k * 1.0, 8.0, 0.0), (0.4, 0.4, 0.4))\n"
+                "    mb.box((k * 1.0, 8.0, 0.0), (0.4, 0.4, 0.4))\n"
+                "rod(mb, (0.0, 0.0, 0.0), (20.7, 0.0, 0.0), 0.1)\n"
+                "mb.finish('Beads', None, 'Beads')\n"
+            )
+            glbs = []
+            for name in ("first", "second"):
+                run = build(model, scratch / name)
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                glbs.append((scratch / name / "model.glb").read_bytes())
+            self.assertEqual(glbs[0], glbs[1])
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+
+
 class TheLibraryInTheBridge(unittest.TestCase):
     """The functions that an agent calls through execute_blender_code, run in a plain headless Blender."""
 

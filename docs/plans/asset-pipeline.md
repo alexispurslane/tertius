@@ -255,15 +255,15 @@ The asset id is `tertius.demo:ships/nostromo.model`. Fragments name pieces, mate
 {
   "$schema": "../../../.schemas/model.schema.json",
   "format": 1,
-  "scripts": ["s00_scene.py", "s10_hull.py", "s30_greebles.py", "s70_materials.py", "s75_uv.py"],
+  "scripts": ["s00_scene.py", "s10_hull.py", "s30_greebles.py", "s70_materials.py", "s75_uv.py", "s80_assemble.py", "s90_checks.py"],
   "seed": 1979,
-  "parameters": { "greebleDensity": 0.6 },
+  "parameters": { "seeds": { "greebles": 1979, "windows": 7 } },
   "bake": { "objects": ["Hull_Fore", "Hull_Mid", "Hull_Aft", "Engines"], "size": 4096, "samples": 8, "margin": 16 },
   "views": {
     "resolution": [1920, 1080],
     "samples": 192,
     "shots": [
-      { "name": "three-quarter", "camera": [185, -235, 75], "target": [0, 2, -2], "lens": 50, "sun": [0.55, -0.7, 0.6] }
+      { "name": "three-quarter", "camera": [-185, -235, 75], "target": [0, 2, -2], "lens": 50, "sun": [-0.55, -0.7, 0.6] }
     ]
   }
 }
@@ -385,7 +385,9 @@ The export conventions live in one function, `export.write_glb`. The converter o
 - Before the export, the function makes sure that the scene holds no camera. A camera there means that the stage leaked into the model, and the build fails.
 - The exporter computes tangents only for triangles and quads. So the function adds a Triangulate modifier at the end of the modifier stack of each mesh for the time of the export. glTF holds triangles in any case, and the scene keeps its polygons.
 
-Determinism: the same model folder, model library and Blender build on the same machine and bake device give the same `model.glb` bytes. A test in `tools/blender/tests/` builds a small model twice and compares the bytes. A GPU bake of the same bytes on every run is a belief, and the first build of the Nostromo tests it. `model.blend` and `build.json` hold times and paths, so their bytes differ.
+Determinism: the same model folder, model library and Blender build on the same machine and bake device give the same meshes, UV maps and pieces. Tests in `tools/blender/tests/` build small models twice and compare the `model.glb` bytes. Some BMesh operators, such as `create_uvsphere` and `spin`, order what they make by memory address. So `MB.finish` puts the vertices of each mesh in the order of their coordinates and its faces in the order of their vertices before the weld. `model.blend` and `build.json` hold times and paths, so their bytes differ.
+
+The first builds of the Nostromo (2026-10-26) tested the belief that a GPU bake gives the same bytes on every run. It does not. Two Metal builds gave the same positions, normals, indices and UV maps, but a few pixels of the baked maps differed by one level out of 255, and one to four tangent values of the mesh `Engines` differed in their last bits. The glTF exporter computes the tangents on the CPU, and the cause of that difference is not found. So two builds of the Nostromo give `.glb` files that look the same and differ in their bytes. The cache key holds only inputs, so this changes no import. A golden test of a cooked scripted model compares within a tolerance, or builds on the CPU.
 
 #### The importer and a scripted model
 

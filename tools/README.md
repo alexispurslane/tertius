@@ -252,7 +252,7 @@ What the trace does not give headless: the counters per draw or per dispatch, an
 
 ## Scripted models in Blender
 
-A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". `tools/blender/` holds the tools:
+A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". The project skill `.claude/skills/procedural-modeling/` teaches the way of work, with the Nostromo, `content/tertius.demo/assets/ships/nostromo.model/`, as its worked example. `tools/blender/` holds the tools:
 
 | Path | What it is |
 |---|---|
@@ -315,6 +315,7 @@ The render tools need a camera, and only the stage adds one. The other tools of 
 
 - Use `model.rng` for every random choice. It is seeded from the `seed` of `model.json` and the script name. The build also seeds the `random` module the same way before each script, as a guard.
 - Never iterate over a `set` of Blender objects or BMesh elements: its order follows memory addresses. `dict.fromkeys(...)` keeps a fixed order.
+- Build meshes with `geometry.MB` and end each with `MB.finish`. It puts the vertices and faces into an order of their coordinates, because `create_uvsphere`, `spin` and the weld order them by memory address.
 - Write no files. The bake, the save and the export belong to the build tool.
 - Build only the model, in meters, with +Z up and the front toward -Y. Add no cameras and no lights for the views.
 - Mark a piece below the root with the custom property `tertius_piece = 1`.

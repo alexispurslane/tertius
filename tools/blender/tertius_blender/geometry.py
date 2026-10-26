@@ -198,6 +198,11 @@ class MB:
 
     def finish(self, name, material, collection, smooth_angle=35.0, recalc=True):
         remove_object(name)
+        # Some BMesh operators, such as create_uvsphere and spin, order the elements that they make by memory
+        # address. Then the order of vertices and faces, the vertex that the weld keeps, the exported indices, the
+        # UV maps and later scatters would change between runs. So the elements go into an order of their
+        # coordinates before the weld. The weld and the normal fix keep that order.
+        _sort_by_coordinates(self.bm)
         bmesh.ops.remove_doubles(self.bm, verts=self.bm.verts, dist=1e-5)
         if recalc:
             bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces)
@@ -213,6 +218,39 @@ class MB:
         lim = math.radians(smooth_angle)
         me.set_sharp_from_angle(angle=lim)
         return ob
+
+
+def _sort_by_coordinates(bm):
+    """Puts the vertices of `bm` in the order of their coordinates, starts each face at its lowest vertex, then puts
+    the faces in the order of their vertices. Two runs that make the same geometry in different orders then hold it
+    in one order, and the export triangulates each polygon the same way. The order of the edges reaches no output."""
+    _sort(bm.verts, lambda v: tuple(v.co))
+    _start_at_lowest_vertex(bm)
+    _sort(bm.faces, lambda f: sorted(v.index for v in f.verts))
+
+
+def _start_at_lowest_vertex(bm):
+    """Makes again each face whose loop does not start at its lowest vertex index, with the same winding. The faces
+    of MB carry no attributes yet, so nothing is lost. It runs before the weld, so no two faces share all their
+    vertices, which BMesh would refuse."""
+    for face in list(bm.faces):
+        verts = list(face.verts)
+        first = min(range(len(verts)), key=lambda k: verts[k].index)
+        if first == 0:
+            continue
+        bm.faces.remove(face)
+        bm.faces.new(verts[first:] + verts[:first])
+
+
+def _sort(elements, key):
+    """Sorts a BMesh element sequence by `key`, then numbers it again. BMesh sorts only by a number, so each element
+    sorts by its rank under `key`."""
+    elements.index_update()
+    rank = [0] * len(elements)
+    for position, element in enumerate(sorted(elements, key=key)):
+        rank[element.index] = position
+    elements.sort(key=lambda element: rank[element.index])
+    elements.index_update()
 
 
 def constant_material(name, color, metallic=0.0, roughness=0.5):
