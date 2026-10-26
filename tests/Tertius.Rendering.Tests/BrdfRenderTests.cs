@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -389,7 +390,13 @@ public sealed class BrdfRenderTests
             MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
             RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
             snapshot.Lights.Add(
-                new PointRenderLight(Position: lamp.ToVector3(), Color: Vector3.One, Intensity: 1000, Range: 10)
+                new PointRenderLight(
+                    Position: lamp.ToVector3(),
+                    Color: Vector3.One,
+                    Intensity: 1000,
+                    Range: 10,
+                    ChainDepth: TestChains.CamerasFrame
+                )
             );
             snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name).Color(Pixel(center));

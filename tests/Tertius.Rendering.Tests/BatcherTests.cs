@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -172,6 +173,7 @@ public sealed class BatcherTests
                 scale: Vector3.One,
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow
             )
         ); // not Visible
@@ -355,7 +357,13 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         snapshot.Camera.PreviousPosition = new(0, 0, 2);
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0, 1, -5), Color: new(1, 0.5f, 0.25f), Intensity: 4, Range: 10)
+            new PointRenderLight(
+                Position: new(0, 1, -5),
+                Color: new(1, 0.5f, 0.25f),
+                Intensity: 4,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(
             new SpotRenderLight(
@@ -365,11 +373,28 @@ public sealed class BatcherTests
                 Intensity: 1,
                 Range: 8,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, 50), Color: Vector3.One, Intensity: 1, Range: 10)); // behind
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 0)); // no range
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(0, 0, 50),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        ); // behind
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(0, 0, -5),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 0,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        ); // no range
         PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
 
         scene.LightCount.Should().Be(2);
@@ -408,7 +433,13 @@ public sealed class BatcherTests
         )
         {
             snapshot.Lights.Add(
-                new PointRenderLight(Position: position, Color: Vector3.One, Intensity: intensity, Range: range)
+                new PointRenderLight(
+                    Position: position,
+                    Color: Vector3.One,
+                    Intensity: intensity,
+                    Range: range,
+                    ChainDepth: TestChains.CamerasFrame
+                )
             );
             snapshot.Lights.Add(
                 new SpotRenderLight(
@@ -418,14 +449,23 @@ public sealed class BatcherTests
                     Intensity: intensity,
                     Range: range,
                     InnerConeAngle: 0.3f,
-                    OuterConeAngle: 0.5f
+                    OuterConeAngle: 0.5f,
+                    ChainDepth: TestChains.CamerasFrame
                 )
             );
         }
 
         snapshot.Lights.Add(default);
         // One of each case that reaches the view, to show that the others were left out and not everything.
-        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: ahead,
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
         snapshot.Lights.Add(
             new SpotRenderLight(
                 Position: ahead,
@@ -434,7 +474,8 @@ public sealed class BatcherTests
                 Intensity: 1,
                 Range: 10,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -451,7 +492,15 @@ public sealed class BatcherTests
     public void APointLightLeavesTheDirectionAndTheConeOfItsGpuLightZeroBecauseItHasNone()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(0, 1, -5),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
@@ -475,7 +524,8 @@ public sealed class BatcherTests
                 Intensity: 1,
                 Range: 10,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -501,7 +551,8 @@ public sealed class BatcherTests
                 Intensity: 1,
                 Range: 10,
                 InnerConeAngle: 0.6f,
-                OuterConeAngle: 0.4f
+                OuterConeAngle: 0.4f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -521,7 +572,13 @@ public sealed class BatcherTests
         for (int i = 0; i < 40; i++)
             snapshot.Lights.Add(
                 i % 2 == 0
-                    ? new PointRenderLight(Position: new(0, 1, -5), Color: Vector3.One, Intensity: i + 1, Range: 10)
+                    ? new PointRenderLight(
+                        Position: new(0, 1, -5),
+                        Color: Vector3.One,
+                        Intensity: i + 1,
+                        Range: 10,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
                     : new SpotRenderLight(
                         Position: new(0, 1, -5),
                         Direction: -Vector3.UnitY,
@@ -529,7 +586,8 @@ public sealed class BatcherTests
                         Intensity: i + 1,
                         Range: 10,
                         InnerConeAngle: 0.3f,
-                        OuterConeAngle: 0.5f
+                        OuterConeAngle: 0.5f,
+                        ChainDepth: TestChains.CamerasFrame
                     )
             );
 
@@ -636,7 +694,8 @@ public sealed class BatcherTests
                 rotation: Quaternion.Identity,
                 scale: Vector3.One,
                 boundingRadius: 1,
-                hemisphere: HemisphereUp.Along(Vector3.UnitX)
+                hemisphere: HemisphereUp.Along(Vector3.UnitX),
+                chainDepth: TestChains.CamerasFrame
             )
         );
         var moving = RenderInstance.Create(
@@ -646,7 +705,8 @@ public sealed class BatcherTests
             rotation: Quaternion.Identity,
             scale: Vector3.One,
             boundingRadius: 1,
-            hemisphere: HemisphereUp.AwayFrom(new(0, -50, 0))
+            hemisphere: HemisphereUp.AwayFrom(new(0, -50, 0)),
+            chainDepth: TestChains.CamerasFrame
         );
         moving.PreviousPosition = new(4, 1, -10);
         snapshot.Instances.Add(moving);
@@ -658,7 +718,8 @@ public sealed class BatcherTests
                 rotation: Quaternion.Identity,
                 scale: Vector3.One,
                 boundingRadius: 1,
-                hemisphere: HemisphereUp.Even
+                hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -678,8 +739,14 @@ public sealed class BatcherTests
     public void TheRootRotationBlendsFromThePreviousTickAsTheCameraDoes()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.PreviousRootRotation = Quaternion.Identity;
-        snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        snapshot.Chain.Add(new(FrameId: 1, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(
+            new(
+                FrameId: 0,
+                Rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2),
+                PreviousRotation: Quaternion.Identity
+            )
+        );
 
         Vector4 root = Prepare(snapshot: snapshot, alpha: 0.25f).Constants.RootRotation;
 
@@ -695,8 +762,8 @@ public sealed class BatcherTests
     public void AnUnsetRootRotationLeavesTheSkyInTheAxesOfTheCamerasFrame()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.RootRotation = default;
-        snapshot.PreviousRootRotation = default;
+        // The camera's frame is the root, and its rotations are left zeroed.
+        snapshot.Chain.Add(new(FrameId: 0, Rotation: default, PreviousRotation: default));
 
         Prepare(snapshot: snapshot).Constants.RootRotation.Should().Be(new Vector4(x: 0, y: 0, z: 0, w: 1));
     }
@@ -752,6 +819,7 @@ public sealed class BatcherTests
                 scale: Vector3.One,
                 boundingRadius: 0f,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow
             )
         ); // not Visible
@@ -868,7 +936,15 @@ public sealed class BatcherTests
     public void AFaceKeepsALightThatTheMainViewLeavesOut()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(50, 0, 0),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX));
 
@@ -881,7 +957,15 @@ public sealed class BatcherTests
     public void ALightThatOnlyAFaceThatThisFrameSkipsCouldReachIsLeftOut()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(50, 0, 0),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All & ~FaceMask.PositiveX));
 
@@ -897,7 +981,13 @@ public sealed class BatcherTests
         RenderSnapshot snapshot = Empty();
         for (int i = 0; i < places.Length; i++)
             snapshot.Lights.Add(
-                new PointRenderLight(Position: places[i], Color: Vector3.One, Intensity: intensities[i], Range: 10)
+                new PointRenderLight(
+                    Position: places[i],
+                    Color: Vector3.One,
+                    Intensity: intensities[i],
+                    Range: 10,
+                    ChainDepth: TestChains.CamerasFrame
+                )
             );
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.All));
@@ -914,8 +1004,24 @@ public sealed class BatcherTests
     public void WithoutTheMapTheLightsAreTheMainViewsAlone()
     {
         RenderSnapshot snapshot = Empty();
-        snapshot.Lights.Add(new PointRenderLight(Position: new(50, 0, 0), Color: Vector3.One, Intensity: 1, Range: 10));
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(50, 0, 0),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(0, 0, -5),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
         snapshot.Instances.Add(Box(new(10, 0, 0)));
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: new WithoutMap());

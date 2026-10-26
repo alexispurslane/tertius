@@ -79,6 +79,7 @@ public class LitPuffRenderBenchmarks
                 scale: new(250, 1, 250),
                 boundingRadius: 0,
                 hemisphere: up,
+                chainDepth: 0,
                 flags: RenderFlags.Visible | RenderFlags.CastsShadow
             )
         );
@@ -96,6 +97,7 @@ public class LitPuffRenderBenchmarks
                     scale: new(2),
                     boundingRadius: 0,
                     hemisphere: up,
+                    chainDepth: 0,
                     flags: RenderFlags.Visible | RenderFlags.CastsShadow,
                     entityIndex: (uint)i + 1
                 )
@@ -108,7 +110,7 @@ public class LitPuffRenderBenchmarks
             var color = new Vector3(1f, 0.8f, 0.6f);
             snapshot.Lights.Add(
                 i % 2 == 0
-                    ? new PointRenderLight(Position: place, Color: color, Intensity: 40, Range: 30)
+                    ? new PointRenderLight(Position: place, Color: color, Intensity: 40, Range: 30, ChainDepth: 0)
                     : new SpotRenderLight(
                         Position: place,
                         Direction: new(0, -1, -1),
@@ -116,7 +118,8 @@ public class LitPuffRenderBenchmarks
                         Intensity: 60,
                         Range: 30,
                         InnerConeAngle: 0.5f,
-                        OuterConeAngle: 0.8f
+                        OuterConeAngle: 0.8f,
+                        ChainDepth: 0
                     )
             );
         }

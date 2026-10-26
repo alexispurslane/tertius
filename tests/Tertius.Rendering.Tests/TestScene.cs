@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -216,7 +217,8 @@ internal sealed class TestScene
                 Position: new(-0.4f, 0.4f, -4.4f),
                 Color: new(1f, 0.7f, 0.4f),
                 Intensity: 6f,
-                Range: 10f
+                Range: 10f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
         Vector3 spotPosition = new(2.5f, 3.5f, -4.2f);
@@ -228,7 +230,8 @@ internal sealed class TestScene
                 Intensity: 40f,
                 Range: 15f,
                 InnerConeAngle: 0.25f,
-                OuterConeAngle: 0.4f
+                OuterConeAngle: 0.4f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;

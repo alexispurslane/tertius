@@ -21,7 +21,13 @@ public sealed class RenderLightUnionTests
     private static readonly Vector3 Warm = new(0.9f, 0.8f, 0.7f);
 
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
-    private static readonly PointRenderLight Lamp = new(Position: Here, Color: Warm, Intensity: 4, Range: 10);
+    private static readonly PointRenderLight Lamp = new(
+        Position: Here,
+        Color: Warm,
+        Intensity: 4,
+        Range: 10,
+        ChainDepth: TestChains.CamerasFrame
+    );
 
     private static readonly SpotRenderLight Beam = new(
         Position: Here,
@@ -30,7 +36,8 @@ public sealed class RenderLightUnionTests
         Intensity: 4,
         Range: 10,
         InnerConeAngle: 0.3f,
-        OuterConeAngle: 0.5f
+        OuterConeAngle: 0.5f,
+        ChainDepth: TestChains.CamerasFrame
     );
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the light.</summary>
@@ -113,7 +120,13 @@ public sealed class RenderLightUnionTests
     public void EveryFieldOfEveryCaseSurvivesTheRoundTrip()
     {
         // Every field of each case differs from every other field, so a swap of two fields shows.
-        var point = new PointRenderLight(Position: new(1, 2, 3), Color: new(4, 5, 6), Intensity: 7, Range: 8);
+        var point = new PointRenderLight(
+            Position: new(1, 2, 3),
+            Color: new(4, 5, 6),
+            Intensity: 7,
+            Range: 8,
+            ChainDepth: TestChains.CamerasFrame
+        );
         var spot = new SpotRenderLight(
             Position: new(1, 2, 3),
             Direction: new(4, 5, 6),
@@ -121,7 +134,8 @@ public sealed class RenderLightUnionTests
             Intensity: 10,
             Range: 11,
             InnerConeAngle: 12,
-            OuterConeAngle: 13
+            OuterConeAngle: 13,
+            ChainDepth: TestChains.CamerasFrame
         );
 
         new RenderLight(point).TryGetValue(out PointRenderLight heldPoint).Should().BeTrue();
@@ -203,7 +217,13 @@ public sealed class RenderLightUnionTests
     {
         RenderLight[] first =
         [
-            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
+            new PointRenderLight(
+                Position: Here,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            ),
             new SpotRenderLight(
                 Position: Here,
                 Direction: Down,
@@ -211,13 +231,20 @@ public sealed class RenderLightUnionTests
                 Intensity: 4,
                 Range: 10,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             ),
             default,
         ];
         RenderLight[] second =
         [
-            new PointRenderLight(Position: Here, Color: Warm, Intensity: 4, Range: 10),
+            new PointRenderLight(
+                Position: Here,
+                Color: Warm,
+                Intensity: 4,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            ),
             new SpotRenderLight(
                 Position: Here,
                 Direction: Down,
@@ -225,7 +252,8 @@ public sealed class RenderLightUnionTests
                 Intensity: 4,
                 Range: 10,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             ),
             default,
         ];
@@ -278,7 +306,8 @@ public sealed class RenderLightUnionTests
             Intensity: 4,
             Range: 10,
             InnerConeAngle: 0,
-            OuterConeAngle: 0
+            OuterConeAngle: 0,
+            ChainDepth: TestChains.CamerasFrame
         );
 
         (point == spot).Should().BeFalse();
@@ -299,7 +328,15 @@ public sealed class RenderLightUnionTests
     {
         RenderLight empty = default;
 
-        new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0))
+        new RenderLight(
+            new PointRenderLight(
+                Position: default,
+                Color: default,
+                Intensity: 0,
+                Range: 0,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        )
             .Should()
             .NotBe(empty);
         new RenderLight(
@@ -310,12 +347,24 @@ public sealed class RenderLightUnionTests
                 Intensity: 0,
                 Range: 0,
                 InnerConeAngle: 0,
-                OuterConeAngle: 0
+                OuterConeAngle: 0,
+                ChainDepth: TestChains.CamerasFrame
             )
         )
             .Should()
             .NotBe(empty);
-        (empty != new RenderLight(new PointRenderLight(Position: default, Color: default, Intensity: 0, Range: 0)))
+        (
+            empty
+            != new RenderLight(
+                new PointRenderLight(
+                    Position: default,
+                    Color: default,
+                    Intensity: 0,
+                    Range: 0,
+                    ChainDepth: TestChains.CamerasFrame
+                )
+            )
+        )
             .Should()
             .BeTrue();
     }
@@ -416,9 +465,9 @@ public sealed class RenderLightUnionTests
     [Fact]
     public void ALightTakesFiftySixBytesTheFieldsOfOneSpotLightAndItsKindByte()
     {
-        // The cases share the storage of position, color, intensity and range, so the union holds one spot light's 52 bytes
-        // and a kind byte padded to 4, as the struct that it replaced did. Storing each case whole would take 88 bytes.
-        Unsafe.SizeOf<SpotRenderLight>().Should().Be(52);
+        // The cases share the storage of position, color, intensity, range and chain depth, so the union holds one spot
+        // light's 54 bytes of fields and a kind byte, padded to 4. Storing each case whole would take 92 bytes.
+        Unsafe.SizeOf<SpotRenderLight>().Should().Be(56);
         Unsafe.SizeOf<RenderLight>().Should().Be(56);
     }
 }

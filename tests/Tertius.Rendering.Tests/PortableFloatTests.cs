@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -251,7 +252,8 @@ public sealed class PortableFloatTests
                     Position: new(0, 0, -2),
                     Color: Vector3.One,
                     Intensity: ShaderInput.RadianceLimit,
-                    Range: 10
+                    Range: 10,
+                    ChainDepth: TestChains.CamerasFrame
                 )
             );
 

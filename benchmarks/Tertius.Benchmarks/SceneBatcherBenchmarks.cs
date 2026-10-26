@@ -91,8 +91,8 @@ public class SceneBatcherBenchmarks
                 Intensity = 2.5f,
                 AngularRadius = 0.00467f,
             },
-            OriginFrameId = 1,
         };
+        grid.Chain.Add(new(FrameId: 1, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
         for (int i = 0; i < 20_000; i++)
             grid.Instances.Add(
                 RenderInstance.Create(
@@ -103,6 +103,7 @@ public class SceneBatcherBenchmarks
                     scale: Vector3.One,
                     boundingRadius: 0.866f,
                     hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                    chainDepth: 0,
                     flags: RenderFlags.Visible | RenderFlags.CastsShadow
                 )
             );

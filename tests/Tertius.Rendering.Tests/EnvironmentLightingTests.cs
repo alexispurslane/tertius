@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -606,8 +607,7 @@ public sealed class EnvironmentLightingTests
             try
             {
                 RenderSnapshot snapshot = Dark();
-                snapshot.RootRotation = root;
-                snapshot.PreviousRootRotation = root;
+                TestChains.UnderTurnedRoot(snapshot, root);
                 MeshId sphere = Sphere(renderer);
                 MaterialId mirror = Metal(renderer, roughness: 0);
                 snapshot.Instances.Add(
@@ -683,8 +683,7 @@ public sealed class EnvironmentLightingTests
         {
             RenderSnapshot snapshot = Dark();
             snapshot.Camera.VerticalFov = Fov;
-            snapshot.RootRotation = root;
-            snapshot.PreviousRootRotation = root;
+            TestChains.UnderTurnedRoot(snapshot, root);
             return snapshot;
         }
 

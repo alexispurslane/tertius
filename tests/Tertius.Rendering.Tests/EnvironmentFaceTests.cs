@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -335,7 +336,13 @@ public sealed class EnvironmentFaceTests
             );
             // Its reach, from z = 4 to 12, lies wholly behind the camera.
             snapshot.Lights.Add(
-                new PointRenderLight(Position: new(0, 0, 8), Color: Vector3.One, Intensity: 50, Range: 4)
+                new PointRenderLight(
+                    Position: new(0, 0, 8),
+                    Color: Vector3.One,
+                    Intensity: 50,
+                    Range: 4,
+                    ChainDepth: TestChains.CamerasFrame
+                )
             );
 
             renderer.Render(snapshot, 1f);
@@ -771,7 +778,7 @@ public sealed class EnvironmentFaceTests
                 material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(still)),
                 distance: 5
             );
-            snapshot.OriginFrameId = still == 2 ? thirdFrame : 0;
+            TestChains.Of(snapshot, (still == 2 ? thirdFrame : 0, Quaternion.Identity));
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: times[still]);
         }
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -342,7 +343,13 @@ public sealed class PyramidRenderTests
             Block(box: box, material: lamp, center: new(0.3f, -1.25f, -4), size: new(0.3f, 0.5f, 0.3f))
         );
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0.3f, -0.8f, -4), Color: Vector3.One, Intensity: 4, Range: 6)
+            new PointRenderLight(
+                Position: new(0.3f, -0.8f, -4),
+                Color: Vector3.One,
+                Intensity: 4,
+                Range: 6,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
         return snapshot;
     }

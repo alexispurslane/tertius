@@ -111,6 +111,7 @@ public sealed class ImpostorManagerTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: RenderFlags.CastsShadow,
             entityIndex: 9_999,
             part: 0
@@ -705,9 +706,16 @@ public sealed class ImpostorManagerTests
                         Intensity: intensity,
                         Range: range,
                         InnerConeAngle: 0.3f,
-                        OuterConeAngle: 0.5f
+                        OuterConeAngle: 0.5f,
+                        ChainDepth: TestChains.CamerasFrame
                     )
-                    : new PointRenderLight(Position: lightPosition, Color: color, Intensity: intensity, Range: range)
+                    : new PointRenderLight(
+                        Position: lightPosition,
+                        Color: color,
+                        Intensity: intensity,
+                        Range: range,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
             );
             return snapshot;
         }
@@ -1142,6 +1150,7 @@ public sealed class ImpostorManagerTests
                 scale: new(6e6f),
                 boundingRadius: 0,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow,
                 entityIndex: 9_998,
                 part: 0

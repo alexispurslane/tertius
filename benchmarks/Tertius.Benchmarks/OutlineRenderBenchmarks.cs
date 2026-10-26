@@ -75,6 +75,7 @@ public class OutlineRenderBenchmarks
                 scale: new(250, 1, 250),
                 boundingRadius: 0,
                 hemisphere: up,
+                chainDepth: 0,
                 flags: RenderFlags.Visible | RenderFlags.CastsShadow
             )
         );
@@ -92,6 +93,7 @@ public class OutlineRenderBenchmarks
                     scale: new(2),
                     boundingRadius: 0,
                     hemisphere: up,
+                    chainDepth: 0,
                     flags: RenderFlags.Visible | RenderFlags.CastsShadow,
                     entityIndex: (uint)i + 1
                 )

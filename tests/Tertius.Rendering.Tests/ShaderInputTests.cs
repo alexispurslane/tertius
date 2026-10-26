@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -61,13 +62,41 @@ public sealed class ShaderInputTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         Vector3 ahead = new(0, 0, -5);
-        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: float.NaN, Range: 10));
-        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: new(float.NaN), Intensity: 1, Range: 10));
         snapshot.Lights.Add(
-            new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: 1, Range: float.PositiveInfinity)
+            new PointRenderLight(
+                Position: ahead,
+                Color: Vector3.One,
+                Intensity: float.NaN,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(float.NaN), Color: Vector3.One, Intensity: 1, Range: 10)
+            new PointRenderLight(
+                Position: ahead,
+                Color: new(float.NaN),
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: ahead,
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: float.PositiveInfinity,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(float.NaN),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
         foreach (
             (Vector3 direction, float inner, float outer) in new[]
@@ -85,11 +114,20 @@ public sealed class ShaderInputTests
                     Intensity: 1,
                     Range: 10,
                     InnerConeAngle: inner,
-                    OuterConeAngle: outer
+                    OuterConeAngle: outer,
+                    ChainDepth: TestChains.CamerasFrame
                 )
             );
         // One that draws, to show that the others were left out and not everything.
-        snapshot.Lights.Add(new PointRenderLight(Position: ahead, Color: Vector3.One, Intensity: 2, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: ahead,
+                Color: Vector3.One,
+                Intensity: 2,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot);
 
@@ -102,7 +140,13 @@ public sealed class ShaderInputTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0, 0, -5), Color: new(1, -1, 1e30f), Intensity: 1e10f, Range: 10)
+            new PointRenderLight(
+                Position: new(0, 0, -5),
+                Color: new(1, -1, 1e30f),
+                Intensity: 1e10f,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
 
         PreparedScene scene = Prepare(snapshot);
@@ -367,7 +411,13 @@ public sealed class ShaderInputTests
         // The shaders square the range, and float.MaxValue squared is infinite.
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: float.MaxValue)
+            new PointRenderLight(
+                Position: new(0, 0, -5),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: float.MaxValue,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(
             new SpotRenderLight(
@@ -377,7 +427,8 @@ public sealed class ShaderInputTests
                 Intensity: 1,
                 Range: 1e30f,
                 InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -426,9 +477,23 @@ public sealed class ShaderInputTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Lights.Add(
-            new PointRenderLight(Position: new(0, 0, -1e19f), Color: Vector3.One, Intensity: 1, Range: 10)
+            new PointRenderLight(
+                Position: new(0, 0, -1e19f),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
         );
-        snapshot.Lights.Add(new PointRenderLight(Position: new(0, 0, -5), Color: Vector3.One, Intensity: 1, Range: 10));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: new(0, 0, -5),
+                Color: Vector3.One,
+                Intensity: 1,
+                Range: 10,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
 
         PreparedScene scene = Prepare(snapshot);
 

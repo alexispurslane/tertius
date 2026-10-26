@@ -48,6 +48,7 @@ internal sealed partial class RenderSnapshotBuilder
             int dense = denseOfFrame[range.Frame.Index];
             DPose current = relCurrent[dense];
             DPose previous = relPrevious[dense];
+            var depth = (ushort)chainDepth[dense];
             foreach (ref readonly Puff row in rows.Slice(range.Start, range.Count))
             {
                 var position = (current.TransformPoint(row.Place) - origin).ToVector3();
@@ -58,6 +59,7 @@ internal sealed partial class RenderSnapshotBuilder
                     : position;
                 puff.Age = row.Age;
                 puff.Look = row.Look;
+                puff.ChainDepth = depth;
             }
         }
 

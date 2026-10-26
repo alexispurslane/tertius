@@ -1,5 +1,6 @@
 using System.Numerics;
 using Silk.NET.Vulkan;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -713,8 +714,7 @@ public sealed class ReflectionRenderTests
         renderer =>
         {
             RenderSnapshot snapshot = Dark();
-            snapshot.RootRotation = root;
-            snapshot.PreviousRootRotation = root;
+            TestChains.UnderTurnedRoot(snapshot, root);
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             snapshot.Instances.Add(
                 Gpu.Instance(
