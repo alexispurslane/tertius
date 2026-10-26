@@ -124,6 +124,7 @@ class AFrozenHuman(unittest.TestCase):
             "import bpy\n"
             "from tertius_blender import mpfb, run\n"
             "run.new_scene()\n"
+            "bpy.data.materials.new('M_Later')\n"
             "body = mpfb.human({{'phenotype': {{'gender': 1.0}}, 'rig': 'game_engine',\n"
             "                   'eyes': 'high-poly/high-poly.mhclo', 'hair': 'short02/short02.mhclo',\n"
             "                   'skin_mhmat': 'young_caucasian_male/young_caucasian_male.mhmat',\n"
@@ -132,6 +133,8 @@ class AFrozenHuman(unittest.TestCase):
             "mpfb.pose(body.parent, {{'upperarm_l': [0, 0, -30]}})\n"
             "posed = mpfb.joints(body)\n"
             "parts = mpfb.freeze(body)\n"
+            "arm = mpfb.bone_weights(parts['Body'], [posed['l-hand'], posed['pelvis']],\n"
+            "                        ('upperarm_l', 'lowerarm_l', 'hand_l'))\n"
             "def links(name):\n"
             "    m = bpy.data.materials['M_' + name]\n"
             "    p = next(n for n in m.node_tree.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled')\n"
@@ -148,7 +151,9 @@ class AFrozenHuman(unittest.TestCase):
             "    'uv': parts['Body'].data.uv_layers.active is not None,\n"
             "    'rest_hand': rest['l-hand'], 'posed_hand': posed['l-hand'],\n"
             "    'lowest': min((o.matrix_world @ v.co).z for v in parts['Body'].data.vertices for o in [parts['Body']]),\n"
-            "    'hair': links('Hair'), 'body': links('Body'), 'eyes': links('Eyes')}}))\n"
+            "    'hair': links('Hair'), 'body': links('Body'), 'eyes': links('Eyes'),\n"
+            "    'arm': [round(w, 3) for w in arm],\n"
+            "    'later': [m.use_fake_user for m in bpy.data.materials if m.name == 'M_Later']}}))\n"
         ).format(lib=str(LIBRARY))
         env = {**os.environ, "BLENDER_USER_RESOURCES": str(cls.scratch / "user")}
         cls.report, cls.done = blender(code, env)
@@ -159,6 +164,9 @@ class AFrozenHuman(unittest.TestCase):
 
     def setUp(self):
         self.assertIsNotNone(self.report, self.done.stdout[-3000:] + self.done.stderr[-3000:])
+
+    def test_a_material_of_an_earlier_script_survives_mpfb_without_a_lasting_fake_user(self):
+        self.assertEqual(self.report["later"], [False])
 
     def test_freeze_names_each_part_and_removes_the_rig(self):
         self.assertEqual(self.report["parts"], ["Body", "Eyes", "Hair"])
@@ -181,6 +189,13 @@ class AFrozenHuman(unittest.TestCase):
 
     def test_the_pose_moves_the_joints_and_stays_in_the_frozen_body(self):
         self.assertLess(self.report["posed_hand"][2], self.report["rest_hand"][2] - 0.1)
+
+    def test_bone_weights_reads_the_weights_of_the_nearest_body_vertex(self):
+        # The hand joint lies inside the wrist, where the skin follows the arm bones only. The pelvis joint lies
+        # inside the hips, where no arm bone reaches.
+        hand, pelvis = self.report["arm"]
+        self.assertAlmostEqual(hand, 1.0, delta=0.01)
+        self.assertEqual(pelvis, 0.0)
 
     def test_the_feet_stand_on_the_ground(self):
         self.assertAlmostEqual(self.report["lowest"], 0.0, delta=0.002)

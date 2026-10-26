@@ -23,6 +23,7 @@ import os
 import addon_utils
 import bmesh
 import bpy
+from mathutils.kdtree import KDTree
 
 PACKAGE = "bl_ext.system.mpfb"
 
@@ -87,7 +88,17 @@ def human(info, name="Human"):
                if full[k] and S.AssetService.find_asset_absolute_path(full[k], _subdir(k)) is None]
     if missing:
         raise MpfbError("MPFB finds no asset {:s}".format(", ".join(missing)))
-    return S.HumanService.deserialize_from_dict(full, deserialization_settings())
+    # MPFB deletes every material of the file that has no users when it sets the skin
+    # (MaterialService.delete_all_materials). The materials that earlier scripts made for later ones have none yet,
+    # so they hold a fake user while MPFB works.
+    kept = [m for m in bpy.data.materials if not m.use_fake_user]
+    for m in kept:
+        m.use_fake_user = True
+    try:
+        return S.HumanService.deserialize_from_dict(full, deserialization_settings())
+    finally:
+        for m in kept:
+            m.use_fake_user = False
 
 
 def _subdir(key):
@@ -139,6 +150,27 @@ def joints(body):
         for m in masks:
             m.show_viewport = True
     return {name: (x / n, y / n, z / n) for name, (x, y, z, n) in sorted(sums.items())}
+
+
+# The name prefixes of the bones of both arms in MPFB's "game_engine" rig, the hands and fingers included.
+ARM_BONES = ("clavicle_", "upperarm_", "lowerarm_", "hand_", "index_", "middle_", "ring_", "pinky_", "thumb_")
+
+
+def bone_weights(body, points, prefixes):
+    """For each point (x, y, z in the frame of `body`), the summed weight of the bones whose names start with any of
+    `prefixes`, at the vertex of the frozen `body` nearest to the point: 0 for a point that no such bone moves, 1
+    for one that only they move. A garment made away from the body, such as a subdivided suit, reads the bones of
+    the body under it this way."""
+    tree = KDTree(len(body.data.vertices))
+    for v in body.data.vertices:
+        tree.insert(v.co, v.index)
+    tree.balance()
+    wanted = {g.index for g in body.vertex_groups if g.name.startswith(tuple(prefixes))}
+    out = []
+    for p in points:
+        nearest = body.data.vertices[tree.find(p)[1]]
+        out.append(sum(g.weight for g in nearest.groups if g.group in wanted))
+    return out
 
 
 def freeze(body):
