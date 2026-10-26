@@ -94,8 +94,8 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// <para>Hysteresis, per key (entity index, part, mesh and resolved material; see <see cref="ImpostorKey"/>): an
 /// object becomes an impostor when h drops below <see cref="EnterHeight"/> and returns to geometry when h rises
 /// above <see cref="ExitHeight"/>.
-/// <see cref="RenderFlags.NoImpostor"/>, <see cref="RenderFlags.Celestial"/> and <see cref="RenderFlags.Transparent"/>
-/// objects never become impostors. If two visible instances share a key in one frame (the snapshot repeats a part),
+/// <see cref="RenderFlags.NoImpostor"/> and <see cref="RenderFlags.Celestial"/> objects, and those of a glass or fringed
+/// material, never become impostors. If two visible instances share a key in one frame (the snapshot repeats a part),
 /// only the first can be an impostor; the others draw as geometry.</para>
 /// <para>Captures: an impostor needs a capture in an atlas tile; until it has one it keeps drawing as geometry. A
 /// capture is a perspective view from the eye, fitted to the bounding sphere's tangent cone (see
@@ -151,7 +151,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     /// <summary>Frames a key without a tile is remembered after it was last seen.</summary>
     public const int StateLifetime = 120;
 
-    private const RenderFlags Excluded = RenderFlags.NoImpostor | RenderFlags.Celestial | RenderFlags.Transparent;
+    private const RenderFlags Excluded = RenderFlags.NoImpostor | RenderFlags.Celestial;
 
     private readonly Dictionary<ImpostorKey, int> lookup = [];
     private readonly int[] tileOwner;
@@ -222,6 +222,17 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
+    /// Whether a capture can draw an object whose material draws as <paramref name="alpha"/>. A capture has no transparent
+    /// pass, so glass and a fringe cannot be captured (docs/plans/skin-and-hair.md, decision 24).
+    /// </summary>
+    private static bool Capturable(AlphaMode alpha) =>
+        alpha switch
+        {
+            OpaqueAlpha or CutoutAlpha => true,
+            FringedAlpha or GlassAlpha => false,
+        };
+
+    /// <summary>
     /// The projected height in pixels of a bounding sphere of <paramref name="radius"/> at <paramref name="distance"/>
     /// from the eye: the diameter of its image at the center of the screen. Infinite when the eye is inside it.
     /// </summary>
@@ -254,6 +265,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             ref PreparedInstance instance = ref visible[i];
             if (
                 (instance.Flags & Excluded) != 0
+                || !Capturable(instance.Alpha)
                 || !(instance.Radius > 0f)
                 || instance.Distance < MinimumDistance * instance.Radius
             )

@@ -28,7 +28,7 @@ public sealed class ShaderInputTests
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
-                materialCount: 1,
+                materials: MaterialSlots.Of(1),
                 environment: new WithoutMap(),
                 scene: scene
             );
@@ -262,7 +262,7 @@ public sealed class ShaderInputTests
             new(
                 BaseColor: new(x: float.NaN, y: 2, z: -1, w: float.PositiveInfinity),
                 Roughness: float.NaN,
-                Metallic: float.NaN,
+                Model: new StandardShading(Metallic: float.NaN),
                 Reflectance: float.NaN,
                 Emissive: new(float.PositiveInfinity, float.NaN, 1)
             )

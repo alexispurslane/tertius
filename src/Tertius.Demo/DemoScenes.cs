@@ -453,7 +453,12 @@ public static partial class DemoScenes
         // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
         // solid at the windows.
         MaterialId glass = resources.CreateMaterial(
-            new(BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f), Roughness: GlassRoughness, Reflectance: 1)
+            new(
+                BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
+                Roughness: GlassRoughness,
+                Reflectance: 1,
+                Alpha: new GlassAlpha()
+            )
         );
         var paneMeshes = new Dictionary<Vector3, MeshId>();
         foreach ((string pane, Opening window) in Windows)
@@ -909,7 +914,7 @@ public static partial class DemoScenes
                 Mesh = mesh,
                 Material = glass,
                 BoundingRadius = half.Length(),
-                Flags = RenderFlags.Visible | RenderFlags.Transparent,
+                Flags = RenderFlags.Visible,
             },
         };
     }

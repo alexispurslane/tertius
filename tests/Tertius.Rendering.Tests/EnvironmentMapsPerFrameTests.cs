@@ -364,7 +364,9 @@ public sealed class EnvironmentMapsPerFrameTests
                     EnvironmentScenes.Square(plane: plane, material: glow, center: new(0, 0, 20), halfSize: 20)
                 )
             );
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             var center = new Vector3(0, 0, -6);
             snapshot.Instances.Add(
                 FacingTheCamera(plane: plane, material: mirror, center: center, chainDepth: RoomScenes.Outside)
@@ -611,7 +613,9 @@ public sealed class EnvironmentMapsPerFrameTests
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             RenderSnapshot snapshot = MirrorRoom(renderer, plane);
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             snapshot.Instances.Add(
                 FacingTheCamera(plane: plane, material: mirror, center: InTheRoom, chainDepth: RoomScenes.InRoom)
             );
@@ -693,7 +697,9 @@ public sealed class EnvironmentMapsPerFrameTests
                     EnvironmentScenes.Square(plane: plane, material: green, center: new(0, 0, -3.2f), halfSize: 2)
                 )
             );
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             snapshot.Instances.Add(
                 RoomScenes.In(
                     RoomScenes.InRoom,
@@ -742,16 +748,10 @@ public sealed class EnvironmentMapsPerFrameTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             RenderSnapshot snapshot = MirrorRoom(renderer, plane);
             MaterialId glass = renderer.CreateMaterial(
-                new(BaseColor: new(x: 1, y: 1, z: 1, w: 0.2f), Roughness: 0, Reflectance: 0.5f)
+                new(BaseColor: new(x: 1, y: 1, z: 1, w: 0.2f), Roughness: 0, Reflectance: 0.5f, Alpha: new GlassAlpha())
             );
             snapshot.Instances.Add(
-                FacingTheCamera(
-                    plane: plane,
-                    material: glass,
-                    center: OutsideTheRoom,
-                    chainDepth: RoomScenes.Outside,
-                    flags: RenderFlags.Transparent
-                )
+                FacingTheCamera(plane: plane, material: glass, center: OutsideTheRoom, chainDepth: RoomScenes.Outside)
             );
 
             Vector3 pane = Shown(renderer, snapshot, "maps-glass")
@@ -910,7 +910,9 @@ public sealed class EnvironmentMapsPerFrameTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
             RenderSnapshot snapshot = EnvironmentScenes.Dark();
             TestChains.Of(snapshot, [.. Enumerable.Range(0, 6).Select(i => ((long)(5 - i), Quaternion.Identity))]);
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             for (int map = 0; map < colors.Length; map++)
             {
                 ushort depth = (ushort)(colors.Length - 1 - map);
@@ -970,7 +972,9 @@ public sealed class EnvironmentMapsPerFrameTests
                         halfSize: 11
                     )
                 );
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0.1f, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0.1f, Model: new StandardShading(Metallic: 1))
+            );
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: sphere,

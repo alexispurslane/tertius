@@ -274,7 +274,11 @@ public sealed class ReflectionRenderTests
     [MemberData(nameof(Resolutions))]
     public void AMetalFloorReflectsInItsOwnColor(TraceResolution resolution)
     {
-        var gold = new MaterialDesc(BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1), Roughness: 0, Metallic: 1);
+        var gold = new MaterialDesc(
+            BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1),
+            Roughness: 0,
+            Model: new StandardShading(Metallic: 1)
+        );
         float[] hdr = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, gold)).Hdr;
 
         Vector3 shown = At(hdr, MirrorPixel(BoxFace));
@@ -410,7 +414,11 @@ public sealed class ReflectionRenderTests
         {
             RenderSnapshot snapshot = Gray(0.2f);
             snapshot.Camera.VerticalFov = fovDegrees * MathF.PI / 180;
-            var mirror = new MaterialDesc(BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), Roughness: 0, Metallic: 1);
+            var mirror = new MaterialDesc(
+                BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1),
+                Roughness: 0,
+                Model: new StandardShading(Metallic: 1)
+            );
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: renderer.CreateMesh(Primitives.Plane(1)),
@@ -478,7 +486,8 @@ public sealed class ReflectionRenderTests
                     BaseColor: new(x: 0, y: 0, z: 0, w: 0.5f),
                     Roughness: 0.5f,
                     Reflectance: 0,
-                    Emissive: new(0, 0, Bright)
+                    Emissive: new(0, 0, Bright),
+                    Alpha: new GlassAlpha()
                 )
             );
             snapshot.Instances.Add(
@@ -488,7 +497,6 @@ public sealed class ReflectionRenderTests
                     position: paneCenter,
                     scale: new(0.5f),
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    flags: RenderFlags.Transparent,
                     radius: 0.75f
                 )
             );

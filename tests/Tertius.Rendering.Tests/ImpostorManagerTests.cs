@@ -21,6 +21,11 @@ public sealed class ImpostorManagerTests
 
     private static readonly MaterialId BallMaterial = new(0);
     private static readonly MaterialId OtherMaterial = new(1);
+    private static readonly MaterialId GlassMaterial = MaterialSlots.Glass;
+    private static readonly MaterialId FringedMaterial = new(2);
+
+    /// <summary>The material slots: every one opaque but those of <see cref="GlassMaterial"/> and <see cref="FringedMaterial"/>.</summary>
+    private static readonly MaterialInfo[] Materials = Slots();
 
     private static readonly Vector3 SunDirection = Vector3.Normalize(new(0.3f, 0.8f, 0.5f));
 
@@ -44,7 +49,7 @@ public sealed class ImpostorManagerTests
                 width: Width,
                 height: Height,
                 meshes: Meshes,
-                materialCount: 8,
+                materials: Materials,
                 environment: environment,
                 scene: Scene
             );
@@ -73,6 +78,13 @@ public sealed class ImpostorManagerTests
     }
 
     /// <summary>The key of a ball: its entity and part, the sphere mesh, and its material's slot.</summary>
+    private static MaterialInfo[] Slots()
+    {
+        MaterialInfo[] slots = MaterialSlots.Of(8);
+        slots[MaterialStore.Slot(FringedMaterial)] = new(new FringedAlpha(Cutoff: 0.5f));
+        return slots;
+    }
+
     private static ImpostorKey Key(uint entity, ushort part = 0, MaterialId? material = null) =>
         new(EntityIndex: entity, Part: part, Mesh: Sphere, Material: MaterialStore.Slot(material ?? BallMaterial));
 
@@ -170,21 +182,52 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
-    public void NoImpostorCelestialTransparentAndNearlyEnclosingObjectsStayGeometry()
+    public void NoImpostorCelestialAndNearlyEnclosingObjectsStayGeometry()
     {
         var harness = new Harness();
         RenderSnapshot snapshot = Snapshot();
         snapshot.Instances.Add(Ball(entity: 1, position: new(-30, 0, -200), flags: RenderFlags.NoImpostor));
         snapshot.Instances.Add(Ball(entity: 2, position: new(-10, 0, -200), flags: RenderFlags.Celestial));
-        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), flags: RenderFlags.Transparent));
         snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
         PreparedScene scene = harness.Run(snapshot);
-        scene.VisibleCount.Should().Be(3);
+        scene.VisibleCount.Should().Be(2, "the impostor leaves the geometry");
         harness.Manager.Draws.Length.Should().Be(1);
         harness.Manager.Status(Key(1)).Should().BeNull("NoImpostor objects are never considered");
         harness.Manager.Status(Key(2)).Should().BeNull("Celestial objects are never impostors");
-        harness.Manager.Status(Key(3)).Should().BeNull("Transparent objects are never impostors");
         harness.Status(4).Impostor.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AGlassMaterialNeverBecomesAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: GlassMaterial));
+        snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
+
+        harness.Run(snapshot);
+
+        harness.Manager.Status(Key(3, material: GlassMaterial)).Should().BeNull("a capture has no transparent pass");
+        harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
+    }
+
+    [Fact]
+    public void AFringedMaterialNeverBecomesAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: FringedMaterial));
+        snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
+
+        harness.Run(snapshot);
+
+        harness
+            .Manager.Status(Key(3, material: FringedMaterial))
+            .Should()
+            .BeNull(
+                "a capture has no transparent pass to draw the fringe in (docs/plans/skin-and-hair.md, decision 24)"
+            );
+        harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
     }
 
     [Fact]

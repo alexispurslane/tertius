@@ -136,7 +136,11 @@ public sealed class BrdfRenderTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 128, 64));
             MaterialId material = renderer.CreateMaterial(
-                new(BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1), Roughness: 0.2f, Metallic: 1)
+                new(
+                    BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1),
+                    Roughness: 0.2f,
+                    Model: new StandardShading(Metallic: 1)
+                )
             );
             RenderInstance instance = Gpu.Instance(
                 mesh: sphere,
@@ -299,7 +303,11 @@ public sealed class BrdfRenderTests
         {
             MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
             MaterialId material = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1), Roughness: (float)metal.Roughness, Metallic: 1)
+                new(
+                    BaseColor: new(x: 0.9f, y: 0.9f, z: 0.9f, w: 1),
+                    Roughness: (float)metal.Roughness,
+                    Model: new StandardShading(Metallic: 1)
+                )
             );
             RenderSnapshot snapshot = AmbientOnly(sky: sky, ground: ground);
             snapshot.Instances.Add(
@@ -358,7 +366,9 @@ public sealed class BrdfRenderTests
         try
         {
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
-            MaterialId material = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId material = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             snapshot.Instances.Add(FacingSquare(mesh: square, material: material, center: center.ToVector3()));
             Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-floor-lobe")
                 .Color(pixel);
@@ -388,7 +398,9 @@ public sealed class BrdfRenderTests
         try
         {
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
             snapshot.Lights.Add(
                 Gpu.Lamp(
@@ -467,9 +479,11 @@ public sealed class BrdfRenderTests
             TextureId map = renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: [255, 51, 0, 255], Srgb: false));
             var gold = new Vector4(x: 1, y: 0.71f, z: 0.29f, w: 1);
             MaterialId mapped = renderer.CreateMaterial(
-                new(BaseColor: gold, Roughness: 1, Metallic: 1, MetallicRoughnessMap: map)
+                new(BaseColor: gold, Roughness: 1, Model: new StandardShading(Metallic: 1), MetallicRoughnessMap: map)
             );
-            MaterialId plain = renderer.CreateMaterial(new(BaseColor: gold, Roughness: 0.2f, Metallic: 0));
+            MaterialId plain = renderer.CreateMaterial(
+                new(BaseColor: gold, Roughness: 0.2f, Model: new StandardShading(Metallic: 0))
+            );
             RenderSnapshot snapshot = SunOnly(new(0, 0.3f, 1), 2);
             // Mirror images about the view axis, under a sun in the mirror plane, so both receive the same light.
             var left = new Vector3(-0.5f, 0, -3);

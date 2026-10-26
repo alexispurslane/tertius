@@ -45,7 +45,7 @@ public sealed class BatcherTests
             width: 1600,
             height: 900,
             meshes: Meshes,
-            materialCount: materials,
+            materials: MaterialSlots.Of(materials),
             environment: environment,
             scene: scene
         );
@@ -116,7 +116,7 @@ public sealed class BatcherTests
     }
 
     [Fact]
-    public void TransparentInstancesAreSortedBackToFrontAcrossRanges()
+    public void GlassInstancesAreSortedBackToFrontAcrossRanges()
     {
         RenderSnapshot snapshot = Empty();
         float[] depths = [5, 3_000, 20, 1e7f, 12, 700];
@@ -124,22 +124,57 @@ public sealed class BatcherTests
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: new(0),
-                    material: new(0),
+                    material: MaterialSlots.Glass,
                     position: new(0, 0, -depth),
-                    scale: Vector3.One,
-                    flags: RenderFlags.Transparent
+                    scale: Vector3.One
                 )
             );
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.InstanceCount.Should().Be(6);
-        scene.Transparent[DepthRanges.Far].Should().Equal(new TransparentRun(new MeshCommands(new(0, 1))));
-        scene.Transparent[DepthRanges.Middle].Should().Equal(new TransparentRun(new MeshCommands(new(1, 1))));
-        scene.Transparent[DepthRanges.Near].Should().Equal(new TransparentRun(new MeshCommands(new(2, 1))));
+        scene.Transparent[DepthRanges.Far].Should().Equal(new TransparentRun(new GlassCommands(new(0, 1))));
+        scene.Transparent[DepthRanges.Middle].Should().Equal(new TransparentRun(new GlassCommands(new(1, 1))));
+        scene.Transparent[DepthRanges.Near].Should().Equal(new TransparentRun(new GlassCommands(new(2, 1))));
         scene.Commands[2].InstanceCount.Should().Be(4u);
         float[] drawn = [.. scene.Instances.AsSpan(0, scene.InstanceCount).ToArray().Select(i => -i.ModelRow2.W)];
         drawn.Should().Equal(1e7f, 3_000f, 700f, 20f, 12f, 5f);
         scene.Opaque.Should().AllSatisfy(range => range.Count.Should().Be(0));
+    }
+
+    [Fact]
+    public void AGlassMaterialDrawsInTheTransparentPassOnly()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(
+            Gpu.Instance(mesh: new(0), material: MaterialSlots.Glass, position: new(0, 0, -10), scale: Vector3.One)
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.Transparent[DepthRanges.Near].Should().Equal(new TransparentRun(new GlassCommands(new(0, 1))));
+        scene.Opaque.Should().AllSatisfy(range => range.Count.Should().Be(0), "glass draws in no opaque pass");
+    }
+
+    [Fact]
+    public void AnOpaqueMaterialWithTheGlassBitOfOldIsOpaque()
+    {
+        // 1 << 2 was RenderFlags.Transparent, which the material's alpha mode replaced: no flag makes an instance glass.
+        const RenderFlags glassBitOfOld = (RenderFlags)(1 << 2);
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -10),
+                scale: Vector3.One,
+                flags: glassBitOfOld
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.Opaque[DepthRanges.Near].Should().Be(new CommandRange(0, 1));
+        scene.Transparent.Should().AllSatisfy(runs => runs.Should().BeEmpty());
     }
 
     [Fact]
@@ -495,6 +530,10 @@ public sealed class BatcherTests
     private static RenderInstance Box(Vector3 position, RenderFlags flags = RenderFlags.None) =>
         Gpu.Instance(mesh: new(0), material: new(0), position: position, scale: Vector3.One, flags: flags);
 
+    /// <summary>A box of glass.</summary>
+    private static RenderInstance Pane(Vector3 position) =>
+        Gpu.Instance(mesh: new(0), material: MaterialSlots.Glass, position: position, scale: Vector3.One);
+
     private static Vector3 Position(in GpuInstance instance) =>
         new(instance.ModelRow0.W, instance.ModelRow1.W, instance.ModelRow2.W);
 
@@ -535,11 +574,11 @@ public sealed class BatcherTests
         );
 
     [Fact]
-    public void AFaceDrawsTheOpaqueInstancesInItsFrustumAndNoTransparentOne()
+    public void AFaceDrawsTheOpaqueInstancesInItsFrustumAndNoGlassOne()
     {
         RenderSnapshot snapshot = Empty();
         snapshot.Instances.Add(Box(new(10, 0, 0)));
-        snapshot.Instances.Add(Box(new(10, 3, 0), RenderFlags.Transparent));
+        snapshot.Instances.Add(Pane(new(10, 3, 0)));
         snapshot.Instances.Add(Box(new(-10, 0, 0))); // behind the face
         snapshot.Instances.Add(Box(new(10, 30, 0))); // above its top plane
         snapshot.Instances.Add(Box(new(10, 0, 30))); // beyond its side plane
@@ -634,7 +673,7 @@ public sealed class BatcherTests
         // The box ahead is in the main view and in face −Z; the pane is in the main view's transparent pass.
         RenderSnapshot snapshot = Empty();
         snapshot.Instances.Add(Box(new(0, 0, -10)));
-        snapshot.Instances.Add(Box(new(0, 0, -20), RenderFlags.Transparent));
+        snapshot.Instances.Add(Pane(new(0, 0, -20)));
 
         PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.NegativeZ));
 
@@ -793,7 +832,7 @@ public sealed class BatcherTests
             width: 1600,
             height: 900,
             meshes: Meshes,
-            materialCount: 8,
+            materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.All),
             scene: scene
         );
@@ -805,7 +844,7 @@ public sealed class BatcherTests
             width: 1600,
             height: 900,
             meshes: Meshes,
-            materialCount: 8,
+            materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.NegativeY),
             scene: scene
         );
@@ -1125,7 +1164,7 @@ public sealed class BatcherTests
         actual.Z.Should().BeApproximately(expected.Z, precision);
     }
 
-    private static TransparentRun MeshRun(int first, int count) => new MeshCommands(new(first, count));
+    private static TransparentRun GlassRun(int first, int count) => new GlassCommands(new(first, count));
 
     private static TransparentRun PuffRun(int first, int count) => new PuffSprites(first, count);
 
@@ -1320,20 +1359,14 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = PuffSnapshot();
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -10),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -10), scale: Vector3.One)
         );
         snapshot.Puffs.Add(Puff(new(0, 0, -5)));
         snapshot.Puffs.Add(Puff(new(0, 0, -15)));
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 1), MeshRun(0, 1), PuffRun(1, 1));
+        scene.Transparent[DepthRanges.Near].Should().Equal(PuffRun(0, 1), GlassRun(0, 1), PuffRun(1, 1));
         Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-15f, -5f);
         scene.Transparent[DepthRanges.Far].Should().BeEmpty();
         scene.Transparent[DepthRanges.Middle].Should().BeEmpty();
@@ -1344,22 +1377,10 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = PuffSnapshot();
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -5),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -5), scale: Vector3.One)
         );
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -20),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -20), scale: Vector3.One)
         );
         snapshot.Puffs.Add(Puff(new(0, 0, -12)));
         snapshot.Puffs.Add(Puff(new(0, 0, -8)));
@@ -1368,7 +1389,7 @@ public sealed class BatcherTests
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         // The two panes share a mesh, but the puffs between them split their draws into two commands.
-        scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 3), MeshRun(1, 1));
+        scene.Transparent[DepthRanges.Near].Should().Equal(GlassRun(0, 1), PuffRun(0, 3), GlassRun(1, 1));
         Drawn(scene).Select(p => p.PositionRadius.Z).Should().Equal(-15f, -12f, -8f);
         scene.Commands[0].FirstInstance.Should().Be(0u);
         scene.Instances[0].ModelRow2.W.Should().Be(-20f);
@@ -1383,18 +1404,12 @@ public sealed class BatcherTests
         snapshot.Puffs.Add(Puff(new(0, 0, -10), age: 1.5f));
         snapshot.Puffs.Add(Puff(new(0, 0, -10), age: 0.5f));
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -10),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -10), scale: Vector3.One)
         );
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        scene.Transparent[DepthRanges.Near].Should().Equal(MeshRun(0, 1), PuffRun(0, 2));
+        scene.Transparent[DepthRanges.Near].Should().Equal(GlassRun(0, 1), PuffRun(0, 2));
         Drawn(scene).Select(p => p.PositionRadius.W).Should().Equal(2.5f, 1.5f);
     }
 
@@ -1466,7 +1481,7 @@ public sealed class BatcherTests
             width: 1600,
             height: 900,
             meshes: Meshes,
-            materialCount: 8,
+            materials: MaterialSlots.Of(8),
             environment: default,
             scene: scene
         );
@@ -1478,7 +1493,7 @@ public sealed class BatcherTests
             width: 1600,
             height: 900,
             meshes: Meshes,
-            materialCount: 8,
+            materials: MaterialSlots.Of(8),
             environment: default,
             scene: scene
         );
@@ -1492,22 +1507,10 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = PuffSnapshot();
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -5),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -5), scale: Vector3.One)
         );
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: new(2),
-                material: new(0),
-                position: new(0, 0, -20),
-                scale: Vector3.One,
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: new(2), material: MaterialSlots.Glass, position: new(0, 0, -20), scale: Vector3.One)
         );
         snapshot.Puffs.Add(Puff(new(0, 0, -12)));
         snapshot.Puffs.Add(Puff(new(0, 0, -8)));
@@ -1533,6 +1536,8 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
+        ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Shading))).Should().Be(52);
+        ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.AlphaCutoff))).Should().Be(56);
         Unsafe.SizeOf<GpuLight>().Should().Be(96);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);

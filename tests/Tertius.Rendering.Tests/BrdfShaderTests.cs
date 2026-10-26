@@ -82,7 +82,7 @@ public sealed class BrdfShaderTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            RenderFlags flags = transparent ? RenderFlags.Transparent : RenderFlags.None;
+            AlphaMode alpha = transparent ? new GlassAlpha() : new OpaqueAlpha();
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.25f));
             RenderSnapshot lit = Lit();
             Double3 sunIrradiance = Gpu.StarIrradianceRgb(lit);
@@ -108,16 +108,13 @@ public sealed class BrdfShaderTests
                 lit.Instances.Add(
                     Square(
                         mesh: square,
-                        material: renderer.CreateMaterial(MaterialOf(row, column)),
+                        material: renderer.CreateMaterial(MaterialOf(row, column) with { Alpha = alpha }),
                         center: center,
-                        rotation: rotation,
-                        flags: flags
+                        rotation: rotation
                     )
                 );
-                MaterialId glow = Glow(renderer, expected[^1]);
-                glowing.Instances.Add(
-                    Square(mesh: square, material: glow, center: center, rotation: rotation, flags: flags)
-                );
+                MaterialId glow = Glow(renderer, expected[^1], alpha);
+                glowing.Instances.Add(Square(mesh: square, material: glow, center: center, rotation: rotation));
             }
 
             string name = transparent ? "brdf-shader-transparent" : "brdf-shader-opaque";
@@ -235,7 +232,7 @@ public sealed class BrdfShaderTests
         new(
             BaseColor: new((Rows[row].Metal ? MetalColor : NonMetalColor).ToVector3(), 1),
             Roughness: Roughnesses[column],
-            Metallic: Rows[row].Metal ? 1 : 0,
+            Model: new StandardShading(Metallic: Rows[row].Metal ? 1 : 0),
             Reflectance: Reflectance
         );
 
@@ -258,12 +255,7 @@ public sealed class BrdfShaderTests
         }
 
         MaterialDesc desc = MaterialOf(row, column);
-        var material = new MaterialSample(
-            BaseColor: new(desc.BaseColor.X, desc.BaseColor.Y, desc.BaseColor.Z),
-            Metallic: desc.Metallic,
-            Roughness: desc.Roughness,
-            Reflectance: desc.Reflectance
-        );
+        MaterialSample material = TestMaterials.SampleOf(desc);
         Double3 sun =
             material.Reflected(normal: normal, toView: toView, toLight: SunDirection, tables: BrdfTables.Shared)
             * sunIrradiance;
@@ -280,20 +272,13 @@ public sealed class BrdfShaderTests
         return (sun + ambient).ToVector3();
     }
 
-    private static RenderInstance Square(
-        MeshId mesh,
-        MaterialId material,
-        Vector3 center,
-        Quaternion rotation,
-        RenderFlags flags
-    ) =>
+    private static RenderInstance Square(MeshId mesh, MaterialId material, Vector3 center, Quaternion rotation) =>
         Gpu.Instance(
             mesh: mesh,
             material: material,
             position: center,
             scale: Vector3.One,
             rotation: rotation,
-            flags: flags,
             radius: 0.36f
         );
 }

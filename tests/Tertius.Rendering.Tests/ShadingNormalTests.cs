@@ -80,7 +80,12 @@ public sealed class ShadingNormalTests
             MeshId square = renderer.CreateMesh(Primitives.Plane(1f));
             TextureId map = normalMap is { } data ? renderer.CreateTexture(data) : TextureId.None;
             MaterialId mirror = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.02f, y: 0.02f, z: 0.02f, w: 1), Roughness: 0, Metallic: 1, NormalMap: map)
+                new(
+                    BaseColor: new(x: 0.02f, y: 0.02f, z: 0.02f, w: 1),
+                    Roughness: 0,
+                    Model: new StandardShading(Metallic: 1),
+                    NormalMap: map
+                )
             );
             snapshot.Instances.Add(
                 Gpu.Instance(

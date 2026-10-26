@@ -11,7 +11,7 @@ internal readonly record struct MeshInfo(uint FirstIndex, uint IndexCount, int V
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
 /// instances, the casters, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one indirect
 /// command per run of instances that share a depth range and a mesh. It chooses the far lights' shadow slots and their
-/// far shadows (docs/plans/local-light-shadows.md). The transparent instances and the puffs sort together back to front,
+/// far shadows (docs/plans/local-light-shadows.md). The glass instances and the puffs sort together back to front,
 /// and the batcher cuts that list into the runs of the transparent pass. Allocates nothing once its arrays have grown to
 /// the scene.
 /// </summary>
@@ -63,8 +63,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <param name="width">Output width in pixels.</param>
     /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
-    /// <param name="materialCount">
-    /// Material slots on the GPU, the default included. <see cref="MaterialId.None"/> and ids that are not on the GPU
+    /// <param name="materials">
+    /// The material slots on the GPU, the default's first. <see cref="MaterialId.None"/> and ids that are not on the GPU
     /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
     /// </param>
     /// <param name="environment">
@@ -78,7 +78,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         int width,
         int height,
         ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
         PreparedScene scene
     )
@@ -104,7 +104,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
-        CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materialCount: materialCount, scene: scene);
+        CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materials: materials, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
         CollectCasters(snapshot: snapshot, alpha: alpha, meshes: meshes, scene: scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
@@ -118,7 +118,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             snapshot: snapshot,
             alpha: alpha,
             meshes: meshes,
-            materialCount: materialCount,
+            materials: materials,
             faces: facesOfMaps,
             scene: scene
         );
@@ -229,7 +229,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         PreparedScene scene
     )
     {
@@ -248,7 +248,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
-                materialCount: materialCount,
+                materials: materials,
                 maps: scene.MapCount
             ) with
             {
@@ -287,22 +287,38 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         in RenderInstance instance,
         Placement placement,
         float alpha,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         int maps
-    ) =>
-        new()
+    )
+    {
+        uint material = MaterialStore.Resolve(instance.Material, materials.Length);
+        return new()
         {
             Position = placement.Position,
             Rotation = Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
             Scale = instance.Scale,
             Radius = placement.Radius,
             Mesh = placement.Mesh,
-            Material = MaterialStore.Resolve(instance.Material, materialCount),
+            Material = material,
+            Alpha = materials[(int)material].Alpha,
             Flags = instance.Flags,
             EntityIndex = instance.EntityIndex,
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
             Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
+        };
+    }
+
+    /// <summary>
+    /// Whether an instance whose material draws as <paramref name="alpha"/> draws in the transparent pass alone: glass. A
+    /// cutout or fringed instance draws as an opaque one until the cutout and fringe draws exist
+    /// (docs/plans/skin-and-hair.md, "Order of the work").
+    /// </summary>
+    private static bool IsGlass(AlphaMode alpha) =>
+        alpha switch
+        {
+            GlassAlpha => true,
+            OpaqueAlpha or CutoutAlpha or FringedAlpha => false,
         };
 
     /// <summary>
@@ -317,7 +333,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         ReadOnlySpan<FaceMask> faces,
         PreparedScene scene
     )
@@ -328,7 +344,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             snapshot: snapshot,
             alpha: alpha,
             meshes: meshes,
-            materialCount: materialCount,
+            materials: materials,
             scene: scene
         );
         for (int map = 0; map < faces.Length; map++)
@@ -397,7 +413,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         PreparedScene scene
     )
     {
@@ -406,7 +422,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
             if (
-                (instance.Flags & RenderFlags.Transparent) != 0
+                IsGlass(materials[(int)MaterialStore.Resolve(instance.Material, materials.Length)].Alpha)
                 || Place(instance: instance, alpha: alpha, meshes: meshes, eye: eye) is not { } placement
             )
                 continue;
@@ -416,7 +432,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
-                materialCount: materialCount,
+                materials: materials,
                 maps: scene.MapCount
             );
         }
@@ -495,7 +511,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             ref PreparedInstance instance = ref visible[i];
             if ((uint)instance.Mesh >= (uint)meshes.Length)
                 continue;
-            if ((instance.Flags & RenderFlags.Transparent) != 0)
+            if (IsGlass(instance.Alpha))
             {
                 Append(
                     ref transparent,
@@ -558,7 +574,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// Cuts the sorted transparent list into the runs of each range: a stretch of transparent instances becomes one
-    /// <see cref="MeshCommands"/> run, with one indirect command per stretch of equal mesh, and a stretch of puffs becomes
+    /// <see cref="GlassCommands"/> run, with one indirect command per stretch of equal mesh, and a stretch of puffs becomes
     /// one <see cref="PuffSprites"/> run of <see cref="PreparedScene.Puffs"/>. An item whose index is
     /// <paramref name="firstPuff"/> or more is the puff of that index less <paramref name="firstPuff"/>.
     /// </summary>
@@ -610,7 +626,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             .Add(
                 puffRun
                     ? new PuffSprites(runStart, scene.PuffCount - runStart)
-                    : new MeshCommands(new(runStart, scene.CommandCount - runStart))
+                    : new GlassCommands(new(runStart, scene.CommandCount - runStart))
             );
 
     /// <summary>

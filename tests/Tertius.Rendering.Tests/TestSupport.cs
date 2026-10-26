@@ -541,3 +541,39 @@ internal static class Batchers
         return new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
     }
 }
+
+/// <summary>The material slots that the CPU tests hand the batcher, as a renderer's material store holds them.</summary>
+internal static class MaterialSlots
+{
+    /// <summary>The glass material of the CPU tests: slot 7 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Glass = new(6);
+
+    /// <summary>
+    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque but that of
+    /// <see cref="Glass"/>, when there is one.
+    /// </summary>
+    public static MaterialInfo[] Of(int count = 8)
+    {
+        var slots = new MaterialInfo[count];
+        uint glass = MaterialStore.Slot(Glass);
+        if (glass < count)
+            slots[glass] = new(new GlassAlpha());
+        return slots;
+    }
+}
+
+/// <summary>Materials of the C# twins of the shaders.</summary>
+internal static class TestMaterials
+{
+    /// <summary>
+    /// The C# sample of <paramref name="desc"/> without maps: its base color and factors, with the metallic of a standard
+    /// model and 0 for any other, as the material buffer holds it.
+    /// </summary>
+    public static MaterialSample SampleOf(MaterialDesc desc) =>
+        new(
+            BaseColor: new(desc.BaseColor.X, desc.BaseColor.Y, desc.BaseColor.Z),
+            Metallic: desc.Model is StandardShading(var metallic) ? metallic : 0,
+            Roughness: desc.Roughness,
+            Reflectance: desc.Reflectance
+        );
+}

@@ -27,7 +27,9 @@ public class SceneBatcherBenchmarks
 {
     private const int Width = 1920;
     private const int Height = 1080;
-    private const int MaterialCount = 8;
+
+    /// <summary>The default material's slot and seven more, all opaque.</summary>
+    private static readonly MaterialInfo[] Materials = new MaterialInfo[8];
 
     private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f)];
 
@@ -79,7 +81,7 @@ public class SceneBatcherBenchmarks
             width: Width,
             height: Height,
             meshes: Meshes,
-            materialCount: MaterialCount,
+            materials: Materials,
             environment: environment,
             scene: scene
         );

@@ -82,7 +82,8 @@ public sealed class BloomTests
                             BaseColor: new(x: 0, y: 0, z: 0, w: square.Opacity),
                             Roughness: 0.5f,
                             Reflectance: 0,
-                            Emissive: square.Radiance
+                            Emissive: square.Radiance,
+                            Alpha: new GlassAlpha()
                         )
                     )
                     : Glow(renderer, square.Radiance);
@@ -93,7 +94,6 @@ public sealed class BloomTests
                     position: center,
                     scale: new(square.Side * metersPerPixel),
                     rotation: facing,
-                    flags: square.Opacity < 1 ? RenderFlags.Transparent : RenderFlags.None,
                     radius: square.Side * metersPerPixel
                 )
             );

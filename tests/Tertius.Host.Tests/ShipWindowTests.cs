@@ -20,32 +20,6 @@ public sealed class ShipWindowTests
         NoseWallMiddle = -29.75f,
         EyeHeight = -3.5f + 1.65f;
 
-    /// <summary>Resources that give each mesh, texture and material its own id, and keep each mesh and each material's description.</summary>
-    private sealed class RecordingResources : IRenderResources
-    {
-        private int next = 1;
-
-        public Dictionary<MeshId, MeshData> Meshes { get; } = [];
-
-        public Dictionary<MaterialId, MaterialDesc> Materials { get; } = [];
-
-        public MeshId CreateMesh(MeshData mesh)
-        {
-            var id = new MeshId(next++);
-            Meshes[id] = mesh;
-            return id;
-        }
-
-        public TextureId CreateTexture(TextureData texture) => new(next++);
-
-        public MaterialId CreateMaterial(MaterialDesc material)
-        {
-            var id = new MaterialId(next++);
-            Materials[id] = material;
-            return id;
-        }
-    }
-
     /// <summary>The scene at its start, seen from the chase camera in the ship's frame, with its meshes and materials.</summary>
     private static (RenderSnapshot Snapshot, RecordingResources Resources, SceneInstance Scene) Start(World world)
     {
@@ -57,16 +31,21 @@ public sealed class ShipWindowTests
         return (snapshot, resources, scene);
     }
 
-    private static RenderInstance[] Panes(RenderSnapshot snapshot) =>
-        [.. snapshot.Instances.Where(instance => (instance.Flags & RenderFlags.Transparent) != 0)];
+    /// <summary>The instances of <paramref name="snapshot"/> whose material is glass.</summary>
+    private static RenderInstance[] Panes(RenderSnapshot snapshot, RecordingResources resources) =>
+        [
+            .. snapshot.Instances.Where(instance =>
+                resources.Materials.GetValueOrDefault(instance.Material)?.Alpha is GlassAlpha
+            ),
+        ];
 
     [Fact]
     public void TheShipHasAPaneInEachWindowAndNoPaneCastsAShadowButTheHullDoes()
     {
         using World world = NewJoltWorld();
-        (RenderSnapshot snapshot, _, _) = Start(world);
+        (RenderSnapshot snapshot, RecordingResources resources, _) = Start(world);
 
-        RenderInstance[] panes = Panes(snapshot);
+        RenderInstance[] panes = Panes(snapshot, resources);
 
         // Nine windows in the starboard wall, eight in the port wall and one in the nose wall.
         panes.Should().HaveCount(9 + 8 + 1);
@@ -87,7 +66,7 @@ public sealed class ShipWindowTests
         using World world = NewJoltWorld();
         (RenderSnapshot snapshot, RecordingResources resources, _) = Start(world);
 
-        RenderInstance[] panes = Panes(snapshot);
+        RenderInstance[] panes = Panes(snapshot, resources);
 
         panes.Should().NotBeEmpty();
         foreach (RenderInstance pane in panes)
@@ -145,11 +124,14 @@ public sealed class ShipWindowTests
     public void ThePanesStandInTheMiddleOfTheSideWallsAtEyeHeightAndInTheNoseWall()
     {
         using World world = NewJoltWorld();
-        (RenderSnapshot snapshot, _, _) = Start(world);
+        (RenderSnapshot snapshot, RecordingResources resources, _) = Start(world);
 
         // The chase camera rides in the ship's frame, so the snapshot's axes are the ship's, and its positions are relative
         // to the camera.
-        Vector3[] centers = [.. Panes(snapshot).Select(pane => pane.Position + snapshot.OriginInFrame.ToVector3())];
+        Vector3[] centers =
+        [
+            .. Panes(snapshot, resources).Select(pane => pane.Position + snapshot.OriginInFrame.ToVector3()),
+        ];
 
         static float[] Along(IEnumerable<Vector3> side) => [.. side.Select(center => MathF.Round(center.Z, 3)).Order()];
         float[] row = [-24, -18, -12, -6, 0, 6, 12, 18, 24];

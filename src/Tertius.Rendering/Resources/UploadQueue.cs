@@ -92,6 +92,7 @@ internal sealed class UploadQueue(int maxTextureSize)
             CheckTexture(material.BaseColorMap, nameof(material.BaseColorMap));
             CheckTexture(material.NormalMap, nameof(material.NormalMap));
             CheckTexture(material.MetallicRoughnessMap, nameof(material.MetallicRoughnessMap));
+            CheckCutoff(material.Alpha);
             var id = new MaterialId(Next(ref materialCount, "materials"));
             pending.Materials.Add((id, material));
             return id;
@@ -108,6 +109,20 @@ internal sealed class UploadQueue(int maxTextureSize)
             : counter++;
 
     /// <summary>A material's texture slot is None (the default texture) or a texture this renderer created.</summary>
+    /// <summary>Refuses a cutoff that is not above 0 and at most 1, a NaN included: at 0, every texel would be core.</summary>
+    private static void CheckCutoff(AlphaMode alpha)
+    {
+        if (alpha.Cutoff is not { } cutoff)
+            return;
+        bool inRange = cutoff is > 0 and <= 1;
+        if (!inRange)
+            throw new ArgumentOutOfRangeException(
+                nameof(MaterialDesc.Alpha),
+                alpha,
+                "A cutoff lies above 0 and at most 1."
+            );
+    }
+
     private void CheckTexture(TextureId texture, string slot)
     {
         if (!texture.IsNone && (uint)texture.Value >= (uint)textureCount)

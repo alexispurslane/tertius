@@ -154,6 +154,7 @@ public sealed class PuffRenderTests
             MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), roughness: 0.65f) with
             {
                 Reflectance = 0f,
+                Alpha = new GlassAlpha(),
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), starIrradiance: 0.6f);
@@ -161,13 +162,7 @@ public sealed class PuffRenderTests
             Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
         );
         snapshot.Instances.Add(
-            Gpu.Instance(
-                mesh: box,
-                material: glass,
-                position: new(-3.5f, 0.5f, -8),
-                scale: new(7, 5, 0.05f),
-                flags: RenderFlags.Transparent
-            )
+            Gpu.Instance(mesh: box, material: glass, position: new(-3.5f, 0.5f, -8), scale: new(7, 5, 0.05f))
         );
         snapshot.PuffLooks.Add(
             new(

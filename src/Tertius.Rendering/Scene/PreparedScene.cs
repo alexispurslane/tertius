@@ -110,6 +110,10 @@ internal struct PreparedInstance
     public uint Material;
 
     public RenderFlags Flags;
+
+    /// <summary>How the material's alpha draws: the <see cref="MaterialInfo"/> of <see cref="Material"/>'s slot.</summary>
+    public AlphaMode Alpha;
+
     public uint EntityIndex;
 
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
@@ -131,18 +135,18 @@ internal readonly record struct TileCommands(int View, CommandRange Commands);
 /// <summary>A run of GPU instances for one instanced draw.</summary>
 internal readonly record struct InstanceRange(int First, int Count);
 
-/// <summary>A run of the transparent pass that draws transparent meshes: indirect commands, in order.</summary>
-internal readonly record struct MeshCommands(CommandRange Commands);
+/// <summary>A run of the transparent pass that draws glass: indirect commands, in order.</summary>
+internal readonly record struct GlassCommands(CommandRange Commands);
 
 /// <summary>A run of the transparent pass that draws puffs: <see cref="PreparedScene.Puffs"/> from First, Count of them.</summary>
 internal readonly record struct PuffSprites(int First, int Count);
 
 /// <summary>
-/// One stretch of the transparent pass's sorted list of one depth range that one draw covers: <see cref="MeshCommands"/>
+/// One stretch of the transparent pass's sorted list of one depth range that one draw covers: <see cref="GlassCommands"/>
 /// or <see cref="PuffSprites"/>. The empty value is the all-zero default, and it holds no case.
 /// This is a generated union (docs/plans/union-tooling.md): the union generator writes its members.
 /// </summary>
-[GeneratedUnion(typeof(MeshCommands), typeof(PuffSprites))]
+[GeneratedUnion(typeof(GlassCommands), typeof(PuffSprites))]
 internal readonly partial struct TransparentRun;
 
 /// <summary>
@@ -272,7 +276,7 @@ internal sealed class PreparedScene
     /// <summary>R_i of the first <see cref="MapCount"/> maps, root first: the axes of map i's frame in world axes, interpolated.</summary>
     public readonly Quaternion[] MapAxes = new Quaternion[EnvironmentChain.MaxMaps];
 
-    /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
+    /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="GlassCommands"/> run.</summary>
     public int TransparentCommandCount
     {
         get
@@ -280,8 +284,8 @@ internal sealed class PreparedScene
             int count = 0;
             foreach (List<TransparentRun> runs in Transparent)
             foreach (TransparentRun run in runs)
-                if (run is MeshCommands meshes)
-                    count += meshes.Commands.Count;
+                if (run is GlassCommands glass)
+                    count += glass.Commands.Count;
 
             return count;
         }

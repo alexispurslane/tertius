@@ -204,6 +204,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>Materials from <see cref="CreateMaterial"/> on the GPU, not counting the default material.</summary>
     internal int MaterialCount => materials.UserCount;
 
+    /// <summary>The CPU's facts of each material slot on the GPU, the default material's first.</summary>
+    internal ReadOnlySpan<MaterialInfo> MaterialInfos => materials.Infos;
+
     internal int MeshCount => geometry.Meshes.Length;
     internal int PendingReleases => releases.Count;
 
@@ -373,9 +376,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Queues a material. Base and emissive colors are linear. A texture slot holding <see cref="TextureId.None"/>, its
     /// default, uses the built-in default for that slot: a white base color map, a flat normal map, and a
-    /// metallic-roughness map that keeps <see cref="MaterialDesc.Metallic"/> and <see cref="MaterialDesc.Roughness"/> as they are.
+    /// metallic-roughness map that keeps the metallic of <see cref="StandardShading"/> and <see cref="MaterialDesc.Roughness"/>
+    /// as they are.
     /// </summary>
     /// <exception cref="ArgumentException">A texture slot holds an id that this renderer did not create.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The cutoff of a <see cref="CutoutAlpha"/> or a <see cref="FringedAlpha"/> is not above 0 and at most 1.
+    /// </exception>
     public MaterialId CreateMaterial(MaterialDesc material)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -603,7 +610,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
-            materialCount: materials.Count,
+            materials: materials.Infos,
             environment: environment,
             scene: LastScene
         );

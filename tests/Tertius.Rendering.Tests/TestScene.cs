@@ -100,6 +100,7 @@ internal sealed class TestScene
             MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), roughness: 0.18f) with
             {
                 Reflectance = 1f,
+                Alpha = new GlassAlpha(),
             }
         );
         scene.Station = renderer.CreateMaterial(
@@ -170,15 +171,7 @@ internal sealed class TestScene
         instances.Add(
             Gpu.Instance(mesh: Sphere, material: Blue, position: BlueSphere, scale: new(0.6f), flags: caster)
         );
-        instances.Add(
-            Gpu.Instance(
-                mesh: Sphere,
-                material: Glass,
-                position: GreenGlass,
-                scale: new(0.5f),
-                flags: RenderFlags.Transparent
-            )
-        );
+        instances.Add(Gpu.Instance(mesh: Sphere, material: Glass, position: GreenGlass, scale: new(0.5f)));
 
         // Middle range: a 1 km station turned so one face catches the sun.
         instances.Add(

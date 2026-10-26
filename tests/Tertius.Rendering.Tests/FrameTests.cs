@@ -212,6 +212,7 @@ public sealed class FrameTests
                 MaterialDesc.Color(new(x: 1f, y: 0.05f, z: 0.05f, w: 0.5f), roughness: 0.75f) with
                 {
                     Reflectance = 0f,
+                    Alpha = new GlassAlpha(),
                 }
             );
             RenderSnapshot snapshot = LitFromBehind();
@@ -220,22 +221,10 @@ public sealed class FrameTests
             );
             // In front of the wall, and a second one hidden behind it.
             snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: sphere,
-                    material: redGlass,
-                    position: new(-1, 0, -5),
-                    scale: new(0.7f),
-                    flags: RenderFlags.Transparent
-                )
+                Gpu.Instance(mesh: sphere, material: redGlass, position: new(-1, 0, -5), scale: new(0.7f))
             );
             snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: sphere,
-                    material: redGlass,
-                    position: new(1, 0, -11),
-                    scale: new(0.7f),
-                    flags: RenderFlags.Transparent
-                )
+                Gpu.Instance(mesh: sphere, material: redGlass, position: new(1, 0, -11), scale: new(0.7f))
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "transparent");

@@ -46,7 +46,7 @@ internal static class ReflectionTesting
 
     /// <summary>A white metal floor of <paramref name="roughness"/>: a mirror at 0, which the BRDF floors to 0.045.</summary>
     public static MaterialDesc Mirror(float roughness = 0) =>
-        new(BaseColor: Vector4.One, Roughness: roughness, Metallic: 1);
+        new(BaseColor: Vector4.One, Roughness: roughness, Model: new StandardShading(Metallic: 1));
 
     /// <summary>
     /// A normal map of one texel (128, 128, 255), the flat normal of an 8-bit map. The floors take it, so that the C# copy
@@ -154,12 +154,7 @@ internal static class ReflectionTesting
     public static Vector3 SpecularWeight(MaterialDesc material, CameraView camera, (int X, int Y) pixel)
     {
         Vector3 toView = -Vector3.Normalize(camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f)));
-        var sample = new MaterialSample(
-            BaseColor: new(material.BaseColor.X, material.BaseColor.Y, material.BaseColor.Z),
-            Metallic: material.Metallic,
-            Roughness: material.Roughness,
-            Reflectance: material.Reflectance
-        );
+        MaterialSample sample = TestMaterials.SampleOf(material);
         return sample
             .CompensatedSpecularAlbedo(normal: FlatMapNormal, toView: toView, tables: BrdfTables.Shared)
             .ToVector3();
