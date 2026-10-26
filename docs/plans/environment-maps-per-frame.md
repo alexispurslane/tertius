@@ -538,7 +538,7 @@ The readers' extra work per lit pixel: one fetch of a quaternion from the frame 
 
 Memory: about 2.1 MB per map at W = 128, 8.4 MB for the cabin's chain of four, and about 134 MB per map at W = 1024. The buffers add 6 KB each.
 
-Part 4 measured the costs (ARCHITECTURE.md, "The environment map", "Cost"). A frame of a film costs the face pass and the prefilter of one map, as expected. The lighting pass grew by about 0.49 ms on `demo-exit.json`, not 0.05 ms, and the transparent pass by about 0.075 ms. Two probes put the lighting pass's growth on the map that varies per pixel, not on the turns, and `ter-51gq` looks for its cause. `SceneBatcherBenchmarks` shows no cost of the larger `GpuInstance`.
+Part 4 measured the costs (ARCHITECTURE.md, "The environment map", "Cost"). A frame of a film costs the face pass and the prefilter of one map, as expected. The lighting pass grew by about 0.49 ms on `demo-exit.json`, not 0.05 ms, and the transparent pass by about 0.075 ms. Two probes put the lighting pass's growth on the map that varies per pixel, not on the turns. `ter-51gq` found the cause: the read of the nine irradiance coefficients at each pixel's own map took registers per invocation and lowered the lighting pass's occupancy. Reading them at a map that `subgroupBroadcastFirst` makes uniform over the subgroup took about 0.42 ms of the 0.49 ms back, and about 0.06 ms of the transparent pass's 0.075 ms, with the same image. The rest lies within the noise of the runs. The device now requires the ballot operations in the fragment and compute stages (ARCHITECTURE.md, "The environment map", "Reading the map" and "Cost"). `SceneBatcherBenchmarks` shows no cost of the larger `GpuInstance`.
 
 ## Tests
 
