@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -104,7 +105,7 @@ internal static class EnvironmentScenes
 
     /// <summary>Level 0 of a face of the radiance map.</summary>
     public static Half[] Face(VulkanRenderer renderer, CubeFace face) =>
-        renderer.ReadEnvironmentFace(face: face, level: 0, image: EnvironmentImage.Radiance);
+        renderer.ReadEnvironmentFace(map: 0, face: face, level: 0, image: EnvironmentImage.Radiance);
 
     /// <summary>The RGBA of texel (<paramref name="x"/>, <paramref name="y"/>) of a face of <paramref name="size"/> texels.</summary>
     public static Vector4 Texel(Half[] face, int size, int x, int y)
@@ -335,7 +336,13 @@ public sealed class EnvironmentFaceTests
             );
             // Its reach, from z = 4 to 12, lies wholly behind the camera.
             snapshot.Lights.Add(
-                new PointRenderLight(Position: new(0, 0, 8), Color: Vector3.One, Intensity: 50, Range: 4)
+                new PointRenderLight(
+                    Position: new(0, 0, 8),
+                    Color: Vector3.One,
+                    Intensity: 50,
+                    Range: 4,
+                    ChainDepth: TestChains.CamerasFrame
+                )
             );
 
             renderer.Render(snapshot, 1f);
@@ -771,7 +778,7 @@ public sealed class EnvironmentFaceTests
                 material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(still)),
                 distance: 5
             );
-            snapshot.OriginFrameId = still == 2 ? thirdFrame : 0;
+            TestChains.Of(snapshot, (still == 2 ? thirdFrame : 0, Quaternion.Identity));
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: times[still]);
         }
 

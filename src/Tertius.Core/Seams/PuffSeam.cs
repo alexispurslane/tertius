@@ -113,4 +113,7 @@ public struct RenderPuff
 
     /// <summary>The index of the puff's look in <see cref="RenderSnapshot.PuffLooks"/>.</summary>
     public int Look;
+
+    /// <summary>The depth of the chain frame of the frame of the puff's range, as <see cref="RenderInstance.ChainDepth"/>.</summary>
+    public ushort ChainDepth;
 }

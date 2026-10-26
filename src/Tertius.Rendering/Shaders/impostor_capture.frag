@@ -19,7 +19,7 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uint inMaterial;
+layout(location = 4) flat in uvec2 inMaterialAndMap;   // x: the material. y: the instance's environment map
 layout(location = 5) flat in vec4 inHemisphere;
 
 layout(location = 0) out vec4 outColor;   // RGBA16F: lit color premultiplied by coverage (1 here), coverage
@@ -28,7 +28,7 @@ layout(location = 1) out float outDepth;  // R16F: view depth over the center's 
 void main()
 {
     vec3 V = towardEye(inPosition);
-    SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent, V);
+    SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
@@ -36,6 +36,8 @@ void main()
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;
+    // The capture bakes the light of the object's own map.
+    shading.map = inMaterialAndMap.y;
     shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
     // Only the hemisphere reads the sky shares.
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);

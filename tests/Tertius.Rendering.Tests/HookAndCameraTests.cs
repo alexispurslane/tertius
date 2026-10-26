@@ -124,7 +124,8 @@ public sealed class HookAndCameraTests
                     position: new(0, 0, -3),
                     rotation: Quaternion.Identity,
                     scale: Vector3.One,
-                    material: 0
+                    material: 0,
+                    map: 0
                 )
             );
             AppendedCommand = context.Scene.AppendCommand(

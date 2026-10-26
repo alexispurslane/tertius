@@ -4,7 +4,7 @@
 #include "spherical_harmonics.glsl"
 
 // The irradiance of the environment map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
-// the projection of the radiance map's level 0 onto the nine Y_lm, times the clamped cosine's coefficients. One workgroup
+// the projection of one map's level 0 onto the nine Y_lm, times the clamped cosine's coefficients, in the map's own axes. One workgroup
 // of 128 invocations, the most that the Vulkan specification guarantees. Invocation j sums the texels j, j + 128, ... in
 // layer, row and column order, and a tree in shared memory adds the partial sums in a fixed order, so one map always gives
 // the same bits on one GPU.
@@ -14,10 +14,19 @@ const uint Sums = 27u;   // nine coefficients of three colors
 
 layout(local_size_x = 128) in;
 
-layout(set = 0, binding = 0) uniform textureCube radianceMap;
+layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Coefficient i in vec4 i: xyz E_lm, w 0 (Irradiance.cs).
-layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
+// Coefficient i of map m in vec4 9m + i: xyz E_lm, w 0 (Irradiance.cs).
+layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[]; };
+
+// EnvironmentPrefilterPushConstants in GpuTypes.cs, of which this shader reads only the map.
+layout(push_constant, std430) uniform PrefilterPush
+{
+    uint levelSize;
+    float roughness;
+    uint samples;
+    uint map;         // m: the dispatch reads cube m and writes coefficients 9m to 9m + 8
+} prefilter;
 
 // 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B.
 shared float partials[Sums * Invocations];
@@ -25,7 +34,7 @@ shared float partials[Sums * Invocations];
 void main()
 {
     uint j = gl_LocalInvocationIndex;
-    uint size = uint(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
+    uint size = uint(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x);
     uint texels = 6u * size * size;
     float sums[Sums];
     for (uint c = 0u; c < Sums; c++)
@@ -37,7 +46,8 @@ void main()
         uvec2 texel = uvec2(inLayer % size, inLayer / size);
         vec3 ray = faceRay(layer, (vec2(texel) + 0.5) / float(size));
         // The exact ray through a texel center reads that texel alone.
-        vec3 radiance = textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0).rgb;
+        vec3 radiance = textureLod(
+            samplerCubeArray(radianceMap, environmentSampler), vec4(ray, float(prefilter.map)), 0.0).rgb;
         radiance *= texelSolidAngle(texel, size);
         float y[9];
         shBasis(normalize(ray), y);
@@ -66,7 +76,7 @@ void main()
     {
         float cosine = ShClampedCosine[shBand(j)];
         uint c = 3u * j;
-        irradiance[j] = vec4(
+        irradiance[9u * prefilter.map + j] = vec4(
             cosine * partials[c * Invocations],
             cosine * partials[(c + 1u) * Invocations],
             cosine * partials[(c + 2u) * Invocations],

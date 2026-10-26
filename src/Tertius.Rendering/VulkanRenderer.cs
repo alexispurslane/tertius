@@ -88,6 +88,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ExposureResources exposure;
     private readonly ExposureSetting exposureSetting;
     private readonly EnvironmentMap? environmentMap;
+
+    /// <summary>The served chain of the frame being drawn, frame ids root first, in its first M entries.</summary>
+    private readonly long[] servedChain = new long[EnvironmentChain.MaxMaps];
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
@@ -486,8 +489,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        // Only now, so that a frame that threw above leaves the map's frame as it was.
-        environmentMap?.Drew(snapshot.OriginFrameId);
+        // Only now, so that a frame that threw above leaves the maps' drawn chain and the slot's readback as they were.
+        environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -545,17 +548,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// What the batcher prepares for the map in the frame that the renderer draws next: no map, or the faces that
-    /// <see cref="EnvironmentMap.FacesFor"/> chooses with the latest irradiance reading. It changes no state, so a frame
-    /// that throws before its submission leaves the map as it was.
+    /// What the batcher prepares for the maps in the frame that the renderer draws next: no map, or the faces of each map of
+    /// the snapshot's served chain that <see cref="EnvironmentMap.FacesFor"/> chooses, with their latest irradiance
+    /// readings. It writes the served chain, and changes no state of the maps but a growth, so a frame that throws before
+    /// its submission leaves the maps' drawn chain as it was.
     /// </summary>
     private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool longStep)
     {
         if (environmentMap is not { } map)
             return new(new WithoutMap());
-        FaceMask faces = map.FacesFor(frame: frameNumber, originFrameId: snapshot.OriginFrameId, longStep: longStep);
-        return new(new WithMap(faces, map.Latest));
+        Span<long> served = servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
+        EnvironmentChain.Serve(snapshot.Chain, served);
+        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: frameNumber, served: served, longStep: longStep);
+        return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
+
+    /// <summary>The served chain of <paramref name="snapshot"/>, frame ids root first, as <see cref="EnvironmentDrawFor"/> wrote it.</summary>
+    private ReadOnlySpan<long> Served(RenderSnapshot snapshot) =>
+        servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
 
     /// <summary>
     /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's
@@ -959,19 +969,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Reads mip <paramref name="level"/> of one face of the environment map's <paramref name="image"/> back to the CPU:
-    /// RGBA halves, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
+    /// Reads mip <paramref name="level"/> of one face of map <paramref name="map"/> of the environment maps'
+    /// <paramref name="image"/> back to the CPU: RGBA halves, row by row from the top. A test hook: it waits for the device
+    /// to be idle and submits its own copy.
     /// </summary>
-    internal Half[] ReadEnvironmentFace(CubeFace face, int level, EnvironmentImage image)
+    internal Half[] ReadEnvironmentFace(int map, CubeFace face, int level, EnvironmentImage image)
     {
-        EnvironmentMap map = environmentMap ?? throw new InvalidOperationException("The environment map is off.");
+        EnvironmentMap environment =
+            environmentMap ?? throw new InvalidOperationException("The environment map is off.");
         GpuImage cube = image switch
         {
-            EnvironmentImage.Radiance => map.Radiance,
-            EnvironmentImage.Specular => map.Specular,
+            EnvironmentImage.Radiance => environment.Radiance,
+            EnvironmentImage.Specular => environment.Specular,
         };
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, cube.MipLevels);
-        int size = Math.Max(1, map.Setting.FaceSize >> level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
+        int size = Math.Max(1, environment.Setting.FaceSize >> level);
         int count = size * size * 4;
         using var buffer = GpuBuffer.Create(
             device: device,
@@ -986,7 +999,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 commandBuffer: commandBuffer,
                 image: cube,
                 aspect: ImageAspectFlags.ColorBit,
-                layer: (int)face,
+                layer: CubeFaces.Count * map + (int)face,
                 mip: level,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer
@@ -996,13 +1009,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The irradiance that the last drawn frame's prefilter wrote. A test hook: it waits for the device to be idle and
-    /// submits its own copy.
+    /// The irradiance of map <paramref name="map"/> that the prefilter last wrote. A test hook: it waits for the device to
+    /// be idle and submits its own copy.
     /// </summary>
-    internal Irradiance ReadEnvironmentIrradiance()
+    internal Irradiance ReadEnvironmentIrradiance(int map)
     {
-        EnvironmentMap map = environmentMap ?? throw new InvalidOperationException("The environment map is off.");
-        GpuBuffer irradiance = map.Irradiance;
+        EnvironmentMap environment =
+            environmentMap ?? throw new InvalidOperationException("The environment map is off.");
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
+        GpuBuffer irradiance = environment.Irradiance;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -1012,7 +1027,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             name: "irradiance readback"
         );
         SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: irradiance, buffer: buffer));
-        return EnvironmentMap.IrradianceOf(new ReadOnlySpan<Vector4>(buffer.Mapped, Irradiance.Coefficients));
+        var coefficients = new ReadOnlySpan<Vector4>(buffer.Mapped, EnvironmentChain.MaxMaps * Irradiance.Coefficients);
+        return EnvironmentMap.IrradianceOf(coefficients.Slice(map * Irradiance.Coefficients, Irradiance.Coefficients));
     }
 
     /// <summary>

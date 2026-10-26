@@ -7,8 +7,8 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 80 bytes.</summary>
-[StructLayout(LayoutKind.Sequential)]
+/// <summary>One drawn instance in the instance storage buffer. 84 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 96)]
 internal struct GpuInstance
 {
     /// <summary>Rows of the 3x4 model matrix that maps mesh space to camera-relative world space.</summary>
@@ -28,11 +28,19 @@ internal struct GpuInstance
     /// </summary>
     public Vector4 Hemisphere;
 
+    /// <summary>
+    /// The instance's map: the index, root first, of the environment map that lights it (docs/plans/environment-maps-per-frame.md,
+    /// "The served chain and the map of an object"). 0 with the map off.
+    /// </summary>
+    public uint Map;
+
+    /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
     public static GpuInstance From(
         Vector3 position,
         Quaternion rotation,
         Vector3 scale,
         uint material,
+        int map,
         HemisphereUp hemisphere = default
     )
     {
@@ -61,6 +69,7 @@ internal struct GpuInstance
             InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
             Hemisphere = HemisphereOf(position, hemisphere),
+            Map = (uint)map,
         };
     }
 
@@ -124,8 +133,8 @@ internal struct GpuMaterial
     public uint MetallicRoughnessMap;
 }
 
-/// <summary>One point or spot light in the light storage buffer. 64 bytes.</summary>
-[StructLayout(LayoutKind.Sequential)]
+/// <summary>One point or spot light in the light storage buffer. 56 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
+[StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuLight
 {
     /// <summary>xyz camera-relative position, w range.</summary>
@@ -137,8 +146,14 @@ internal struct GpuLight
     /// <summary>xyz unit spot direction, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
     public Vector4 DirectionCosOuter;
 
-    /// <summary>x cos(inner half-angle). Zero for a point light.</summary>
-    public Vector4 Spot;
+    /// <summary>cos(inner half-angle). Zero for a point light.</summary>
+    public float CosInner;
+
+    /// <summary>
+    /// The light's map: the map of the entity that carries it. A face of map i keeps the light only when this is at most i
+    /// (docs/plans/environment-maps-per-frame.md, decision 13).
+    /// </summary>
+    public uint Map;
 }
 
 /// <summary>One frame outline in the outline storage buffer (std430). 48 bytes.</summary>
@@ -165,10 +180,10 @@ internal struct GpuOutline
 }
 
 /// <summary>
-/// One puff to draw, in the puff storage buffer (std430, binding 7 of the frame set). 32 bytes. The batcher writes one for
-/// each puff that it keeps, in the order of the transparent pass's runs.
+/// One puff to draw, in the puff storage buffer (std430, binding 7 of the frame set). 36 bytes of fields, padded to 48, the
+/// struct's alignment of 16. The batcher writes one for each puff that it keeps, in the order of the transparent pass's runs.
 /// </summary>
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Size = 48)]
 internal struct GpuPuff
 {
     /// <summary>The case of <see cref="PuffShading"/> in <see cref="ColorKind"/>.w: a glow puff.</summary>
@@ -185,9 +200,12 @@ internal struct GpuPuff
     /// or <see cref="LitKind"/>.
     /// </summary>
     public Vector4 ColorKind;
+
+    /// <summary>The puff's map, whose mean radiance is a lit puff's ambient light.</summary>
+    public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 720 bytes.</summary>
+/// <summary>The frame uniform block (std140). 1,392 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -245,6 +263,19 @@ internal struct GpuFrameConstants
 
     /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
     public Vector4 RootRotation;
+
+    /// <summary>
+    /// R_i, the axes of map i's frame in world axes, interpolated, as a unit quaternion (x, y, z, w), for the served maps,
+    /// root first (docs/plans/environment-maps-per-frame.md, decision 9). The entries past the served maps are not read.
+    /// </summary>
+    public MapAxesArray MapAxes;
+}
+
+/// <summary>One quaternion per map, laid out as a std140 <c>vec4[42]</c>.</summary>
+[InlineArray(EnvironmentChain.MaxMaps)]
+internal struct MapAxesArray
+{
+    private Vector4 element;
 }
 
 /// <summary>One matrix per shadow cascade, laid out as a std140 <c>mat4[4]</c>.</summary>
@@ -254,12 +285,18 @@ internal struct ShadowMatrices
     private Matrix4x4 element;
 }
 
-/// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 80 bytes.</summary>
+/// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 84 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DrawPushConstants
 {
     public Matrix4x4 ViewProj;
     public Vector4 Eye;
+
+    /// <summary>
+    /// For an environment face, the map whose face the draw draws, which keeps the lights of its map and the maps outside it.
+    /// 0 in every other pass, which reads it not.
+    /// </summary>
+    public uint Map;
 }
 
 /// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl). 64 bytes.</summary>
@@ -372,7 +409,7 @@ internal struct DepthTailPushConstants
 
 /// <summary>
 /// The push constants of the environment sky pass (Shaders/environment_sky.frag): the basis of the face it draws, each
-/// axis a <see cref="Vector4"/>. 48 bytes, inside the scene layout's 80-byte range.
+/// axis a <see cref="Vector4"/>. 48 bytes, inside the scene layout's 84-byte range.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct SkyFacePushConstants
@@ -388,8 +425,8 @@ internal struct SkyFacePushConstants
 }
 
 /// <summary>
-/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k. 12 bytes.
-/// environment_irradiance.comp reads none.
+/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k, of map
+/// <see cref="Map"/>. 16 bytes. environment_irradiance.comp reads only <see cref="Map"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentPrefilterPushConstants
@@ -402,11 +439,14 @@ internal struct EnvironmentPrefilterPushConstants
 
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
+
+    /// <summary>The map whose layers 6 · Map to 6 · Map + 5 and coefficients 9 · Map to 9 · Map + 8 the dispatch writes.</summary>
+    public uint Map;
 }
 
 /// <summary>
 /// The push constants of environment_downsample.comp, for the level of the radiance map that set 2 holds, k ≥ 1, made
-/// from level k − 1 in set 1. 4 bytes, which fit in the prefilter layout's range of
+/// from level k − 1 in set 1, of map <see cref="Map"/>. 8 bytes, which fit in the prefilter layout's range of
 /// <see cref="EnvironmentPrefilterPushConstants"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -414,6 +454,9 @@ internal struct EnvironmentDownsamplePushConstants
 {
     /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
     public uint LevelSize;
+
+    /// <summary>The map whose layers 6 · Map to 6 · Map + 5 the dispatch reads and writes.</summary>
+    public uint Map;
 }
 
 /// <summary>

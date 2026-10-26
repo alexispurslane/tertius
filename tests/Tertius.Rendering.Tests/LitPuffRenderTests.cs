@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -169,7 +170,15 @@ public sealed class LitPuffRenderTests
         // The puff is 2 m from the lamp, near the lamp's range, where the window of the attenuation is 0.42.
         const float intensity = 60f,
             range = 2.6f;
-        snapshot.Lights.Add(new PointRenderLight(Position: lamp, Color: color, Intensity: intensity, Range: range));
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                Position: lamp,
+                Color: color,
+                Intensity: intensity,
+                Range: range,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
         AddLitPuff(snapshot, puff);
 
         Vector3 irradiance = Irradiance(color * intensity, range, Vector3.Distance(lamp, puff));
@@ -194,7 +203,8 @@ public sealed class LitPuffRenderTests
                 Intensity: intensity,
                 Range: range,
                 InnerConeAngle: 0.2f,
-                OuterConeAngle: 0.3f
+                OuterConeAngle: 0.3f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
         AddLitPuff(snapshot, inside);
@@ -354,7 +364,8 @@ public sealed class LitPuffRenderTests
                 Position: underLamp + new Vector3(0, 1f, 0),
                 Color: new(1f, 0.75f, 0.45f),
                 Intensity: 8f,
-                Range: 2f
+                Range: 2f,
+                ChainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.PuffLooks.Add(

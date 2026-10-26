@@ -3,8 +3,12 @@ namespace Tertius.Rendering;
 /// <summary>The renderer draws no map this frame.</summary>
 internal readonly record struct WithoutMap;
 
-/// <summary>The faces that this frame draws, and the latest irradiance reading, null before the first.</summary>
-internal readonly record struct WithMap(FaceMask Faces, IrradianceReading? Irradiance);
+/// <summary>
+/// The faces that this frame draws of each served map, root first, and the latest irradiance reading of each, null before
+/// its first (docs/plans/environment-maps-per-frame.md, "Which faces a frame draws"). Both hold M entries, one per served
+/// map.
+/// </summary>
+internal readonly record struct WithMap(ReadOnlyMemory<FaceMask> Faces, ReadOnlyMemory<IrradianceReading?> Irradiance);
 
 /// <summary>
 /// What the batcher prepares for the map this frame (docs/plans/environment-map.md, "Which faces a frame draws"). Its
@@ -16,8 +20,11 @@ internal readonly partial struct EnvironmentDraw;
 /// <summary>The hemisphere of the snapshot is the ambient light.</summary>
 internal readonly record struct HemisphereAmbient(AmbientLight Light);
 
-/// <summary>The map is the ambient light; the CPU knows its irradiance from the latest reading, null before the first.</summary>
-internal readonly record struct MapAmbient(IrradianceReading? Irradiance);
+/// <summary>
+/// The maps are the ambient light; the CPU knows the irradiance of each served map, root first, from its latest reading,
+/// null before its first.
+/// </summary>
+internal readonly record struct MapAmbient(ReadOnlyMemory<IrradianceReading?> Irradiance);
 
 /// <summary>
 /// The ambient light of a frame as the CPU knows it (docs/plans/environment-map.md, "Impostors"). This is a generated
@@ -26,9 +33,14 @@ internal readonly record struct MapAmbient(IrradianceReading? Irradiance);
 [GeneratedUnion(typeof(HemisphereAmbient), typeof(MapAmbient))]
 internal readonly partial struct AmbientSource;
 
-/// <summary>One face of the map that this frame draws, with its opaque commands per depth range.</summary>
+/// <summary>
+/// One face of a map that this frame draws, with its axes in world axes, <see cref="CubeFaces.Basis(CubeFace, System.Numerics.Quaternion)"/>
+/// of the map's axes, and its opaque commands per depth range.
+/// </summary>
 internal readonly record struct EnvironmentFaceDraw(
+    int Map,
     CubeFace Face,
+    FaceBasis Basis,
     CommandRange Far,
     CommandRange Middle,
     CommandRange Near
