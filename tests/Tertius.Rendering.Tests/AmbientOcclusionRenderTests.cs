@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
 namespace Tertius.Rendering.Tests;
@@ -245,7 +246,13 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), sunIntensity: 3);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Lights.Add(
-                    new PointRenderLight(Position: new(-1.5f, -1, -4.5f), Color: Vector3.One, Intensity: 5, Range: 5)
+                    new PointRenderLight(
+                        Position: new(-1.5f, -1, -4.5f),
+                        Color: Vector3.One,
+                        Intensity: 5,
+                        Range: 5,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
                 );
                 return Corner(renderer, Matte(renderer), snapshot);
             },

@@ -309,7 +309,8 @@ public sealed class PuffSeamTests
     }
 
     [Fact]
-    public void ARenderPuffIs32Bytes() =>
-        // Two positions, an age and a look index. The snapshot carries one per live puff, up to the capacity.
-        Unsafe.SizeOf<RenderPuff>().Should().Be(32);
+    public void ARenderPuffIs36Bytes() =>
+        // Two positions, an age, a look index and a chain depth padded to 4. The snapshot carries one per live puff, up to
+        // the capacity.
+        Unsafe.SizeOf<RenderPuff>().Should().Be(36);
 }

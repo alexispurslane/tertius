@@ -111,6 +111,7 @@ public sealed class ImpostorManagerTests
             scale: new(radius),
             boundingRadius: 0,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             flags: RenderFlags.CastsShadow,
             entityIndex: 9_999,
             part: 0
@@ -556,15 +557,41 @@ public sealed class ImpostorManagerTests
     /// A reading of a map whose irradiance holds <paramref name="band0"/> in every channel of its first coefficient and
     /// <paramref name="band2"/> in its fifth, the first of band 2.
     /// </summary>
-    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default)
+    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default) =>
+        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(band0, band2) });
+
+    /// <summary>A reading as <see cref="MapReading"/> describes it.</summary>
+    private static IrradianceReading Reading(float band0, Vector3 band2 = default)
     {
         var coefficients = new Vector3[Irradiance.Coefficients];
         coefficients[0] = new(band0);
         coefficients[4] = band2;
-        return new WithMap(
-            Faces: FaceMask.None,
-            Irradiance: new IrradianceReading(Frame: 0, Irradiance: new(coefficients))
-        );
+        return new(Frame: 0, Irradiance: new(coefficients));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    public void AnImpostorsSignatureReadsTheIrradianceOfItsOwnMap(int chainDepth)
+    {
+        // Two maps: a ball in the root, one frame above the camera's, takes map 0, and a ball in the camera's frame map 1.
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(float ownMap, float otherMap)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
+            snapshot.Instances.Add(Ball(entity: 1, position: position) with { ChainDepth = (ushort)chainDepth });
+            IrradianceReading?[] readings =
+                chainDepth == 1 ? [Reading(ownMap), Reading(otherMap)] : [Reading(otherMap), Reading(ownMap)];
+            harness.Run(snapshot, new WithMap(Faces: new[] { FaceMask.None, FaceMask.None }, Irradiance: readings));
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(ownMap: 2f, otherMap: 2f).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(ownMap: 2f, otherMap: 6f).Should().Be(0, "the light of another map does not reach it");
+        CapturesUnder(ownMap: 2.4f, otherMap: 6f).Should().Be(1, "its own map's light changed by 0.69 of 9");
     }
 
     [Fact]
@@ -603,7 +630,7 @@ public sealed class ImpostorManagerTests
             return harness.Manager.Captures.Length;
         }
 
-        var unread = new WithMap(Faces: FaceMask.All, Irradiance: null);
+        var unread = new WithMap(Faces: new[] { FaceMask.All }, Irradiance: new IrradianceReading?[1]);
         CapturesUnder(unread).Should().Be(1, "the first sight of an impostor is captured");
         CapturesUnder(unread).Should().Be(0, "nothing changed");
         CapturesUnder(MapReading(1f)).Should().Be(1, "before the first reading the map's irradiance counts as zero");
@@ -705,9 +732,16 @@ public sealed class ImpostorManagerTests
                         Intensity: intensity,
                         Range: range,
                         InnerConeAngle: 0.3f,
-                        OuterConeAngle: 0.5f
+                        OuterConeAngle: 0.5f,
+                        ChainDepth: TestChains.CamerasFrame
                     )
-                    : new PointRenderLight(Position: lightPosition, Color: color, Intensity: intensity, Range: range)
+                    : new PointRenderLight(
+                        Position: lightPosition,
+                        Color: color,
+                        Intensity: intensity,
+                        Range: range,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
             );
             return snapshot;
         }
@@ -1142,6 +1176,7 @@ public sealed class ImpostorManagerTests
                 scale: new(6e6f),
                 boundingRadius: 0,
                 hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
                 flags: RenderFlags.CastsShadow,
                 entityIndex: 9_998,
                 part: 0

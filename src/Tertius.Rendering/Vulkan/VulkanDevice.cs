@@ -372,6 +372,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "samplerAnisotropy";
         if (!f.ShaderStorageImageExtendedFormats)
             return "shaderStorageImageExtendedFormats";
+        if (!f.ImageCubeArray)
+            return "imageCubeArray";
         return null;
     }
 
@@ -440,6 +442,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
             SamplerAnisotropy = true,
             // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
             ShaderStorageImageExtendedFormats = true,
+            // The environment maps of the chain's frames are cube arrays (docs/plans/environment-maps-per-frame.md,
+            // decision 18).
+            ImageCubeArray = true,
         };
 
     private static Device CreateLogicalDevice(

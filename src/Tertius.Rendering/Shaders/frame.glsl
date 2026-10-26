@@ -22,7 +22,9 @@ struct GpuInstance
     // The up of the hemisphere ambient light: xyz the up direction with w 1, or the point that up leads away from with
     // w 2. All zero mixes the sky and the ground evenly.
     vec4 hemisphere;
-};
+    // The instance's map: the index, root first, of the environment map that lights it. 0 with the map off.
+    uint map;
+};                            // std430: 84 bytes of members, a stride of 96
 
 // GpuMaterial.NoMap: the map index of a material that has no such map.
 const uint NoMap = 0xFFFFFFFFu;
@@ -44,8 +46,9 @@ struct GpuLight
     vec4 positionRange;       // xyz world position, w range in meters
     vec4 radianceKind;        // rgb color × intensity, w 0 = point, 1 = spot
     vec4 directionCosOuter;   // xyz unit spot direction, w cos(outer half-angle)
-    vec4 spot;                // x cos(inner half-angle)
-};
+    float cosInner;           // cos(inner half-angle)
+    uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
+};                            // std430: 56 bytes of members, a stride of 64
 
 struct GpuOutline
 {
@@ -60,7 +63,8 @@ struct GpuPuff
 {
     vec4 positionRadius;      // xyz world center, w radius in meters, both at the render age
     vec4 colorKind;           // rgb the own share × the radiance (glow) or the albedo (lit), w the case: 0 glow, 1 lit
-};
+    uint map;                 // the puff's map, whose mean radiance is a lit puff's ambient light
+};                            // std430: 36 bytes of members, a stride of 48
 
 layout(set = 0, binding = 0, std140) uniform FrameBlock
 {
@@ -84,6 +88,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 shadowAxisY;         // xyz light-space y axis
     vec4 shadowParams;        // x 1 / map size, y normal offset in texels, z constant depth bias, w smallest receiver cosine
     vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
+    vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

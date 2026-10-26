@@ -22,12 +22,14 @@ public sealed class RenderSnapshotParallelBuildTests
     /// <summary>
     /// A world of <paramref name="entityCount"/> visible entities in the root and in a far frame, every fourth one moving and
     /// every fiftieth one carrying a point light, after two ticks. With <paramref name="parallelThreshold"/>, the builder
-    /// goes to the workers from that many slots on.
+    /// goes to the workers from that many slots on. The camera is in the root, or in the far frame with
+    /// <paramref name="cameraInFarFrame"/>.
     /// </summary>
     private static RenderSnapshot BuildAfterTwoTicks(
         int maxDegreeOfParallelism,
         int entityCount,
-        int? parallelThreshold = null
+        int? parallelThreshold = null,
+        bool cameraInFarFrame = false
     )
     {
         // Debug checks cost O(capacity) per tick, which adds up for 12 000 entities and says nothing about the snapshot.
@@ -56,7 +58,7 @@ public sealed class RenderSnapshotParallelBuildTests
             );
         }
 
-        test.World.Camera = test.SpawnCamera(test.Root, TestWorld.At(100));
+        test.World.Camera = test.SpawnCamera(cameraInFarFrame ? side : test.Root, TestWorld.At(100));
 
         test.Run(2);
 
@@ -67,8 +69,8 @@ public sealed class RenderSnapshotParallelBuildTests
     [Fact]
     public void TheSnapshotOfAHugeWorldIsTheSameWhateverTheNumberOfThreads()
     {
-        RenderSnapshot sequential = BuildAfterTwoTicks(maxDegreeOfParallelism: 1, EntityCount);
-        RenderSnapshot parallel = BuildAfterTwoTicks(maxDegreeOfParallelism: 8, EntityCount);
+        RenderSnapshot sequential = BuildAfterTwoTicks(maxDegreeOfParallelism: 1, entityCount: EntityCount);
+        RenderSnapshot parallel = BuildAfterTwoTicks(maxDegreeOfParallelism: 8, entityCount: EntityCount);
 
         sequential.Instances.Should().HaveCount(EntityCount);
         parallel.Instances.Should().Equal(sequential.Instances);
@@ -79,7 +81,7 @@ public sealed class RenderSnapshotParallelBuildTests
     [Fact]
     public void TheInstancesOfAHugeWorldAreInSlotOrderWhateverTheNumberOfThreads()
     {
-        RenderSnapshot parallel = BuildAfterTwoTicks(maxDegreeOfParallelism: 8, EntityCount);
+        RenderSnapshot parallel = BuildAfterTwoTicks(maxDegreeOfParallelism: 8, entityCount: EntityCount);
 
         parallel.Instances.Select(i => i.EntityIndex).Should().BeInAscendingOrder().And.OnlyHaveUniqueItems();
     }
@@ -87,10 +89,10 @@ public sealed class RenderSnapshotParallelBuildTests
     [Fact]
     public void ASmallWorldThatBuildsOnTheWorkersFromOneSlotOnBuildsTheSnapshotOfAWorldOnOneThread()
     {
-        RenderSnapshot serial = BuildAfterTwoTicks(maxDegreeOfParallelism: 1, SmallEntityCount);
+        RenderSnapshot serial = BuildAfterTwoTicks(maxDegreeOfParallelism: 1, entityCount: SmallEntityCount);
         RenderSnapshot onWorkers = BuildAfterTwoTicks(
             maxDegreeOfParallelism: 4,
-            SmallEntityCount,
+            entityCount: SmallEntityCount,
             parallelThreshold: 1
         );
 
@@ -100,6 +102,33 @@ public sealed class RenderSnapshotParallelBuildTests
         onWorkers.Lights.Should().Equal(serial.Lights);
         onWorkers.Camera.Should().Be(serial.Camera);
         onWorkers.OriginInFrame.Should().Be(serial.OriginInFrame);
+    }
+
+    [Fact]
+    public void AParallelBuildGivesTheSameChainDepthsAsASerialOne()
+    {
+        RenderSnapshot serial = BuildAfterTwoTicks(
+            maxDegreeOfParallelism: 1,
+            entityCount: SmallEntityCount,
+            cameraInFarFrame: true
+        );
+        RenderSnapshot onWorkers = BuildAfterTwoTicks(
+            maxDegreeOfParallelism: 4,
+            entityCount: SmallEntityCount,
+            parallelThreshold: 1,
+            cameraInFarFrame: true
+        );
+
+        serial
+            .Instances.Select(instance => instance.ChainDepth)
+            .Distinct()
+            .Should()
+            .BeEquivalentTo([(ushort)0, (ushort)1], "the far frame holds the camera, and the root is its parent");
+        onWorkers
+            .Instances.Select(instance => instance.ChainDepth)
+            .Should()
+            .Equal(serial.Instances.Select(instance => instance.ChainDepth));
+        onWorkers.Lights.Should().Equal(serial.Lights);
     }
 
     // ---- From how many slots on --------------------------------------------------------------------------------------

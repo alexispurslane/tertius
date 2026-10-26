@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Core.Tests;
 
@@ -150,6 +151,7 @@ public sealed class ContractChangeTests
             scale: Vector3.One,
             boundingRadius: 1.5f,
             hemisphere: HemisphereUp.Even,
+            chainDepth: TestChains.CamerasFrame,
             part: 2
         );
         Assert.Equal(i.Position, i.PreviousPosition);
