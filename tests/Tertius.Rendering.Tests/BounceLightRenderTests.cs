@@ -70,23 +70,28 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     [Fact]
     public void ALitWallOffTheScreenGivesTheFloorNoBounce()
     {
-        (float[] withWall, Vector2[] measured) = WallOffTheLeftEdge(wall: true);
-        (float[] open, _) = WallOffTheLeftEdge(wall: false);
+        (float[] estimate, float[] direct, Vector2[] measured) = WallOffTheLeftEdge();
 
         foreach (Vector2 pixel in measured)
         {
             int i = ((int)pixel.Y * Width + (int)pixel.X) * 4;
+            var bounce = new Vector3(estimate[i], estimate[i + 1], estimate[i + 2]);
+            var floorLight = new Vector3(direct[i], direct[i + 1], direct[i + 2]);
             output.WriteLine(
-                $"{pixel}: bounce ({withWall[i]}, {withWall[i + 1]}, {withWall[i + 2]}) against ({open[i]}, "
-                    + $"{open[i + 1]}, {open[i + 2]}), V {withWall[i + 3]:0.000} against {open[i + 3]:0.000} without the wall"
+                $"{pixel}: bounce {bounce}, the floor's direct light {floorLight}, V {estimate[i + 3]:0.000}"
             );
-            // Against the open floor, not 0: the floor's own steps leave a rounding of its own light, about 10⁻⁴ of it.
-            (withWall[i], withWall[i + 1], withWall[i + 2])
+            estimate[i + 3]
                 .Should()
-                .Be((open[i], open[i + 1], open[i + 2]), "no pixel shows the wall, so no ray meets it, at {0}", pixel);
-            withWall[i + 3]
+                .BeGreaterThanOrEqualTo(0.98f, "a ray that leaves the screen is open, at {0}", pixel);
+            // Not 0: the floor's own near steps, snapped to texels off their slice, block a few sectors at the edge of
+            // the hemisphere and bounce the floor's own light, about 0.15 % of it here (ter-rxjr).
+            bounce
                 .Should()
-                .BeApproximately(open[i + 3], 0.02f, "a ray that leaves the screen is open, at {0}", pixel);
+                .Match<Vector3>(
+                    b => b.X <= 0.005f * floorLight.X && b.Y <= 0.005f * floorLight.Y && b.Z <= 0.005f * floorLight.Z,
+                    "no pixel shows the wall, and a ray that leaves the screen brings no light, at {0}",
+                    pixel
+                );
         }
     }
 
@@ -200,11 +205,11 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The estimate target of a sunlit white floor seen by a level camera, with a lit red wall just past the left edge of
-    /// the screen when <paramref name="wall"/>, and the floor pixels 0.3 m inside that edge, 3.5 to 4.5 m ahead. The
+    /// The estimate target and the direct image of a sunlit white floor seen by a level camera, with a lit red wall
+    /// just past the left edge of the screen, and the floor pixels 0.3 m inside that edge, 3.5 to 4.5 m ahead. The
     /// wall's face lies 2 cm outside the left side plane of the view, parallel to it, so no pixel shows it.
     /// </summary>
-    private static (float[] Estimate, Vector2[] Measured) WallOffTheLeftEdge(bool wall)
+    private static (float[] Estimate, float[] Direct, Vector2[] Measured) WallOffTheLeftEdge()
     {
         float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
         // The side plane's normal toward the inside of the view, and its direction away from the eye.
@@ -229,24 +234,21 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 center: new(0, FloorHeight - 0.5f, -10),
                 size: new(40, 1, 40)
             );
-            if (wall)
-            {
-                // From the eye to 8 m along the side plane, past the measured floor's 6.5 m.
-                Vector3 face = along * 4 - inward * 0.02f;
-                snapshot.Instances.Add(
-                    Gpu.Instance(
-                        mesh: box,
-                        material: renderer.CreateMaterial(
-                            MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
-                        ),
-                        position: face - inward * 0.5f,
-                        // The box's x turns onto the inward normal.
-                        rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan(tanHalfX)),
-                        scale: new(1, 20, 8),
-                        radius: 11
-                    )
-                );
-            }
+            // From the eye to 8 m along the side plane, past the measured floor's 6.5 m.
+            Vector3 face = along * 4 - inward * 0.02f;
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: renderer.CreateMaterial(
+                        MaterialDesc.Color(new(x: 0.9f, y: 0.05f, z: 0.05f, w: 1), roughness: 0.8f)
+                    ),
+                    position: face - inward * 0.5f,
+                    // The box's x turns onto the inward normal.
+                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan(tanHalfX)),
+                    scale: new(1, 20, 8),
+                    radius: 11
+                )
+            );
 
             renderer.Render(snapshot, 1f);
             Vector2[] measured =
@@ -255,7 +257,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     PixelOf(new(-tanHalfX * depth + 0.3f, FloorHeight, -depth), Quaternion.Identity)
                 ),
             ];
-            return (renderer.ReadEstimate(), measured);
+            return (renderer.ReadEstimate(), renderer.ReadDirect(), measured);
         }
         finally
         {

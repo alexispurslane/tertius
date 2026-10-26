@@ -25,7 +25,7 @@
 
 // How a view samples the sun's shadow maps (docs/plans/environment-map.md, "The sun's shadow maps in a face").
 const uint SunShadowsNone = 0u;       // far shadows only: the impostor capture
-const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the lighting and transparent passes, the lit puffs
+const uint SunShadowsMainView = 1u;   // the cascades by view depth with their blend bands: the direct and transparent passes, the lit puffs
 const uint SunShadowsHolding = 2u;    // the finest cascade whose box holds the point: the environment faces
 
 struct ShadingInput
