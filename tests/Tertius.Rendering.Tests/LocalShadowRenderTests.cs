@@ -91,9 +91,9 @@ public sealed class LocalShadowRenderTests
     /// </summary>
     private static Quaternion LookAt(Vector3 target, Vector3 upHint)
     {
-        Vector3 forward = Vector3.Normalize(target);
-        Vector3 right = Vector3.Normalize(Vector3.Cross(forward, upHint));
-        Vector3 up = Vector3.Cross(right, forward);
+        var forward = Vector3.Normalize(target);
+        var right = Vector3.Normalize(Vector3.Cross(forward, upHint));
+        var up = Vector3.Cross(right, forward);
         // Row-vector form: the rows are the images of the camera's x, y and z axes, and the camera looks down its −Z.
         var axes = new Matrix4x4(
             m11: right.X,
@@ -215,8 +215,8 @@ public sealed class LocalShadowRenderTests
         {
             var kit = Kit.Create(renderer);
             // The diagonal between +X and +Z, where the two faces meet, and the rod across it.
-            Vector3 diagonal = Vector3.Normalize(new(1, 0, 1));
-            Vector3 across = Vector3.Normalize(new(1, 0, -1));
+            var diagonal = Vector3.Normalize(new(1, 0, 1));
+            var across = Vector3.Normalize(new(1, 0, -1));
             Vector3 lamp = -(diagonal + Vector3.UnitY * 1.2f);
             Vector3 wall = lamp + diagonal * 4;
             Quaternion camera = LookAt(target: wall, upHint: Vector3.UnitY);
@@ -358,6 +358,64 @@ public sealed class LocalShadowRenderTests
 
             lit.Should().BeGreaterThan(Width * Height / 20, "the spot light lights a large patch of the floor");
             differing.Should().BeLessThanOrEqualTo(lit / 1000, "a lit floor that casts shadows must not shadow itself");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The upper-bound partner of <see cref="ALitFloorUnderASpotLightHasNoAcne"/>: a thin caster resting on the floor still
+    /// shadows the floor one texel behind its base. Each case puts the caster's face that the light sees steep to it, where
+    /// the slope-scaled bias is largest: a wall 4 cm thick at 30 degrees, a plate 5 cm thick at 60. A bias of 4 instead of
+    /// 2.5, or a normal offset of 3 texels instead of 1, lights that floor.
+    /// </summary>
+    [Theory]
+    [InlineData(30f, 0.5f, 0.04f)]
+    [InlineData(60f, 0.05f, 0.5f)]
+    public void AShadowMeetsTheBaseOfAThinCasterOnTheFloor(float angleDegrees, float height, float depth)
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            float angle = angleDegrees * MathF.PI / 180;
+            // The camera looks steeply down at the floor 2 m below it, so a pixel there spans about one tile texel.
+            var center = new Vector3(0, -2, -1);
+            Vector3 spot = center + 4 * new Vector3(0, MathF.Cos(angle), -MathF.Sin(angle));
+            Quaternion camera = LookAt(target: center, upHint: Vector3.UnitY);
+            RenderSnapshot Scene(bool withCaster)
+            {
+                RenderSnapshot snapshot = Dark(camera);
+                snapshot.Lights.Add(ShadowingSpot(position: spot, direction: Vector3.Normalize(center - spot)));
+                snapshot.Instances.Add(kit.Floor(center: center, halfSize: 8));
+                if (withCaster)
+                    snapshot.Instances.Add(
+                        kit.Caster(center: center + new Vector3(0, height / 2, 0), size: new(1, height, depth))
+                    );
+                return snapshot;
+            }
+
+            renderer.Render(Scene(withCaster: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(withCaster: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            // The light comes from −Z, so the shadow falls toward the camera, at +Z. A texel of the default tile, 4 m from
+            // the light, as TheShadowsEdgeIsSoftOverTheFilter computes it.
+            float texel = 2 * MathF.Tan(0.6f) / (LocalShadowAtlas.Default.TileSize - 2 * ShadowTiles.MarginTexels) * 4;
+            Vector2 pixel = Gpu.Project(
+                point: center + new Vector3(0, 0, depth / 2 + texel),
+                cameraRotation: camera,
+                width: Width,
+                height: Height
+            );
+            int green = ((int)pixel.Y * Width + (int)pixel.X) * 4 + 1;
+            lit[green].Should().BeGreaterThan(0, "the spot light lights the floor there without the caster");
+            (shadowed[green] / lit[green])
+                .Should()
+                .BeLessThan(0.05f, "the caster hides the floor one texel behind its base from the spot light");
         }
         finally
         {
@@ -673,7 +731,7 @@ public sealed class LocalShadowRenderTests
                 float[] tile = renderer.ReadShadowTile(layer);
                 // Reversed-Z with an infinite far plane: depth = near / distance, with the near plane at 5 cm.
                 float boxFront = DepthRanges.NearPlane / (BoxDistance(layer) - 0.2f);
-                tile[(size / 2) * size + size / 2]
+                tile[size / 2 * size + size / 2]
                     .Should()
                     .BeApproximately(
                         boxFront,

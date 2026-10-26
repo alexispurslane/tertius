@@ -533,4 +533,40 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         chosen.Should().Equal((expectedLocalShadows, expectedCascadedLights));
     }
+
+    [Fact]
+    public void ARendererLikeAScriptedRunsExposesLightsAndShadowsTheSceneAsTheHeadlessRendererOfAScriptedRunDoes()
+    {
+        // The Host tests read a demo scene through GpuTesting.LikeAScriptedRun, so its light must reach each surface as
+        // in a scripted run: a lamp that casts shadows must not light the far side of a wall in one and not the other.
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<(object? Exposure, object? EnvironmentMap, object? LocalShadows, int CascadedLights)>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add(
+                    (
+                        options.Exposure.Value,
+                        options.EnvironmentMap.Value,
+                        options.LocalShadows.Value,
+                        options.CascadedLights
+                    )
+                );
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        RendererOptions like = LikeAScriptedRunOptions(width: 160, height: 90);
+        chosen
+            .Should()
+            .Equal((like.Exposure.Value, like.EnvironmentMap.Value, like.LocalShadows.Value, like.CascadedLights));
+    }
 }

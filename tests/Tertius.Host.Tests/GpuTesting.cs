@@ -102,29 +102,30 @@ public static class GpuTesting
         );
 
     /// <summary>
-    /// A validating headless renderer that shows a demo scene in SI units as a scripted run does: under the automatic
-    /// exposure, which a still after a long step shows settled, and with the environment map, which lights a cabin from
-    /// what lies around the camera. The hemisphere ambient light, sized for open space or daylight, would light a cabin
-    /// far more than its lamps, which send about 10⁻⁴ of the sunlight. The other passes are off, as in
-    /// <see cref="Headless"/>.
+    /// A validating headless renderer that shows a demo scene in SI units as a scripted run does: with the renderer's
+    /// default automatic exposure, environment map and shadows, so that a still after a long step shows the exposure
+    /// settled, the map lights a cabin from what lies around the camera, and a lamp that casts shadows lights no far side
+    /// of a wall. The other passes are off, as in <see cref="Headless"/>.
     /// </summary>
     public static VulkanRenderer LikeAScriptedRun(int width, int height) =>
-        VulkanRenderer.CreateHeadless(
-            new()
-            {
-                Validation = true,
-                Width = width,
-                Height = height,
-                Impostors = false,
-                AmbientOcclusion = new NoAmbientOcclusion(),
-                Exposure = AutoExposure.Default,
-                Bloom = new NoBloom(),
-                AntiAliasing = AntiAliasing.None,
-                LocalShadows = new NoLocalShadows(),
-                Reflections = new NoReflections(),
-                EnvironmentMap = SceneEnvironmentMap.Default,
-            }
-        );
+        VulkanRenderer.CreateHeadless(LikeAScriptedRunOptions(width, height));
+
+    /// <summary>
+    /// The options of <see cref="LikeAScriptedRun"/>: a scripted run's, which keep the renderer's defaults, with the
+    /// passes that the tests leave out turned off.
+    /// </summary>
+    public static RendererOptions LikeAScriptedRunOptions(int width, int height) =>
+        new()
+        {
+            Validation = true,
+            Width = width,
+            Height = height,
+            Impostors = false,
+            AmbientOcclusion = new NoAmbientOcclusion(),
+            Bloom = new NoBloom(),
+            AntiAliasing = AntiAliasing.None,
+            Reflections = new NoReflections(),
+        };
 
     private static DQuaternion TurnAboutY(double degrees) =>
         DQuaternion.FromAxisAngle(new(0, 1, 0), degrees * Math.PI / 180);

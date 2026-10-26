@@ -3,22 +3,16 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Renders the stale tiles of the near lights into the local shadow atlas (stage <see cref="FrameGraph.Stage.ShadowMaps"/>,
-/// after the cascades; docs/plans/local-light-shadows.md, "Point and spot light shadows").
+/// Renders the stale tiles of the near lights into the local shadow atlas, after the cascades in
+/// <see cref="FrameGraph.Stage.ShadowMaps"/>, and writes every tile view of the frame. A cached tile draws nothing. The
+/// pipeline, the bias and the casters' commands: ARCHITECTURE.md, "Local shadows".
 /// </summary>
-/// <remarks>
-/// <para><see cref="Prepare"/> runs on the CPU. <see cref="ShadowTiles.Update"/> gives the near lights their tiles and
-/// slots and says which views are stale, with their casters in mesh order. The pass writes every view of the frame into
-/// <see cref="PreparedScene.ShadowTiles"/>, and appends each stale view's casters to the frame's instance buffer with one
-/// indirect command per run of one mesh. A cached view draws nothing.</para>
-/// <para><see cref="Record"/> clears each stale view's layer and draws its casters with the depth-only pipeline of the
-/// cascades: depth clamping pancakes a caster nearer than the near plane onto it, and faces are not culled. Its
-/// slope-scaled bias is <see cref="SlopeBias"/>, larger than the cascades', because a tile's lookup has no receiver-plane
-/// term. The other layers keep what earlier frames drew.</para>
-/// </remarks>
 internal sealed unsafe class LocalShadowPass : RenderPass
 {
-    /// <summary>The casters' slope-scaled depth bias, in multiples of their largest depth change per texel.</summary>
+    /// <summary>
+    /// The casters' slope-scaled depth bias, in multiples of their largest depth change per texel, measured between acne
+    /// and shadows that leave their casters (docs/plans/local-light-shadows.md, decision 33).
+    /// </summary>
     public const float SlopeBias = 2.5f;
 
     private readonly VulkanDevice device;

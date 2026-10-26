@@ -262,12 +262,13 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     /// <summary>
     /// The first and the last column of <paramref name="image"/> with a pixel whose channels add up to less than 100,
     /// between rows 300 and 470, and from column <paramref name="from"/> up to column <paramref name="to"/>. Those rows lie
-    /// inside the hull's port face, which Earth lights to about 290. Only what the lamps alone light is that dark there:
+    /// inside the hull's port face, which Earth lights to about 290. Only what Earth does not light is that dark there:
     /// the top of the hatch's sill, which reaches the port face, and the chamber's floor beyond it, which shows through
-    /// the open hatch. The lamps send less than a thousandth of the light of sunlit Earth (docs/plans/local-light-shadows.md,
-    /// Part 5). The windows of the port wall show the cabin too, so the columns must leave them out.
+    /// the open hatch. The cabin's lamps cast shadows, so the chamber's walls and its shut inner door keep their light out
+    /// (docs/plans/local-light-shadows.md, Part 6). The windows of the port wall show the cabin too, so the columns must
+    /// leave them out.
     /// </summary>
-    private static (int First, int Last) LampLitThroughTheHatch(Png image, int from, int to)
+    private static (int First, int Last) DarkThroughTheHatch(Png image, int from, int to)
     {
         int first = image.Width,
             last = -1;
@@ -300,7 +301,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         // within 2.5 m of the image's middle column.
         int reach = (int)Math.Round(2.5 * pixelsPerMeter);
         (int rows, int columns) = ShipExtent(image);
-        (int first, int last) = LampLitThroughTheHatch(image, image.Width / 2 - reach, image.Width / 2 + reach);
+        (int first, int last) = DarkThroughTheHatch(image, image.Width / 2 - reach, image.Width / 2 + reach);
 
         distance.Should().BeLessThan(15, "the person passed into earth close to the ship");
         rows.Should().BeCloseTo((int)Math.Round(8 * pixelsPerMeter), 2, "the hull is 8 m tall");

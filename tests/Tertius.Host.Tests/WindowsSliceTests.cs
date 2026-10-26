@@ -80,18 +80,20 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
     }
 
     [Fact]
-    public void FromOutsideTheEarthLitPortFaceOutshinesTheLampLitCabinThroughAPortPane()
+    public void FromOutsideTheEarthLitPortFaceOutshinesTheCabinFloorThatShowsThroughAPortPaneInEarthsBlue()
     {
         // The person drifts 5.4 m outside the port wall, a little above the hatch, and looks back at the window 4 m forward
         // of the hatch, 33 degrees to the left of the hatch and 5 degrees down. The sun stands straight above the ship, so
-        // it does not light the port face, but Earth below does, in its blue. Through the pane, across the cabin, the lamps
-        // light the starboard wall and the floor. The window spans rows 296 to 410 and columns 537 to 686. The starboard
-        // wall shows above row 352, and the floor below row 355.
+        // it does not light the port face, but Earth below does, in its blue. Through the pane the person sees across the
+        // cabin. The window spans rows 296 to 410 and columns 537 to 686. The starboard wall shows above row 352, and the
+        // floor below row 355.
         //
         // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the lamps send less than a
         // thousandth of the light of sunlit Earth, so at the exposure that the Earth-lit hull sets the cabin floor through the
         // pane shows far darker than the port face, as a window does by day. Before, the lamps sent 10 times the sunlight
-        // and the cabin showed brighter than the dark port face.
+        // and the cabin showed brighter than the dark port face. What shows of the floor is the environment map's light,
+        // Earth's blue seen from the camera, far more than the lamps' light there. So a floor in that blue, not
+        // black, shows that the pane lets the cabin through.
         //
         // Changed on purpose by ter-1b21 (the user's fork F6, 2026-10-20): a standing person walks in the plane of every
         // walkable face that Jolt reports, the faces of moving bodies included. While the inner door opens, the person
@@ -117,11 +119,14 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
         (hull.b > hull.r + 60)
             .Should()
             .BeTrue($"Earth's blue light shows on the port face above the window, not {hull}");
+        (floor.b > 40 && floor.b > floor.r + 30)
+            .Should()
+            .BeTrue($"the cabin floor shows through the pane in Earth's blue, not {floor}");
         (floor.r + floor.g + floor.b)
             .Should()
             .BeLessThan(
                 (hull.r + hull.g + hull.b) / 2,
-                $"the lamp-lit floor {floor} shows darker through the pane than the Earth-lit port face {hull}"
+                $"the cabin floor {floor} shows darker through the pane than the Earth-lit port face {hull}"
             );
     }
 

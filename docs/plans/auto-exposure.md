@@ -185,7 +185,7 @@ The compensation adds to the lower of the two targets, and the clamp applies aft
 
 The lights plan set the clamp to −14 to +10 when the scenes moved to SI units ([local-light-shadows.md](local-light-shadows.md), decision 42). The two rows of the clamp above give the reasons in today's units, before that move.
 
-The lights plan moves every scene to SI units, where a sunlit surface wants about −10 stops and a dim room about +7. It sets the clamp's defaults again then. The last part of this ticket checks the trims and the clamp in the screenshots.
+In SI units, the captures of that move (local-light-shadows.md, Part 5) settled sunlit hulls at −8 to −9.1 stops, lamp-lit cabins at −2 to +4 stops, and the ship in Earth's umbra at +9.9 stops, all inside the new clamp. Since the lamps cast shadows (Part 6), the airlock's chamber, which the cabin's lamps light only through its open inner doorway, settles at +3.7 to +5.5 stops in the `airlock` script's captures.
 
 ### Sources
 

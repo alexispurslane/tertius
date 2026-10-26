@@ -60,6 +60,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SmaaBindings = 6;
 
     /// <summary>
+    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 14 and 15, which the vertex and fragment stages
+    /// all see.
+    /// </summary>
+    public const uint FrameSetStorageBuffers = 9;
+
+    /// <summary>
     /// The pyramid level sets of the largest pyramids: levels 1 to 14 of the depth pyramid and 0 to 14 of the radiance
     /// pyramid, for a 16,384 px side (<see cref="DepthPyramid.MaxLevels"/>).
     /// </summary>
@@ -75,15 +81,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private readonly DescriptorPool pool;
     private readonly DescriptorPool texturePool;
 
-    /// <summary>The storage image descriptors of each set layout that this object made, by handle.</summary>
-    private readonly Dictionary<ulong, uint> setStorageImages = [];
+    /// <summary>The storage descriptors of each set layout that this object made, by handle.</summary>
+    private readonly Dictionary<ulong, StorageDescriptors> setStorage = [];
 
-    /// <summary>The storage image descriptors of each pipeline layout that this object made, by handle.</summary>
-    private readonly Dictionary<ulong, uint> layoutStorageImages = [];
+    /// <summary>The storage descriptors of each pipeline layout that this object made, by handle.</summary>
+    private readonly Dictionary<ulong, StorageDescriptors> layoutStorage = [];
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
+    /// <exception cref="NotSupportedException">The device's stages see fewer storage buffers than the frame set holds.</exception>
     public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
     {
+        if (StorageBufferProblem(device.Properties.Limits.MaxPerStageDescriptorStorageBuffers) is { } storageBuffers)
+            throw new NotSupportedException($"{storageBuffers} ({device.DeviceName})");
         this.device = device;
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         PointSampler = CreateLevelZeroSampler(Filter.Nearest, "point sampler");
@@ -285,7 +294,23 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// The storage image descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
     /// count that the device limits of docs/plans/environment-map.md, "Portable Vulkan", bound.
     /// </summary>
-    public uint StorageImagesOf(PipelineLayout layout) => layoutStorageImages[layout.Handle];
+    public uint StorageImagesOf(PipelineLayout layout) => layoutStorage[layout.Handle].Images;
+
+    /// <summary>
+    /// The storage buffer descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
+    /// count that maxPerStageDescriptorStorageBuffers bounds.
+    /// </summary>
+    public uint StorageBuffersOf(PipelineLayout layout) => layoutStorage[layout.Handle].Buffers;
+
+    /// <summary>
+    /// Why a device that binds at most <paramref name="maxPerStageStorageBuffers"/> storage buffers in one shader stage
+    /// cannot bind the frame set, or null when it can: its vertex and fragment stages see
+    /// <see cref="FrameSetStorageBuffers"/>, and Vulkan guarantees only 4.
+    /// </summary>
+    internal static string? StorageBufferProblem(uint maxPerStageStorageBuffers) =>
+        maxPerStageStorageBuffers < FrameSetStorageBuffers
+            ? $"The frame set binds {FrameSetStorageBuffers} storage buffers in the vertex and fragment stages, above the device's maxPerStageDescriptorStorageBuffers of {maxPerStageStorageBuffers}."
+            : null;
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
@@ -610,8 +635,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            // Nine per frame set, the two of the exposure set and the one of the prefilter set.
-            new(DescriptorType.StorageBuffer, 9 * frames + 3),
+            // Those of each frame set, the two of the exposure set and the one of the prefilter set.
+            new(DescriptorType.StorageBuffer, FrameSetStorageBuffers * frames + 3),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
@@ -984,11 +1009,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 )
                 .Check("vkCreateDescriptorSetLayout");
             device.SetName(ObjectType.DescriptorSetLayout, layout.Handle, name);
-            uint storageImages = 0;
+            var storage = default(StorageDescriptors);
             foreach (DescriptorSetLayoutBinding binding in bindings)
-                if (binding.DescriptorType == DescriptorType.StorageImage)
-                    storageImages += binding.DescriptorCount;
-            setStorageImages[layout.Handle] = storageImages;
+                storage = storage.With(binding);
+            setStorage[layout.Handle] = storage;
             return layout;
         }
     }
@@ -1022,10 +1046,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 .Check("vkCreatePipelineLayout");
         }
         device.SetName(ObjectType.PipelineLayout, layout.Handle, name);
-        uint storageImages = 0;
+        var storage = default(StorageDescriptors);
         foreach (DescriptorSetLayout set in sets)
-            storageImages += setStorageImages[set.Handle];
-        layoutStorageImages[layout.Handle] = storageImages;
+            storage = storage.Plus(setStorage[set.Handle]);
+        layoutStorage[layout.Handle] = storage;
         return layout;
     }
 
@@ -1113,4 +1137,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroySampler(device.Device, EnvironmentSampler, null);
         vk.DestroySampler(device.Device, PointSampler, null);
     }
+}
+
+/// <summary>The storage image and storage buffer descriptors of a set layout or a pipeline layout.</summary>
+internal readonly record struct StorageDescriptors(uint Images, uint Buffers)
+{
+    /// <summary>These descriptors and those of <paramref name="binding"/>.</summary>
+    public StorageDescriptors With(in DescriptorSetLayoutBinding binding) =>
+        binding.DescriptorType switch
+        {
+            DescriptorType.StorageImage => this with { Images = Images + binding.DescriptorCount },
+            DescriptorType.StorageBuffer => this with { Buffers = Buffers + binding.DescriptorCount },
+            _ => this,
+        };
+
+    /// <summary>These descriptors and <paramref name="other"/>.</summary>
+    public StorageDescriptors Plus(StorageDescriptors other) => new(Images + other.Images, Buffers + other.Buffers);
 }
