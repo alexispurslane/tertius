@@ -1,4 +1,4 @@
-# The head gear: the comm cap ("Snoopy cap") with its microphones, the irises of the eyes, and the helmet. The
+# The head gear: the comm cap ("Snoopy cap") with its microphones, and the helmet. The
 # helmet is a clear bubble that sits on the neck ring of s30_hardware.py, a hard outer shell over its top, back
 # and sides (the extravehicular visor assembly), a gold sun visor raised to the brow, and two helmet lamps.
 #
@@ -199,15 +199,6 @@ for sign in (1, -1):
     headset.tube([tuple(ear + Vector((0, -0.01, -0.01))), tuple(mouth + Vector((sign * 0.03, 0.02, 0.0))),
                   tuple(mouth)], 0.0035, segs=8, bend=0.03)
 headset.finish("Headset", M["M_Headset"], "Body", smooth_angle=60.0)
-
-# --- Irises: a dark disc on the front of each eyeball, looking ahead. --------------------------------------------
-irises = MB()
-for sign in (1, -1):
-    one = eyes[eyes[:, 0] * sign > 0]
-    c = one.mean(axis=0)
-    radius = np.linalg.norm(one - c, axis=1).max()
-    irises.cyl(tuple(c + np.array((0.0, -radius + 0.0008, 0.0))), (0, -1, 0), radius * 0.5, 0.0016, segs=20)
-irises.finish("Irises", M["M_Iris"], "Body", smooth_angle=40.0)
 
 result = {"center": [round(float(c), 3) for c in C], "radius": R, "eye_elevation_deg": round(math.degrees(e_eye), 1),
           "head_top_clearance": round(float((C + R * axis)[2] - hi[2]), 3),

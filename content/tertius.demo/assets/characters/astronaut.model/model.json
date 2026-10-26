@@ -15,13 +15,23 @@
   "seed": 1969,
   "parameters": {
     "human": {
-      "gender": 0.8,
-      "age": 0.55,
-      "muscle": 0.6,
-      "weight": 0.55,
-      "proportions": 0.75,
-      "height": 0.6,
-      "race": {"african": 0.2, "asian": 0.2, "caucasian": 0.6}
+      "phenotype": {
+        "gender": 0.8,
+        "age": 0.55,
+        "muscle": 0.6,
+        "weight": 0.55,
+        "proportions": 0.75,
+        "height": 0.6,
+        "race": {"african": 0.2, "asian": 0.2, "caucasian": 0.6}
+      },
+      "rig": "game_engine",
+      "skin_mhmat": "middleage_caucasian_male/middleage_caucasian_male.mhmat",
+      "skin_material_type": "MAKESKIN",
+      "eyes": "high-poly/high-poly.mhclo",
+      "eyebrows": "eyebrow002/eyebrow002.mhclo",
+      "eyelashes": "eyelashes02/eyelashes02.mhclo",
+      "teeth": "teeth_base/teeth_base.mhclo",
+      "tongue": "tongue01/tongue01.mhclo"
     },
     "suit": {
       "sole": 0.035,
@@ -130,7 +140,7 @@
       "dcm_size": [0.27, 0.12, 0.13],
       "dcm_below_neck": 0.28,
       "dcm_sink": 0.035,
-      "hose_clearance": 0.035,
+      "hose_clearance": 0.022,
       "hose_radius": 0.016,
       "hose_drop": 0.13,
       "checklist": {"t": 0.55, "sink": 0.006, "size": [0.08, 0.11, 0.014]}
@@ -159,7 +169,38 @@
         "color_alt": [0.8, 0.8, 0.79]
       }
     },
-    "pose": {"finger_curl_deg": [18, 28, 18], "curl_sign": {"l": 1, "r": -1}}
+    "pose": {
+      "index_01_l": [18, 0, 0],
+      "index_01_r": [18, 0, 0],
+      "index_02_l": [28, 0, 0],
+      "index_02_r": [28, 0, 0],
+      "index_03_l": [18, 0, 0],
+      "index_03_r": [18, 0, 0],
+      "lowerarm_l": [8, 0, 0],
+      "lowerarm_r": [8, 0, 0],
+      "middle_01_l": [18, 0, 0],
+      "middle_01_r": [18, 0, 0],
+      "middle_02_l": [28, 0, 0],
+      "middle_02_r": [28, 0, 0],
+      "middle_03_l": [18, 0, 0],
+      "middle_03_r": [18, 0, 0],
+      "pinky_01_l": [18, 0, 0],
+      "pinky_01_r": [18, 0, 0],
+      "pinky_02_l": [28, 0, 0],
+      "pinky_02_r": [28, 0, 0],
+      "pinky_03_l": [18, 0, 0],
+      "pinky_03_r": [18, 0, 0],
+      "ring_01_l": [18, 0, 0],
+      "ring_01_r": [18, 0, 0],
+      "ring_02_l": [28, 0, 0],
+      "ring_02_r": [28, 0, 0],
+      "ring_03_l": [18, 0, 0],
+      "ring_03_r": [18, 0, 0],
+      "thumb_02_l": [10, 0, 0],
+      "thumb_02_r": [10, 0, 0],
+      "upperarm_l": [4, 0, -8],
+      "upperarm_r": [4, 0, 8]
+    }
   },
   "views": {
     "resolution": [1920, 1080],

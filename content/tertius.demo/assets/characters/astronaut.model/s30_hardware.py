@@ -11,6 +11,7 @@ import math
 import bpy
 import numpy as np
 
+from tertius_blender import mpfb
 from tertius_blender.geometry import MB
 
 P = model.params["hardware"]
@@ -139,8 +140,11 @@ report["neck_center"] = [round(float(c), 3) for c in nc]
 waist = P["waist_ring"]
 wz = np.array((0.0, 0.0, J["pelvis"][2] + waist["above_pelvis"]))
 up = np.array((0.0, 0.0, 1.0))
-wc = centroid(SUIT, wz, up, 0.02, waist["reach"])
-wr = section(SUIT, wc, up, 0.03, waist["reach"])
+# Only the trunk: the arms hang beside the waist.
+trunk = SUIT[np.abs(SUIT[:, 2] - wz[2]) < 0.06]
+trunk = trunk[np.array(mpfb.bone_weights(bpy.data.objects["Body"], trunk, mpfb.ARM_BONES)) < 0.5]
+wc = centroid(trunk, wz, up, 0.02, waist["reach"])
+wr = section(trunk, wc, up, 0.03, waist["reach"])
 band(metal, wc, up, rounded(-waist["height"] / 2, waist["height"] / 2, 0, -0.02, 0, waist["out"]), [wr])
 band(red, wc, up, rounded(-0.006, 0.006, 0, 0.0, 0, waist["out"] + 0.004, r=0.002), [wr])
 report["waist_radius"] = [round(float(wr.min()), 3), round(float(wr.max()), 3)]

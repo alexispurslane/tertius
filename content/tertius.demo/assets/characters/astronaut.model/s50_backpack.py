@@ -9,6 +9,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
+from tertius_blender import mpfb
 from tertius_blender.geometry import MB, beam, frame_matrix, rod
 
 P = model.params["backpack"]
@@ -85,10 +86,11 @@ hoses = MB()
 for sign in (1, -1):
     start = Vector((sign * (cw / 2 + 0.01), cy + 0.01, cz - 0.02))
     hz = cz - P["hose_drop"]
-    rel = SUIT[(np.abs(SUIT[:, 2] - hz) < 0.02) & (np.abs(SUIT[:, 0]) < 0.32) & (np.abs(SUIT[:, 1]) < 0.06)]
-    side_x = float(np.abs(rel[:, 0]).max())
-    front_x = float(np.abs(SUIT[(np.abs(SUIT[:, 2] - hz) < 0.02) & (np.abs(SUIT[:, 0]) < 0.32)
-                                & (SUIT[:, 1] < -0.1)][:, 0]).max())
+    # The trunk at the height of the hoses, without the arms that hang beside it: the hoses pass between the two.
+    level = SUIT[(np.abs(SUIT[:, 2] - hz) < 0.02) & (np.abs(SUIT[:, 0]) < 0.32)]
+    level = level[np.array(mpfb.bone_weights(bpy.data.objects["Body"], level, mpfb.ARM_BONES)) < 0.5]
+    side_x = float(np.abs(level[np.abs(level[:, 1]) < 0.06][:, 0]).max())
+    front_x = float(np.abs(level[level[:, 1] < -0.1][:, 0]).max())
     pts = [start, start + Vector((sign * 0.05, 0.0, -0.02)),
            Vector((sign * (front_x + P["hose_clearance"]), cy + 0.06, hz)),
            Vector((sign * (side_x + P["hose_clearance"]), 0.0, hz)),

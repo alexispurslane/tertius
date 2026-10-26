@@ -2,7 +2,7 @@
 # s70_materials.py gives the baked materials their node trees. Later scripts take each material by its name.
 #
 # The frame: meters, +Z up, the front of the person toward -Y, so the person's right hand is at -X. The origin is
-# on the ground between the boots. s10_body.py makes the human body from the MakeHuman data of MPFB, and the suit,
+# on the ground between the boots. s10_body.py makes the human body with MPFB's own code, and the suit,
 # helmet, gloves, boots and backpack of the later scripts fit around that body.
 import bpy
 
@@ -13,9 +13,6 @@ for name in ("Body", "Suit", "Helmet", "Backpack"):
     coll(name)
 
 MATS = {
-    "M_Skin": ((0.62, 0.42, 0.33), 0.0, 0.5),
-    "M_Eye": ((0.85, 0.85, 0.82), 0.0, 0.15),
-    "M_Iris": ((0.10, 0.06, 0.035), 0.0, 0.15),
     "M_Cap": ((0.80, 0.79, 0.76), 0.0, 0.8),
     "M_Headset": ((0.10, 0.10, 0.11), 0.2, 0.5),
     "M_Suit": ((0.85, 0.85, 0.82), 0.0, 0.8),

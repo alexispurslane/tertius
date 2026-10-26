@@ -10,6 +10,7 @@
 import json
 import math
 
+import bmesh
 import bpy
 import numpy as np
 from mathutils import Vector
@@ -187,9 +188,19 @@ for s in "lr":
     in_boot |= leg & (z < ankle_z[s] + P["boot_top"])
 
 # --- Head ---------------------------------------------------------------------------------------------------------
-head_faces = faces_where(z > head_cut)
-hp, hq, _ = submesh(head_faces)
-head = finish("Head", hp, hq, "M_Skin", "Body", smooth_angle=80.0)
+# A copy of Body with only the faces above the neck cut, so it keeps MPFB's UV map and skin material.
+head_faces = set(faces_where(z > head_cut))
+head = body.copy()
+head.data = body.data.copy()
+head.name = head.data.name = "Head"
+head.vertex_groups.clear()
+bpy.data.collections["Body"].objects.link(head)
+bm = bmesh.new()
+bm.from_mesh(head.data)
+bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in head_faces], context="FACES")
+bm.to_mesh(head.data)
+bm.free()
 
 # --- Suit ---------------------------------------------------------------------------------------------------------
 suit_faces = faces_where((z < head_cut + P["collar_overlap"]) & ~in_hand & ~in_foot)
