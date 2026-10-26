@@ -43,8 +43,8 @@ namespace Tertius.Rendering;
 /// <item><term>depth tail</term><description>set 3 of <see cref="DepthTailLayout"/> for the tail of the depth pyramid's
 /// build: the mip before the tail and the tail's mips. One, rewritten on resize.</description></item>
 /// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
-/// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image as a storage image at
-/// binding 4, for the trace and the upsample. One, rewritten on resize.</description></item>
+/// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image and the hit depth image
+/// as storage images at bindings 4 and 5, for the trace and the upsample. One, rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
@@ -260,7 +260,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The trace's set: the depth pyramid and the radiance pyramid, sampled with all their mips (bindings 0 and 1),
     /// <see cref="AtlasSampler"/> (binding 2, immutable), the HDR image as a storage image (binding 3), and the
-    /// half-resolution trace as a storage image (binding 4), written only when the trace runs at half resolution.
+    /// half-resolution trace and its hit depths as storage images (bindings 4 and 5), written only at half resolution.
     /// </summary>
     public DescriptorSetLayout ReflectionSet { get; }
 
@@ -613,8 +613,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // depth tail set, two for the reflection set and one for the prefilter set.
             new(DescriptorType.SampledImage, 18 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
             // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
-            // set's mips, two for the reflection set and one per environment level set.
-            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 2 + EnvironmentLevelSets),
+            // set's mips, three for the reflection set and one per environment level set.
+            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 3 + EnvironmentLevelSets),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
@@ -741,6 +741,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ImmutableSampler(binding: 2, stages: ShaderStageFlags.ComputeBit, sampler: &mipSampler),
             StorageImage(binding: 3),
             StorageImage(binding: 4),
+            StorageImage(binding: 5),
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -49,6 +51,36 @@ public sealed class ReflectionConeTests
         ReflectionCone.OfRoughness(0).Should().Be(floor);
         floor.TanHalfAngle.Should().BeApproximately(0.0036f, 1e-4f);
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void AMirrorsConeReachesTheRayOfTheNextTexelAtTheHit(int texelSide)
+    {
+        // A curved mirror: d moves by four pixel angles from one pixel to the next, so by texelSide times that, as a
+        // chord of unit vectors, to the next texel's ray.
+        const float footprint = 4 * PixelAngle,
+            rayLength = 3,
+            hitDistance = 6;
+        float chord = texelSide * footprint;
+        float turn = 2 * MathF.Asin(chord / 2);
+        Vector3 direction = Vector3.UnitZ;
+        var next = new Vector3(x: MathF.Sin(turn), y: 0, z: MathF.Cos(turn));
+        float gapPixels = (rayLength * next - rayLength * direction).Length() / (hitDistance * PixelAngle);
+
+        float level = ReflectionCone
+            .Of(roughness: 0, footprint: footprint, texelSide: texelSide)
+            .Level(rayLength: rayLength, hitDistance: hitDistance, pixelAngle: PixelAngle, topLevel: TopLevel);
+
+        level.Should().BeApproximately(MathF.Log2(gapPixels), 1e-3f, "the cone's radius at the hit is the gap");
+    }
+
+    [Fact]
+    public void ARoughSurfacesConeKeepsItsRoughnessSpreadWhereThatIsTheLarger() =>
+        ReflectionCone
+            .Of(roughness: 0.2f, footprint: 4 * PixelAngle, texelSide: 2)
+            .Should()
+            .Be(ReflectionCone.OfRoughness(0.2f), "0.07 of spread from the lobe passes 0.008 from the next ray");
 
     [Fact]
     public void AFootprintOfOnePixelOrLessReadsLevelZero()

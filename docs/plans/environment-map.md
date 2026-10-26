@@ -84,7 +84,7 @@ Settled by this design:
 30. With the map on, the G-buffer pass writes 0 into the alphas that hold the two sky shares, and the transparent pass and the impostor capture skip them. Only the hemisphere reads them. The lobe-sky table stays uploaded and unread, because it is 4 KB and the map can be off in another renderer of the same process.
 31. The reflected stars and the sky pixels share one star set with one definition: the same cells, positions, brightness, tint and light per star (`starOfCell` in `sky.glsl`). The sky pixels keep evaluating the one cell that holds their direction, as today, so the sky looks the same and the six reference images keep their bits. The reflected stars evaluate the 27 cells around d, because the roughness floor's lobe spreads a star over 0.6 of a cell, and one cell cuts it. So a star within about two pixels of its cell's edge is cut in the sky and whole in a mirror.
 32. The stars stay out of the diffuse term and out of the lit puffs' mean. Their diffuse radiance is at most M ≈ 6 · 10⁻⁴ at 1080p. That is under 1/1300 of what a white matte surface sends in the orbit sunlight, 2.5 / π ≈ 0.8, and 1/50 of today's fill in space, 0.03. The irradiance buffer's w components stay 0. They can carry the projection of the open-sky share if a later ticket wants the stars' light in the diffuse term.
-33. The reflection's footprint f is how far d moves to the next pixel, at least p. A forward fragment shader takes it from the screen derivatives of d. The lighting pass and the pass that adds SSR's delta (the full-resolution trace, or the upsample at half resolution) take it from the G-buffer, by one function, so that the delta takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
+33. The reflection's footprint f is how far d moves to the next pixel, at least p. In the G-buffer it is the smaller of the steps to the next and to the previous pixel along each axis, so that a crease or a seam on one side does not count (ticket `ter-cuf9`). A forward fragment shader takes it from the screen derivatives of d. The lighting pass and the pass that adds SSR's delta (the full-resolution trace, or the upsample at half resolution) take it from the G-buffer, by one function, so that the delta takes away the very term that the lighting pass added (the merge review, 2026-10-25: with f = p in the trace, a curved mirror's hits on a neighbor showed dips of single stars). A reflected star then spans at least one pixel, so it never falls between two pixels, and its light on the screen is the same at every position between pixels.
 34. The map is written to the Vulkan specification, so it runs on regular Vulkan on Linux, not only on MoltenVK (User, a project rule of 2026-10-25). Its formats, limits and features are ones that the specification guarantees or that the renderer already requires, it relies on no Metal-only behavior, and it keeps NaN and infinity out by construction. See "Portable Vulkan".
 
 ## The capture
@@ -497,11 +497,15 @@ The lighting pass and SSR's passes read a lit pixel only through `surfaceAt` (`g
 float reflectionFootprintAt(ivec2 pixel)
 {
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
-    int nextX = pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0);
-    int nextY = pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0);
+    ivec2 next = ivec2(pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0),
+        pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0));
+    ivec2 previous = ivec2(pixel.x > 0 ? pixel.x - 1 : min(pixel.x + 1, last.x),
+        pixel.y > 0 ? pixel.y - 1 : min(pixel.y + 1, last.y));
     vec3 d = dominantDirectionAt(pixel);
-    float alongX = length(dominantDirectionAt(ivec2(nextX, pixel.y)) - d);
-    float alongY = length(dominantDirectionAt(ivec2(pixel.x, nextY)) - d);
+    float alongX = min(length(dominantDirectionAt(ivec2(next.x, pixel.y)) - d),
+        length(dominantDirectionAt(ivec2(previous.x, pixel.y)) - d));
+    float alongY = min(length(dominantDirectionAt(ivec2(pixel.x, next.y)) - d),
+        length(dominantDirectionAt(ivec2(pixel.x, previous.y)) - d));
     return max(frame.params.z, max(alongX, alongY));
 }
 ```
@@ -509,10 +513,10 @@ float reflectionFootprintAt(ivec2 pixel)
 where
 
 - `dominantDirectionAt(pixel)` = d at a pixel: a surface's dominant direction for the view ray through the pixel's center, and a sky pixel's view ray.
-- `nextX`, `nextY` = the next pixel in x and in y, or the pixel before it in the image's last column or row.
-- `alongX`, `alongY` = how far d moves to those pixels, in rad.
+- `next`, `previous` = the next and the previous pixel in x and in y. In the image's last column or row the next pixel is the one before, and in its first the previous pixel is the one after.
+- `alongX`, `alongY` = how far d moves to the nearer of the two neighbors along each axis, in rad. A step across a crease, a seam or a silhouette measures the jump to another surface, so the smaller step keeps f at the rate of the pixel's own surface (ticket `ter-cuf9`).
 
-So the pass that adds SSR's delta, a compute shader (the full-resolution trace, or the upsample at half resolution), subtracts the same T_s that the lighting pass added at the pixel: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of two more pixels per lit pixel in each of the two passes, the lighting pass and the pass that adds the delta. The half-resolution trace reads no ambient light, so it never uses the footprint.
+So the pass that adds SSR's delta, a compute shader (the full-resolution trace, or the upsample at half resolution), subtracts the same T_s that the lighting pass added at the pixel: where the map sees open sky along d but the ray hits a neighbor, as on a curved mirror beside another object, no star is taken away that the lighting pass did not add. The footprint is the same on every driver, because it needs no derivatives, whose coarse or fine form a driver chooses. It costs the reads of the distance, the normal and the roughness of four more pixels per lit pixel in each of the passes that read a surface: the lighting pass, the pass that adds the delta, and the half-resolution trace. The half-resolution trace reads no ambient light, but its cone reads the footprint of its representative pixel (docs/plans/screen-space-reflections.md, "The cone").
 
 The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until the atmosphere ticket, `skyRadiance` is 0, so they are today's sky bit for bit.
 
@@ -1333,7 +1337,7 @@ internal sealed class EnvironmentMap : IDisposable
   // reflection_footprint.glsl, for fragment shaders only.
   float reflectionFootprint(vec3 d);                                        // max(p, |∂d/∂x|, |∂d/∂y|), in uniform control flow
   // gbuffer_surface.glsl, for the lighting pass and the pass that adds SSR's delta.
-  float reflectionFootprintAt(ivec2 pixel);                                 // max(p, |d(next x) − d|, |d(next y) − d|)
+  float reflectionFootprintAt(ivec2 pixel);                                 // max(p, min over the x neighbors, min over the y neighbors)
   ```
 
   `L` comes from `textureQueryLevels` of the specular map, so no other store holds it.

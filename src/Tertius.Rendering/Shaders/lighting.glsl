@@ -38,7 +38,7 @@ struct ShadingInput
     float reflectance;
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
-    float reflectionFootprint; // f, in rad, at least p: how far d moves to the next pixel, set by the caller
+    float reflectionFootprint; // f, in rad, at least p: how far d moves to a neighboring pixel, set by the caller
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
 };

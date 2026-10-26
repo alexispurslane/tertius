@@ -27,6 +27,12 @@ public sealed class ReflectionShaderTests
     /// </summary>
     private const float CheckeredGray = 1;
 
+    /// <summary>
+    /// How many pixels around a hit the half trace's cone draws on over the mirror floor: its radius stays under 2 pixels,
+    /// so it reads at most level 1, whose 13-tap texels, read bilinearly, draw on 5 pixels around the read.
+    /// </summary>
+    private const int HalfTraceReach = 5;
+
     [Fact]
     public void TheGpuTraceReflectsThePixelThatTheCSharpTraceHits()
     {
@@ -45,7 +51,7 @@ public sealed class ReflectionShaderTests
             for (int x = 130; x < 510; x += 6)
             {
                 if (
-                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: (x, y))
+                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: (x, y), reach: 2)
                     is not { } hit
                 )
                     continue;
@@ -95,7 +101,14 @@ public sealed class ReflectionShaderTests
                 // The representative pixel of texel (i, j) is the top-left pixel of its 2 × 2 block.
                 (int X, int Y) representative = (X: 2 * i, Y: 2 * j);
                 if (
-                    TileHitOf(camera: camera, distance: distance, pyramid: pyramid, lit: lit, pixel: representative)
+                    TileHitOf(
+                        camera: camera,
+                        distance: distance,
+                        pyramid: pyramid,
+                        lit: lit,
+                        pixel: representative,
+                        reach: HalfTraceReach
+                    )
                     is not { } hit
                 )
                     continue;
@@ -130,6 +143,46 @@ public sealed class ReflectionShaderTests
     }
 
     [Fact]
+    public void EachTexelOfTheHalfResolutionTraceHoldsTheViewDepthOfItsRaysHit()
+    {
+        VulkanRenderer renderer = Headless(Reflections with { Resolution = TraceResolution.Half });
+        try
+        {
+            renderer.Render(TiledWall(renderer), 1f);
+            (float[] traced, int tracedWidth, int tracedHeight) = renderer.ReadReflectionTrace();
+            (float[] depths, int depthsWidth, int depthsHeight) = renderer.ReadReflectionHitDepths();
+
+            (depthsWidth, depthsHeight).Should().Be((tracedWidth, tracedHeight));
+            // The floor's rays can hit only the wall's front, which faces the eye at one view depth, while its pixels'
+            // distances from the eye grow toward its sides and its top. The texels below the row where the wall meets
+            // the floor show only the floor.
+            int firstFloorTexel = (PixelOf(new(0, FloorHeight, WallFront)).Y / 2 + 1) * depthsWidth;
+            int hits = 0;
+            for (int texel = firstFloorTexel; texel < depths.Length; texel++)
+            {
+                if (traced[4 * texel + 3] <= 0)
+                    continue;
+                depths[texel]
+                    .Should()
+                    .BeApproximately(
+                        -WallFront,
+                        1e-3f * -WallFront,
+                        "texel ({0}, {1}) hits the wall's front",
+                        texel % depthsWidth,
+                        texel / depthsWidth
+                    );
+                hits++;
+            }
+
+            hits.Should().BeGreaterThan(5000, "most texels of the floor reflect the wall");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ATexelWhoseRepresentativePixelStartsNoRayHoldsNoRay()
     {
         VulkanRenderer renderer = Headless(Reflections with { Resolution = TraceResolution.Half });
@@ -151,10 +204,66 @@ public sealed class ReflectionShaderTests
         }
     }
 
+    [Theory]
+    [InlineData(nameof(MirrorWallBehindACube))]
+    [InlineData(nameof(MirrorsBeforeTiles))]
+    public void EachTexelOfTheHalfTraceHoldsNoRayOrAMissOfZerosOrAHitAtItsDepthWhoseCoverageAHalfFloatHoldsAsANormal(
+        string scene
+    )
+    {
+        Func<VulkanRenderer, RenderSnapshot> build = scene switch
+        {
+            nameof(MirrorWallBehindACube) => MirrorWallBehindACube,
+            _ => MirrorsBeforeTiles,
+        };
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(build(renderer), 1f);
+            (float[] traced, int tracedWidth, _) = renderer.ReadReflectionTrace();
+            float[] depths = renderer.ReadReflectionHitDepths().Depths;
+
+            Vector4 RayOf(int texel) =>
+                new(x: traced[4 * texel], y: traced[4 * texel + 1], z: traced[4 * texel + 2], w: traced[4 * texel + 3]);
+            int hits = 0;
+            var strays = new List<int>();
+            for (int texel = 0; texel < depths.Length; texel++)
+            {
+                Vector4 ray = RayOf(texel);
+                float depth = depths[texel];
+                bool noRay = ray == -Vector4.UnitW && depth == 0;
+                bool miss = ray == Vector4.Zero && depth == 0;
+                // A smaller coverage is a half float's denormal, which a driver may flush to 0 on its store or load.
+                bool hit = ray.W >= ShaderInput.SmallestNormalHalf && depth > 0;
+                if (hit)
+                    hits++;
+                else if (!noRay && !miss)
+                    strays.Add(texel);
+            }
+
+            int first = strays.FirstOrDefault();
+            strays
+                .Should()
+                .BeEmpty(
+                    "the upsample classes a texel by its coverage's sign alone; texel ({0}, {1}) holds {2} at a depth of {3}",
+                    first % tracedWidth,
+                    first / tracedWidth,
+                    RayOf(first),
+                    depths[first]
+                );
+            hits.Should().BeGreaterThan(100, "the mirrors reflect the glowing surfaces");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
-    public void TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsample()
+    public void TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsampleOrTracesTheOwnRayThatItChooses()
     {
         float[] lit = RenderHdr(new NoReflections(), MirrorsBeforeTiles).Hdr;
+        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), MirrorsBeforeTiles).Hdr;
         VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
         try
         {
@@ -163,7 +272,8 @@ public sealed class ReflectionShaderTests
             var frame = UpsampleFrame.Of(renderer);
 
             int compared = 0,
-                mixed = 0;
+                mixed = 0,
+                ownRays = 0;
             for (int y = 0; y < Height; y++)
             for (int x = 0; x < Width; x++)
             {
@@ -171,27 +281,29 @@ public sealed class ReflectionShaderTests
                 Vector3 reflected = At(shown, (x, y)) - At(lit, (x, y));
                 if (reflected.X + reflected.Y + reflected.Z < 0.2f)
                     continue;
-                RayResult? upsampled = frame.Upsampled((x, y));
-                upsampled.Should().NotBeNull("pixel ({0}, {1}) shows a reflection, so a texel keeps a weight", x, y);
-                Vector3 expected = Chroma(upsampled!.Value.Radiance.ToVector3());
-                BrdfTesting
-                    .LargestChannelDifference(Chroma(reflected), expected)
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        0.01f,
-                        "pixel ({0}, {1}) shows the mean ray of its texels: shown {2}, expected {3}",
-                        x,
-                        y,
-                        Chroma(reflected),
-                        expected
-                    );
+                // A pixel whose texels' rays hit different surfaces traces its own ray, as the full-resolution trace does.
+                UpsampledRay upsampled = frame.Upsampled((x, y));
+                if (upsampled.TryGetValue(out OwnRay _))
+                {
+                    ShouldShowWhatTheFullTraceShows(shown: At(shown, (x, y)), full: At(full, (x, y)), pixel: (x, y));
+                    ownRays++;
+                    continue;
+                }
+
+                ShouldAddTheColorOfTheMean(reflected: reflected, upsampled: upsampled, pixel: (x, y));
                 compared++;
-                if (frame.TexelsDisagree((x, y)))
+                if (frame.TexelsDifferInColor((x, y)))
                     mixed++;
             }
 
             compared.Should().BeGreaterThan(5000, "the floor, the sphere, the ramp and the slab reflect the tiles");
             mixed.Should().BeGreaterThan(200, "the sphere's rim, the crease and the step mix texels of other colors");
+            ownRays
+                .Should()
+                .BeGreaterThan(
+                    100,
+                    "where a reflection passes from the wall to the sky or from one surface to another, pixels trace their own rays"
+                );
         }
         finally
         {
@@ -322,6 +434,65 @@ public sealed class ReflectionShaderTests
         return snapshot;
     }
 
+    /// <summary>
+    /// A dark scene with a mirror wall 10 m ahead that faces the eye and fills the view, and a glowing cube 5 m ahead, right
+    /// of the center. The wall's rays head back toward the eye and drift outward, so those left of the cube pass behind
+    /// it and meet its slab from behind, where the trace's entry share is 1 and the ray's coverage is 0.
+    /// </summary>
+    private static RenderSnapshot MirrorWallBehindACube(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: renderer.CreateMaterial(Mirror()),
+                center: new(0, 0, -10.5f),
+                size: new(40, 30, 1)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(2)), center: new(1.5f, 0, -5), size: Vector3.One)
+        );
+        return snapshot;
+    }
+
+    /// <summary>The pixel that traces its own ray shows <paramref name="shown"/>, what the full-resolution trace shows there.</summary>
+    private static void ShouldShowWhatTheFullTraceShows(Vector3 shown, Vector3 full, (int X, int Y) pixel) =>
+        BrdfTesting
+            .LargestChannelDifference(shown, full)
+            .Should()
+            .BeLessThanOrEqualTo(
+                1e-3f * full.Length(),
+                "pixel {0} traces its own ray: shown {1}, at full resolution {2}",
+                pixel,
+                shown,
+                full
+            );
+
+    /// <summary>
+    /// The pixel that blends adds the color <paramref name="reflected"/> of the mean ray that the C# upsample gives it: white
+    /// metal weighs each channel alike.
+    /// </summary>
+    private static void ShouldAddTheColorOfTheMean(Vector3 reflected, UpsampledRay upsampled, (int X, int Y) pixel)
+    {
+        upsampled
+            .TryGetValue(out TexelMean mean)
+            .Should()
+            .BeTrue("pixel {0} shows a reflection, so a texel keeps a weight", pixel);
+        Vector3 expected = Chroma(mean.Mean.Radiance.ToVector3());
+        BrdfTesting
+            .LargestChannelDifference(Chroma(reflected), expected)
+            .Should()
+            .BeLessThanOrEqualTo(
+                0.01f,
+                "pixel {0} shows the mean ray of its texels: shown {1}, expected {2}",
+                pixel,
+                Chroma(reflected),
+                expected
+            );
+    }
+
     /// <summary>The share of each channel in the sum of the three.</summary>
     private static Vector3 Chroma(Vector3 radiance) => radiance / (radiance.X + radiance.Y + radiance.Z);
 
@@ -409,8 +580,10 @@ public sealed class ReflectionShaderTests
             Vector3 hitPoint = Vector3.Normalize(Camera.ViewRayThrough(hit.Position)) * hitDistance;
             Vector3 origin =
                 point + Vector3.UnitY * ScreenRay.OriginOffset(Vector3.Dot(point, Camera.Forward), Camera.PixelAngle);
+            // A flat floor's d moves by about one pixel angle to the next pixel, which the lobe's spread at 0.3 and 0.5
+            // passes 30 times over, so f takes p, its floor.
             float level = ReflectionCone
-                .OfRoughness(roughness)
+                .Of(roughness: roughness, footprint: Camera.PixelAngle, texelSide: 1)
                 .Level(
                     rayLength: (hitPoint - origin).Length(),
                     hitDistance: hitDistance,
@@ -437,6 +610,7 @@ public sealed class ReflectionShaderTests
     /// <summary>The images of one frame that the upsample test reads back, and the C# upsample over them.</summary>
     private sealed record UpsampleFrame(
         (float[] Rgba, int Width, int Height) Traced,
+        float[] HitDepths,
         float[] Distance,
         float[] Normals,
         CameraView Camera
@@ -445,6 +619,7 @@ public sealed class ReflectionShaderTests
         public static UpsampleFrame Of(VulkanRenderer renderer) =>
             new(
                 Traced: renderer.ReadReflectionTrace(),
+                HitDepths: renderer.ReadReflectionHitDepths().Depths,
                 Distance: renderer.ReadDistance(),
                 Normals: renderer.ReadNormals(),
                 Camera: renderer.LastScene.Camera
@@ -452,8 +627,8 @@ public sealed class ReflectionShaderTests
 
         private (int Width, int Height) HalfSize => (Traced.Width, Traced.Height);
 
-        /// <summary>The ray that the C# upsample gives <paramref name="pixel"/>, from the GPU's texels.</summary>
-        public RayResult? Upsampled((int X, int Y) pixel) =>
+        /// <summary>What the C# upsample does at <paramref name="pixel"/>, from the GPU's texels.</summary>
+        public UpsampledRay Upsampled((int X, int Y) pixel) =>
             ReflectionUpsample.Ray(
                 pixel: pixel,
                 position: PositionOf(pixel),
@@ -464,15 +639,16 @@ public sealed class ReflectionShaderTests
             );
 
         /// <summary>Whether two texels with a ray that <paramref name="pixel"/> reads differ in color by more than 0.05.</summary>
-        public bool TexelsDisagree((int X, int Y) pixel)
+        public bool TexelsDifferInColor((int X, int Y) pixel)
         {
             Vector3[] colors =
             [
                 .. OcclusionUpsample
                     .BlockTexels(pixel, HalfSize)
                     .Select(each => TexelAt(each.Coordinates).Ray)
-                    .Where(ray => ray is { Radiance: var radiance } && radiance.X + radiance.Y + radiance.Z > 0.05)
-                    .Select(ray => Chroma(ray!.Value.Radiance.ToVector3())),
+                    .Select(ray => ray.TryGetValue(out TexelHit hit) ? hit.Result.Radiance : default)
+                    .Where(radiance => radiance.X + radiance.Y + radiance.Z > 0.05)
+                    .Select(radiance => Chroma(radiance.ToVector3())),
             ];
             return colors.Any(a => colors.Any(b => BrdfTesting.LargestChannelDifference(a, b) > 0.05f));
         }
@@ -482,13 +658,19 @@ public sealed class ReflectionShaderTests
             (int X, int Y) representative = (X: 2 * texel.X, Y: 2 * texel.Y);
             int index = 4 * (texel.Y * Traced.Width + texel.X);
             float coverage = Traced.Rgba[index + 3];
-            RayResult? ray =
-                coverage < 0
-                    ? null
-                    : new RayResult(
+            // The classes of reflection_upsample.comp: −1 is no ray, 0 a miss, and a hit has at least 2^-14.
+            TexelRay ray = coverage switch
+            {
+                < -0.5f => new NoRay(),
+                <= 0 => new TexelMiss(),
+                _ => new TexelHit(
+                    Result: new(
                         Radiance: new(Traced.Rgba[index], Traced.Rgba[index + 1], Traced.Rgba[index + 2]),
                         Coverage: coverage
-                    );
+                    ),
+                    HitDepth: HitDepths[texel.Y * Traced.Width + texel.X]
+                ),
+            };
             return new(
                 Position: PositionOf(representative),
                 GeometricNormal: GeometricNormalOf(representative),
@@ -517,12 +699,14 @@ public sealed class ReflectionShaderTests
     /// The pixel that the C# trace from the floor <paramref name="pixel"/> hits, for a mirror, when the ray keeps its
     /// full fade and the hit lies inside one tile, so that a trilinear read there is the tile; otherwise null.
     /// </summary>
+    /// <param name="reach">How many pixels around the hit the cone's read draws on, which must all lie in the tile.</param>
     private static (int X, int Y)? TileHitOf(
         CameraView camera,
         float[] distance,
         DepthPyramid pyramid,
         float[] lit,
-        (int X, int Y) pixel
+        (int X, int Y) pixel,
+        int reach
     )
     {
         (RayTrace trace, _) = TraceFromFloor(
@@ -538,17 +722,20 @@ public sealed class ReflectionShaderTests
             trace is RayHit hit
             && hit.EntryShare == 0
             && camera.EdgeFade(hit.Position) == 1
-            && InsideOneTile(lit, hit.Pixel)
+            && InsideOneTile(lit: lit, pixel: hit.Pixel, reach: reach)
             ? hit.Pixel
             : null;
     }
 
-    /// <summary>Whether the 5 × 5 pixels around <paramref name="pixel"/> all hold one value: the inside of one tile.</summary>
-    private static bool InsideOneTile(float[] lit, (int X, int Y) pixel)
+    /// <summary>
+    /// Whether the pixels up to <paramref name="reach"/> away from <paramref name="pixel"/> along x and y all hold one
+    /// value: the inside of one tile.
+    /// </summary>
+    private static bool InsideOneTile(float[] lit, (int X, int Y) pixel, int reach)
     {
         Vector3 center = At(lit, pixel);
-        for (int dy = -2; dy <= 2; dy++)
-        for (int dx = -2; dx <= 2; dx++)
+        for (int dy = -reach; dy <= reach; dy++)
+        for (int dx = -reach; dx <= reach; dx++)
             if (BrdfTesting.LargestChannelDifference(At(lit, (pixel.X + dx, pixel.Y + dy)), center) > 1e-3f)
                 return false;
         return center.Y > 0;

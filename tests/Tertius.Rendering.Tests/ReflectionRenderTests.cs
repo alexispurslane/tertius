@@ -687,11 +687,14 @@ public sealed class ReflectionRenderTests
         float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), StripedWall).Hdr;
         (float[] traced, int tracedWidth, int tracedHeight) = RenderTrace(StripedWall);
 
-        // The blocks below the row where the wall meets the floor show only the floor.
-        int firstFloorRow = PixelOf(new(0, FloorHeight, -15)).Y / 2 + 1;
+        // The blocks below the row where the wall meets the floor show only the floor. From there to 9 m ahead, the rays
+        // run less than half as far as the wall's distance from the eye, so the half trace's cone stays under one pixel
+        // and reads level 0, as the full trace does.
+        int firstFloorRow = PixelOf(new(0, FloorHeight, -15)).Y / 2 + 1,
+            lastFloorRow = PixelOf(new(0, FloorHeight, -9)).Y / 2;
         int compared = 0,
             atAnEdge = 0;
-        for (int j = firstFloorRow; j < tracedHeight; j++)
+        for (int j = firstFloorRow; j <= lastFloorRow; j++)
         for (int i = 0; i < tracedWidth; i++)
         {
             Vector3 representative = At(full, (2 * i, 2 * j));
@@ -770,6 +773,32 @@ public sealed class ReflectionRenderTests
     }
 
     [Fact]
+    public void AMirrorFloorReflectsAsSharplyInItsLastPixelBesideARoughFloorAsInsideIt()
+    {
+        // The last mirror pixel's next pixel lies on the rough floor, whose d leans far toward the normal. Its footprint
+        // takes the step back onto the mirror, so its cone stays the mirror's own.
+        float[] hdr = RenderHdr(ReflectionsAt(TraceResolution.Full), MirrorBesideRoughFloor).Hdr;
+
+        foreach (float ahead in (float[])[-4, -6, -9])
+        {
+            (int X, int Y) seam = PixelOf(new(0, FloorHeight, ahead));
+            (int X, int Y) last = (seam.X - 1, seam.Y),
+                inside = (seam.X - 4, seam.Y);
+            BrdfTesting
+                .LargestChannelDifference(At(hdr, last), At(hdr, inside))
+                .Should()
+                .BeLessThanOrEqualTo(
+                    0.05f * Bright,
+                    "the last mirror pixel {0} shows what the mirror shows at {1}: {2} and {3}",
+                    last,
+                    inside,
+                    At(hdr, last),
+                    At(hdr, inside)
+                );
+        }
+    }
+
+    [Fact]
     public void AtHalfResolutionAMirrorFloorBesideARoughFloorReflectsAsAtFullResolutionUpToTheirSeam()
     {
         // The texels across the seam lie on the mirror's plane but start no ray.
@@ -788,6 +817,129 @@ public sealed class ReflectionRenderTests
                 shows: "of the mirror at the seam takes only the texels with a ray"
             );
         }
+    }
+
+    [Fact]
+    public void AtHalfResolutionAMirrorFloorReflectsASlantedEdgeAlongAStraightLineWithNoSteps()
+    {
+        float[] hdr = RenderHdr(ReflectionsAt(TraceResolution.Half), SlantedEdgeFarAhead).Hdr;
+
+        // The floor from 4 m to 9 m ahead reflects the slab's edge 5 m to 14 m up, where the rays run far, so the gap
+        // between neighboring rays at the hit is the largest that a flat mirror has.
+        int farRow = PixelOf(new(0, FloorHeight, -9)).Y,
+            nearRow = PixelOf(new(0, FloorHeight, -4)).Y;
+        int dark = PixelOf(new(-15, 0, -40)).X,
+            lit = PixelOf(new(5, 0, -40)).X;
+        (float Y, float X)[] crossings =
+        [
+            .. Enumerable
+                .Range(farRow, nearRow - farRow + 1)
+                .Select(y => (Y: (float)y, X: HalfCrossing(Row(hdr, y), outside: dark, plateau: lit))),
+        ];
+
+        LargestDistanceFromTheirLine(crossings)
+            .Should()
+            .BeLessThan(
+                0.4f,
+                "the reflected edge is a ramp along a straight line, not steps, at x = {0}",
+                string.Join(", ", crossings.Select(crossing => $"{crossing.X:F2}"))
+            );
+    }
+
+    [Fact]
+    public void AtHalfResolutionTheReflectedOutlineOfABoxBeforeAFartherWallMatchesTheFullResolutionTrace()
+    {
+        // The box stands 3 m before the wall, far past the trace's slab of a tenth of the depth, so the rays on either side
+        // of its reflected outline hit different surfaces. The floor from 9.5 m to 11.5 m ahead reflects the box's lower
+        // half, and its rays run less than half as far as their hits lie from the eye, so both traces' cones read level 0.
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer =>
+            BoxBeforeAFartherWall(renderer, split: 6)
+        );
+
+        int farRow = PixelOf(new(0, FloorHeight, -11.5f)).Y,
+            nearRow = PixelOf(new(0, FloorHeight, -9.5f)).Y;
+        int left = MirrorPixel(new(-1, -1.3f, -12)).X,
+            right = MirrorPixel(new(1, -1.3f, -12)).X;
+        int middle = (farRow + nearRow) / 2;
+        At(renders.Full, (left + 3, middle)).X.Should().BeGreaterThan(Bright / 4, "the floor shows the red box");
+        At(renders.Full, (left - 3, middle)).Y.Should().BeGreaterThan(Bright / 4, "beside it, the green wall");
+        int[] rows = [.. Enumerable.Range(farRow, nearRow - farRow + 1)];
+        int[] across = [-3, -2, -1, 0, 1, 2, 3];
+        ShouldMatchAtHalfResolution(
+            renders: renders,
+            pixels: Around(center: (left, 0), dxs: across, dys: rows)
+                .Concat(Around(center: (right, 0), dxs: across, dys: rows)),
+            shows: "on the box's reflected outline shows the box or the wall as the full-resolution trace does"
+        );
+    }
+
+    [Fact]
+    public void AtHalfResolutionAColorEdgeOnOneReflectedSurfaceKeepsTheMeanOfItsTexelsRays()
+    {
+        // The wall turns from green to blue at an odd pixel boundary of the reflection, so the odd pixel right of it lies
+        // between a texel whose ray hits green and one whose ray hits blue. Both hit the wall at one depth: they agree, and
+        // the pixel takes their mean, where the full-resolution trace shows blue.
+        float split = ToAnOddPixelBoundary(
+            start: 4,
+            projected: across => Gpu.Project(point: new(across, 0, -15), width: Width, height: Height).X
+        );
+        (float[] Full, float[] Half) renders = RenderAtBothResolutions(renderer =>
+            BoxBeforeAFartherWall(renderer, split)
+        );
+
+        int edge = (int)MathF.Round(Gpu.Project(point: new(split, 0, -15), width: Width, height: Height).X);
+        foreach (float ahead in (float[])[-9.5f, -10.5f, -11.5f])
+        {
+            (int X, int Y) between = (edge, PixelOf(new(0, FloorHeight, ahead)).Y);
+            Vector3 full = At(renders.Full, between),
+                mean = At(renders.Half, between);
+            full.Z.Should().BeGreaterThan(Bright / 4, "the full trace shows the blue half at {0}", between);
+            mean.Z.Should().BeGreaterThan(Bright / 4, "pixel {0} takes the blue texel's half: {1}", between, mean);
+            mean.Y.Should()
+                .BeGreaterThan(
+                    full.Y + Bright / 4,
+                    "pixel {0} takes the green texel's half, which its own ray does not see: {1} against {2}",
+                    between,
+                    mean,
+                    full
+                );
+        }
+    }
+
+    /// <summary>
+    /// A white mirror floor in the dark before a red box 2 m wide, 2 m tall and 0.5 m deep, standing on the floor with its
+    /// front 12 m ahead, and a wall 15 m ahead, green left of <paramref name="split"/> and blue right of it.
+    /// </summary>
+    private static RenderSnapshot BoxBeforeAFartherWall(VulkanRenderer renderer, float split)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(Bright, 0, 0)),
+                center: new(0, FloorHeight + 1, -12.25f),
+                size: new(2, 2, 0.5f)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(0, Bright, 0)),
+                center: new((split - 30) / 2, 2, -15.5f),
+                size: new(split + 30, 7, 1)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: Glow(renderer, new(0, 0, Bright)),
+                center: new((split + 30) / 2, 2, -15.5f),
+                size: new(30 - split, 7, 1)
+            )
+        );
+        return snapshot;
     }
 
     /// <summary>
@@ -812,6 +964,60 @@ public sealed class ReflectionRenderTests
                 )
             );
         return snapshot;
+    }
+
+    /// <summary>
+    /// A white mirror floor in the dark before a bright slab 40 m ahead, 20 m wide, 40 m tall and 10 cm thick, turned by 20° about the
+    /// view axis, so that its left edge leans to the left as it rises, before a black wall.
+    /// </summary>
+    private static RenderSnapshot SlantedEdgeFarAhead(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: Glow(renderer, new(Bright)),
+                position: new(8, 8, -40.05f),
+                scale: new(20, 40, 0.1f),
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 20 * MathF.PI / 180),
+                radius: 23
+            )
+        );
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, Vector3.Zero), center: new(0, 20, -40.6f), size: new(200, 60, 1))
+        );
+        return snapshot;
+    }
+
+    /// <summary>The largest horizontal distance of <paramref name="points"/> from their least-squares line x = a + b · y, in pixels.</summary>
+    private static float LargestDistanceFromTheirLine(IReadOnlyList<(float Y, float X)> points)
+    {
+        double meanY = points.Average(point => point.Y),
+            meanX = points.Average(point => point.X);
+        double slope =
+            points.Sum(point => (point.Y - meanY) * (point.X - meanX))
+            / points.Sum(point => (point.Y - meanY) * (point.Y - meanY));
+        return (float)points.Max(point => Math.Abs(point.X - (meanX + slope * (point.Y - meanY))));
+    }
+
+    /// <summary>
+    /// Where <paramref name="values"/> first reaches half its value at <paramref name="plateau"/>, scanning from
+    /// <paramref name="outside"/> toward it, in pixels with linear interpolation between pixel centers.
+    /// </summary>
+    private static float HalfCrossing(IReadOnlyList<float> values, int outside, int plateau)
+    {
+        float half = values[plateau] / 2;
+        int direction = Math.Sign(plateau - outside);
+        for (int x = outside + direction; x != plateau + direction; x += direction)
+            if (values[x] >= half)
+            {
+                float before = values[x - direction];
+                return x - direction + direction * (half - before) / (values[x] - before);
+            }
+
+        throw new InvalidOperationException($"The values never reach half of {values[plateau]}.");
     }
 
     /// <summary>The share of red in the red and green of <paramref name="radiance"/>.</summary>
