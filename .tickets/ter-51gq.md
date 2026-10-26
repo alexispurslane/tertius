@@ -1,6 +1,6 @@
 ---
 id: ter-51gq
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T15:28:28Z

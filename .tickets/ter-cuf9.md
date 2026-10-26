@@ -1,6 +1,6 @@
 ---
 id: ter-cuf9
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T16:46:24Z
