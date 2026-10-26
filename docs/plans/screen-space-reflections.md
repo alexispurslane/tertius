@@ -698,7 +698,7 @@ The frame with SSR on, from the steps of ARCHITECTURE.md, "The order of a render
 `DepthPyramidPass` (`Passes/DepthPyramidPass.cs`, new), named "depth pyramid":
 
 1. The distance target: `SampledCompute`. The depth pyramid image: `StorageCompute`. Flush. Bind `depth_pyramid_first`, sets 0 to 2 at the compute bind point, set 3 = the level set of level 1. Dispatch ⌈size₁ / 8⌉ workgroups on each axis.
-2. For each level k from 2 to L: the depth pyramid image: `StorageCompute`, which gives a barrier from the last write. Flush. Bind `depth_pyramid_down` and the level set of level k. Dispatch.
+2. For each level k from 2 to L: the depth pyramid image: `StorageCompute`, which gives a barrier from the last write. Flush. Bind `depth_pyramid_down` and the level set of level k. Dispatch. The levels whose mip holds at most 512 texels are the tail (`DepthPyramidTail`, ticket `ter-ff6y`): after the last dispatch below it, one barrier, then `depth_pyramid_tail` writes them all in one workgroup, through the depth tail set, which binds the mip before the tail and the tail's mips.
 
 `RadiancePyramidPass` (`Passes/RadiancePyramidPass.cs`, new), named "radiance pyramid":
 

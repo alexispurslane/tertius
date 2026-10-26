@@ -55,6 +55,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             depthLevelSets[i] = layouts.AllocatePyramidLevelSet();
         for (int i = 0; i < radianceLevelSets.Length; i++)
             radianceLevelSets[i] = layouts.AllocatePyramidLevelSet();
+        DepthTailSet = layouts.AllocateDepthTailSet();
         TraceSet = layouts.AllocateReflectionSet();
         Create(extent, hdr);
     }
@@ -70,6 +71,9 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     /// <summary>The radiance pyramid's top level, whose one texel covers the screen: its mip count − 1.</summary>
     public int RadianceTopLevel => (int)RadianceImage.MipLevels - 1;
+
+    /// <summary>Set 3 of <see cref="DescriptorLayouts.DepthTailLayout"/>, written when the depth image has a tail (<see cref="DepthPyramidTail"/>).</summary>
+    public DescriptorSet DepthTailSet { get; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids and the HDR image.</summary>
     public DescriptorSet TraceSet { get; }
@@ -173,6 +177,8 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             layouts.WriteStorageImage(set: radianceLevelSets[level], binding: 1, view: radianceMipViews[level]);
         }
 
+        WriteDepthTailSet();
+
         // The bindings of reflection_trace.comp; binding 2 is the immutable sampler.
         layouts.WriteImage(set: TraceSet, binding: 0, view: DepthImage.View, layout: ImageLayout.General);
         layouts.WriteImage(set: TraceSet, binding: 1, view: RadianceImage.View, layout: ImageLayout.General);
@@ -204,6 +210,25 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             mipLevels: mipLevels,
             name: name
         );
+
+    /// <summary>
+    /// Writes the depth tail set: the mip before the tail, and the tail's mips from the first array element. The elements
+    /// past the tail repeat its last mip: the shader never writes them, but each must hold a view.
+    /// </summary>
+    private void WriteDepthTailSet()
+    {
+        int first = DepthPyramidTail.FirstMip(DepthImage);
+        if (first >= depthMipViews.Length)
+            return;
+        layouts.WriteImage(set: DepthTailSet, binding: 0, view: depthMipViews[first - 1], layout: ImageLayout.General);
+        for (int element = 0; element < DepthPyramidTail.Mips; element++)
+            layouts.WriteStorageImage(
+                set: DepthTailSet,
+                binding: 1,
+                arrayElement: (uint)element,
+                view: depthMipViews[Math.Min(first + element, depthMipViews.Length - 1)]
+            );
+    }
 
     private static ImageView[] MipViews(GpuImage image)
     {
