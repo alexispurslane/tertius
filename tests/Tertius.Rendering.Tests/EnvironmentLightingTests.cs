@@ -595,45 +595,26 @@ public sealed class EnvironmentLightingTests
     }
 
     [Fact]
-    public void ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsLastColumnAndRow()
+    public void ACurvedMirrorCutByTheScreensEdgeShowsTheStarsMeanInItsFirstAndLastColumnsAndRows()
     {
-        // Two mirror ellipsoids 20 m long: a tall one cut by the right edge and a wide one cut by the bottom edge. The d of
-        // each moves by several star cells per pixel across its long axis and by less than one along it. The last column
-        // and the last row have no next pixel, so their footprint takes the step back, and the stars there stay at their
-        // mean, which a quarter turn of the root axes keeps.
-        static (float[] Hdr, float[] Distance) Render(Quaternion root)
-        {
-            VulkanRenderer renderer = Renderer(SmallMap);
-            try
-            {
-                RenderSnapshot snapshot = Dark();
-                TestChains.UnderTurnedRoot(snapshot, root);
-                MeshId sphere = Sphere(renderer);
-                MaterialId mirror = Metal(renderer, roughness: 0);
-                snapshot.Instances.Add(
-                    Gpu.Instance(mesh: sphere, material: mirror, position: new(4.1f, 0, -4), scale: new(1, 20, 1))
-                );
-                snapshot.Instances.Add(
-                    Gpu.Instance(mesh: sphere, material: mirror, position: new(0, -2.3f, -4), scale: new(20, 1, 1))
-                );
-                renderer.Render(snapshot, 1f);
-                return (renderer.ReadHdr(), renderer.ReadDistance());
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        (float[] still, float[] distance) = Render(Quaternion.Identity);
-        float[] turned = Render(Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)).Hdr;
+        // Four mirror ellipsoids 20 m long: tall ones cut by the left and the right edge, and wide ones cut by the top and
+        // the bottom edge. The d of each moves by several star cells per pixel across its long axis and by less than one
+        // along it. The first column and row have no previous pixel and the last no next one, so their footprint takes
+        // the step to the one neighbor there, and the stars there stay at their mean, which a quarter turn of the root
+        // axes keeps.
+        (float[] still, float[] distance) = RenderMirrorsCutByTheScreensEdges(Quaternion.Identity);
+        float[] turned = RenderMirrorsCutByTheScreensEdges(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2)
+        ).Hdr;
 
         int[] edge =
         [
-            .. Enumerable.Range(0, Height).Select(y => y * Width + Width - 1),
-            .. Enumerable.Range(0, Width).Select(x => (Height - 1) * Width + x),
+            .. Enumerable.Range(0, Height).SelectMany(y => (int[])[y * Width, y * Width + Width - 1]),
+            .. Enumerable.Range(0, Width).SelectMany(x => (int[])[x, (Height - 1) * Width + x]),
         ];
-        edge.Where(pixel => distance[pixel] <= 0).Should().BeEmpty("the ellipsoids fill the last column and row");
+        edge.Where(pixel => distance[pixel] <= 0)
+            .Should()
+            .BeEmpty("the ellipsoids fill the first and last columns and rows");
         int[] differing =
         [
             .. edge.Where(pixel =>
@@ -644,10 +625,48 @@ public sealed class EnvironmentLightingTests
         differing
             .Should()
             .BeEmpty(
-                "the footprint there holds the step back across the long axis; the first pixel that differs is ({0}, {1})",
+                "the footprint there holds the step to the one neighbor across the long axis; the first pixel that differs is ({0}, {1})",
                 differing.FirstOrDefault() % Width,
                 differing.FirstOrDefault() / Width
             );
+    }
+
+    /// <summary>The four mirror ellipsoids of the screen-edge test under a root turned by <paramref name="root"/>.</summary>
+    private static (float[] Hdr, float[] Distance) RenderMirrorsCutByTheScreensEdges(Quaternion root)
+    {
+        VulkanRenderer renderer = Renderer(SmallMap);
+        try
+        {
+            RenderSnapshot snapshot = Dark();
+            TestChains.UnderTurnedRoot(snapshot, root);
+            MeshId sphere = Sphere(renderer);
+            MaterialId mirror = Metal(renderer, roughness: 0);
+            foreach (float side in (ReadOnlySpan<float>)[-1, 1])
+            {
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: sphere,
+                        material: mirror,
+                        position: new(side * 4.1f, 0, -4),
+                        scale: new(1, 20, 1)
+                    )
+                );
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: sphere,
+                        material: mirror,
+                        position: new(0, side * 2.3f, -4),
+                        scale: new(20, 1, 1)
+                    )
+                );
+            }
+            renderer.Render(snapshot, 1f);
+            return (renderer.ReadHdr(), renderer.ReadDistance());
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     /// <summary>

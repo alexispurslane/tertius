@@ -1,5 +1,6 @@
 // The ray of a reflecting pixel through the depth pyramid and its cone's read of the radiance pyramid
-// (docs/plans/screen-space-reflections.md, "The method"), for reflection_trace.comp and reflection_half_trace.comp.
+// (docs/plans/screen-space-reflections.md, "The method"), for reflection_trace.comp, reflection_half_trace.comp and the
+// own rays of reflection_upsample.comp.
 #ifndef TERTIUS_REFLECTION_RAY_GLSL
 #define TERTIUS_REFLECTION_RAY_GLSL
 

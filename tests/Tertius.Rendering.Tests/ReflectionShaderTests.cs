@@ -204,6 +204,61 @@ public sealed class ReflectionShaderTests
         }
     }
 
+    [Theory]
+    [InlineData(nameof(MirrorWallBehindACube))]
+    [InlineData(nameof(MirrorsBeforeTiles))]
+    public void EachTexelOfTheHalfTraceHoldsNoRayOrAMissOfZerosOrAHitAtItsDepthWhoseCoverageAHalfFloatHoldsAsANormal(
+        string scene
+    )
+    {
+        Func<VulkanRenderer, RenderSnapshot> build = scene switch
+        {
+            nameof(MirrorWallBehindACube) => MirrorWallBehindACube,
+            _ => MirrorsBeforeTiles,
+        };
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(build(renderer), 1f);
+            (float[] traced, int tracedWidth, _) = renderer.ReadReflectionTrace();
+            float[] depths = renderer.ReadReflectionHitDepths().Depths;
+
+            Vector4 RayOf(int texel) =>
+                new(x: traced[4 * texel], y: traced[4 * texel + 1], z: traced[4 * texel + 2], w: traced[4 * texel + 3]);
+            int hits = 0;
+            var strays = new List<int>();
+            for (int texel = 0; texel < depths.Length; texel++)
+            {
+                Vector4 ray = RayOf(texel);
+                float depth = depths[texel];
+                bool noRay = ray == -Vector4.UnitW && depth == 0;
+                bool miss = ray == Vector4.Zero && depth == 0;
+                // A smaller coverage is a half float's denormal, which a driver may flush to 0 on its store or load.
+                bool hit = ray.W >= ShaderInput.SmallestNormalHalf && depth > 0;
+                if (hit)
+                    hits++;
+                else if (!noRay && !miss)
+                    strays.Add(texel);
+            }
+
+            int first = strays.FirstOrDefault();
+            strays
+                .Should()
+                .BeEmpty(
+                    "the upsample classes a texel by its coverage's sign alone; texel ({0}, {1}) holds {2} at a depth of {3}",
+                    first % tracedWidth,
+                    first / tracedWidth,
+                    RayOf(first),
+                    depths[first]
+                );
+            hits.Should().BeGreaterThan(100, "the mirrors reflect the glowing surfaces");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsampleOrTracesTheOwnRayThatItChooses()
     {
@@ -375,6 +430,29 @@ public sealed class ReflectionShaderTests
                 center: new(-0.5f, FloorHeight + 0.015f, -4.75f),
                 size: new(1.5f, 0.03f, 1.5f)
             )
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A dark scene with a mirror wall 10 m ahead that faces the eye and fills the view, and a glowing cube 5 m ahead, right
+    /// of the center. The wall's rays head back toward the eye and drift outward, so those left of the cube pass behind
+    /// it and meet its slab from behind, where the trace's entry share is 1 and the ray's coverage is 0.
+    /// </summary>
+    private static RenderSnapshot MirrorWallBehindACube(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: renderer.CreateMaterial(Mirror()),
+                center: new(0, 0, -10.5f),
+                size: new(40, 30, 1)
+            )
+        );
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(2)), center: new(1.5f, 0, -5), size: Vector3.One)
         );
         return snapshot;
     }
@@ -580,10 +658,11 @@ public sealed class ReflectionShaderTests
             (int X, int Y) representative = (X: 2 * texel.X, Y: 2 * texel.Y);
             int index = 4 * (texel.Y * Traced.Width + texel.X);
             float coverage = Traced.Rgba[index + 3];
+            // The classes of reflection_upsample.comp: −1 is no ray, 0 a miss, and a hit has at least 2^-14.
             TexelRay ray = coverage switch
             {
-                < 0 => new NoRay(),
-                0 => new TexelMiss(),
+                < -0.5f => new NoRay(),
+                <= 0 => new TexelMiss(),
                 _ => new TexelHit(
                     Result: new(
                         Radiance: new(Traced.Rgba[index], Traced.Rgba[index + 1], Traced.Rgba[index + 2]),

@@ -23,7 +23,7 @@ internal readonly record struct ReflectionCone(float TanHalfAngle)
     /// chord f · s to the next texel's ray, so that the read covers the gap between neighboring rays.
     /// </summary>
     /// <param name="roughness">The surface's roughness r₀, before the BRDF's floor.</param>
-    /// <param name="footprint">f, in rad: how far the pixel's reflection direction moves to the next pixel.</param>
+    /// <param name="footprint">f, in rad: how far the pixel's reflection direction moves to the nearer neighbor along each axis.</param>
     /// <param name="texelSide">s, in pixels: 1 for <see cref="TraceResolution.Full"/>, 2 for <see cref="TraceResolution.Half"/>.</param>
     public static ReflectionCone Of(float roughness, float footprint, int texelSide) =>
         new(MathF.Max(OfRoughness(roughness).TanHalfAngle, footprint * texelSide));

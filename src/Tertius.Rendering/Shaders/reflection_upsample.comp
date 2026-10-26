@@ -31,7 +31,7 @@ float normalWeight(float facing)
 const int GroupSide = 8;
 const int TileSide = GroupSide / 2 + 1;
 
-// For each texel of the tile: its ray, or a negative coverage for none, the view depth of the ray's hit, its
+// For each texel of the tile: its ray, or a coverage of −1 for none, the view depth of the ray's hit, its
 // representative pixel's view position and that pixel's geometric normal.
 shared vec4 tileRays[TileSide * TileSide];
 shared float tileHitDepths[TileSide * TileSide];
@@ -93,8 +93,9 @@ void main()
             float bilinear = weightsX[a] * weightsY[b];
             int i = (base.y + b) * TileSide + base.x + a;
             vec4 ray = tileRays[i];
-            // A negative coverage: the texel's representative pixel started no ray, or the texel lies past the edge.
-            if (bilinear == 0.0 || ray.a < 0.0)
+            // A coverage of −1: the texel's representative pixel started no ray, or the texel lies past the edge. The trace
+            // stores only −1, an exact 0 or at least 2^-14, so no flush or rounding moves a texel across these tests.
+            if (bilinear == 0.0 || ray.a < -0.5)
                 continue;
             float offPlane = abs(dot(p.s.geometricNormal, tilePositions[i] - position));
             float facing = max(0.0, dot(p.s.geometricNormal, tileNormals[i]));

@@ -34,6 +34,12 @@ internal static class ShaderInput
     public const float SmallestNormal = 1.17549435e-38f;
 
     /// <summary>
+    /// The smallest normal half float, 2^−14, `SmallestNormalHalf` in Shaders/vectors.glsl. A GPU may flush a smaller value
+    /// to 0 when it stores it in a 16-bit image or loads it.
+    /// </summary>
+    public const float SmallestNormalHalf = 6.103515625e-5f;
+
+    /// <summary>
     /// The farthest from the eye, 2^62 m, that a point of a surface, a puff, a light, an outline or a far shadow may lie.
     /// The shaders square the distance between two such points, at most 2^63, which stays inside the single float's range.
     /// </summary>

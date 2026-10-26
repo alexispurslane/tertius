@@ -5,12 +5,12 @@ namespace Tertius.Rendering;
 /// <summary>What one ray of the reflections brings: its pre-exposed radiance C and its surface coverage a, both times the ray's own fade.</summary>
 internal readonly record struct RayResult(Double3 Radiance, double Coverage);
 
-/// <summary>A texel's ray that hit a surface with a coverage above 0.</summary>
+/// <summary>A texel's ray that hit a surface.</summary>
 /// <param name="Result">What the ray brings.</param>
 /// <param name="HitDepth">The view depth of the hit, in m.</param>
 internal readonly record struct TexelHit(RayResult Result, double HitDepth);
 
-/// <summary>A texel's ray that found nothing, or a hit of coverage 0: it brings no radiance and no coverage.</summary>
+/// <summary>A texel's ray that found nothing, or whose hit kept too little coverage: it brings no radiance and no coverage.</summary>
 internal readonly record struct TexelMiss;
 
 /// <summary>A texel whose representative pixel starts no ray, or a texel past the edge of the image.</summary>
@@ -18,7 +18,7 @@ internal readonly record struct NoRay;
 
 /// <summary>
 /// The ray of one texel of the half-resolution trace: <see cref="TexelHit"/>, <see cref="TexelMiss"/> or
-/// <see cref="NoRay"/>, a coverage above 0, of 0 or of −1 in the trace image. This is a generated union.
+/// <see cref="NoRay"/>, a coverage of at least 2^−14, of 0 or of −1 in the trace image. This is a generated union.
 /// </summary>
 [GeneratedUnion(typeof(TexelHit), typeof(TexelMiss), typeof(NoRay))]
 internal readonly partial struct TexelRay;
@@ -79,14 +79,22 @@ internal static class ReflectionUpsample
         foreach (((int X, int Y) coordinates, double bilinear) in OcclusionUpsample.BlockTexels(pixel, halfSize))
         {
             TracedTexel texel = texelAt(coordinates);
-            RayResult? result = texel.Ray switch
+            RayResult ray;
+            switch (texel.Ray)
             {
-                TexelHit { Result: var hit } => hit,
-                TexelMiss => new RayResult(Radiance: default, Coverage: 0),
-                NoRay or null => null,
-            };
-            if (result is not { } ray)
-                continue;
+                case TexelHit { Result: var hit }:
+                    ray = hit;
+                    break;
+                case TexelMiss:
+                    ray = new RayResult(Radiance: default, Coverage: 0);
+                    break;
+                case NoRay or null:
+                    // A texel with no ray holds no estimate, so it takes no part.
+                    continue;
+                default:
+                    throw new UnreachableException();
+            }
+
             double offPlane = Math.Abs(Double3.Dot(geometricNormal, texel.Position - position));
             double facing = Math.Max(0, Double3.Dot(geometricNormal, texel.GeometricNormal));
             double weight = bilinear * Math.Max(0, 1 - offPlane / texelWidth) * Math.Pow(facing, NormalPower);
