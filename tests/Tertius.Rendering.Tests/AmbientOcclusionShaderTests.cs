@@ -5,10 +5,11 @@ using static Tertius.Rendering.Tests.OcclusionScenes;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The test that pins the ambient pass's use of the occlusion to the C# copy (docs/plans/ambient-occlusion.md, "GPU
-/// tests of the acceptance criteria"): the corner under a sky and a ground of distinct colors, where each of four pixels
-/// must show the C# ambient light at the occlusion that the estimate target holds there, as an emissive square of
-/// that light on its line of sight shows.
+/// The test that pins the ambient pass's use of the estimate to the C# copy (docs/plans/ambient-occlusion.md, "GPU
+/// tests of the acceptance criteria"): the corner under the sun and under a sky and a ground of distinct colors, where
+/// each of four pixels must show its direct image undimmed plus the C# ambient light at the occlusion that the estimate
+/// target holds there, capped (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance"), as an emissive
+/// square of that light on its line of sight shows.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class AmbientOcclusionShaderTests
@@ -24,6 +25,9 @@ public sealed class AmbientOcclusionShaderTests
 
     private static readonly Vector3 Ground = new(0.35f, 0.2f, 0.08f);
 
+    /// <summary>Toward the sun: above the open side of the corner, so it lights the floor and both walls at the four points.</summary>
+    private static readonly Vector3 SunDirection = new(0.4f, 0.8f, 0.45f);
+
     /// <summary>The four surface points and their normals: the floor and the back wall, each at the corner and open.</summary>
     private static readonly (Vector3 Point, Double3 Normal)[] Points =
     [
@@ -36,13 +40,13 @@ public sealed class AmbientOcclusionShaderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TheAmbientPassDimsTheAmbientLightOfEachPixelAsTheCSharpCopyDoes(bool smoothMetal)
+    public void EachPixelShowsItsDirectLightUndimmedPlusTheAmbientLightThatTheCSharpCopyDims(bool smoothMetal)
     {
         MaterialDesc desc = MaterialOf(smoothMetal);
         VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
         try
         {
-            RenderSnapshot lit = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot lit = Gpu.Snapshot(SunDirection, sunIntensity: 1);
             lit.Ambient = new()
             {
                 SkyColor = Sky,
@@ -55,20 +59,13 @@ public sealed class AmbientOcclusionShaderTests
                 name: $"occlusion-shader-{(smoothMetal ? "metal" : "rough")}"
             );
             float[] occlusion = ReadOcclusion(renderer);
+            float[] direct = renderer.ReadDirect();
 
             Vector2[] pixels = [.. Points.Select(point => PixelOf(point.Point, CornerView))];
-            Vector3[] expected =
-            [
-                .. Points.Select(
-                    (point, i) =>
-                        ExpectedLight(
-                            desc: desc,
-                            normal: point.Normal,
-                            pixel: pixels[i],
-                            occlusion: OcclusionAt(occlusion, pixels[i])
-                        )
-                ),
-            ];
+            DirectAt(direct, pixels[0])
+                .X.Should()
+                .BePositive("the sun lights the floor at the corner, where the walls hide some sky");
+            Vector3[] expected = ExpectedLights(desc: desc, pixels: pixels, occlusion: occlusion, direct: direct);
             Capture glows = Gpu.RenderAndCapture(
                 renderer: renderer,
                 snapshot: Glows(renderer, pixels, expected),
@@ -80,9 +77,11 @@ public sealed class AmbientOcclusionShaderTests
                     .Should()
                     .BeLessThanOrEqualTo(
                         Tolerance,
-                        "point {0} at V = {1} must show the C# light {2}: shaded {3}, emissive {4}",
+                        "point {0} at V = {1} must show its direct light {2} plus the C# ambient light, {3}: shaded {4}, "
+                            + "emissive {5}",
                         i,
                         OcclusionAt(occlusion, pixels[i]),
+                        DirectAt(direct, pixels[i]),
                         expected[i],
                         shaded.Color(pixels[i]),
                         glows.Color(pixels[i])
@@ -109,11 +108,37 @@ public sealed class AmbientOcclusionShaderTests
     private static Double3 CornerRay(Vector2 pixel) =>
         Vector3.Transform(Ray(pixel, Width, Height).ToVector3(), CornerView);
 
+    /// <summary>The RGB of <paramref name="pixel"/> in the direct image <paramref name="direct"/>.</summary>
+    private static Vector3 DirectAt(float[] direct, Vector2 pixel) =>
+        ReflectionTesting.At(direct, ((int)pixel.X, (int)pixel.Y));
+
+    /// <summary>
+    /// The light that each of <paramref name="pixels"/>, those of <see cref="Points"/>, must show: its direct image plus
+    /// the C# ambient light at the occlusion that the estimate target holds there, capped, at the exposure 1 of the
+    /// default FixedExposure(0).
+    /// </summary>
+    private static Vector3[] ExpectedLights(MaterialDesc desc, Vector2[] pixels, float[] occlusion, float[] direct) =>
+        [
+            .. Points.Select(
+                (point, i) =>
+                    ShaderInput.SurfaceLight(
+                        radiance: ExpectedAmbientLight(
+                            desc: desc,
+                            normal: point.Normal,
+                            pixel: pixels[i],
+                            occlusion: OcclusionAt(occlusion, pixels[i])
+                        ),
+                        preExposedLight: DirectAt(direct, pixels[i]),
+                        exposure: 1
+                    )
+            ),
+        ];
+
     /// <summary>
     /// The C# ambient light of the surface that <paramref name="pixel"/>'s center sees, with the sky shares as the
-    /// G-buffer stores them and the occlusion that the occlusion target holds.
+    /// G-buffer stores them and the occlusion that the estimate target holds.
     /// </summary>
-    private static Vector3 ExpectedLight(MaterialDesc desc, Double3 normal, Vector2 pixel, double occlusion)
+    private static Vector3 ExpectedAmbientLight(MaterialDesc desc, Double3 normal, Vector2 pixel, double occlusion)
     {
         Double3 toView = -CornerRay(pixel);
         // The specular target stores the lobe's sky share in 8 bits, and the emissive target the normal's in a half float.

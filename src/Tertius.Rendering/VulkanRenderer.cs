@@ -25,9 +25,13 @@ namespace Tertius.Rendering;
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
 /// inverse depth of the distance target, level by level.</item>
+/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of the sun
+/// and of the point and spot lights plus the emission, pre-exposed and capped.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
-/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
-/// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
+/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the a channel of the
+/// estimate target.</item>
+/// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
+/// the ambient light with the estimate target applied, capped.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
 /// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: one ray per pixel

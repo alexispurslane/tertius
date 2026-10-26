@@ -13,9 +13,10 @@ namespace Tertius.Rendering;
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
 /// <item><term>set 2, G-buffer</term>
-/// <description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
+/// <description>the G-buffer targets for the direct, ambient and transparent passes (rewritten on resize),
 /// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
-/// for the lit puffs, and the occlusion target (binding 7, rewritten on resize). One.</description></item>
+/// for the lit puffs, the estimate target (binding 7) and the direct image (binding 9), both rewritten on resize.
+/// One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -27,7 +28,7 @@ namespace Tertius.Rendering;
 /// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
 /// written once.</description></item>
 /// <item><term>occlusion</term><description>the G-buffer distance and normals, and the half-resolution images and the
-/// occlusion target as storage images, for the occlusion passes. One, rewritten on resize.</description></item>
+/// estimate target as storage images, for the occlusion passes. One, rewritten on resize.</description></item>
 /// <item><term>denoise</term><description>the source and the destination term of one denoise dispatch. Two, rewritten on
 /// resize.</description></item>
 /// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
@@ -180,7 +181,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Set 0 of <see cref="OcclusionLayout"/>: the G-buffer distance and normals, then the view depth, edges, term A
-    /// and occlusion target as storage images (docs/plans/ambient-occlusion.md, "Push constants and sets").
+    /// and estimate target as storage images (docs/plans/ambient-occlusion.md, "Push constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 

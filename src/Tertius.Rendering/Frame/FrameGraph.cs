@@ -209,14 +209,15 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The direct pass: after the G-buffer pass and the shadow maps, which it reads, and before the occlusion passes,
-        /// which gather the bounce from its direct image (docs/plans/screen-space-illumination.md, "The frame").
+        /// so that the bounce light's sector pass can gather from its direct image (docs/plans/screen-space-illumination.md,
+        /// "The frame"). No occlusion pass reads the image until that doc's Part 4.
         /// </summary>
         DirectLight,
 
         /// <summary>
         /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and after the direct pass, whose image they read. Before the ambient pass, which reads their
-        /// estimate target.
+        /// normals they read, and after the direct pass, whose image the bounce light's sector pass will read. Before the
+        /// ambient pass, which reads their estimate target.
         /// </summary>
         AmbientOcclusion,
 
