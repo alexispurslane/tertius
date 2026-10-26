@@ -1573,7 +1573,7 @@ Every version below comes from the pinned nixpkgs (`nix eval`) or from NuGet, as
 
 Running Blender as a tool does not put its license on the output files (research belief, the usual reading of the GPL). The meshoptimizer README asks for a credit line. The importer prints it in `tertius asset --version`, and the game does not ship meshoptimizer.
 
-Flake changes:
+Flake changes. The `common` attributes and the `assets` shell exist since ter-q218, and the importer adds its tools to them:
 
 ```nix
 # In flake.nix: shared attributes for both shells.
@@ -1586,11 +1586,18 @@ common = {
 };
 devShells.default = pkgs.mkShell common;
 devShells.assets = pkgs.mkShell (common // {
-  packages = common.packages ++ [ pkgs.blender ];
+  packages = common.packages ++ [ pkgs.blender blenderMcp ];   # blenderMcp: native/blender-mcp.nix
   TERTIUS_BLENDER = pkgs.lib.getExe pkgs.blender;
   TERTIUS_BLENDER_VERSION = pkgs.blender.version;
+  TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;               # the fixed-output fetch of mcp-1.0.3.zip
+  BLENDER_PATH = pkgs.lib.getExe pkgs.blender;                # for the tools of blender-mcp that start Blender
+  BLENDER_MCP_HOST = "localhost";                             # the bridge, for the MCP server and bridge.sh
+  BLENDER_MCP_PORT = "9876";
 });
 ```
+
+- `blender-mcp` 1.0.3 needs the Python package `mcp` below version 2. The pinned nixpkgs has `mcp` 1.29.0, so the package builds from the nixpkgs Python set with no override. `native/blender-mcp.nix` asserts the version, so a nixpkgs update to `mcp` 2 stops the build with a message, not the server at run time. The earlier Nostromo project met the same limit by pinning an older nixpkgs.
+- The Blender of nixpkgs has no Python module `requests`. Blender's extension add-on prints a traceback at each start because of it. Installing and running the MCP add-on works all the same. The nixpkgs function `blender.withPackages` adds Python modules, but its build fails on macOS.
 
 - `meshoptimizer` has the outputs `bin`, `dev` and `out`, and `bin` is the default output. So the library path uses `lib.getLib`.
 - `native/vhacd.nix` pins V-HACD by tag and hash, like `native/joltc.nix`. It compiles `native/vhacd/tertius_vhacd.cpp`, which includes `VHACD.h` with `ENABLE_VHACD_IMPLEMENTATION` and exports a C API:

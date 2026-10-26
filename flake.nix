@@ -17,6 +17,8 @@
       packages = forAllSystems (pkgs: {
         joltc-double = pkgs.callPackage ./native/joltc.nix { };
         jscpd = pkgs.callPackage ./native/jscpd.nix { };
+        # The official Blender Lab MCP server of the assets shell. Its add-on is passthru.addon.
+        blender-mcp = pkgs.callPackage ./native/blender-mcp.nix { };
         # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
         dotnet-sdk = pkgs.dotnet-sdk_11;
       });
@@ -27,13 +29,14 @@
           dotnet = pkgs.dotnet-sdk_11;
           joltc = pkgs.callPackage ./native/joltc.nix { };
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
+          blenderMcp = pkgs.callPackage ./native/blender-mcp.nix { };
+          blender = pkgs.lib.getExe pkgs.blender;
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
-        in
-        {
-          default = pkgs.mkShell {
+          # The attributes of both shells.
+          common = {
             packages = [
               dotnet
               pkgs.roslyn-ls
@@ -89,6 +92,31 @@
             # hardened runtime, such as Rider, so a test that Rider starts never sees them.
             TERTIUS_VULKAN_DIR = "${pkgs.vulkan-loader}/lib";
           };
+        in
+        {
+          default = pkgs.mkShell common;
+
+          # The assets shell: the default shell plus Blender and the Blender MCP server, for scripted models and
+          # conversions (docs/plans/asset-pipeline.md, decision 4 and "Scripted models"). tools/blender/setup.sh
+          # installs the add-on into Blender once per machine.
+          assets = pkgs.mkShell (
+            common
+            // {
+              packages = common.packages ++ [
+                pkgs.blender
+                blenderMcp
+              ];
+              TERTIUS_BLENDER = blender;
+              TERTIUS_BLENDER_VERSION = pkgs.blender.version;
+              # The release file of the add-on, from a fixed-output fetch.
+              TERTIUS_BLENDER_MCP_ADDON = blenderMcp.addon;
+              # blender-mcp runs Blender for some of its tools, and it reaches the bridge at this host and port.
+              # tools/blender/bridge.sh starts the bridge on the same port.
+              BLENDER_PATH = blender;
+              BLENDER_MCP_HOST = "localhost";
+              BLENDER_MCP_PORT = "9876";
+            }
+          );
         }
       );
 
