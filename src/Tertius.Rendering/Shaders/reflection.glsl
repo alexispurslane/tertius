@@ -84,19 +84,58 @@ ScreenRay screenRayOf(vec3 origin, vec3 direction, float viewDepth)
     return ray;
 }
 
-// The parameter where the image leaves a cell of a level, on its far edge across or down, or the segment's end.
-float cellExit(ScreenRay ray, uint level, ivec2 cell, vec2 travel)
+// The reciprocals of a ray's steps, which every examined cell divides by, computed once per ray. Each axis that stands
+// still takes 1, as parameterAt's divisor does, and its parameters are never read.
+struct RayReciprocals
 {
-    vec2 edge = (vec2(cell) + max(travel, 0.0)) * float(1u << level);
-    float exitX = parameterAt(edge.x - ray.start.x, ray.step.x, NoEnd);
-    float exitY = parameterAt(edge.y - ray.start.y, ray.step.y, NoEnd);
+    vec2 step;
+    float stepW;
+};
+
+RayReciprocals reciprocalsOf(ScreenRay ray)
+{
+    RayReciprocals inverse;
+    inverse.step = 1.0 / mix(ray.step, vec2(1.0), equal(ray.step, vec2(0.0)));
+    inverse.stepW = 1.0 / (ray.stepW != 0.0 ? ray.stepW : 1.0);
+    return inverse;
+}
+
+// parameterAt with the step's reciprocal.
+float parameterAt(float offset, float step, float inverseStep, float otherwise)
+{
+    return step != 0.0 ? offset * inverseStep : otherwise;
+}
+
+// 2^power exactly, for a power from −126 to 127: the side of a cell of level power in pixels, or its reciprocal.
+float exactPowerOfTwo(int power)
+{
+    return uintBitsToFloat(uint(127 + power) << 23);
+}
+
+// The parameter where the image leaves a cell of a level, on its far edge across or down, or the segment's end. side is
+// the cell's side in pixels, and farSide max(travel, 0).
+float cellExit(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec2 farSide)
+{
+    vec2 edge = (cell + farSide) * side;
+    float exitX = parameterAt(edge.x - ray.start.x, ray.step.x, inverse.step.x, NoEnd);
+    float exitY = parameterAt(edge.y - ray.start.y, ray.step.y, inverse.step.y, NoEnd);
     return min(min(exitX, exitY), ray.end);
 }
 
-// The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
-float pixelEntry(ScreenRay ray, ivec2 pixel, vec2 travel)
+// cellBounds for a cell at side pixels per cell, tested in pixels with no size query: a cell whose first pixel lies
+// beyond the screen holds no surface, as one outside its level does and as the depth image's padding does.
+vec2 tracedCellBounds(texture2D pyramid, uint level, vec2 cell, float side)
 {
-    vec2 edge = vec2(pixel) + max(-travel, 0.0);
+    if (any(lessThan(cell, vec2(0.0))) || any(greaterThanEqual(cell * side, frame.viewport.xy)))
+        return vec2(0.0, EmptyFar);
+    ivec2 texel = ivec2(cell);
+    return level == 0u ? pixelBounds(texel) : texelFetch(pyramid, texel, int(level) - 1).rg;
+}
+
+// The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
+float pixelEntry(ScreenRay ray, vec2 pixel, vec2 travel)
+{
+    vec2 edge = pixel + max(-travel, 0.0);
     float entryX = parameterAt(edge.x - ray.start.x, ray.step.x, -NoEnd);
     float entryY = parameterAt(edge.y - ray.start.y, ray.step.y, -NoEnd);
     return max(entryX, entryY);
@@ -114,12 +153,12 @@ float entryShareOf(float edgeW, float low, float high)
 
 // The parameter where the ray enters a slab that it meets: its front from in front, its back from behind, or s when it
 // is already inside.
-float slabEntry(ScreenRay ray, float s, float inW, float low, float high)
+float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float low, float high)
 {
     if (inW > high)
-        return parameterAt(high - ray.startW, ray.stepW, s);
+        return parameterAt(high - ray.startW, ray.stepW, inverse.stepW, s);
     if (inW < low)
-        return parameterAt(low - ray.startW, ray.stepW, s);
+        return parameterAt(low - ray.startW, ray.stepW, inverse.stepW, s);
     return s;
 }
 
@@ -128,8 +167,10 @@ float slabEntry(ScreenRay ray, float s, float inW, float low, float high)
 bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out ivec2 hitPixel, out float entryShare)
 {
     uint topLevel = uint(textureQueryLevels(pyramid));
+    RayReciprocals inverse = reciprocalsOf(ray);
     vec2 travel = sign(ray.step);
-    float s = cellExit(ray, 0u, ivec2(floor(ray.start)), travel);
+    vec2 farSide = max(travel, 0.0);
+    float s = cellExit(ray, inverse, floor(ray.start), 1.0, farSide);
     // The inverse depth at s. After a descent it is the slab bound that s was solved for, not w(s): near the vanishing
     // point the rounding of that sum is larger than a far surface's slab.
     float inW = ray.startW + ray.stepW * s;
@@ -140,11 +181,13 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     for (uint step = 0u; step < maxSteps && s < ray.end; step++)
     {
         vec2 nudge = onEdge ? travel * CrossingNudge : vec2(0.0);
-        ivec2 cell = ivec2(floor((ray.start + ray.step * s + nudge) / float(1u << level)));
-        float exit = cellExit(ray, level, cell, travel);
-        vec2 bounds = cellBounds(pyramid, level, cell);
+        // A product by 2^−level is the quotient by 2^level, exactly.
+        float side = exactPowerOfTwo(int(level));
+        vec2 cell = floor((ray.start + ray.step * s + nudge) * exactPowerOfTwo(-int(level)));
+        float exit = cellExit(ray, inverse, cell, side, farSide);
+        vec2 bounds = tracedCellBounds(pyramid, level, cell, side);
         float high = bounds.x;
-        float low = bounds.y / (1.0 + ThicknessShare);
+        float low = bounds.y * (1.0 / (1.0 + ThicknessShare));
         float outW = ray.startW + ray.stepW * exit;
         if (max(min(inW, outW), low) > min(max(inW, outW), high))
         {
@@ -158,11 +201,11 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         }
         // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes its
         // maximum.
-        float entry = min(max(slabEntry(ray, s, inW, low, high), s), exit);
+        float entry = min(max(slabEntry(ray, inverse, s, inW, low, high), s), exit);
         if (level == 0u)
         {
-            hit = clamp(ray.start + ray.step * entry, vec2(cell), vec2(cell) + 1.0);
-            hitPixel = cell;
+            hit = clamp(ray.start + ray.step * entry, cell, cell + 1.0);
+            hitPixel = ivec2(cell);
             // From the inverse depth where the image enters the pixel, never at a solved s, which keeps a far
             // surface's thin slab exact ("Precision and determinism").
             entryShare = entryShareOf(ray.startW + ray.stepW * pixelEntry(ray, cell, travel), low, high);
