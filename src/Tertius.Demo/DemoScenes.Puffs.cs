@@ -134,17 +134,14 @@ public static partial class DemoScenes
         );
         scene.Add("camera", camera);
         world.Camera = camera;
-        Entity sun = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = new(new(30, 50, 40), DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
-            }
+        Star(
+            world: world,
+            scene: scene,
+            frame: ground,
+            center: Double3.Zero,
+            direction: new(30, 50, 40),
+            irradiance: 0.4f
         );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
-        world.SunIntensity = 0.4f;
         return scene;
     }
 

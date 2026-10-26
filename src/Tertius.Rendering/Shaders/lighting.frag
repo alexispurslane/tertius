@@ -32,5 +32,5 @@ void main()
     // depth range that drew the pixel.
     vec3 position = direction * distanceToEye;
     ShadingInput s = surfaceAt(pixel);
-    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, SunShadowsMainView, exposureScale()), 1.0);
+    outColor = vec4(surfaceRadiance(s, emissive, position, -direction, ShadowMapsMainView, exposureScale()), 1.0);
 }

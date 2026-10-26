@@ -225,8 +225,8 @@ public sealed class ShuttleTests : IDisposable
             DPose pose = world.PoseIn(lamp, cabin);
             (pose.Position - panel.Center).Length.Should().BeLessThan(1e-5, id);
             PointLightData light = world.GetRender(lamp).Light is PointLightData point ? point : default;
-            light.Range.Should().Be(10, $"{id} carries a point light of range 10 m");
-            light.Intensity.Should().Be(50, id);
+            light.Power.Should().Be(4 * MathF.PI * 50, $"{id} carries a point light of 50 W/sr");
+            light.CastsShadow.Should().BeFalse(id);
             (light.Offset.Position - new Double3(-side * 0.3, 0, 0))
                 .Length.Should()
                 .BeLessThan(1e-6, $"the light of {id} lies 0.3 m in front of it");

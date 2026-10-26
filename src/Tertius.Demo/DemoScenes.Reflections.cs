@@ -87,7 +87,14 @@ public static partial class DemoScenes
         );
 
         // The sun stands up and behind the views, so no view sees its glint and the shadows fall away from them.
-        SunAt(world: world, scene: scene, frame: surface, position: new(20, EarthRadius + 30, 40));
+        Star(
+            world: world,
+            scene: scene,
+            frame: surface,
+            center: new(0, EarthRadius, 0),
+            direction: new(20, 30, 40),
+            irradiance: 1
+        );
 
         scene.AddView("front-camera");
         scene.AddView("low-camera");

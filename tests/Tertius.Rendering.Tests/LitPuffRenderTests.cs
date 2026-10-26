@@ -62,15 +62,27 @@ public sealed class LitPuffRenderTests
     private static Vector3 MeanAmbient(RenderSnapshot snapshot) =>
         (snapshot.Ambient.SkyColor + snapshot.Ambient.GroundColor) * 0.5f * snapshot.Ambient.Intensity;
 
-    /// <summary>The sun's radiance as the shader holds it.</summary>
-    private static Vector3 SunRadiance(RenderSnapshot snapshot) => snapshot.Sun.Color * snapshot.Sun.Intensity;
+    /// <summary>The test star's irradiance per channel at the camera, which the puffs near it share.</summary>
+    private static Vector3 SunRadiance(RenderSnapshot snapshot) => Gpu.StarIrradianceRgb(snapshot);
 
-    /// <summary>The irradiance of a light of radiance <paramref name="radiance"/> and range <paramref name="range"/> at a distance: the window of Karis 2013.</summary>
-    private static Vector3 Irradiance(Vector3 radiance, float range, float distance)
+    /// <summary>
+    /// The irradiance of a light of radiant intensity <paramref name="intensity"/>, in W/sr per channel, at a distance: I / d²
+    /// times the window of Karis 2013 at the light's reach, for the default exposure of the test renderer, FixedExposure(0).
+    /// </summary>
+    private static Vector3 Irradiance(Vector3 intensity, float distance)
     {
-        float ratio = distance * distance / (range * range);
+        double reach = LightUnits.Reach(
+            Math.Max(intensity.X, Math.Max(intensity.Y, intensity.Z)),
+            LightUnits.CutoffIrradiance(new FixedExposure(0))
+        );
+        float ratio = (float)(distance * distance / (reach * reach));
         float window = Math.Clamp(1f - ratio * ratio, 0f, 1f);
-        return radiance * (window * window / MathF.Max(distance * distance, 1e-4f));
+        return intensity
+            * (
+                window
+                * window
+                / MathF.Max(distance * distance, LightUnits.NearestDistance * LightUnits.NearestDistance)
+            );
     }
 
     /// <summary>
@@ -166,14 +178,42 @@ public sealed class LitPuffRenderTests
         var puff = new Vector3(0, 0, -6);
         var lamp = new Vector3(1.2f, 1.6f, -6);
         var color = new Vector3(1f, 0.8f, 0.5f);
-        // The puff is 2 m from the lamp, near the lamp's range, where the window of the attenuation is 0.42.
-        const float intensity = 60f,
-            range = 2.6f;
-        snapshot.Lights.Add(new PointRenderLight(Position: lamp, Color: color, Intensity: intensity, Range: range));
+        // The puff is 2 m from the lamp, far inside the lamp's reach of about 400 m.
+        const float intensity = 60f;
+        snapshot.Lights.Add(Gpu.Lamp(position: lamp, color: color, intensity: intensity));
         AddLitPuff(snapshot, puff);
 
-        Vector3 irradiance = Irradiance(color * intensity, range, Vector3.Distance(lamp, puff));
+        Vector3 irradiance = Irradiance(color * intensity, Vector3.Distance(lamp, puff));
         ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-point");
+    }
+
+    [Fact]
+    public void ALitPuffTakesEveryLight()
+    {
+        // A star, a lamp and a spot light at once: the puff scatters the sum of their irradiances at its center.
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), sunIntensity: 0.5f);
+        snapshot.Ambient.Intensity = 0f;
+        var puff = new Vector3(0, 0, -6);
+        var lamp = new Vector3(1.2f, 1.6f, -6);
+        var spot = new Vector3(-1.5f, 2f, -6);
+        snapshot.Lights.Add(Gpu.Lamp(position: lamp, color: new(1f, 0.8f, 0.5f), intensity: 2f));
+        snapshot.Lights.Add(
+            Gpu.Spot(
+                position: spot,
+                direction: Vector3.Normalize(puff - spot),
+                color: new(0.6f, 0.8f, 1f),
+                intensity: 3f,
+                innerConeAngle: 0.2f,
+                outerConeAngle: 0.3f
+            )
+        );
+        AddLitPuff(snapshot, puff);
+
+        Vector3 irradiance =
+            SunRadiance(snapshot)
+            + Irradiance(new Vector3(1f, 0.8f, 0.5f) * 2f, Vector3.Distance(lamp, puff))
+            + Irradiance(new Vector3(0.6f, 0.8f, 1f) * 3f, Vector3.Distance(spot, puff));
+        ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-every-light");
     }
 
     [Fact]
@@ -184,23 +224,21 @@ public sealed class LitPuffRenderTests
         var outside = new Vector3(1.5f, 0, -6);
         var lamp = new Vector3(-1.5f, 2f, -6);
         var color = new Vector3(0.6f, 0.8f, 1f);
-        const float intensity = 30f,
-            range = 8f;
+        const float intensity = 30f;
         snapshot.Lights.Add(
-            new SpotRenderLight(
-                Position: lamp,
-                Direction: -Vector3.UnitY,
-                Color: color,
-                Intensity: intensity,
-                Range: range,
-                InnerConeAngle: 0.2f,
-                OuterConeAngle: 0.3f
+            Gpu.Spot(
+                position: lamp,
+                direction: -Vector3.UnitY,
+                color: color,
+                intensity: intensity,
+                innerConeAngle: 0.2f,
+                outerConeAngle: 0.3f
             )
         );
         AddLitPuff(snapshot, inside);
         AddLitPuff(snapshot, outside);
 
-        Vector3 irradiance = Irradiance(color * intensity, range, Vector3.Distance(lamp, inside));
+        Vector3 irradiance = Irradiance(color * intensity, Vector3.Distance(lamp, inside));
         ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI), Vector3.Zero], "lit-puff-spot");
     }
 
@@ -266,7 +304,7 @@ public sealed class LitPuffRenderTests
                 Gpu.Instance(
                     mesh: sphere,
                     material: gray,
-                    position: puff + 3_000f * snapshot.Sun.Direction,
+                    position: puff + 3_000f * Gpu.StarDirection(snapshot),
                     scale: new(500f),
                     flags: RenderFlags.CastsShadow
                 )
@@ -307,8 +345,8 @@ public sealed class LitPuffRenderTests
     /// <summary>
     /// The scene of puffs-lit.png: a gray ground 1.5 m below the eye under a sun from above and to the right, and a gray roof
     /// 2 m above three pale lit puffs, 9 m to 10 m ahead. The puff at the right is in the sun. The roof covers the other two:
-    /// the puff at the left takes only the ambient light, and the puff in the middle hangs 1 m below a warm lamp of range 2 m
-    /// under the roof.
+    /// the puff in the middle hangs 1 m below a warm lamp of 8 W/sr under the roof, and the puff at the left takes the ambient
+    /// light and the lamp's light from 2.4 m away, a fifth of what the middle puff takes.
     /// </summary>
     private static RenderSnapshot LitScene(
         VulkanRenderer renderer,
@@ -350,12 +388,7 @@ public sealed class LitPuffRenderTests
             )
         );
         snapshot.Lights.Add(
-            new PointRenderLight(
-                Position: underLamp + new Vector3(0, 1f, 0),
-                Color: new(1f, 0.75f, 0.45f),
-                Intensity: 8f,
-                Range: 2f
-            )
+            Gpu.Lamp(position: underLamp + new Vector3(0, 1f, 0), color: new(1f, 0.75f, 0.45f), intensity: 8f)
         );
         snapshot.PuffLooks.Add(
             new(

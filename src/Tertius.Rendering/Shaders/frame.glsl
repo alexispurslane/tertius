@@ -39,13 +39,28 @@ struct GpuMaterial
     uint metallicRoughnessMap;    // glTF layout: roughness in G, metallic in B
 };                                // std430: 52 bytes of members, a stride of 64
 
+// The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
+const uint NoSlot = 0u;
+const uint CascadeSetSlot = 1u;
+const uint FarShadowsOnlySlot = 2u;
+const uint AtlasTilesSlot = 3u;
+
 struct GpuLight
 {
-    vec4 positionRange;       // xyz world position, w range in meters
-    vec4 radianceKind;        // rgb color × intensity, w 0 = point, 1 = spot
-    vec4 directionCosOuter;   // xyz unit spot direction, w cos(outer half-angle)
-    vec4 spot;                // x cos(inner half-angle)
-};
+    vec4 positionReach;       // xyz world position, w reach in meters
+    vec4 intensityKind;       // rgb color × intensity in W/sr, w 0 = point, 1 = spot
+    vec4 directionCosOuter;   // xyz unit spot axis, w cos(outer half-angle); zero for a point light
+    vec4 spotRadius;          // x cos(inner half-angle), zero for a point light; y the emitter's radius in meters
+    uvec4 shadow;             // x the slot; y the set or the first tile view; z the tile views
+    uvec4 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
+};                            // std430: 96 bytes
+
+struct GpuCascadeSet
+{
+    mat4 viewProj[4];         // shadow clip space from world space per cascade; xy in [-1, 1], z reversed (1 nearest the light)
+    vec4 axisX;               // xyz light-space x axis, w lateral half-extent / depth half-range of the boxes
+    vec4 axisY;               // xyz light-space y axis
+};                            // std140: 288 bytes
 
 struct GpuOutline
 {
@@ -68,22 +83,19 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 cameraRight;         // xyz right × tan(horizontal half-fov)
     vec4 cameraUp;            // xyz up × tan(vertical half-fov)
     vec4 cameraForward;       // xyz unit forward
-    vec4 sunDirection;        // xyz unit vector toward the sun, w angular radius in radians
-    vec4 sunRadiance;         // rgb color × intensity
     vec4 ambientSky;          // rgb sky color × intensity
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
-    uvec4 counts;             // x lights, y occluders, z shadow cascades to sample (0: no shadow maps this frame), w occluders of casters in the maps (first)
-    // Sun shadow cascades (see ShadowCascades.cs). Light space: x = shadowAxisX, y = shadowAxisY, z = sunDirection.
-    mat4 shadowViewProj[4];   // shadow clip space from world space; xy in [-1, 1], z reversed (1 nearest the sun)
+    uvec4 counts;             // x lights, y unused, z cascades of each drawn cascade set (0: no set this frame), w unused
+    // The cascade sets of the far lights (see ShadowCascades.cs). The sets share one camera and one map size, so these
+    // four hold for every set.
     vec4 shadowSplits;        // view depth where each cascade ends
     vec4 shadowBlendStart;    // view depth where each cascade starts to blend into the next (the last fades out)
     vec4 shadowTexel;         // world size of one shadow texel per cascade
-    vec4 shadowAxisX;         // xyz light-space x axis, w lateral half-extent / depth half-range of the cascade boxes
-    vec4 shadowAxisY;         // xyz light-space y axis
     vec4 shadowParams;        // x 1 / map size, y normal offset in texels, z constant depth bias, w smallest receiver cosine
     vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
+    GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

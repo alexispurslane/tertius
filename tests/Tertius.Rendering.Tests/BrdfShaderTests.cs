@@ -85,7 +85,7 @@ public sealed class BrdfShaderTests
             RenderFlags flags = transparent ? RenderFlags.Transparent : RenderFlags.None;
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.25f));
             RenderSnapshot lit = Lit();
-            Double3 sunIrradiance = lit.Sun.Color * lit.Sun.Intensity;
+            Double3 sunIrradiance = Gpu.StarIrradianceRgb(lit);
             RenderSnapshot glowing = Gpu.Snapshot(SunDirection, sunIntensity: 0);
             glowing.Ambient.Intensity = 0;
             var pixels = new List<Vector2>();

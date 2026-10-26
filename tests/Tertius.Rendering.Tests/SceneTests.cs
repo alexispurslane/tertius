@@ -27,7 +27,7 @@ public sealed class SceneTests
                 .NearCommands.Should()
                 .BeGreaterThanOrEqualTo(2, "boxes, spheres and the ground are in the near range");
             stats.TransparentCommands.Should().Be(1);
-            stats.Lights.Should().Be(2);
+            stats.Lights.Should().Be(3, "the star, the lamp and the spot light are in one list");
             // The ground, three boxes and two spheres cast shadows into all four cascades.
             stats.ShadowCasters.Should().Be(6);
             stats.ShadowCascades.Should().Be(4);

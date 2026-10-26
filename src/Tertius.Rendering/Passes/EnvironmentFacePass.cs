@@ -9,7 +9,7 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para>A face is one rendering per depth range into level 0 of its layer, far to near, each with the face's own
 /// projection of that range and a freshly cleared depth. The far range first draws the sky over every texel, with no depth
-/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with the sun, the lamps and their
+/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with every light and their
 /// emission and no ambient light.</para>
 /// <para>A face is a mirror image of a right-handed camera, so the surface pipeline's front faces are clockwise.</para>
 /// </remarks>

@@ -30,8 +30,11 @@ public readonly record struct RenderStats
     /// <summary>Shadow caster indirect commands over all cascades.</summary>
     public int ShadowCommands { get; init; }
 
-    /// <summary>Sun shadow cascades drawn: 4, or 0 when there was no sun or no caster.</summary>
+    /// <summary>Shadow cascades drawn: 4 for each cascade set.</summary>
     public int ShadowCascades { get; init; }
+
+    /// <summary>Cascade sets drawn: one for each far light whose slot is a cascade set.</summary>
+    public int CascadeSets { get; init; }
 
     /// <summary>Instances selected as shadow casters: <see cref="RenderFlags.CastsShadow"/>, within 2 km and inside a cascade.</summary>
     public int ShadowCasters { get; init; }

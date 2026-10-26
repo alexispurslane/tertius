@@ -59,6 +59,50 @@ public static partial class DemoScenes
     /// <summary>The astronomical unit, in meters.</summary>
     public const double AstronomicalUnit = 1.495978707e11;
 
+    /// <summary>
+    /// The sunlight of the scenes in space, in W/m² at Earth: sunlight above the atmosphere is bright, brighter than the
+    /// 1 W/m² that the films on the ground were judged with.
+    /// </summary>
+    private const float SpaceSunlight = 2.5f;
+
+    /// <summary>
+    /// The radius of every lamp's light, in meters: a small bulb. A surface is farther than this from each lamp, so the
+    /// radius changes no lit pixel.
+    /// </summary>
+    private const float LampRadius = 0.05f;
+
+    /// <summary>
+    /// A lamp under a cabin's roof at <paramref name="position"/> in <paramref name="frame"/>: a glowing panel of
+    /// <paramref name="mesh"/> and <paramref name="material"/>, with a warm point light of <paramref name="intensity"/> W/sr
+    /// 10 cm below it, which casts no shadow.
+    /// </summary>
+    private static SpawnDesc CeilingLamp(
+        FrameHandle frame,
+        Double3 position,
+        MeshId mesh,
+        MaterialId material,
+        float intensity
+    ) =>
+        new()
+        {
+            Frame = frame,
+            Pose = new(position, DQuaternion.Identity),
+            Render = new RenderData
+            {
+                Mesh = mesh,
+                Material = material,
+                BoundingRadius = 0.85f,
+                Flags = RenderFlags.Visible,
+                Light = new PointLightData(
+                    Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
+                    Color: new(1, 0.9f, 0.75f),
+                    Power: 4 * MathF.PI * intensity,
+                    Radius: LampRadius,
+                    CastsShadow: false
+                ),
+            },
+        };
+
     /// <summary>Earth's spin relative to the stars, one turn per sidereal day of 86,164.0905 s, in radians per second.</summary>
     public const double SiderealRate = 2 * Math.PI / 86_164.0905;
 
@@ -283,7 +327,13 @@ public static partial class DemoScenes
     private static SceneInstance Orbit(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: EarthDate.MarchEquinox);
+        FrameHandle earth = SunAndEarth(
+            world: world,
+            resources: resources,
+            scene: scene,
+            date: EarthDate.MarchEquinox,
+            irradiance: SpaceSunlight
+        );
 
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
@@ -346,24 +396,13 @@ public static partial class DemoScenes
         );
         for (int i = -2; i <= 2; i++)
             world.Spawn(
-                new()
-                {
-                    Frame = shipFrame,
-                    Pose = new(new(0, Cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
-                    Render = new RenderData
-                    {
-                        Mesh = lampMesh,
-                        Material = lampMaterial,
-                        BoundingRadius = 0.85f,
-                        Flags = RenderFlags.Visible,
-                        Light = new PointLightData(
-                            Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f),
-                            Intensity: 100,
-                            Range: 20
-                        ),
-                    },
-                }
+                CeilingLamp(
+                    frame: shipFrame,
+                    position: new(0, Cabin.Y - 0.05, 12 * i),
+                    mesh: lampMesh,
+                    material: lampMaterial,
+                    intensity: 100
+                )
             );
 
         // A pane of glass in each window: mostly clear, with a slight blue tint. It casts no shadow, so sunlight comes in
@@ -538,17 +577,27 @@ public static partial class DemoScenes
     /// <see cref="Orbit"/>), added to <paramref name="scene"/>,
     /// with the sunlight and the dim light of space, with Earth at <paramref name="date"/> at the world's time 0: Earth on
     /// its orbit at the date's longitude, and earth-surface on the date's <see cref="EarthDate.Ground"/>. Returns earth's
-    /// frame. earth-surface holds Earth's air (see <see cref="Air.Earth"/>), and earth and the sun hold none.
+    /// frame. earth-surface holds Earth's air (see <see cref="Air.Earth"/>), and earth and the sun hold none. The sun's
+    /// root entity holds the sunlight: a point light of the Sun's radius that casts shadows, whose power gives the
+    /// irradiance <paramref name="irradiance"/>, in W/m², at Earth's distance at time 0.
     /// </summary>
-    private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene, EarthDate date)
+    private static FrameHandle SunAndEarth(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        EarthDate date,
+        float irradiance
+    )
     {
+        KeplerOrbit earthOrbit = EarthOrbit(date);
+        Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
         FrameHandle sun = world.CreateRootFrame(
             new(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)),
             new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
-                // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
-                // its sphere.
+                // Black, so that only the emission shows: the sun lights the scene through its light, not through its
+                // sphere.
                 Material = resources.CreateMaterial(
                     new(
                         BaseColor: new(x: 0, y: 0, z: 0, w: 1),
@@ -559,13 +608,18 @@ public static partial class DemoScenes
                 ),
                 BoundingRadius = (float)SunRadius,
                 Flags = RenderFlags.Visible | RenderFlags.Celestial,
+                Light = new PointLightData(
+                    Offset: new(Vector3.Zero, Quaternion.Identity),
+                    Color: Vector3.One,
+                    Power: (float)(irradiance * 4 * Math.PI * earthPlace.LengthSquared),
+                    Radius: (float)SunRadius,
+                    CastsShadow: true
+                ),
             }
         );
         scene.Add("sun", sun.Entity);
-        world.SunFrame = sun;
-        // Sunlight above the atmosphere is bright. Space has no sky and no ground, so a face that the sun does not reach gets
-        // the same dim light from every direction.
-        world.SunIntensity = 2.5f;
+        // Space has no sky and no ground, so a face that the sun does not reach gets the same dim light from every
+        // direction.
         world.Ambient = new()
         {
             SkyColor = new(0.03f),
@@ -573,13 +627,11 @@ public static partial class DemoScenes
             Intensity = 1,
         };
 
-        KeplerOrbit earthOrbit = EarthOrbit(date);
         // Earth starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the step of the
         // next tick, and its KeplerMotion from the second step on. So earth falls freely from its first step, and the
         // station of the station scene, which reads earth's proper acceleration, feels none of the sun's gravity. Earth has
         // no body, so only its motion intents move it, and it spawns with no velocity: its first sync point gives its frame
         // the velocities of its first step.
-        Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
         double firstStepEnd = world.TimeAt(world.TickNumber + 1);
         Entity earthOwner = world.Spawn(
             new()
@@ -888,17 +940,15 @@ public static partial class DemoScenes
         );
         scene.Add("camera", camera);
         world.Camera = camera;
-        // The sun frame's origin is where the light comes from: up, to the right and in front of the box.
-        Entity sun = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = new(new(30, 50, 40), DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
-            }
+        // The star's light comes from this direction: up, to the right and in front of the box.
+        Star(
+            world: world,
+            scene: scene,
+            frame: ground,
+            center: Double3.Zero,
+            direction: new(30, 50, 40),
+            irradiance: 1
         );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
         return scene;
     }
 

@@ -4,7 +4,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// One fullscreen pass over all depth ranges: reads the G-buffer, rebuilds each pixel's position from its view ray
-/// and stored distance, and writes lit HDR color, with the sun shadowed by the cascades and the occluder spheres and
+/// and stored distance, and writes lit HDR color, with each light shadowed by its slot's cascades and occluder spheres and
 /// the ambient light darkened by the occlusion target. Sky pixels get the star field.
 /// </summary>
 internal sealed unsafe class LightingPass : RenderPass

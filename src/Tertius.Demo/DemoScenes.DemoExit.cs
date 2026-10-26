@@ -206,11 +206,13 @@ public static partial class DemoScenes
             );
             scene.Add("cabin-camera", cabinCamera);
 
-            SunAt(
+            Star(
                 world: world,
                 scene: scene,
                 frame: earth,
-                position: new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit
+                center: new(0, EarthRadius, 0),
+                direction: new(60, 80, 40),
+                irradiance: 1
             );
 
             foreach (

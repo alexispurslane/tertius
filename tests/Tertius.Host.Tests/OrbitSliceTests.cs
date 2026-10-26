@@ -189,9 +189,14 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
         run.World.RenderSnapshots.AcquireLatest().Should().NotBeNull();
         RenderSnapshot snapshot = run.World.RenderSnapshots.ReadBuffer;
 
-        // The sun's radius, 695,700 km, from Earth's distance, which runs from 147 to 152 million km over a year.
+        // The sun's radius, 695,700 km, from Earth's distance, which runs from 147 to 152 million km over a year. The
+        // sun's light is the light of the sun's root entity.
         distance.Should().BeInRange(1.47e11, 1.53e11);
-        snapshot.Sun.AngularRadius.Should().BeApproximately((float)Math.Atan(6.957e8 / distance), 1e-7f);
+        uint sunIndex = run.Scene["sun"].Index;
+        PointRenderLight sun = snapshot
+            .Lights.Select(light => light.TryGetValue(out PointRenderLight point) ? point : default)
+            .Single(light => light.EntityIndex == sunIndex && light.Power > 0);
+        Math.Asin(sun.Radius / sun.Position.Length()).Should().BeApproximately(Math.Atan(6.957e8 / distance), 1e-7);
     }
 
     [Fact]

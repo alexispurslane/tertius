@@ -59,14 +59,15 @@ public sealed class WindowsSliceTests(WindowsRun run) : IClassFixture<WindowsRun
     public void AgainstBlackSpaceThePaneShowsItsOwnSlightBlueTint()
     {
         // Above Earth's horizon, the bare hole shows black space. The pane there shows only its own lamp-lit color, at its
-        // low opacity: a dark blue gray.
+        // low opacity: a dark blue gray. Since the lamps reach as far as their power carries (docs/plans/local-light-shadows.md,
+        // Part 4), not 10 m, they light the pane at full strength, (28, 34, 42), so the upper bound grew from 90 to 130.
         (int r, int g, int b) glass = run.Capture("earth-through-pane").Average(640, 200);
         (int r, int g, int b) space = run.Capture("earth-through-hole").Average(640, 200);
 
         (space.r + space.g + space.b).Should().BeLessThan(10, $"black space shows through the bare hole, not {space}");
         (glass.r + glass.g + glass.b)
             .Should()
-            .BeInRange(20, 90, $"the pane is dark, but not black, against space, not {glass}");
+            .BeInRange(20, 130, $"the pane is dark, but not black, against space, not {glass}");
         (glass.b > glass.g && glass.g > glass.r).Should().BeTrue($"the pane's tint is blue, not {glass}");
     }
 

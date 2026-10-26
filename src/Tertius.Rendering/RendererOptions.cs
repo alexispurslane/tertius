@@ -25,8 +25,8 @@ public sealed class RendererOptions
     public int Height { get; set; }
 
     /// <summary>
-    /// The side of each of the four sun shadow cascades, in texels: 256 up to the device's largest image. The maps
-    /// take ShadowMapSize² × 16 bytes of device memory (64 MB at the default 2048).
+    /// The side of each shadow cascade of every cascade set, in texels: 256 up to the device's largest image. Each set's
+    /// four cascades take ShadowMapSize² × 16 bytes of device memory (64 MB at the default 2048).
     /// </summary>
     public int ShadowMapSize { get; set; } = ShadowMap.DefaultSize;
 

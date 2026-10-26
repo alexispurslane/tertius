@@ -54,14 +54,15 @@ public sealed class BrdfRenderTests
 
     /// <summary>
     /// The C# light that a smooth white metal facing the camera at <paramref name="point"/> reflects toward the eye from a
-    /// point light of intensity 1,000 and range 10 m at <paramref name="lightPosition"/>.
+    /// point light of 1,000 W/sr at <paramref name="lightPosition"/>, whose reach is set by the exposure FixedExposure(0).
     /// </summary>
     private static double LampHighlight(Double3 point, Double3 lightPosition)
     {
         Double3 toLight = (lightPosition - point).Normalized();
         double distanceSquared = (lightPosition - point).LengthSquared;
         var white = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
-        double ratio = distanceSquared / 100;
+        double reach = LightUnits.Reach(1000, LightUnits.CutoffIrradiance(new FixedExposure(0)));
+        double ratio = distanceSquared / (reach * reach);
         double window = Math.Pow(Math.Clamp(1 - ratio * ratio, 0, 1), 2);
         Double3 reflected = white.Reflected(
             normal: Double3.UnitZ,
@@ -203,7 +204,7 @@ public sealed class BrdfRenderTests
             snapshot.Instances.Add(FacingSquare(mesh: square, material: red, center: center.ToVector3()));
             Vector3 highlight = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-red-highlight")
                 .Color(pixel);
-            Double3 sunIrradiance = snapshot.Sun.Color * snapshot.Sun.Intensity;
+            Double3 sunIrradiance = Gpu.StarIrradianceRgb(snapshot);
             Vector3[] bounds = Displayed(
                 renderer,
                 [HighlightOf(0.036, sunIrradiance), HighlightOf(0.044, sunIrradiance)],
@@ -253,7 +254,7 @@ public sealed class BrdfRenderTests
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), 40);
         Double3 tail =
             black.Reflected(normal: Double3.UnitY, toView: toView, toLight: toSun, tables: BrdfTables.Shared)
-            * (snapshot.Sun.Color * snapshot.Sun.Intensity);
+            * Gpu.StarIrradianceRgb(snapshot);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -350,7 +351,7 @@ public sealed class BrdfRenderTests
         );
         // A dim sun keeps the light below 1 before the tone curve, which turns any bright color white.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), (float)(0.8 / reflected.X));
-        Double3 shine = reflected * (snapshot.Sun.Color * snapshot.Sun.Intensity);
+        Double3 shine = reflected * Gpu.StarIrradianceRgb(snapshot);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -388,9 +389,7 @@ public sealed class BrdfRenderTests
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.3f));
             MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
             RenderSnapshot snapshot = SunOnly(Vector3.UnitY, 0);
-            snapshot.Lights.Add(
-                new PointRenderLight(Position: lamp.ToVector3(), Color: Vector3.One, Intensity: 1000, Range: 10)
-            );
+            snapshot.Lights.Add(Gpu.Lamp(position: lamp.ToVector3(), color: Vector3.One, intensity: 1000));
             snapshot.Instances.Add(FacingSquare(mesh: square, material: mirror, center: center.ToVector3()));
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name).Color(Pixel(center));
         }

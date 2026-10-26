@@ -18,6 +18,9 @@ internal sealed unsafe class FrameResources : IDisposable
     private int texturesWritten;
     private int materialVersion = -1;
 
+    // The GPU form of the frame's lights, before the copy into the light buffer.
+    private GpuLight[] gpuLights = new GpuLight[16];
+
     public FrameResources(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -111,7 +114,7 @@ internal sealed unsafe class FrameResources : IDisposable
                 buffer: Instances.Buffer
             );
         Commands.Write(scene.Commands.AsSpan(0, scene.CommandCount));
-        if (Lights.Write(scene.Lights.AsSpan(0, scene.LightCount)))
+        if (Lights.Write(GpuLightsOf(scene)))
             layouts.WriteBuffer(set: FrameSet, binding: 3, type: DescriptorType.StorageBuffer, buffer: Lights.Buffer);
         if (Occluders.Write(scene.Occluders.AsSpan(0, scene.OccluderCount)))
             layouts.WriteBuffer(
@@ -124,6 +127,19 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         if (Puffs.Write(scene.Puffs.AsSpan(0, scene.PuffCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+    }
+
+    /// <summary>
+    /// The GPU form of each light of the frame, in its order, written after every pass's Prepare, when every slot is
+    /// complete (docs/plans/local-light-shadows.md, decision 37).
+    /// </summary>
+    private ReadOnlySpan<GpuLight> GpuLightsOf(PreparedScene scene)
+    {
+        if (gpuLights.Length < scene.LightCount)
+            Array.Resize(ref gpuLights, Math.Max(scene.LightCount, gpuLights.Length * 2));
+        for (int i = 0; i < scene.LightCount; i++)
+            gpuLights[i] = GpuLight.From(scene.Lights[i]);
+        return gpuLights.AsSpan(0, scene.LightCount);
     }
 
     /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>

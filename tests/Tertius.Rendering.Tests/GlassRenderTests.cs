@@ -190,7 +190,7 @@ public sealed class GlassRenderTests
             tables: BrdfTables.Shared
         );
         RenderSnapshot snapshot = Unlit(sunDirection, sunIntensity: 1);
-        Double3 irradiance = snapshot.Sun.Color * snapshot.Sun.Intensity;
+        Double3 irradiance = Gpu.StarIrradianceRgb(snapshot);
         Double3 expected = (opacity * (full - specular) + specular) * irradiance;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);

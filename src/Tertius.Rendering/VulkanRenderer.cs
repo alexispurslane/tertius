@@ -19,7 +19,8 @@ namespace Tertius.Rendering;
 /// <item>CPU batching (<see cref="SceneBatcher"/>): interpolation by alpha, culling, depth ranges, sorting, one indirect
 /// command per (range, mesh) run. The impostor manager (<see cref="IInstanceProcessor"/>) takes the objects it draws
 /// as impostors out of the batch and chooses this frame's captures.</item>
-/// <item>Sun shadow maps (<see cref="ShadowPass"/>): four cascades over the first 2 km, casters from the whole snapshot.</item>
+/// <item>The shadow maps (<see cref="ShadowPass"/>): a set of four cascades over the first 2 km for each far light with a
+/// cascade set, from the frame's casters.</item>
 /// <item>The environment map, under <see cref="SceneEnvironmentMap"/>: the faces that this frame draws
 /// (<see cref="EnvironmentFacePass"/>), then the specular map and the irradiance (<see cref="EnvironmentPrefilterPass"/>).</item>
 /// <item>Impostor captures (<see cref="ImpostorPass"/>): up to four objects, chosen by <see cref="ImpostorManager"/>
@@ -108,6 +109,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         this.headless = headless;
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
+        Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
         {
@@ -130,7 +132,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections
             );
-            ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
+            ShadowMap = Own(
+                new ShadowMap(
+                    device: device,
+                    allocator: Allocator,
+                    size: options.ShadowMapSize,
+                    sets: options.CascadedLights
+                )
+            );
             exposure = Own(
                 new ExposureResources(
                     device: device,
@@ -185,7 +194,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
 
-    internal SceneBatcher Batcher { get; } = new();
+    internal SceneBatcher Batcher { get; }
 
     internal FrameGraph Graph { get; } = new();
 
@@ -716,12 +725,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             MiddleCommands = scene.Opaque[DepthRanges.Middle].Count,
             NearCommands = scene.Opaque[DepthRanges.Near].Count,
             TransparentCommands = scene.TransparentCommandCount,
-            ShadowCommands =
-                scene.ShadowCommands[0].Count
-                + scene.ShadowCommands[1].Count
-                + scene.ShadowCommands[2].Count
-                + scene.ShadowCommands[3].Count,
-            ShadowCascades = scene.ShadowCascadeCount,
+            ShadowCommands = ShadowCommandsOf(scene),
+            ShadowCascades = scene.CascadeSetCount * ShadowCascades.Count,
+            CascadeSets = scene.CascadeSetCount,
             ShadowCasters = scene.ShadowCasters,
             ShadowInstances = scene.ShadowInstances,
             Impostors = impostors?.Draws.Length ?? 0,
@@ -736,6 +742,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Exposure = exposure,
             Rendered = true,
         };
+
+    /// <summary>The caster commands of every cascade of every set that the frame draws.</summary>
+    private static int ShadowCommandsOf(PreparedScene scene)
+    {
+        int count = 0;
+        for (int layer = 0; layer < scene.CascadeSetCount * ShadowCascades.Count; layer++)
+            count += scene.ShadowCommands[layer].Count;
+        return count;
+    }
 
     private void ApplyPendingResize()
     {
@@ -763,11 +778,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Reads one cascade of the shadow map back to the CPU, row by row from the top: reversed depth, 1 nearest the
-    /// sun. A test and tooling hook: it waits for the device to be idle and submits its own copy.
+    /// Reads one cascade of one cascade set back to the CPU, row by row from the top: reversed depth, 1 nearest the light.
+    /// A test and tooling hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadShadowCascade(int cascade)
+    internal float[] ReadShadowCascade(int set, int cascade)
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)set, (uint)ShadowMap.Sets);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)cascade, (uint)ShadowCascades.Count);
         GpuImage image = ShadowMap.Image;
         int size = ShadowMap.Size;
@@ -785,7 +801,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 commandBuffer: commandBuffer,
                 image: image,
                 aspect: ImageAspectFlags.DepthBit,
-                layer: cascade,
+                layer: ShadowMap.Layer(set, cascade),
                 mip: 0,
                 extent: new((uint)size, (uint)size),
                 buffer: buffer

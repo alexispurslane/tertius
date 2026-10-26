@@ -260,8 +260,9 @@ public static partial class DemoScenes
                                 Light = new PointLightData(
                                     Offset: new(new((float)-side * 0.3f, -0.3f, 0), Quaternion.Identity),
                                     Color: new(1, 0.92f, 0.8f),
-                                    Intensity: 80,
-                                    Range: 18
+                                    Power: 4 * MathF.PI * 80,
+                                    Radius: LampRadius,
+                                    CastsShadow: false
                                 ),
                             },
                         }
@@ -364,17 +365,14 @@ public static partial class DemoScenes
             );
             world.Camera = view;
 
-            Entity sun = world.Spawn(
-                new()
-                {
-                    Frame = frame,
-                    Pose = new(new(0, 25, 0), DQuaternion.Identity),
-                    AsFrame = new(FrameBounds.Sphere(1)),
-                }
+            Star(
+                world: world,
+                scene: scene,
+                frame: frame,
+                center: Double3.Zero,
+                direction: new(0, 25, 0),
+                irradiance: 0.6f
             );
-            scene.Add("sun", sun);
-            world.SunFrame = world.GetOwnedFrame(sun);
-            world.SunIntensity = 0.6f;
             world.Ambient = new()
             {
                 SkyColor = new(0.12f),

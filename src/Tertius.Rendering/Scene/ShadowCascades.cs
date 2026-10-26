@@ -3,15 +3,18 @@ using System.Runtime.CompilerServices;
 
 namespace Tertius.Rendering;
 
-/// <summary>The light space of the sun shadow: <see cref="Z"/> points toward the sun, <see cref="X"/> and <see cref="Y"/>
-/// span the map.</summary>
+/// <summary>The light space of a light's shadow: <see cref="Z"/> points toward the light, <see cref="X"/> and
+/// <see cref="Y"/> span the map.</summary>
 internal readonly record struct LightBasis(Vector3 X, Vector3 Y, Vector3 Z)
 {
-    /// <summary>A basis that depends only on the sun direction, so it is the same every frame while the sun stands still.</summary>
-    public static LightBasis FromSunDirection(Vector3 sunDirection)
+    /// <summary>
+    /// A basis that depends only on the direction toward the light, a vector that is not zero, so it is the same every
+    /// frame while the light stands still.
+    /// </summary>
+    public static LightBasis FromDirection(Vector3 towardLight)
     {
-        var z = Vector3.Normalize(sunDirection);
-        // Any fixed reference that is not parallel to z. The switch happens only for a sun almost straight overhead
+        var z = Vector3.Normalize(towardLight);
+        // Any fixed reference that is not parallel to z. The switch happens only for a light almost straight overhead
         // (or underfoot), where the basis turns once.
         Vector3 reference = MathF.Abs(z.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
         var x = Vector3.Normalize(Vector3.Cross(reference, z));
@@ -21,12 +24,12 @@ internal readonly record struct LightBasis(Vector3 X, Vector3 Y, Vector3 Z)
     public Vector3 ToLight(Vector3 world) => new(Vector3.Dot(world, X), Vector3.Dot(world, Y), Vector3.Dot(world, Z));
 }
 
-/// <summary>One cascade of the sun shadow map, fitted for one frame.</summary>
+/// <summary>One cascade of a light's cascade set, fitted for one frame.</summary>
 internal struct ShadowCascade
 {
     /// <summary>
     /// Camera-relative world space to shadow clip space, in System.Numerics row-vector form. Clip x and y are in
-    /// [−1, 1] across the map; z is reversed: 1 on the sun side of the cascade box and 0 on the far side.
+    /// [−1, 1] across the map; z is reversed: 1 on the light's side of the cascade box and 0 on the far side.
     /// </summary>
     public Matrix4x4 ViewProjection;
 
@@ -52,7 +55,7 @@ internal struct ShadowCascade
     public float FarDepth;
 }
 
-/// <summary>The cascades of one frame.</summary>
+/// <summary>The cascades of one cascade set in one frame.</summary>
 [InlineArray(ShadowCascades.Count)]
 internal struct ShadowCascadeArray
 {
@@ -60,7 +63,8 @@ internal struct ShadowCascadeArray
 }
 
 /// <summary>
-/// Cascaded shadow maps for the sun (ARCHITECTURE.md, Shadows): four cascades over the first 2 km of view depth.
+/// Cascaded shadow maps for the far lights (ARCHITECTURE.md, Shadows): each cascade set is four cascades over the first
+/// 2 km of view depth, fitted along its own light's direction.
 /// </summary>
 /// <remarks>
 /// <para><b>Splits.</b> The practical split scheme (Zhang et al. 2006) blends the logarithmic split n·(f/n)^(i/N), which
@@ -78,7 +82,7 @@ internal struct ShadowCascadeArray
 /// world-fixed anchor, the origin of the camera's reference frame (<see cref="Anchor"/>). A static shadow therefore
 /// keeps the same texels while the camera moves and turns, and does not shimmer.</para>
 /// <para><b>Depth.</b> The cascade box is centered on the snapped center and is <c>depthRangeScale</c> times deeper
-/// than it is wide (16 for D32). Casters between the box and the sun are "pancaked" onto its sun-side face by depth
+/// than it is wide (16 for D32). Casters between the box and the light are "pancaked" onto its light-side face by depth
 /// clamping in the shadow pass. The extra depth works around what was measured on an Apple M1 Max through MoltenVK:
 /// when a large caster that is steep to the light (such as the ground under a low sun) is clipped at the edges of
 /// the viewport and its depth there falls outside [0, 1], it is stored with a flattened, wrong depth plane, as if the
@@ -90,6 +94,9 @@ internal struct ShadowCascadeArray
 internal static class ShadowCascades
 {
     public const int Count = 4;
+
+    /// <summary>The most cascade sets that a frame holds, the frame block's array of them: <see cref="RendererOptions.MaxCascadedLights"/>.</summary>
+    public const int MaxSets = RendererOptions.MaxCascadedLights;
 
     /// <summary>Shadow maps cover view depths up to here, and only casters whose bounding sphere comes this close to the camera are drawn.</summary>
     public const float Distance = 2_000f;
@@ -190,7 +197,7 @@ internal static class ShadowCascades
     /// Fits every cascade for this frame's camera.
     /// </summary>
     /// <param name="camera">The interpolated camera. Camera-relative world space has the eye at the origin.</param>
-    /// <param name="light">The light basis of the sun.</param>
+    /// <param name="light">The light basis of the set's light.</param>
     /// <param name="mapSize">The side of each cascade's shadow map in texels.</param>
     /// <param name="depthRangeScale">How many times deeper than wide each cascade box is.</param>
     /// <param name="anchor">A world-fixed point in camera-relative world space (see <see cref="Anchor"/>). The texel grid passes through it.</param>
@@ -244,7 +251,7 @@ internal static class ShadowCascades
 
     /// <summary>
     /// The orthographic world-to-clip matrix of a cascade box, in row-vector form: x and y map
-    /// [center − h, center + h] to [−1, 1]; depth maps the sun-side face (z = center + d) to 1 and the far face
+    /// [center − h, center + h] to [−1, 1]; depth maps the light's face (z = center + d) to 1 and the far face
     /// (z = center − d) to 0.
     /// </summary>
     public static Matrix4x4 ViewProjection(in LightBasis light, Vector3 center, float halfExtent, float depthHalfRange)

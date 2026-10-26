@@ -16,16 +16,18 @@ public sealed class OutlinePassTests
     private static PreparedScene Collect(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        new SceneBatcher().Prepare(
-            snapshot: snapshot,
-            alpha: alpha,
-            width: 1600,
-            height: 900,
-            meshes: NoMeshes,
-            materialCount: 1,
-            environment: default,
-            scene: scene
-        );
+        Batchers
+            .Default()
+            .Prepare(
+                snapshot: snapshot,
+                alpha: alpha,
+                width: 1600,
+                height: 900,
+                meshes: NoMeshes,
+                materialCount: 1,
+                environment: default,
+                scene: scene
+            );
         OutlinePass.Collect(snapshot, scene);
         return scene;
     }
@@ -220,7 +222,7 @@ public sealed class OutlinePassTests
         RenderSnapshot shown = Empty();
         shown.Outlines.Add(new RestingOutline(new(0, 0, -20), 2));
         var scene = new PreparedScene();
-        var batcher = new SceneBatcher();
+        SceneBatcher batcher = Batchers.Default();
         batcher.Prepare(
             snapshot: shown,
             alpha: 1,

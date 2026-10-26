@@ -42,7 +42,13 @@ public static partial class DemoScenes
         {
             var scene = new SceneInstance();
             EarthDate date = DemoSurface.Date;
-            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: date);
+            FrameHandle earth = SunAndEarth(
+                world: world,
+                resources: resources,
+                scene: scene,
+                date: date,
+                irradiance: SpaceSunlight
+            );
             FrameHandle sun = world.GetOwnedFrame(scene["sun"]);
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
 

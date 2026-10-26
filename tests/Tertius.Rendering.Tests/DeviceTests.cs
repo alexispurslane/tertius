@@ -167,7 +167,7 @@ public sealed class DeviceTests
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
-            renderer.ReadShadowCascade(0).Should().HaveCount(1024 * 1024);
+            renderer.ReadShadowCascade(set: 0, cascade: 0).Should().HaveCount(1024 * 1024);
         }
         finally
         {

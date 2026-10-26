@@ -12,7 +12,7 @@ internal sealed class FrameContext
     public required MaterialStore Materials { get; init; }
     public required BarrierBatch Barriers { get; init; }
 
-    /// <summary>The sun shadow cascades. Passes that shade with the sun sample them.</summary>
+    /// <summary>The shadow cascades of every cascade set. Passes that shade with the far lights sample them.</summary>
     public required ShadowMap Shadows { get; init; }
 
     /// <summary>The timestamps around the passes. Only <see cref="FrameGraph.Record"/> writes them.</summary>

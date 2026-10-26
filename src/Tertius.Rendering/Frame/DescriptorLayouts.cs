@@ -16,7 +16,7 @@ namespace Tertius.Rendering;
 /// </item>
 /// <item><term>set 2, G-buffer</term>
 /// <description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
-/// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
+/// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
 /// for the lit puffs, and the occlusion target (binding 7, rewritten on resize). One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
@@ -162,7 +162,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The shadow map sampler: hardware PCF (linear filtering of GREATER_OR_EQUAL comparisons, so a receiver at least
-    /// as near the sun as the stored caster is lit), clamped to the edge.
+    /// as near the light as the stored caster is lit), clamped to the edge.
     /// </summary>
     public Sampler ShadowSampler { get; }
 

@@ -141,15 +141,12 @@ internal readonly partial struct TransparentRun;
 
 /// <summary>
 /// Everything the CPU prepares for one frame: camera, visible instances, the sorted GPU instance array, indirect
-/// commands per depth range and per shadow cascade, lights, occluders and the frame constants. Arrays are reused
-/// from frame to frame.
+/// commands per depth range and per shadow cascade, lights, casters, occluders and the frame constants. Arrays are
+/// reused from frame to frame.
 /// </summary>
 internal sealed class PreparedScene
 {
     public CameraView Camera;
-
-    /// <summary>The snapshot's sun, as given. Instance processors read it, for example to light impostor captures.</summary>
-    public RenderSun Sun;
 
     /// <summary>The ambient light of the frame: the snapshot's hemisphere, or the map with its latest irradiance reading.</summary>
     public AmbientSource Ambient;
@@ -190,19 +187,26 @@ internal sealed class PreparedScene
 
     public int PuffCount;
 
-    public GpuLight[] Lights = new GpuLight[16];
+    /// <summary>
+    /// The lights of the frame, in the order of the snapshot: those that shine and can reach a view. Instance processors
+    /// read them, for example to light impostor captures. <see cref="FrameResources.Write"/> writes their GPU form.
+    /// </summary>
+    public PreparedLight[] Lights = new PreparedLight[16];
+
     public int LightCount;
+
+    /// <summary>The casters of the frame, interpolated once, in the order of the snapshot. Every shadow technique reads them.</summary>
+    public ShadowCaster[] Casters = new ShadowCaster[64];
+
+    public int CasterCount;
 
     /// <summary>
     /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
-    /// <see cref="Eclipse.SunVisibility"/>). Those of casters in the shadow maps come first.
+    /// <see cref="Eclipse.Visibility"/>). Each far light with a slot has its own run of them, which its slot names.
     /// </summary>
     public Vector4[] Occluders = new Vector4[8];
 
     public int OccluderCount;
-
-    /// <summary>How many far shadows, at the front of <see cref="Occluders"/>, belong to casters that the shadow maps also draw.</summary>
-    public int MappedOccluderCount;
 
     /// <summary>
     /// The frame outlines to draw, in the order of the snapshot, appended by <see cref="OutlinePass"/> in its
@@ -215,14 +219,23 @@ internal sealed class PreparedScene
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
 
-    /// <summary>The sun shadow cascades of this frame. Valid when <see cref="ShadowCascadeCount"/> is not 0.</summary>
-    public ShadowCascadeArray Cascades;
+    /// <summary>The cascade sets of this frame, by set. Sets 0 to <see cref="CascadeSetCount"/> − 1 are valid.</summary>
+    public readonly ShadowCascadeArray[] CascadeSets = new ShadowCascadeArray[ShadowCascades.MaxSets];
 
-    /// <summary>Cascades the shadow pass renders and the lighting pass samples: 0 or <see cref="ShadowCascades.Count"/>.</summary>
-    public int ShadowCascadeCount;
+    /// <summary>The light basis of each cascade set, along its light's direction, by set.</summary>
+    public readonly LightBasis[] CascadeBases = new LightBasis[ShadowCascades.MaxSets];
 
-    /// <summary>Caster commands per cascade, appended after batching by the shadow pass.</summary>
-    public readonly CommandRange[] ShadowCommands = new CommandRange[ShadowCascades.Count];
+    /// <summary>
+    /// The cascade sets that the shadow pass draws and the shading passes sample: one more than the highest set of a far
+    /// light, or 0 when no light has a set or no caster comes within reach of the maps.
+    /// </summary>
+    public int CascadeSetCount;
+
+    /// <summary>
+    /// Caster commands per set and cascade, at set × <see cref="ShadowCascades.Count"/> + cascade, appended after batching
+    /// by the shadow pass.
+    /// </summary>
+    public readonly CommandRange[] ShadowCommands = new CommandRange[ShadowCascades.MaxSets * ShadowCascades.Count];
 
     /// <summary>Distinct instances selected as shadow casters.</summary>
     public int ShadowCasters;
@@ -253,6 +266,10 @@ internal sealed class PreparedScene
 
     public Span<PreparedInstance> VisibleSpan => Visible.AsSpan(0, VisibleCount);
 
+    public Span<PreparedLight> LightSpan => Lights.AsSpan(0, LightCount);
+
+    public ReadOnlySpan<ShadowCaster> CasterSpan => Casters.AsSpan(0, CasterCount);
+
     /// <summary>Appends a visible instance, for example a billboard that replaces an object.</summary>
     public ref PreparedInstance AddVisible()
     {
@@ -269,6 +286,34 @@ internal sealed class PreparedScene
         if ((uint)index >= (uint)VisibleCount)
             throw new ArgumentOutOfRangeException(nameof(index));
         Visible[index] = Visible[--VisibleCount];
+    }
+
+    /// <summary>Appends a light of the frame.</summary>
+    public ref PreparedLight AddLight()
+    {
+        if (LightCount == Lights.Length)
+            Array.Resize(ref Lights, Lights.Length * 2);
+        ref PreparedLight slot = ref Lights[LightCount++];
+        slot = default;
+        return ref slot;
+    }
+
+    /// <summary>Appends a caster of the frame.</summary>
+    public ref ShadowCaster AddCaster()
+    {
+        if (CasterCount == Casters.Length)
+            Array.Resize(ref Casters, Casters.Length * 2);
+        ref ShadowCaster slot = ref Casters[CasterCount++];
+        slot = default;
+        return ref slot;
+    }
+
+    /// <summary>Appends a far shadow, the sphere of a caster.</summary>
+    public void AddOccluder(Vector4 sphere)
+    {
+        if (OccluderCount == Occluders.Length)
+            Array.Resize(ref Occluders, Occluders.Length * 2);
+        Occluders[OccluderCount++] = sphere;
     }
 
     /// <summary>Adds a GPU instance after batching, for a pass's own draws. Returns its index for firstInstance.</summary>
@@ -303,15 +348,15 @@ internal sealed class PreparedScene
         InstanceCount = 0;
         CommandCount = 0;
         LightCount = 0;
+        CasterCount = 0;
         OutlineCount = 0;
         OccluderCount = 0;
-        MappedOccluderCount = 0;
         SubmittedInstances = 0;
         Array.Clear(Opaque);
         foreach (List<TransparentRun> runs in Transparent)
             runs.Clear();
         PuffCount = 0;
-        ShadowCascadeCount = 0;
+        CascadeSetCount = 0;
         Array.Clear(ShadowCommands);
         ShadowCasters = 0;
         ShadowInstances = 0;
@@ -321,7 +366,7 @@ internal sealed class PreparedScene
 }
 
 /// <summary>
-/// Edits the visible instances after interpolation, culling, lights and occluders, and before batching, on the render
+/// Edits the visible instances after interpolation, culling, casters, lights and occluders, and before batching, on the render
 /// thread. <see cref="ImpostorManager"/> is one: it takes the objects it draws as impostors out of
 /// <see cref="PreparedScene.Visible"/> and queues atlas captures, which <see cref="ImpostorPass"/> renders in
 /// <see cref="FrameGraph.Stage.ImpostorCaptures"/> before the G-buffer pass. Register processors with

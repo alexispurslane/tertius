@@ -625,8 +625,9 @@ public static partial class DemoScenes
                             Light = new PointLightData(
                                 Offset: new(inward * 0.3f, Quaternion.Identity),
                                 Color: new(1, 0.9f, 0.75f),
-                                Intensity: 100,
-                                Range: 20
+                                Power: 4 * MathF.PI * 100,
+                                Radius: LampRadius,
+                                CastsShadow: false
                             ),
                         },
                     }

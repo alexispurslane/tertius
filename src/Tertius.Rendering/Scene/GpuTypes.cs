@@ -124,22 +124,96 @@ internal struct GpuMaterial
     public uint MetallicRoughnessMap;
 }
 
-/// <summary>One point or spot light in the light storage buffer. 64 bytes.</summary>
+/// <summary>
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 96 bytes. <see cref="From"/> is the one
+/// place that encodes a <see cref="PreparedLight"/>, its spread and its shadow slot for the shaders.
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuLight
 {
-    /// <summary>xyz camera-relative position, w range.</summary>
-    public Vector4 PositionRange;
+    /// <summary>The kind of a point light in <see cref="IntensityKind"/>.w.</summary>
+    public const float PointKind = 0f;
 
-    /// <summary>rgb color × intensity, w kind: 0 point, 1 spot.</summary>
-    public Vector4 RadianceKind;
+    /// <summary>The kind of a spot light in <see cref="IntensityKind"/>.w.</summary>
+    public const float SpotKind = 1f;
 
-    /// <summary>xyz unit spot direction, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
+    /// <summary>The slot of a light without shadows, in <see cref="Shadow"/>.x.</summary>
+    public const uint NoSlot = 0;
+
+    /// <summary>The slot of a <see cref="CascadeSet"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint CascadeSetSlot = 1;
+
+    /// <summary>The slot of a <see cref="FarShadowsOnly"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint FarShadowsOnlySlot = 2;
+
+    /// <summary>The slot of <see cref="AtlasTiles"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint AtlasTilesSlot = 3;
+
+    /// <summary>xyz camera-relative position, w the reach in meters.</summary>
+    public Vector4 PositionReach;
+
+    /// <summary>rgb color × intensity in W/sr, w the kind: <see cref="PointKind"/> or <see cref="SpotKind"/>.</summary>
+    public Vector4 IntensityKind;
+
+    /// <summary>xyz the unit spot axis, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
     public Vector4 DirectionCosOuter;
 
-    /// <summary>x cos(inner half-angle). Zero for a point light.</summary>
-    public Vector4 Spot;
+    /// <summary>x cos(inner half-angle), zero for a point light; y the emitter's radius in meters.</summary>
+    public Vector4 SpotRadius;
+
+    /// <summary>x the slot; y the cascade set or the first tile view; z the tile views.</summary>
+    public UInt4 Shadow;
+
+    /// <summary>x the first occluder, y the occluders, z how many of the first ones the cascade set also draws.</summary>
+    public UInt4 Occluders;
+
+    /// <summary>
+    /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
+    /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
+    /// square stays finite.
+    /// </summary>
+    public static GpuLight From(in PreparedLight light)
+    {
+        (Vector4 axis, float cosInner, float kind) = light.Spread switch
+        {
+            Cone { Axis: var direction, CosInner: var inner, CosOuter: var outer } => (
+                new Vector4(direction, outer),
+                inner,
+                SpotKind
+            ),
+            EveryDirection => (Vector4.Zero, 0f, PointKind),
+        };
+        (UInt4 shadow, UInt4 occluders) = light.Shadow switch
+        {
+            CascadeSet { Set: var set, Occluders: var range, Mapped: var mapped } => (
+                new UInt4(X: CascadeSetSlot, Y: (uint)set, Z: 0, W: 0),
+                OccludersOf(range, mapped)
+            ),
+            FarShadowsOnly(var range) => (new UInt4(X: FarShadowsOnlySlot, Y: 0, Z: 0, W: 0), OccludersOf(range, 0)),
+            AtlasTiles { First: var first, Count: var count } => (
+                new UInt4(X: AtlasTilesSlot, Y: (uint)first, Z: (uint)count, W: 0),
+                default
+            ),
+            null => (default, default),
+        };
+        return new()
+        {
+            PositionReach = new(light.Position, light.Reach),
+            IntensityKind = new(ShaderInput.Intensity(light.RadiantIntensity), kind),
+            DirectionCosOuter = axis,
+            SpotRadius = new(x: cosInner, y: MathF.Min(light.Radius, ShaderInput.PositionLimit), z: 0, w: 0),
+            Shadow = shadow,
+            Occluders = occluders,
+        };
+    }
+
+    private static UInt4 OccludersOf(OccluderRange range, int mapped) =>
+        new(X: (uint)range.Start, Y: (uint)range.Count, Z: (uint)mapped, W: 0);
 }
+
+/// <summary>Four unsigned integers, laid out as a GLSL <c>uvec4</c>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct UInt4(uint X, uint Y, uint Z, uint W);
 
 /// <summary>One frame outline in the outline storage buffer (std430). 48 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -187,7 +261,7 @@ internal struct GpuPuff
     public Vector4 ColorKind;
 }
 
-/// <summary>The frame uniform block (std140). 720 bytes.</summary>
+/// <summary>The frame uniform block (std140). 1,552 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -199,8 +273,6 @@ internal struct GpuFrameConstants
     public Vector4 CameraRight;
     public Vector4 CameraUp;
     public Vector4 CameraForward;
-    public Vector4 SunDirection;
-    public Vector4 SunRadiance;
     public Vector4 AmbientSky;
     public Vector4 AmbientGround;
     public Vector4 Viewport;
@@ -210,41 +282,54 @@ internal struct GpuFrameConstants
     /// drawn, a share of <see cref="ShaderInput.PuffBudget"/>; y: time in s; z: angular size of one pixel; w: unused.
     /// </summary>
     public Vector4 Params;
-    public uint LightCount;
-    public uint OccluderCount;
 
-    /// <summary>Sun shadow cascades to sample: <see cref="ShadowCascades.Count"/>, or 0 when no cascade was drawn.</summary>
-    public uint ShadowCascadeCount;
+    /// <summary>
+    /// x: the lights; y: unused, because each light carries its own occluders; z: the cascades of each drawn cascade set,
+    /// <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
+    /// </summary>
+    public UInt4 Counts;
 
-    /// <summary>How many far shadows, at the front of the list, belong to casters that the shadow maps also draw.</summary>
-    public uint MappedOccluderCount;
-
-    /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
-    public ShadowMatrices ShadowViewProj;
-
-    /// <summary>The view depth where each cascade ends.</summary>
+    /// <summary>The view depth where each cascade ends, the same for every set.</summary>
     public Vector4 ShadowSplits;
 
     /// <summary>The view depth where each cascade starts to blend into the next one (or, for the last, to no shadow).</summary>
     public Vector4 ShadowBlendStart;
 
-    /// <summary>The world size of one shadow map texel in each cascade.</summary>
+    /// <summary>The world size of one shadow map texel in each cascade, the same for every set.</summary>
     public Vector4 ShadowTexel;
-
-    /// <summary>
-    /// xyz: the light-space x axis in world space (the z axis is the sun direction). w: the cascade boxes' lateral
-    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
-    /// </summary>
-    public Vector4 ShadowAxisX;
-
-    /// <summary>xyz: the light-space y axis in world space.</summary>
-    public Vector4 ShadowAxisY;
 
     /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
     public Vector4 ShadowParams;
 
     /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
     public Vector4 RootRotation;
+
+    /// <summary>The cascade sets of this frame; set i belongs to the light whose slot names it.</summary>
+    public CascadeSetArray CascadeSets;
+}
+
+/// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuCascadeSet
+{
+    /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
+    public ShadowMatrices ViewProj;
+
+    /// <summary>
+    /// xyz: the light-space x axis in world space (the z axis points toward the light). w: the cascade boxes' lateral
+    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
+    /// </summary>
+    public Vector4 AxisX;
+
+    /// <summary>xyz: the light-space y axis in world space.</summary>
+    public Vector4 AxisY;
+}
+
+/// <summary>The cascade sets of the frame block, laid out as a std140 <c>GpuCascadeSet[4]</c>.</summary>
+[InlineArray(ShadowCascades.MaxSets)]
+internal struct CascadeSetArray
+{
+    private GpuCascadeSet element;
 }
 
 /// <summary>One matrix per shadow cascade, laid out as a std140 <c>mat4[4]</c>.</summary>

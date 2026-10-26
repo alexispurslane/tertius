@@ -229,7 +229,8 @@ public static partial class DemoScenes
                 world: world,
                 resources: resources,
                 scene: scene,
-                date: EarthDate.MarchEquinox
+                date: EarthDate.MarchEquinox,
+                irradiance: SpaceSunlight
             );
 
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
@@ -288,24 +289,13 @@ public static partial class DemoScenes
             );
             for (int i = -2; i <= 2; i++)
                 world.Spawn(
-                    new()
-                    {
-                        Frame = frame,
-                        Pose = new(new(0, Cabin.Y - 0.05, 6 * i), DQuaternion.Identity),
-                        Render = new RenderData
-                        {
-                            Mesh = lampMesh,
-                            Material = lampMaterial,
-                            BoundingRadius = 0.85f,
-                            Flags = RenderFlags.Visible,
-                            Light = new PointLightData(
-                                Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
-                                Color: new(1, 0.9f, 0.75f),
-                                Intensity: 40,
-                                Range: 20
-                            ),
-                        },
-                    }
+                    CeilingLamp(
+                        frame: frame,
+                        position: new(0, Cabin.Y - 0.05, 6 * i),
+                        mesh: lampMesh,
+                        material: lampMaterial,
+                        intensity: 40
+                    )
                 );
 
             // The outer door slides aft into the port wall beside the hatch, and the inner door up into the chamber's

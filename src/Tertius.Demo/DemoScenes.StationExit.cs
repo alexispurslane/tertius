@@ -336,8 +336,9 @@ public static partial class DemoScenes
                         light: new(
                             Offset: new(new(0, 0, -0.3f), Quaternion.Identity),
                             Color: new(1, 0.9f, 0.75f),
-                            Intensity: 60,
-                            Range: 14
+                            Power: 4 * MathF.PI * 60,
+                            Radius: LampRadius,
+                            CastsShadow: false
                         )
                     )
                 );
@@ -358,8 +359,9 @@ public static partial class DemoScenes
                         light: new(
                             Offset: new(new(0.3f, 0, 0), Quaternion.Identity),
                             Color: new(1, 0.9f, 0.75f),
-                            Intensity: 100,
-                            Range: 20
+                            Power: 4 * MathF.PI * 100,
+                            Radius: LampRadius,
+                            CastsShadow: false
                         )
                     )
                 );

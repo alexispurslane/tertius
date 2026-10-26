@@ -458,8 +458,8 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the <see cref="Lamps"/> in <paramref name="cabin"/>, the shuttle's frame, with their scene ids: each a
-        /// warm glowing panel with a point light 0.3 m in front of it, toward the cabin's middle, of range 10 m and intensity
-        /// 50. The four give the light of the two roof lamps of intensity 100 that the box hull had. A point light casts no
+        /// warm glowing panel with a point light 0.3 m in front of it, toward the cabin's middle, of 50 W/sr, a power of
+        /// 4π × 50 W. The four give the light of the two roof lamps of 100 W/sr that the box hull had. A point light casts no
         /// shadow yet, so the lamps also light faces that the hull hides from them.
         /// </summary>
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
@@ -490,8 +490,9 @@ public static partial class DemoScenes
                                 Light = new PointLightData(
                                     Offset: new(new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity),
                                     Color: new(1, 0.9f, 0.75f),
-                                    Intensity: 50,
-                                    Range: 10
+                                    Power: 4 * MathF.PI * 50,
+                                    Radius: LampRadius,
+                                    CastsShadow: false
                                 ),
                             },
                         }

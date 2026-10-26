@@ -13,8 +13,9 @@ namespace Tertius.Benchmarks;
 /// <remarks>
 /// The scene is the one of <see cref="PuffRenderBenchmarks"/>, with its small puffs: a gray ground and 100 boxes lit by the
 /// sun, and <see cref="Puffs"/> puffs of radii from 0.2 m to 1 m from 5 m to 100 m ahead. Eight point and spot lights of
-/// range 30 m stand among the near puffs, so most puffs are within the range of some of them. A lit puff computes its light
-/// once in each of its six vertices: the ambient mean, the sun with the far shadows and the cascades, and the eight lights.
+/// 40 and 60 W/sr stand among the near puffs, and their reach of kilometers covers every puff. A lit puff computes its
+/// light once in each of its six vertices: the ambient mean, the sun with the far shadows and the cascades, and the eight
+/// lights.
 /// A glow puff computes none of it, so the difference of the two is the cost of the lighting.
 /// </remarks>
 [MemoryDiagnoser]
@@ -55,13 +56,7 @@ public class LitPuffRenderBenchmarks
                 PreviousRotation = Quaternion.Identity,
                 VerticalFov = MathF.PI / 3,
             },
-            Sun = new()
-            {
-                Direction = Vector3.Normalize(new(0.4f, 0.8f, 0.5f)),
-                Color = Vector3.One,
-                Intensity = 3,
-                AngularRadius = 0.00467f,
-            },
+            Lights = { BenchmarkLights.Star(direction: new(0.4f, 0.8f, 0.5f), irradiance: 3) },
             Ambient = new()
             {
                 SkyColor = new(0.09f, 0.11f, 0.15f),
@@ -108,15 +103,14 @@ public class LitPuffRenderBenchmarks
             var color = new Vector3(1f, 0.8f, 0.6f);
             snapshot.Lights.Add(
                 i % 2 == 0
-                    ? new PointRenderLight(Position: place, Color: color, Intensity: 40, Range: 30)
-                    : new SpotRenderLight(
-                        Position: place,
-                        Direction: new(0, -1, -1),
-                        Color: color,
-                        Intensity: 60,
-                        Range: 30,
-                        InnerConeAngle: 0.5f,
-                        OuterConeAngle: 0.8f
+                    ? BenchmarkLights.Lamp(position: place, color: color, intensity: 40)
+                    : BenchmarkLights.Spot(
+                        position: place,
+                        direction: Vector3.Normalize(new(0, -1, -1)),
+                        color: color,
+                        intensity: 60,
+                        innerConeAngle: 0.5f,
+                        outerConeAngle: 0.8f
                     )
             );
         }

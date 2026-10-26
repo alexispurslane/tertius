@@ -39,7 +39,7 @@ public sealed class AutoExposureRenderTests
     {
         RenderSnapshot snapshot = Sunlit();
         if (sunOut)
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
         AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
         return snapshot;
     }
@@ -134,7 +134,7 @@ public sealed class AutoExposureRenderTests
             AutoExposure.Default,
             (_, snapshot) =>
             {
-                snapshot.Sun.Intensity = 0;
+                Gpu.Star(snapshot: snapshot, irradiance: 0);
                 snapshot.Ambient.Intensity = 0;
             }
         );
@@ -146,7 +146,10 @@ public sealed class AutoExposureRenderTests
     public void UnderLightTooBrightForTheClampTheExposureStopsAtTheLowestStops()
     {
         // The square then shows a radiance of about 16,000, which wants about −16 stops.
-        float settled = SettledOnTheGraySquare(AutoExposure.Default, (_, snapshot) => snapshot.Sun.Intensity = 1e5f);
+        float settled = SettledOnTheGraySquare(
+            AutoExposure.Default,
+            (_, snapshot) => Gpu.Star(snapshot: snapshot, irradiance: 1e5f)
+        );
 
         settled.Should().Be(AutoExposure.Default.MinStops);
     }
@@ -168,7 +171,7 @@ public sealed class AutoExposureRenderTests
         {
             RenderSnapshot snapshot = RampView(renderer, sunOut: false);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
             FilmFrame[] film = Film(
                 renderer: renderer,
                 snapshot: snapshot,
@@ -243,9 +246,9 @@ public sealed class AutoExposureRenderTests
             try
             {
                 RenderSnapshot snapshot = RampView(renderer, sunOut: fromDark);
-                float sun = Sunlit().Sun.Intensity;
+                float sun = Gpu.StarIrradiance(Sunlit());
                 FilmFrame settled = Still(renderer: renderer, snapshot: snapshot, time: 0);
-                snapshot.Sun.Intensity = fromDark ? sun : 0;
+                Gpu.Star(snapshot: snapshot, irradiance: fromDark ? sun : 0);
                 FilmFrame[] film = Film(
                     renderer: renderer,
                     snapshot: snapshot,

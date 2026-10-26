@@ -86,7 +86,14 @@ public static partial class DemoScenes
         );
 
         // The sun stands up, in front of the rows and to their +X side, so the front views see each sphere's highlight.
-        SunAt(world: world, scene: scene, frame: surface, position: new(20, EarthRadius + 30, 40));
+        Star(
+            world: world,
+            scene: scene,
+            frame: surface,
+            center: new(0, EarthRadius, 0),
+            direction: new(20, 30, 40),
+            irradiance: 1
+        );
 
         scene.AddView("front-camera");
         scene.AddView("low-camera");
@@ -96,7 +103,7 @@ public static partial class DemoScenes
 
     /// <summary>
     /// A lamp of the review scenes in <paramref name="surface"/> at <paramref name="position"/>: a glowing sphere 5 cm in
-    /// radius with a warm point light of range 8 m.
+    /// radius with a warm point light of 2 W/sr.
     /// </summary>
     private static SpawnDesc GlowLamp(FrameHandle surface, IRenderResources resources, Double3 position) =>
         new()
@@ -119,8 +126,9 @@ public static partial class DemoScenes
                 Light = new PointLightData(
                     Offset: new(Vector3.Zero, Quaternion.Identity),
                     Color: new(1, 0.9f, 0.75f),
-                    Intensity: 2,
-                    Range: 8
+                    Power: 4 * MathF.PI * 2,
+                    Radius: LampRadius,
+                    CastsShadow: false
                 ),
             },
         };

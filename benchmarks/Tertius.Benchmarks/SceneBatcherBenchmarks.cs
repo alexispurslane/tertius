@@ -27,7 +27,7 @@ public class SceneBatcherBenchmarks
 
     private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f)];
 
-    private readonly SceneBatcher batcher = new();
+    private readonly SceneBatcher batcher = new(exposure: AutoExposure.Default, cascadedLights: 1);
     private readonly PreparedScene scene = new();
     private RenderSnapshot snapshot = new();
     private EnvironmentDraw environment;
@@ -84,13 +84,7 @@ public class SceneBatcherBenchmarks
                 PreviousRotation = Quaternion.Identity,
                 VerticalFov = MathF.PI / 3,
             },
-            Sun = new()
-            {
-                Direction = Vector3.Normalize(new(0.3f, 1, 0.2f)),
-                Color = Vector3.One,
-                Intensity = 2.5f,
-                AngularRadius = 0.00467f,
-            },
+            Lights = { BenchmarkLights.Star(direction: new(0.3f, 1, 0.2f), irradiance: 2.5f) },
             OriginFrameId = 1,
         };
         for (int i = 0; i < 20_000; i++)

@@ -55,7 +55,7 @@ public sealed class PreExposureTests
         switch (writer)
         {
             case Writer.LitOpaqueSurface:
-                snapshot.Sun.Intensity = 0.3f * light;
+                Gpu.Star(snapshot: snapshot, irradiance: 0.3f * light);
                 AddMatteSquare(renderer, snapshot, square);
                 break;
             case Writer.EmissiveSurface:
@@ -64,7 +64,7 @@ public sealed class PreExposureTests
                 );
                 break;
             case Writer.TransparentSurface:
-                snapshot.Sun.Intensity = 0.3f * light;
+                Gpu.Star(snapshot: snapshot, irradiance: 0.3f * light);
                 // The glass reflects the sun and glows, so both of its terms must take the exposure.
                 MaterialId glass = renderer.CreateMaterial(
                     new(BaseColor: Gray with { W = 0.5f }, Roughness: 1, Emissive: new(0.03f * light))
@@ -79,7 +79,7 @@ public sealed class PreExposureTests
                 AddBlackBackdrop(renderer, snapshot);
                 break;
             case Writer.LitPuff:
-                snapshot.Sun.Intensity = light;
+                Gpu.Star(snapshot: snapshot, irradiance: light);
                 AddPuff(snapshot, PuffShading.Lit(new(0.8f)));
                 AddBlackBackdrop(renderer, snapshot);
                 break;
@@ -292,7 +292,9 @@ public sealed class PreExposureTests
                         Emissive: new(0.02f, 0.01f, 0)
                     )
                 );
-                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 1);
+                // The cutoff irradiance follows the highest exposure, so the star's window differs between the two
+                // renderers. At 4 W/m² the star is so far inside both reaches that both windows round to exactly 1.
+                RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 4);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Instances.Add(
                     Gpu.Instance(mesh: sphere, material: material, position: FarAhead, scale: Vector3.One, entity: 1)

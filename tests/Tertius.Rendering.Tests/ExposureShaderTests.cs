@@ -148,10 +148,10 @@ public sealed class ExposureShaderTests
             RenderSnapshot snapshot = Sunlit();
             AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
             // Rising: the view settles in sunlight, and the sun goes out. Falling: the other way round.
-            float sun = snapshot.Sun.Intensity;
-            snapshot.Sun.Intensity = rising ? sun : 0;
+            float sun = Gpu.StarIrradiance(snapshot);
+            Gpu.Star(snapshot: snapshot, irradiance: rising ? sun : 0);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
-            snapshot.Sun.Intensity = rising ? 0 : sun;
+            Gpu.Star(snapshot: snapshot, irradiance: rising ? 0 : sun);
 
             const double frameTime = 1.0 / 30;
             snapshot.Time = frameTime;
@@ -208,7 +208,7 @@ public sealed class ExposureShaderTests
             RenderSnapshot snapshot = BrightObjectOverDarkGround(renderer);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
             // Half the sun, so the square darkens by a stop and the target rises.
-            snapshot.Sun.Intensity /= 2;
+            Gpu.Star(snapshot: snapshot, irradiance: Gpu.StarIrradiance(snapshot) / 2);
 
             const double frameTime = 1.0 / 30;
             snapshot.Time = frameTime;
@@ -279,7 +279,7 @@ public sealed class ExposureShaderTests
     {
         RenderSnapshot snapshot = Sunlit();
         if (sunOut)
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
         AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
         return snapshot;
     }

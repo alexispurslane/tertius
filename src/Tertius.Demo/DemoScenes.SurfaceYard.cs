@@ -156,8 +156,15 @@ public static partial class DemoScenes
             )
         );
 
-        // The sun frame's origin is where the light comes from: up, and to the cameras' side of the yard.
-        SunAt(world: world, scene: scene, frame: surface, position: new(30, EarthRadius + 50, 20));
+        // The star's light comes from this direction: up, and to the cameras' side of the yard.
+        Star(
+            world: world,
+            scene: scene,
+            frame: surface,
+            center: new(0, EarthRadius, 0),
+            direction: new(30, 50, 20),
+            irradiance: 1
+        );
 
         scene.AddView("yard-camera");
         scene.AddView("stack-camera");
@@ -216,19 +223,39 @@ public static partial class DemoScenes
             )
         );
 
-    /// <summary>The frame <c>sun</c> in <paramref name="frame"/>, whose origin at <paramref name="position"/> is where the world's light comes from.</summary>
-    private static void SunAt(World world, SceneInstance scene, FrameHandle frame, Double3 position)
+    /// <summary>
+    /// The entity <c>sun</c>: a star 1 AU from <paramref name="center"/> along <paramref name="direction"/>, in
+    /// <paramref name="frame"/>, that casts shadows and sends the irradiance <paramref name="irradiance"/>, in W/m², at
+    /// <paramref name="center"/>. Its power is the irradiance times 4π (1 AU)². Its radius is 0, so that it lights the
+    /// scene as a sun frame without a sphere did before it: from a point, with sharp shadows.
+    /// </summary>
+    private static void Star(
+        World world,
+        SceneInstance scene,
+        FrameHandle frame,
+        Double3 center,
+        Double3 direction,
+        float irradiance
+    )
     {
-        Entity sun = world.Spawn(
+        Entity star = world.Spawn(
             new()
             {
                 Frame = frame,
-                Pose = new(position, DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
+                Pose = new(center + direction.Normalized() * AstronomicalUnit, DQuaternion.Identity),
+                Render = new RenderData
+                {
+                    Light = new PointLightData(
+                        Offset: new(Vector3.Zero, Quaternion.Identity),
+                        Color: Vector3.One,
+                        Power: (float)(irradiance * 4 * Math.PI * AstronomicalUnit * AstronomicalUnit),
+                        Radius: 0,
+                        CastsShadow: true
+                    ),
+                },
             }
         );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
+        scene.Add("sun", star);
     }
 
     /// <summary>

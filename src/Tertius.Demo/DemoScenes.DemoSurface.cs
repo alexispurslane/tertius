@@ -433,11 +433,17 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            // The demo's light is the renderer's exposure that every film was judged with: the world's own sunlight and
-            // ambient light, not the brighter sun and the dim space of the orbit scene, which SunAndEarth sets.
-            (float sunIntensity, AmbientLight ambient) = (world.SunIntensity, world.Ambient);
-            FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: Date);
-            (world.SunIntensity, world.Ambient) = (sunIntensity, ambient);
+            // The demo's light is the light that every film was judged with: sunlight of 1 W/m² and the world's own ambient
+            // light, not the brighter sun and the dim space of the orbit scene, which SunAndEarth sets.
+            AmbientLight ambient = world.Ambient;
+            FrameHandle earth = SunAndEarth(
+                world: world,
+                resources: resources,
+                scene: scene,
+                date: Date,
+                irradiance: 1
+            );
+            world.Ambient = ambient;
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
             Floor(
                 world: world,
@@ -470,25 +476,8 @@ public static partial class DemoScenes
                 )
             );
 
-            SpawnDesc Lamp(FrameHandle frame, Double3 position, float range) =>
-                new()
-                {
-                    Frame = frame,
-                    Pose = new(position, DQuaternion.Identity),
-                    Render = new RenderData
-                    {
-                        Mesh = lampMesh,
-                        Material = lampMaterial,
-                        BoundingRadius = 0.85f,
-                        Flags = RenderFlags.Visible,
-                        Light = new PointLightData(
-                            Offset: new(new(0, -0.1f, 0), Quaternion.Identity),
-                            Color: new(1, 0.9f, 0.75f),
-                            Intensity: 100,
-                            Range: range
-                        ),
-                    },
-                };
+            SpawnDesc Lamp(FrameHandle frame, Double3 position) =>
+                CeilingLamp(frame: frame, position: position, mesh: lampMesh, material: lampMaterial, intensity: 100);
 
             Vector3 half = TerminalHalf;
             scene.Add(
@@ -519,8 +508,8 @@ public static partial class DemoScenes
                 )
             );
             double lampHeight = EarthRadius + 2 * half.Y - TerminalWall - 0.05;
-            world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, -3), range: 12));
-            world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, 3), range: 12));
+            world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, -3)));
+            world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, 3)));
 
             // The pad is as thick as the bed's rise, so the parked hull stands on its drawn top.
             var padHalf = new Vector3(10, (float)LaunchRamp.BedRise / 2, 14);

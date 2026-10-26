@@ -64,7 +64,13 @@ public static partial class DemoScenes
     private static SceneInstance MirrorBalls(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: EarthDate.MarchEquinox);
+        FrameHandle earth = SunAndEarth(
+            world: world,
+            resources: resources,
+            scene: scene,
+            date: EarthDate.MarchEquinox,
+            irradiance: SpaceSunlight
+        );
         FrameHandle cabin = MirrorBallsShuttle(world: world, resources: resources, scene: scene, earth: earth);
 
         // A narrow view keeps the balls at the sides of the frame round.

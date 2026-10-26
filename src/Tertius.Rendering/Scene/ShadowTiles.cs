@@ -485,7 +485,7 @@ internal sealed class ShadowTiles
             {
                 (FaceAim(var face), _) => new(Basis: FaceBasisOf(face), Near: near, TanHalf: widening, Aim: aim),
                 (ConeAim, Cone { OuterAngle: <= WidestCone } cone) => new(
-                    Basis: LightBasis.FromSunDirection(-cone.Axis),
+                    Basis: LightBasis.FromDirection(-cone.Axis),
                     Near: near,
                     TanHalf: MathF.Tan(cone.OuterAngle) * widening,
                     Aim: aim

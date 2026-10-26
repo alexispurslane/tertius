@@ -69,13 +69,13 @@ public sealed class RenderSnapshotTests
     {
         using var test = new TestWorld();
         test.World.VerticalFov = 1.25f;
-        test.World.SunIntensity = 4;
+        test.World.Ambient = new() { Intensity = 4 };
 
         test.World.PublishRenderSnapshot();
 
         RenderSnapshot snapshot = test.World.Latest();
         snapshot.Camera.VerticalFov.Should().Be(1.25f);
-        snapshot.Sun.Intensity.Should().Be(4);
+        snapshot.Ambient.Intensity.Should().Be(4);
     }
 
     [Fact]
