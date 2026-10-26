@@ -118,7 +118,7 @@ A source package is a package as git holds it: with `code/` and `assets/`, and w
 3. Copy `manifest.json`, the optional files of the root, `blueprints/`, `scenes/` and `patches/` into the output folder.
 4. Copy `bin/<id>.dll`, `bin/<id>.pdb` and `bin/assets/` into the output folder.
 
-The default output folder is `dist/<id>/`. A built package leaves out `code/`, `assets/`, `bin/previews/` and `.schemas/`. To install a mod, a player copies its built folder into a mod root. Archives, a workshop and updates are later work.
+The default output folder is `dist/<id>/`. A built package leaves out `code/`, `assets/`, `bin/previews/` and `.schemas/`. It also leaves out the `build/` folder in the cooked folder of each scripted model, which holds the Blender build outputs (see "Scripted models" in the asset pipeline design). To install a mod, a player copies its built folder into a mod root. Archives, a workshop and updates are later work.
 
 The loader reads both forms with these rules:
 
