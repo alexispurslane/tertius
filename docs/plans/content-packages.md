@@ -92,6 +92,7 @@ content/tertius.demo/
     tertius.demo.dll       the package DLL and its PDB
     assets/                cooked assets (asset pipeline)
     previews/              preview images (asset pipeline)
+    sources/               downloaded third-party sources, checked by their pinned SHA-256 (asset pipeline)
   .schemas/                generated schemas; ignored by git
 ```
 
@@ -118,7 +119,7 @@ A source package is a package as git holds it: with `code/` and `assets/`, and w
 3. Copy `manifest.json`, the optional files of the root, `blueprints/`, `scenes/` and `patches/` into the output folder.
 4. Copy `bin/<id>.dll`, `bin/<id>.pdb` and `bin/assets/` into the output folder.
 
-The default output folder is `dist/<id>/`. A built package leaves out `code/`, `assets/`, `bin/previews/` and `.schemas/`. It also leaves out the `build/` folder in the cooked folder of each scripted model, which holds the Blender build outputs (see "Scripted models" in the asset pipeline design). To install a mod, a player copies its built folder into a mod root. Archives, a workshop and updates are later work.
+The default output folder is `dist/<id>/`. A built package leaves out `code/`, `assets/`, `bin/previews/`, `bin/sources/` and `.schemas/`. It also leaves out the `build/` folder in the cooked folder of each scripted model, which holds the Blender build outputs (see "Scripted models" in the asset pipeline design). To install a mod, a player copies its built folder into a mod root. Archives, a workshop and updates are later work.
 
 The loader reads both forms with these rules:
 
