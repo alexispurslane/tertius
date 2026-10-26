@@ -56,8 +56,8 @@ A script reads the rest of `model.json` with `run.load_model(model.folder)`, for
 | `geometry` | `MB`, a mesh builder that collects boxes, tapered blocks, cylinders, lathes, tubes and spheres in one BMesh and ends as one object (`finish`). `coll`, `frame_matrix`, `align_z`, `beam`, `rod`, `constant_material`. |
 | `nodes` | `NB`, a builder of shader node trees: math, mixes, map ranges, noise and brick textures |
 | `checks` | `attachment(objects, anchors)` and `view_shares(camera)` |
-| `stage` | `build(views)`, `use_shot(shot)`, `render(views, folder)`, `remove()`, `camera_name(shot)` |
-| `bake`, `export` | Used by the build tool. `export.pieces()` and `export.triangles()` also help a check. |
+| `stage` | `build(views, device="auto")`, `use_shot(shot)`, `render(views, folder)`, `remove()`, `camera_name(shot)`. `remove` restores the render settings that `build` changed. |
+| `bake`, `export` | Used by the build tool. `export.roots()`, `export.marked()` and `export.triangles()` also help a check. |
 
 ## The build tool
 
@@ -71,11 +71,12 @@ tools/blender/build.sh <model folder> --out <folder> [--views] [--device auto|cp
 | 2 | Bad input: an argument, `model.json`, a missing script, a stray file, or an output folder that holds other files |
 | 3 | The build failed: a script raised, or the bake or the export failed. `build.json` and `blender.log` say where. |
 | 5 | Blender is missing: `nix develop .#assets` failed |
-| 6 | Less than 30 GB free on the volume of the output folder |
+| 6 | Less free space on the volume of the output folder than the build needs: 1 GB, plus 32 bytes per pixel of one map, plus 24 bytes per pixel and bake object (`tools/blender/needed_mb.py`). The Nostromo needs 3 GB. |
+| 130 | SIGINT or SIGTERM stopped the build. The build tool stopped Blender and deleted its temporary folder. |
 
-The output folder gets `model.glb`, `model.blend`, `textures/`, `views/` (only with `--views`), `build.json` and `blender.log`. A folder that holds an earlier `build.json` is replaced. Any other folder with files is refused and kept.
+The build runs Blender twice. The first run runs the scripts, bakes, saves `model.blend` and renders the views. The second run opens `model.blend` with one thread and exports `model.glb`. The output folder gets `model.glb`, `model.blend`, `textures/`, `views/` (only with `--views`), `build.json` and `blender.log`. A folder that holds an earlier `build.json` is replaced. Any other folder with files is refused and kept.
 
-`build.json` holds the `result` of each script. So a script that sets `result = {...}` reports its numbers there: face counts, the scatter count, the check results.
+`build.json` holds the `result` of each script, the root objects (`roots`) and the objects marked with `tertius_piece = 1` (`marked`). The importer decides the pieces from these and from the `PIECE_` prefix, the sidecar and the collision markers. So a script that sets `result = {...}` reports its numbers there: face counts, the scatter count, the check results.
 
 ## Without the MCP tools
 
@@ -94,7 +95,11 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 - The add-on opens its socket only in online mode. `bridge.sh` starts `blender --background --online-mode --command blender_mcp`.
 - `execute_blender_code` runs each call in a new namespace. `sys.path` and the scene stay between calls. Deferred completion (`check_is_finished`) is rejected in background mode.
 - The render tools write into `blender_mcp/` of the bridge's temporary folder, `~/.local/state/tertius/blender-bridge-9876/tmp/`. `bridge.sh stop` deletes that folder.
-- `render_viewport_to_path` renders with the stage settings: 1920 x 1080 at 192 samples for the Nostromo, about 12 to 25 s on Metal. Lower `resolution_percentage` and `scene.cycles.samples` for quick looks. `render_thumbnail_to_path` overrides them by itself.
+- `render_viewport_to_path` renders with the stage settings: 1920 x 1080 at 192 samples for the Nostromo, about 12 to 25 s on Metal. `stage.build` picks the GPU. Without it, the bridge renders on the CPU, because the factory settings of `run.new_scene()` do. Lower `resolution_percentage` and `scene.cycles.samples` for quick looks. `render_thumbnail_to_path` overrides them by itself.
+- The MCP server waits at most 300 s for one tool call (`_TIMEOUT` in `blmcp/tools_helpers/connection.py`). A longer call fails, and the bridge works on.
+- Python loads `tertius_blender` once per Blender process. So the bridge runs the library of the checkout that started it, whatever `sys.path` says later. `bridge.sh` refuses a start or a stop from another checkout, and `run.run_script` raises an error for a model folder of another checkout.
+- `run_script` reloads every module of the library except `run`, which cannot reload itself while it runs. The snippet of the authoring loop calls `importlib.reload(run)` first.
+- `bridge.sh` trusts its pid file only when that process is the bridge, so a pid that a reboot gave to another process is safe.
 - `nix develop` sets a new `TMPDIR` on every call. So the bridge keeps its pid, log and temporary folder in `~/.local/state/tertius/`.
 - The nixpkgs Blender lacks the Python module `requests`, so each start prints a traceback from the extension add-on. It is harmless.
 - Blender 5 materials always have a node tree. `use_nodes` is deprecated.
@@ -104,7 +109,8 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 - A `set` of BMesh edges or of objects iterates in memory-address order. The bevel code of the earlier Nostromo project used one. The addresses differ between Blender processes and over a long bridge session, so the bevel, and so the mesh, can differ between builds. `dict.fromkeys(...)` keeps the order of first use.
 - A set of plain integers, such as vertex indices, is safe for membership tests.
 - `create_uvsphere`, `spin` and the weld of `remove_doubles` order the elements that they make by memory address. Then the faces, the vertex that the weld keeps, the exported indices, the UV maps and every later scatter change between runs. `MB.finish` sorts the vertices by their coordinates, starts each face at its lowest vertex and sorts the faces by their vertices, all before the weld. The first Nostromo build showed the problem: two builds gave different engines, nav lights and structures. The fix changed the order of the hull faces, so the greeble scatter of the earlier project changed once.
-- A GPU bake is not the same bytes twice: a few pixels differ by one level out of 255. One to four tangent values of the Nostromo's `Engines` also differ in their last bits, for a cause not yet found. Compare two builds by their meshes and their views, not by the bytes of the `.glb`.
+- A bake on Metal is not the same bytes twice: a few pixels differ by one level out of 255. A bake on the CPU is. Compare two Metal builds by their meshes and their views, not by the bytes of the `.glb`.
+- Blender computes MikkTSpace tangents on several threads, and the order of the sums changes between runs. Thirty calls of `calc_tangents` on the Nostromo's `Engines` gave thirty different results, and with `--threads 1` one result. The exporter rounds tangents to four decimals, so one to four values changed per build. The build tool exports in a second Blender with `--threads 1`.
 - `model.rng` per script keeps the random choices of a script stable when another script joins the list. A fixed seed in `parameters` keeps an approved scatter, as the Nostromo does with the seeds of its first build.
 
 ### Geometry
@@ -120,13 +126,14 @@ nix develop .#assets --command bash -c '"$TERTIUS_BLENDER" --background --factor
 - glTF holds no procedural shader. The bake turns base color, roughness and normal into maps. Emission and transparency are not baked.
 - Base color and roughness bake as emission of the value that feeds the input. A plain diffuse bake would mix in the light and the metallic part.
 - A procedural material that reads object coordinates bakes the same maps after the object turns or moves. A material that reads world coordinates does not.
-- Cycles writes large tile buffers into Blender's temporary folder while it bakes big maps. The bake deletes them after each map, and the build tool needs 30 GB free before it starts.
+- Cycles writes tile buffers into Blender's temporary folder while it bakes big maps: 344 MB at the peak for a map of 4096 x 4096 on Metal. The bake deletes them after each map.
+- Two bake objects with one material would show the maps of the last bake. The bake stops with an error that names both objects.
 - The glTF exporter computes tangents only for triangles and quads. `export.write_glb` adds a Triangulate modifier for the time of the export.
 
 ### Export
 
-- Headless Blender that opens a saved `.blend` file and then exports fails: the exporter reads `context.active_object`, and that context has no such attribute. The earlier Nostromo project met this. The build tool exports in the process that ran the scripts.
-- A camera in the scene fails the export, because it means that the stage leaked into the model. Call `stage.remove()` after each look.
+- An export after `bpy.ops.wm.open_mainfile` works in headless Blender 5.2.2, also with no active object (tested on 2026-10-26). The earlier Nostromo project saw it fail on `context.active_object`, in an older Blender.
+- In a build, a camera in the scene fails the export, because it means that the stage leaked into the model. Call `stage.remove()` after each look. The converter of third-party files exports without this check.
 
 ### Views
 
@@ -149,10 +156,10 @@ The Nostromo is a tug in the style of the ship of the film. An earlier agent bui
 | `s60_windows.py` | Windows, frames, the bridge visor, navigation lights | Parts placed on a slanted face through a face matrix |
 | `s70_materials.py` | Procedural hull and engine materials, constant materials for the rest | Panels by box projection, grime, hazard stripes, a Bump node into the normal |
 | `s75_uv.py` | UV maps of the bake objects and their texel density | The bake contract needs an active UV map |
-| `s80_assemble.py` | The root empty `Nostromo` as the one piece, and the turn to face -Y | One piece for a rigid ship. The front of the pipeline. |
+| `s80_assemble.py` | The root empty `Nostromo` as the one piece, and the turn to face -Y | One piece for a rigid ship. The front of the pipeline. A turn about the root through `matrix_world`, which turns any top object, a mesh, an empty or a light, wherever it sits. |
 | `s90_checks.py` | The attachment check and the close-up's view check | A check that raises. The stage built and removed inside a check. |
 
-The build frame: scripts `s10` to `s75` build the ship with its nose toward +Y, the frame of the earlier project. `s80_assemble.py` turns every part 180 degrees about +Z through its object transform. The mesh data stays in the build frame, so the materials, which read object coordinates, bake the same maps as before. The shots in `model.json` are in the final axes. A new model starts with the nose toward -Y and needs no turn.
+The build frame: scripts `s10` to `s75` build the ship with its nose toward +Y, the frame of the earlier project. `s80_assemble.py` parents every top object under the root and turns it 180 degrees about the +Z axis of the root: `ob.matrix_world = turn @ world`. The children of a top object turn with it. The mesh data stays in the build frame, so the materials, which read object coordinates, bake the same maps as before. The shots in `model.json` are in the final axes. A new model starts with the nose toward -Y and needs no turn.
 
 The greebles and the windows use `random.Random` with the seeds 1979 and 7 from `parameters.seeds`, the seeds of the earlier project. The lit portholes are the same as there. The greeble scatter follows the same rules and density, but its places changed once, when `MB.finish` got its fixed order (see "Determinism").
 

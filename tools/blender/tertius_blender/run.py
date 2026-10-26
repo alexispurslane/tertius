@@ -3,9 +3,10 @@ runs the same way in both (docs/plans/asset-pipeline.md, "Model scripts").
 
 An agent in the bridge:
 
-    import sys
+    import importlib, sys
     sys.path.insert(0, "/path/to/tertius/tools/blender")
     from tertius_blender import run
+    importlib.reload(run)  # run_script reloads the other modules of the library, but not its own.
 
     run.new_scene()
     result = run.run_script("/path/to/model folder", "s10_hull.py")
@@ -20,8 +21,12 @@ import sys
 
 import bpy
 
-# The modules of the model library that run_script reloads, in the order of their imports of each other.
+# The modules of the model library that run_script reloads, in the order of their imports of each other. A module
+# cannot reload itself while it runs, so the code of the authoring loop reloads run.
 _LIBRARY = ("geometry", "nodes", "checks", "bake", "export", "stage")
+
+# tools/blender of the checkout whose model library this Blender runs.
+_LIBRARY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The name rules of content packages and mods: lowercase letters, digits, "-" and "_".
 _SCRIPT_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*\.py$")
@@ -63,6 +68,7 @@ def run_script(folder, script):
     Reads model.json again and reloads the model library first, so edits apply in a long session of the bridge.
     """
     folder = os.path.abspath(folder)
+    _check_library(folder)
     spec = load_model(folder)
     if script not in spec["scripts"]:
         raise ModelError("model.json does not name the script {:s}".format(script))
@@ -79,6 +85,32 @@ def run_script(folder, script):
     if not isinstance(result, dict):
         raise TypeError("{:s} assigned a {:s} to result. It must be a dict.".format(script, type(result).__name__))
     return result
+
+
+def _check_library(folder):
+    """Raises when the model folder lies in a checkout whose model library is not the one that this Blender runs.
+    Python loads a package once per process, so a bridge that another checkout started runs that checkout's library,
+    and a sys.path entry of this checkout changes nothing. A folder outside any checkout passes."""
+    checkout = _checkout_of(folder)
+    if checkout is None:
+        return
+    library = os.path.join(checkout, "tools", "blender")
+    if os.path.realpath(library) != os.path.realpath(_LIBRARY_ROOT):
+        raise RuntimeError("the model folder {:s} lies in the checkout {:s}, but this Blender runs the model library "
+                           "of {:s}. Use a Blender of that checkout: stop the bridge of the other checkout, or "
+                           "wait for it.".format(folder, checkout, os.path.dirname(os.path.dirname(_LIBRARY_ROOT))))
+
+
+def _checkout_of(folder):
+    """The nearest folder above `folder` that holds a model library, or None."""
+    path = folder
+    while True:
+        if os.path.isfile(os.path.join(path, "tools", "blender", "tertius_blender", "run.py")):
+            return path
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
 
 
 def _reload_library():

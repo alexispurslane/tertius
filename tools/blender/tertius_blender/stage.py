@@ -1,14 +1,33 @@
 """The stage of the views: a dark world with sparse stars, a key sun, a fill sun and one camera per shot
-(docs/plans/asset-pipeline.md, "The build tool"). The build adds the stage after the export, so the stage never
-reaches model.blend or model.glb. Its objects live in the collection "Stage"."""
+(docs/plans/asset-pipeline.md, "The build tool"). The build adds the stage after it saved model.blend, so the stage
+never reaches model.blend or model.glb. Its objects live in the collection "Stage".
 
+build saves every scene setting that the stage changes, and remove restores them. So a check that builds and removes
+the stage before the bake leaves the bake and model.blend with the settings that they had before."""
+
+import json
 import math
 import os
 
 import bpy
 from mathutils import Vector
 
+from . import bake
+
 COLLECTION = "Stage"
+
+# The scene settings that the stage changes, as attribute paths from the scene. The scene camera and the world are
+# saved by name.
+_SETTINGS = (
+    "render.engine", "render.resolution_x", "render.resolution_y", "render.resolution_percentage",
+    "render.film_transparent", "render.filepath", "render.image_settings.file_format",
+    "render.image_settings.color_depth", "cycles.device", "cycles.samples", "cycles.use_adaptive_sampling",
+    "cycles.adaptive_threshold", "cycles.use_denoising", "cycles.max_bounces", "view_settings.view_transform",
+    "view_settings.look",
+)
+# The custom property of the scene that holds the saved settings while the stage exists. It survives a reload of
+# this module in the bridge.
+_SAVED = "tertius_stage_saved"
 
 
 def camera_name(shot):
@@ -16,9 +35,13 @@ def camera_name(shot):
     return "VIEW_" + shot["name"]
 
 
-def build(views):
-    """Adds the stage for the views of model.json (the "views" object, with its defaults filled in)."""
+def build(views, device="auto"):
+    """Adds the stage for the views of model.json (the "views" object, with its defaults filled in). Renders run on
+    `device` as bake.use_device picks it: "auto" for a GPU if Cycles finds one, or "cpu"."""
     scene = bpy.context.scene
+    if _SAVED not in scene:
+        scene[_SAVED] = json.dumps(_save(scene))
+    bake.use_device(device)
     collection = bpy.data.collections.get(COLLECTION) or bpy.data.collections.new(COLLECTION)
     if COLLECTION not in scene.collection.children:
         scene.collection.children.link(collection)
@@ -69,7 +92,8 @@ def render(views, folder):
 
 
 def remove():
-    """Deletes the stage, so model scripts can run again on the scene."""
+    """Deletes the stage and restores the scene settings that build changed, so model scripts can run again on the
+    scene."""
     collection = bpy.data.collections.get(COLLECTION)
     if collection is not None:
         for ob in list(collection.objects):
@@ -81,6 +105,34 @@ def remove():
     world = bpy.data.worlds.get("Space")
     if world is not None:
         bpy.data.worlds.remove(world)
+    scene = bpy.context.scene
+    if _SAVED in scene:
+        _restore(scene, json.loads(scene[_SAVED]))
+        del scene[_SAVED]
+
+
+def _save(scene):
+    saved = {path: getattr(*_owner(scene, path)) for path in _SETTINGS}
+    saved["camera"] = scene.camera.name if scene.camera else None
+    saved["world"] = scene.world.name if scene.world else None
+    return saved
+
+
+def _restore(scene, saved):
+    for path in _SETTINGS:
+        owner, name = _owner(scene, path)
+        setattr(owner, name, saved[path])
+    scene.camera = bpy.data.objects.get(saved["camera"]) if saved["camera"] else None
+    scene.world = bpy.data.worlds.get(saved["world"]) if saved["world"] else None
+
+
+def _owner(scene, path):
+    """The object that holds the setting `path` of the scene, and the name of the setting."""
+    *parents, name = path.split(".")
+    owner = scene
+    for parent in parents:
+        owner = getattr(owner, parent)
+    return owner, name
 
 
 def _space():

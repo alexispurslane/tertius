@@ -5,11 +5,16 @@ converted file and a scripted model leave Blender with one set of options."""
 import bpy
 
 
-def write_glb(path):
-    """Exports every object of the scene into the .glb file `path`. Fails when the scene holds a camera, because a
-    camera there means that the stage of the views leaked into the model."""
+def write_glb(path, refuse_cameras=False):
+    """Exports every object of the scene into the .glb file `path`. The exporter leaves cameras out. With
+    `refuse_cameras`, which the build tool turns on, a camera fails the export instead, because a camera in a scripted
+    model means that the stage of the views leaked into the model. A third-party file often holds a camera, so the
+    converter leaves the check off.
+
+    Run the export in a Blender started with --threads 1. With more threads, Blender computes the tangents in an order
+    that changes between runs, and their last bits differ."""
     cameras = sorted(ob.name for ob in bpy.context.scene.objects if ob.type == "CAMERA")
-    if cameras:
+    if refuse_cameras and cameras:
         raise ValueError("the scene holds cameras, which a model never exports: {:s}".format(", ".join(cameras)))
     # The exporter computes tangents only for triangles and quads, so it exports through a Triangulate modifier
     # at the end of each modifier stack. glTF holds triangles in any case. The scene keeps its polygons.
@@ -53,11 +58,18 @@ def save_blend(path):
     bpy.ops.wm.save_as_mainfile(filepath=path, relative_remap=True, compress=True, check_existing=False)
 
 
-def pieces():
-    """The names of the piece nodes: every root object, and every object marked with tertius_piece = 1
-    ("Models: nodes and pieces"), in name order."""
-    objects = bpy.context.scene.objects
-    return sorted(ob.name for ob in objects if ob.parent is None or ob.get("tertius_piece") == 1)
+def roots():
+    """The names of the root objects, in name order."""
+    return sorted(ob.name for ob in bpy.context.scene.objects if ob.parent is None)
+
+
+def marked():
+    """The names of the objects marked with the custom property tertius_piece = 1, in name order.
+
+    The importer decides which nodes are pieces ("Models: nodes and pieces"). It also reads the PIECE_ prefix, the
+    pieces of the sidecar and the collision markers, which the build tool does not see. So the report of the build
+    names the roots and the marked objects, not the pieces."""
+    return sorted(ob.name for ob in bpy.context.scene.objects if ob.get("tertius_piece") == 1)
 
 
 def triangles():

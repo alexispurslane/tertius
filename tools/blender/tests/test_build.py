@@ -2,7 +2,7 @@
 
 Run them in the assets shell:
     nix develop .#assets --command python3 tools/blender/tests/test_build.py
-They start Blender eight times and take about a minute.
+tools/test-all.sh runs them as the module Blender. They start Blender 23 times and take about 45 seconds.
 """
 
 import json
@@ -11,7 +11,10 @@ import pathlib
 import shutil
 import struct
 import subprocess
+import signal
+import sys
 import tempfile
+import time
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -103,8 +106,9 @@ class TheExampleModel(unittest.TestCase):
         self.assertTrue((self.scratch / "first" / "views" / "three-quarter.png").is_file())
         self.assertFalse((self.scratch / "second" / "views").exists())
 
-    def test_the_report_names_the_pieces_and_the_result_of_each_script(self):
-        self.assertEqual(self.report["pieces"], ["Crate", "Lid"])
+    def test_the_report_names_the_roots_the_marked_objects_and_the_result_of_each_script(self):
+        self.assertEqual(self.report["roots"], ["Crate"])
+        self.assertEqual(self.report["marked"], ["Lid"])
         names = [s["name"] for s in self.report["scripts"]]
         self.assertEqual(names, ["s00_body.py", "s10_lid.py", "s20_material.py", "s30_check.py"])
         self.assertEqual(self.report["scripts"][1]["result"], {"lid": "Lid"})
@@ -183,6 +187,40 @@ class BadInput(unittest.TestCase):
         self.assertEqual(run.returncode, 2, run.stdout + run.stderr)
         self.assertEqual((out / "notes.txt").read_text(), "keep me\n")
 
+    def test_two_bake_objects_with_one_material_fail_the_bake(self):
+        (self.model / "s25_twin.py").write_text(
+            "import bpy\n"
+            "crate = bpy.data.objects['Crate']\n"
+            "twin = crate.copy()\n"
+            "twin.data = crate.data.copy()\n"
+            "twin.name = 'Crate2'\n"
+            "bpy.context.scene.collection.objects.link(twin)\n")
+        self.edit_model_json(lambda d: (d["scripts"].insert(3, "s25_twin.py"), d["bake"]["objects"].append("Crate2")))
+        run = build(self.model, self.scratch / "out")
+        self.assertEqual(run.returncode, 3, run.stdout + run.stderr)
+        error = json.loads(run.stdout)["error"]
+        self.assertEqual(error["step"], "bake")
+        self.assertIn("M_Crate", error["message"])
+        self.assertIn("Crate2", error["message"])
+
+    def test_a_signal_stops_blender_deletes_its_temporary_folder_and_gives_exit_code_130(self):
+        (self.model / "s00_body.py").write_text("import time\ntime.sleep(60)\n")
+        tmp = self.scratch / "tmp"
+        tmp.mkdir()
+        out = self.scratch / "out"
+        process = subprocess.Popen([str(BUILD), str(self.model), "--out", str(out), "--device", "cpu"],
+                                   env={**os.environ, "TMPDIR": str(tmp)}, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
+        log = out / "blender.log"
+        deadline = time.monotonic() + 60
+        while not (log.exists() and "Blender" in log.read_text(errors="replace")) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        process.send_signal(signal.SIGTERM)
+        self.assertEqual(process.wait(timeout=60), 130)
+        self.assertEqual(list(tmp.iterdir()), [])
+        blenders = subprocess.run(["pgrep", "-f", "build.py -- " + str(self.model)], capture_output=True, text=True)
+        self.assertEqual(blenders.stdout, "")
+
     def test_an_earlier_build_in_the_output_folder_is_replaced(self):
         out = self.scratch / "out"
         out.mkdir()
@@ -254,36 +292,112 @@ class WeldedMeshes(unittest.TestCase):
 
 
 class TheLibraryInTheBridge(unittest.TestCase):
-    """The functions that an agent calls through execute_blender_code, run in a plain headless Blender."""
+    """The functions that an agent calls through execute_blender_code, run in one plain headless Blender."""
 
-    def test_the_view_check_sees_the_crate_through_the_camera_of_the_shot_and_the_stage_goes_away(self):
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = pathlib.Path(tempfile.mkdtemp(prefix="tertius-build-test-"))
+        # A second checkout: a folder with a model library, and a model folder inside it.
+        other = cls.scratch / "other-checkout"
+        (other / "tools" / "blender" / "tertius_blender").mkdir(parents=True)
+        (other / "tools" / "blender" / "tertius_blender" / "run.py").write_text("")
+        shutil.copytree(CRATE, other / "crate.model")
         code = (
-            "import json, sys\n"
+            "import json, os, sys\n"
             "sys.path.insert(0, {lib!r})\n"
-            "from tertius_blender import checks, run, stage\n"
+            "import bpy\n"
+            "from tertius_blender import checks, export, run, stage\n"
+            "def settings():\n"
+            "    s = bpy.context.scene\n"
+            "    return [s.render.engine, s.render.resolution_x, s.cycles.samples, s.cycles.max_bounces,\n"
+            "            s.cycles.use_adaptive_sampling, s.cycles.device, s.view_settings.look, s.camera, s.world]\n"
             "run.new_scene()\n"
             "spec = run.load_model({model!r})\n"
             "for script in spec['scripts']:\n"
             "    run.run_script({model!r}, script)\n"
-            "stage.build(spec['views'])\n"
+            "bpy.context.scene.cycles.device = 'GPU'\n"
+            "before = repr(settings())\n"
+            "stage.build(spec['views'], device='cpu')\n"
+            "stage.use_shot(spec['views']['shots'][0])\n"
+            "during = repr(settings())\n"
+            "device = bpy.context.scene.cycles.device\n"
             "shares = checks.view_shares('VIEW_three-quarter', 48, 27)['share']\n"
+            "export.write_glb(os.path.join({scratch!r}, 'with-camera.glb'))\n"
             "stage.remove()\n"
-            "import bpy\n"
-            "left = sorted(o.name for o in bpy.data.objects) + [c.name for c in bpy.data.collections if c.name == 'Stage']\n"
-            "print('TERTIUS-TEST', json.dumps({{'shares': shares, 'left': left, 'worlds': len(bpy.data.worlds)}}))\n"
-        ).format(lib=str(HERE.parent), model=str(CRATE))
-        done = subprocess.run(
+            "after = repr(settings())\n"
+            "left = sorted(o.name for o in bpy.data.objects)\n"
+            "left += [c.name for c in bpy.data.collections if c.name == 'Stage']\n"
+            "try:\n"
+            "    run.run_script({other!r}, 's00_body.py')\n"
+            "    other = 'ran'\n"
+            "except RuntimeError as ex:\n"
+            "    other = str(ex)\n"
+            "print('TERTIUS-TEST', json.dumps({{'shares': shares, 'left': left, 'worlds': len(bpy.data.worlds),\n"
+            "      'before': before, 'during': during, 'after': after, 'device': device, 'other': other}}))\n"
+        ).format(lib=str(HERE.parent), model=str(CRATE), scratch=str(cls.scratch),
+                 other=str(other / "crate.model"))
+        cls.done = subprocess.run(
             [os.environ["TERTIUS_BLENDER"], "--background", "--factory-startup", "--python-exit-code", "3",
              "--python-expr", code],
             capture_output=True, text=True, check=False)
-        self.assertEqual(done.returncode, 0, done.stdout[-2000:] + done.stderr[-2000:])
-        line = next(l for l in done.stdout.splitlines() if l.startswith("TERTIUS-TEST "))
-        report = json.loads(line[len("TERTIUS-TEST "):])
-        self.assertGreater(report["shares"].get("Crate", 0), 0.1)
-        self.assertGreater(report["shares"].get("(space)", 0), 0.3)
-        self.assertAlmostEqual(sum(report["shares"].values()), 1.0, places=2)
-        self.assertEqual(report["left"], ["Crate", "Lid"])
-        self.assertEqual(report["worlds"], 0)
+        line = next((l for l in cls.done.stdout.splitlines() if l.startswith("TERTIUS-TEST ")), None)
+        cls.report = json.loads(line[len("TERTIUS-TEST "):]) if line else None
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.scratch, ignore_errors=True)
+
+    def setUp(self):
+        self.assertEqual(self.done.returncode, 0, self.done.stdout[-2000:] + self.done.stderr[-2000:])
+
+    def test_the_view_check_sees_the_crate_through_the_camera_of_the_shot(self):
+        self.assertGreater(self.report["shares"].get("Crate", 0), 0.1)
+        self.assertGreater(self.report["shares"].get("(space)", 0), 0.3)
+        self.assertAlmostEqual(sum(self.report["shares"].values()), 1.0, places=2)
+
+    def test_the_stage_goes_away_with_its_objects_and_its_world(self):
+        self.assertEqual(self.report["left"], ["Crate", "Lid"])
+        self.assertEqual(self.report["worlds"], 0)
+
+    def test_the_stage_changes_the_render_settings_and_restores_them_when_it_goes(self):
+        self.assertNotEqual(self.report["during"], self.report["before"])
+        self.assertEqual(self.report["after"], self.report["before"])
+
+    def test_the_stage_renders_on_the_device_that_it_is_given(self):
+        # The scripts left the GPU set, and the stage of a build with --device cpu renders on the CPU.
+        self.assertEqual(self.report["device"], "CPU")
+
+    def test_the_export_of_a_converter_leaves_a_camera_out_instead_of_failing(self):
+        gltf = glb_json(self.scratch / "with-camera.glb")
+        self.assertNotIn("cameras", gltf)
+
+    def test_a_model_folder_of_another_checkout_does_not_run_with_this_library(self):
+        self.assertIn("other-checkout", self.report["other"])
+        self.assertIn(str(HERE.parent.parent.parent), self.report["other"])
+
+
+class TheSpaceThatABuildNeeds(unittest.TestCase):
+    """needed_mb.py, which build.sh asks before it starts Blender."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(HERE.parent))
+        sys.dont_write_bytecode = True  # No __pycache__ next to the build tool.
+        import needed_mb  # noqa: PLC0415 - the module lives next to the build tool, not on the path.
+
+        cls.needed_mb = staticmethod(needed_mb.needed_mb)
+
+    def test_a_model_with_no_bake_needs_one_gigabyte(self):
+        self.assertEqual(self.needed_mb({"bake": {"objects": []}}), 1024)
+
+    def test_the_need_grows_with_the_number_of_bake_objects_and_the_pixels_of_a_map(self):
+        one = self.needed_mb({"bake": {"objects": ["A"], "size": 4096}})
+        four = self.needed_mb({"bake": {"objects": ["A", "B", "C", "D"], "size": 4096}})
+        self.assertEqual(one, 1024 + 16 * (32 + 24))
+        self.assertEqual(four, 1024 + 16 * (32 + 4 * 24))
+
+    def test_the_default_map_size_is_the_one_of_model_json(self):
+        self.assertEqual(self.needed_mb({"bake": {"objects": ["A"]}}), 1024 + 56)
 
 
 if __name__ == "__main__":

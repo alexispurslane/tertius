@@ -1,8 +1,8 @@
 """The bake: turns the procedural material of an object into three texture maps that glTF can hold
 (docs/plans/asset-pipeline.md, "The bake").
 
-The contract of a bake object: a mesh with one material and an active UV map. The material has one Principled BSDF
-node, linked to the material output, and its metallic input holds a constant.
+The contract of a bake object: a mesh with one material and an active UV map. No other object uses the material. The
+material has one Principled BSDF node, linked to the material output, and its metallic input holds a constant.
 """
 
 import glob
@@ -98,7 +98,14 @@ def _procedural_material(ob):
         raise ValueError("bake object {:s} must be a mesh with exactly one material".format(ob.name))
     if ob.data.uv_layers.active is None:
         raise ValueError("bake object {:s} has no UV map".format(ob.name))
-    return ob.material_slots[0].material
+    material = ob.material_slots[0].material
+    # The maps belong to one object. A second user of the material would show the maps of whichever bake ran last.
+    others = sorted(other.name for other in bpy.context.scene.objects
+                    if other is not ob and any(slot.material == material for slot in other.material_slots))
+    if others:
+        raise ValueError("the material {:s} of bake object {:s} is also used by {:s}. Give each bake object a material "
+                         "of its own.".format(material.name, ob.name, ", ".join(others)))
+    return material
 
 
 def _principled(material):

@@ -22,7 +22,7 @@ Checked Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
 The options:
 
 - `-c Checked,Release` gives the build configurations, separated by commas. The default is Checked and Release. Checked has the contracts of Debug and the optimized code of Release (`Directory.Build.targets`). The tests run about five times faster in Checked than in Debug, and Debug stays unoptimized for the debugger.
-- `-m Core,Physics` gives the test modules, separated by commas. The default is all eight: Core, Simulation, Physics, Rendering, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer) and Slop (the tests of the slop metrics).
+- `-m Core,Physics` gives the test modules, separated by commas. The default is all nine: Core, Simulation, Physics, Rendering, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer), Slop (the tests of the slop metrics) and Blender (the tests of the build tool of scripted models, see "Scripted models in Blender"). Blender is no .NET project: it runs once, after the .NET tests, in the assets shell, and it ignores `-c` and the arguments after `--`. Its line reads `Blender: total 33, failed 0`, and its log is `<folder>/blender.log`.
 - `-j <runs>` gives the most test processes that run at once. The default, 0, runs every configuration and module at once.
 - `-o <folder>` gives the folder for the logs. The default is a new temporary folder, and the first line of the output names it. The script writes `<folder>/<configuration>/build.log` and one `<folder>/<configuration>/<module>.log` with the full test output of each module.
 - Everything after `--` goes to each `dotnet test` command unchanged, for example a filter:
@@ -262,7 +262,7 @@ A scripted model is a model whose only source is a folder of Blender Python scri
 | `bridge.sh` | Starts and stops the bridge: a headless Blender that serves the MCP server of `.mcp.json` |
 | `tests/` | The example model `crate.model` and the tests of the build tool |
 
-All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The first start of the shell downloads Blender, about 3 GB.
+All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.2.2 and `blender-mcp` 1.0.3. Outside it, the scripts run themselves again inside it. The first start of the shell downloads about 600 MiB, which take 1.7 GiB in the Nix store (measured on 2026-10-26).
 
 ### Build a model
 
@@ -270,12 +270,12 @@ All of them need the assets shell, `nix develop .#assets`, which adds Blender 5.
 tools/blender/build.sh content/tertius.demo/assets/ships/nostromo.model --out /tmp/nostromo-build --views
 ```
 
-The build starts from an empty scene and runs the scripts that `model.json` names, in order. Then it bakes the objects of `bake.objects`, saves `model.blend`, exports `model.glb`, and with `--views` renders each shot into `views/<name>.png`. It prints `build.json`, the report, and also writes it into the output folder. Blender's own output goes to `blender.log` there.
+The build starts from an empty scene and runs the scripts that `model.json` names, in order. Then it bakes the objects of `bake.objects`, saves `model.blend`, and with `--views` renders each shot into `views/<name>.png`. A second Blender with one thread opens `model.blend` and exports `model.glb`: with more threads, the tangents differ in their last bits between builds. It prints `build.json`, the report, and also writes it into the output folder. Blender's own output goes to `blender.log` there.
 
 - `--out` is required. The folder must be new, empty, or the output of an earlier build, which the build replaces. A folder with other files stops the build with exit code 2, so a wrong path never loses files. Put the outputs in a scratch folder, not in `bin/assets/`: the importer owns that folder.
-- `--device cpu` bakes and renders on the CPU. With the default, `auto`, the build uses the GPU that Cycles finds, such as Metal on this Mac. Without one, it uses the CPU. On Linux, the Blender of nixpkgs has no CUDA or OptiX, so it uses the CPU.
+- `--device cpu` bakes and renders on the CPU. With the default, `auto`, the build uses the GPU that Cycles finds, such as Metal on this Mac. Without one, it uses the CPU. On Linux, the Blender of nixpkgs has no CUDA or OptiX, so it uses the CPU. Two builds with `--device cpu` give the same `.glb` bytes. A bake on Metal differs in a few pixels, so the importer bakes on the CPU.
 - The first bake on Metal in a new Blender compiles the GPU kernels, and that takes about three minutes. Later bakes start at once.
-- Exit codes: 0 built, 2 bad input, 3 the build failed, 5 Blender is missing, 6 less than 30 GB free. Bad input is a wrong argument, a broken `model.json`, a missing script or an output folder with other files. After a failed build, `build.json` names the step and the script.
+- Exit codes: 0 built, 2 bad input, 3 the build failed, 5 Blender is missing, 6 less free space than the build needs, 130 SIGINT or SIGTERM stopped the build. The build needs 1 GB plus the space of its baked maps and of Blender's temporary files while it bakes (`tools/blender/needed_mb.py`): 3 GB for the Nostromo. Bad input is a wrong argument, a broken `model.json`, a missing script or an output folder with other files. After a failed build, `build.json` names the step and the script.
 
 The build tool stops Blender on every exit and deletes Blender's temporary folder. Blender ignores Ctrl+C, so do not start Blender for a build by hand.
 
@@ -284,19 +284,20 @@ The build tool stops Blender on every exit and deletes Blender's temporary folde
 `.mcp.json` registers the official Blender Lab MCP server as the server `blender`. Claude Code starts it with `nix develop .#assets --command blender-mcp`, and asks once to approve the servers of the project. The server sends each tool call to the bridge.
 
 1. Once per machine, install the add-on: `tools/blender/setup.sh`. If version 1.0.3 is already installed and enabled, the script changes nothing.
-2. Start the bridge: `tools/blender/bridge.sh start`. It listens on `localhost:9876` and writes its log to `~/.local/state/tertius/blender-bridge-9876/bridge.log`.
+2. Start the bridge: `tools/blender/bridge.sh start`. It listens on `localhost:9876` and writes its log to `~/.local/state/tertius/blender-bridge-9876/bridge.log`. One bridge serves the machine, and it belongs to the checkout or worktree that started it. A start or a stop from another checkout fails with exit code 1 and names the owner. `bridge.sh status` prints the process id and the owner.
 3. Run model scripts through the tool `execute_blender_code`, with the same function as the build tool:
 
    ```python
-   import sys
+   import importlib, sys
    sys.path.insert(0, "<repository>/tools/blender")
    from tertius_blender import run
+   importlib.reload(run)
 
    run.new_scene()
    result = run.run_script("<repository>/content/tertius.demo/assets/ships/nostromo.model", "s10_hull.py")
    ```
 
-   `<repository>` is the absolute path of the checkout. `run_script` reads `model.json` again and reloads the model library on each call, so an edit applies at once. The code of a tool call runs in a new namespace each time, but `sys.path` and the scene stay.
+   `<repository>` is the absolute path of the checkout. `run_script` reads `model.json` again and reloads the other modules of the model library on each call, and the snippet reloads `run`, so an edit applies at once. `run_script` raises an error when the bridge runs the library of another checkout. The code of a tool call runs in a new namespace each time, but `sys.path` and the scene stay.
 4. To look at the scene, add the stage and pick a shot, then call a render tool:
 
    ```python
@@ -306,7 +307,7 @@ The build tool stops Blender on every exit and deletes Blender's temporary folde
    stage.use_shot(views["shots"][0])
    ```
 
-   `render_thumbnail_to_path` makes a fast, small image, and `render_viewport_to_path` uses the render settings of the stage. Both write into the temporary folder of the bridge and return the path. Open that path with the Read tool before you stop the bridge, because the stop deletes the folder. Call `stage.remove()` before you run model scripts again: a camera in the scene fails the export.
+   `stage.build` sets Cycles to the GPU and saves the render settings that it changes. `render_thumbnail_to_path` makes a fast, small image, and `render_viewport_to_path` uses the render settings of the stage. The MCP server waits at most 300 s for one tool call. Both write into the temporary folder of the bridge and return the path. Open that path with the Read tool before you stop the bridge, because the stop deletes the folder. Call `stage.remove()` before you run model scripts again. It restores the render settings, and a camera in the scene fails the build.
 5. At the end of the work, stop the bridge: `tools/blender/bridge.sh stop`. A running bridge holds memory, and other agents wait for Blender to quit before they time GPU work.
 
 The render tools need a camera, and only the stage adds one. The other tools of the server, such as `get_objects_summary` and `search_api_docs`, need no camera.
@@ -327,7 +328,7 @@ The render tools need a camera, and only the stage adds one. The other tools of 
 nix develop .#assets --command python3 tools/blender/tests/test_build.py
 ```
 
-The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, the attachment check, the view check and the stage. They start Blender about a dozen times and take about 30 seconds on the CPU.
+`tools/test-all.sh` runs them too, as the module Blender. The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, a signal, the attachment check, the view check, a material that two bake objects share, the stage and its settings, the library check of the bridge and the free space that a build needs. They start Blender 23 times and take about 45 seconds on the CPU (measured on 2026-10-26).
 
 ## Git hooks
 

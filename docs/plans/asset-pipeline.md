@@ -19,7 +19,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 1. Claude plans the pipeline in detail, and it must be complete enough for agents to use alone. (User)
 2. glTF 2.0 is the one scene format inside the importer. Blender exports it well, and its conventions match the engine: meters, radians, +Y up and counterclockwise front faces. (User: "GLTFs or something from Blender")
 3. FBX, OBJ and `.blend` files go through headless Blender, which writes glTF. One converter covers three formats, and the glTF exporter of Blender is the reference exporter of the format.
-4. Blender lives in a second dev shell, `nix develop .#assets`. Blender adds about 1.7 GiB to the Nix store, and only conversions need it. Every other tool is in the default shell. The cost: every machine that imports a `.blend` source needs the assets shell once, with a download of about 620 MiB. This includes the machine of the user, a fresh clone and CI, because git ignores the cooked output. Third-party FBX and OBJ files become `.glb` files at intake, so after intake only scripted models and third-party `.blend` files need Blender. (Changed on 2026-10-26: the project's own models are scripted models, see decision 22.)
+4. Blender lives in a second dev shell, `nix develop .#assets`. Blender adds about 1.7 GiB to the Nix store, and only conversions need it. Every other tool is in the default shell. The cost: every machine that imports a `.blend` source needs the assets shell once, with a download of about 600 MiB (measured on 2026-10-26: 598 MiB from cache.nixos.org, plus the small sources of `blender-mcp`). This includes the machine of the user, a fresh clone and CI, because git ignores the cooked output. Third-party FBX and OBJ files become `.glb` files at intake, so after intake only scripted models and third-party `.blend` files need Blender. (Changed on 2026-10-26: the project's own models are scripted models, see decision 22.)
 5. The importer uses C# libraries where a mature one exists: SharpGLTF, StbImageSharp, TinyEXR.NET and BCnEncoder.Net. It uses native code only where C# has no equal: meshoptimizer, V-HACD and Jolt.
 6. Native bindings use `[DllImport]` with blittable arguments, not `[LibraryImport]`. The `LibraryImport` source generator does not load inside Stryker.NET 5.0.0 (project memory), so mutation tests of the importer stay possible.
 7. Cooked output is the runtime-ready data that the importer writes. It goes into `bin/assets/` of the package, which git ignores (content packages and mods). A built package, as the content packages and mods design defines it, carries `bin/assets/`, so a player needs no importer.
@@ -223,7 +223,7 @@ The corvette blueprint and the start scene of the content formats design use thi
 A scripted model is a model whose only source is a folder of Blender Python scripts. The user decided on 2026-10-26:
 
 1. A model's only source is a folder of Blender Python scripts. Nobody edits a `.blend` file by hand. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs.
-2. The importer builds a scripted model, and the outputs go into the cooked folder of the asset in `bin/assets/`, which git ignores (decision 7). No binary goes into git, because the remote, a tangled knot, has no Git LFS.
+2. The importer builds a scripted model, and the outputs go into the cooked folder of the asset in `bin/assets/`, which git ignores (decision 7). No build output goes into git, because the remote, a tangled knot, has no Git LFS. Where binary third-party sources live is still open (decision 21).
 3. Agents model through the official Blender Lab MCP server, `blender-mcp` 1.0.3. Blender Lab publishes its [source](https://projects.blender.org/lab/blender_mcp) and its [documentation](https://www.blender.org/lab/mcp-server/). The project's `.mcp.json` registers it, so its tools are native tools of an agent. All modeling goes through its tool `execute_blender_code`, and agents look at their work through its render tools.
 4. An earlier agent built the Nostromo tug in its own project. The Nostromo moves in as the first scripted model. It is also the worked example of the project skill `procedural-modeling`.
 
@@ -283,17 +283,18 @@ The asset id is `tertius.demo:ships/nostromo.model`. Fragments name pieces, mate
 | `views.samples` | 128 | Cycles samples per pixel of each view |
 | `views.shots` | `[]` | The views. `name` gives the file `views/<name>.png`. `camera` and `target` are positions in Blender axes, in m. `lens` is the focal length in mm on a 36 mm sensor, default 50. `sun` is the direction toward the key light, in Blender axes. |
 
-Positions in `model.json` and in the scripts are in Blender axes and meters, as "Axes, units and scale" says: +Z up, and the front of the model toward -Y.
+Positions in `model.json` and in the scripts are in Blender axes and meters, as "Axes, units and scale" says: +Z up, and the front of the model toward -Y. One exception: a script can build in a frame of its own, if a later script turns the whole model into these axes before the export. The Nostromo does this: its scripts `s10` to `s75` build it with the nose toward +Y, the frame of its earlier project, and `s80_assemble.py` turns it. The shots and the built model are always in the final axes. A new model builds toward -Y from the start.
 
 #### Model scripts
 
 The model library runs a model script with one function, `run.run_script(folder, script)`. The build tool and an agent's `execute_blender_code` call both use it, so a script runs the same way in both. The function:
 
 1. Reads `model.json` again, so an edit applies at once.
-2. Reloads the modules of the model library, so a library edit applies in a long session of the bridge too.
-3. Seeds Python's `random` module with the string `<seed>/<script file name>`.
-4. Runs the script with `exec` in a new namespace. The namespace holds one name, `model`.
-5. Returns the dictionary that the script assigns to `result`, or `{}`.
+2. Makes sure that the model library in use is the one of the checkout that holds the model folder. Python loads a package once per process, so a bridge that another checkout started runs that checkout's library. The function then raises an error. A model folder outside any checkout, such as a copy in a scratch folder, passes.
+3. Reloads the other modules of the model library, so a library edit applies in a long session of the bridge too. A module cannot reload itself while it runs, so the code of the authoring loop reloads `run` before each call (see the skill `procedural-modeling`).
+4. Seeds Python's `random` module with the string `<seed>/<script file name>`.
+5. Runs the script with `exec` in a new namespace. The namespace holds one name, `model`.
+6. Returns the dictionary that the script assigns to `result`, or `{}`.
 
 `model` holds:
 
@@ -309,7 +310,7 @@ Rules for a model script:
 - Every random choice comes from `model.rng`, or from a `random.Random` seeded with a value of `model.json`. The seeding of the `random` module is a guard against a stray call, not an interface.
 - A script iterates in a fixed order. It never depends on the order of a `set`, because Python orders a set of objects by memory address.
 - A script changes only the scene. It writes no file. The bake, the save and the export belong to the build tool.
-- A script builds only the model: meshes, materials, the lights of the model, empties for node poses, and collision markers. It adds no camera and no light for the views. The build tool adds the stage of the views after the export.
+- A script builds only the model: meshes, materials, the lights of the model, empties for node poses, and collision markers. It adds no camera and no light for the views. The build tool adds the stage of the views after it saved `model.blend`.
 - A script marks a piece that is not a root with the custom property `tertius_piece = 1`, and a collision marker with `tertius_collision`, as "Models: nodes and pieces" says. The custom property survives a rename.
 - The origin of each piece node is the origin of the piece in the engine, as rule 4 of "Models: nodes and pieces" says. The front of the model faces -Y.
 
@@ -318,6 +319,7 @@ Rules for a model script:
 The glTF format holds no procedural shader, so the build bakes the material of each object in `bake.objects` into texture maps. The contract of a bake object:
 
 - It is a mesh with one material and an active UV map. A model script makes the UV map.
+- No other object of the scene uses its material. The maps belong to one object, so two objects with one material would show the maps of the last bake. The bake stops with an error.
 - Its material has one Principled BSDF node, linked to the material output.
 - The metallic input of that node holds a constant. The baked material takes the same constant.
 
@@ -331,7 +333,7 @@ The bake writes three maps per object into `textures/<object>_<pass>.png`:
 
 Baking as emission keeps metallic and lighting out of the color and roughness maps. After the bake, the object gets a new material `<material>_Baked`, made from the three maps. The procedural material stays in `model.blend` with a fake user, so an author can bake it again. Emission and transparency are not baked. Give an object with a glowing or transparent look a material that the glTF exporter writes as it is. A Principled BSDF with constant inputs is such a material.
 
-If Cycles finds a GPU, the bake runs on it: Metal on macOS, and OptiX, CUDA, HIP or oneAPI on Linux. Otherwise the bake runs on the CPU. `--device cpu` forces the CPU. The Blender of nixpkgs on Linux has no CUDA or OptiX, so its bakes run on the CPU.
+With `--device auto`, the default of the build tool, the bake runs on a GPU if Cycles finds one: Metal on macOS, and OptiX, CUDA, HIP or oneAPI on Linux. Otherwise the bake runs on the CPU. `--device cpu` forces the CPU. The Blender of nixpkgs on Linux has no CUDA or OptiX, so its bakes run on the CPU. A bake on the CPU gives the same bytes on every run. A bake on Metal does not (see "Determinism" below).
 
 #### The build tool
 
@@ -341,22 +343,28 @@ tools/blender/build.sh <model folder> --out <folder> [--views] [--device auto|cp
 
 Outside the assets shell, the build tool runs itself again inside it. It then:
 
-1. If the volume of the output folder has less than 30 GB free, stops with exit code 6. Cycles writes large tile files while it bakes.
+1. Estimates the free space that the build needs, from `bake.objects` and `bake.size` of `model.json` (`tools/blender/needed_mb.py`). If the volume of the output folder has less, it stops with exit code 6. The estimate is 1 GB, plus 32 bytes per pixel of one map for Blender's temporary files while it bakes, plus 24 bytes per pixel and bake object for the three maps in `textures/` and again in `model.glb`. The Nostromo, with four bake objects and maps of 4096 x 4096, needs 3 GB. A build with no bake needs 1 GB. The measured peak of the Nostromo was 344 MB of temporary files and 257 MB of outputs.
 2. If the output folder exists, is not empty and holds no `build.json`, stops with exit code 2. A folder with `build.json` holds an earlier build, and the build tool replaces it. So a wrong path never loses files.
-3. Runs `$TERTIUS_BLENDER --background --factory-startup --disable-autoexec --python-exit-code 3 --python tools/blender/build.py -- <arguments>`. Blender's own output goes to `<out>/blender.log`. `TMPDIR` points to a new temporary folder, so Blender's temporary files land there.
-4. On every exit, also on an error or a signal, stops a Blender that still runs with SIGTERM. Then it deletes the temporary folder. Blender ignores Ctrl+C and SIGINT, and it leaves its temporary folder behind after SIGTERM.
+3. Runs Blender twice, with `TMPDIR` set to a new temporary folder, so Blender's temporary files land there. Blender's own output of both runs goes to `<out>/blender.log`.
+   1. The build run: `$TERTIUS_BLENDER --background --factory-startup --disable-autoexec --python-exit-code 3 --python tools/blender/build.py -- <arguments>`.
+   2. The export run, only after a good build run: the same command with `--threads 1 <out>/model.blend` and the arguments `--export <out>`. It opens `model.blend` and exports `model.glb`. With more than one thread, Blender computes the tangents of the export in an order that changes between runs, so their last bits differ (see "Determinism" below).
+4. On every exit, also on an error or a signal, stops a Blender that still runs with SIGTERM. Then it deletes the temporary folder. Blender ignores Ctrl+C and SIGINT, and it leaves its temporary folder behind after SIGTERM. After SIGINT or SIGTERM, the build tool exits with code 130. SIGKILL runs no trap, so a caller that kills the build tool must also kill its Blender.
 5. Prints `build.json` to standard output.
 
-`build.py` runs inside Blender. It:
+`build.py` runs inside Blender. The build run:
 
 1. Reads `model.json` and checks it. A bad file or a missing script gives the status `badInput`.
 2. Starts from an empty scene with metric units (`run.new_scene()`).
 3. Runs every model script in order with `run.run_script`.
 4. Bakes every object of `bake.objects`, as "The bake" says.
 5. Saves `model.blend`. Its image paths are relative, `//textures/...`.
-6. Exports `model.glb` with the export conventions below.
-7. With `--views`, adds the stage and renders every shot into `views/<name>.png`. The stage holds a dark world with sparse stars, a key sun from the direction `sun` and one camera per shot. A weak fill sun shines from below, on the side of the camera. The stage is never saved and never exported.
-8. Writes `build.json`.
+6. With `--views`, adds the stage and renders every shot into `views/<name>.png`. The stage holds a dark world with sparse stars, a key sun from the direction `sun` and one camera per shot. A weak fill sun shines from below, on the side of the camera. The stage renders on the device of `--device`. It comes after the save, so it is never saved and never exported.
+7. Writes `build.json` with the status `failed` at the step `export`, until the export run replaces it. So a build whose export run never ends reports a failure.
+
+The export run:
+
+1. Exports `model.glb` with the export conventions below, with the camera check on.
+2. Completes `build.json`: the root objects, the marked objects, the triangle count, the list of outputs and the status.
 
 The outputs in the output folder:
 
@@ -366,7 +374,7 @@ The outputs in the output folder:
 | `model.blend` | The built scene before the stage, with the procedural materials kept for a new bake |
 | `textures/<object>_<pass>.png` | The baked maps, which `model.blend` loads |
 | `views/<name>.png` | Only with `--views`: one image per shot |
-| `build.json` | The report: status, Blender version, bake device, the seconds and `result` of each script, each baked map, the pieces, the triangle count and the list of outputs. On a failure: the step of the build, the script, the message and the traceback. |
+| `build.json` | The report: status, Blender version, bake device, the seconds and `result` of each script, each baked map, the root objects (`roots`), the objects marked with `tertius_piece = 1` (`marked`), the triangle count and the list of outputs. The importer decides the pieces, because it also reads the `PIECE_` prefix, the sidecar and the collision markers. On a failure: the step of the build, the script, the message and the traceback. |
 | `blender.log` | Blender's own output |
 
 Exit codes:
@@ -377,37 +385,45 @@ Exit codes:
 | 2 | Bad input: the arguments, `model.json`, a missing script, or an output folder that holds other files |
 | 3 | The build failed: a script raised an exception, the bake or the export failed, or Blender stopped. `build.json` and `blender.log` say where. |
 | 5 | Blender is missing: the build tool is outside the assets shell, and `nix develop .#assets` failed. |
-| 6 | The volume of the output folder has less than 30 GB free. |
+| 6 | The volume of the output folder has less free space than the build needs. The message names both sizes. |
+| 130 | SIGINT or SIGTERM stopped the build. The build tool stopped Blender and deleted its temporary folder. The output folder holds no `build.json`, so the next build into it needs a new folder. |
 
 The export conventions live in one function, `export.write_glb`. The converter of "Native tools and libraries" calls the same function. So a converted file and a scripted model leave Blender with one set of options:
 
 - `export_format='GLB'`, `export_yup=True`, `export_apply=True`, `export_extras=True`, `export_tangents=True`, `export_lights=True`, `export_cameras=False`, `export_materials='EXPORT'`, `export_image_format='AUTO'`, `export_import_convert_lighting_mode='SPEC'`, and no Draco compression.
-- Before the export, the function makes sure that the scene holds no camera. A camera there means that the stage leaked into the model, and the build fails.
+- With `refuse_cameras=True`, which only `build.py` passes, the function fails when the scene holds a camera. A camera in a scripted model means that the stage leaked into the model. A third-party file often holds a camera, so the converter leaves the check off, and the exporter leaves the camera out.
 - The exporter computes tangents only for triangles and quads. So the function adds a Triangulate modifier at the end of the modifier stack of each mesh for the time of the export. glTF holds triangles in any case, and the scene keeps its polygons.
+- Blender runs the export with one thread (`--threads 1`), for the tangents.
 
-Determinism: the same model folder, model library and Blender build on the same machine and bake device give the same meshes, UV maps and pieces. Tests in `tools/blender/tests/` build small models twice and compare the `model.glb` bytes. Some BMesh operators, such as `create_uvsphere` and `spin`, order what they make by memory address. So `MB.finish` puts the vertices of each mesh in the order of their coordinates and its faces in the order of their vertices before the weld. `model.blend` and `build.json` hold times and paths, so their bytes differ.
+Determinism: the same model folder, model library and Blender build on the same machine give the same meshes, UV maps and nodes. Tests in `tools/blender/tests/` build small models twice and compare the `model.glb` bytes. Some BMesh operators, such as `create_uvsphere` and `spin`, order what they make by memory address. So `MB.finish` puts the vertices of each mesh in the order of their coordinates and its faces in the order of their vertices before the weld. `model.blend` and `build.json` hold times and paths, so their bytes differ.
 
-The first builds of the Nostromo (2026-10-26) tested the belief that a GPU bake gives the same bytes on every run. It does not. Two Metal builds gave the same positions, normals, indices and UV maps, but a few pixels of the baked maps differed by one level out of 255, and one to four tangent values of the mesh `Engines` differed in their last bits. The glTF exporter computes the tangents on the CPU, and the cause of that difference is not found. So two builds of the Nostromo give `.glb` files that look the same and differ in their bytes. The cache key holds only inputs, so this changes no import. A golden test of a cooked scripted model compares within a tolerance, or builds on the CPU.
+The first builds of the Nostromo (2026-10-26) tested the belief that a build gives the same `.glb` bytes on every run. Two causes broke it, and the second is fixed:
+
+- A bake on Metal differs between runs: a few pixels of the maps differ by one level out of 255. A bake on the CPU gave the same maps in every test. So the importer bakes on the CPU (see "The importer and a scripted model"). On this Mac, the Nostromo's twelve maps take about 170 s on Metal and about 14 minutes on the CPU (measured at 1024 x 1024: 54 s for the twelve maps, and the time grows with the pixels).
+- Blender computes MikkTSpace tangents on several threads, and the order of the sums changes between runs. Thirty calls of `calc_tangents` on the Nostromo's `Engines` in one Blender gave thirty different results. With `--threads 1`, all thirty were the same. The exporter rounds each tangent to four decimals, so most differences vanish, but one to four values of `Engines` changed in each build. The export run of the build tool and the converter therefore run with one thread. The export of the Nostromo takes about 1 s.
+
+So two builds of a model with `--device cpu` give the same `.glb` bytes. Two builds on Metal give `.glb` files that look the same and differ in a few pixels of their maps.
 
 #### The importer and a scripted model
 
 The importer treats a model folder as one source asset:
 
-- It runs the build tool with `--out bin/assets/<path>.tmp-<random>/build`, inside the temporary folder of its atomic write (see "Cooked output"). It passes no `--views` and `--device auto`.
+- It runs the build tool with `--out bin/assets/<path>.tmp-<random>/build`, inside the temporary folder of its atomic write (see "Cooked output"). It passes no `--views`, and it passes `--device cpu`, because only a bake on the CPU gives the same maps on every run (see "Determinism" above).
 - With exit code 0, it reads `build/model.glb` as the glTF source of the asset. Everything after that is the path of every model. A scripted model has no `converted.glb`, because `build/model.glb` is that file.
 - Exit code 3 gives AS6002 with the message of `build.json` and the last lines of `blender.log`. Exit code 2 gives AS1007. Exit code 5 gives AS6001. Exit code 6 gives AS6007.
-- The time limit is the configuration key `blenderTimeout`.
+- The time limit is the configuration key `blenderTimeout`. When it expires, the importer sends SIGTERM to the build tool and waits up to 30 s. The build tool then stops Blender, deletes its temporary folder and exits with code 130. Only if the build tool still runs after the wait, the importer kills the whole process tree (`Process.Kill(entireProcessTree: true)`), and Blender's temporary folder stays. A kill of the build tool alone would leave Blender running, because SIGKILL runs no trap. Either way, the importer reports AS6005.
+- The `build/` folder stays in the cooked folder of the asset (decision 23). The game never reads it, and the byte rules of "Caching and determinism" do not cover it: `build.json` holds the path of the model folder and the seconds of each step, and `blender.log` holds the paths of temporary folders and Blender's timings.
 - A built package leaves out the `build/` folder of each scripted model (content packages and mods). A player needs only the cooked data.
 
 The cache key of a scripted model uses the key inputs of "Caching and determinism" with these contents:
 
 | Key input | Contents for a scripted model |
 |---|---|
-| `source` | The SHA-256 of a canonical JSON object. The object maps the path of each file in the model folder to the SHA-256 of its bytes. The paths are relative to the model folder. |
+| `source` | The SHA-256 of a canonical JSON object. The object maps the path of `model.json` and of each script that it names to the SHA-256 of its bytes. The paths are relative to the model folder. `README.md` is not in the key, because the build never reads it. |
 | `dependencies` | The repository path and the SHA-256 of each file of the build tool and the model library: `tools/blender/build.sh`, `tools/blender/build.py` and every `.py` file in `tools/blender/tertius_blender/` |
-| `tools` | `blender`: the Nix store path of Blender, which names its version |
+| `tools` | The tools of a glTF source, and also `blender`: the Nix store path of Blender, which names its version. SharpGLTF, meshoptimizer, the .NET runtime and the others still process `build/model.glb`. |
 
-The bake device is not a key input. The cooked folder is local to one machine, and that machine always picks the same device.
+The bake device is not a key input, because the importer always bakes on the CPU.
 
 A scripted model is code. It runs with the rights of the person who imports it, like the `code/` folder of a package. A built package holds no scripts, so a player never runs one. Read a scripted model from a stranger before you import its source package.
 
@@ -416,21 +432,22 @@ A scripted model is code. It runs with the rights of the person who imports it, 
 The assets shell holds Blender 5.2.2 and `blender-mcp` 1.0.3. Its setup:
 
 1. `tools/blender/setup.sh`, once per machine, installs the MCP add-on into Blender's user extensions with Blender's own `extension install-file --enable` command. The add-on file `mcp-1.0.3.zip` comes from a fixed-output Nix fetch with a pinned hash. If version 1.0.3 is already installed, the script does nothing.
-2. `tools/blender/bridge.sh start` starts the bridge: `blender --background --online-mode --command blender_mcp`. Without online mode, the add-on opens no socket. `tools/blender/bridge.sh stop` stops it with SIGTERM and deletes its temporary folder.
+2. `tools/blender/bridge.sh start` starts the bridge: `blender --background --online-mode --command blender_mcp`. Without online mode, the add-on opens no socket. `tools/blender/bridge.sh stop` stops it with SIGTERM and deletes its temporary folder. One bridge serves the machine, because the MCP server of every session connects to port 9876. The bridge belongs to the checkout that started it: `bridge.sh` records that checkout, and a start or a stop from another checkout or worktree stops with an error that names the owner. So a second agent never drives, wipes or stops the scene of the first.
 3. `.mcp.json` registers the server `blender`, which runs `nix develop .#assets --command blender-mcp`. The MCP server connects to the bridge for each tool call.
 
 An agent runs model scripts through `execute_blender_code` with the same function as the build tool:
 
 ```python
-import sys
+import importlib, sys
 sys.path.insert(0, "/path/to/tertius/tools/blender")
 from tertius_blender import run
+importlib.reload(run)
 
 run.new_scene()
 result = run.run_script("/path/to/tertius/content/tertius.demo/assets/ships/nostromo.model", "s10_hull.py")
 ```
 
-The agent looks at the scene through the render tools of the MCP server. They need a scene camera, so the agent first adds the stage with `stage.build` and picks a shot with `stage.use_shot`. A render tool writes its image into the temporary folder of the bridge and returns the path, which the agent opens with the Read tool. `stage.remove()` deletes the stage again before the next model script runs. For the full build, the bake and the views, the agent runs the build tool with `--views` into a scratch folder. The project skill `procedural-modeling` holds the way of work, and the Nostromo is its worked example.
+The agent looks at the scene through the render tools of the MCP server. They need a scene camera, so the agent first adds the stage with `stage.build` and picks a shot with `stage.use_shot`. `stage.build` also sets Cycles to the GPU, if it finds one, and saves every scene setting that it changes. A render tool writes its image into the temporary folder of the bridge and returns the path, which the agent opens with the Read tool. The MCP server waits at most 300 s for one tool call, so a render that takes longer fails the call while the bridge renders on. `stage.remove()` deletes the stage again before the next model script runs, and restores the saved settings. For the full build, the bake and the views, the agent runs the build tool with `--views` into a scratch folder. The project skill `procedural-modeling` holds the way of work, and the Nostromo is its worked example.
 
 #### Readers and writers
 
@@ -438,7 +455,7 @@ The agent looks at the scene through the render tools of the MCP server. They ne
 |---|---|---|
 | `<name>.model/model.json` | The author | `run.run_script`, `build.py`, the importer (AS1006, AS1007 and the cache key), editors through `.schemas/model.schema.json`, which `tertius content schema` writes |
 | `<name>.model/*.py` | The author | `run.run_script` in the build tool and in the bridge, the importer (the cache key) |
-| `<name>.model/README.md` | The author | People and agents, the importer (the cache key) |
+| `<name>.model/README.md` | The author | People and agents. The importer only checks that it is the one extra file (AS1006). |
 | `<name>.model.import.json` | The author | The importer |
 | `tools/blender/tertius_blender/*.py` | Engine authors | Model scripts, `build.py`, the bridge, the importer (the cache key) |
 | `tools/blender/build.py` | Engine authors | Blender, started by the build tool, and the importer (the cache key) |
@@ -526,7 +543,7 @@ The section `texture` applies to standalone texture assets, and `model.textures`
 | `collision.static` | `"mesh"` | The static collision with no markers: `"mesh"` or any value of `moving` |
 | `collision.meshError` | 0.01 | m: the largest simplification error of a static triangle mesh made from render geometry |
 | `collision.decompose` | See "Collision" | The options of V-HACD |
-| `blenderTimeout` | 1800 | s: the time limit of a Blender run, for a conversion and for the build of a scripted model. A scripted model with a large bake needs minutes. |
+| `blenderTimeout` | 1800 | s: the time limit of a Blender run, for a conversion and for the build of a scripted model. A scripted model with a large bake needs minutes. It changes no output, so it is not part of the cache key. |
 | `lights.import` | `true` | Import the point and spot lights of the model |
 | `lights.cutoff` | 0.01 | The irradiance, in engine units, at which a light without a glTF range ends |
 | `lights.castsShadow` | `false` | Default for lights without the custom property `tertius_cast_shadow` |
@@ -876,7 +893,8 @@ bin/assets/ships/corvette.blend/
   collision.bin        hull points and collision triangles
   textures/0.ktx2      one KTX2 file per texture, numbered in order of first use
   converted.glb        only for sources that Blender converted
-  build/               only for scripted models: the outputs of the build tool (see "Scripted models")
+  build/               only for scripted models: the outputs of the build tool (see "Scripted models"),
+                       outside the byte rules of "Caching and determinism"
 ```
 
 `cooked.json` (shortened to one piece):
@@ -973,8 +991,8 @@ The cache key is the SHA-256 of the canonical JSON of `keyInputs`. Canonical JSO
 | `tools` | For each native tool and library that this kind of asset uses, its Nix store path. For each C# library, its package version. Also the .NET runtime version. A store path changes with every rebuild, also with the same version number, and a new runtime can change the results of `Math` functions. |
 | `platform` | The runtime identifier, such as `osx-arm64` |
 | `source` | The SHA-256 of the source file. For a scripted model, the hash over its folder (see "Scripted models"). |
-| `dependencies` | Path to SHA-256 of each file that the last import read besides the source: the `.bin` and images of a `.gltf`, and the files that Blender loaded for a `.blend`. For a scripted model: the files of the build tool and the model library. |
-| `configuration` | The effective configuration, without `source` |
+| `dependencies` | Path to SHA-256 of each file that the last import read besides the source: the `.bin` and images of a `.gltf`, and the files that Blender loaded for a `.blend`. For a source that Blender converts, also every `.py` file of the model library in `tools/blender/tertius_blender/`, because `export.write_glb` decides the bytes of `converted.glb`. For a scripted model: the files of the build tool and the model library. |
+| `configuration` | The effective configuration, without `source` and without `blenderTimeout`, which change no output |
 
 The `platform` input exists because native code and floating-point code can round differently on another CPU. The pipeline promises the same bytes on one platform, not across platforms.
 
@@ -1002,7 +1020,7 @@ Ordering rules, each with its reason:
 
 Other rules for deterministic bytes:
 
-- No dates, paths of the local machine or random values in cooked output. The temporary folder names never reach the output.
+- No dates, paths of the local machine or random values in cooked output. The temporary folder names never reach the output. The `build/` folder of a scripted model is not cooked output in this sense: it is the report and the by-products of the build tool, and the game never reads it (see "Scripted models").
 - JSON output has a fixed key order. Floats are written in shortest round-trip form with the invariant culture.
 - C# image filters are scalar code, so the JIT cannot fuse operations differently between runs.
 - The V-HACD shim builds with `-ffp-contract=off`.
@@ -1206,7 +1224,7 @@ The editor and the launcher in development use `AssetWatcher` from `Tertius.Impo
 
 1. A `FileSystemWatcher` on the `assets/` folder of each package reports changes. Renames count, because Blender saves through a temporary file and a rename.
 2. After 300 ms with no new change, the watcher collects the changed files.
-3. It finds the affected assets: a changed source, its sidecar, a dependency that the last import recorded, or a `defaults.import.json` above it.
+3. It finds the affected assets: a changed source, its sidecar, a dependency that the last import recorded, or a `defaults.import.json` above it. A change of any file inside a model folder `X.model/` affects the scripted model `X.model`.
 4. It imports them on a background thread, with the same importer as the CLI.
 5. It raises `Imported` with the report on that thread. The owner of the store queues the report.
 6. The owner calls `AssetStore.Reload` on the thread that owns the renderer, between two rendered frames. The editor does this on its main thread at the start of a UI frame (see the editor design). Meshes, textures, materials and models keep their ids, and the next rendered frame shows the new data.
@@ -1217,9 +1235,14 @@ The editor and the launcher in development use `AssetWatcher` from `Tertius.Impo
 | Collision | `CollisionChanged`: the editor rebuilds its edit world, and the next play world gets the new shapes (see the editor design). | Logged. A restart applies it. |
 | New or removed pieces, materials or nodes | `StructureChanged`: the editor runs `ContentLoader.ReloadData` and rebuilds its worlds. | Logged. A restart applies it. |
 
-A failed import keeps the last good cooked folder, so the running game keeps working. A removed asset keeps its resources until the process ends. A `.blend` source needs the assets shell. In the default shell, the watcher reports AS6001 for a changed `.blend` file and keeps the last good output.
+A failed import keeps the last good cooked folder, so the running game keeps working. A removed asset keeps its resources until the process ends. A `.blend` source and a scripted model need the assets shell. In the default shell, the watcher reports AS6001 for a changed `.blend` file or model folder and keeps the last good output.
 
-Budget: from the save of a `.glb` to new pixels in under 2 s, for a model without new textures. A `.blend` source adds the time of Blender, which step 15 measures.
+Scripted models:
+
+- Each save in a model folder starts the full build of the model, with the bake on the CPU, as every import does. A large model takes minutes: the Nostromo takes about 15 minutes on this Mac, nearly all of it the bake. A save during a running build marks the model again, and the watcher builds it once more after the running build ends. An author who tries out a change uses the bridge, which shows a change in seconds, and lets the watcher bring the result into the game.
+- The watcher does not watch `tools/blender/`, which lies outside every `assets/` folder. An edit of the model library or of the build tool changes the `dependencies` key input of every scripted model, so the next import builds them again.
+
+Budget: from the save of a `.glb` to new pixels in under 2 s, for a model without new textures. A `.blend` source adds the time of Blender, which step 15 measures. A scripted model adds the time of its build.
 
 ### Provenance and licenses
 
@@ -1539,7 +1562,7 @@ An agent that the user tells to "pull in X" follows these steps.
 | AS6004 | Error | A native library does not load. Exit code 5. |
 | AS6005 | Error | A tool did not finish in time. |
 | AS6006 | Error | Another import held the lock of the package for longer than the wait. Exit code 7. |
-| AS6007 | Error | The build tool found less than 30 GB free for a scripted model. |
+| AS6007 | Error | The volume of the cooked folder has less free space than the build of a scripted model needs. The message names both sizes. |
 | AS7001 | Error | A `source` block lacks a required key. |
 | AS7002 | Error | The license is not allowed or unknown. |
 | AS7003 | Warning | A share-alike license |
@@ -1620,13 +1643,14 @@ void     tvhacd_free(tvhacd_result* result);
 The Blender command:
 
 ```
-$TERTIUS_BLENDER --background --factory-startup --disable-autoexec --python-exit-code 3 \
+$TERTIUS_BLENDER --background --factory-startup --disable-autoexec --python-exit-code 3 --threads 1 \
   --python tools/Tertius.Import/Blender/tertius_convert.py -- <input> <output.glb> <options.json>
 ```
 
 - The working folder is a new empty temporary folder, and every path is an argument.
-- The script starts from an empty scene and imports by extension: `bpy.ops.import_scene.fbx`, `bpy.ops.wm.obj_import` (forward -Z, up Y) or `bpy.ops.wm.open_mainfile`.
-- It exports with `export.write_glb` of the model library in `tools/blender/`, which holds the export options (see "Scripted models").
+- `--threads 1` makes the tangents of the export the same on every run (see "Determinism" in "Scripted models").
+- The script starts from an empty scene and imports by extension: `bpy.ops.import_scene.fbx`, `bpy.ops.wm.obj_import` (forward -Z, up Y) or `bpy.ops.wm.open_mainfile`. An export after `open_mainfile` works in headless Blender 5.2.2 (tested on 2026-10-26).
+- It exports with `export.write_glb` of the model library in `tools/blender/`, which holds the export options (see "Scripted models"). It leaves the camera check of `write_glb` off: a third-party file often holds a camera. The exporter leaves cameras out in any case. The script prints `TERTIUS-CAMERA <name>` for each camera, and the importer reports AS2016 for it, as rule 7 of "Models: nodes and pieces" says.
 - It prints `TERTIUS-DEP <path>` for every external file that Blender loaded and `TERTIUS-WARN <text>` for problems. The importer records the dependencies and turns the warnings into AS6003.
 - The time limit is the model configuration key `blenderTimeout` (AS6005).
 
@@ -1656,7 +1680,7 @@ Beliefs, which the steps test first:
 - `meshopt_generateTangents` with `meshopt_TangentCompatible` matches the tangents of Blender within 1° (step 9).
 - TinyEXR.NET reads the EXR files that Blender writes (step 6).
 - Blender keeps a backup `*.blend1` on each save and saves through a temporary `*.blend@` file (step 15).
-- Blender writes the same `.glb` bytes for the same `.blend` file and version (step 15). If it does not, the cooked key still holds, but the golden test of the `.blend` fixture compares the cooked output only.
+- Blender writes the same `.glb` bytes for the same `.blend` file and version, with `--threads 1` (step 15). With more threads, the tangents differ in their last bits (tested on 2026-10-26). If it does not, the cooked key still holds, but the golden test of the `.blend` fixture compares the cooked output only.
 
 ### Performance budgets
 
