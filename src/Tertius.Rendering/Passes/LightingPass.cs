@@ -12,7 +12,12 @@ internal sealed unsafe class LightingPass : RenderPass
     private readonly VulkanDevice device;
     private readonly Pipeline pipeline;
 
-    public LightingPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+    public LightingPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ShaderConstants constants
+    )
     {
         this.device = device;
         pipeline = new GraphicsPipelineDesc
@@ -23,6 +28,7 @@ internal sealed unsafe class LightingPass : RenderPass
             Layout = layouts.SceneLayout,
             ColorFormats = [RenderTargets.HdrFormat],
             CullMode = CullModeFlags.None,
+            Constants = constants,
         }.Create(device, shaders);
     }
 

@@ -111,6 +111,7 @@ public static partial class DemoScenes
         new("puff-yard", PuffYard),
         new("pbr-spheres", PbrSpheres),
         new("reflections", Reflections),
+        new("mirror-balls", MirrorBalls),
     ];
 
     /// <summary>

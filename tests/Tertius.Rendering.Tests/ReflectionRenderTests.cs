@@ -8,7 +8,9 @@ namespace Tertius.Rendering.Tests;
 /// The screen-space reflections on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the reflections"): what
 /// a floor shows where its rays hit, blur, fade or miss, read as linear HDR values. Unless a test says otherwise, the
 /// floor is white metal and the scene is dark, so the floor shows only what the trace adds. The first three tests are
-/// the user's (decision 10). One test checks that the trace may read the BRDF tables after their upload.
+/// the user's (decision 10). One test checks that the trace may read the BRDF tables after their upload, one that its
+/// fallback is the environment map's specular term while the map is on, and one that a hit takes away the very term
+/// that the lighting pass added, reflected stars included.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionRenderTests
@@ -21,6 +23,9 @@ public sealed class ReflectionRenderTests
 
     /// <summary>The left edge of that face at its middle height.</summary>
     private static readonly Vector3 BoxFaceLeft = new(-3, -0.25f, -7.5f);
+
+    /// <summary>The center of the mirror ball of <see cref="MirrorBesideGlow"/>, 4 m ahead.</summary>
+    private static readonly Vector3 MirrorBall = new(0, 0, -4);
 
     [Fact]
     public void ABrightObjectAboveAMirrorFloorShowsInTheFloor()
@@ -608,6 +613,163 @@ public sealed class ReflectionRenderTests
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
                 .ContainInOrder(["lighting", "radiance pyramid", "reflections", "transparent"]);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WithTheEnvironmentMapOnAHitReplacesTheMapsSpecularTerm()
+    {
+        // A wide wall that glows 3 fills the floor's lobe on the screen and in the map alike, so the ray's radiance and
+        // the map's specular term are both 3: a hit that replaces the term leaves the floor as it was, and a fallback
+        // that read the hemisphere, which is black while the map is on, would add the wall a second time.
+        static RenderSnapshot Scene(VulkanRenderer renderer)
+        {
+            RenderSnapshot snapshot = Dark();
+            snapshot.Instances.Add(Floor(renderer, Mirror()));
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            snapshot.Instances.Add(
+                Block(box: box, material: Glow(renderer, new(3)), center: new(0, 3, -10), size: new(40, 9, 1))
+            );
+            return snapshot;
+        }
+
+        (float[] with, CameraView camera) = RenderUnderMap(reflections: Reflections, scene: Scene);
+        float[] without = RenderUnderMap(reflections: new NoReflections(), scene: Scene).Hdr;
+
+        foreach (float x in (float[])[-2, 0, 2])
+        foreach (float y in (float[])[0, 1, 2])
+        {
+            (int X, int Y) pixel = MirrorPixel(new(x, y, -9.5f));
+            Vector3 mapped = At(without, pixel);
+            mapped
+                .Y.Should()
+                .BeGreaterThan(SpecularWeight(Mirror(), camera, pixel).Y * 2.5f, "the map lights the floor");
+            BrdfTesting
+                .LargestChannelDifference(At(with, pixel), mapped)
+                .Should()
+                .BeLessThanOrEqualTo(
+                    0.05f * mapped.Y,
+                    "{0} reflects the wall once, and the map's 32 texels hold the wall's light about 3 % low: {1}",
+                    pixel,
+                    At(with, pixel)
+                );
+        }
+    }
+
+    [Fact]
+    public void ACurvedMirrorThatReflectsItsNeighborDoesNotChangeWhenTheStarsTurn()
+    {
+        // The rays of the mirror ball's right side hit the glowing ball on the screen, but the map, seen from the eye,
+        // sees open sky along them. The mirror's d moves by several star cells per pixel, so the lighting pass adds the
+        // stars' mean, which a quarter turn of the root axes keeps. A hit that took away single stars in its place would
+        // leave their dips in the reflection, and the dips would move with the stars.
+        float[] lit = RenderUnderMap(
+            reflections: new NoReflections(),
+            scene: MirrorBesideGlow(Quaternion.Identity)
+        ).Hdr;
+        float[] reflected = RenderUnderMap(reflections: Reflections, scene: MirrorBesideGlow(Quaternion.Identity)).Hdr;
+        (int X, int Y)[] mirror = MirrorBallPixels();
+        mirror
+            .Count(pixel => At(reflected, pixel).Y > At(lit, pixel).Y + 0.5f)
+            .Should()
+            .BeGreaterThan(200, "the mirror's right side reflects the glowing ball through its rays' hits");
+
+        foreach (
+            Quaternion turn in (Quaternion[])
+                [
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                ]
+        )
+        {
+            float[] turned = RenderUnderMap(reflections: Reflections, scene: MirrorBesideGlow(turn)).Hdr;
+            (int X, int Y)[] differing =
+            [
+                .. mirror.Where(pixel =>
+                    BrdfTesting.LargestChannelDifference(At(turned, pixel), At(reflected, pixel))
+                    > At(reflected, pixel).Y / 1024
+                ),
+            ];
+            differing
+                .Should()
+                .BeEmpty(
+                    "the trace takes away the term that the lighting pass added, whatever the stars along d; first {0}: {1} and {2}",
+                    differing.FirstOrDefault(),
+                    At(turned, differing.FirstOrDefault()),
+                    At(reflected, differing.FirstOrDefault())
+                );
+        }
+    }
+
+    /// <summary>
+    /// A white mirror ball of 1 m radius at <see cref="MirrorBall"/> and a ball of the same size that glows
+    /// <see cref="Bright"/> 2.5 m to its right, in the dark, with the root axes turned by <paramref name="root"/>.
+    /// </summary>
+    private static Func<VulkanRenderer, RenderSnapshot> MirrorBesideGlow(Quaternion root) =>
+        renderer =>
+        {
+            RenderSnapshot snapshot = Dark();
+            snapshot.RootRotation = root;
+            snapshot.PreviousRootRotation = root;
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: renderer.CreateMaterial(Mirror()),
+                    position: MirrorBall,
+                    scale: Vector3.One
+                )
+            );
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: Glow(renderer, new(Bright)),
+                    position: MirrorBall + new Vector3(2.5f, 0, 0),
+                    scale: Vector3.One
+                )
+            );
+            return snapshot;
+        };
+
+    /// <summary>
+    /// The pixels of the mirror ball of <see cref="MirrorBesideGlow"/>. The ball spans asin(1 / 4) from its center, and the
+    /// inner 90 % of that lies on its mesh.
+    /// </summary>
+    private static (int X, int Y)[] MirrorBallPixels()
+    {
+        (int X, int Y) center = PixelOf(MirrorBall);
+        float radius = 0.9f * MathF.Tan(MathF.Asin(0.25f)) * (Height / 2f) / MathF.Tan(Gpu.Fov / 2);
+        return
+        [
+            .. from y in Enumerable.Range(center.Y - (int)radius, 2 * (int)radius + 1)
+            from x in Enumerable.Range(center.X - (int)radius, 2 * (int)radius + 1)
+            where (x - center.X) * (x - center.X) + (y - center.Y) * (y - center.Y) <= radius * radius
+            select (x, y),
+        ];
+    }
+
+    /// <summary>
+    /// Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, with
+    /// <paramref name="reflections"/>, under a map of 32 texels that draws all six faces in the frame.
+    /// </summary>
+    /// <returns>The frame's HDR image, and its camera.</returns>
+    private static (float[] Hdr, CameraView Camera) RenderUnderMap(
+        ReflectionSetting reflections,
+        Func<VulkanRenderer, RenderSnapshot> scene
+    )
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            reflections: reflections,
+            environmentMap: new SceneEnvironmentMap(FaceSize: 32, FacesPerFrame: 6)
+        );
+        try
+        {
+            renderer.Render(scene(renderer), 1f);
+            return (renderer.ReadHdr(), renderer.LastScene.Camera);
         }
         finally
         {

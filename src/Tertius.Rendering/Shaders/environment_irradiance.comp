@@ -1,0 +1,76 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "cube_faces.glsl"
+#include "spherical_harmonics.glsl"
+
+// The irradiance of the environment map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
+// the projection of the radiance map's level 0 onto the nine Y_lm, times the clamped cosine's coefficients. One workgroup
+// of 128 invocations, the most that the Vulkan specification guarantees. Invocation j sums the texels j, j + 128, ... in
+// layer, row and column order, and a tree in shared memory adds the partial sums in a fixed order, so one map always gives
+// the same bits on one GPU.
+
+const uint Invocations = 128u;
+const uint Sums = 27u;   // nine coefficients of three colors
+
+layout(local_size_x = 128) in;
+
+layout(set = 0, binding = 0) uniform textureCube radianceMap;
+layout(set = 0, binding = 1) uniform sampler environmentSampler;
+// Coefficient i in vec4 i: xyz E_lm, w 0 (Irradiance.cs).
+layout(set = 0, binding = 2, std430) writeonly buffer IrradianceBlock { vec4 irradiance[9]; };
+
+// 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B.
+shared float partials[Sums * Invocations];
+
+void main()
+{
+    uint j = gl_LocalInvocationIndex;
+    uint size = uint(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
+    uint texels = 6u * size * size;
+    float sums[Sums];
+    for (uint c = 0u; c < Sums; c++)
+        sums[c] = 0.0;
+    for (uint t = j; t < texels; t += Invocations)
+    {
+        uint layer = t / (size * size);
+        uint inLayer = t - layer * size * size;
+        uvec2 texel = uvec2(inLayer % size, inLayer / size);
+        vec3 ray = faceRay(layer, (vec2(texel) + 0.5) / float(size));
+        // The exact ray through a texel center reads that texel alone.
+        vec3 radiance = textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0).rgb;
+        radiance *= texelSolidAngle(texel, size);
+        float y[9];
+        shBasis(normalize(ray), y);
+        for (uint i = 0u; i < 9u; i++)
+        {
+            sums[3u * i] += radiance.r * y[i];
+            sums[3u * i + 1u] += radiance.g * y[i];
+            sums[3u * i + 2u] += radiance.b * y[i];
+        }
+    }
+    for (uint c = 0u; c < Sums; c++)
+        partials[c * Invocations + j] = sums[c];
+
+    for (uint stride = Invocations / 2u; stride > 0u; stride /= 2u)
+    {
+        memoryBarrierShared();
+        barrier();
+        if (j < stride)
+            for (uint c = 0u; c < Sums; c++)
+                partials[c * Invocations + j] += partials[c * Invocations + j + stride];
+    }
+    memoryBarrierShared();
+    barrier();
+
+    if (j < 9u)
+    {
+        float cosine = ShClampedCosine[shBand(j)];
+        uint c = 3u * j;
+        irradiance[j] = vec4(
+            cosine * partials[c * Invocations],
+            cosine * partials[(c + 1u) * Invocations],
+            cosine * partials[(c + 2u) * Invocations],
+            0.0
+        );
+    }
+}

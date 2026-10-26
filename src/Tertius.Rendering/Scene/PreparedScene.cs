@@ -151,8 +151,8 @@ internal sealed class PreparedScene
     /// <summary>The snapshot's sun, as given. Instance processors read it, for example to light impostor captures.</summary>
     public RenderSun Sun;
 
-    /// <summary>The snapshot's ambient light, as given.</summary>
-    public AmbientLight Ambient;
+    /// <summary>The ambient light of the frame: the snapshot's hemisphere, or the map with its latest irradiance reading.</summary>
+    public AmbientSource Ambient;
 
     public GpuFrameConstants Constants;
     public readonly Matrix4x4[] RangeViewProjection = new Matrix4x4[DepthRanges.Count];
@@ -232,6 +232,9 @@ internal sealed class PreparedScene
 
     /// <summary>Impostor billboards per depth range, appended after batching by the impostor pass.</summary>
     public readonly InstanceRange[] Impostors = new InstanceRange[DepthRanges.Count];
+
+    /// <summary>The faces of the map that this frame draws, in layer order, with their opaque commands.</summary>
+    public readonly List<EnvironmentFaceDraw> EnvironmentFaces = [];
 
     /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
     public int TransparentCommandCount
@@ -313,6 +316,7 @@ internal sealed class PreparedScene
         ShadowCasters = 0;
         ShadowInstances = 0;
         Array.Clear(Impostors);
+        EnvironmentFaces.Clear();
     }
 }
 

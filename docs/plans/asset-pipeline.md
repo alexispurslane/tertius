@@ -28,7 +28,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 10. The front of an object in the engine is -Z, like the camera and spot lights. glTF puts the front of an asset at +Z. So the importer turns every model by 180° about +Y.
 11. One engine light unit is 683 candela for point and spot lights, and 683 lux for the sun. For the sun, this is a Blender sun of strength 1 W/m². For a point light, it is a Blender point light of 4π W. The Blender exporter multiplies by exactly 683, so a scene from Blender keeps its relative brightness.
 12. Materials import from glTF metallic-roughness as they are. Metallic, roughness and the base color pass through to `MaterialDesc`, and the reflectance is clamp(√(Y(F0d) / 0.16), 0, 1), where F0d is the dielectric reflectance of the glTF material. The default glTF dielectric, with an IOR of 1.5, gives the default reflectance of 0.5 exactly. (Changed on 2026-10-24: the renderer switched from Blinn-Phong to a PBR BRDF, so no conversion to gloss is needed. See [pbr-brdf.md](pbr-brdf.md).)
-13. Metals look right. The BRDF takes the base color of a metal as its F0. Environment reflections still wait for their own plan, and the specular part of the hemisphere ambient light lights metals meanwhile. (Changed on 2026-10-24: the renderer no longer caps F0 at 0.16, so the importer no longer keeps half of the base color of a metal as diffuse color. (User))
+13. Metals look right. The BRDF takes the base color of a metal as its F0, and metals reflect the renderer's environment map of the scene around the camera ([environment-map.md](environment-map.md)). The specular part of the hemisphere ambient light lights them only in a renderer whose map is off. (Changed on 2026-10-24: the renderer no longer caps F0 at 0.16, so the importer no longer keeps half of the base color of a metal as diffuse color. (User))
 14. Textures are block-compressed (BC4, BC5 and BC7), and the importer makes every mip level. All target GPUs support BC: Apple Silicon through MoltenVK (measured on this machine) and desktop GPUs on Linux.
 15. LODs belong to a mesh. A LOD is a coarser index list over the same vertices. The renderer picks a LOD by its projected error in pixels.
 16. Collision is stored as points and triangles. Jolt builds the shapes at content load, outside a tick. joltc exports no shape serialization (research), and the documentation of Jolt says that its cooked format changes between versions.
@@ -1574,7 +1574,7 @@ The user accepted every recommendation of this section on 2026-10-10.
 - A budget for GPU uploads per frame, and the release of GPU resources at a content unload.
 - Material overrides on a model in a render section, such as a red variant of a ship.
 - Attachment prefabs that spawn an entity for each piece. They need the scene instancing of content formats.
-- Sky maps and environment maps. The renderer has no slot for them.
+- Sky maps and imported environment maps. The renderer captures its environment map from the scene ([environment-map.md](environment-map.md)), so it has no slot for an imported one.
 - Audio assets.
 - Cooked output in archives for shipping, and mod distribution.
 - The Sketchfab download API, which needs the login of the user.

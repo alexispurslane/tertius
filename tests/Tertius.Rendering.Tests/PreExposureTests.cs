@@ -23,6 +23,9 @@ public sealed class PreExposureTests
     /// <summary>Where the sphere of the impostor scenes stands: on the view axis, far enough to be a billboard.</summary>
     private static readonly Vector3 FarAhead = new(0, 0, -12);
 
+    /// <summary>The base color of the lit squares.</summary>
+    private static readonly Vector4 Gray = new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1);
+
     /// <summary>A square facing the camera, as the plane primitive faces +Y.</summary>
     private static readonly Quaternion FacingTheCamera = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
 
@@ -35,6 +38,7 @@ public sealed class PreExposureTests
         GlowPuff,
         LitPuff,
         ImpostorBillboard,
+        MapLitSurface,
     }
 
     private static Vector2 Middle => Gpu.Project(point: Ahead, width: Width, height: Height);
@@ -48,18 +52,11 @@ public sealed class PreExposureTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
         snapshot.Ambient.Intensity = 0;
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.5f));
-        var gray = new Vector4(x: 0.5f, y: 0.5f, z: 0.5f, w: 1);
         switch (writer)
         {
             case Writer.LitOpaqueSurface:
                 snapshot.Sun.Intensity = 0.3f * light;
-                snapshot.Instances.Add(
-                    Facing(
-                        mesh: square,
-                        material: renderer.CreateMaterial(MaterialDesc.Color(gray, 1)),
-                        position: Ahead
-                    )
-                );
+                AddMatteSquare(renderer, snapshot, square);
                 break;
             case Writer.EmissiveSurface:
                 snapshot.Instances.Add(
@@ -70,7 +67,7 @@ public sealed class PreExposureTests
                 snapshot.Sun.Intensity = 0.3f * light;
                 // The glass reflects the sun and glows, so both of its terms must take the exposure.
                 MaterialId glass = renderer.CreateMaterial(
-                    new(BaseColor: gray with { W = 0.5f }, Roughness: 1, Emissive: new(0.03f * light))
+                    new(BaseColor: Gray with { W = 0.5f }, Roughness: 1, Emissive: new(0.03f * light))
                 );
                 snapshot.Instances.Add(
                     Facing(mesh: square, material: glass, position: Ahead, flags: RenderFlags.Transparent)
@@ -97,12 +94,35 @@ public sealed class PreExposureTests
                     )
                 );
                 break;
+            case Writer.MapLitSurface:
+                // Lit only by an emissive square behind the camera, which reaches it through the map.
+                AddMatteSquare(renderer, snapshot, square);
+                AddGlowBehind(renderer, snapshot, radiance: 0.3f * light);
+                break;
             default:
                 throw new UnreachableException();
         }
 
         return snapshot;
     }
+
+    /// <summary>A gray matte square ahead, facing the camera.</summary>
+    private static void AddMatteSquare(VulkanRenderer renderer, RenderSnapshot snapshot, MeshId square) =>
+        snapshot.Instances.Add(
+            Facing(mesh: square, material: renderer.CreateMaterial(MaterialDesc.Color(Gray, 1)), position: Ahead)
+        );
+
+    /// <summary>An emissive square of <paramref name="radiance"/> 4 m behind the camera, facing it.</summary>
+    private static void AddGlowBehind(VulkanRenderer renderer, RenderSnapshot snapshot, float radiance) =>
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(3f)),
+                material: BrdfTesting.Glow(renderer, new(radiance)),
+                position: new(0, 0, 4),
+                scale: Vector3.One,
+                rotation: Quaternion.Conjugate(FacingTheCamera)
+            )
+        );
 
     private static RenderInstance Facing(
         MeshId mesh,
@@ -151,7 +171,20 @@ public sealed class PreExposureTests
     private static Vector3 ShownInTheMiddle(Writer writer, ExposureSetting exposure, float light, string name)
     {
         bool impostors = writer == Writer.ImpostorBillboard;
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, impostors: impostors, exposure: exposure);
+        EnvironmentMapSetting map =
+            writer == Writer.MapLitSurface
+                ? SceneEnvironmentMap.Default with
+                {
+                    FaceSize = 32,
+                }
+                : new NoEnvironmentMap();
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            impostors: impostors,
+            exposure: exposure,
+            environmentMap: map
+        );
         try
         {
             RenderSnapshot snapshot = Scene(renderer, writer, light);
@@ -176,6 +209,7 @@ public sealed class PreExposureTests
     [InlineData(Writer.GlowPuff)]
     [InlineData(Writer.LitPuff)]
     [InlineData(Writer.ImpostorBillboard)]
+    [InlineData(Writer.MapLitSurface)]
     public void EachWriterOfTheHdrImageMultipliesItsLightByTheExposure(Writer writer)
     {
         Vector3 exposed = ShownInTheMiddle(

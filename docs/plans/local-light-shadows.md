@@ -194,7 +194,7 @@ Every kind takes one path. Only the shadow slot differs, and pure predicates cho
 
 ### Compared with a design from scratch
 
-Built from scratch around "a light is a property of an entity, in physical units", a renderer gets one list of lights. It shades them per pixel, and it picks a shadow technique for each light from geometry. This design is that. It keeps the far shadows and the cascades of today as the techniques for far lights. The hemisphere ambient light stays a world setting and is not derived from the lights. Light that a planet reflects onto a ship is out of scope.
+Built from scratch around "a light is a property of an entity, in physical units", a renderer gets one list of lights. It shades them per pixel, and it picks a shadow technique for each light from geometry. This design is that. It keeps the far shadows and the cascades of today as the techniques for far lights. The hemisphere ambient light stays a world setting and is not derived from the lights. It is the ambient light only of a renderer whose environment map is off ([environment-map.md](environment-map.md)). The one light list keeps the lights of every view of a frame: the main view and the faces of the environment map that the frame draws. Light that a planet reflects onto a ship is out of scope.
 
 ### Scenes and content files
 
