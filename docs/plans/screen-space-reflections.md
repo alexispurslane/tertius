@@ -51,7 +51,7 @@ The user made the decisions marked (User). This design settled the others by the
 1. Hi-Z tracing over a min-max pyramid of depth, which SSGI (`ter-a24f`) can reuse. (User)
 2. The rays read this frame's lit HDR image, before the transparent pass, so glass and puffs do not show in reflections. (User)
 3. Rough surfaces blur by a cone over a mip chain of that image, sized by the roughness, with no noise. (User)
-4. The trace runs at full resolution. (User)
+4. The trace runs at full resolution. (User) On 2026-10-25 the user allowed every technique of `docs/plans/rendering-performance.md`, "The techniques", half-resolution reflections included, for the profile ticket `ter-ff6y`, and forbade every temporal technique. That ticket made a trace at half resolution the default, with an upsample that respects depth and normal edges, because full resolution stayed above the 3 ms that this design expected. Full resolution stays the setting `TraceResolution.Full`. See "The half-resolution trace". (User, the ticket's note of 2026-10-25)
 5. Where a ray hits, its radiance replaces the ambient specular term, with the same weight from the BRDF tables and the same energy compensation. Where it leaves the screen, hits nothing or reaches the sky, it fades back to the ambient specular term with no hard edge. (User) The ticket's words name the hemisphere term. On 2026-10-25 the user chose a scene environment map (`ter-nl5u`), which replaces the hemisphere as the ambient light while it is on. So the fallback is the ambient specular term, whatever light produces it, and SSR reads that light in one place (see "The one place where SSR reads the ambient light"). (Orchestrator, from the user's decision of 2026-10-25)
 6. Above a maximum roughness, SSR fades out. (User)
 7. The rays read the distance target, so one pass serves all three depth ranges, and the assumed thickness grows with distance. (User)
@@ -79,7 +79,7 @@ The user made the decisions marked (User). This design settled the others by the
 26. The edge fade is Uludag's form: a smoothstep across a band at each edge, multiplied over the two axes. The band is a tenth of the shorter side of the screen, 108 px at 1080p, the same on all four edges.
 27. The trace adds the reflection delta to the HDR image, which already holds the ambient specular term. The lighting pass does not change. See "Where SSR splits the ambient specular term from the lit image".
 28. SSAO's specular occlusion multiplies the ambient specular term, never the traced radiance. See "How SSR meets SSAO".
-29. Two new stages: `DepthPyramid` after `GBuffer`, and `Reflections` after `Lighting`. Three passes: "depth pyramid", "radiance pyramid" and "reflections". So the GPU timings show each part, and SSGI can use the depth pyramid without the reflections.
+29. Two new stages: `DepthPyramid` after `GBuffer`, and `Reflections` after `Lighting`. Three passes: "depth pyramid", "radiance pyramid" and "reflections". At half resolution, the default since ticket `ter-ff6y`, a fourth pass "reflection trace" runs before "reflections", which then upsamples it. So the GPU timings show each part, and SSGI can use the depth pyramid without the reflections.
 30. The HDR image gets the storage usage only while reflections are on. Then a frame without reflections is the frame from before, image for image.
 31. The defaults: `MaxRoughness` 0.6, Unreal Engine 4's default, which the user chose from the captures of Part 6 (open fork 2), with the profile ticket `ter-ff6y` for its cost; and `MaxSteps` 128. Part 6 checked 64, 128 and 256 steps against 512 in the review captures. At 64 steps the edge view's glossy box face shows horizontal streaks, where rays run out of steps and their neighbors hit. At 128 the streaks are gone. The user wanted the fewest steps whose difference does not show to the naked eye (2026-10-25), and that is 128. See "Cost", "Results of Part 6".
 32. The validation: `MaxRoughness` above the roughness floor 0.045 and at most 1, and `MaxSteps` from 1 to 1,024. Below the floor no surface reflects, and that setting is `NoReflections`, as bloom refuses a strength of 0.
@@ -446,6 +446,25 @@ The physical reason: the source's light stands for distant light, the sky or the
 - Shared uses: both designs add `ImageUse.StorageCompute` and require `shaderStorageImageExtendedFormats`. SSR's `StorageCompute` adds the sampled read to SSAO's two storage bits (see "Barriers"). Whichever merges second keeps one definition with all three bits.
 - Order in the frame: SSAO runs before the lighting pass, which applies it. The trace runs after the lighting pass, so SSAO's result exists when the trace reads it.
 
+## The half-resolution trace
+
+Ticket `ter-ff6y` added this section under the user's allowance of 2026-10-25 (decision 4). The profile found the full-resolution trace ALU-bound at about 21 steps per pixel. After the changes that keep the image, the three passes took 6.76 ms in the Metal System Trace, against the 3 ms that this design expected. A ray for each block of 2 × 2 pixels does a quarter of that work. It follows SSAO's half-resolution horizons and their upsample (docs/plans/ambient-occlusion.md, "The upsample"), so one model serves both effects.
+
+`ConeTracedReflections` gains a third member, `Resolution`, a `TraceResolution` of `Half` (the default) or `Full`. It is an enum, not a union, because the choice carries no data. `Problem` refuses a value that the enum does not name. `Full` keeps the one pass of "The passes".
+
+At `Half`, two passes replace the trace:
+
+1. "reflection trace" (`reflection_half_trace.comp`): one invocation for each texel (i, j) of an RGBA16F image of ⌈W / 2⌉ × ⌈H / 2⌉ texels. The texel traces the ray of its representative pixel (2i, 2j), the top-left pixel of its block, through the same gates and the same trace as the full-resolution pass. `reflection_pixel.glsl` holds the gates and the delta, and `reflection_ray.glsl` the ray, and both passes include them. The texel stores the ray's result (C, a) times the ray's own fades, 0 for a miss, or a coverage of −1 when the representative pixel starts no ray.
+2. "reflections" (`reflection_upsample.comp`): one invocation for each pixel. A pixel that the gates let through takes the mean of the results of the up to four texels around it under the weight bilinear · max(0, 1 − h / p) · max(0, n · n_t)^8, and adds the delta of "8. The reflection replaces the ambient specular term" with that mean in place of its own ray. Here h is the distance of the texel's representative pixel from the pixel's tangent plane, p is the width of a texel at the pixel (2 pixel footprints), n is the pixel's geometric normal, and n_t the texel's. A texel with a coverage of −1 gets no weight. If no texel keeps a weight, the pixel keeps the ambient specular term, as for a ray that finds nothing.
+
+The plane weight is SSAO's: a texel across a silhouette lies off the pixel's plane and gives it nothing. The normal weight is new, because a reflection turns with the normal and occlusion barely does: a texel across a crease lies on the pixel's plane at the crease, but its ray leaves a surface that faces another way. The power 8 keeps 0.89 of the weight for a turn of 10°, about the turn between two facets of a sphere of 32 segments, and 0.06 for 45°. The upsample computes it by three squarings, because `pow` is `exp2` of a `log2`, which is infinite at 0, and fast math can assume finite values. The fallback to the ambient specular term is the miss of decision 5, so the pure model needs no nearest-texel rule like SSAO's.
+
+Each workgroup of 8 × 8 pixels reads its 5 × 5 texels, their rays, positions and normals, into shared memory once, and waits at a barrier of the workgroup before any invocation returns. `ReflectionUpsample` in `src/Tertius.Rendering/Shading` is the C# copy of the weights, beside `OcclusionUpsample`, and both walk a block's texels through `OcclusionUpsample.BlockTexels`.
+
+The trace image adds 4.1 MB at 1080p. The set of the trace gains binding 4, the trace image as a storage image, which the trace writes and the upsample reads. The trace image is `StorageCompute` in both passes, and the trace discards its old content, because it writes every texel.
+
+The half-resolution trace changes the image where a reflection holds an edge finer than a block: reflected edges step by 2 pixels. The user sees the captures before the merge.
+
 ## The setting
 
 `src/Tertius.Rendering/ReflectionSetting.cs` (new, public) takes the form of the other settings with an off case, `ExposureSetting`, `AmbientOcclusionSetting` and `BloomSetting`: a generated union of positional record structs with a valid zero case, a static `Default` on the case that carries data, and a `Problem` that `CheckOptions` throws (open fork 3, settled by the orchestrator on 2026-10-25):
@@ -548,6 +567,7 @@ The analogues:
 |---|---|---|---|---|---|---|
 | The depth pyramid image | RG32F: R w_near, G w_far, in 1/m | 1024 × 1024 at its mip 0, padded (`ReflectionTargets.DepthImageExtent`); level 1, 960 × 540, fills its top left | Mips 0 to 10 hold levels 1 to 11 | 11.2 MB | Sampled, storage, transfer source | `ReflectionTargets.DepthImage` |
 | The radiance pyramid | RGBA16F: premultiplied pre-exposed radiance, coverage | 1920 × 1080 at mip 0 | Vulkan's full chain, each mip halved and rounded down: mips 0 to 10 hold levels 0 to 10, the last 1 × 1 | 22.1 MB | Sampled, storage, transfer source | `ReflectionTargets.RadianceImage` |
+| The half-resolution trace (ticket `ter-ff6y`) | RGBA16F: the ray's premultiplied pre-exposed radiance times its fades, its coverage times its fades or −1 for no ray | ⌈W / 2⌉ × ⌈H / 2⌉, 960 × 540 | 1 | 4.1 MB, only at `TraceResolution.Half` | Storage, transfer source | `ReflectionTargets.TracedImage` |
 | The HDR image | RGBA16F, unchanged | Unchanged | 1 | 0 more | Gains storage, only while reflections are on | `RenderTargets.Hdr` |
 
 Both pyramids take 33.3 MB at 1080p. A Vulkan mip halves its image and rounds down, but a level of the depth pyramid halves the screen and rounds up (see "The depth pyramid"). So `DepthImageExtent` gives the smallest image whose mip m holds level m + 1 on each axis, with one mip per level, and the builds fill the padding with the empty bounds. At 1080p, level 10 is 2 × 2, which only a mip 9 of 2 × 2, from an image 1024 px a side, holds. The radiance pyramid's levels need no padding: its levels are the mips. Both live in the `General` layout for their whole life, because each dispatch of a build reads one mip and writes the next, and `BarrierBatch` keeps one state per image. Each has a sampled view of all its mips, for the trace, and a view of each mip, for the builds. `ReflectionTargets` makes the view of each mip with `GpuImage.CreateLayerView(0, mip)` and destroys it before the image, as `ShadowMap` does with its layer views. The view of all mips is the image's own `View`.
@@ -709,6 +729,11 @@ The frame with SSR on, from the steps of ARCHITECTURE.md, "The order of a render
 
 1. Both pyramids: `SampledComputeGeneral`. The base color, normal, specular and distance targets: `SampledCompute`. The HDR image: `StorageCompute`. The exposure buffer: `BufferUse.ComputeRead`. The BRDF tables need no use here: the upload left them in `SampledFragmentCompute` (see "Barriers"). Flush.
 2. Bind `reflection_trace`, sets 0 to 3, and push `ReflectionPushConstants` from the setting. Dispatch ⌈width / 8⌉ × ⌈height / 8⌉.
+
+At `TraceResolution.Half` (ticket `ter-ff6y`), `VulkanRenderer` makes two `ReflectionPass` steps instead, each with the G-buffer targets and the occlusion target `SampledCompute`:
+
+1. "reflection trace": both pyramids `SampledComputeGeneral`, the trace image `StorageCompute` with its old content discarded. Bind `reflection_half_trace`. Dispatch ⌈⌈width / 2⌉ / 8⌉ × ⌈⌈height / 2⌉ / 8⌉.
+2. "reflections": the trace image and the HDR image `StorageCompute`, the exposure buffer `BufferUse.ComputeRead`. Bind `reflection_upsample`. Dispatch ⌈width / 8⌉ × ⌈height / 8⌉.
 
 All workgroups are 8 × 8 invocations.
 
@@ -1438,6 +1463,15 @@ Measured on 2026-10-25 at 1920 × 1080 on the development Mac (Apple M1 Max, Mol
 - At the default of 128 steps, after the merge of main on 2026-10-25 (two runs, loads 7.67 and 5.42 before them; mean / median / p95): the depth pyramid 0.31 / 0.28 / 0.48 and 0.30 / 0.27 / 0.48, the radiance pyramid 0.91 / 0.89 / 1.11 and 0.91 / 0.90 / 1.10, the reflections 6.52 / 6.43 / 8.41 and 6.52 / 6.51 / 8.33. The reflections take 0.71 ms more than at 64 steps, and the three passes about 7.7 ms together. The sum of the means of all passes is 12.42 in both runs; it also holds main's changes since the runs at 64 steps.
 - At a maximum roughness of 0.3 (a scratch change), the reflections take 0.25 and 0.28 ms, because the demo's paint, of roughness 0.38, then traces nothing, and the demo shows no reflection. The user chose 0.6 from the captures (fork 2), and the profile ticket `ter-ff6y` takes the cost.
 - `MaxSteps`: the three views of the `reflections` scene at 64, 128 and 256 steps against 512, as the largest difference of any pixel in levels of 255: at 64 steps 36 (front), 57 (low) and 41 (edge); at 128 steps 10, 39 and 1; at 256 steps 0, 0 and 0. At 64 steps the edge view's glossy box face has horizontal streaks at actual size, where rays run out of steps and their neighbors hit: 3,935 pixels differ by more than 10 levels. At 128 steps the streaks are gone: no pixel of the front and the edge views differs by more than 10 levels, and 50 pixels in a strip at the low view's horizon do. The design's rule of 2 levels gives 256. The user's condition, the fewest steps whose difference does not show to the naked eye (2026-10-25), gives 128, the default.
+
+### Results of the profile (ticket `ter-ff6y`)
+
+Measured on 2026-10-25 and 2026-10-26 on the same Mac and script. ARCHITECTURE.md, "Screen-space reflections", "The profile", holds the profile, the changes and the tables with the load of the machine.
+
+- The Metal System Trace before the ticket: the depth pyramid 0.263 ms, the radiance pyramid 0.806 ms, the reflections 5.955 ms, at 92 % ALU.
+- Three changes that keep the image, each within 1 level of 255 in the captures: fewer divisions in each step of the trace, selects instead of branches in each step, and one workgroup for the depth pyramid's small mips. The three passes fell from 7.13 to 6.76 ms in the traces.
+- The trace at half resolution: the three passes take 3.29 and 3.25 ms in the traces, about 0.27 ms above the 3 ms of "Cost". The frame span of the timing runs fell from 12.05 and 12.07 ms at full resolution to 9.76 and 9.76 ms.
+- Two changes that kept every pixel within 1 level without anti-aliasing are left out: one workgroup for the radiance pyramid's small mips (0.06 ms less) and a downsample of the radiance pyramid through shared memory (0.05 ms less). Their filters weigh the texels a little differently from the sampler, and SMAA turns that into differences of 9 levels on three edge pixels of `demo-surface`'s apron, above the rule of 2 levels for a change that keeps the image.
 
 ## Doc changes
 
