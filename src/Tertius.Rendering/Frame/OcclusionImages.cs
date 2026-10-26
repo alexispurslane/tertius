@@ -20,6 +20,9 @@ internal sealed class OcclusionImages : IDisposable
     private readonly int slices;
 
     /// <param name="slices">The slices of each texel, each of which keeps one mask in <see cref="SectorMasks"/>.</param>
+    /// <exception cref="NotSupportedException">
+    /// A format is not a storage image on the device, or the masks pass its maxStorageBufferRange.
+    /// </exception>
     public OcclusionImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -69,6 +72,7 @@ internal sealed class OcclusionImages : IDisposable
     /// Recreates the images and the sector masks buffer at the half of the targets' size and rewrites both sets. The
     /// device must be idle.
     /// </summary>
+    /// <exception cref="NotSupportedException">The masks at the new size pass the device's maxStorageBufferRange.</exception>
     public void Resize(RenderTargets targets)
     {
         // Always, even at the same half size: the sets point at the targets, which a resize recreates.
@@ -80,6 +84,8 @@ internal sealed class OcclusionImages : IDisposable
     private void Create(RenderTargets targets)
     {
         HalfExtent = new((targets.Extent.Width + 1) / 2, (targets.Extent.Height + 1) / 2);
+        ulong masksSize = (ulong)HalfExtent.Width * HalfExtent.Height * (ulong)slices * sizeof(uint);
+        CheckMasksSize(masksSize);
         ViewDepth = CreateImage(format: ViewDepthFormat, name: "occlusion view depth");
         Edges = CreateImage(format: EdgesFormat, name: "occlusion edges");
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
@@ -87,14 +93,29 @@ internal sealed class OcclusionImages : IDisposable
         SectorMasks = GpuBuffer.Create(
             device: device,
             allocator: allocator,
-            size: (ulong)HalfExtent.Width * HalfExtent.Height * (ulong)slices * sizeof(uint),
-            usage: BufferUsageFlags.StorageBufferBit,
+            size: masksSize,
+            // Transfer source for the renderer's test hook, which reads the masks back.
+            usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
             memoryUsage: MemoryUsage.GpuOnly,
             name: "occlusion sector masks"
         );
 
         WriteSet(set: SetAToB, targets: targets, denoiseSource: TermA, denoiseDestination: TermB);
         WriteSet(set: SetBToA, targets: targets, denoiseSource: TermB, denoiseDestination: TermA);
+    }
+
+    /// <summary>
+    /// Throws unless one storage buffer descriptor reaches all of the masks, which the sets bind whole
+    /// (docs/plans/screen-space-illumination.md, "Portable Vulkan").
+    /// </summary>
+    private void CheckMasksSize(ulong masksSize)
+    {
+        uint range = device.Properties.Limits.MaxStorageBufferRange;
+        if (masksSize > range)
+            throw new NotSupportedException(
+                $"The sector masks of {slices} slices at {HalfExtent.Width} × {HalfExtent.Height} half-resolution "
+                    + $"texels take {masksSize} bytes, past maxStorageBufferRange, {range} bytes, on {device.DeviceName}."
+            );
     }
 
     /// <summary>Writes the bindings of occlusion.glsl's set 3.</summary>

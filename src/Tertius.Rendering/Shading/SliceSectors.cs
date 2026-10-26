@@ -62,6 +62,30 @@ internal readonly record struct SliceSectors
             end: Boundary(MeasureFraction(Math.Max(angleA, angleB)))
         );
 
+    /// <summary>
+    /// The sectors whose centers lie below the receiver's own geometric plane, at right angles to the unit view-space
+    /// <paramref name="geometricNormal"/>: those that its surface blocks (docs/plans/screen-space-illumination.md,
+    /// decision 39). None when the normal has no part in the slice plane.
+    /// </summary>
+    public SectorMask BelowPlane(Double3 geometricNormal)
+    {
+        double normalAngle = Slice.NormalAngle;
+        Double3 shading = DirectionAt(normalAngle);
+        Double3 acrossShading = DirectionAt(normalAngle + Math.PI / 2);
+        double alongShadingPart = Double3.Dot(geometricNormal, shading);
+        double acrossShadingPart = Double3.Dot(geometricNormal, acrossShading);
+        bool holdsTheSlice =
+            Math.Sqrt(alongShadingPart * alongShadingPart + acrossShadingPart * acrossShadingPart)
+            < HorizonSlice.MinProjectedNormalLength;
+        if (holdsTheSlice)
+            return SectorMask.None;
+        // γ_g within π of γ, so the plane's edges in the slice are γ_g ± π/2 and m's clamp takes care of the rest.
+        double planeAngle = normalAngle + Math.Atan2(acrossShadingPart, alongShadingPart);
+        return SectorMask
+            .Run(start: 0, end: Boundary(MeasureFraction(planeAngle - Math.PI / 2)))
+            .Union(SectorMask.Run(start: Boundary(MeasureFraction(planeAngle + Math.PI / 2)), end: Count));
+    }
+
     /// <summary>cos θ V̂ + sin θ ô, in view space.</summary>
     public Double3 DirectionAt(double angle) => Slice.ToEye * Math.Cos(angle) + Slice.TowardPlusSide * Math.Sin(angle);
 

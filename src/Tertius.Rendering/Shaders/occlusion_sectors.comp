@@ -34,7 +34,8 @@ void main()
     for (int slice = 0; slice < slices; slice++)
     {
         SliceGeometry g = gtaoSliceGeometry(setup, slice);
-        uint blocked = 0u;
+        // The receiver's own surface first, so no step gives light to a direction below it.
+        uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
         vec3 light = vec3(0.0);
         // Where R spans at most the nearest step, the near range holds no step (decision 21).
         for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)

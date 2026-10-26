@@ -40,10 +40,12 @@ public sealed class SectorSearchTests
             Side: SliceSide.Plus
         );
 
+    /// <summary>The near steps of a receiver whose geometric normal is its shading normal, which lies in the slice plane.</summary>
     private static NearSlice Near(SliceSectors sectors, double thicknessShare, params NearStep[] steps) =>
         SectorSearch.Near(
             sectors: sectors,
             center: Center,
+            geometricNormal: sectors.DirectionAt(sectors.Slice.NormalAngle),
             radius: Radius,
             thicknessShare: thicknessShare,
             steps: steps
@@ -157,6 +159,7 @@ public sealed class SectorSearchTests
             SectorSearch.Near(
                 sectors: Facing,
                 center: Center,
+                geometricNormal: TowardTheEye,
                 radius: radius,
                 thicknessShare: ThicknessShare,
                 steps: [step]
@@ -187,6 +190,54 @@ public sealed class SectorSearchTests
 
         near.Blocked.Count.Should().BePositive();
         near.Light.Should().Be(Double3.Zero, "no pixel holds the light of a surface's back");
+    }
+
+    [Fact]
+    public void TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep()
+    {
+        // A normal map tilts the shading normal 0.5 rad toward +x from the geometric normal, which faces the eye.
+        SliceSectors sectors = Tilted(0.5);
+
+        NearSlice near = SectorSearch.Near(
+            sectors: sectors,
+            center: Center,
+            geometricNormal: TowardTheEye,
+            radius: Radius,
+            thicknessShare: ThicknessShare,
+            steps: []
+        );
+
+        near.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye));
+        near.Blocked.Count.Should()
+            .BePositive("the shading hemisphere reaches 0.5 rad below the surface on the plus side");
+        near.Light.Should().Be(Double3.Zero, "a surface's own back holds no light that a pixel shows");
+    }
+
+    [Fact]
+    public void AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt()
+    {
+        // The step lies in the receiver's geometric plane, z = 2, so its slab covers only directions below that plane.
+        // Rounding tilts its normal a little toward the center, so it faces the center by a cosine of about 0.
+        SliceSectors sectors = Tilted(0.5);
+        var ownPlane = new NearStep(
+            Position: new(0.3, 0, 2),
+            GeometricNormal: new Double3(-1e-5, 0, -1).Normalized(),
+            DirectLight: Red,
+            Side: SliceSide.Plus
+        );
+        Covered(sectors, ownPlane, ThicknessShare).Count.Should().BePositive("the test needs a step that blocks");
+
+        NearSlice near = SectorSearch.Near(
+            sectors: sectors,
+            center: Center,
+            geometricNormal: TowardTheEye,
+            radius: Radius,
+            thicknessShare: ThicknessShare,
+            steps: [ownPlane]
+        );
+
+        near.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye), "the slab covers only what the surface blocks");
+        near.Light.Should().Be(Double3.Zero, "the surface blocks those sectors first, with no light");
     }
 
     [Fact]

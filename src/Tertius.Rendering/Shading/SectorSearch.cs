@@ -65,20 +65,26 @@ internal static class SectorSearch
     public static bool Faces(Double3 geometricNormal, Double3 towardReceiver) =>
         Double3.Dot(geometricNormal, towardReceiver) > 0;
 
-    /// <summary>The near steps of one slice, in order, nearest first: each blocks what it covers and no nearer step blocked.</summary>
+    /// <summary>
+    /// The near steps of one slice, in order, nearest first: each blocks what it covers and neither the receiver's own
+    /// surface nor a nearer step blocked.
+    /// </summary>
     /// <remarks>
     /// A step blocks only within <paramref name="radius"/> of the center, GTAO's hard edge. A blocker that faces away
     /// blocks with no light: no pixel holds the light of its back.
     /// </remarks>
+    /// <param name="geometricNormal">The receiver's unit view-space geometric normal, whose plane blocks what lies below it.</param>
     public static NearSlice Near(
         SliceSectors sectors,
         Double3 center,
+        Double3 geometricNormal,
         double radius,
         double thicknessShare,
         ReadOnlySpan<NearStep> steps
     )
     {
-        SectorMask blocked = SectorMask.None;
+        // The receiver's own surface first, so no step gives light to a direction below it.
+        SectorMask blocked = sectors.BelowPlane(geometricNormal);
         Double3 light = Double3.Zero;
         foreach (NearStep step in steps)
         {

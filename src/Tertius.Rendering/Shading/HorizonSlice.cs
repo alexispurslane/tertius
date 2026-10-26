@@ -7,8 +7,8 @@ namespace Tertius.Rendering;
 /// </summary>
 internal readonly record struct HorizonSlice
 {
-    // The guard against the 0 / 0 of a normal with no part in the slice plane (the same section).
-    private const double MinProjectedNormalLength = 1e-6;
+    /// <summary>The guard against the 0 / 0 of a normal with no part in the slice plane (the same section).</summary>
+    internal const double MinProjectedNormalLength = 1e-6;
 
     /// <summary>
     /// The slice at the screen angle <paramref name="angle"/>, around the unit view vector <paramref name="toEye"/>,

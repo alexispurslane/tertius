@@ -100,7 +100,7 @@ Each by the user's decisions and the project's rules, with its reason.
 20. The outcome of a far ray, one case per way that SSR's trace ends:
     - A hit: the slice's open share is blocked by the edge fade e at the hit, with the hit's direct light if the hit faces back along the ray. The rest, 1 − e, stays open. A hit is a blocker, as a near step is.
     - The image leaves the screen, reaches the near plane or its vanishing point, or runs out of steps: open.
-    - The ray points into its own geometric surface: blocked, with no light. Only a normal map tilts the shading hemisphere below the geometric surface, and that surface itself blocks the ray.
+    - The ray points into its own geometric surface: blocked, with no light. Only a normal map tilts the shading hemisphere below the geometric surface, and that surface itself blocks the ray. The near search blocks the sectors below that surface first (decision 39), so a ray through an open sector's center meets it only by the rounding of the center angle.
     - The start lies at or behind the near plane: open. The ray leaves the view through the near plane before it reaches R.
     SSR's entry share q, which fades a reflection that enters a slab from behind, is not used: a ray that meets a slab is blocked, and the facing test says whether its light reaches the receiver.
 21. The far rays run at half resolution, in the texels and slices of the near masks, because they continue the near estimate's directions. They run at every distance, so GTAO's fade below one pixel goes: where R spans at most the nearest step, 1.3 texels, the near range holds no step, and the far rays give the whole estimate. A fade toward full visibility drops the far blockers, against decision 1. GTAO's decision 6 still holds for the near range, which "fades out where it covers less than a pixel" by holding no step.
@@ -121,6 +121,7 @@ Each by the user's decisions and the project's rules, with its reason.
 36. `FarSteps` is checked from 1 to 1,024, as SSR checks `MaxSteps`. A value of 0 is a case without a far range, against decision 1.
 37. The headless host's `--screen-space-light off|<meters>` replaces `--ambient-occlusion off|<meters>`.
 38. No new device feature. The formats and the limits are in "Portable Vulkan".
+39. The receiver's own geometric surface blocks the sectors whose centers lie below it, with no light, before the near steps (review of Part 4). It is decision 20's rule for a far ray into its own surface, and decision 13's one model of what is solid, in the near range too. Only a normal map or a smooth-shaded mesh tilts the shading hemisphere below the geometric plane. Without the rule, the receiver's own steps, which lie in that plane, block those sectors, and the facing test of decision 15 gives them the surface's own direct light or none by the sign of a dot product of about 0, which rounding decides from pixel to pixel. A plane that holds the slice, whose normal projects to less than 10⁻⁶ in it, blocks nothing.
 
 ## Sources
 
@@ -194,6 +195,11 @@ The angle at the center of sector j is the inverse of m at (j + ½) / 32. m has 
 The steps are GTAO's: `StepsPerSide` on each side of the slice, at the R1-shifted fractions of the radius beyond 1.3 texels, snapped to texels, with GTAO's clamp beyond the image (ambient-occlusion.md, "The occlusion horizons pass"). For the step at texel t on the side σ (+1 or −1):
 
 ```
+before the first step:
+blocked = run(0, floor(32 · m(γ_g − π/2) + ½))  |  run(floor(32 · m(γ_g + π/2) + ½), 32)      the receiver's own surface
+γ_g     = γ + atan2(dot(n_g, û⊥), dot(n_g, û)),  none when |(dot(n_g, û), dot(n_g, û⊥))| < 10⁻⁶
+
+for each step:
 s_f = P(t)                                       the step's surface point, view space
 s_b = s_f · (1 + κ)                              the back of its slab: the same view ray, at the view depth z (1 + κ)
 skip the step when t lies outside the image, or when |s_f − c| ≥ R
@@ -210,12 +216,15 @@ where
 - `P(t)` = the view position of texel t's representative pixel at its view depth, `gtaoTexelPosition`.
 - `σ` = the side of the step. A step on the plus side lies on ô's side of V̂, so its angles are positive.
 - `run(a, b)` = the bits from a to b − 1, none when b ≤ a.
-- `blocked` = the slice's sector mask, 0 before its first step.
+- `blocked` = the slice's sector mask: before its first step, the sectors whose centers lie below the receiver's geometric plane (decision 39).
+- `n_g` = the receiver's view-space geometric normal, at the representative pixel of its texel.
+- `û`, `û⊥` = cos γ V̂ + sin γ ô, the unit projected shading normal's direction in the slice, and −sin γ V̂ + cos γ ô, at right angles to it toward the plus side.
+- `γ_g` = the angle of the projected geometric normal in the slice, taken within π of γ, so the geometric plane's two edges in the slice are γ_g ± π/2. A direction lies below the plane where its angle lies farther than π/2 from γ_g.
 - `faces(t)` = dot(n_g(2t), c − s_f) > 0, with `n_g(2t)` the view-space geometric normal of the step's representative pixel.
 - `direct(2t)` = the direct image at that pixel, pre-exposed.
 - `light` = the slice's sum of newly blocked sectors times their light. The slice's weight W / 32 multiplies it at the end.
 
-The two sides of a step index run in XeGTAO's order, plus side first. A step adds light only to the sectors that no nearer step has blocked, so the nearest blocker of each direction owns it. The back point lies on the step's own view ray, so it stays on the step's side of V̂. As z grows along that ray, the direction from c turns away from the eye, so the run reaches from the surface's angle toward the edge of the hemisphere on that side.
+The receiver's own surface comes first, so a step gives no light to a direction below it. The two sides of a step index run in XeGTAO's order, plus side first. A step adds light only to the sectors that no nearer step has blocked, so the nearest blocker of each direction owns it. The back point lies on the step's own view ray, so it stays on the step's side of V̂. As z grows along that ray, the direction from c turns away from the eye, so the run reaches from the surface's angle toward the edge of the hemisphere on that side.
 
 ### The far ray of a slice
 
@@ -354,6 +363,21 @@ uint stepSectors(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
                      sectorBoundary(measureFraction(g, max(front, back))));
 }
 
+// The sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no light
+// (decision 39). The plane's angle in the slice, γ_g, is taken within π of γ, so its edges in the slice are γ_g ± π/2.
+// A normal with no part in the slice plane blocks nothing, and atan(0, 0) is undefined.
+uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
+{
+    vec3 shading = cos(g.normalAngle) * g.toEye + sin(g.normalAngle) * g.side;
+    vec3 acrossShading = cos(g.normalAngle) * g.side - sin(g.normalAngle) * g.toEye;
+    vec2 inSlice = vec2(dot(geometricNormal, shading), dot(geometricNormal, acrossShading));
+    if (length(inSlice) < MinProjectedNormalLength)
+        return 0u;
+    float planeAngle = g.normalAngle + atan(inSlice.y, inSlice.x);
+    return sectorRun(0u, sectorBoundary(measureFraction(g, planeAngle - GtaoHalfPi)))
+           | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
+}
+
 // The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
 // geometric normal faces towardReceiver (view space), and none when the receiver sees its back.
 vec3 blockerLight(ivec2 pixel, vec3 towardReceiver)
@@ -389,13 +413,14 @@ uint openSectorOfRank(uint open, uint rank)
 #endif
 ```
 
-`gtao.glsl` gains `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoStepOffset(slice, step, ...)`, which computes the snapped offset as today. `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`:
+`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoStepOffset(slice, step, ...)`, which computes the snapped offset as today. `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`:
 
 ```glsl
 for (int slice = 0; slice < slices; slice++)
 {
     SliceGeometry g = gtaoSliceGeometry(setup, slice);
-    uint blocked = 0u;
+    // The receiver's own surface first, so no step gives light to a direction below it (decision 39).
+    uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
     vec3 light = vec3(0.0);
     // Where R spans at most the nearest step, the near range holds no step (decision 21).
     for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
@@ -645,7 +670,7 @@ The host's `--screen-space-light off|<meters>` gives `NoScreenSpaceLight` or `Vi
 | The sector masks buffer | 32-bit words, `Slices` per texel | Half × `Slices` | 6,220,800 B at 3 slices | Storage buffer | `OcclusionImages.SectorMasks` | The same |
 | The depth pyramid | RG32_SFLOAT, mips for levels 1 to L | SSR's | 5.5 MB | SSR's | `DepthPyramidImage` | Under reflections or `VisibilityBitmaskLight` |
 
-Under `VisibilityBitmaskLight` the bounce takes 50.3 MB, and 55.8 MB with the depth pyramid when the reflections are off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM.
+The sector masks buffer is also a transfer source, for the test hook `ReadSectorMasks`, and it must fit one storage buffer descriptor (see "Portable Vulkan"). Under `VisibilityBitmaskLight` the bounce takes 50.3 MB, and 55.8 MB with the depth pyramid when the reflections are off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM.
 
 ## The frame
 
@@ -765,6 +790,7 @@ The design keeps to the Vulkan specification and to what NVIDIA, RADV, ANV and l
 | R16G16B16A16_SFLOAT as a storage image, a color attachment and a sampled image | The spec's table of required formats. `rgba16f` is a base format qualifier, so it needs no `shaderStorageImageExtendedFormats`. |
 | R8_UNORM and R32_SFLOAT storage images | As GTAO today: `shaderStorageImageExtendedFormats` for `r8`, which the renderer requires already |
 | A storage buffer in a compute shader | Core |
+| The sector masks buffer within `maxStorageBufferRange` | The sets bind the buffer whole, and one descriptor reaches at most `maxStorageBufferRange` bytes, at least 2²⁷ by the spec. The buffer is `Slices` words per half texel: 6.2 MB at 1080p and 3 slices, but 147 MB at 3840 × 2400 and 16 slices. `OcclusionImages` checks it at each creation and resize against the device's limit, and throws `NotSupportedException` naming the limit past it. This Mac's MoltenVK reports 2³² − 1. A device at the spec's least takes the default 3 slices at 7,680 × 4,320 pixels, 99.5 MB (review of Part 4) |
 | 4 bound sets | The spec's least `maxBoundDescriptorSets` is 4 |
 | 6 storage images per compute stage | The same count as GTAO's layout today. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs today's layout. |
 | Derivatives in the ambient pass | Core in fragment shaders |
@@ -778,6 +804,7 @@ No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SP
 | `sliceAngle`'s `normalize` | A step at the center | Safe: a step lies at least 1.3 texels away on another view ray, so s − c and s (1 + κ) − c are at least about one texel width long, far above the smallest normal float |
 | `measureFraction`'s division by T | T = 0 | Safe: T = cos γ + γ sin γ is at least 1 for γ in [−π/2, π/2] |
 | `sectorBoundary`'s conversion to `uint` | A value outside 0 to 32 | Safe: m lies in [0, 1] after its clamp, so 32 m + ½ lies in [½, 32.5] |
+| `ownSurfaceSectors`'s `atan` | `atan(0, 0)`, which GLSL leaves undefined | Fixed: a geometric normal whose part in the slice plane is below 10⁻⁶ blocks nothing, before the `atan` |
 | `sectorRun` | A shift by 32 | Fixed: `bitfieldInsert` with start + count at most 32, and no call when the run is empty |
 | `openSectorOfRank` | `findLSB` of 0, which returns −1 | Safe: the rank is below the count of open bits |
 | The far ray's rank | A rank equal to the count | Fixed: `min(..., count − 1)` |
@@ -920,6 +947,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AnIntervalBlocksTheSectorsWhoseCentersItCovers`, and `ACenterOnTheBoundaryGoesToTheLaterSector`.
 - `AnIntervalBeyondTheHemisphereBlocksNothingThere`.
 - `AFullRunBlocksAllThirtyTwoSectors`: the run from 0 to 32, with no shift by 32.
+- `TheSectorsBelowAGeometricPlaneAreThoseWhoseCentersLieBelowIt`, `AGeometricPlaneAtRightAnglesToTheShadingNormalBlocksNoSector` and `AGeometricPlaneThatHoldsTheSliceBlocksNoSector` (decision 39).
 
 `SectorMaskTests`:
 
@@ -933,6 +961,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AThinSlabLetsTheSkyThroughBehindIt`: a pole in front of the slice's sky leaves the sectors past its slab open.
 - `AStepAtTheRadiusOrBeyondItBlocksNothing`.
 - `ABlockerThatFacesAwayBlocksWithoutLight`.
+- `TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep`, and `AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt` (decision 39).
 - `ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt`.
 - `WhereTheRadiusSpansAtMostTheNearestStepTheNearRangeHoldsNoStep`.
 - `TheFarRayGoesThroughTheCenterOfAnOpenSector`, and `TheFarRayOfASliceWithNoOpenSectorIsNotTraced`.
@@ -986,7 +1015,7 @@ These tests build each far outcome themselves. How a trace decides its outcome i
 - `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins the one estimate: a power on V fails it.
 - `AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays`: a lit red wall 3 m from the floor's measured pixels, with R = 0.5 m. The red share rises with the setting on.
 - `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: the estimate's rgb is 0 at the floor, and V is that of an open floor within 0.02.
-- `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, the near estimate of the GPU, read with `ReadOcclusionTerm` after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, normals and direct image. Within one sector per slice, 1/32 of a slice's weight.
+- `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor beside a low box, whose top faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's sector masks, read with `ReadSectorMasks`, and its near estimate, read with `ReadOcclusionTerm`, after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The masks match bit for bit, except a sector next to a boundary 32 m + ½ within 10⁻³ of a tie. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
 - `TheAmbientPassAddsTheBounceAsTheCSharpCopyDoes`: as `AmbientOcclusionShaderTests` today, with V and G read from the estimate target and `MaterialSample.ReflectedHemisphere(..., occlusion: V, bounce: G / k)`.
 - `AStillSceneHasTheSameBounceInEveryFrame`: the red wall rendered five times, the first and the fifth captures the same bytes.
 - `AResizedRendererStillBouncesLightAtItsNewSize`.

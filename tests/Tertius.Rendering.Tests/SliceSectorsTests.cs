@@ -227,6 +227,61 @@ public sealed class SliceSectorsTests
     }
 
     [Fact]
+    public void TheSectorsBelowAGeometricPlaneAreThoseWhoseCentersLieBelowIt()
+    {
+        // Geometric normals tilted from the shading normal across the slice plane and out of it, as a normal map tilts.
+        Double3[] tilts = [new(0.5, 0, 0), new(-0.7, 0, 0), new(0.4, 0.3, 0), new(-0.2, -0.6, 0.1), new(1.2, 0, 0.3)];
+        int belowCount = 0;
+        foreach (double normalAngle in NormalAngles)
+        {
+            SliceSectors sectors = Tilted(normalAngle);
+            Double3 shading = sectors.DirectionAt(normalAngle);
+            foreach (Double3 tilt in tilts)
+            {
+                Double3 geometric = (shading + tilt).Normalized();
+
+                SectorMask below = sectors.BelowPlane(geometric);
+
+                for (int sector = 0; sector < SliceSectors.Count; sector++)
+                {
+                    double cosine = Double3.Dot(sectors.DirectionAt(sectors.CenterAngle(sector)), geometric);
+                    if (Math.Abs(cosine) < 1e-3)
+                        continue;
+                    bool blocked = (below.Bits & (1u << sector)) != 0;
+                    blocked.Should().Be(cosine < 0, $"sector {sector}, γ = {normalAngle}, tilt {tilt}");
+                    belowCount += cosine < 0 ? 1 : 0;
+                }
+            }
+        }
+        belowCount.Should().BePositive("the test needs sectors below the plane");
+    }
+
+    [Fact]
+    public void AGeometricPlaneAtRightAnglesToTheShadingNormalBlocksNoSector()
+    {
+        foreach (double normalAngle in NormalAngles)
+        {
+            SliceSectors sectors = Tilted(normalAngle);
+
+            sectors
+                .BelowPlane(sectors.DirectionAt(normalAngle))
+                .Should()
+                .Be(SectorMask.None, "the shading hemisphere is the geometric one, γ = {0}", normalAngle);
+        }
+    }
+
+    [Fact]
+    public void AGeometricPlaneThatHoldsTheSliceBlocksNoSector()
+    {
+        // The slice at φ = 0 lies in the plane y = 0. A normal along y with a part of 10⁻⁸ across the shading normal in
+        // it: the plane holds the slice to within rounding, so no direction lies below it.
+        SliceSectors sectors = Tilted(0.4);
+        Double3 normal = (Double3.UnitY + sectors.DirectionAt(0.4 + Math.PI / 2) * 1e-8).Normalized();
+
+        sectors.BelowPlane(normal).Should().Be(SectorMask.None);
+    }
+
+    [Fact]
     public void AFullRunBlocksAllThirtyTwoSectors()
     {
         foreach (double normalAngle in NormalAngles)

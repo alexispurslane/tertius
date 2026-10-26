@@ -1,7 +1,9 @@
 // The GLSL port of XeGTAO: ground-truth ambient occlusion (Jimenez and others 2016) at the physical constants of
 // docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO:
-// the edges and their packing, the noise and the Hilbert index, the view position, the slice loop and its inner
-// integral, and the denoise. HorizonSlice, HorizonSearch and OcclusionNoise in Shading/ are its C# copy.
+// the edges and their packing, the noise and the Hilbert index, the view position, the texel's setup
+// (gtaoTexelSetup), the slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets (gtaoStepOffset),
+// and the denoise. The slice loop is occlusion_sectors.comp's. HorizonSlice, HorizonSearch and OcclusionNoise in
+// Shading/ are its C# copy.
 //
 // Source: https://github.com/GameTechDev/XeGTAO, commit a5b1686c7ea37788eeb3576b5be47f7c03db532c,
 // Source/Rendering/Shaders/XeGTAO.hlsli, XeGTAO.h and vaGTAO.hlsl (copies in ThirdParty/XeGTAO).
@@ -158,6 +160,7 @@ struct GtaoTexel
     vec3 center;          // c: the representative pixel's view position, moved toward the eye by CenterBias
     vec3 toEye;           // V̂
     vec3 normal;          // the view-space shading normal of the representative pixel
+    vec3 geometricNormal; // n_g: its view-space geometric normal, whose plane blocks what lies below it (decision 39)
     vec2 noise;           // ξ: x turns the slices, y shifts the steps
     float radiusInTexels; // ρ
 };
@@ -180,6 +183,7 @@ GtaoTexel gtaoTexelSetup(ivec2 texel, float z, float radiusInTexels)
     t.center = gtaoViewPosition(pixelScreenPosition(2 * texel), z * CenterBias);
     t.toEye = normalize(-t.center);
     t.normal = shadingNormalAt(2 * texel);
+    t.geometricNormal = geometricNormalAt(2 * texel);
     t.noise = gtaoNoise(texel);
     t.radiusInTexels = radiusInTexels;
     return t;

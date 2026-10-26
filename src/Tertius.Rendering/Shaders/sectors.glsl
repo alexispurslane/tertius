@@ -56,6 +56,22 @@ uint stepSectors(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
                      sectorBoundary(measureFraction(g, max(front, back))));
 }
 
+// The sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no light
+// (docs/plans/screen-space-illumination.md, decision 39). The plane's angle in the slice, γ_g, is taken within π of γ,
+// so its edges in the slice are γ_g ± π/2. A normal with no part in the slice plane blocks nothing, and atan(0, 0) is
+// undefined.
+uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
+{
+    vec3 shading = cos(g.normalAngle) * g.toEye + sin(g.normalAngle) * g.side;
+    vec3 acrossShading = cos(g.normalAngle) * g.side - sin(g.normalAngle) * g.toEye;
+    vec2 inSlice = vec2(dot(geometricNormal, shading), dot(geometricNormal, acrossShading));
+    if (length(inSlice) < MinProjectedNormalLength)
+        return 0u;
+    float planeAngle = g.normalAngle + atan(inSlice.y, inSlice.x);
+    return sectorRun(0u, sectorBoundary(measureFraction(g, planeAngle - GtaoHalfPi)))
+           | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
+}
+
 // The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
 // geometric normal faces towardReceiver (view space), and none when the receiver sees its back.
 vec3 blockerLight(ivec2 pixel, vec3 towardReceiver)

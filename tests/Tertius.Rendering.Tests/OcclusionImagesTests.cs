@@ -74,6 +74,36 @@ public sealed class OcclusionImagesTests
     }
 
     [Fact]
+    public void ASectorMasksBufferPastTheDevicesStorageBufferRangeIsRefused()
+    {
+        using var plumbing = new Plumbing(641, 361);
+        int slices = OneSlicePastTheRange(plumbing.Device, halfTexels: 321ul * 181);
+
+        Action create = () => plumbing.CreateImages(slices: slices).Dispose();
+
+        create
+            .Should()
+            .Throw<NotSupportedException>(
+                "one descriptor of a storage buffer reaches at most maxStorageBufferRange bytes"
+            )
+            .WithMessage("*maxStorageBufferRange*");
+    }
+
+    [Fact]
+    public void AResizePastTheDevicesStorageBufferRangeIsRefused()
+    {
+        using var plumbing = new Plumbing(1, 1);
+        using OcclusionImages images = plumbing.CreateImages(
+            slices: OneSlicePastTheRange(plumbing.Device, halfTexels: 321ul * 181)
+        );
+
+        plumbing.Resize(new(641, 361));
+        Action resize = () => images.Resize(plumbing.Targets);
+
+        resize.Should().Throw<NotSupportedException>().WithMessage("*maxStorageBufferRange*");
+    }
+
+    [Fact]
     public void AResizeRecreatesTheImagesAtHalfTheNewSize()
     {
         using var plumbing = new Plumbing(640, 360);
@@ -126,6 +156,13 @@ public sealed class OcclusionImagesTests
             .Should()
             .BeEmpty("the layout must hold every binding and push constant of the shader, and the device its features");
     }
+
+    /// <summary>
+    /// The fewest slices whose masks over <paramref name="halfTexels"/> pass the device's maxStorageBufferRange: about
+    /// 18,500 at 321 × 181 on a device of 2³² − 1 bytes, and 578 at the spec's least, 2²⁷.
+    /// </summary>
+    private static int OneSlicePastTheRange(VulkanDevice device, ulong halfTexels) =>
+        (int)(device.Properties.Limits.MaxStorageBufferRange / (halfTexels * sizeof(uint))) + 1;
 
     /// <summary>A validating headless device with the descriptor layouts and the render targets of one output size.</summary>
     private sealed class Plumbing : IDisposable

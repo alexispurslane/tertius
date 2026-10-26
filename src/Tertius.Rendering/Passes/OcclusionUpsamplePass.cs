@@ -1,9 +1,9 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion upsample pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/ambient-occlusion.md, "The
-/// upsample"): term A to the a channel of the full-resolution estimate target, weighted by each texel's distance from
-/// the pixel's plane.
+/// The occlusion upsample pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/screen-space-illumination.md,
+/// "The denoise and the upsample"): term A's four channels, the bounce and the occlusion, to the full-resolution estimate
+/// target, weighted by each texel's distance from the pixel's plane.
 /// </summary>
 internal sealed class OcclusionUpsamplePass(
     VulkanDevice device,

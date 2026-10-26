@@ -812,28 +812,38 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The 256 counts of the exposure's histogram of the last metered frame, by bin. A test hook: it waits for the device
     /// to be idle and submits its own copy.
     /// </summary>
-    internal uint[] ReadExposureHistogram()
+    internal uint[] ReadExposureHistogram() => ReadWords(exposure.Histogram);
+
+    /// <summary>
+    /// The sector masks of the last frame: <see cref="VisibilityBitmaskLight.Slices"/> words per half-resolution texel,
+    /// row by row from the top, bit j for sector j. A test hook: it waits for the device to be idle and submits its own
+    /// copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal uint[] ReadSectorMasks() => ReadWords(OcclusionImagesOrThrow().SectorMasks);
+
+    /// <summary>Copies a storage buffer to the CPU as 32-bit words.</summary>
+    private uint[] ReadWords(GpuBuffer source)
     {
-        GpuBuffer histogram = exposure.Histogram;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: histogram.Size,
+            size: source.Size,
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
-            name: "histogram readback"
+            name: $"{source.Name} readback"
         );
         SubmitAndWait(commandBuffer =>
         {
-            // The renderer's barriers continue from the histogram's tracked use, which this copy updates.
+            // The renderer's barriers continue from the buffer's tracked use, which this copy updates.
             var local = new BarrierBatch();
-            local.Buffer(histogram, BufferUse.TransferSource);
+            local.Buffer(source, BufferUse.TransferSource);
             local.Buffer(buffer, BufferUse.TransferDestination);
             local.Flush(device.Vk, commandBuffer);
-            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: histogram.Size);
+            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: source.Size);
             device.Vk.CmdCopyBuffer(
                 commandBuffer: commandBuffer,
-                srcBuffer: histogram.Handle,
+                srcBuffer: source.Handle,
                 dstBuffer: buffer.Handle,
                 regionCount: 1,
                 pRegions: &region
@@ -841,7 +851,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(buffer, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        return new ReadOnlySpan<uint>(buffer.Mapped, ExposureMeter.Bins).ToArray();
+        return new ReadOnlySpan<uint>(buffer.Mapped, (int)(source.Size / sizeof(uint))).ToArray();
     }
 
     /// <summary>
@@ -868,13 +878,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
+    /// <summary>The occlusion images, which the test hooks of the occlusion passes read: only under <see cref="VisibilityBitmaskLight"/>.</summary>
+    private OcclusionImages OcclusionImagesOrThrow() =>
+        occlusionImages ?? throw new InvalidOperationException("The screen-space light is off.");
+
     /// <summary>
     /// Copies one mip of one layer of a float color image to the CPU, channel by channel, row by row from the top, with
     /// the mip's size.
     /// </summary>
-    private OcclusionImages OcclusionImagesOrThrow() =>
-        occlusionImages ?? throw new InvalidOperationException("The screen-space light is off.");
-
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
         (int channels, bool halves) = image.Format switch
