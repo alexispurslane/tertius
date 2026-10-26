@@ -142,9 +142,6 @@ internal static class CubeFaces
     public static Matrix4x4 ViewProjection(FaceBasis basis, int range) =>
         View(basis) * DepthRanges.RangeProjection(range, MathF.PI / 2, 1);
 
-    /// <summary>The view projection of <paramref name="face"/> of a map in world axes.</summary>
-    public static Matrix4x4 ViewProjection(CubeFace face, int range) => ViewProjection(Basis(face), range);
-
     /// <summary>
     /// Whether a face culls the sphere at <paramref name="center"/>, camera-relative: it lies behind the near plane or
     /// outside one of the four side planes through the eye.
@@ -163,9 +160,6 @@ internal static class CubeFaces
         bool outsideTopOrBottom = depth - along < -reach || depth + along < -reach;
         return outsideSides || outsideTopOrBottom;
     }
-
-    /// <summary>Whether <paramref name="face"/> of a map in world axes culls the sphere at <paramref name="center"/>.</summary>
-    public static bool Culls(CubeFace face, Vector3 center, float radius) => Culls(Basis(face), center, radius);
 
     /// <summary>The solid angle of the part of a face from its center to the point (x, y), signed.</summary>
     private static double CornerArea(double x, double y) => Math.Atan2(x * y, Math.Sqrt(x * x + y * y + 1));

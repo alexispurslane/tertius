@@ -105,7 +105,7 @@ internal static class EnvironmentScenes
 
     /// <summary>Level 0 of a face of the radiance map.</summary>
     public static Half[] Face(VulkanRenderer renderer, CubeFace face) =>
-        renderer.ReadEnvironmentFace(face: face, level: 0, image: EnvironmentImage.Radiance);
+        renderer.ReadEnvironmentFace(map: 0, face: face, level: 0, image: EnvironmentImage.Radiance);
 
     /// <summary>The RGBA of texel (<paramref name="x"/>, <paramref name="y"/>) of a face of <paramref name="size"/> texels.</summary>
     public static Vector4 Texel(Half[] face, int size, int x, int y)

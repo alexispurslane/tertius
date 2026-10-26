@@ -494,7 +494,7 @@ public sealed class EnvironmentLightingTests
             );
 
             Capture lit = Shown(renderer, snapshot, "environment-lit-puff");
-            Vector3 mean = renderer.ReadEnvironmentIrradiance().MeanRadiance;
+            Vector3 mean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
             snapshot.PuffLooks[0] = look with { Shading = PuffShading.Glow(albedo * mean) };
             Capture glow = Shown(renderer, snapshot, "environment-glow-puff");
 

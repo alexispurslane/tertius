@@ -48,6 +48,52 @@ public sealed class EnvironmentMapPlumbingTests
         plumbing.Allocator.LiveAllocations.Should().Be(0, "the map releases its images and buffers when it fails");
     }
 
+    /// <summary>The specification's least maxImageArrayLayers: the most layers that every Vulkan device lets an image hold.</summary>
+    private const int LayersOfEveryDevice = 256;
+
+    /// <summary>A map of face size 32 on <paramref name="plumbing"/>'s device, which holds one map until a chain grows it.</summary>
+    private static EnvironmentMap SmallMap(Plumbing plumbing) =>
+        new(
+            device: plumbing.Device,
+            allocator: plumbing.Allocator,
+            layouts: plumbing.Layouts,
+            setting: SceneEnvironmentMap.Default with
+            {
+                FaceSize = 32,
+            },
+            framesInFlight: 2
+        );
+
+    /// <summary>The frame ids, root first, of a served chain of <paramref name="maps"/> frames.</summary>
+    private static long[] Served(int maps) => [.. Enumerable.Range(0, maps).Select(map => (long)map)];
+
+    [Fact]
+    public void TheMapsCubeArraysFitTheLayersThatEveryVulkanDeviceOffers()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+
+        map.FacesFor(frame: 0, served: Served(EnvironmentChain.MaxMaps), longStep: false);
+
+        map.Capacity.Should().Be(EnvironmentChain.MaxMaps);
+        (CubeFaces.Count * map.Capacity)
+            .Should()
+            .BeLessThanOrEqualTo(LayersOfEveryDevice, "the cube arrays of the longest served chain fit every device");
+    }
+
+    [Fact]
+    public void AMapThatGrowsReleasesItsOldImages()
+    {
+        using var plumbing = new Plumbing();
+        using EnvironmentMap map = SmallMap(plumbing);
+        int live = plumbing.Allocator.LiveAllocations;
+
+        map.FacesFor(frame: 0, served: Served(3), longStep: false);
+
+        map.Capacity.Should().Be(3);
+        plumbing.Allocator.LiveAllocations.Should().Be(live, "the grown images replace the old ones");
+    }
+
     /// <summary>A validating headless device with the descriptor layouts.</summary>
     private sealed class Plumbing : IDisposable
     {

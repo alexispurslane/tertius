@@ -155,17 +155,17 @@ public sealed class CubeFacesTests
             var upward = Vector3.Normalize(-basis.Up - basis.Forward);
 
             CubeFaces
-                .Culls(face, onSidePlane + 2.1f * outward, 2f)
+                .Culls(basis, onSidePlane + 2.1f * outward, 2f)
                 .Should()
                 .BeTrue($"face {face}, beyond its right plane");
-            CubeFaces.Culls(face, onSidePlane + 1.9f * outward, 2f).Should().BeFalse($"face {face}, touching it");
+            CubeFaces.Culls(basis, onSidePlane + 1.9f * outward, 2f).Should().BeFalse($"face {face}, touching it");
             CubeFaces
-                .Culls(face, onLowerPlane + 2.1f * upward, 2f)
+                .Culls(basis, onLowerPlane + 2.1f * upward, 2f)
                 .Should()
                 .BeTrue($"face {face}, beyond its lower plane");
-            CubeFaces.Culls(face, onLowerPlane + 1.9f * upward, 2f).Should().BeFalse($"face {face}, touching it");
-            CubeFaces.Culls(face, -basis.Forward, 0.9f).Should().BeTrue($"face {face}, behind its near plane");
-            CubeFaces.Culls(face, -basis.Forward, 1.1f).Should().BeFalse($"face {face}, reaching past its near plane");
+            CubeFaces.Culls(basis, onLowerPlane + 1.9f * upward, 2f).Should().BeFalse($"face {face}, touching it");
+            CubeFaces.Culls(basis, -basis.Forward, 0.9f).Should().BeTrue($"face {face}, behind its near plane");
+            CubeFaces.Culls(basis, -basis.Forward, 1.1f).Should().BeFalse($"face {face}, reaching past its near plane");
         }
     }
 
@@ -175,7 +175,7 @@ public sealed class CubeFacesTests
         foreach (CubeFace face in Faces)
         {
             FaceBasis basis = CubeFaces.Basis(face);
-            Matrix4x4 viewProjection = CubeFaces.ViewProjection(face, DepthRanges.Near);
+            Matrix4x4 viewProjection = CubeFaces.ViewProjection(CubeFaces.Basis(face), DepthRanges.Near);
 
             Vector2 center = Ndc(viewProjection, 10 * basis.Forward);
             Vector2 top = Ndc(viewProjection, 10 * basis.Forward + 10 * basis.Up);
@@ -202,7 +202,7 @@ public sealed class CubeFacesTests
                 .Equal(Bits(table.Forward, table.Right, table.Up), $"face {face}");
             Bits(CubeFaces.ViewProjection(turned, DepthRanges.Near))
                 .Should()
-                .Equal(Bits(CubeFaces.ViewProjection(face, DepthRanges.Near)), $"face {face}");
+                .Equal(Bits(CubeFaces.ViewProjection(CubeFaces.Basis(face), DepthRanges.Near)), $"face {face}");
             for (int index = 0; index < 200; index++)
             {
                 Vector3 center =
@@ -213,7 +213,7 @@ public sealed class CubeFacesTests
                     .Culls(turned, center, radius)
                     .Should()
                     .Be(
-                        CubeFaces.Culls(face, center, radius),
+                        CubeFaces.Culls(CubeFaces.Basis(face), center, radius),
                         $"face {face}, the sphere at {center} of radius {radius}"
                     );
             }
@@ -261,6 +261,9 @@ public sealed class CubeFacesTests
             .Culls(CubeFaces.Basis(CubeFace.NegativeX, TurnedFrame), alongFramesX, 1)
             .Should()
             .BeTrue("the sphere lies behind the frame's −x face");
-        CubeFaces.Culls(CubeFace.PositiveX, alongFramesX, 1).Should().BeTrue("in world axes it lies off the +x axis");
+        CubeFaces
+            .Culls(CubeFaces.Basis(CubeFace.PositiveX), alongFramesX, 1)
+            .Should()
+            .BeTrue("in world axes it lies off the +x axis");
     }
 }

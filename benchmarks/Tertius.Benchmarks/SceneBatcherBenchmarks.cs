@@ -42,8 +42,8 @@ public class SceneBatcherBenchmarks
         environment = Map switch
         {
             "off" => new(new WithoutMap()),
-            "one-face" => new(new WithMap(Faces: FaceMask.NegativeZ, Irradiance: null)),
-            "six-faces" => new(new WithMap(Faces: FaceMask.All, Irradiance: null)),
+            "one-face" => new(new WithMap(Faces: new[] { FaceMask.NegativeZ }, Irradiance: new IrradianceReading?[1])),
+            "six-faces" => new(new WithMap(Faces: new[] { FaceMask.All }, Irradiance: new IrradianceReading?[1])),
             _ => throw new ArgumentException($"No map setting {Map}."),
         };
         // Grows the batcher's arrays and the scene's to the snapshot, so the measured calls allocate nothing.

@@ -409,7 +409,7 @@ public sealed class BatcherTests
             .Should()
             .Be(new Vector3(0, -1, 0));
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);
-        spot.Spot.X.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
+        spot.CosInner.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
         scene.Constants.LightCount.Should().Be(2u);
     }
 
@@ -509,7 +509,7 @@ public sealed class BatcherTests
         point.PositionRange.W.Should().Be(10f);
         point.RadianceKind.W.Should().Be(0f);
         point.DirectionCosOuter.Should().Be(Vector4.Zero);
-        point.Spot.Should().Be(Vector4.Zero);
+        point.CosInner.Should().Be(0f);
     }
 
     [Fact]
@@ -560,7 +560,7 @@ public sealed class BatcherTests
 
         scene.LightCount.Should().Be(1);
         GpuLight spot = scene.Lights[0];
-        spot.Spot.X.Should().BeGreaterThan(spot.DirectionCosOuter.W);
+        spot.CosInner.Should().BeGreaterThan(spot.DirectionCosOuter.W);
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.4f), 1e-5f);
     }
 
@@ -643,7 +643,7 @@ public sealed class BatcherTests
         var rotation = Quaternion.Normalize(new(x: 0.3f, y: -0.5f, z: 0.2f, w: 0.8f));
         var scale = new Vector3(2, 3, 0.5f);
         var position = new Vector3(10, -20, 30);
-        var instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7);
+        var instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7, map: 0);
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);
         var transformed = new Vector3(
@@ -770,8 +770,12 @@ public sealed class BatcherTests
 
     // The map's faces. The camera sits at the render origin and looks down −Z, so it sees nothing along ±X or ±Y.
 
-    /// <summary>The map is on, draws <paramref name="faces"/> this frame, and has no irradiance reading yet.</summary>
-    private static EnvironmentDraw MapOf(FaceMask faces) => new WithMap(Faces: faces, Irradiance: null);
+    /// <summary>
+    /// The map is on, with one served map for each of <paramref name="faces"/>, root first, which draws those faces this
+    /// frame, and has no irradiance reading yet.
+    /// </summary>
+    private static EnvironmentDraw MapOf(params FaceMask[] faces) =>
+        new WithMap(Faces: faces, Irradiance: new IrradianceReading?[faces.Length]);
 
     /// <summary>A unit box of mesh 0 at <paramref name="position"/>.</summary>
     private static RenderInstance Box(Vector3 position, RenderFlags flags = RenderFlags.None) =>
@@ -1075,12 +1079,13 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: Empty(),
-            environment: new WithMap(Faces: FaceMask.None, Irradiance: reading)
+            environment: new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { reading })
         );
 
         scene.Ambient.TryGetValue(out MapAmbient map).Should().BeTrue();
-        map.Irradiance!.Value.Frame.Should().Be(7);
-        map.Irradiance.Value.Irradiance[0].Should().Be(new Vector3(1, 2, 3));
+        IrradianceReading only = map.Irradiance.Span.ToArray().Should().ContainSingle().Subject!.Value;
+        only.Frame.Should().Be(7);
+        only.Irradiance[0].Should().Be(new Vector3(1, 2, 3));
     }
 
     [Fact]
@@ -1114,6 +1119,251 @@ public sealed class BatcherTests
         );
 
         scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
+    }
+
+    // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
+    // parent, id 1, and the root, id 0, all in the camera's axes: depth 0 takes map 2, depth 1 map 1, and depth 2 map 0.
+
+    /// <summary>An empty snapshot whose camera's chain has three frames, all in the camera's axes.</summary>
+    private static RenderSnapshot ChainOfThree()
+    {
+        RenderSnapshot snapshot = Empty();
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        return snapshot;
+    }
+
+    /// <summary>A unit box of mesh 0 at <paramref name="position"/> whose chain frame is <paramref name="chainDepth"/> above the camera's.</summary>
+    private static RenderInstance BoxAt(Vector3 position, ushort chainDepth) =>
+        Box(position) with
+        {
+            ChainDepth = chainDepth,
+        };
+
+    private static PointRenderLight LampAt(Vector3 position, ushort chainDepth) =>
+        new(Position: position, Color: Vector3.One, Intensity: 1, Range: 10, ChainDepth: chainDepth);
+
+    [Fact]
+    public void AnInstanceTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        // Side by side ahead of the camera, so the main view draws them in the snapshot's order.
+        ushort[] depths = [0, 1, 2, 5];
+        for (int i = 0; i < depths.Length; i++)
+            snapshot.Instances.Add(BoxAt(new(3 * i - 4, 0, -20), depths[i]));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene
+            .Instances.AsSpan(0, scene.InstanceCount)
+            .ToArray()
+            .Select(instance => instance.Map)
+            .Should()
+            .Equal([2u, 1u, 0u, 0u], "a depth past the served chain takes map 0");
+    }
+
+    [Fact]
+    public void ALightTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Lights.Add(LampAt(new(depth, 0, -5), depth));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene.Lights.AsSpan(0, scene.LightCount).ToArray().Select(light => light.Map).Should().Equal(2u, 1u, 0u);
+    }
+
+    [Fact]
+    public void ALitPuffTakesTheMapOfItsChainDepth()
+    {
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook with { Shading = PuffShading.Lit(new(0.8f)) });
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        // At one distance across the line of sight, so they sort in the snapshot's order.
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Puffs.Add(Puff(new(4 * depth - 4, 0, -10)) with { ChainDepth = depth });
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        Drawn(scene).OrderBy(puff => puff.PositionRadius.X).Select(puff => puff.Map).Should().Equal(2u, 1u, 0u);
+    }
+
+    [Fact]
+    public void WithoutTheMapEveryObjectTakesMapZero()
+    {
+        RenderSnapshot snapshot = PuffSnapshot(GlowLook);
+        TestChains.Of(snapshot, (2, Quaternion.Identity), (1, Quaternion.Identity), (0, Quaternion.Identity));
+        snapshot.Instances.Add(BoxAt(new(0, 0, -20), chainDepth: 0));
+        snapshot.Lights.Add(LampAt(new(0, 0, -5), chainDepth: 0));
+        snapshot.Puffs.Add(Puff(new(4, 0, -10)) with { ChainDepth = 0 });
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: new WithoutMap());
+
+        scene.MapCount.Should().Be(1);
+        scene.Instances[0].Map.Should().Be(0u);
+        scene.Lights[0].Map.Should().Be(0u);
+        Drawn(scene).Should().ContainSingle().Which.Map.Should().Be(0u);
+    }
+
+    /// <summary>The boxes of depths 0, 1 and 2 along +X, one above another, which face +X of every map could see.</summary>
+    private static RenderSnapshot BoxesAlongPositiveX()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Instances.Add(BoxAt(new(10, 2 * depth, 0), depth));
+        return snapshot;
+    }
+
+    [Fact]
+    public void AFaceOfTheCamerasFrameMapDrawsEveryOpaqueInstance()
+    {
+        PreparedScene scene = Prepare(
+            snapshot: BoxesAlongPositiveX(),
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.PositiveX)
+        );
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        face.Map.Should().Be(2);
+        Placed(scene, face).Should().BeEquivalentTo([new Vector3(10, 0, 0), new(10, 2, 0), new(10, 4, 0)]);
+    }
+
+    [Fact]
+    public void AFaceOfAnAncestorsMapLeavesOutTheSubtreeBelowIt()
+    {
+        PreparedScene scene = Prepare(
+            snapshot: BoxesAlongPositiveX(),
+            environment: MapOf(FaceMask.PositiveX, FaceMask.PositiveX, FaceMask.None)
+        );
+
+        scene.EnvironmentFaces.Select(face => face.Map).Should().Equal(0, 1);
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(10, 4, 0));
+        Placed(scene, scene.EnvironmentFaces[1])
+            .Should()
+            .BeEquivalentTo([new Vector3(10, 2, 0), new(10, 4, 0)], "map 1 leaves out the camera's frame, depth 0");
+    }
+
+    [Fact]
+    public void AFaceOfATurnedMapKeepsWhatLiesAlongItsFramesAxis()
+    {
+        // The root's axes are turned a quarter turn about +Y in the camera's axes, so its +X lies along the camera's −Z.
+        RenderSnapshot snapshot = Empty();
+        var quarter = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        TestChains.Of(snapshot, (1, Quaternion.Identity), (0, quarter));
+        snapshot.Instances.Add(BoxAt(new(0, 0, -10), chainDepth: 1));
+        snapshot.Instances.Add(BoxAt(new(10, 0, 0), chainDepth: 1));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX, FaceMask.None));
+
+        EnvironmentFaceDraw face = scene.EnvironmentFaces.Should().ContainSingle().Subject;
+        Vector3.Distance(face.Basis.Forward, -Vector3.UnitZ).Should().BeLessThan(1e-6f);
+        Placed(scene, face).Should().Equal(new Vector3(0, 0, -10));
+    }
+
+    [Fact]
+    public void AFaceKeepsNoLightOfTheSubtreeThatItLeavesOut()
+    {
+        // The lamp lies along +X, where the main view does not look, in the camera's frame: map 1.
+        RenderSnapshot snapshot = Empty();
+        TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
+        snapshot.Lights.Add(LampAt(new(50, 0, 0), chainDepth: 0));
+
+        PreparedScene outer = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.PositiveX, FaceMask.None));
+        PreparedScene inner = Prepare(snapshot: snapshot, environment: MapOf(FaceMask.None, FaceMask.PositiveX));
+
+        outer.LightCount.Should().Be(0, "the root's map leaves out the camera's frame and its lamp");
+        inner.LightCount.Should().Be(1, "the camera's frame's map keeps its own lamp");
+    }
+
+    [Fact]
+    public void TheMainViewKeepsTheLightsOfEveryMap()
+    {
+        RenderSnapshot snapshot = ChainOfThree();
+        for (ushort depth = 0; depth < 3; depth++)
+            snapshot.Lights.Add(LampAt(new(depth, 0, -5), depth));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        scene
+            .Lights.AsSpan(0, scene.LightCount)
+            .ToArray()
+            .Select(light => LightPosition(light))
+            .Should()
+            .Equal(new Vector3(0, 0, -5), new(1, 0, -5), new(2, 0, -5));
+    }
+
+    [Fact]
+    public void TheMapAxesAreTheChainsRotationsInterpolatedRootFirst()
+    {
+        RenderSnapshot snapshot = Empty();
+        var parentNow = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.4f);
+        var rootNow = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1.2f);
+        snapshot.Chain.Add(new(FrameId: 2, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(new(FrameId: 1, Rotation: parentNow, PreviousRotation: Quaternion.Identity));
+        snapshot.Chain.Add(new(FrameId: 0, Rotation: rootNow, PreviousRotation: Quaternion.Identity));
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            alpha: 0.5f,
+            environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
+        );
+
+        Quaternion[] expected =
+        [
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f),
+            Quaternion.Identity,
+        ];
+        scene.MapCount.Should().Be(3);
+        for (int map = 0; map < expected.Length; map++)
+        {
+            Quaternion axes = scene.MapAxes[map];
+            Vector4 constant = scene.Constants.MapAxes[map];
+            Vector4.Distance(AsVector(axes), AsVector(expected[map])).Should().BeLessThan(1e-6f, $"map {map}");
+            constant.Should().Be(AsVector(axes), $"the constants hold map {map}'s axes");
+        }
+
+        scene.MapAxes[2].Should().Be(Quaternion.Identity, "the camera's frame lies in its own axes, bit for bit");
+    }
+
+    private static Vector4 AsVector(Quaternion q) => new(x: q.X, y: q.Y, z: q.Z, w: q.W);
+
+    [Fact]
+    public void ARefreshOfFourMapsPreparesTwentyFourFaces()
+    {
+        RenderSnapshot snapshot = Empty();
+        TestChains.Of(
+            snapshot,
+            (3, Quaternion.Identity),
+            (2, Quaternion.Identity),
+            (1, Quaternion.Identity),
+            (0, Quaternion.Identity)
+        );
+
+        PreparedScene scene = Prepare(
+            snapshot: snapshot,
+            environment: MapOf(FaceMask.All, FaceMask.All, FaceMask.All, FaceMask.All)
+        );
+
+        scene
+            .EnvironmentFaces.Select(face => (face.Map, face.Face))
+            .Should()
+            .Equal(
+                Enumerable
+                    .Range(0, 4 * CubeFaces.Count)
+                    .Select(slot => (slot / CubeFaces.Count, (CubeFace)(slot % CubeFaces.Count))),
+                "the face pass takes the maps in index order, and each map's faces in layer order"
+            );
     }
 
     /// <summary>A still puff: its previous place is its place.</summary>
@@ -1440,9 +1690,9 @@ public sealed class BatcherTests
     }
 
     [Fact]
-    public void AGpuPuffIs32BytesAndCarriesTheCaseOfItsShading()
+    public void AGpuPuffIs48BytesAndCarriesTheCaseOfItsShading()
     {
-        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
+        Unsafe.SizeOf<GpuPuff>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.ColorKind))).Should().Be(16);
         RenderSnapshot snapshot = PuffSnapshot(
             GlowLook,
@@ -1551,19 +1801,33 @@ public sealed class BatcherTests
     [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(80);
+        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
+        ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.Map))).Should().Be(80);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.CosInner))).Should().Be(48);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(52);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(1392);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
-        Unsafe.SizeOf<GpuPuff>().Should().Be(32);
-        Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(720);
+        Unsafe.SizeOf<GpuPuff>().Should().Be(48);
+        ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.Map))).Should().Be(32);
+        Unsafe.SizeOf<DrawPushConstants>().Should().Be(84);
+        ((int)Marshal.OffsetOf<DrawPushConstants>(nameof(DrawPushConstants.Map))).Should().Be(80);
+        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(16);
+        ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Map)))
+            .Should()
+            .Be(12);
+        Unsafe.SizeOf<EnvironmentDownsamplePushConstants>().Should().Be(8);
+        ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
+            .Should()
+            .Be(4);
         Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(64);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(48);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(60);

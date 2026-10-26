@@ -16,6 +16,7 @@ public sealed class DeviceFeatureTests
         DualSrcBlend = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
+        ImageCubeArray = true,
     };
 
     private static readonly PhysicalDeviceVulkan12Features Vulkan12 = new()
@@ -52,6 +53,18 @@ public sealed class DeviceFeatureTests
         };
 
         VulkanDevice.MissingFeature(Core, withoutIt, Vulkan13).Should().Be("descriptorIndexing");
+    }
+
+    [Fact]
+    public void ADeviceWithoutCubeArraysIsRefusedByItsName()
+    {
+        // The environment maps of the chain's frames are one cube array (docs/plans/environment-maps-per-frame.md, decision 18).
+        PhysicalDeviceFeatures withoutIt = Core with
+        {
+            ImageCubeArray = false,
+        };
+
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("imageCubeArray");
     }
 
     [Fact]

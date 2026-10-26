@@ -299,6 +299,7 @@ public sealed class ShaderInputTests
             rotation: Quaternion.Identity,
             scale: Vector3.One,
             material: 0,
+            map: 0,
             hemisphere: HemisphereUp.Along(new(float.NaN, 1, 0))
         );
         var away = GpuInstance.From(
@@ -306,6 +307,7 @@ public sealed class ShaderInputTests
             rotation: Quaternion.Identity,
             scale: Vector3.One,
             material: 0,
+            map: 0,
             hemisphere: HemisphereUp.AwayFrom(new(float.PositiveInfinity, 0, 0))
         );
 

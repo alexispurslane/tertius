@@ -328,20 +328,20 @@ Every face is at most ⌈6M / F⌉ − 1 frames old: 23 frames, 383 ms at 60 Hz,
 
 `EnvironmentPrefilterPass` runs today's three steps for each map with a drawn face, in index order (decision 25): the radiance map's mips, the specular levels and the irradiance. `EnvironmentPrefilterPushConstants` and `EnvironmentDownsamplePushConstants` gain `Map`. The shaders read and write layers 6 · Map + face, and the irradiance shader writes coefficients 9 · Map to 9 · Map + 8. The copy into the slot's readback buffer comes once, after the last map, and takes the first M maps. A map without a drawn face keeps its levels and its coefficients (decision 12).
 
-The barriers name the layers of each map: a map's specular layers go from the fragment reads of the frame before to storage writes, discarding, and back. The layers of the other maps stay readable. At the end of the pass the whole specular image is in `SampledFragment` and the whole radiance image in `SampledCompute`, as today.
+The barriers move every map's layers of an image to storage use while its level views are bound, because a storage image's layout must hold for every layer of its view: a drawn map's levels go from the reads of the frame before to storage writes, discarding, and the other maps' levels keep their texels. So the pass runs in two steps, first every drawn map's mips, then every drawn map's specular levels and irradiance, each in index order, with a barrier between two maps (see "Images, buffers, growth and descriptors"). At the end of the pass the whole specular image is in `SampledFragment` and the whole radiance image in `SampledCompute`, as today.
 
 ## Reading the maps
 
 ### The map code in the G-buffer
 
-`mesh.vert` passes the instance's map as `flat out uint outMap`. `gbuffer.frag` writes it:
+`mesh.vert` passes the instance's map with its material, as `flat out uvec2 outMaterialAndMap` at location 4: x the material, y the map. They share a location because `environment_face.frag` reads only the material, and the validation layer warns of an output that no input consumes (`WARNING-Shader-OutputNotConsumed`). A uint of its own at location 6 drew that warning on every renderer with the map on. `gbuffer.frag` writes it:
 
 ```glsl
 // The map code (docs/plans/environment-maps-per-frame.md, decision 20): map i owns the codes 255 − 2i and 256 − 2i of
 // the 8-bit alpha, and the value lies between them, so either rounding of the conversion names map i. Map 0 writes 1.0.
 float mapCode(uint map) { return min((255.5 - 2.0 * float(map)) / 255.0, 1.0); }
 
-outBaseColor = vec4(s.baseColor.rgb, mapCode(inMap));
+outBaseColor = vec4(s.baseColor.rgb, mapCode(inMaterialAndMap.y));
 ```
 
 `surfaceAt` in `gbuffer_surface.glsl`, which the lighting pass and the reflection trace read a lit pixel through, decodes it:
@@ -354,7 +354,7 @@ s.map = mapOfCode(texelFetch(gbufferBaseColor, pixel, 0).a);
 
 where
 
-- `inMap` = the instance's map from `GpuInstance.map`.
+- `inMaterialAndMap.y` = the instance's map from `GpuInstance.map`.
 - `alpha` = the fetched alpha, c / 255 for the stored code c.
 - `mapOfCode` runs only for a lit pixel. Both callers return for alpha 0 first, as today.
 
@@ -409,7 +409,7 @@ The CPU side: `MapAmbient` holds one `IrradianceReading?` for each map, and `Imp
 | The irradiance buffer | 42 × 9 `vec4` | 6,048 B |
 | A readback buffer per frame slot | 42 × 9 `vec4`, of which the copy fills M | 6,048 B each |
 
-So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so the number of level sets stays that of one map, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`.
+So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so the number of level sets stays that of one map, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers and coefficients do not overlap.
 
 The growth (decision 23): `Grow(maps)` waits for the device, disposes the cube arrays and their views, makes them for `maps` maps, rewrites the prefilter set and the level sets with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
 
