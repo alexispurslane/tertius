@@ -51,6 +51,54 @@ public sealed class PrefilterLevelsTests
         }
     }
 
+    /// <summary>
+    /// One dispatch prefilters a run of levels, each in a storage image of its own, so that a frame waits on as few
+    /// dispatches as the four storage images of every Vulkan device allow.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void TheDispatchesTakeTheLevelsInOrderAtMostFourAtATime(int faceSize)
+    {
+        int levels = PrefilterLevels.Count(faceSize);
+        var taken = new List<int>();
+
+        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(levels); dispatch++)
+        {
+            (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: levels);
+            count.Should().BeInRange(1, 4, "dispatch {0} binds one storage image per level", dispatch);
+            taken.AddRange(Enumerable.Range(first, count));
+        }
+
+        taken.Should().Equal(Enumerable.Range(0, levels), "each level is prefiltered once, in order");
+        PrefilterLevels
+            .Dispatches(levels)
+            .Should()
+            .Be((levels + 3) / 4, "every dispatch but the last takes four levels");
+    }
+
+    /// <summary>
+    /// A level of a dispatch takes the workgroups that its texels need, <see cref="PrefilterLevels.GroupInvocations"/> /
+    /// <see cref="PrefilterLevels.Lanes"/> texels each, and no workgroup more, so the next level's workgroups follow.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void EachLevelTakesTheWorkgroupsThatItsTexelsNeedAndNoMore(int faceSize)
+    {
+        for (int level = 0; level < PrefilterLevels.Count(faceSize); level++)
+        {
+            long texels = CubeFaces.Count * (long)(faceSize >> level) * (faceSize >> level);
+            long texelsPerGroup = PrefilterLevels.GroupInvocations / PrefilterLevels.Lanes(level);
+            long groups = PrefilterLevels.Workgroups(level: level, faceSize: faceSize);
+
+            (groups * texelsPerGroup).Should().BeGreaterThanOrEqualTo(texels, "level {0} reaches its last texel", level);
+            ((groups - 1) * texelsPerGroup).Should().BeLessThan(texels, "level {0} has no idle workgroup", level);
+        }
+    }
+
     [Fact]
     public void LevelKHoldsRoughnessKOverTheLastLevel()
     {

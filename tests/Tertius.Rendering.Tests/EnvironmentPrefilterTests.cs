@@ -83,17 +83,28 @@ public sealed class EnvironmentPrefilterTests
     /// Every texel of each rough level is Karis's sum over the level's samples, each a trilinear read of the radiance map at
     /// the level that filtered importance sampling gives: the result of <see cref="PrefilterReference"/>, which reads the
     /// radiance map that the GPU drew. So however the shader splits a texel's samples among its invocations, it takes each
-    /// sample once, in its own direction, weight and level.
+    /// sample once, in its own direction, weight and level. At 128 texels the levels take two dispatches, so the second
+    /// dispatch writes its own levels with their own lanes.
     /// </summary>
-    [Fact]
-    public void EveryTexelOfARoughLevelIsTheSumOverItsSamplesOfTheRadianceMap()
+    [Theory]
+    [InlineData(Size)]
+    [InlineData(128)]
+    public void EveryTexelOfARoughLevelIsTheSumOverItsSamplesOfTheRadianceMap(int faceSize)
     {
-        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 160,
+            height: 90,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = faceSize,
+            }
+        );
+        int levels = PrefilterLevels.Count(faceSize);
         try
         {
             renderer.Render(Colorful(renderer), 1f);
 
-            var mips = new Half[PrefilterLevels.RadianceLevels(Size)][][];
+            var mips = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
             for (int level = 0; level < mips.Length; level++)
             {
                 mips[level] = new Half[CubeFaces.Count][];
@@ -105,13 +116,13 @@ public sealed class EnvironmentPrefilterTests
                     );
             }
 
-            var reference = new PrefilterReference(mips, Size);
+            var reference = new PrefilterReference(mips, faceSize);
             // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
-            var worstOfLevel = new float[Levels];
-            for (int level = 1; level < Levels; level++)
+            var worstOfLevel = new float[levels];
+            for (int level = 1; level < levels; level++)
             {
-                int size = Size >> level;
-                float roughness = PrefilterLevels.Roughness(level, Levels);
+                int size = faceSize >> level;
+                float roughness = PrefilterLevels.Roughness(level, levels);
                 float worst = 0;
                 for (int layer = 0; layer < CubeFaces.Count; layer++)
                 {

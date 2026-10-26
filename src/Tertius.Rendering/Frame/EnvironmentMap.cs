@@ -38,7 +38,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly ImageView[] faceViews = new ImageView[CubeFaces.Count];
     private readonly ImageView[] levelViews;
     private readonly ImageView[] radianceLevelViews;
-    private readonly DescriptorSet[] specularLevelSets;
+    private readonly DescriptorSet[] specularDispatchSets;
     private readonly DescriptorSet[] radianceLevelSets;
     private readonly GpuBuffer[] readbacks;
 
@@ -55,7 +55,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         Levels = PrefilterLevels.Count(setting.FaceSize);
         levelViews = new ImageView[Levels];
         radianceLevelViews = new ImageView[PrefilterLevels.RadianceLevels(setting.FaceSize)];
-        specularLevelSets = new DescriptorSet[levelViews.Length];
+        specularDispatchSets = new DescriptorSet[PrefilterLevels.Dispatches(Levels)];
         radianceLevelSets = new DescriptorSet[radianceLevelViews.Length];
         readbacks = new GpuBuffer[framesInFlight];
         try
@@ -114,8 +114,12 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written once.</summary>
     public DescriptorSet PrefilterSet { get; }
 
-    /// <summary>The level set of <paramref name="level"/> of the specular map, written once.</summary>
-    public DescriptorSet SpecularLevelSet(int level) => specularLevelSets[level];
+    /// <summary>
+    /// The levels set of dispatch <paramref name="dispatch"/> of the specular map, written once: binding b holds level
+    /// first + b of <see cref="PrefilterLevels.LevelsOfDispatch"/>, and a binding past the dispatch's last level holds
+    /// that last level again, a valid view that the dispatch never writes.
+    /// </summary>
+    public DescriptorSet SpecularDispatchSet(int dispatch) => specularDispatchSets[dispatch];
 
     /// <summary>The level set of <paramref name="level"/> of the radiance map, written once.</summary>
     public DescriptorSet RadianceLevelSet(int level) => radianceLevelSets[level];
@@ -277,7 +281,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     /// <summary>
     /// Allocates the level sets and writes every set once: the radiance map, the irradiance and its partial sums in the
-    /// prefilter set, and each level view of both cubes in its own level set.
+    /// prefilter set, each level view of the radiance map in its own level set, and the level views of the specular map
+    /// in the levels sets of their dispatches.
     /// </summary>
     private void WriteSets(DescriptorLayouts layouts)
     {
@@ -289,7 +294,18 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             type: DescriptorType.StorageBuffer,
             buffer: IrradiancePartials
         );
-        WriteLevelSets(layouts: layouts, views: levelViews, sets: specularLevelSets);
+        for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
+        {
+            (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: Levels);
+            specularDispatchSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+            for (int binding = 0; binding < PrefilterLevels.LevelsPerDispatch; binding++)
+                layouts.WriteStorageImage(
+                    set: specularDispatchSets[dispatch],
+                    binding: (uint)binding,
+                    view: levelViews[first + Math.Min(binding, count - 1)]
+                );
+        }
+
         WriteLevelSets(layouts: layouts, views: radianceLevelViews, sets: radianceLevelSets);
     }
 

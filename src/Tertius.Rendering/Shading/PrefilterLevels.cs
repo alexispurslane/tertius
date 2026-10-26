@@ -12,6 +12,9 @@ internal static class PrefilterLevels
     public const int SamplesPerTexel = 64;
     public const float SampleLodBias = 1f;
 
+    /// <summary>The invocations of a workgroup of environment_prefilter.comp, one row of its table of samples each.</summary>
+    public const int GroupInvocations = 64;
+
     /// <summary>L: the levels of the specular map, from a power of two <paramref name="faceSize"/> down to 4 texels.</summary>
     public static int Count(int faceSize) => BitOperations.Log2((uint)(faceSize / SmallestFaceSize)) + 1;
 
@@ -25,6 +28,36 @@ internal static class PrefilterLevels
     /// and a texel of a small level waits on a chain of a few texture reads, not of all its samples.
     /// </summary>
     public static int Lanes(int level) => level <= 1 ? 1 : Math.Min(SamplesPerTexel, 1 << (2 * (level - 1)));
+
+    /// <summary>
+    /// The levels that one dispatch of environment_prefilter.comp prefilters at most: one storage image each, the four
+    /// that every Vulkan device offers per stage.
+    /// </summary>
+    public const int LevelsPerDispatch = 4;
+
+    /// <summary>The dispatches of environment_prefilter.comp for <paramref name="levels"/> levels.</summary>
+    public static int Dispatches(int levels) => (levels + LevelsPerDispatch - 1) / LevelsPerDispatch;
+
+    /// <summary>
+    /// The first level and the count of levels that dispatch <paramref name="dispatch"/> of <paramref name="levels"/>
+    /// prefilters: a run of <see cref="LevelsPerDispatch"/> levels, or the levels left for the last dispatch.
+    /// </summary>
+    public static (int First, int Count) LevelsOfDispatch(int dispatch, int levels)
+    {
+        int first = dispatch * LevelsPerDispatch;
+        return (first, Math.Min(LevelsPerDispatch, levels - first));
+    }
+
+    /// <summary>
+    /// The workgroups of level <paramref name="level"/> of a map of <paramref name="faceSize"/>: one for each
+    /// <see cref="GroupInvocations"/> / <see cref="Lanes"/> texels of its six faces.
+    /// </summary>
+    public static int Workgroups(int level, int faceSize)
+    {
+        int size = faceSize >> level;
+        int texelsPerGroup = GroupInvocations / Lanes(level);
+        return (CubeFaces.Count * size * size + texelsPerGroup - 1) / texelsPerGroup;
+    }
 
     /// <summary>The roughness that level <paramref name="level"/> of <paramref name="levels"/> holds, linear in perceptual roughness.</summary>
     public static float Roughness(int level, int levels) => (float)level / (levels - 1);

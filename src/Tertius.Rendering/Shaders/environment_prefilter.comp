@@ -7,12 +7,13 @@ const float PI = 3.14159265358979323846;
 #include "brdf.glsl"
 #include "cube_faces.glsl"
 
-// One level of the environment map's specular map (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The
-// specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
+// A run of up to four levels of the environment map's specular map (EnvironmentPrefilterPass.cs,
+// docs/plans/environment-map.md, "The specular levels"). Level 0 is the radiance map's level 0, texel for texel. Level k ≥ 1 is the prefilter of Karis 2013
 // with n = v = r, over N Hammersley samples with filtered importance sampling (Křivánek and Colbert 2008), in all four
 // channels, so the alpha is the open-sky share along the lobe.
 //
-// A workgroup prefilters 64 / lanes texels that follow each other in layer, row and column order, with lanes invocations
+// The workgroups of each level of the dispatch follow those of the level before, so a workgroup prefilters one level,
+// and all its invocations take the same branches. A workgroup prefilters 64 / lanes texels that follow each other in layer, row and column order, with lanes invocations
 // per texel (PrefilterLevels.Lanes). With n = v, a sample's direction around n, its weight n·l and the level of the
 // radiance map that it reads depend only on the sample and the level, not on the texel. So the workgroup first builds
 // the level's table of samples in shared memory, one sample per invocation. Lane m of a texel then sums the samples m, m + lanes, ... in its own axes,
@@ -21,21 +22,34 @@ const float PI = 3.14159265358979323846;
 
 const uint Invocations = 64u;    // EnvironmentPrefilterPass.GroupInvocations
 const uint MaxSamples = 64u;     // the table's rows, one per invocation: PrefilterLevels.SamplesPerTexel at most
+const uint MaxLevels = 4u;       // PrefilterLevels.LevelsPerDispatch
 
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform textureCube radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Level k of the specular map, six layers.
-layout(set = 2, binding = 0, rgba16f) uniform writeonly image2DArray specularLevel;
+// The levels of the dispatch in order, six layers each (DescriptorLayouts.EnvironmentLevelsSet). A binding past the
+// last level holds that level again, and nothing writes it.
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray specularLevel0;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2DArray specularLevel1;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image2DArray specularLevel2;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2DArray specularLevel3;
+
+// EnvironmentPrefilterLevel in GpuTypes.cs: level k of the dispatch.
+struct Level
+{
+    uint firstGroup;  // its first workgroup
+    uint levelSize;   // W_k
+    float roughness;  // r_k = k / (L − 1)
+    uint lanes;       // the invocations per texel, a power of two that divides Invocations and N
+};
 
 // EnvironmentPrefilterPushConstants in GpuTypes.cs.
 layout(push_constant, std430) uniform PrefilterPush
 {
-    uint levelSize;   // W_k
-    float roughness;  // r_k = k / (L − 1)
-    uint samples;     // N, at most MaxSamples
-    uint lanes;       // the invocations per texel, a power of two that divides Invocations and N
+    Level levels[MaxLevels];  // in binding order
+    uint samples;             // N, at most MaxSamples
+    uint levelCount;          // 1 to MaxLevels
 } prefilter;
 
 // Sample i of the level: xyz the direction l in the axes of n (tangent, bitangent, n), so z is n·l, and w the level of the
@@ -70,34 +84,49 @@ vec4 levelSample(uint i, float alpha, float texelAngle)
     return vec4(l, lod);
 }
 
+// Stores into the level in binding `binding`, whose index is the same in the whole workgroup.
+void store(uint binding, ivec3 texel, vec4 value)
+{
+    switch (binding)
+    {
+        case 0u: imageStore(specularLevel0, texel, value); break;
+        case 1u: imageStore(specularLevel1, texel, value); break;
+        case 2u: imageStore(specularLevel2, texel, value); break;
+        default: imageStore(specularLevel3, texel, value); break;
+    }
+}
+
 void main()
 {
+    // The level of this workgroup: the last of the dispatch whose first workgroup is at most this one.
+    uint binding = 0u;
+    for (uint m = 1u; m < prefilter.levelCount; m++)
+        if (gl_WorkGroupID.x >= prefilter.levels[m].firstGroup)
+            binding = m;
+    Level level = prefilter.levels[binding];
+
     uint index = gl_LocalInvocationIndex;
-    uint lane = index % prefilter.lanes;
-    uint slot = index / prefilter.lanes;
-    uint levelTexels = prefilter.levelSize * prefilter.levelSize;
-    uint texel = gl_WorkGroupID.x * (Invocations / prefilter.lanes) + slot;
+    uint lane = index % level.lanes;
+    uint slot = index / level.lanes;
+    uint levelTexels = level.levelSize * level.levelSize;
+    uint texel = (gl_WorkGroupID.x - level.firstGroup) * (Invocations / level.lanes) + slot;
     bool inLevel = texel < 6u * levelTexels;
     uint layer = texel / max(levelTexels, 1u);
     uint inLayer = texel - layer * levelTexels;
-    uvec2 xy = uvec2(inLayer % prefilter.levelSize, inLayer / prefilter.levelSize);
-    vec3 ray = faceRay(layer, (vec2(xy) + 0.5) / float(prefilter.levelSize));
+    uvec2 xy = uvec2(inLayer % level.levelSize, inLayer / level.levelSize);
+    vec3 ray = faceRay(layer, (vec2(xy) + 0.5) / float(level.levelSize));
 
-    // The roughness is the same in the whole dispatch, so every invocation takes the same branch, and all reach the
+    // The roughness is the same in the whole workgroup, so every invocation takes the same branch, and all reach the
     // barriers.
-    if (prefilter.roughness == 0.0)
+    if (level.roughness == 0.0)
     {
         // The exact ray through a texel center reads that texel of level 0 alone, so the mirror level copies it.
         if (inLevel && lane == 0u)
-            imageStore(
-                specularLevel,
-                ivec3(xy, layer),
-                textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0)
-            );
+            store(binding, ivec3(xy, layer), textureLod(samplerCube(radianceMap, environmentSampler), ray, 0.0));
         return;
     }
 
-    float alpha = prefilter.roughness * prefilter.roughness;
+    float alpha = level.roughness * level.roughness;
     float faceSize = float(textureSize(samplerCube(radianceMap, environmentSampler), 0).x);
     float texelAngle = 4.0 * PI / (6.0 * faceSize * faceSize);
     if (index < prefilter.samples)
@@ -111,7 +140,7 @@ void main()
     vec3 bitangent = cross(n, tangent);
     vec4 sum = vec4(0.0);
     float weight = 0.0;
-    for (uint i = lane; i < prefilter.samples; i += prefilter.lanes)
+    for (uint i = lane; i < prefilter.samples; i += level.lanes)
     {
         vec4 s = table[i];
         if (s.z > 0.0)
@@ -130,12 +159,12 @@ void main()
     {
         vec4 total = vec4(0.0);
         float totalWeight = 0.0;
-        for (uint m = 0u; m < prefilter.lanes; m++)
+        for (uint m = 0u; m < level.lanes; m++)
         {
             total += laneSums[index + m];
             totalWeight += laneWeights[index + m];
         }
         // Sample 0, the point (0, 0), gives h = n and l = n, so lane 0's weight and the total are at least 1.
-        imageStore(specularLevel, ivec3(xy, layer), total / totalWeight);
+        store(binding, ivec3(xy, layer), total / totalWeight);
     }
 }

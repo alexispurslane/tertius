@@ -380,23 +380,48 @@ internal struct SkyFacePushConstants
 }
 
 /// <summary>
-/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k. 16 bytes.
-/// environment_irradiance.comp reads none.
+/// One level of a dispatch of environment_prefilter.comp, k, in the binding of set 1 that its place in the dispatch
+/// names. 16 bytes, a std430 struct of four scalars.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct EnvironmentPrefilterPushConstants
+internal struct EnvironmentPrefilterLevel
 {
-    /// <summary>W_k = W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>The first workgroup of the dispatch that prefilters the level.</summary>
+    public uint FirstGroup;
+
+    /// <summary>W_k = W / 2^k: the texels along one side of each face of the level.</summary>
     public uint LevelSize;
 
     /// <summary>r_k = k / (L − 1): the roughness that the level holds.</summary>
     public float Roughness;
 
+    /// <summary>The invocations that share one texel's samples, <see cref="PrefilterLevels.Lanes"/> of the level.</summary>
+    public uint Lanes;
+}
+
+/// <summary>The levels of one dispatch of environment_prefilter.comp, a std430 array of four.</summary>
+[InlineArray(PrefilterLevels.LevelsPerDispatch)]
+internal struct EnvironmentPrefilterLevels
+{
+    private EnvironmentPrefilterLevel element;
+}
+
+/// <summary>
+/// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
+/// <see cref="DescriptorLayouts.EnvironmentSpecularLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>). 72
+/// bytes. environment_irradiance.comp reads none.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct EnvironmentPrefilterPushConstants
+{
+    /// <summary>The levels in binding order. Those past <see cref="LevelCount"/> are unused.</summary>
+    public EnvironmentPrefilterLevels Levels;
+
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
 
-    /// <summary>The invocations that share one texel's samples, <see cref="PrefilterLevels.Lanes"/> of the level.</summary>
-    public uint Lanes;
+    /// <summary>The levels of the dispatch, 1 to <see cref="PrefilterLevels.LevelsPerDispatch"/>.</summary>
+    public uint LevelCount;
 }
 
 /// <summary>

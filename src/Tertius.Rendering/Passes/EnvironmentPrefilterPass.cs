@@ -18,12 +18,6 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// <summary>The downsample's workgroup: 8 by 8 texels of one face.</summary>
     private const uint GroupSize = 8;
 
-    /// <summary>
-    /// The invocations of a workgroup of environment_prefilter.comp, one row of its table of samples each: 64 /
-    /// <see cref="PrefilterLevels.Lanes"/> texels of a level (the GLSL copy is Invocations).
-    /// </summary>
-    private const uint GroupInvocations = 64;
-
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly EnvironmentMap map;
@@ -45,7 +39,12 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         try
         {
             downsample = Create(name: "environment downsample", shader: "environment_downsample.comp");
-            prefilter = Create(name: "environment prefilter", shader: "environment_prefilter.comp");
+            prefilter = new ComputePipelineDesc
+            {
+                Name = "environment prefilter",
+                Shader = "environment_prefilter.comp",
+                Layout = layouts.EnvironmentSpecularLayout,
+            }.Create(device, shaders);
             irradiance = Create(name: "environment irradiance", shader: "environment_irradiance.comp");
             irradianceSum = Create(name: "environment irradiance sum", shader: "environment_irradiance_sum.comp");
         }
@@ -71,7 +70,13 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
-        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 0, sets: [map.PrefilterSet]);
+        BindSets(
+            vk: vk,
+            commandBuffer: commandBuffer,
+            layout: layouts.EnvironmentPrefilterLayout,
+            firstSet: 0,
+            sets: [map.PrefilterSet]
+        );
         // The mips first, because the prefilter's samples read them.
         RecordMips(vk: vk, commandBuffer: commandBuffer, barriers: barriers);
         // Every texel of every level is written anew, after the readers of the frame before.
@@ -80,7 +85,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         // The irradiance's blocks and the specular levels write different resources and read only the radiance map, so
-        // they need no barrier between them, and they can run at once.
+        // they need no barrier between them, and they can run at once. The specular layout shares set 0 and the push
+        // constant range with the prefilter layout, so set 0 stays bound.
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradiance);
         vk.CmdDispatch(
             commandBuffer: commandBuffer,
@@ -89,8 +95,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             groupCountZ: 1
         );
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, prefilter);
-        for (int level = 0; level < map.Levels; level++)
-            DispatchLevel(vk: vk, commandBuffer: commandBuffer, level: level);
+        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(map.Levels); dispatch++)
+            DispatchLevels(vk: vk, commandBuffer: commandBuffer, dispatch: dispatch);
         barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeRead);
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradianceSum);
@@ -133,6 +139,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             BindSets(
                 vk: vk,
                 commandBuffer: commandBuffer,
+                layout: layouts.EnvironmentPrefilterLayout,
                 firstSet: 1,
                 sets: [map.RadianceLevelSet((int)level - 1), map.RadianceLevelSet((int)level)]
             );
@@ -208,47 +215,64 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     }
 
     /// <summary>
-    /// Dispatches one level of the specular map: <see cref="PrefilterLevels.Lanes"/> invocations per texel of its six
-    /// faces.
+    /// Dispatches a run of levels of the specular map (<see cref="PrefilterLevels.LevelsOfDispatch"/>): the workgroups
+    /// of each level follow those of the level before, with <see cref="PrefilterLevels.Lanes"/> invocations per texel of
+    /// its six faces.
     /// </summary>
-    private void DispatchLevel(Vk vk, CommandBuffer commandBuffer, int level)
+    private void DispatchLevels(Vk vk, CommandBuffer commandBuffer, int dispatch)
     {
-        uint size = (uint)(map.Setting.FaceSize >> level);
-        // The prefilter writes set 2 and reads no level set, so set 1 keeps what the mips left there.
-        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 2, sets: [map.SpecularLevelSet(level)]);
+        (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: map.Levels);
+        BindSets(
+            vk: vk,
+            commandBuffer: commandBuffer,
+            layout: layouts.EnvironmentSpecularLayout,
+            firstSet: 1,
+            sets: [map.SpecularDispatchSet(dispatch)]
+        );
         var push = new EnvironmentPrefilterPushConstants
         {
-            LevelSize = size,
-            Roughness = PrefilterLevels.Roughness(level, map.Levels),
             Samples = PrefilterLevels.SamplesPerTexel,
-            Lanes = (uint)PrefilterLevels.Lanes(level),
+            LevelCount = (uint)count,
         };
+        uint groups = 0;
+        for (int binding = 0; binding < count; binding++)
+        {
+            int level = first + binding;
+            push.Levels[binding] = new EnvironmentPrefilterLevel
+            {
+                FirstGroup = groups,
+                LevelSize = (uint)(map.Setting.FaceSize >> level),
+                Roughness = PrefilterLevels.Roughness(level, map.Levels),
+                Lanes = (uint)PrefilterLevels.Lanes(level),
+            };
+            groups += (uint)PrefilterLevels.Workgroups(level: level, faceSize: map.Setting.FaceSize);
+        }
+
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
-            layout: layouts.EnvironmentPrefilterLayout,
+            layout: layouts.EnvironmentSpecularLayout,
             stageFlags: ShaderStageFlags.ComputeBit,
             offset: 0,
             size: (uint)sizeof(EnvironmentPrefilterPushConstants),
             pValues: &push
         );
-        uint texels = CubeFaces.Count * size * size;
-        uint texelsPerGroup = GroupInvocations / push.Lanes;
-        vk.CmdDispatch(
-            commandBuffer: commandBuffer,
-            groupCountX: (texels + texelsPerGroup - 1) / texelsPerGroup,
-            groupCountY: 1,
-            groupCountZ: 1
-        );
+        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: groups, groupCountY: 1, groupCountZ: 1);
     }
 
-    /// <summary>Binds <paramref name="sets"/> to the prefilter layout from set <paramref name="firstSet"/> on.</summary>
-    private void BindSets(Vk vk, CommandBuffer commandBuffer, uint firstSet, ReadOnlySpan<DescriptorSet> sets)
+    /// <summary>Binds <paramref name="sets"/> to <paramref name="layout"/> from set <paramref name="firstSet"/> on.</summary>
+    private static void BindSets(
+        Vk vk,
+        CommandBuffer commandBuffer,
+        PipelineLayout layout,
+        uint firstSet,
+        ReadOnlySpan<DescriptorSet> sets
+    )
     {
         fixed (DescriptorSet* bound = sets)
             vk.CmdBindDescriptorSets(
                 commandBuffer: commandBuffer,
                 pipelineBindPoint: PipelineBindPoint.Compute,
-                layout: layouts.EnvironmentPrefilterLayout,
+                layout: layout,
                 firstSet: firstSet,
                 descriptorSetCount: (uint)sets.Length,
                 pDescriptorSets: bound,
