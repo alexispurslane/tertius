@@ -1,0 +1,101 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+// The upsample of the half-resolution trace (docs/plans/screen-space-reflections.md, "The half-resolution trace"): a
+// joint bilateral upsample of the rays of the up to four texels around each reflecting pixel, whose weights are cut by
+// each texel's distance from the pixel's tangent plane and by the turn of its geometric normal, and the delta of the
+// pixel from the mean. ReflectionUpsample in Shading/ is its C# copy.
+#include "reflection_pixel.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 3, rgba16f) uniform image2D hdrImage;              // the lit image, at this pixel only
+layout(set = 3, binding = 4, rgba16f) uniform readonly image2D tracedImage;   // ⌈W / 2⌉ × ⌈H / 2⌉
+
+// The cosine to the power of ReflectionUpsample.NormalPower, 8, by three squares: pow is exp2 of a log2, which is
+// infinite at 0 and which fast math may assume finite.
+float normalWeight(float facing)
+{
+    float squared = facing * facing;
+    float fourth = squared * squared;
+    return fourth * fourth;
+}
+
+// The texels that the workgroup's pixels read: from the texel of its first pixel to one past the texel of its last, the
+// high neighbor of an odd pixel. Each is read from the images once, into shared memory, and its four to nine pixels read
+// it there.
+const int GroupSide = 8;
+const int TileSide = GroupSide / 2 + 1;
+
+// For each texel of the tile: its ray, or a negative coverage for none, its representative pixel's view position and
+// that pixel's geometric normal.
+shared vec4 tileRays[TileSide * TileSide];
+shared vec3 tilePositions[TileSide * TileSide];
+shared vec3 tileNormals[TileSide * TileSide];
+
+void loadTile(ivec2 firstTexel, ivec2 halfSize)
+{
+    int i = int(gl_LocalInvocationIndex);
+    if (i >= TileSide * TileSide)
+        return;
+    ivec2 texel = firstTexel + ivec2(i % TileSide, i / TileSide);
+    // A texel beyond the edge of the half-resolution image holds no ray.
+    if (any(greaterThanEqual(texel, halfSize)))
+    {
+        tileRays[i] = vec4(0.0, 0.0, 0.0, -1.0);
+        return;
+    }
+    tileRays[i] = imageLoad(tracedImage, texel);
+    ivec2 representative = 2 * texel;
+    float representativeDistance = texelFetch(gbufferDistance, representative, 0).r;
+    tilePositions[i] = normalize(viewRayThrough(vec2(representative) + 0.5)) * representativeDistance;
+    tileNormals[i] = octDecode(texelFetch(gbufferNormal, representative, 0).ba);
+}
+
+void main()
+{
+    ivec2 halfSize = imageSize(tracedImage);
+    ivec2 firstTexel = ivec2(gl_WorkGroupID.xy) * (GroupSide / 2);
+    loadTile(firstTexel, halfSize);
+    // Every texel of the tile is in shared memory before any invocation reads it.
+    barrier();
+
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, imageSize(hdrImage))))
+        return;
+    ReflectingPixel p;
+    if (!reflectingPixel(pixel, p))
+        return;
+    vec3 position = p.toSurface * p.distanceToEye;
+    // A texel stands for two pixels a side.
+    float texelWidth = 2.0 * frame.params.z * p.distanceToEye;
+    ivec2 base = pixel / 2 - firstTexel;
+    // The bilinear weights of texels base and base + 1 along each axis: an even pixel is its texel's representative.
+    vec2 weightsX = (pixel.x & 1) == 0 ? vec2(1.0, 0.0) : vec2(0.5);
+    vec2 weightsY = (pixel.y & 1) == 0 ? vec2(1.0, 0.0) : vec2(0.5);
+    vec4 sum = vec4(0.0);
+    float weights = 0.0;
+    for (int b = 0; b < 2; b++)
+    {
+        for (int a = 0; a < 2; a++)
+        {
+            float bilinear = weightsX[a] * weightsY[b];
+            int i = (base.y + b) * TileSide + base.x + a;
+            vec4 ray = tileRays[i];
+            // A negative coverage: the texel's representative pixel started no ray, or the texel lies past the edge.
+            if (bilinear == 0.0 || ray.a < 0.0)
+                continue;
+            float offPlane = abs(dot(p.s.geometricNormal, tilePositions[i] - position));
+            float facing = max(0.0, dot(p.s.geometricNormal, tileNormals[i]));
+            float weight = bilinear * max(0.0, 1.0 - offPlane / texelWidth) * normalWeight(facing);
+            sum += weight * ray;
+            weights += weight;
+        }
+    }
+    // No texel with a ray lies on the pixel's surface: the pixel keeps the ambient specular term.
+    if (weights <= 0.0)
+        return;
+    vec3 delta = reflectionDelta(p, sum / weights);
+    vec4 lit = imageLoad(hdrImage, pixel);
+    imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
+}

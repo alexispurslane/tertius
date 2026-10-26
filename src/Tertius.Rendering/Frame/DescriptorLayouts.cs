@@ -206,7 +206,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The trace's set: the depth pyramid and the radiance pyramid, sampled with all their mips (bindings 0 and 1),
-    /// <see cref="AtlasSampler"/> (binding 2, immutable), and the HDR image as a storage image (binding 3).
+    /// <see cref="AtlasSampler"/> (binding 2, immutable), the HDR image as a storage image (binding 3), and the
+    /// half-resolution trace as a storage image (binding 4), written only when the trace runs at half resolution.
     /// </summary>
     public DescriptorSetLayout ReflectionSet { get; }
 
@@ -538,13 +539,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // 18 for the G-buffer, post and atlas sets, two per frame set for the tables, one per glow source set, two
             // each for the meter set and the occlusion set, one per pyramid level set, one for the depth tail set and two for
             // the reflection set.
-            new(
-                DescriptorType.SampledImage,
-                18 + 2 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2
-            ),
+            new(DescriptorType.SampledImage, 18 + 2 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2),
             // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
-            // set's mips, and one for the reflection set.
-            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 1),
+            // set's mips, and two for the reflection set.
+            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 2),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
@@ -633,7 +631,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorSetLayoutBinding> tail =
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
-            StorageImage(binding: 1) with { DescriptorCount = DepthPyramidTail.Mips },
+            StorageImage(binding: 1) with
+            {
+                DescriptorCount = DepthPyramidTail.Mips,
+            },
         ];
         Span<DescriptorSetLayoutBinding> reflection =
         [
@@ -641,6 +642,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
             ImmutableSampler(binding: 2, stages: ShaderStageFlags.ComputeBit, sampler: &mipSampler),
             StorageImage(binding: 3),
+            StorageImage(binding: 4),
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),

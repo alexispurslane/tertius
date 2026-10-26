@@ -800,6 +800,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// The last frame's half-resolution trace of the reflections: for each texel, the radiance and the coverage of its
+    /// representative pixel's ray, times the ray's fade, or a negative coverage for no ray. A test hook, like
+    /// <see cref="ReadRadiancePyramidLevel"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadReflectionTrace()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuImage traced =
+            pyramids.TracedImage ?? throw new InvalidOperationException("The trace runs at full resolution.");
+        return ReadLevel(image: traced, layer: 0, mip: 0);
+    }
+
+    /// <summary>
     /// One level of the last frame's radiance pyramid: premultiplied RGB and the coverage of each texel, row by row from
     /// the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1115,7 +1129,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 extent: extent,
                 glowLevels: glowLevels,
                 smaaTables: smaaTables,
-                reflections: reflections is ConeTracedReflections
+                reflections: reflections switch
+                {
+                    NoReflections => null,
+                    ConeTracedReflections on => on.Resolution,
+                }
             )
         );
     }
@@ -1260,12 +1278,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
         );
-        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and writes the
-        // image that the pyramid read.
-        Graph.Add(
-            FrameGraph.Stage.Reflections,
-            new ReflectionPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids, setting: setting)
-        );
+        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and the step that
+        // writes the reflections writes the image that the pyramid read. The upsample reads the half-resolution trace.
+        ReflectionStep[] steps = setting.Resolution switch
+        {
+            TraceResolution.Full => [ReflectionStep.FullResolutionTrace],
+            TraceResolution.Half => [ReflectionStep.HalfResolutionTrace, ReflectionStep.Upsample],
+        };
+        foreach (ReflectionStep step in steps)
+            Graph.Add(
+                FrameGraph.Stage.Reflections,
+                new ReflectionPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    targets: pyramids,
+                    setting: setting,
+                    step: step
+                )
+            );
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

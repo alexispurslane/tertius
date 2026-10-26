@@ -70,7 +70,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
-    /// <param name="reflections">True to make the pyramids of the reflections, under <see cref="ConeTracedReflections"/>.</param>
+    /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -78,15 +78,15 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        bool reflections
+        TraceResolution? reflections
     )
     {
-        if (reflections)
+        if (reflections is not null)
             CheckReflectedScreen(extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        CheckFormats(device: device, reflections: reflections);
+        CheckFormats(device: device, reflections: reflections is not null);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
@@ -94,9 +94,16 @@ internal sealed class RenderTargets : IDisposable
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
-        Create(extent: extent, hdrStorage: reflections);
-        if (reflections)
-            Reflections = new(device: device, allocator: allocator, layouts: layouts, extent: extent, hdr: Hdr);
+        Create(extent: extent, hdrStorage: reflections is not null);
+        if (reflections is { } resolution)
+            Reflections = new(
+                device: device,
+                allocator: allocator,
+                layouts: layouts,
+                extent: extent,
+                hdr: Hdr,
+                resolution: resolution
+            );
         if (smaaTables is not null)
             Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
     }

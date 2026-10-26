@@ -5,9 +5,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The two pyramids of the screen-space reflections, their level sets and the trace's set
-/// (docs/plans/screen-space-reflections.md, "Images" and "Descriptor sets"). Both images stay in the General layout for
-/// their whole life. <see cref="RenderTargets"/> owns one under <see cref="ConeTracedReflections"/>.
+/// The two pyramids of the screen-space reflections, the half-resolution trace under <see cref="TraceResolution.Half"/>,
+/// their level sets and the trace's set (docs/plans/screen-space-reflections.md, "Images" and "Descriptor sets"). The
+/// images stay in the General layout for their whole life. <see cref="RenderTargets"/> owns one under <see cref="ConeTracedReflections"/>.
 /// </summary>
 /// <remarks>
 /// A Vulkan mip halves its image and rounds down. A level of the depth pyramid halves the screen and rounds up, so the
@@ -28,6 +28,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+    private readonly TraceResolution resolution;
 
     /// <summary>The set of each depth level from 1 to <see cref="DepthPyramid.MaxLevels"/>, at index level − 1.</summary>
     private readonly DescriptorSet[] depthLevelSets = new DescriptorSet[DepthPyramid.MaxLevels];
@@ -45,12 +46,14 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         Extent2D extent,
-        GpuImage hdr
+        GpuImage hdr,
+        TraceResolution resolution
     )
     {
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        this.resolution = resolution;
         for (int i = 0; i < depthLevelSets.Length; i++)
             depthLevelSets[i] = layouts.AllocatePyramidLevelSet();
         for (int i = 0; i < radianceLevelSets.Length; i++)
@@ -65,6 +68,12 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     /// <summary>The radiance pyramid, RGBA16F: mip k holds level k, from the screen's size to 1 × 1.</summary>
     public GpuImage RadianceImage { get; private set; }
+
+    /// <summary>
+    /// The half-resolution trace, RGBA16F of ⌈W / 2⌉ × ⌈H / 2⌉: for each texel, the ray of its representative pixel, or null
+    /// when the trace runs at full resolution.
+    /// </summary>
+    public GpuImage? TracedImage { get; private set; }
 
     /// <summary>The depth pyramid's top level L, whose one cell covers the screen (<see cref="DepthPyramid.LevelCount"/>).</summary>
     public int TopLevel { get; private set; }
@@ -183,6 +192,19 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         layouts.WriteImage(set: TraceSet, binding: 0, view: DepthImage.View, layout: ImageLayout.General);
         layouts.WriteImage(set: TraceSet, binding: 1, view: RadianceImage.View, layout: ImageLayout.General);
         layouts.WriteStorageImage(set: TraceSet, binding: 3, image: hdr);
+        if (resolution is TraceResolution.Half)
+        {
+            TracedImage = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: new((extent.Width + 1) / 2, (extent.Height + 1) / 2),
+                format: RadianceFormat,
+                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+                mipLevels: 1,
+                name: "reflection trace"
+            );
+            layouts.WriteStorageImage(set: TraceSet, binding: 4, image: TracedImage);
+        }
     }
 
     /// <summary>Destroys the views and the images. Safe to call twice. The device must be idle.</summary>
@@ -194,6 +216,8 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         radianceMipViews = [];
         DepthImage.Dispose();
         RadianceImage.Dispose();
+        TracedImage?.Dispose();
+        TracedImage = null;
     }
 
     // The pool of the layouts frees the sets.

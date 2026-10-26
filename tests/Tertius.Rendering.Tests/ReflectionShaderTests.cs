@@ -7,7 +7,7 @@ namespace Tertius.Rendering.Tests;
 /// The trace and the cone of reflection_trace.comp pinned to their C# copy (docs/plans/screen-space-reflections.md, "GPU
 /// tests of the reflections"): the C# trace over the frame's own distance finds the pixel that the GPU reflects, and the
 /// C# cone gives the level of the radiance pyramid that the GPU reads, with the share of the ambient specular term that
-/// its coverage keeps.
+/// its coverage keeps. The half-resolution trace holds the same ray for each texel's representative pixel.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionShaderTests
@@ -78,6 +78,94 @@ public sealed class ReflectionShaderTests
             }
 
             compared.Should().BeGreaterThan(300, "most floor pixels below the wall reflect the inside of a tile");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void EachTexelOfTheHalfResolutionTraceHoldsTheRayOfItsRepresentativePixel()
+    {
+        float[] lit = RenderHdr(new NoReflections(), TiledWall).Hdr;
+        VulkanRenderer renderer = Headless(Reflections with { Resolution = TraceResolution.Half });
+        try
+        {
+            renderer.Render(TiledWall(renderer), 1f);
+            (float[] traced, int tracedWidth, int tracedHeight) = renderer.ReadReflectionTrace();
+            float[] distance = renderer.ReadDistance();
+            DepthPyramid pyramid = PyramidOf(renderer);
+            CameraView camera = renderer.LastScene.Camera;
+
+            (tracedWidth, tracedHeight).Should().Be((Width / 2, Height / 2));
+            int compared = 0;
+            for (int j = 116; j < tracedHeight; j += 2)
+            for (int i = 65; i < 255; i += 3)
+            {
+                // The representative pixel of texel (i, j) is the top-left pixel of its 2 × 2 block.
+                (int X, int Y) representative = (X: 2 * i, Y: 2 * j);
+                (RayTrace trace, _) = TraceFromFloor(
+                    camera: camera,
+                    distance: distance,
+                    pyramid: pyramid,
+                    pixel: representative,
+                    normal: FlatMapNormal,
+                    roughness: 0,
+                    maxSteps: Reflections.MaxSteps
+                );
+                if (
+                    trace is not RayHit hit
+                    || hit.EntryShare != 0
+                    || camera.EdgeFade(hit.Position) != 1
+                    || !InsideOneTile(lit, hit.Pixel)
+                )
+                    continue;
+                Vector3 expected = At(lit, hit.Pixel);
+                Vector3 shown = At(traced, (i, j), tracedWidth);
+                BrdfTesting
+                    .LargestChannelDifference(shown, expected)
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        0.02f * expected.Y,
+                        "texel ({0}, {1}) holds the tile of pixel {2}: shown {3}, expected {4}",
+                        i,
+                        j,
+                        hit.Pixel,
+                        shown,
+                        expected
+                    );
+                traced[4 * (j * tracedWidth + i) + 3]
+                    .Should()
+                    .BeApproximately(1, 1e-3f, "the cone covers only surface");
+                compared++;
+            }
+
+            compared
+                .Should()
+                .BeGreaterThan(150, "most texels of the floor below the wall reflect the inside of a tile");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ATexelWhoseRepresentativePixelStartsNoRayHoldsNoRay()
+    {
+        VulkanRenderer renderer = Headless(Reflections with { Resolution = TraceResolution.Half });
+        try
+        {
+            renderer.Render(TiledWall(renderer), 1f);
+            (float[] traced, int tracedWidth, _) = renderer.ReadReflectionTrace();
+
+            // The sky beside the wall, above the horizon, is no surface, so it starts no ray.
+            (int X, int Y) sky = PixelOf(new(-WallHalfWidth - 1, 0.5f, WallFront));
+            (int X, int Y) floor = PixelOf(new(0, FloorHeight, -5));
+            float CoverageOf((int X, int Y) pixel) => traced[4 * (pixel.Y / 2 * tracedWidth + pixel.X / 2) + 3];
+            CoverageOf(sky).Should().BeNegative("a negative coverage marks a texel with no ray");
+            CoverageOf(floor).Should().BeInRange(0, 1, "the mirror floor's ray hits the wall or misses");
         }
         finally
         {
