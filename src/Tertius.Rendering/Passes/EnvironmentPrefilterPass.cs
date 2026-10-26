@@ -137,31 +137,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, downsample);
         for (uint level = 1; level < levels; level++)
-        {
-            uint size = (uint)Math.Max(1, map.Setting.FaceSize >> (int)level);
-            BindSets(
-                vk: vk,
-                commandBuffer: commandBuffer,
-                firstSet: 1,
-                sets: [map.RadianceLevelSet((int)level - 1), map.RadianceLevelSet((int)level)]
-            );
-            for (int index = 0; index < drawn.Length; index++)
-                if (drawn[index])
-                {
-                    var push = new EnvironmentDownsamplePushConstants { LevelSize = size, Map = (uint)index };
-                    Push(
-                        vk: vk,
-                        commandBuffer: commandBuffer,
-                        push: &push,
-                        size: (uint)sizeof(EnvironmentDownsamplePushConstants)
-                    );
-                    Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
-                    // The next level reads the one just written, and the next map writes through the same view.
-                    AfterWrites(barriers: barriers, image: radiance, baseMip: level, mipCount: 1);
-                    barriers.Flush(vk, commandBuffer);
-                }
-        }
-
+            DownsampleLevel(vk: vk, commandBuffer: commandBuffer, barriers: barriers, level: level, drawn: drawn);
         barriers.ImageLevels(
             image: radiance,
             baseMip: 0,
@@ -173,6 +149,39 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             dstStages: PipelineStageFlags2.ComputeShaderBit,
             dstAccess: AccessFlags2.ShaderSampledReadBit
         );
+    }
+
+    /// <summary>Writes radiance level <paramref name="level"/> of each drawn map from the level above it.</summary>
+    private void DownsampleLevel(
+        Vk vk,
+        CommandBuffer commandBuffer,
+        BarrierBatch barriers,
+        uint level,
+        ReadOnlySpan<bool> drawn
+    )
+    {
+        uint size = (uint)Math.Max(1, map.Setting.FaceSize >> (int)level);
+        BindSets(
+            vk: vk,
+            commandBuffer: commandBuffer,
+            firstSet: 1,
+            sets: [map.RadianceLevelSet((int)level - 1), map.RadianceLevelSet((int)level)]
+        );
+        for (int index = 0; index < drawn.Length; index++)
+            if (drawn[index])
+            {
+                var push = new EnvironmentDownsamplePushConstants { LevelSize = size, Map = (uint)index };
+                Push(
+                    vk: vk,
+                    commandBuffer: commandBuffer,
+                    push: &push,
+                    size: (uint)sizeof(EnvironmentDownsamplePushConstants)
+                );
+                Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
+                // The next level reads the one just written, and the next map writes through the same view.
+                AfterWrites(barriers: barriers, image: map.Radiance, baseMip: level, mipCount: 1);
+                barriers.Flush(vk, commandBuffer);
+            }
     }
 
     /// <summary>
