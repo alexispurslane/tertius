@@ -437,7 +437,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateGBufferSetLayout(Sampler shadowSampler)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // The pyramid builds and the trace of the reflections read the G-buffer in compute shaders.
+        // Compute shaders read the G-buffer: the pyramid builds and the trace of the reflections, and the occlusion
+        // passes, which read the normals (binding 1) and the distance (binding 4).
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> gbuffer =
         [
@@ -639,7 +640,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // The pyramid builds and the trace of the reflections read the frame constants, the tables and the exposure.
+        // Compute shaders read these bindings: the pyramid builds and the trace of the reflections read the frame
+        // constants, the tables and the exposure, and the occlusion passes read the frame constants (binding 0).
         const ShaderStageFlags graphicsAndCompute = graphics | ShaderStageFlags.ComputeBit;
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> frame =
