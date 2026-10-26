@@ -1,6 +1,6 @@
 ---
 id: ter-bpvl
-status: open
+status: closed
 deps: [ter-zzyr, ter-3att, ter-cl86, ter-iz58, ter-wjib]
 links: []
 created: 2026-10-22T00:09:17Z

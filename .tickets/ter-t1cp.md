@@ -1,6 +1,6 @@
 ---
 id: ter-t1cp
-status: open
+status: in_progress
 deps: [ter-wjib, ter-542e]
 links: []
 created: 2026-10-25T16:58:27Z
