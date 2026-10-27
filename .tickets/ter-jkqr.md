@@ -1,6 +1,6 @@
 ---
 id: ter-jkqr
-status: open
+status: in_progress
 deps: [ter-dtw2]
 links: []
 created: 2026-10-11T13:52:10Z

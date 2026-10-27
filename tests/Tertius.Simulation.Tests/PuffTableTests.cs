@@ -260,6 +260,40 @@ public sealed class PuffTableTests
         test.World.Puffs.Looks.InUse.Should().Be(2);
     }
 
+    [Fact]
+    public void TheLooksThatOneStepFreesAreFreedInRowOrderSoTheLastRowsLookIsReusedFirst()
+    {
+        // Two emitters in slot order, each with a brief look of its own, make one puff each per step, so their rows take
+        // turns. Both switch to a hot look in the same tick, so the last brief puffs of the two die in the same step.
+        using var test = TestWorld.OnJolt(faults: out _);
+        FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 50);
+        var first = new SelfPilot();
+        var second = new SelfPilot();
+        SpawnEmitter(world: test.World, frame: a, place: Double3.Zero, emitter: Jet(Brief), first);
+        SpawnEmitter(
+            world: test.World,
+            frame: a,
+            place: new(5, 0, 0),
+            emitter: Jet(Brief with { EndRadius = 3 }),
+            second
+        );
+        test.Run(3);
+        Puff[] brief = Rows(test.World, a);
+        (int firstLook, int secondLook) = (brief[0].Look, brief[1].Look);
+        first.EveryTick = self => self.Render.Emitter = Jet(Hot);
+        second.EveryTick = self => self.Render.Emitter = Jet(Hot);
+        test.Run(30);
+        test.World.Puffs.Looks.UsersOf(firstLook).Should().Be(0, "the brief puffs died after a quarter of a second");
+        test.World.Puffs.Looks.UsersOf(secondLook).Should().Be(0);
+
+        first.EveryTick = self => self.Render.Emitter = Jet(Cold);
+        test.Run(3);
+
+        Rows(test.World, a)[^2]
+            .Look.Should()
+            .Be(secondLook, "the step freed the first emitter's look, then the second's, whose row came later");
+    }
+
     [Theory]
     [InlineData(7)]
     [InlineData(2024)]

@@ -11,7 +11,7 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public sealed class PuffSnapshotTests
 {
-    /// <summary>The hash of the snapshot puffs of <see cref="BusySceneWithCamera"/> after 300 ticks.</summary>
+    /// <summary>The hash of the snapshot puffs of <see cref="PuffTesting.BusySceneWithCamera"/> after 300 ticks.</summary>
     private const ulong PinnedHash = 17855250322041096263;
 
     /// <summary>
@@ -60,13 +60,6 @@ public sealed class PuffSnapshotTests
         return (world, camera, space, ship);
     }
 
-    private static RenderSnapshot Latest(World world)
-    {
-        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
-        RenderSnapshot snapshot = world.RenderSnapshots.ReadBuffer;
-        return snapshot;
-    }
-
     [Fact]
     public void ASnapshotShowsThePuffsOfTheEmittersInTheWorld()
     {
@@ -75,7 +68,7 @@ public sealed class PuffSnapshotTests
 
         Tick(world, 40);
 
-        RenderSnapshot snapshot = Latest(world);
+        RenderSnapshot snapshot = PuffTesting.Latest(world);
         PuffView view = world.Puffs.View;
         view.Ranges.ToArray()
             .Select(range => range.Frame)
@@ -115,84 +108,23 @@ public sealed class PuffSnapshotTests
         Tick(world, 10);
 
         world.Puffs.Count.Should().BePositive();
-        RenderSnapshot snapshot = Latest(world);
+        RenderSnapshot snapshot = PuffTesting.Latest(world);
         snapshot.Puffs.Should().BeEmpty("a snapshot without a camera shows nothing");
         snapshot.PuffLooks.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// The busy scene of the puff tests in air under gravity, with a cap that binds, seen from a camera on the ground: a
-    /// ball that drops on the floor with a jet on it, a thrusting hull with a jet below it and one in its own frame, and an
-    /// emitter whose look changes every tick.
-    /// </summary>
-    private static World BusySceneWithCamera()
-    {
-        World world = NewWorld(backend: out _, configure: options => options.PuffCapacity = 500);
-        FrameHandle ground = world.CreateRootFrame(
-            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), MediumField.Uniform(1.225f, 2))
-        );
-        Floor(world, ground);
-        world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = At(0, 5),
-                Body = Ball(),
-                Render = new RenderData { Emitter = new(Rate: 90, Speed: 8, Spread: 0.4f, Look: PuffTesting.Hot) },
-            }
-        );
-        var thruster = new Thruster(1000) { Acceleration = 2, Direction = Vector3.UnitY };
-        Entity hull = PuffTesting.Hull(world: world, space: ground, place: new(30, 3, 0), components: thruster);
-        PuffTesting.AttachEmitter(
-            world: world,
-            parent: hull,
-            offset: new(0, -2, 0),
-            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: PuffTesting.Hot)
-        );
-        PuffTesting.SpawnEmitter(
-            world: world,
-            frame: world.GetOwnedFrame(hull),
-            place: new(0, 1, 0),
-            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: PuffTesting.Cold)
-        );
-        var changer = new SelfPilot
-        {
-            EveryTick = self =>
-                self.Render.Emitter = new(
-                    Rate: 60,
-                    Speed: 5,
-                    Spread: 0.1f,
-                    Look: PuffTesting.Cold with
-                    {
-                        TemperatureRatio = 0.5f + self.Tick / 50 * 0.25f,
-                        Life = 1.5f,
-                    }
-                ),
-        };
-        PuffTesting.SpawnEmitter(world: world, frame: ground, place: new(-20, 10, 0), emitter: default, changer);
-        world.Camera = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = At(10, 2, 40),
-                Render = new RenderData(),
-            }
-        );
-        return world;
     }
 
     [Fact]
     public void TheSameRunGivesTheSameSnapshotPuffsBitForBit()
     {
-        using World first = BusySceneWithCamera();
-        using World second = BusySceneWithCamera();
+        using World first = PuffTesting.BusySceneWithCamera();
+        using World second = PuffTesting.BusySceneWithCamera();
 
         Tick(first, 300);
         Tick(second, 300);
 
-        RenderSnapshot firstSnapshot = Latest(first);
+        RenderSnapshot firstSnapshot = PuffTesting.Latest(first);
         firstSnapshot.Puffs.Should().HaveCount(500, "the cap binds in this scene");
-        WorldHash.OfPuffs(Latest(second)).Should().Be(WorldHash.OfPuffs(firstSnapshot));
+        WorldHash.OfPuffs(PuffTesting.Latest(second)).Should().Be(WorldHash.OfPuffs(firstSnapshot));
         // tools/test-all.sh runs this test in Debug and in Release, so both builds must give this hash.
         WorldHash.OfPuffs(firstSnapshot).Should().Be(PinnedHash);
         first.Errors.Should().BeEmpty();
