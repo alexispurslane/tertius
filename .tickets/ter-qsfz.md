@@ -1,6 +1,6 @@
 ---
 id: ter-qsfz
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T08:09:42Z
