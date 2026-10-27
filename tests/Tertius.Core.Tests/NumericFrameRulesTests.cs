@@ -346,11 +346,57 @@ public sealed class NumericFrameRulesTests
 
     private static IEnumerable<double> Ticks(double acceleration, int count) => Enumerable.Repeat(acceleration, count);
 
+    /// <summary>
+    /// A threshold that tells a count divided by the tick rate from a count times the double tick length: at 60 Hz,
+    /// 31 · (1.0 / 60) rounds to the double below 31 / 60.0, so a clock that multiplies reaches it one tick late.
+    /// </summary>
+    private const double ThirtyOneSixtieths = 31 / 60.0;
+
     [Fact]
     public void A_body_that_thrusts_on_every_tick_counts_from_the_thirtieth_tick_at_60_Hz() =>
         // Half a second of thrust: 30 ticks of a sixtieth of a second, counted, not summed: 30 sums of 1.0 / 60 give
         // 0.49999999999999994 s.
         RunClock(60, Ticks(1, 40)).FindIndex(clock => clock.Thrusts).Should().Be(29);
+
+    [Fact]
+    public void A_body_that_thrusts_on_every_tick_reaches_an_onset_of_31_sixtieths_of_a_second_at_its_31st_tick_at_60_Hz()
+    {
+        (bool Thrusts, long ThrustTicks, long QuietTicks) clock = (false, 0, 0);
+        var thrusts = new List<bool>();
+        for (int tick = 0; tick < 31; tick++)
+        {
+            clock = ThrustClock(
+                acceleration: 1,
+                thrustTicks: clock.ThrustTicks,
+                quietTicks: clock.QuietTicks,
+                ticks: 1,
+                tickRate: 60,
+                options: Options with
+                {
+                    ThrustOnset = ThirtyOneSixtieths,
+                }
+            );
+            thrusts.Add(clock.Thrusts);
+        }
+
+        thrusts.IndexOf(true).Should().Be(30, "31 ticks at 60 Hz last 31 / 60.0 s, as the world clock divides them");
+    }
+
+    [Fact]
+    public void A_quiet_window_of_31_sixtieths_of_a_second_starts_the_clock_again_at_the_31st_quiet_tick_at_60_Hz() =>
+        ThrustClock(
+                acceleration: 0,
+                thrustTicks: 1,
+                quietTicks: 30,
+                ticks: 1,
+                tickRate: 60,
+                options: Options with
+                {
+                    ThrustWindow = ThirtyOneSixtieths,
+                }
+            )
+            .Should()
+            .Be((false, 0L, 0L), "31 quiet ticks at 60 Hz last 31 / 60.0 s, as the world clock divides them");
 
     [Fact]
     public void A_single_tick_of_thrust_never_counts_however_strong() =>
@@ -727,6 +773,21 @@ public sealed class NumericFrameRulesTests
         SplitClock(together: false, apart: 3, ticks: 1, tickRate: 4, options: Options).Should().Be((false, 0L));
 
     [Fact]
+    public void Members_split_at_the_31st_tick_apart_under_a_cooldown_of_31_sixtieths_of_a_second_at_60_Hz() =>
+        SplitClock(
+                together: false,
+                apart: 30,
+                ticks: 1,
+                tickRate: 60,
+                options: Options with
+                {
+                    SplitCooldown = ThirtyOneSixtieths,
+                }
+            )
+            .Should()
+            .Be((false, 0L), "31 ticks at 60 Hz last 31 / 60.0 s, as the world clock divides them");
+
+    [Fact]
     public void A_sync_point_without_time_holds_members_that_are_apart() =>
         SplitClock(together: false, apart: 0, ticks: 0, tickRate: 4, options: Options).Should().Be((true, 0L));
 
@@ -795,6 +856,22 @@ public sealed class NumericFrameRulesTests
             )
             .Should()
             .Be((false, 60L));
+
+    [Fact]
+    public void A_body_leaves_at_its_31st_tick_under_a_cooldown_of_31_sixtieths_of_a_second_at_60_Hz() =>
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 30,
+                ticks: 1,
+                tickRate: 60,
+                options: Options with
+                {
+                    SplitCooldown = ThirtyOneSixtieths,
+                }
+            )
+            .Should()
+            .Be((false, 31L), "31 ticks at 60 Hz last 31 / 60.0 s, as the world clock divides them");
 
     [Fact]
     public void A_clock_past_the_cooldown_keeps_counting_so_that_another_member_cannot_restart_it() =>

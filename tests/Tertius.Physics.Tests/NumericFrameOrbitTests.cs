@@ -353,10 +353,12 @@ public sealed class NumericFrameOrbitTests
     /// Without a first motion intent, the hull holds still for its first step, and K lands on that plan, so K loses the
     /// orbit's 7.66 km/s in one step (ticket ter-zsku). The body moves on by the field alone: physics converts its spawn
     /// velocity with half a step of K's step acceleration, K's instant velocity where the step starts. Its float velocity in
-    /// K holds the orbit's speed for that step and rounds there, where a float step of velocity is 0.49 mm/s: a rock's once
-    /// in the narrowing, by up to 0.24 mm/s, and a character's also in the float sums of its velocity rule with a step of
-    /// a gravity of 4.6e5 m/s², by up to 0.73 mm/s in all. Jolt's longer float step moves it 6.7 µm further in that step.
-    /// So after the second it is within 0.75 mm of its orbit (measured 0.14 mm for a rock and 0.34 mm for a character).
+    /// K holds the orbit's speed for that step, and Jolt integrates K's linear gravity of about ±4.6e5 m/s² in floats in
+    /// both of K's first two steps. So the float operations of both steps round at the scale of 7.66 km/s, where half a
+    /// float step of velocity is 0.24 mm/s. Jolt's step, 5.2e-8 of a tick longer than the tick, adds about 13 µm. The bound
+    /// is the measured error after the second, 0.14 mm for a rock and 0.34 mm for a character, plus a margin of 0.46 mm, a
+    /// little under one float step of velocity at that speed (0.49 mm/s) held for the second: 0.8 mm. It is no worst case
+    /// from a count of the float operations.
     /// When the conversion took the plan's instant velocity past its chord at the end of the step, the body
     /// lost half the orbit's speed and was 3.8 km off its orbit after the second.
     /// </para>
@@ -399,7 +401,7 @@ public sealed class NumericFrameOrbitTests
         Tick(world, 59);
 
         Double3 off = world.PoseIn(body, earth).Position - own.StateAt(world.Time, Scenes.EarthMu).Position;
-        off.Length.Should().BeLessThan(firstMove ? 2e-6 : 7.5e-4, $"the body keeps its orbit, but is off by {off}");
+        off.Length.Should().BeLessThan(firstMove ? 2e-6 : 8e-4, $"the body keeps its orbit, but is off by {off}");
         world.Errors.Should().BeEmpty();
     }
 

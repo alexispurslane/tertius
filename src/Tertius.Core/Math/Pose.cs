@@ -58,7 +58,7 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 /// is a little off unit length, such as a float quaternion from Jolt. <see cref="TransformPoint"/>,
 /// <see cref="TransformDirection"/>
 /// and the two inverse transforms use the rotation as it is, for speed. They need a unit rotation, which the frame tree keeps
-/// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants()"/>), and which <see cref="Compose"/>
+/// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants(int)"/>), and which <see cref="Compose"/>
 /// gives.
 /// <see cref="ComposeUnitParent"/> is <see cref="Compose"/> without the normalization of the parent's rotation, for a hot
 /// path where the parent is unit length already.

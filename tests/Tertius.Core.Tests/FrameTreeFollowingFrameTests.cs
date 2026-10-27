@@ -204,7 +204,7 @@ public sealed class FrameTreeFollowingFrameTests
                 moves.AddRange(handed);
             }
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
         [
@@ -283,7 +283,7 @@ public sealed class FrameTreeFollowingFrameTests
                 );
         }
 
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
@@ -932,16 +932,11 @@ public sealed class FrameTreeFollowingFrameTests
         );
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
-        frames.SetLocalPose(pod, new(place + new Double3(5, 0, 0), DQuaternion.Identity));
-        frames.SetTreeLinearVelocity(pod, velocity + new Double3(0, 1, 0));
-        NumericBody podHull = Crate(
-            id: 11,
-            position: place + new Double3(5, 0, 0),
-            velocity: velocity + new Double3(0, 1, 0)
-        ) with
-        {
-            OwnedFrame = pod,
-        };
+        Double3 podPlace = place + new Double3(5, 0, 0);
+        Double3 podChord = velocity + new Double3(0, 1, 0);
+        frames.SetLocalPose(pod, new(podPlace, DQuaternion.Identity));
+        frames.SetTreeLinearVelocity(pod, podChord);
+        NumericBody podHull = Crate(id: 11, position: podPlace, velocity: podChord) with { OwnedFrame = pod };
         NumericBody[] after = Update(Hull(station), podHull);
         FrameHandle orbit = after[0].Home;
         after[1].Home.Should().Be(orbit, "the pod's hull joins the following frame");
@@ -984,7 +979,7 @@ public sealed class FrameTreeFollowingFrameTests
             .Length.Should()
             .BeLessThan(1e-9, "the pod keeps its velocity in earth");
         changes.FramesShifted.Should().Equal(new FrameShift(orbit, offset, change));
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
@@ -1177,7 +1172,7 @@ public sealed class FrameTreeFollowingFrameTests
             .HullMotion(station)
             .Should()
             .Be(BodyMotion.Kinematic, "the stored motion changes only after the next step");
-        frames.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic));
+        frames.AssertInvariants(tickRate: 60, stepIntents: StepIntents.Changing(station, BodyMotion.Dynamic));
     }
 
     // The World skips its second pass over the owner views of a sync point while the owner view stamp has not changed
@@ -1210,7 +1205,7 @@ public sealed class FrameTreeFollowingFrameTests
 
         frames.Numeric(orbit).Should().Be(NumericMode.Following);
         frames.InFollowingFrame(station).Should().BeTrue();
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     /// <summary>
@@ -1241,11 +1236,13 @@ public sealed class FrameTreeFollowingFrameTests
         frames.PlanHullMotion(station, BodyMotion.Dynamic);
 
         frames
-            .Invoking(tree => tree.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic)))
+            .Invoking(tree =>
+                tree.AssertInvariants(tickRate: 60, stepIntents: StepIntents.Changing(station, BodyMotion.Dynamic))
+            )
             .Should()
             .NotThrow();
         frames
-            .Invoking(tree => tree.AssertInvariants())
+            .Invoking(tree => tree.AssertInvariants(tickRate: 60))
             .Should()
             .Throw<ContractException>(
                 "without the change the hull is kinematic, and so cannot hang in a falling frame"
@@ -1261,7 +1258,7 @@ public sealed class FrameTreeFollowingFrameTests
 
         frames.SetTreeLocalPose(station, new(new(1, 0, 0), frames.TreeLocalPose(station).Rotation));
 
-        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
         frames.Numeric(orbit).Should().Be(NumericMode.Following);
     }
 
@@ -1281,7 +1278,7 @@ public sealed class FrameTreeFollowingFrameTests
 
         frames.Numeric(orbit).Should().Be(NumericMode.Falling, "the crate falls on in it");
         frames.InFollowingFrame(station).Should().BeFalse();
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
@@ -1301,7 +1298,7 @@ public sealed class FrameTreeFollowingFrameTests
 
         frames.Numeric(orbit).Should().Be(NumericMode.Falling);
         frames.AnchorGhosts.IsEmpty.Should().BeTrue("the hull is gone");
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]

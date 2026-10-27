@@ -51,6 +51,11 @@ public sealed partial class World : IDisposable
     private readonly Action<int> runChunk;
     private readonly List<string> errors = [];
     private readonly List<string> pendingLog = [];
+
+    // The tick rate and the start time of the options, read once when the world is created: the caller keeps the options
+    // object and may change it later (see WorldOptions).
+    private readonly int tickRate;
+    private readonly double startTime;
     private bool inTick;
     private bool disposed;
     private long fallbackSpawnTotal;
@@ -76,8 +81,10 @@ public sealed partial class World : IDisposable
         EngineEvents.Register();
         ComponentTypes.ScanLoadedAssemblies();
         Physics = physics;
-        DeltaTime = 1.0 / Options.TickRate;
-        Time = Options.StartTime;
+        tickRate = Options.TickRate;
+        startTime = Options.StartTime;
+        DeltaTime = 1.0 / tickRate;
+        Time = startTime;
         parallelOptions = new() { MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
 
@@ -390,6 +397,30 @@ public sealed partial class World : IDisposable
         Puffs.AssertInvariants();
 
         Contract.Invariant(dying.Count == 0);
+        AssertIntentInvariants();
+        foreach (Entity entity in Entities.LiveEntities)
+            AssertRowInvariants(entity);
+        for (int i = 0; i < Frames.Count; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            // A numeric frame has no owner and no topic: nothing public can name it.
+            if (Frames.IsNumeric(frame))
+                continue;
+            Contract.Invariant(
+                Entities.IsAlive(frame.Entity) && Entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame)
+            );
+        }
+
+        // The numeric frames are planned for the next step, which applies the front intents.
+        Frames.AssertInvariants(tickRate, Entities.FrontIntents.Span);
+    }
+
+    /// <summary>
+    /// The invariants of the intents, the frameless movers, the attachments and the bodies' centers of mass (see the list of
+    /// invariants of <see cref="AssertInvariants"/>). For <see cref="AssertInvariants"/> only.
+    /// </summary>
+    private void AssertIntentInvariants()
+    {
         foreach (Entity entity in Entities.IntentEntities.Span)
             Contract.Invariant(Entities.NextStepIntent(entity).Frame == Entities.BackRow(entity).Frame);
         foreach (Entity entity in framelessMovers)
@@ -409,71 +440,69 @@ public sealed partial class World : IDisposable
                     Entities.Body(entity) is { } body
                         && Entities.BodyCenterOfMass(entity) == Physics.ShapeCenterOfMass(body.Shape)
                 );
-        foreach (Entity entity in Entities.LiveEntities)
+    }
+
+    /// <summary>
+    /// The invariants of the transform row of the live <paramref name="entity"/>: its frame, its physics home, the row of the
+    /// frame that it owns and its standing flag (see the list of invariants of <see cref="AssertInvariants"/>). For
+    /// <see cref="AssertInvariants"/> only.
+    /// </summary>
+    private void AssertRowInvariants(Entity entity)
+    {
+        ref readonly TransformRow row = ref Entities.BackRow(entity);
+        FrameHandle own = Entities.OwnedFrame(entity);
+        if (row.Frame.IsNull)
+            Contract.Invariant(!own.IsNull && Frames.Parent(own).IsNull);
+        else
+            Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
+        // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
+        Contract.Invariant(
+            row.PhysicsHome == row.Frame
+                || (
+                    !row.Frame.IsNull
+                    && Frames.IsAlive(row.PhysicsHome)
+                    && Frames.SemanticOf(row.PhysicsHome) == row.Frame
+                )
+        );
+        if (row.PhysicsHome != row.Frame)
         {
-            ref readonly TransformRow row = ref Entities.BackRow(entity);
-            FrameHandle own = Entities.OwnedFrame(entity);
-            if (row.Frame.IsNull)
-                Contract.Invariant(!own.IsNull && Frames.Parent(own).IsNull);
-            else
-                Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
-            // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
-            Contract.Invariant(
-                row.PhysicsHome == row.Frame
-                    || (
-                        !row.Frame.IsNull
-                        && Frames.IsAlive(row.PhysicsHome)
-                        && Frames.SemanticOf(row.PhysicsHome) == row.Frame
-                    )
-            );
-            if (row.PhysicsHome != row.Frame)
-            {
-                // The sums round at the scale of the larger term, a few times at most.
-                Double3 offset = Frames.HomeOffset(row.PhysicsHome, row.Frame);
-                double scale = Math.Max(offset.Length, row.HomePosition.Length);
-                Contract.Invariant((offset + row.HomePosition - row.Pose.Position).Length <= 1e-12 * scale + 1e-9);
-            }
-
-            if (!own.IsNull)
-            {
-                Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
-                TransformRow mirror = FrameOwnerRow(own);
-                Contract.Invariant(
-                    row.Frame == mirror.Frame
-                        && row.PhysicsHome == mirror.PhysicsHome
-                        && Poses.BitEquals(row.Pose, mirror.Pose)
-                        && Poses.BitEquals(row.HomePose, mirror.HomePose)
-                );
-                Contract.Invariant(
-                    row.LinearVelocity.Equals(mirror.LinearVelocity)
-                        && row.AngularVelocity.Equals(mirror.AngularVelocity)
-                );
-                BodyMotion? hullMotion = Frames.HullMotion(own);
-                if (Frames.Parent(own).IsNull || Entities.Body(entity) is not { } hull)
-                    Contract.Invariant(hullMotion is null);
-                else
-                    Contract.Invariant(
-                        hullMotion is { } motion && (hull with { Motion = motion }).Problem(BodyRole.Hull) is null
-                    );
-            }
-
-            if (characterStanding[entity])
-                Contract.Invariant(Entities.Body(entity) is { Motion: BodyMotion.Character });
+            // The sums round at the scale of the larger term, a few times at most.
+            Double3 offset = Frames.HomeOffset(row.PhysicsHome, row.Frame);
+            double scale = Math.Max(offset.Length, row.HomePosition.Length);
+            Contract.Invariant((offset + row.HomePosition - row.Pose.Position).Length <= 1e-12 * scale + 1e-9);
         }
 
-        for (int i = 0; i < Frames.Count; i++)
-        {
-            FrameHandle frame = Frames.AtDense(i);
-            // A numeric frame has no owner and no topic: nothing public can name it.
-            if (Frames.IsNumeric(frame))
-                continue;
-            Contract.Invariant(
-                Entities.IsAlive(frame.Entity) && Entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame)
-            );
-        }
+        if (!own.IsNull)
+            AssertOwnerRowInvariants(entity, own, in row);
+        if (characterStanding[entity])
+            Contract.Invariant(Entities.Body(entity) is { Motion: BodyMotion.Character });
+    }
 
-        // The numeric frames are planned for the next step, which applies the front intents.
-        Frames.AssertInvariants(Entities.FrontIntents.Span);
+    /// <summary>
+    /// The invariants of the owner <paramref name="entity"/> of the frame <paramref name="own"/>, whose transform row is
+    /// <paramref name="row"/>: the frame's row in the tree gives the same row, and the tree keeps the motion of its hull.
+    /// For <see cref="AssertInvariants"/> only.
+    /// </summary>
+    private void AssertOwnerRowInvariants(Entity entity, FrameHandle own, in TransformRow row)
+    {
+        Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
+        TransformRow mirror = FrameOwnerRow(own);
+        Contract.Invariant(
+            row.Frame == mirror.Frame
+                && row.PhysicsHome == mirror.PhysicsHome
+                && Poses.BitEquals(row.Pose, mirror.Pose)
+                && Poses.BitEquals(row.HomePose, mirror.HomePose)
+        );
+        Contract.Invariant(
+            row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity)
+        );
+        BodyMotion? hullMotion = Frames.HullMotion(own);
+        if (Frames.Parent(own).IsNull || Entities.Body(entity) is not { } hull)
+            Contract.Invariant(hullMotion is null);
+        else
+            Contract.Invariant(
+                hullMotion is { } motion && (hull with { Motion = motion }).Problem(BodyRole.Hull) is null
+            );
     }
 
     // ---- Helpers --------------------------------------------------------------------------------------------------

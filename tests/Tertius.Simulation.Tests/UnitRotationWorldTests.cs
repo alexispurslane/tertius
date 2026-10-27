@@ -5,7 +5,7 @@ using Tertius.Physics;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// Ticket ter-swgm. The local rotation of every frame is a unit quaternion (see <see cref="FrameTree.AssertInvariants()"/>
+/// Ticket ter-swgm. The local rotation of every frame is a unit quaternion (see <see cref="FrameTree.AssertInvariants(int)"/>
 /// ).
 /// A caller can give the world a rotation that is not unit length: a spawn description, or a component that writes its
 /// transform. The world normalizes it where it takes it, and does not refuse it. A rotation that physics reports is unit

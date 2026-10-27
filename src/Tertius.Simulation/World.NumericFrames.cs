@@ -52,7 +52,7 @@ public sealed partial class World
         Frames.UpdateNumericFrames(
             bodies: CollectionsMarshal.AsSpan(numericBodies),
             ticks: ticks,
-            tickRate: Options.TickRate,
+            tickRate: tickRate,
             changes: physicsChanges,
             applyMoves: applyNumericMoves ??= ApplyNumericMoves
         );

@@ -60,7 +60,7 @@ public sealed class FrameTreeThrustTests
             changes: changes,
             applyMoves: moves.AddRange
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
         [
@@ -148,5 +148,16 @@ public sealed class FrameTreeThrustTests
         // A ship that parks: its hull turns static. The invariant check of every update finds no clock for a static body.
         NumericBody body = UpdateTimes(2, 15, Body(id: 10, x: 100, vx: 0, thrust: 1));
         Update(15, body with { Static = true, ThrustAcceleration = 0 });
+    }
+
+    [Fact]
+    public void The_invariant_check_rejects_a_thrust_clock_whose_quiet_ticks_reach_the_window()
+    {
+        // A second of quiet after a thrust, 60 quiet ticks at 60 Hz: a window shrunk to one second leaves a clock that the
+        // update never makes.
+        NumericBody body = UpdateTimes(1, 15, Body(id: 10, x: 100, vx: 0, thrust: 1));
+        UpdateTimes(4, 15, body with { ThrustAcceleration = 0 });
+        frames.NumericOptions = frames.NumericOptions with { ThrustWindow = 1 };
+        frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
     }
 }

@@ -113,7 +113,7 @@ public sealed class FrameTreePlainAnchorTests
                 moves.AddRange(handed);
             }
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return
         [
@@ -252,7 +252,7 @@ public sealed class FrameTreePlainAnchorTests
         frames.AnchorGhosts.IsEmpty.Should().BeTrue("no ghost stands for an anchor that has no following frame");
         frames.NumericCount.Should().Be(0);
         frames.IsAlive(space).Should().BeTrue("the dying frame's parent survives");
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     /// <summary>
@@ -280,7 +280,7 @@ public sealed class FrameTreePlainAnchorTests
             .BeTrue("the second anchor has no following frame, so no frame keeps a ghost of it");
         frames.Anchors(firstHome, both[0].Entity).Should().BeTrue("the first anchor keeps its frame");
         frames.NumericCount.Should().Be(1);
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     /// <summary>

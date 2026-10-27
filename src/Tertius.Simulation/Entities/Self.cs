@@ -37,6 +37,12 @@ public readonly ref struct Self
     /// <summary>Simulation time at the start of this tick, in seconds.</summary>
     public double Time => world.Time;
 
+    /// <summary>
+    /// The length of <paramref name="ticks"/> ticks, in seconds, as the world clock divides it (see
+    /// <see cref="World.Seconds"/>). A component that counts ticks compares this with a time in seconds.
+    /// </summary>
+    public double Seconds(long ticks) => world.Seconds(ticks);
+
     /// <summary>The frame that this entity owns, or null when it owns none.</summary>
     public FrameHandle OwnedFrame => world.Entities.OwnedFrame(Entity);
 

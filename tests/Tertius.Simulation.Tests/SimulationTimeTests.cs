@@ -51,6 +51,20 @@ public sealed class SimulationTimeTests
     }
 
     [Fact]
+    public void AWorldKeepsTheTickRateAndTheStartTimeOfItsOptionsWhenTheCallerChangesThemLater()
+    {
+        var options = new WorldOptions { TickRate = 60, StartTime = 12.25 };
+        using var world = new World(options);
+        options.TickRate = 50;
+        options.StartTime = 0;
+
+        for (int i = 0; i < 60; i++)
+            world.Tick();
+
+        world.Time.Should().Be(13.25, "the world reads its options once, when it is created");
+    }
+
+    [Fact]
     public void TheTimeThatATickHoldsIsTimeAtOfThatTick()
     {
         using var test = new TestWorld(configure: options => options.StartTime = 12.25);

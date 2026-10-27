@@ -514,7 +514,6 @@ public sealed partial class FrameTree
             tickRate: tickRate,
             options: NumericOptions
         );
-        Contract.Ensures(NumericFrameRules.Seconds(quietTicks, tickRate) < NumericOptions.ThrustWindow);
         if (thrustTicks > 0)
             nextThrustClocks[body.Entity] = (thrustTicks, quietTicks);
         return body.Character || thrusts;

@@ -76,7 +76,7 @@ public sealed class FrameTreeOwnerViewStampTests
                     after = move.To;
             }
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         return after;
     }
 

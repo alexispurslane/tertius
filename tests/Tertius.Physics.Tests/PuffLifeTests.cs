@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 public sealed class PuffLifeTests
 {
     /// <summary>The hash of the puffs of <see cref="BusyScene"/> after 300 ticks.</summary>
-    private const ulong PinnedHash = 15744351045624707473;
+    private const ulong PinnedHash = 13950460896152137838;
 
     private static int Count(World world) => world.Puffs.Count;
 

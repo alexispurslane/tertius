@@ -155,7 +155,7 @@ public sealed class FrameTreeGhostPlaceTests
                 handedMoves.AddRange(handed);
             }
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         moves = handedMoves;
         var homes = handedMoves.ToDictionary(move => move.Entity, move => move.To);
         foreach (NumericMove move in handedMoves)
@@ -1271,7 +1271,7 @@ public sealed class FrameTreeGhostPlaceTests
         frames.Destroy(ship);
 
         frames.TreeParent(room).Should().Be(ground, "no hull of the room lives in a numeric frame");
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
@@ -1303,7 +1303,7 @@ public sealed class FrameTreeGhostPlaceTests
 
         frames.Reparent(hall, pod);
 
-        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
     }
 
     // ---- Cost ---------------------------------------------------------------------------------------------------------

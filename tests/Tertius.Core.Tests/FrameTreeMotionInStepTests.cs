@@ -22,6 +22,9 @@ namespace Tertius.Core.Tests;
 public sealed class FrameTreeMotionInStepTests
 {
     private const double Step = 1.0 / 60;
+
+    /// <summary>The step by which physics moves a dynamic hull: the float nearest the tick (ARCHITECTURE.md, "Threads and the tick").</summary>
+    private const double PhysicsStep = (float)Step;
     private const double StationRate = 0.31321;
     private static readonly FrameSpin StationSpin = new(Tilt: DQuaternion.Identity, Rate: StationRate);
 
@@ -317,18 +320,57 @@ public sealed class FrameTreeMotionInStepTests
             step: Step
         );
 
-        Double3 spin = frames.AngularVelocity(ship) + new Double3(0, 0, 0.1) * Step;
-        var rotation = DQuaternion.FromAxisAngle(spin, spin.Length * Step);
+        Double3 spin = frames.AngularVelocity(ship) + new Double3(0, 0, 0.1) * PhysicsStep;
+        var rotation = DQuaternion.FromAxisAngle(spin, spin.Length * PhysicsStep);
         Double3 acceleration =
             rotation.Rotate((Double3)thrust) + new Double3(StationRate * StationRate * 50, 0, 2 * StationRate);
         var expected = new FrameMotion(
-            Pose: new(new Double3(50, 0, 0) + (new Double3(1, 0, 0) + acceleration * (Step / 2)) * Step, rotation),
-            Velocity: new Double3(1, 0, 0) + acceleration * Step,
+            Pose: new(
+                new Double3(50, 0, 0) + (new Double3(1, 0, 0) + acceleration * (PhysicsStep / 2)) * PhysicsStep,
+                rotation
+            ),
+            Velocity: new Double3(1, 0, 0) + acceleration * PhysicsStep,
             AngularVelocity: spin,
             Acceleration: acceleration,
             AngularAcceleration: new(0, 0, 0.1)
         );
         ExpectMotion(actual: end, expected: expected, tolerance: 1e-9, which: "the end's");
+    }
+
+    [Fact]
+    public void ALevelWithAFastDynamicHullEndsTheStepWherePhysicsMovesItOverItsOwnFloatStep()
+    {
+        // The ship coasts at 1,024 m/s along +X in space, which has no field, and spins at 0.3 rad/s about +Y. Physics moves
+        // the hull by its velocity over its own step, the float nearest the tick, and the frame takes the hull's place at
+        // the sync point. So the prediction carries it 1,024 · (float)(1 / 60) m: a prediction over the tick would fall
+        // 8.9e-7 m short. The row keeps the rate as a float, 0.3f.
+        FrameHandle ship = Frame(space, Double3.Zero, BodyMotion.Dynamic);
+        var record = new MotionSample(
+            Pose: DPose.Identity,
+            ChordVelocity: new(1024, 0, 0),
+            Velocity: new(1024, 0, 0),
+            Acceleration: Double3.Zero,
+            AngularVelocity: new(0, 0.3, 0),
+            AngularAcceleration: Double3.Zero
+        );
+        RunStep(Intents(), new StepOwners().WithHullRecord(ship, record));
+        DPose start = frames.TreeLocalPose(ship);
+
+        (_, FrameMotion end) = frames.MotionRelativeInStep(of: ship, to: space, stepIntents: Intents(), step: Step);
+
+        ExpectNear(
+            actual: end.Pose.Position,
+            expected: start.Position + new Double3(1024 * PhysicsStep, 0, 0),
+            tolerance: 1e-12,
+            what: "the end's place"
+        );
+        ExpectNear(
+            actual: end.Pose.Rotation,
+            expected: DQuaternion.FromAxisAngle(Double3.UnitY, frames.AngularVelocity(ship).Y * PhysicsStep)
+                * start.Rotation,
+            tolerance: 1e-13,
+            what: "the end's rotation"
+        );
     }
 
     [Fact]

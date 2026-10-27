@@ -286,7 +286,9 @@ public sealed class PlumeTests : IDisposable
     /// their birth while the hull speeds away along its nose, so every puff lies aft of the nozzle, in the hull's axes, or
     /// at the nozzle itself. At 240 puffs a second a tick of 1/60 s gathers 4 puffs exactly, so the last puff of every step
     /// is born at its end, with age 0, where the main engine's part is: at the nozzle's Z as its float offset holds it,
-    /// 7.7 rounded to a float.
+    /// 7.7 rounded to a float. The test reads a puff's place in the hull's axes through the inverse of the hull's pose, a
+    /// round trip in doubles that rounds by about |hull position| ε ≈ 1e-14 m of either sign, so the bound allows 1e-9 m
+    /// (measured: a tilt of the launch by 1e-3 rad puts the newborn 1.4e-14 m inside the nozzle's Z).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -309,7 +311,7 @@ public sealed class PlumeTests : IDisposable
             hull.Inverse()
                 .TransformPoint(puff.Place)
                 .Z.Should()
-                .BeGreaterThanOrEqualTo((float)Shuttle.NozzleZ, "a puff falls behind the hull");
+                .BeGreaterThanOrEqualTo((float)Shuttle.NozzleZ - 1e-9, "a puff falls behind the hull");
     }
 
     /// <summary>

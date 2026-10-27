@@ -88,7 +88,7 @@ public sealed class FrameProperAccelerationTests
             .ProperAcceleration(cabin)
             .Should()
             .Be(new Vector3(0, 9.81f, 0), "a skipped update changes nothing, as for the velocities");
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]

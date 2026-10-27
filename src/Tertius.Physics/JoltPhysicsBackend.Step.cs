@@ -890,7 +890,7 @@ public sealed partial class JoltPhysicsBackend
     )
     {
         // The update moves the body along its inertial line over the tick, in doubles. Jolt integrates the force and moves the
-        // body by its velocity over its own float step, a little longer than the tick, so the velocity that Jolt holds is the
+        // body by its velocity over its own float step, which differs from the tick, so the velocity that Jolt holds is the
         // chord over the tick times the tick over Jolt's step (ARCHITECTURE.md, "Threads and the tick").
         double dt = stepDt;
         float joltStep = (float)stepDt;
@@ -904,25 +904,17 @@ public sealed partial class JoltPhysicsBackend
         );
         bool impulse = record.ImpulseStep == stepIndex;
         Double3 velocityChange = impulse ? record.ImpulseVelocityChange * (jolt / dt) : Double3.Zero;
-        Double3 behind = chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange);
-        Double3 semanticPlace = frames.InSemantic(frame, frames.SemanticOf(frame), place);
         // A force of the intent, which Jolt adds to the velocity in the step, unturned.
         Vector3 intentForce;
         JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
-        // The update's chord of the step in flight, relative to the home, before Jolt's damping. The field part of the linear
-        // gravity, which is the linear gravity plus the home's acceleration, acts at the start of the step, in the axes then,
-        // so the turn of the step carries it into the axes at the end: x_(n+1) gains R_n g dt². The home's acceleration is
-        // motion in the semantic frame's coordinates, which takes no turn. A force of the intent is fixed in the frame's axes
-        // too, and acts at the start of the step as the field does, so the update adds the part of its turn that Jolt leaves
-        // out: Jolt adds F / m · dt, and the turned force is R_n F / m · dt.
-        Double3 field = linear + homeAcceleration;
-        Double3 ahead =
-            behind
-            + turns.FreeChange(semanticPlace, behind, dt)
-            + (turns.Step.Turn.Rotate(field) - homeAcceleration) * dt
-            - homeVelocity;
-        if (intentForce != Vector3.Zero)
-            ahead += (turns.Step.Turn.Rotate((Double3)intentForce) - intentForce) * (dt / record.Material.Mass);
+        Double3 ahead = TurningChordAhead(
+            behind: chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange),
+            semanticPlace: frames.InSemantic(frame, frames.SemanticOf(frame), place),
+            turns: turns,
+            home: (homeVelocity, homeAcceleration),
+            linear: linear,
+            intent: ((Double3)intentForce, record.Material.Mass)
+        );
         // Jolt's damping factor, in floats, as Jolt computes it.
         float damping = MathF.Max(0f, 1f - record.Material.LinearDamping * joltStep);
         float inverseMass = body.MotionProperties.InverseMassUnchecked;
@@ -945,20 +937,56 @@ public sealed partial class JoltPhysicsBackend
         // turn takes that lean out of the force, so a total without it would read as a push of the floor across itself.
         record.FrameAcceleration = new(linear.ToVector3(), (acceleration - linear).ToVector3());
         // Jolt's step: v + dt (m⁻¹ F) for the accumulated force, which holds a force of the intent, then the damping.
-        Double3 next = chordAfter * damping;
         record.Shadow =
             damping > 0
-                ? new(
-                    new(
-                        Chord: next,
-                        Place: place + next * dt,
-                        JoltTarget: (velocity + joltStep * (inverseMass * (intentForce + force))) * damping,
-                        Step: stepIndex
-                    )
+                ? ShadowAfterStep(
+                    chord: chordAfter * damping,
+                    place: place,
+                    joltTarget: (velocity + joltStep * (inverseMass * (intentForce + force))) * damping
                 )
                 : default;
         if (!record.IsCharacter)
             ApplyTurningAngularForm(record: record, body: body, turns: turns, impulse: impulse);
+    }
+
+    /// <summary>
+    /// The velocity shadow of a body that the two-turn update gives the chord <paramref name="chord"/> over the step in
+    /// flight from <paramref name="place"/>, and that Jolt ends at the float velocity <paramref name="joltTarget"/>.
+    /// </summary>
+    private VelocityShadow ShadowAfterStep(Double3 chord, Double3 place, Vector3 joltTarget) =>
+        new(new ShadowTracking(Chord: chord, Place: place + chord * stepDt, JoltTarget: joltTarget, Step: stepIndex));
+
+    /// <summary>
+    /// The two-turn update's chord of the step in flight, relative to the home, before Jolt's damping and the intent's
+    /// force, from the semantic chord <paramref name="behind"/> of the step that ended at <paramref name="semanticPlace"/>.
+    /// The field part of the linear gravity <paramref name="linear"/>, which is the linear gravity plus the home's
+    /// acceleration, acts at the start of the step, in the axes then, so the turn of the step carries it into the axes at
+    /// the end: x_(n+1) gains R_n g dt². The home's acceleration is motion in the semantic frame's coordinates, which takes
+    /// no turn. The intent's force is fixed in the frame's axes too, and acts at the start of the step as the field does,
+    /// so the chord holds the part of its turn that Jolt leaves out: Jolt adds F / m · dt, and the turned force is
+    /// R_n F / m · dt.
+    /// </summary>
+    /// <param name="home">The frame velocity and the acceleration of the body's home relative to its semantic frame.</param>
+    /// <param name="intent">The intent's force, in N, in the frame's axes, and the body's mass, in kg.</param>
+    private Double3 TurningChordAhead(
+        Double3 behind,
+        Double3 semanticPlace,
+        in FrameTurns turns,
+        (Double3 Velocity, Double3 Acceleration) home,
+        Double3 linear,
+        (Double3 Force, double Mass) intent
+    )
+    {
+        double dt = stepDt;
+        Double3 field = linear + home.Acceleration;
+        Double3 ahead =
+            behind
+            + turns.FreeChange(semanticPlace, behind, dt)
+            + (turns.Step.Turn.Rotate(field) - home.Acceleration) * dt
+            - home.Velocity;
+        if (intent.Force != Double3.Zero)
+            ahead += (turns.Step.Turn.Rotate(intent.Force) - intent.Force) * (dt / intent.Mass);
+        return ahead;
     }
 
     /// <summary>
@@ -974,7 +1002,8 @@ public sealed partial class JoltPhysicsBackend
         Double3 center
     )
     {
-        // Jolt moved the body by its velocity over Jolt's step, so its chord over the tick is that much longer.
+        // Jolt moved the body by its velocity over Jolt's step, which differs from the tick, so its chord over the tick is
+        // that velocity times Jolt's step over the tick.
         double toTick = (float)stepDt / stepDt;
         if (!record.Shadow.TryGetValue(out ShadowTracking shadow) || shadow.Step != stepIndex - 1)
             return ((Double3)velocity * toTick, center);
@@ -1091,46 +1120,16 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private Vector3 UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
-        float dt = (float)stepDt;
         var position = character.RPosition.ToDouble3();
         // The linear gravity is the field part of the character's velocity rule. The effective gravity adds the centrifugal
         // and the Euler term of a turning frame: it says whether the character is under gravity, and with the Coriolis term
         // it presses the character's weight onto its ground. In a frame that does not turn, the two are the same.
         Double3 linear = frames.LinearGravity(world.Frame, position);
         Double3 effective = frames.AddRotationTerms(world.Frame, position, linear);
-        float strength = effective.ToVector3().Length();
-        bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
+        bool underGravity = effective.ToVector3().Length() >= FrameTree.ZeroGravityThreshold;
         // The ground state comes from the last update.
         GroundState groundState = character.GroundState;
-        Vector3 up = record.Up;
-        // Up is against the semantic frame's gravity, which in a falling numeric frame is far stronger than the effective
-        // gravity. In a semantic frame the two are the same. Both hold the centrifugal and the Euler term of a turning frame.
-        // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
-        // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
-        // A character that touched anything in its last update, also with its side or its head, turns its up at once. One
-        // that touched nothing turns it at most at the air rate (the user's choice of 2026-10-20), so a flip of its felt
-        // gravity for one step, such as a hull's jolt, does not turn a floating person over.
-        var semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();
-        float semanticStrength = semanticGravity.Length();
-        if (semanticStrength >= FrameTree.ZeroGravityThreshold)
-        {
-            Vector3 against = -semanticGravity / semanticStrength;
-            up =
-                groundState == GroundState.InAir
-                    ? Rotations.TurnToward(record.Up, against, options.CharacterAirUpTurnRate * dt)
-                    : against;
-            if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
-            {
-                character.Up = up;
-                record.Up = up;
-            }
-
-            Quaternion rotation = character.Rotation;
-            Quaternion aligned = Rotations.AlignUp(rotation, up);
-            if (aligned != rotation)
-                character.Rotation = aligned;
-        }
-
+        Vector3 up = TurnCharacterUp(world: world, record: record, character: character, position: position);
         // Platforms may have changed velocity since the last update.
         character.UpdateGroundVelocity();
         Vector3 velocity = character.LinearVelocity;
@@ -1166,8 +1165,7 @@ public sealed partial class JoltPhysicsBackend
         record.Standing = standing;
         character.LinearVelocity = next;
 
-        // Jolt reads the system gravity to press the character's weight onto what it stands on.
-        world.System.Gravity = WeightInput(
+        Vector3 weight = WeightInput(
             frame: world.Frame,
             effective: effective,
             velocity: next,
@@ -1175,8 +1173,67 @@ public sealed partial class JoltPhysicsBackend
             up: up,
             normal: normal
         );
+        MoveCharacter(world: world, record: record, character: character, standing: standing, up: up, weight: weight);
+        if (!standing)
+            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Only standing
+            // replaces the velocity, so a character that does not stand loses its motion into a surface here.
+            character.LinearVelocity = WithoutMotionIntoContacts(character, next);
+        return next;
+    }
+
+    /// <summary>
+    /// Turns the up of the character of <paramref name="record"/> at <paramref name="position"/> in its home of
+    /// <paramref name="world"/>, and its rotation with it, and returns the new up. Up is against the semantic frame's
+    /// gravity, which in a falling numeric frame is far stronger than the effective gravity. In a semantic frame the two are
+    /// the same. Both hold the centrifugal and the Euler term of a turning frame. Without gravity, up stays.
+    /// </summary>
+    private Vector3 TurnCharacterUp(FrameWorld world, BodyRecord record, CharacterVirtual character, Double3 position)
+    {
+        // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
+        // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
+        // A character that touched anything in its last update, also with its side or its head, turns its up at once. One
+        // that touched nothing turns it at most at the air rate (the user's choice of 2026-10-20), so a flip of its felt
+        // gravity for one step, such as a hull's jolt, does not turn a floating person over.
+        var semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();
+        float semanticStrength = semanticGravity.Length();
+        if (semanticStrength < FrameTree.ZeroGravityThreshold)
+            return record.Up;
+        Vector3 against = -semanticGravity / semanticStrength;
+        Vector3 up =
+            character.GroundState == GroundState.InAir
+                ? Rotations.TurnToward(record.Up, against, options.CharacterAirUpTurnRate * (float)stepDt)
+                : against;
+        if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
+        {
+            character.Up = up;
+            record.Up = up;
+        }
+
+        Quaternion rotation = character.Rotation;
+        Quaternion aligned = Rotations.AlignUp(rotation, up);
+        if (aligned != rotation)
+            character.Rotation = aligned;
+        return up;
+    }
+
+    /// <summary>
+    /// Moves the character of <paramref name="record"/> in <paramref name="world"/> by its velocity over Jolt's step, with
+    /// <paramref name="weight"/> as the weight input (see <see cref="WeightInput"/>): a character that is
+    /// <paramref name="standing"/> sticks to the floor and climbs stairs along <paramref name="up"/>.
+    /// </summary>
+    private void MoveCharacter(
+        FrameWorld world,
+        BodyRecord record,
+        CharacterVirtual character,
+        bool standing,
+        Vector3 up,
+        Vector3 weight
+    )
+    {
+        float dt = (float)stepDt;
+        // Jolt reads the system gravity to press the character's weight onto what it stands on.
+        world.System.Gravity = weight;
         if (standing)
-            // A standing character sticks to the floor and climbs stairs.
             character.ExtendedUpdate(
                 deltaTime: dt,
                 settings: new() { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up },
@@ -1189,11 +1246,6 @@ public sealed partial class JoltPhysicsBackend
             // the air that lost a touch down by up to half a meter. A character that does not stand gets neither.
             character.Update(deltaTime: dt, layer: PrimaryLayer(record), physicsSystem: world.System);
         world.System.Gravity = Vector3.Zero;
-        if (!standing)
-            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Only standing
-            // replaces the velocity, so a character that does not stand loses its motion into a surface here.
-            character.LinearVelocity = WithoutMotionIntoContacts(character, next);
-        return next;
     }
 
     /// <summary>

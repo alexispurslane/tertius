@@ -137,9 +137,9 @@ public sealed partial class FrameTree
     /// and angular velocity (see <see cref="MotionIntent.RecordFrom"/>). The records of the rails components are exact, so
     /// their turns hold no float rounding of a rate.</item>
     /// <item>A dynamic hull: the turn that Jolt gives the hull, predicted from its last record (fork F3 of the design). Its
-    /// rate is the row's angular velocity plus the record's angular acceleration times the step (see
-    /// <see cref="AngularAcceleration"/>), and the end is the start turned about the parent's axes by that rate times the
-    /// step, as Jolt turns a body after its velocity update. It takes no dead band: the frame's axes turn by what the hull's
+    /// rate is the row's angular velocity plus the record's angular acceleration times physics' step (see
+    /// <see cref="AngularAcceleration"/> and <see cref="PhysicsStep"/>), and the end is the start turned about the parent's
+    /// axes by that rate times physics' step, as Jolt turns a body after its velocity update. It takes no dead band: the frame's axes turn by what the hull's
     /// record says. A hull that does not turn, such as one that sleeps, ends where it starts.</item>
     /// <item>Any other frame holds still: it ends where it starts.</item>
     /// </list>
@@ -193,8 +193,9 @@ public sealed partial class FrameTree
                 break;
             case FollowKind.Physics:
                 // A zero rate gives exactly the identity rotation, so a hull that does not turn ends where it starts, to the bit.
-                level = angularVelocity[id] + angularAcceleration[id] * step;
-                end = DQuaternion.FromAxisAngle(level, level.Length * step) * start;
+                double physicsStep = PhysicsStep(step);
+                level = angularVelocity[id] + angularAcceleration[id] * physicsStep;
+                end = DQuaternion.FromAxisAngle(level, level.Length * physicsStep) * start;
                 break;
             case FollowKind.Static:
                 break;

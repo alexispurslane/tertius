@@ -94,7 +94,7 @@ public sealed class FrameTreeNumericUpdateTests
                 moves.AddRange(handed);
             }
         );
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
         var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         foreach (NumericMove move in moves)
         {
@@ -554,11 +554,11 @@ public sealed class FrameTreeNumericUpdateTests
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         Update(6, Body(id: 20, x: 50, vx: 60, character: true) with { OwnedFrame = hull });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
 
         frames.SetHullMotion(hull, motion);
 
-        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
     }
 
     [Fact]
@@ -566,11 +566,11 @@ public sealed class FrameTreeNumericUpdateTests
     {
         FrameHandle pod = Update(6, Body(id: 10, x: 100, vx: 2_000))[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
 
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
 
-        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
     }
 
     [Fact]
@@ -920,7 +920,7 @@ public sealed class FrameTreeNumericUpdateTests
         DPose after = frames.Relative(hull, ground);
         (after.Position - before.Position).Length.Should().BeLessThan(1e-9);
         frames.NumericCount.Should().Be(0);
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
