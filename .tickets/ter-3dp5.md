@@ -1,6 +1,6 @@
 ---
 id: ter-3dp5
-status: open
+status: in_progress
 deps: [ter-hx3r]
 links: []
 created: 2026-10-26T19:32:57Z
