@@ -459,7 +459,7 @@ So the puffs have two places in the sync point that are not the destroy path, an
 
 The first tasks of the work run the step, the births and the snapshot puffs on the sync thread. A later task measures them, and adds pieces on the workers if the measurements reach a useful threshold, by the rules of the four pieces in ARCHITECTURE.md, "Threads and the tick":
 
-- The step of 2b, in equal slices of the rows. Each slice reads the ranges that it overlaps and compacts its survivors into its own stretch of `spare`, and the sync thread joins the slices in slice order.
+- The step of 2b, in equal slices of the rows. Each slice reads the ranges that it overlaps and compacts its survivors toward its own first row, and the sync thread joins the slices in slice order. (Task 8 changed this sentence. It first said that each slice compacts into its own stretch of `spare`. In place, the rows stay in one array with no swap, and the step on one thread is one slice that the join does not move.)
 - The births, in chunks of slots, joined in slot order.
 - The snapshot puffs, by range.
 
@@ -1280,6 +1280,45 @@ ARCHITECTURE.md: "Shading" (lit puffs, and the rule of the mean over every facin
 ### Task 8: puffs on the workers
 
 The three pieces of "The parallel pieces", their thresholds from the measurements of tasks 3 and 4, and a test on one thread and on four that compares the rows, the ranges, the looks and the snapshot's puffs bit for bit, with each threshold forced down to 1. If the measurements find no useful threshold, the task records that and closes.
+
+What task 8 measured and built (ter-fwsy, Release, on the reference machine, an Apple M1 Max with 10 cores). The machine was shared with other agents' builds: the 1-minute load was between 5.4 and 16 during the runs and between 6 and 10 for the measurements on the workers, so every number is an upper bound.
+
+The pieces on the sync thread, on main's code, with `PuffTableBenchmarks` (its counts now include the 760 puffs of `puff-yard`, the 1,440 of the demo's main engine at full throttle, 240 per second that live 6 s, and 16,384) and `RenderSnapshotBenchmarks.PlacePuffs`:
+
+| Puffs | Step in `earth` | Step in `earth-surface` | Step in the station |
+|---|---|---|---|
+| 100 | 2.4 µs | 5.7 µs | 5.5 µs |
+| 760 | 18.0 µs | 43.0 µs | 41.4 µs |
+| 1,024 | 24.2 µs | 58.1 µs | 55.2 µs |
+| 1,440 | 34.3 µs | 81.5 µs | 77.8 µs |
+| 4,096 | 97.6 µs | 233.0 µs | 221.8 µs |
+| 16,384 | 392.5 µs | 936.9 µs | 897.8 µs |
+
+- The births: "Step and births" less "Step" is 64 births and the rebuild. At 100 live puffs that is 4.5 µs in `earth` and 9.4 µs in `earth-surface`, so about 70 ns per birth in vacuum and about 145 ns in a medium.
+- The placement of the snapshot puffs: 7.9 ns per puff in every scene, so 6 µs at 760 puffs, 11 µs at 1,440 and 32 µs at 4,096.
+- An empty `Parallel.For` back to back: 5.6 to 10.6 µs and about 2.2 KB.
+
+The fixed cost of the workers. Back to back, the workers still spin. In a sync point they have started to sleep, so the new `--puffstep` mode of `PuffTableBenchmarks` (`PuffTableBenchmarks.Workers`) times the step as `RowCopyBenchmarks` times the row copy: a gameplay loop on all workers, a spin of 200 µs for the sync steps before 2b, then the step, on one thread and on all workers with the threshold at 1, 25 rounds of 40 steps each. The fastest tenth of the steps, which a burst of load does not reach:
+
+| Puffs | `earth-surface`, sync thread | `earth-surface`, workers | `earth`, sync thread | `earth`, workers |
+|---|---|---|---|---|
+| 250 | 7.3 µs | 21.1 µs | 9.2 µs | 22.4 µs |
+| 500 | 16.2 µs | 19.5 µs | 11.8 µs | 23.6 µs |
+| 760 | 26.1 µs | 34.2 µs | 18.5 µs | 29.1 µs |
+| 1,024 | 31.9 µs | 28.0 µs | 33.2 µs | 37.3 µs |
+| 1,440 | 39.5 µs | 39.2 µs | 33.5 µs | 31.0 µs |
+| 2,048 | 63.4 µs | 53.4 µs | 47.6 µs | 45.2 µs |
+| 4,096 | 133.7 µs | 75.9 µs | 88.5 µs | 55.0 µs |
+
+The medians agree: at 4,096 puffs 137 µs against 86 µs in `earth-surface` and 130 µs against 88 µs in `earth`. So the hand-off costs about 20 µs, as the row copy found, and the workers step about 2.5 times as fast on this busy machine. A piece pays on the workers above about 33 µs of work on the sync thread:
+
+- The step of 2b: the workers tie at 1,024 to 1,440 puffs and win from 2,048 in both frames, by about a tenth there and about a third at 4,096. The threshold is 2,048 live puffs (`PuffTable.DefaultStepParallelThreshold`), which a scene at the default capacity reaches. Task 8 built it, with 16 slices.
+- The births of 7c: they would pay above about 480 births per step in vacuum and 230 in a medium, 14,000 to 29,000 puffs per second. The demo makes about 4 per step from its main engine at full throttle and less than 1 per firing jet, and at the default capacity such a rate keeps only puffs that live less than 0.3 s. No useful threshold, so they stay on the sync thread.
+- The placement of step 11: it would pay above about 4,200 puffs, more than the default capacity of 4,096 holds. No useful threshold, so it stays on the sync thread. A game that raises the capacity well past that would make it worth building, by range or in slices of the rows as the step.
+
+The step on one thread is the same code as one slice, and `PuffTableBenchmarks.Step` gave the times of the table above within a few percent after the change (for example 242.7 µs at 4,096 in `earth-surface`, 97.8 µs in `earth`).
+
+Tests. `PuffsOnTheWorkersTests.AWorldOnFourWorkersKeepsThePuffsOfAWorldOnOneThreadBitForBit` (`tests/Tertius.Physics.Tests`) runs the busy scene with a camera of `PuffSnapshotTests` for 300 ticks on one thread and on four workers with the step's threshold at 1, and compares the rows, the ranges, the looks and the snapshot's puffs after every tick. `PuffStepOnWorkersTests` (`tests/Tertius.Simulation.Tests`) checks through a counting task scheduler that a step takes the workers from the threshold on and not below it, that a small table with workers steps on the sync thread at the default threshold, and that the threshold refuses a value below 1. The pinned hashes of `PuffLifeTests` and `PuffSnapshotTests` did not change, so the step on one thread gives the rows and the look indices of the step before.
 
 ARCHITECTURE.md: the table of pieces in "Threads and the tick".
 
