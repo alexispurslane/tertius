@@ -132,14 +132,7 @@ public readonly struct Snapshot
     /// Null if either handle is stale.
     /// </summary>
     public Double3? VelocityIn(Entity entity, FrameHandle frame) =>
-        Live(entity, frame)
-            ? FrameReads.VelocityIn(
-                frames: World.Frames,
-                entity: entity,
-                row: World.Entities.FrontRow(entity),
-                to: frame
-            )
-            : null;
+        Live(entity, frame) ? World.VelocityIn(entity: entity, row: World.Entities.FrontRow(entity), to: frame) : null;
 
     /// <summary>
     /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes. Null if either handle is stale.

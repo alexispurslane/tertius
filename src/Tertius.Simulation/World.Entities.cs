@@ -492,7 +492,7 @@ public sealed partial class World
         if (desc.FirstMove.HasValue)
             Entities.SetFirstMove(entity, frame, WithUnitRotation(desc.FirstMove));
         if (desc.Body != null)
-            physicsChanges.BodiesCreated.Add(
+            AddBodyCreate(
                 new(
                     Entity: entity,
                     Frame: row.Frame,
@@ -816,7 +816,7 @@ public sealed partial class World
             from: from,
             to: to,
             position: row.Pose.Position,
-            v: FrameReads.VelocityIn(frames: Frames, entity: entity, row: row, to: from)
+            v: VelocityIn(entity: entity, row: row, to: from)
         );
         var pose = DPose.Compose(relative, row.Pose);
         var moved = new TransformRow
@@ -842,7 +842,7 @@ public sealed partial class World
             if (!own.IsNull && NextStepHullMotion(own) is { } motion && motion != body.Motion)
                 body = body with { Motion = motion };
             physicsChanges.BodiesDestroyed.Add(entity);
-            physicsChanges.BodiesCreated.Add(
+            AddBodyCreate(
                 new(
                     Entity: entity,
                     Frame: to,

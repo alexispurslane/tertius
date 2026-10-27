@@ -482,10 +482,11 @@ internal sealed class PuffTable
     )
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
+        FrameHandle own = entities.OwnedFrame(entity);
         // The owner of a root frame has no row frame: its puffs are born in the frame that it owns, at its origin.
-        FrameHandle frame = row.Frame.IsNull ? entities.OwnedFrame(entity) : row.Frame;
+        FrameHandle frame = row.Frame.IsNull ? own : row.Frame;
         DPose pose = FrameReads.PoseIn(frames: frames, entity: entity, row: row, to: frame);
-        Double3 velocity = FrameReads.VelocityIn(frames: frames, entity: entity, row: row, to: frame);
+        Double3 velocity = FrameReads.VelocityIn(frames: frames, row: row, own: own, to: frame);
         LooseBodyStep loose = frames.LastLooseBodyStep(frame);
         int runStart = newbornCount;
         for (long j = first; j <= last; j++)

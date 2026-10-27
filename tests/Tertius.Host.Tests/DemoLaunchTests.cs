@@ -507,6 +507,13 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// axes of earth-surface and of earth differ by about 143 degrees, so a thrust that a step applies in the wrong axes
     /// misses by more than the thrust itself.
     /// </summary>
+    /// <remarks>
+    /// The hand-off carries the hull's velocity into earth as floats, which physics keeps, so the velocity jumps there once
+    /// by up to half a float's step in each component, and the difference of the hand-off's tick misses by that jump over
+    /// a tick. At 5.9 km/s that is up to 0.0164 m/s². The other ticks miss by at most 9e-4 m/s² (2026-10-27), so the
+    /// hand-off's tick may miss by that bound plus 1e-3 m/s². It missed by 0.0094 m/s² with velocity reads in floats and by
+    /// 0.0104 m/s² with exact reads, which moved the climb before the hand-off by about 3e-5 m/s and so the rounding.
+    /// </remarks>
     [Fact]
     public void TheShuttlesAccelerationInEarthStaysSmoothThroughTheHandOff()
     {
@@ -518,13 +525,23 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
             Double3 measured = (next.Position - 2 * tick.Position + Log[k - 1].Position) / (dt * dt);
             Double3 gravity = -tick.Position * (DemoScenes.EarthMu / Math.Pow(tick.Position.Length, 3));
             Double3 expected = gravity + next.Rotation.Rotate((Double3)next.CabinAcceleration);
+            double tolerance = k == HandOff ? 1e-3 + FloatRounding(tick.Velocity) / dt : 0.01;
             (measured - expected)
                 .Length.Should()
                 .BeLessThan(
-                    0.01,
+                    tolerance,
                     $"at tick {tick.Tick}, {k - HandOff} from the hand-off: measured {measured}, expected {expected}"
                 );
         }
+    }
+
+    /// <summary>The most by which a narrowing of <paramref name="v"/> to floats moves it: half a float's step in each component.</summary>
+    private static double FloatRounding(Double3 v) => new Double3(HalfStep(v.X), HalfStep(v.Y), HalfStep(v.Z)).Length;
+
+    private static double HalfStep(double x)
+    {
+        float f = MathF.Abs((float)x);
+        return (MathF.BitIncrement(f) - f) / 2.0;
     }
 
     /// <summary>In each tick from 10 before the hand-off to 10 after it, the cabin's proper acceleration changes by less than 0.01 m/s².</summary>

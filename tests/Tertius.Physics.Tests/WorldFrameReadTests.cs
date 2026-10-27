@@ -111,6 +111,50 @@ public sealed class WorldFrameReadTests
     }
 
     [Fact]
+    public void ASnapshotReadBeforeTheFirstTickGivesTheSpawnVelocityOfABodyInDoubles()
+    {
+        using World world = WorldTesting.NewWorld(backend: out _);
+        FrameHandle space = Space(world);
+        var spawnVelocity = new Double3(6016.291064, 0, -0.1);
+        Entity ball = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                LinearVelocity = spawnVelocity,
+            }
+        );
+
+        Double3 velocity = world.Snapshot.VelocityIn(ball, space).Found();
+
+        velocity
+            .Should()
+            .Be(spawnVelocity, "the creation of the body holds it in doubles until physics creates the body");
+    }
+
+    [Fact]
+    public void AFrameOwnersVelocityReadIsTheVelocityOfItsFrameInDoubles()
+    {
+        using World world = WorldTesting.NewWorld(backend: out _);
+        FrameHandle space = Space(world);
+        Entity hull = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Ball,
+                AsFrame = new(FrameBounds.Sphere(100)),
+                LinearVelocity = new(1.1, 0.3, 0),
+            }
+        );
+
+        Double3 velocity = world.VelocityIn(hull, space);
+
+        velocity
+            .Should()
+            .Be(world.Frames.LinearVelocity(world.GetOwnedFrame(hull)), "the hull's row holds only a float");
+    }
+
+    [Fact]
     public void APoseReadInAnotherFrameMatchesTheSnapshotsPoseInThatFrame()
     {
         using World world = WorldTesting.NewWorld(backend: out _);
