@@ -1,7 +1,9 @@
 // The GLSL port of XeGTAO: ground-truth ambient occlusion (Jimenez and others 2016) at the physical constants of
-// docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO:
-// the edges and their packing, the noise and the Hilbert index, the view position, the slice loop and its inner
-// integral, and the denoise. HorizonSlice, HorizonSearch and OcclusionNoise in Shading/ are its C# copy.
+// docs/plans/ambient-occlusion.md, "XeGTAO's heuristics". It holds every function that the port takes from XeGTAO: the
+// edges and their packing, the noise and the Hilbert index, the view position, the texel's setup (gtaoTexelSetup), the
+// slice's geometry (gtaoSliceGeometry) and its inner integral, the step offsets (gtaoExactStepOffset), and the denoise.
+// The slice loop is occlusion_sectors.comp's. HorizonSlice, HorizonSearch and OcclusionNoise in Shading/ are its C#
+// copy.
 //
 // Source: https://github.com/GameTechDev/XeGTAO, commit a5b1686c7ea37788eeb3576b5be47f7c03db532c,
 // Source/Rendering/Shaders/XeGTAO.hlsli, XeGTAO.h and vaGTAO.hlsl (copies in ThirdParty/XeGTAO).
@@ -36,7 +38,7 @@ const float GtaoPi = 3.1415926535897932384626433832795;
 const float GtaoHalfPi = 1.5707963267948966192313216916398;
 
 // The view depth of sky, in m: beyond every radius (decision 18). No pass squares a sky texel's view position, which a
-// wide field of view or a wide image puts past 10^19 m across (gtaoSampleHorizon).
+// wide field of view or a wide image puts past 10^19 m across (occlusion_sectors.comp).
 const float SkyDepth = 1e18;
 // Moves the center toward the eye against self-occlusion from the precision of the depths: XeGTAO's value for 32-bit
 // depths (XeGTAO.hlsli line 281).
@@ -57,7 +59,7 @@ const float MinProjectedNormalLength = 1e-6;
 // the view ray r.
 vec3 gtaoViewPosition(vec2 screenPosition, float z)
 {
-    vec2 tangents = vec2(occlusion.cameraRight.w, occlusion.cameraUp.w);
+    vec2 tangents = cameraTangents();
     vec2 ndcToViewMul = vec2(2.0, -2.0) * tangents;
     vec2 ndcToViewAdd = vec2(-1.0, 1.0) * tangents;
     return vec3((ndcToViewMul * screenPosition + ndcToViewAdd) * z, z);
@@ -152,87 +154,96 @@ float gtaoSliceArc(float horizon, float normalAngle)
     return (cos(normalAngle) + 2.0 * horizon * sin(normalAngle) - cos(2.0 * horizon - normalAngle)) / 4.0;
 }
 
-// The cosine between the view vector and the direction from the center to the sample at a texel, or −1, which never
-// raises a horizon. A texel outside the image hides nothing (decision 21), and nor does a sample at the radius or
-// beyond it: the physical hard edge, where XeGTAO lerps by its falloff (lines 486 to 498). The clamp keeps acos defined
-// where rounding puts the cosine of two unit vectors past 1.
-float gtaoSampleHorizon(ivec2 texel, vec3 center, vec3 toEye)
+// What every slice of a half-resolution texel shares (XeGTAO_MainPass, lines 245 to 380, at the physical constants).
+struct GtaoTexel
 {
-    if (!insideHalf(texel))
-        return -1.0;
-    float sampleDepth = viewDepthAt(texel);
-    // Sky hides nothing. Its view position, SkyDepth times a long view ray, would square past the single float range,
-    // so the depth decides before the length (HorizonSearch.SamplePosition, ARCHITECTURE.md, "Portable Vulkan").
-    if (sampleDepth >= SkyDepth)
-        return -1.0;
-    vec3 delta = gtaoViewPosition(pixelScreenPosition(2 * texel), sampleDepth) - center;
-    float sampleDistance = length(delta);
-    if (!(sampleDistance < occlusion.radiusMeters))
-        return -1.0;
-    return clamp(dot(delta / sampleDistance, toEye), -1.0, 1.0);
+    vec3 center;          // c: the representative pixel's view position, moved toward the eye by CenterBias
+    vec3 toEye;           // V̂
+    vec3 normal;          // the view-space shading normal of the representative pixel
+    vec3 geometricNormal; // n_g: its view-space geometric normal, whose plane blocks what lies below it (decision 39)
+    vec2 noise;           // ξ: x turns the slices, y shifts the steps
+    float radiusInTexels; // ρ
+};
+
+// One slice around a texel, in view space with XeGTAO's axes (docs/plans/screen-space-illumination.md, "The slice and its
+// sectors"). HorizonSlice and SliceSectors are the C# copy.
+struct SliceGeometry
+{
+    vec3 toEye;        // V̂
+    vec3 side;         // ô: in the slice plane, at right angles to V̂, toward the plus side
+    float normalAngle; // γ
+    float arc;         // T = cos γ + γ sin γ
+    float weight;      // W = |n_p| T
+};
+
+// The setup of the texel at view depth z, whose radius spans radiusInTexels texels.
+GtaoTexel gtaoTexelSetup(ivec2 texel, float z, float radiusInTexels)
+{
+    GtaoTexel t;
+    t.center = gtaoViewPosition(pixelScreenPosition(2 * texel), z * CenterBias);
+    t.toEye = normalize(-t.center);
+    t.normal = shadingNormalAt(2 * texel);
+    t.geometricNormal = geometricNormalAt(2 * texel);
+    t.noise = gtaoNoise(texel);
+    t.radiusInTexels = radiusInTexels;
+    return t;
 }
 
-// XeGTAO_MainPass (lines 245 to 576) at the physical constants, without the depth chain: the estimate of V at a
-// half-resolution texel of view depth z, before the fade. radiusInTexels is ρ.
-float gtaoEstimate(ivec2 texel, float z, float radiusInTexels)
+// φ = (k + ξ_x) / S · π: the screen angle of a slice (lines 5 and 6 of the paper's Algorithm 1).
+float gtaoSliceAngle(GtaoTexel t, int slice)
 {
-    vec3 center = gtaoViewPosition(pixelScreenPosition(2 * texel), z * CenterBias);
-    vec3 toEye = normalize(-center);
-    vec3 normal = shadingNormalAt(2 * texel);
-    vec2 noise = gtaoNoise(texel);
-    // The nearest step lies beyond the center texel (line 367).
-    float minS = NearestStepTexels / radiusInTexels;
-    int slices = int(occlusion.slices);
+    return (float(slice) + t.noise.x) / float(occlusion.slices) * GtaoPi;
+}
+
+// The geometry of a slice of the texel (lines 386 to 408).
+SliceGeometry gtaoSliceGeometry(GtaoTexel t, int slice)
+{
+    float phi = gtaoSliceAngle(t, slice);
+    vec3 directionVec = vec3(cos(phi), sin(phi), 0.0);
+    vec3 orthoDirectionVec = directionVec - dot(directionVec, t.toEye) * t.toEye;
+    vec3 axisVec = normalize(cross(orthoDirectionVec, t.toEye));
+    vec3 projectedNormalVec = t.normal - axisVec * dot(t.normal, axisVec);
+    float signNorm = sign(dot(orthoDirectionVec, projectedNormalVec));
+    float projectedNormalVecLength = length(projectedNormalVec);
+    float cosNorm = clamp(dot(projectedNormalVec, t.toEye) / max(projectedNormalVecLength, MinProjectedNormalLength),
+                          0.0, 1.0);
+    SliceGeometry g;
+    g.toEye = t.toEye;
+    // V̂ has a view-space z of at least NearPlane over the distance in size, so the screen direction is never along it.
+    g.side = normalize(orthoDirectionVec);
+    g.normalAngle = signNorm * acos(cosNorm);
+    g.arc = cos(g.normalAngle) + g.normalAngle * sin(g.normalAngle);
+    g.weight = projectedNormalVecLength * g.arc;
+    return g;
+}
+
+// The offset in half-resolution texels of a step of a slice, on its plus side, at its exact place on the slice line:
+// an even place in its share of the radius, shifted by the R1 sequence, beyond the nearest step (lines 410 to 440). The
+// step reads the texel nearest that place, but its surface point stays on the slice line (sectors.glsl,
+// stepSurfacePoint): XeGTAO measures the snapped texel's own point, which lies off the slice.
+vec2 gtaoExactStepOffset(GtaoTexel t, int slice, int stepIndex)
+{
     int stepsPerSide = int(occlusion.stepsPerSide);
-    // A step beyond the image stays one texel past its longer side, where it still hides nothing (decision 21): the
+    float phi = gtaoSliceAngle(t, slice);
+    // The screen direction in texels: the image rows run down, so its y is −sin φ.
+    vec2 omega = vec2(cos(phi), -sin(phi)) * t.radiusInTexels;
+    // The R1 sequence (line 420).
+    float stepBaseNoise = float(slice + stepIndex * stepsPerSide) * 0.6180339887498948482;
+    float stepNoise = fract(t.noise.y + stepBaseNoise);
+    // The nearest step lies beyond the center texel (line 367).
+    float s = (float(stepIndex) + stepNoise) / float(stepsPerSide) + NearestStepTexels / t.radiusInTexels;
+    // A step beyond the image stays one texel past its longer side, where it still blocks nothing (decision 21): the
     // conversion of a float past the range of an int is undefined, and ρ reaches 10^10 at the largest radius.
     vec2 stepBound = vec2(float(max(halfSize().x, halfSize().y) + 1));
-    float visibility = 0.0;
-    for (int slice = 0; slice < slices; slice++)
-    {
-        // Lines 5 and 6 of the paper's Algorithm 1.
-        float phi = (float(slice) + noise.x) / float(slices) * GtaoPi;
-        float cosPhi = cos(phi);
-        float sinPhi = sin(phi);
-        // The screen direction in texels: the image rows run down, so its y is −sin φ.
-        vec2 omega = vec2(cosPhi, -sinPhi) * radiusInTexels;
-        vec3 directionVec = vec3(cosPhi, sinPhi, 0.0);
-        vec3 orthoDirectionVec = directionVec - dot(directionVec, toEye) * toEye;
-        vec3 axisVec = normalize(cross(orthoDirectionVec, toEye));
-        vec3 projectedNormalVec = normal - axisVec * dot(normal, axisVec);
-        float signNorm = sign(dot(orthoDirectionVec, projectedNormalVec));
-        float projectedNormalVecLength = length(projectedNormalVec);
-        float cosNorm = clamp(dot(projectedNormalVec, toEye) / max(projectedNormalVecLength, MinProjectedNormalLength),
-                              0.0, 1.0);
-        float n = signNorm * acos(cosNorm);
-        // Each side's lowest horizon is the tangent plane (line 409).
-        float horizonCos0 = cos(n + GtaoHalfPi);
-        float horizonCos1 = cos(n - GtaoHalfPi);
-        for (int stepIndex = 0; stepIndex < stepsPerSide; stepIndex++)
-        {
-            // The R1 sequence (line 420).
-            float stepBaseNoise = float(slice + stepIndex * stepsPerSide) * 0.6180339887498948482;
-            float stepNoise = fract(noise.y + stepBaseNoise);
-            float s = (float(stepIndex) + stepNoise) / float(stepsPerSide) + minS;
-            // Snapped to a texel center (line 440).
-            ivec2 sampleOffset = ivec2(round(clamp(s * omega, -stepBound, stepBound)));
-            horizonCos0 = max(horizonCos0, gtaoSampleHorizon(texel + sampleOffset, center, toEye));
-            horizonCos1 = max(horizonCos1, gtaoSampleHorizon(texel - sampleOffset, center, toEye));
-        }
-        // Line 27 of the paper's Algorithm 1, with the exact acos (decision 22). The clamp keeps acos defined where cos
-        // puts a tangent-plane cosine past ±1, as the Vulkan precision rule lets it.
-        float h0 = -acos(clamp(horizonCos1, -1.0, 1.0));
-        float h1 = acos(clamp(horizonCos0, -1.0, 1.0));
-        visibility += projectedNormalVecLength * (gtaoSliceArc(h0, n) + gtaoSliceArc(h1, n));
-    }
-    return visibility / float(slices);
+    return clamp(s * omega, -stepBound, stepBound);
 }
 
 // ---- The denoise -------------------------------------------------------------------------------------------------
 
-// XeGTAO_Denoise (lines 734 to 812) for one texel: XeGTAO's 3 × 3 edge-aware blur of the source term. Neighbors outside
-// the image read the border texel, as XeGTAO's clamped sampler does.
-float gtaoDenoise(ivec2 texel, bool lastPass)
+// XeGTAO_Denoise (lines 734 to 812) for one texel: XeGTAO's 3 × 3 edge-aware blur of the source term's four channels,
+// the bounce and the occlusion with the same weights. Neighbors outside the image read the border texel, as XeGTAO's
+// clamped sampler does.
+vec4 gtaoDenoise(ivec2 texel, bool lastPass)
 {
     const float diagWeight = 0.85 * 0.5;
     float blurAmount = lastPass ? DenoiseBlurBeta : DenoiseBlurBeta / 5.0;
@@ -259,18 +270,18 @@ float gtaoDenoise(ivec2 texel, bool lastPass)
     float weightBL = diagWeight * (edgesC_LRTB.w * edgesB_LRTB.x + edgesC_LRTB.x * edgesL_LRTB.w);
     float weightBR = diagWeight * (edgesC_LRTB.y * edgesR_LRTB.w + edgesC_LRTB.w * edgesB_LRTB.y);
 
-    float ssaoValue = imageLoad(denoiseSource, texel).r;
-    float ssaoValueL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 0), ivec2(0), last)).r;
-    float ssaoValueR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 0), ivec2(0), last)).r;
-    float ssaoValueT = imageLoad(denoiseSource, clamp(texel + ivec2(0, -1), ivec2(0), last)).r;
-    float ssaoValueB = imageLoad(denoiseSource, clamp(texel + ivec2(0, 1), ivec2(0), last)).r;
-    float ssaoValueTL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, -1), ivec2(0), last)).r;
-    float ssaoValueTR = imageLoad(denoiseSource, clamp(texel + ivec2(1, -1), ivec2(0), last)).r;
-    float ssaoValueBL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 1), ivec2(0), last)).r;
-    float ssaoValueBR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 1), ivec2(0), last)).r;
+    vec4 ssaoValue = imageLoad(denoiseSource, texel);
+    vec4 ssaoValueL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 0), ivec2(0), last));
+    vec4 ssaoValueR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 0), ivec2(0), last));
+    vec4 ssaoValueT = imageLoad(denoiseSource, clamp(texel + ivec2(0, -1), ivec2(0), last));
+    vec4 ssaoValueB = imageLoad(denoiseSource, clamp(texel + ivec2(0, 1), ivec2(0), last));
+    vec4 ssaoValueTL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, -1), ivec2(0), last));
+    vec4 ssaoValueTR = imageLoad(denoiseSource, clamp(texel + ivec2(1, -1), ivec2(0), last));
+    vec4 ssaoValueBL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 1), ivec2(0), last));
+    vec4 ssaoValueBR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 1), ivec2(0), last));
 
     float sumWeight = blurAmount;
-    float sum = ssaoValue * sumWeight;
+    vec4 sum = ssaoValue * sumWeight;
     sum += edgesC_LRTB.x * ssaoValueL;
     sum += edgesC_LRTB.y * ssaoValueR;
     sum += edgesC_LRTB.z * ssaoValueT;

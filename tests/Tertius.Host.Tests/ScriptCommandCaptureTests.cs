@@ -11,8 +11,9 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 {
     /// <summary>
     /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
-    /// shadows after the cascades, the environment map's faces and prefilter after them, ambient occlusion between the G-buffer and the lighting, the reflections'
-    /// half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
+    /// shadows after the cascades, the environment map's faces and prefilter after them, the occlusion passes of the
+    /// screen-space light between the direct and the ambient pass, the reflections' half-resolution trace and its upsample
+    /// after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
@@ -23,11 +24,12 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "environment prefilter",
         "G-buffer",
         "depth pyramid",
+        "direct light",
         "occlusion depth",
-        "occlusion horizons",
+        "occlusion sectors",
         "occlusion denoise",
         "occlusion upsample",
-        "lighting",
+        "ambient light",
         "radiance pyramid",
         "reflection trace",
         "reflections",
@@ -407,34 +409,34 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         curves.Should().Equal(expected);
     }
 
-    public static TheoryData<string[], AmbientOcclusionSetting> AmbientOcclusionOptions =>
+    public static TheoryData<string[], ScreenSpaceLightSetting> ScreenSpaceLightOptions =>
         new()
         {
-            { [], GroundTruthOcclusion.Default },
-            { ["--ambient-occlusion", "off"], new NoAmbientOcclusion() },
-            { ["--ambient-occlusion", "0.25"], GroundTruthOcclusion.Default with { RadiusMeters = 0.25f } },
+            { [], VisibilityBitmaskLight.Default },
+            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
+            { ["--screen-space-light", "0.25"], VisibilityBitmaskLight.Default with { RadiusMeters = 0.25f } },
         };
 
     [Theory]
-    [MemberData(nameof(AmbientOcclusionOptions))]
-    public void TheAmbientOcclusionOptionTurnsOcclusionOffOrSetsItsRadius(
-        string[] ambientOcclusion,
-        AmbientOcclusionSetting expected
+    [MemberData(nameof(ScreenSpaceLightOptions))]
+    public void TheScreenSpaceLightOptionTurnsTheEstimateOffOrSetsItsRadius(
+        string[] screenSpaceLight,
+        ScreenSpaceLightSetting expected
     )
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
         );
-        var settings = new List<AmbientOcclusionSetting>();
+        var settings = new List<ScreenSpaceLightSetting>();
 
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out, .. ambientOcclusion],
+            args: ["--script", script, "--headless", "--out", Out, .. screenSpaceLight],
             scenes: [LitBoxScene],
             output: output,
             error: error,
             createRenderer: options =>
             {
-                settings.Add(options.AmbientOcclusion);
+                settings.Add(options.ScreenSpaceLight);
                 return VulkanRenderer.CreateHeadless(options);
             }
         );

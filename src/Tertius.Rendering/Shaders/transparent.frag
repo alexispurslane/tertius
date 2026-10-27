@@ -44,8 +44,10 @@ void main()
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
     shading.lobeSkyFraction =
         environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // Transparent objects are not in the G-buffer, so the occlusion passes give them no V.
+    // Transparent objects are not in the G-buffer, so the occlusion passes give them no estimate: the surface behind a
+    // pane takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
     shading.occlusion = 1.0;
+    shading.bounce = vec3(0.0);
     // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
     // in full. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales.
     float opacity = clamp(s.baseColor.a, 0.0, 1.0);

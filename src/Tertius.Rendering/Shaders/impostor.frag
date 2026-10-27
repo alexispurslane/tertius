@@ -6,7 +6,7 @@
 #include "exposure.glsl"
 
 // Impostor billboards into the G-buffer (ImpostorPass.cs). The capture's lighting is baked, so the pixel is
-// written as emission with base color alpha 0, which tells the lighting pass to add nothing else. The captured relative
+// written as emission with base color alpha 0, which tells the direct and ambient passes to add nothing else. The captured relative
 // depth rebuilds the surface point on the ray from the capture's eye through the quad, which gives the depth test
 // and the distance target the object's real shape.
 

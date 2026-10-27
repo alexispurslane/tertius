@@ -1703,9 +1703,9 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()
             .Be(8);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(64);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(48);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(60);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(16);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
     }
@@ -1714,7 +1714,8 @@ public sealed class BatcherTests
     [InlineData("mesh.vert")]
     [InlineData("gbuffer.frag")]
     [InlineData("lighting.vert")]
-    [InlineData("lighting.frag")]
+    [InlineData("direct.frag")]
+    [InlineData("ambient.frag")]
     [InlineData("transparent.frag")]
     [InlineData("fullscreen.vert")]
     [InlineData("tonemap.frag")]

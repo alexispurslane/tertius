@@ -11,7 +11,7 @@ namespace Tertius.Rendering.Tests;
 /// floor is white metal and the scene is dark, so the floor shows only what the trace adds. The first three tests are
 /// the user's (decision 10). One test checks that the trace may read the BRDF tables after their upload, one that its
 /// fallback is the environment map's specular term while the map is on, and one that a hit takes away the very term
-/// that the lighting pass added, reflected stars included.
+/// that the ambient pass added, reflected stars included.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionRenderTests
@@ -642,7 +642,7 @@ public sealed class ReflectionRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder(["lighting", "radiance pyramid", "reflections", "transparent"]);
+                .ContainInOrder(["ambient light", "radiance pyramid", "reflections", "transparent"]);
         }
         finally
         {
@@ -659,7 +659,13 @@ public sealed class ReflectionRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder(["lighting", "radiance pyramid", "reflection trace", "reflections", "transparent"]);
+                .ContainInOrder([
+                    "ambient light",
+                    "radiance pyramid",
+                    "reflection trace",
+                    "reflections",
+                    "transparent",
+                ]);
         }
         finally
         {
@@ -1170,7 +1176,7 @@ public sealed class ReflectionRenderTests
     public void ACurvedMirrorThatReflectsItsNeighborDoesNotChangeWhenTheStarsTurn(TraceResolution resolution)
     {
         // The rays of the mirror ball's right side hit the glowing ball on the screen, but the map, seen from the eye,
-        // sees open sky along them. The mirror's d moves by several star cells per pixel, so the lighting pass adds the
+        // sees open sky along them. The mirror's d moves by several star cells per pixel, so the ambient pass adds the
         // stars' mean, which a quarter turn of the root axes keeps. A hit that took away single stars in its place would
         // leave their dips in the reflection, and the dips would move with the stars.
         float[] lit = RenderUnderMap(
@@ -1206,7 +1212,7 @@ public sealed class ReflectionRenderTests
             differing
                 .Should()
                 .BeEmpty(
-                    "the trace takes away the term that the lighting pass added, whatever the stars along d; first {0}: {1} and {2}",
+                    "the trace takes away the term that the ambient pass added, whatever the stars along d; first {0}: {1} and {2}",
                     differing.FirstOrDefault(),
                     At(turned, differing.FirstOrDefault()),
                     At(reflected, differing.FirstOrDefault())
@@ -1316,21 +1322,21 @@ public sealed class ReflectionRenderTests
         select (center.X + dx, center.Y + dy);
 
     /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, under GTAO's default.</summary>
-    /// <returns>The frame's HDR image, its occlusion target and its camera.</returns>
+    /// <returns>The frame's HDR image, the occlusion V of each pixel and its camera.</returns>
     private static (float[] Hdr, float[] Occlusion, CameraView Camera) RenderUnderOcclusion(
         ReflectionSetting reflections,
         Func<VulkanRenderer, RenderSnapshot> scene
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
-            ambientOcclusion: GroundTruthOcclusion.Default,
+            screenSpaceLight: VisibilityBitmaskLight.Default,
             exposure: new FixedExposure(0),
             reflections: reflections
         );
         try
         {
             renderer.Render(scene(renderer), 1f);
-            return (renderer.ReadHdr(), renderer.ReadOcclusion(), renderer.LastScene.Camera);
+            return (renderer.ReadHdr(), OcclusionScenes.ReadOcclusion(renderer), renderer.LastScene.Camera);
         }
         finally
         {

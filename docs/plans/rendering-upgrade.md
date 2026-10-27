@@ -16,7 +16,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-63wr` | Bloom | PBR | Two designs, in the ticket |
 | `ter-gcm3` | Anti-aliasing with SMAA 1x | PBR | In the ticket |
 | `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
-| `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
+| `ter-a24f` | Screen-space global illumination | PBR, SSAO, SSR | [screen-space-illumination.md](screen-space-illumination.md) |
 | `ter-jxv9` | Screen-space reflections | PBR, exposure | [screen-space-reflections.md](screen-space-reflections.md) |
 | `ter-s9cv` | Shadows of every light: lights in SI units instead of one sun (`ter-bpvl`), and point and spot light shadows | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
@@ -31,7 +31,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 - PBR comes first. The look and the tuning of every other feature depend on the BRDF. SSR weights its reflections by the Fresnel term and blurs them by the roughness. SSAO and SSGI scale the diffuse and ambient light. Exposure, the tone curve and bloom are tuned against the radiance that the BRDF sends.
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
-- SSGI waits for SSAO, as before.
+- SSGI waits for SSAO, as before. It also waits for SSR, because its far rays use SSR's depth pyramid and trace (user, 2026-10-25). On 2026-10-26 the user removed the far rays (screen-space-illumination.md, decision 40).
 - The performance coda (`ter-pq5y`) measures the frame that the whole epic makes, so its last part comes after every other member (user, 2026-10-25). Each feature's own profile starts as soon as that feature merges.
 - The atmosphere color comes last, after every other member. The user decided this on 2026-10-25. It waits for the environment map, which captures the sky and so carries the atmosphere's color into the ambient light.
 - The environment map replaces the per-frame sky and ground colors (user, 2026-10-25). It holds the whole scene seen from the camera, so the ambient light comes from what really surrounds the camera, indoors and outdoors.

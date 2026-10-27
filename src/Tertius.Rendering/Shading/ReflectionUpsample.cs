@@ -115,7 +115,7 @@ internal static class ReflectionUpsample
 
     /// <summary>
     /// Whether the <paramref name="rays"/> of the texels that a pixel blends hit different surfaces: a hit beside a miss,
-    /// or two hits whose view depths differ by more than the trace's slab thickness (<see cref="ScreenRay.ThicknessShare"/>).
+    /// or two hits whose view depths differ by more than the trace's slab thickness (<see cref="CellBounds.ThicknessShare"/>).
     /// </summary>
     public static bool RaysDisagree(IEnumerable<TexelRay> rays)
     {
@@ -143,7 +143,7 @@ internal static class ReflectionUpsample
 
         // A surface at depth z fills z to (1 + share) z, as the trace's slab does.
         bool hitAndMiss = anyHit && anyMiss;
-        bool apartInDepth = farthest > (1 + ScreenRay.ThicknessShare) * nearest;
+        bool apartInDepth = farthest > (1 + CellBounds.ThicknessShare) * nearest;
         return hitAndMiss || apartInDepth;
     }
 }

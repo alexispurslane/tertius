@@ -29,10 +29,10 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
     public const float SlopeBias = 1.5f;
 
-    /// <summary>How far the lighting pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
+    /// <summary>How far the direct pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
     public const float NormalOffsetTexels = 1f;
 
-    /// <summary>The lighting pass's constant depth bias toward the light, in texels of depth.</summary>
+    /// <summary>The direct pass's constant depth bias toward the light, in texels of depth.</summary>
     public const float ConstantBiasTexels = 0.5f;
 
     /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the light.</summary>

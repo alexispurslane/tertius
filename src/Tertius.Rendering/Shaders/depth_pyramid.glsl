@@ -8,6 +8,9 @@
 #include "gbuffer_inputs.glsl"
 #include "screen.glsl"
 
+// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
+// trace and the bounce light's near steps read it, so both see one model of what is solid (CellBounds.ThicknessShare).
+const float ThicknessShare = 0.1;
 // Far above any surface's inverse depth, which is at most 1 / 0.05 m. Not infinity: fast math may assume none.
 const float EmptyFar = 1e30;
 

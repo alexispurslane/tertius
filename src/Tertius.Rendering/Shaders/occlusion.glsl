@@ -1,34 +1,40 @@
-// The occlusion passes' set and push constants (docs/plans/ambient-occlusion.md, "Push constants and sets").
+// The occlusion passes' set and push constants (docs/plans/screen-space-illumination.md, "Push constants and sets").
 // OcclusionPushConstants in GpuTypes.cs mirrors the push block. Change both together.
 //
 // Engine glue around the port of XeGTAO in gtao.glsl: the images, the camera and the reads of the G-buffer. View space
-// is XeGTAO's: x right, y up, z forward, away from the eye. The image rows run down the screen.
+// is XeGTAO's: x right, y up, z forward, away from the eye. The image rows run down the screen. The passes bind the
+// scene's sets 0 to 2, so the camera is the frame constants' and the distance and the normals are the G-buffer set's.
 #ifndef TERTIUS_OCCLUSION_GLSL
 #define TERTIUS_OCCLUSION_GLSL
 
-#extension GL_EXT_samplerless_texture_functions : require
-
+#include "frame.glsl"
+#include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
 
-layout(set = 0, binding = 0) uniform texture2D gbufferDistance;     // R32F full: distance to the eye, 0 for sky
-layout(set = 0, binding = 1) uniform texture2D gbufferNormal;       // RGBA16 SNORM full: octahedral, rg shading, ba geometric
-layout(set = 0, binding = 2, r32f) uniform image2D viewDepth;       // half: view depth in m, SkyDepth for sky
-layout(set = 0, binding = 3, r8) uniform image2D occlusionEdges;    // half: XeGTAO's packed edges
-layout(set = 0, binding = 4, r16f) uniform image2D occlusionTermA;  // half
-layout(set = 0, binding = 5, r8) uniform image2D occlusionTarget;   // full
-layout(set = 1, binding = 0, r16f) uniform image2D denoiseSource;
-layout(set = 1, binding = 1, r16f) uniform image2D denoiseDestination;
+layout(set = 3, binding = 0, r32f) uniform image2D viewDepth;          // half: view depth in m, SkyDepth for sky
+layout(set = 3, binding = 1, r8) uniform image2D occlusionEdges;       // half: XeGTAO's packed edges
+layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the bounce G, pre-exposed, a V
+layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
+layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
+layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
+layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionDirect;  // half: the direct image at pixel 2t
+// half: the octahedral world geometric normal at pixel 2t, the normals target's ba
+layout(set = 3, binding = 7, rg16_snorm) uniform image2D occlusionGeometricNormal;
 
 layout(push_constant, std430) uniform OcclusionPush
 {
-    vec4 cameraRight;     // xyz the unit right in world axes, w t_x
-    vec4 cameraUp;        // xyz the unit up, w t_y
-    vec4 cameraForward;   // xyz the unit forward
     float radiusMeters;
     uint slices;
     uint stepsPerSide;
     uint lastDenoise;
 } occlusion;
+
+// (t_x, t_y): the tangents of half the horizontal and half the vertical field of view. The frame constants carry them
+// as the lengths of the camera's right and up.
+vec2 cameraTangents()
+{
+    return vec2(length(frame.cameraRight.xyz), length(frame.cameraUp.xyz));
+}
 
 // The full resolution, W × H pixels.
 ivec2 fullSize()
@@ -56,14 +62,15 @@ vec2 pixelScreenPosition(ivec2 pixel)
 // p(z) = 4 t_x z / W: the width in m of one half-resolution texel at the view depth z (HorizonSearch.TexelWidth).
 float texelWidth(float z)
 {
-    return 4.0 * occlusion.cameraRight.w * z / float(fullSize().x);
+    return 4.0 * cameraTangents().x * z / float(fullSize().x);
 }
 
 // A world-space direction in view space: its dot products with the camera's unit axes.
 vec3 toViewAxes(vec3 world)
 {
-    return vec3(dot(world, occlusion.cameraRight.xyz), dot(world, occlusion.cameraUp.xyz),
-                dot(world, occlusion.cameraForward.xyz));
+    vec2 tangents = cameraTangents();
+    return vec3(dot(world, frame.cameraRight.xyz / tangents.x), dot(world, frame.cameraUp.xyz / tangents.y),
+                dot(world, frame.cameraForward.xyz));
 }
 
 // The view-space shading normal of a full-resolution pixel.
@@ -76,6 +83,12 @@ vec3 shadingNormalAt(ivec2 pixel)
 vec3 geometricNormalAt(ivec2 pixel)
 {
     return toViewAxes(octDecode(texelFetch(gbufferNormal, pixel, 0).ba));
+}
+
+// The view-space geometric normal of a half-resolution texel's representative pixel, from the depth pass's copy.
+vec3 texelGeometricNormalAt(ivec2 texel)
+{
+    return toViewAxes(octDecode(imageLoad(occlusionGeometricNormal, texel).rg));
 }
 
 // The view depth of a half-resolution texel. A texel outside the image reads the border texel, as XeGTAO's clamped

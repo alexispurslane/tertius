@@ -60,10 +60,10 @@ public sealed class RendererOptions
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 
     /// <summary>
-    /// Whether ambient occlusion darkens the ambient light: <see cref="GroundTruthOcclusion"/> or
-    /// <see cref="NoAmbientOcclusion"/>. The default is <see cref="GroundTruthOcclusion.Default"/>.
+    /// Whether the renderer estimates the crease shadowing and the bounce light from the screen: <see cref="VisibilityBitmaskLight"/> or
+    /// <see cref="NoScreenSpaceLight"/>. The default is <see cref="VisibilityBitmaskLight.Default"/>.
     /// </summary>
-    public AmbientOcclusionSetting AmbientOcclusion { get; set; } = GroundTruthOcclusion.Default;
+    public ScreenSpaceLightSetting ScreenSpaceLight { get; set; } = VisibilityBitmaskLight.Default;
 
     /// <summary>
     /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom

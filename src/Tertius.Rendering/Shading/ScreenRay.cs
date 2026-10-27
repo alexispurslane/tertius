@@ -37,9 +37,6 @@ internal readonly record struct ScreenRay(
     SegmentEnd EndsAt
 )
 {
-    /// <summary>κ: a surface at view depth z fills the depths from z to z (1 + κ).</summary>
-    public const float ThicknessShare = 0.1f;
-
     /// <summary>In pixels: a position on a cell's edge belongs to the cell ahead of it.</summary>
     public const float CrossingNudge = 0.01f;
 
@@ -170,7 +167,7 @@ internal readonly record struct ScreenRay(
                 return new RayLeftTheSegment(EndsAt, steps);
             Vector2 cell = CellAt(s: s, level: level, travel: travel, onEdge: onEdge);
             float exit = CellExit(level, cell, travel);
-            (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(ThicknessShare);
+            (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(CellBounds.ThicknessShare);
             float outW = InverseDepthAt(exit);
             bool meetsSlab = MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high);
             if (!meetsSlab)

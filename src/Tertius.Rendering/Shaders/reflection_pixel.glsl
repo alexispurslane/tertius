@@ -36,7 +36,7 @@ bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
     p.distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     if (p.distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
         return false;
-    // surfaceAt gives the footprint that the lighting pass took at this pixel, so the delta's fallback is the term that
+    // surfaceAt gives the footprint that the ambient pass took at this pixel, so the delta's fallback is the term that
     // it added.
     p.s = surfaceAt(pixel);
     float roughness = flooredRoughness(p.s.roughness);
@@ -61,7 +61,7 @@ bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
 vec3 reflectionDelta(ReflectingPixel p, vec4 rayResult)
 {
     SurfaceLobes lobes = lobesOf(p.s, p.V);
-    // The ambient specular term as the lighting pass wrote it, pre-exposed (the one place: ambientTerms).
+    // The ambient specular term as the ambient pass wrote it, pre-exposed (the one place: ambientTerms).
     vec3 ambientSpecular = preExposed(ambientTerms(p.s, lobes, p.V).specular);
     return p.pixelFade * (specularWeight(lobes) * rayResult.rgb - rayResult.a * ambientSpecular);
 }

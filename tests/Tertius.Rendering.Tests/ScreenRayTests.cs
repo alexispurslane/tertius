@@ -150,7 +150,7 @@ public sealed class ScreenRayTests
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
         SceneRectangle[] bar = [new(new(0, 0, -5), new(1, 0, 0), new(0, 10, 0))];
         float high = 1 / 5f;
-        float low = high / (1 + ScreenRay.ThicknessShare);
+        float low = high / (1 + CellBounds.ThicknessShare);
         float halfway = 1 / ((high + low) / 2);
 
         // Parallel to the screen, the ray keeps one depth: halfway between the front and the back of the slab.
@@ -457,7 +457,7 @@ public sealed class ScreenRayTests
             pixels.Should().BeLessThan(1_000_000, "the march moves on at every pixel");
             Vector2 pixel = Floor(ray.Start + ray.Step * s + travel * ScreenRay.CrossingNudge);
             float exit = PixelExit(ray, pixel, travel);
-            (float low, float high) = pyramid.Bounds(0, (int)pixel.X, (int)pixel.Y).Slab(ScreenRay.ThicknessShare);
+            (float low, float high) = pyramid.Bounds(0, (int)pixel.X, (int)pixel.Y).Slab(CellBounds.ThicknessShare);
             float inW = ray.StartInverseDepth + ray.StepInverseDepth * s;
             float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
             if (MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high))

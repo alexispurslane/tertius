@@ -1,7 +1,7 @@
 ---
 id: ter-7s3g
 status: in_progress
-deps: [ter-izsu, ter-ehxp]
+deps: [ter-izsu, ter-uhd8, ter-ehxp]
 links: []
 created: 2026-10-25T20:07:17Z
 type: task

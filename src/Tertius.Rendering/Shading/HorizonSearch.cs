@@ -1,8 +1,8 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The search of GTAO around one half-resolution texel: its view depth, its texel width, the fade below one texel and
-/// the angles and the steps of the slices (docs/plans/ambient-occlusion.md, "The method"). gtao.glsl computes the same.
+/// The search of GTAO around one half-resolution texel: its view depth, its texel width, the empty near range below the
+/// nearest step and the angles and the steps of the slices (docs/plans/ambient-occlusion.md, "The method"). gtao.glsl computes the same.
 /// </summary>
 internal static class HorizonSearch
 {
@@ -36,11 +36,12 @@ internal static class HorizonSearch
     public static double TexelWidth(double viewDepth, double tanHalfX, int fullWidth) =>
         4 * tanHalfX * viewDepth / fullWidth;
 
-    /// <summary>clamp(ρ − 1, 0, 1): how much of the estimate a radius of ρ texels keeps.</summary>
-    public static double Fade(double radiusInTexels) => Math.Clamp(radiusInTexels - 1, 0, 1);
-
-    /// <summary>1 − fade (1 − estimate): the estimate, faded toward full visibility.</summary>
-    public static double Faded(double estimate, double fade) => 1 - fade * (1 - estimate);
+    /// <summary>
+    /// Whether a radius of <paramref name="radiusInTexels"/> texels holds any near step: only beyond the nearest step.
+    /// Below it the texel takes the ambient light in full (docs/plans/screen-space-illumination.md, "Where the near range
+    /// is empty").
+    /// </summary>
+    public static bool NearRangeHoldsSteps(double radiusInTexels) => radiusInTexels > NearestStepTexels;
 
     /// <summary>φ = (k + ξ_x) / S · π: the screen angle of slice k of S.</summary>
     public static double SliceAngle(int slice, int slices, float sliceNoise) => (slice + sliceNoise) / slices * Math.PI;
@@ -58,10 +59,10 @@ internal static class HorizonSearch
 
     /// <summary>
     /// The offset in half-resolution texels of the step at <paramref name="stepFraction"/> of the radius along the slice
-    /// at <paramref name="sliceAngle"/>, snapped to a texel. Screen rows run down, so y is −sin φ. A step beyond the
-    /// image stays one texel past its longer side, where it still hides nothing, so that it fits an int.
+    /// at <paramref name="sliceAngle"/>: its exact place on the slice line. Screen rows run down, so y is −sin φ. A step
+    /// beyond the image stays one texel past its longer side, where it still hides nothing, so that it fits an int.
     /// </summary>
-    public static (int X, int Y) StepOffset(
+    public static (double X, double Y) ExactStepOffset(
         double stepFraction,
         double sliceAngle,
         double radiusInTexels,
@@ -69,8 +70,16 @@ internal static class HorizonSearch
     )
     {
         double bound = Math.Max(halfSize.Width, halfSize.Height) + 1;
-        double x = Math.Clamp(stepFraction * radiusInTexels * Math.Cos(sliceAngle), -bound, bound);
-        double y = Math.Clamp(-stepFraction * radiusInTexels * Math.Sin(sliceAngle), -bound, bound);
-        return (X: (int)Math.Round(x), Y: (int)Math.Round(y));
+        return (
+            X: Math.Clamp(stepFraction * radiusInTexels * Math.Cos(sliceAngle), -bound, bound),
+            Y: Math.Clamp(-stepFraction * radiusInTexels * Math.Sin(sliceAngle), -bound, bound)
+        );
     }
+
+    /// <summary>
+    /// The offset of the texel nearest a step's exact place, <paramref name="exactOffset"/> from
+    /// <see cref="ExactStepOffset"/>: the texel whose depth the step reads.
+    /// </summary>
+    public static (int X, int Y) StepOffset((double X, double Y) exactOffset) =>
+        (X: (int)Math.Round(exactOffset.X), Y: (int)Math.Round(exactOffset.Y));
 }

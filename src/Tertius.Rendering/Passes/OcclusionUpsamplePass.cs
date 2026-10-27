@@ -1,15 +1,16 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion upsample pass, under <see cref="GroundTruthOcclusion"/> (docs/plans/ambient-occlusion.md, "The
-/// upsample"): term A to the full-resolution occlusion target, weighted by each texel's distance from the pixel's plane.
+/// The occlusion upsample pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/screen-space-illumination.md,
+/// "The denoise and the upsample"): term A's four channels, the bounce and the occlusion, to the full-resolution estimate
+/// target, weighted by each texel's distance from the pixel's plane.
 /// </summary>
 internal sealed class OcclusionUpsamplePass(
     VulkanDevice device,
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    GroundTruthOcclusion setting
+    VisibilityBitmaskLight setting
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(
@@ -31,8 +32,8 @@ internal sealed class OcclusionUpsamplePass(
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute);
         barriers.Image(targets.Distance, ImageUse.SampledCompute);
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
-        // Discarded, and still after the last frame's lighting pass read it.
-        barriers.Image(targets.Occlusion, ImageUse.StorageCompute, discard: true);
+        // Discarded, and still after the last frame's ambient pass and reflection trace read it.
+        barriers.Image(targets.Estimate, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, targets.Extent);
     }

@@ -353,6 +353,7 @@ public sealed class MaterialSampleTests
                 normalSkyShare: 0.3,
                 lobeSkyShare: 0.8,
                 occlusion: 1,
+                bounce: Double3.Zero,
                 tables: BrdfTables.Shared
             );
             Double3 integrated = HalfVectorQuadrature.ColorIntegral(
@@ -386,6 +387,7 @@ public sealed class MaterialSampleTests
                 normalSkyShare: normalSkyShare,
                 lobeSkyShare: lobeSkyShare,
                 occlusion: 1,
+                bounce: Double3.Zero,
                 tables: BrdfTables.Shared
             );
 
@@ -434,6 +436,7 @@ public sealed class MaterialSampleTests
                     normalSkyShare: normalSkyShare,
                     lobeSkyShare: lobeSkyShare,
                     occlusion: 1,
+                    bounce: Double3.Zero,
                     tables: BrdfTables.Shared
                 );
 
@@ -479,7 +482,13 @@ public sealed class MaterialSampleTests
             lobeSkyShare: 0.9,
             tables: BrdfTables.Shared
         );
-        AmbientTerms occluded = terms.Occluded(occlusion: 0.35, nDotV: 0.7, lobe: plastic.Lobe);
+        AmbientTerms occluded = terms.Occluded(
+            occlusion: 0.35,
+            bounce: Double3.Zero,
+            diffuseColor: plastic.DiffuseColor,
+            nDotV: 0.7,
+            lobe: plastic.Lobe
+        );
 
         Double3 ambient = plastic.ReflectedHemisphere(
             normal: Double3.UnitZ,
@@ -489,6 +498,7 @@ public sealed class MaterialSampleTests
             normalSkyShare: 0.4,
             lobeSkyShare: 0.9,
             occlusion: 0.35,
+            bounce: Double3.Zero,
             tables: BrdfTables.Shared
         );
 
@@ -497,6 +507,37 @@ public sealed class MaterialSampleTests
             expected: occluded.Diffuse + occluded.Specular,
             tolerance: 1e-15,
             because: "the hemisphere is one ambient source, and the occlusion applies to its two terms"
+        );
+    }
+
+    [Fact]
+    public void TheBounceAddsItsLightTimesTheDiffuseColor()
+    {
+        var plastic = new MaterialSample(BaseColor: new(0.7, 0.4, 0.2), Metallic: 0, Roughness: 0.3, Reflectance: 0.5);
+        Double3 toView = HalfVectorQuadrature.View(0.7);
+        Double3 sky = new(0.6, 0.8, 1.2);
+        Double3 ground = new(0.3, 0.2, 0.1);
+        Double3 bounce = new(2.5, 0.25, 0.75);
+        Double3 Ambient(Double3 withBounce) =>
+            plastic.ReflectedHemisphere(
+                normal: Double3.UnitZ,
+                toView: toView,
+                sky: sky,
+                ground: ground,
+                normalSkyShare: 0.4,
+                lobeSkyShare: 0.9,
+                occlusion: 0.35,
+                bounce: withBounce,
+                tables: BrdfTables.Shared
+            );
+
+        Double3 added = Ambient(bounce) - Ambient(Double3.Zero);
+
+        ShouldBeNear(
+            actual: added,
+            expected: plastic.DiffuseColor * bounce,
+            tolerance: 1e-15,
+            because: "the bounce is diffuse light, which the Lambert color reflects"
         );
     }
 

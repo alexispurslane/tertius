@@ -22,8 +22,9 @@ namespace Tertius.Host;
 /// in either run.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
-/// <item><c>--ambient-occlusion off|&lt;meters&gt;</c> turns the headless renderer's ambient occlusion off, or sets its
-/// radius in m. Without the option, the renderer keeps its default.</item>
+/// <item><c>--screen-space-light off|&lt;meters&gt;</c> turns the headless renderer's screen-space light off, or sets its
+/// radius in m. <c>--screen-space-light-steps N</c> gives it N steps on each side of a slice, 1 to 16. Without either
+/// option, the renderer keeps its default.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
 /// <item><c>--reflections on|off</c> keeps the headless renderer's default <see cref="ConeTracedReflections"/>, or turns
 /// them off.</item>
@@ -80,7 +81,7 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -103,7 +104,8 @@ public static class ScriptCommand
         "--fps",
         "--size",
         "--tone-curve",
-        "--ambient-occlusion",
+        "--screen-space-light",
+        "--screen-space-light-steps",
         "--bloom",
         "--reflections",
         "--anti-aliasing",
@@ -429,8 +431,8 @@ public static class ScriptCommand
         };
         if (options.ToneCurve is { } curve)
             rendererOptions.ToneCurve = curve;
-        if (options.AmbientOcclusion is { } ambientOcclusion)
-            rendererOptions.AmbientOcclusion = ambientOcclusion;
+        if (options.ScreenSpaceLight is { } screenSpaceLight)
+            rendererOptions.ScreenSpaceLight = screenSpaceLight;
         if (options.BloomOff)
             rendererOptions.Bloom = new NoBloom();
         if (options.ReflectionsOff)
@@ -624,7 +626,7 @@ public static class ScriptCommand
     /// <param name="Target">Where a script run's captures go, the PNG files of <paramref name="Out"/> without --video, or null for free play.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
-    /// <param name="AmbientOcclusion">The setting that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="ScreenSpaceLight">The setting that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
     /// <param name="ReflectionsOff">True to turn the headless renderer's reflections off, false to keep its default.</param>
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
@@ -641,7 +643,7 @@ public static class ScriptCommand
         CaptureTarget? Target = null,
         ScriptWindow? Size = null,
         ToneCurve? ToneCurve = null,
-        AmbientOcclusionSetting? AmbientOcclusion = null,
+        ScreenSpaceLightSetting? ScreenSpaceLight = null,
         bool BloomOff = false,
         bool ReflectionsOff = false,
         AntiAliasing? AntiAliasing = null,
@@ -669,7 +671,10 @@ public static class ScriptCommand
             Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
             Size: SizeOf(given.Value("--size")),
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
-            AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
+            ScreenSpaceLight: ScreenSpaceLightOf(
+                given.Value("--screen-space-light"),
+                given.Value("--screen-space-light-steps")
+            ),
             BloomOff: given.Value("--bloom") == "off",
             ReflectionsOff: given.Value("--reflections") == "off",
             AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
@@ -740,7 +745,7 @@ public static class ScriptCommand
         ?? VideoProblem(given)
         ?? SizeProblem(given)
         ?? ToneCurveProblem(given)
-        ?? AmbientOcclusionProblem(given)
+        ?? ScreenSpaceLightProblem(given)
         ?? OnOffProblem(given, "--bloom")
         ?? OnOffProblem(given, "--reflections")
         ?? AntiAliasingProblem(given)
@@ -798,14 +803,25 @@ public static class ScriptCommand
         return null;
     }
 
-    private static string? AmbientOcclusionProblem(GivenOptions given)
+    private static string? ScreenSpaceLightProblem(GivenOptions given)
     {
-        if (given.Value("--ambient-occlusion") is not { } occlusion)
+        string? light = given.Value("--screen-space-light"),
+            steps = given.Value("--screen-space-light-steps");
+        if (light is null && steps is null)
             return null;
         if (!given.Headless)
-            return "--ambient-occlusion applies to a headless run, so add --headless.";
-        if (AmbientOcclusionOf(occlusion) is null)
-            return $"--ambient-occlusion needs off or a radius in m, a positive number such as 0.5, not '{occlusion}'.";
+        {
+            string option = light is null ? "--screen-space-light-steps" : "--screen-space-light";
+            return $"{option} applies to a headless run, so add --headless.";
+        }
+
+        bool lightReads = light is null or "off" || RadiusOf(light) is not null;
+        if (!lightReads)
+            return $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
+        if (steps is not null && StepsOf(steps) is null)
+            return $"--screen-space-light-steps needs a whole number from 1 to {ScreenSpaceLightSetting.MaxStepsPerSide}, not '{steps}'.";
+        if (steps is not null && light == "off")
+            return "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off.";
         return null;
     }
 
@@ -918,22 +934,38 @@ public static class ScriptCommand
         };
 
     /// <summary>
-    /// The ambient occlusion that the text gives: none for <c>off</c>, the renderer's default with the radius for a
-    /// positive finite number of m, and null for no text or any other text. The renderer refuses a radius above its limit.
+    /// The screen-space light that the two texts give: none for <c>off</c>, else the renderer's default with the radius and
+    /// the steps that are given, and null when neither option is given. The renderer refuses a radius above its limit.
     /// </summary>
-    private static AmbientOcclusionSetting? AmbientOcclusionOf(string? text)
+    private static ScreenSpaceLightSetting? ScreenSpaceLightOf(string? light, string? steps)
     {
-        if (text == "off")
-            return new NoAmbientOcclusion();
+        if (light == "off")
+            return new NoScreenSpaceLight();
+        if (light is null && steps is null)
+            return null;
+        VisibilityBitmaskLight estimate = VisibilityBitmaskLight.Default;
+        if (RadiusOf(light) is { } radius)
+            estimate = estimate with { RadiusMeters = radius };
+        if (StepsOf(steps) is { } count)
+            estimate = estimate with { StepsPerSide = count };
+        return estimate;
+    }
+
+    /// <summary>The radius in m that the text gives, or null for no text or one that is not a positive finite number.</summary>
+    private static float? RadiusOf(string? text)
+    {
         bool read = float.TryParse(
             s: text,
             style: NumberStyles.Float,
             provider: CultureInfo.InvariantCulture,
             result: out float radius
         );
-        bool positive = read && float.IsFinite(radius) && radius > 0;
-        return positive ? GroundTruthOcclusion.Default with { RadiusMeters = radius } : null;
+        return read && float.IsFinite(radius) && radius > 0 ? radius : null;
     }
+
+    /// <summary>The steps on each side of a slice that the text gives, or null for no text or one outside 1 to 16.</summary>
+    private static int? StepsOf(string? text) =>
+        WholeNumberOf(text: text, least: 1, most: ScreenSpaceLightSetting.MaxStepsPerSide);
 
     /// <summary>
     /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of

@@ -80,6 +80,39 @@ internal sealed class FrameContext
         DescriptorSet set
     )
     {
+        BeginRenderingInto(target, loadOp);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Graphics,
+            layout: layout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        SetFullViewport();
+    }
+
+    /// <summary>
+    /// Draws one full-screen triangle of <paramref name="pipeline"/>, whose layout is
+    /// <see cref="DescriptorLayouts.SceneLayout"/>, into <paramref name="target"/> alone, with this frame's sets 0 to 2.
+    /// The pipeline writes every pixel, so the target's old contents are not loaded.
+    /// </summary>
+    public void DrawSceneFullScreen(GpuImage target, Pipeline pipeline)
+    {
+        BeginRenderingInto(target, AttachmentLoadOp.DontCare);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        BindSceneSets();
+        SetFullViewport();
+        Vk.CmdDraw(commandBuffer: CommandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+        Vk.CmdEndRendering(CommandBuffer);
+    }
+
+    /// <summary>Begins rendering into <paramref name="target"/> alone, its whole extent, stored at the end.</summary>
+    private unsafe void BeginRenderingInto(GpuImage target, AttachmentLoadOp loadOp)
+    {
         var color = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -98,18 +131,6 @@ internal sealed class FrameContext
             PColorAttachments = &color,
         };
         Vk.CmdBeginRendering(CommandBuffer, &rendering);
-        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
-        Vk.CmdBindDescriptorSets(
-            commandBuffer: CommandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: layout,
-            firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
-        SetFullViewport();
     }
 
     /// <summary>Sets a viewport and scissor that cover the whole render target.</summary>
@@ -175,7 +196,7 @@ internal abstract class RenderPass : IDisposable
 /// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
 /// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="GroundTruthOcclusion"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
+/// <see cref="VisibilityBitmaskLight"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
 /// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
@@ -185,6 +206,12 @@ internal sealed class FrameGraph : IDisposable
     private readonly List<(Stage Stage, int Order, RenderPass Pass)> passes = [];
 
     public IEnumerable<RenderPass> Passes => passes.Select(p => p.Pass);
+
+    /// <summary>
+    /// The names of the passes that <see cref="Record"/> leaves out. A test hook: a test reads an image as an earlier pass
+    /// left it, such as the near estimate before the denoise.
+    /// </summary>
+    public HashSet<string> Skipped { get; } = [];
 
     public enum Stage
     {
@@ -213,16 +240,27 @@ internal sealed class FrameGraph : IDisposable
         DepthPyramid,
 
         /// <summary>
-        /// The occlusion passes, under <see cref="GroundTruthOcclusion"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and before the lighting pass, which reads their occlusion target.
+        /// The direct pass: after the G-buffer pass and the shadow maps, which it reads, and before the occlusion passes,
+        /// so that the bounce light's sector pass can gather from its direct image (docs/plans/screen-space-illumination.md,
+        /// "The frame").
         /// </summary>
-        AmbientOcclusion,
-        Lighting,
+        DirectLight,
 
         /// <summary>
-        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the lighting pass,
-        /// whose lit image they read, and before the transparent pass, so glass and puffs neither show in reflections nor
-        /// lose them (docs/plans/screen-space-reflections.md, "The order of a frame").
+        /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
+        /// normals they read, and after the direct pass, whose image the bounce light's depth pass copies for its sectors.
+        /// Before the ambient pass, which reads their estimate target.
+        /// </summary>
+        AmbientOcclusion,
+
+        /// <summary>The ambient pass: after the occlusion passes, whose estimate target it reads, into the HDR image.</summary>
+        AmbientLight,
+
+        /// <summary>
+        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the ambient pass,
+        /// whose lit image they read, so that a reflection shows the ambient light and the bounce, and before the
+        /// transparent pass, so glass and puffs neither show in reflections nor lose them
+        /// (docs/plans/screen-space-reflections.md, "The order of a frame").
         /// </summary>
         Reflections,
         Transparent,
@@ -271,6 +309,8 @@ internal sealed class FrameGraph : IDisposable
         context.Timer.Begin(context.CommandBuffer, slot);
         foreach ((_, _, RenderPass pass) in passes)
         {
+            if (Skipped.Contains(pass.Name))
+                continue;
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);

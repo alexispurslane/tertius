@@ -16,10 +16,11 @@ namespace Tertius.Rendering;
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
 /// <item><term>set 2, G-buffer</term>
-/// <description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
+/// <description>the G-buffer targets for the direct, ambient and transparent passes (rewritten on resize),
 /// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
-/// for the lit puffs, the occlusion target (binding 7, rewritten on resize), and the local shadow atlas (binding 8, partially
-/// bound), which the comparison sampler also reads and which stays empty without the atlas. One.</description></item>
+/// for the lit puffs, the estimate target (binding 7), the local shadow atlas (binding 8, partially bound), which the
+/// comparison sampler also reads and which stays empty without the atlas, and the direct image (binding 9). The estimate
+/// target and the direct image are rewritten on resize. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -36,10 +37,9 @@ namespace Tertius.Rendering;
 /// <item><term>environment levels</term><description>four level views of the radiance map or the specular map as storage
 /// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
 /// largest map, rewritten when the map's images grow.</description></item>
-/// <item><term>occlusion</term><description>the G-buffer distance and normals, and the half-resolution images and the
-/// occlusion target as storage images, for the occlusion passes. One, rewritten on resize.</description></item>
-/// <item><term>denoise</term><description>the source and the destination term of one denoise dispatch. Two, rewritten on
-/// resize.</description></item>
+/// <item><term>occlusion</term><description>set 3 of <see cref="OcclusionLayout"/>: the half-resolution images, the
+/// estimate target, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
+/// direction of the denoise, rewritten on resize.</description></item>
 /// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
 /// is on, its screen-sized images rewritten on resize.</description></item>
 /// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of a
@@ -55,9 +55,9 @@ namespace Tertius.Rendering;
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
-/// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, take sets 0 to 2
-/// too, whose bindings that their shaders read include the compute stage (docs/plans/screen-space-reflections.md,
-/// "Descriptor sets").
+/// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
+/// occlusion, <see cref="OcclusionLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
+/// compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
@@ -118,7 +118,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
-        (OcclusionSet, DenoiseSet) = CreateOcclusionSetLayouts();
+        OcclusionSet = CreateOcclusionSetLayout();
         SmaaSet = CreateSmaaSetLayout();
         (PyramidLevelSet, DepthTailSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
         DeformSet = CreateDeformSetLayout();
@@ -259,15 +259,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout EnvironmentPrefilterLayout { get; }
 
     /// <summary>
-    /// Set 0 of <see cref="OcclusionLayout"/>: the G-buffer distance and normals, then the view depth, edges, term A
-    /// and occlusion target as storage images (docs/plans/ambient-occlusion.md, "Push constants and sets").
+    /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
+    /// 3), the source and the destination term of a denoise dispatch (bindings 4 and 5), and the depth pass's copies of
+    /// the direct light and the geometric normal (bindings 6 and 7), as storage images
+    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 
-    /// <summary>Set 1 of <see cref="OcclusionLayout"/>: the source term and the destination term of one denoise dispatch.</summary>
-    public DescriptorSetLayout DenoiseSet { get; }
-
-    /// <summary>Set 0 the occlusion set, set 1 a denoise set, and <see cref="OcclusionPushConstants"/> for the compute stage.</summary>
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the occlusion set and <see cref="OcclusionPushConstants"/>, for the occlusion passes.</summary>
     public PipelineLayout OcclusionLayout { get; }
 
     /// <summary>
@@ -351,8 +350,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateEnvironmentLevelsSet() => Allocate(pool, EnvironmentLevelsSet, null);
 
     public DescriptorSet AllocateOcclusionSet() => Allocate(pool, OcclusionSet, null);
-
-    public DescriptorSet AllocateDenoiseSet() => Allocate(pool, DenoiseSet, null);
 
     public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
@@ -581,14 +578,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, the occlusion target and the local shadow atlas, partially bound. The sampler is immutable because
-    /// portability implementations may not allow updating comparison sampler descriptors
+    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, and the direct image. The sampler
+    /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
     private DescriptorSetLayout CreateGBufferSetLayout(Sampler shadowSampler)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // The pyramid builds and the trace of the reflections read the G-buffer in compute shaders.
+        // Compute shaders read the G-buffer: the pyramid builds and the trace of the reflections, and the occlusion
+        // passes, which read the normals (binding 1) and the distance (binding 4).
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> gbuffer =
         [
@@ -600,10 +598,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
             Image(binding: 5, stages: graphics),
             ImmutableSampler(binding: 6, stages: graphics, sampler: &shadowSampler),
-            Image(binding: RenderTargets.OcclusionBinding, stages: shading),
-            // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The reflections' compute shaders
-            // declare the atlas but never use it.
+            Image(binding: RenderTargets.EstimateBinding, stages: shading),
+            // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The reflections' and the
+            // occlusion passes' compute shaders declare the atlas but never use it.
             Image(binding: ShadowAtlas.AtlasBinding, stages: graphics),
+            // Compute too, for the occlusion passes that gather the bounce from the direct image
+            // (docs/plans/screen-space-illumination.md, "Push constants and sets").
+            Image(binding: RenderTargets.DirectBinding, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
         flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;
@@ -635,7 +636,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "environment prefilter layout"
         );
         PipelineLayout occlusion = CreatePipelineLayout(
-            sets: [OcclusionSet, DenoiseSet],
+            sets: [FrameSet, TextureSet, GBufferSet, OcclusionSet],
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<OcclusionPushConstants>()),
             name: "occlusion layout"
         );
@@ -681,25 +682,29 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 19 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
-            // glow source set, two each for the meter set and the occlusion set, one per pyramid level set, one for the
-            // depth tail set, two for the reflection set and one for the prefilter set.
-            new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
-            // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
-            // set's mips, three for the reflection set and four per environment levels set.
+            // 20 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
+            // glow source set, two for the meter set, one per pyramid level set, one for the depth tail set, two for the
+            // reflection set and one for the prefilter set.
+            new(DescriptorType.SampledImage, 20 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1),
+            // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
+            // reflection set and four per environment levels set.
             new(
                 DescriptorType.StorageImage,
-                8 + PyramidLevelSets + DepthPyramidTail.Mips + 3 + 4 * EnvironmentLevelsSets
+                2 * OcclusionImages.StorageImages
+                    + PyramidLevelSets
+                    + DepthPyramidTail.Mips
+                    + 3
+                    + 4 * EnvironmentLevelsSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, occlusion, SMAA, reflection and
-        // prefilter sets, the two denoise sets, the glow source sets, the pyramid level sets, the depth tail set and the
-        // environment levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
+        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection and prefilter sets,
+        // the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the environment
+        // levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: 2 * frames + 12 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
+            maxSets: 2 * frames + 11 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -781,23 +786,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
-    /// <summary>The layouts of the occlusion set and the denoise set, whose bindings the compute stage reads.</summary>
-    private (DescriptorSetLayout Occlusion, DescriptorSetLayout Denoise) CreateOcclusionSetLayouts()
+    /// <summary>The layout of the occlusion set, whose bindings the compute stage reads.</summary>
+    private DescriptorSetLayout CreateOcclusionSetLayout()
     {
         Span<DescriptorSetLayoutBinding> occlusion =
-        [
-            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
-            Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
-            StorageImage(binding: 2),
-            StorageImage(binding: 3),
-            StorageImage(binding: 4),
-            StorageImage(binding: 5),
-        ];
-        Span<DescriptorSetLayoutBinding> denoise = [StorageImage(binding: 0), StorageImage(binding: 1)];
-        return (
-            CreateLayout(bindings: occlusion, name: "occlusion set"),
-            CreateLayout(bindings: denoise, name: "denoise set")
-        );
+            stackalloc DescriptorSetLayoutBinding[OcclusionImages.StorageImages];
+        for (int binding = 0; binding < occlusion.Length; binding++)
+            occlusion[binding] = StorageImage(binding: (uint)binding);
+        return CreateLayout(bindings: occlusion, name: "occlusion set");
     }
 
     /// <summary>
@@ -899,7 +895,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // The pyramid builds and the trace of the reflections read the frame constants, the tables and the exposure.
+        // Compute shaders read these bindings: the pyramid builds and the trace of the reflections read the frame
+        // constants, the tables and the exposure, and the occlusion passes read the frame constants (binding 0).
         const ShaderStageFlags graphicsAndCompute = graphics | ShaderStageFlags.ComputeBit;
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> frame =
@@ -1199,7 +1196,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, EnvironmentPrefilterSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, EnvironmentLevelsSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, OcclusionSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, DenoiseSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, SmaaSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, PyramidLevelSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, DepthTailSet, null);

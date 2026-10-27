@@ -1,16 +1,18 @@
 // The lit surface that the G-buffer holds at a pixel (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light"). The lighting pass and the reflections' passes read a lit pixel's surface only through it,
-// and the occlusion of ambient occlusion enters the shading input here (docs/plans/ambient-occlusion.md). So does the
-// reflection's footprint, which the lighting pass and the pass that adds the reflections' delta (the full-resolution
-// trace, or the upsample at half resolution) take from the G-buffer, so that the delta takes away the very ambient
-// specular term that the lighting pass added (docs/plans/environment-map.md, "Where it runs"). The pixel must lie
-// inside the G-buffer: texelFetch outside an image is undefined.
+// reads the ambient light"). The direct and ambient passes and the reflections' passes read a lit pixel's surface only
+// through it, and the estimate of the light around the pixel enters the shading input here
+// (docs/plans/screen-space-illumination.md, "The ambient pass"). So does the reflection's footprint, which the ambient
+// pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution)
+// take from the G-buffer, so that the delta takes away the very ambient specular term that the ambient pass added
+// (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside the G-buffer: texelFetch outside an image
+// is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
 #include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
 #include "lighting.glsl"
+#include "exposure.glsl"
 #include "screen.glsl"
 
 // d at a pixel: a surface's specular dominant direction toward the eye, and a sky pixel's view ray.
@@ -50,7 +52,10 @@ uint mapOfCode(float alpha)
     return (256u - uint(round(alpha * 255.0))) >> 1;
 }
 
-ShadingInput surfaceAt(ivec2 pixel)
+// The surface without the estimate, with V = 1 and G = 0, and with the footprint at its floor p, for the direct light,
+// which reads none of them. The direct pass reads the surface only through it, so it never reads the estimate target,
+// which the occlusion passes write after it.
+ShadingInput materialAt(ivec2 pixel)
 {
     ShadingInput s;
     vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
@@ -65,8 +70,21 @@ ShadingInput surfaceAt(ivec2 pixel)
     s.reflectance = specular.b;
     s.lobeSkyFraction = specular.a;
     s.skyFraction = texelFetch(gbufferEmissive, pixel, 0).a;
+    s.reflectionFootprint = frame.params.z;
+    s.occlusion = 1.0;
+    s.bounce = vec3(0.0);
+    return s;
+}
+
+ShadingInput surfaceAt(ivec2 pixel)
+{
+    ShadingInput s = materialAt(pixel);
     s.reflectionFootprint = reflectionFootprintAt(pixel);
-    s.occlusion = texelFetch(gbufferOcclusion, pixel, 0).r;
+    vec4 estimate = texelFetch(gbufferEstimate, pixel, 0);
+    s.occlusion = estimate.a;
+    // The images hold the bounce pre-exposed. k = exp2(stops) is a normal float above 0, and the quotient stays below
+    // c · 2⁶⁴, a finite single float.
+    s.bounce = estimate.rgb / exposureScale();
     return s;
 }
 

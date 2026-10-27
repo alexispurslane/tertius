@@ -11,9 +11,9 @@ public sealed class FrameGraphTests
     {
         using var graph = new FrameGraph();
         for (int pass = 0; pass < GpuTimer.MaxPasses; pass++)
-            graph.Add(FrameGraph.Stage.Lighting, new EmptyPass());
+            graph.Add(FrameGraph.Stage.DirectLight, new EmptyPass());
 
-        Action addOneMore = () => graph.Add(FrameGraph.Stage.Lighting, new EmptyPass());
+        Action addOneMore = () => graph.Add(FrameGraph.Stage.DirectLight, new EmptyPass());
 
         addOneMore
             .Should()
@@ -55,31 +55,34 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
-    public void TheOcclusionPassesRunAfterTheGBufferPassAndBeforeTheLightingPass()
+    public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheAmbientPass()
     {
         using var graph = new FrameGraph();
-        graph.Add(FrameGraph.Stage.Lighting, new NamedPass("lighting"));
+        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
-        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion horizons"));
+        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion sectors"));
+        graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
         graph
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["G-buffer", "occlusion depth", "occlusion horizons", "lighting"],
-                "the occlusion passes read the finished G-buffer, and the lighting pass reads their occlusion"
+                ["G-buffer", "direct light", "occlusion depth", "occlusion sectors", "ambient light"],
+                "the occlusion passes read the finished G-buffer and the direct image, and the ambient pass reads their "
+                    + "estimate target"
             );
     }
 
     [Fact]
-    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheLightingAndTheTransparentPass()
+    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheAmbientAndTheTransparentPass()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
         graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
-        graph.Add(FrameGraph.Stage.Lighting, new NamedPass("lighting"));
+        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
+        graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
         graph.Add(FrameGraph.Stage.DepthPyramid, new NamedPass("depth pyramid"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
@@ -87,7 +90,15 @@ public sealed class FrameGraphTests
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["G-buffer", "depth pyramid", "occlusion depth", "lighting", "radiance pyramid", "transparent"],
+                [
+                    "G-buffer",
+                    "depth pyramid",
+                    "direct light",
+                    "occlusion depth",
+                    "ambient light",
+                    "radiance pyramid",
+                    "transparent",
+                ],
                 "the depth pyramid describes the finished distance, and the reflections read the lit image before glass"
             );
     }

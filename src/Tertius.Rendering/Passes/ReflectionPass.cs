@@ -141,7 +141,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
         BarrierBatch barriers = context.Barriers;
         foreach (GpuImage image in renderTargets.GBuffer)
             barriers.Image(image, ImageUse.SampledCompute);
-        barriers.Image(renderTargets.Occlusion, ImageUse.SampledCompute);
+        barriers.Image(renderTargets.Estimate, ImageUse.SampledCompute);
         switch (step)
         {
             case ReflectionStep.Trace:

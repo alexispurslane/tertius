@@ -14,14 +14,14 @@ public sealed class GpuTimingTests
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
-        AmbientOcclusionSetting ambientOcclusion = default
+        ScreenSpaceLightSetting screenSpaceLight = default
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
             framesInFlight: framesInFlight,
-            ambientOcclusion: ambientOcclusion
+            screenSpaceLight: screenSpaceLight
         );
         if (!renderer.TimesPasses)
         {
@@ -109,9 +109,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheGBufferPassAndTheLightingPass()
+    public void WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -121,18 +121,20 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(6)
+                .Take(7)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
+                        "direct light",
                         "occlusion depth",
-                        "occlusion horizons",
+                        "occlusion sectors",
                         "occlusion denoise",
                         "occlusion upsample",
-                        "lighting",
+                        "ambient light",
                     ],
-                    "the occlusion passes read the finished G-buffer, and the lighting pass reads their occlusion target"
+                    "the occlusion passes read the finished G-buffer and the direct image, no pass of theirs reads the "
+                        + "depth pyramid, and the ambient pass reads their estimate target"
                 );
         }
         finally
@@ -142,19 +144,25 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoAmbientOcclusionTheFrameHasNoOcclusionPass()
+    public void WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: new NoAmbientOcclusion());
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
             for (int i = 0; i < 3; i++)
                 renderer.Render(snapshot, 1f);
 
-            renderer
-                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+            string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
+            passes
+                .SkipWhile(pass => pass != "G-buffer")
+                .Take(3)
                 .Should()
-                .NotContain(pass => pass.Pass.StartsWith("occlusion"), "the lighting pass reads the cleared target");
+                .Equal(
+                    ["G-buffer", "direct light", "ambient light"],
+                    "the ambient pass reads the cleared estimate target"
+                );
+            passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
         }
         finally
         {
@@ -180,7 +188,7 @@ public sealed class GpuTimingTests
                         .BeInRange(0, 1_000, "{0} is a time on a counter that only grows", pass.Pass)
                 );
             passes
-                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "lighting")
+                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "ambient light")
                 .Should()
                 .AllSatisfy(pass => pass.Milliseconds.Should().BePositive("{0} draws the reference scene", pass.Pass));
         }
@@ -193,16 +201,19 @@ public sealed class GpuTimingTests
     [Fact]
     public void APassThatRecordsNothingAddsNearlyNoTimeBetweenTheEndOfThePassBeforeItAndTheEndOfThePassAfterIt()
     {
-        VulkanRenderer without = TimedRenderer();
-        VulkanRenderer with = TimedRenderer();
+        // With no screen-space light, the ambient pass follows the direct pass in both renderers, so a stamp after the
+        // direct pass that latches late waits on the same work in each. No reflections either, so no depth pyramid sits
+        // between the G-buffer pass and the direct pass.
+        VulkanRenderer without = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
+        VulkanRenderer with = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
         {
-            // Between the G-buffer pass and the lighting pass. On a driver whose stamps latch late, the empty pass's own
-            // time can hold part of the lighting's work, and the lighting's time then shows that much less, so only the
-            // time from the G-buffer's stamp to the lighting's stamp holds (ARCHITECTURE.md, "GPU timings").
+            // Between the G-buffer pass and the direct pass. On a driver whose stamps latch late, the empty pass's own
+            // time can hold part of the direct pass's work, and the direct pass's time then shows that much less, so only
+            // the time from the G-buffer's stamp to the direct pass's stamp holds (ARCHITECTURE.md, "GPU timings").
             with.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
 
-            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfLighting, without, with);
+            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfTheDirectLight, without, with);
 
             (fewest[1] - fewest[0])
                 .Should()
@@ -330,12 +341,15 @@ public sealed class GpuTimingTests
         return fewest;
     }
 
-    /// <summary>The time from the G-buffer's stamp to the lighting's stamp: the passes after the G-buffer pass up to the lighting pass.</summary>
-    private static double FromTheGBufferToTheEndOfLighting(PassTiming[] passes)
+    /// <summary>
+    /// The time from the G-buffer's stamp to the direct pass's stamp: the passes after the G-buffer pass up to the direct
+    /// pass.
+    /// </summary>
+    private static double FromTheGBufferToTheEndOfTheDirectLight(PassTiming[] passes)
     {
         int gBuffer = Array.FindIndex(passes, pass => pass.Pass == "G-buffer");
-        int lighting = Array.FindIndex(passes, pass => pass.Pass == "lighting");
-        return passes[(gBuffer + 1)..(lighting + 1)].Sum(pass => pass.Milliseconds);
+        int direct = Array.FindIndex(passes, pass => pass.Pass == "direct light");
+        return passes[(gBuffer + 1)..(direct + 1)].Sum(pass => pass.Milliseconds);
     }
 
     private sealed class EmptyPass : RenderPass

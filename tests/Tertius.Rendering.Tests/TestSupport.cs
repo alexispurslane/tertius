@@ -40,8 +40,8 @@ internal static class Gpu
     public static string RepositoryRoot => RepoRoot.Value;
 
     /// <summary>
-    /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow
-    /// tests see every object as geometry; the impostor tests turn them on with a small atlas. Ambient occlusion is off
+    /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow tests
+    /// see every object as geometry; the impostor tests turn them on with a small atlas. The screen-space light is off
     /// unless asked for, because the zero case of the setting is off. The exposure is fixed, at 0 stops unless asked for,
     /// so that a pixel does not depend on the frames before it. Anti-aliasing is off unless asked for, so that the pixel
     /// tests keep their values (docs/plans/anti-aliasing.md, "Decisions"). Reflections are off unless asked for, because
@@ -56,7 +56,7 @@ internal static class Gpu
         int framesInFlight = 2,
         bool impostors = false,
         int impostorTiles = 16,
-        AmbientOcclusionSetting ambientOcclusion = default,
+        ScreenSpaceLightSetting screenSpaceLight = default,
         ExposureSetting exposure = default,
         AntiAliasing antiAliasing = AntiAliasing.None,
         ReflectionSetting reflections = default,
@@ -74,7 +74,7 @@ internal static class Gpu
                 FramesInFlight = framesInFlight,
                 Impostors = impostors,
                 ImpostorTiles = impostorTiles,
-                AmbientOcclusion = ambientOcclusion,
+                ScreenSpaceLight = screenSpaceLight,
                 Exposure = exposure,
                 Bloom = new NoBloom(),
                 AntiAliasing = antiAliasing,

@@ -6,8 +6,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The two pyramids of the screen-space reflections on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the
 /// pyramids"): the depth pyramid against its C# copy, the padding of its image, the radiance pyramid against the lit
-/// image and the 13-tap filter, a resize, and the passes that the setting adds. The scene is a floor, two boxes and a
-/// lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
+/// image and the 13-tap filter, a resize, the passes that the setting adds, and no depth pyramid for the screen-space light
+/// alone. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class PyramidRenderTests
@@ -352,7 +352,28 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheLighting()
+    public void TheScreenSpaceLightAloneBuildsNoDepthPyramid()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            renderer
+                .Graph.Passes.Select(pass => pass.Name)
+                .Should()
+                .Contain("occlusion sectors")
+                .And.NotContain(
+                    "depth pyramid",
+                    "the bounce light's near steps read the view depth image, not the pyramid"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheAmbientLight()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
         try
@@ -360,7 +381,14 @@ public sealed class PyramidRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder(["G-buffer", "depth pyramid", "lighting", "radiance pyramid", "transparent"]);
+                .ContainInOrder([
+                    "G-buffer",
+                    "depth pyramid",
+                    "direct light",
+                    "ambient light",
+                    "radiance pyramid",
+                    "transparent",
+                ]);
         }
         finally
         {
