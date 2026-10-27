@@ -11,8 +11,9 @@
 #      pass, it leaves the note in the pending file slop-pending of the worktree's git folder, and the post-commit hook
 #      attaches it to the new commit under refs/notes/slop. The metrics never stop the commit.
 #   4. After the metrics end, a report of what the staged changes touch (tools/commit_report.py): the long methods, and
-#      the erosion and the verbosity, each with its change against the parent's note and the touched code that raises
-#      it. A failed measure leaves the erosion and the verbosity out. The report never stops the commit.
+#      the erosion and the verbosity, each with its change against the nearest noted commit up to HEAD and the touched
+#      code that raises it. A failed measure leaves the erosion and the verbosity out, and a failed test prints the
+#      report of the long methods only, before the commit stops. The report never stops the commit.
 # The pre-push hook formats and modernizes the code, so this hook changes no file in the working tree.
 # To skip the hook once, run: git commit --no-verify
 set -euo pipefail
@@ -130,8 +131,12 @@ slop_pending="$(git rev-parse --absolute-git-dir)/slop-pending"
 rm -f "$slop_pending"
 slop_tree=$(git write-tree)
 slop_out=$(mktemp "${TMPDIR:-/tmp}/tertius-pre-commit-slop.XXXXXX")
+# The report compares the metrics with the nearest noted commit up to HEAD. A first commit has no HEAD to compare with.
+slop_parent=()
+if git rev-parse --verify --quiet HEAD > /dev/null; then slop_parent=(--parent HEAD); fi
 dotnet tools/Tertius.Slop/bin/Checked/net11.0/Tertius.Slop.dll measure "$slop_tree" \
-    --branch "$(git branch --show-current)" --source pre-commit --details "$slop_details" > "$slop_out" 2>&1 &
+    --branch "$(git branch --show-current)" --source pre-commit --details "$slop_details" \
+    ${slop_parent[@]+"${slop_parent[@]}"} > "$slop_out" 2>&1 &
 slop_pid=$!
 
 # Leaves the measured note for the post-commit hook: the tree on the first line, the note on the second. Then prints
@@ -208,6 +213,8 @@ for entry in "${pids[@]}"; do
     fi
 done
 if [[ $status -ne 0 ]]; then
+    # The report of the long methods needs only the build, so it prints without waiting for the metrics.
+    python3 tools/commit_report.py >&2 || true
     echo "pre-commit: a test failed, so the commit stopped." >&2
     exit 1
 fi

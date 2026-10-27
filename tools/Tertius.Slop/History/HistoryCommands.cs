@@ -15,14 +15,25 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
 
     /// <summary>
     /// Prints the note of the tree <paramref name="tree"/>, measured now, as the pre-commit hook does. With a
-    /// <paramref name="details"/> path, it also writes the whole report of the tree there as JSON, as the
-    /// <c>all</c> command prints it, for the commit report.
+    /// <paramref name="details"/> path, it also writes the <see cref="MeasureDetails"/> of the tree there as JSON, for
+    /// the commit report. Their baseline is the nearest noted commit on the first-parent line of
+    /// <paramref name="parent"/>, by the rule of <see cref="Summary"/>, or null without a parent.
     /// </summary>
-    public void Measure(string tree, string branch, NoteSource source, string? details)
+    public void Measure(string tree, string branch, NoteSource source, string? details, string? parent)
     {
         SlopReport report = repository.Measure(tree, jscpd);
         if (details is not null)
-            File.WriteAllText(details, JsonSerializer.Serialize(report, SlopJson.Default.SlopReport));
+        {
+            NotedCommit? baseline =
+                parent is not null && NearestNoted(parent) is { Note: { } note } noted
+                    ? new(noted.ShortSha, note)
+                    : null;
+            File.WriteAllText(
+                details,
+                JsonSerializer.Serialize(new MeasureDetails(report, baseline), SlopJson.Default.MeasureDetails)
+            );
+        }
+
         output.WriteLine(
             SlopNote.Of(report: report, branch: branch, source: source, measured: DateTimeOffset.UtcNow).ToLine()
         );
@@ -62,19 +73,20 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
     /// </summary>
     public void Summary(string from, string tip)
     {
-        if (NearestNote(tip) is not { } now)
+        if (NearestNoted(tip)?.Note is not { } now)
         {
             output.WriteLine("slop: no commit up to the pushed tip has a note.");
             return;
         }
 
         IReadOnlyList<Commit> pushed = repository.Log(["--first-parent", "--reverse", $"{from}..{tip}"]);
-        output.Write(PushSummary.Of(lastPush: NearestNote(from), now: now, pushed: pushed).Describe());
+        output.Write(PushSummary.Of(lastPush: NearestNoted(from)?.Note, now: now, pushed: pushed).Describe());
     }
 
-    private SlopNote? NearestNote(string commit) =>
+    // The commit or its nearest ancestor on the first-parent line that has a note, or null when none of the last
+    // NoteSearchDepth has one.
+    private Commit? NearestNoted(string commit) =>
         repository
             .Log(["--first-parent", $"--max-count={NoteSearchDepth}", commit])
-            .Select(each => each.Note)
-            .FirstOrDefault(note => note is not null);
+            .FirstOrDefault(each => each.Note is not null);
 }

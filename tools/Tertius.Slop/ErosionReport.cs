@@ -22,19 +22,19 @@ public sealed record ErosionReport
     public int Limit => ComplexityLimit;
 
     /// <summary>The erosion: <see cref="HighCcMass"/> divided by <see cref="TotalMass"/>, from 0 to 1. 0 for no functions.</summary>
-    public required double Erosion { get; init; }
+    public double Erosion => TotalMass > 0 ? HighCcMass / TotalMass : 0;
 
     /// <summary>The sum of the mass of every function.</summary>
     public required double TotalMass { get; init; }
 
-    /// <summary>The sum of the mass of the functions with a complexity above <see cref="ComplexityLimit"/>.</summary>
-    public required double HighCcMass { get; init; }
+    /// <summary>The sum of the mass of <see cref="HighCcFunctions"/>.</summary>
+    public double HighCcMass => HighCcFunctions.Sum(function => function.Mass);
 
     /// <summary>The number of functions.</summary>
     public required int FunctionCount { get; init; }
 
-    /// <summary>The number of functions with a complexity above <see cref="ComplexityLimit"/>.</summary>
-    public required int HighCcFunctionCount { get; init; }
+    /// <summary>The number of <see cref="HighCcFunctions"/>.</summary>
+    public int HighCcFunctionCount => HighCcFunctions.Count;
 
     /// <summary>The number of lines that hold code in every file, inside functions or not.</summary>
     public required int Sloc { get; init; }
@@ -56,24 +56,16 @@ public sealed record ErosionReport
 
     /// <summary>The report of the <paramref name="functions"/> of a codebase of <paramref name="fileCount"/> files.</summary>
     /// <param name="sloc">The number of lines that hold code in every file, inside functions or not.</param>
-    public static ErosionReport Of(IReadOnlyList<FunctionMeasure> functions, int sloc, int fileCount)
-    {
-        FunctionMeasure[] highCc = [.. functions.Where(function => function.Complexity > ComplexityLimit)];
-        double totalMass = functions.Sum(function => function.Mass);
-        double highCcMass = highCc.Sum(function => function.Mass);
-        return new()
+    public static ErosionReport Of(IReadOnlyList<FunctionMeasure> functions, int sloc, int fileCount) =>
+        new()
         {
-            Erosion = totalMass > 0 ? highCcMass / totalMass : 0,
-            TotalMass = totalMass,
-            HighCcMass = highCcMass,
+            TotalMass = functions.Sum(function => function.Mass),
             FunctionCount = functions.Count,
-            HighCcFunctionCount = highCc.Length,
             Sloc = sloc,
             FileCount = fileCount,
             TopFunctions = [.. HeaviestFirst(functions).Take(TopCount)],
-            HighCcFunctions = [.. HeaviestFirst(highCc)],
+            HighCcFunctions = [.. HeaviestFirst(functions.Where(function => function.Complexity > ComplexityLimit))],
         };
-    }
 
     /// <summary>The report of every function in <paramref name="codebase"/>, measured in parallel.</summary>
     public static ErosionReport Of(Codebase codebase) =>

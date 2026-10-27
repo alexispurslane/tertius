@@ -8,9 +8,12 @@ commit: it is a report.
   projects of the staged files and prints each one whose method holds a changed line, in src and in tests.
 - Erosion and verbosity: with --slop <file>, the script reads the report that `Tertius.Slop measure --details <file>`
   wrote for the staged tree (tools/README.md, "Slop metrics"). It prints each metric of src, with its change against the
-  note of the parent commit in refs/notes/slop. Under the erosion, it names each function with a CC above the limit
-  that holds a changed line. Under the verbosity, it names each finding of a rule and each clone that holds a changed
-  line. Without --slop, as when the measure failed, both sections are left out.
+  baseline of the details: the note of the nearest noted commit up to HEAD on the first-parent line, by the rule of the
+  push summary. That is the parent of a new commit, or an older commit when the parent has no note. In a
+  `git commit --amend`, HEAD is the commit that the amend replaces. Under the erosion, it names each function with a CC
+  above the limit that holds a changed line. Under the verbosity, it names each finding of a rule and each clone that
+  holds a changed line. Each metric prints even when the commit changes no C# file. Without --slop, as when the
+  measure failed or a test failed, both sections are left out.
 
 The slop metrics measure only src, because test code repeats its setup on purpose, so that each test reads on its own,
 and a test's branches are its checks. So tests/ gets the length list only.
@@ -18,7 +21,9 @@ and a test's branches are its checks. So tests/ gets the length list only.
 When the report names anything, it ends with a prompt to refactor what the commit touches. The code improves a little
 at each change that passes through it, not all at once and not never.
 
-A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it.
+A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it, so
+that a deletion inside a function changes the function, and a deletion of the lines that follow a function leaves the
+function unchanged.
 """
 import argparse
 import json
@@ -31,7 +36,6 @@ from urllib.parse import unquote, urlparse
 ROOT = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                            check=True).stdout.strip())
 LENGTH_RULE = "MA0051"
-NOTES_REF = "refs/notes/slop"
 REFACTOR_PROMPT = """\
 Refactor now: this commit touches the code above, so improve it in this commit, as far as the task allows. Split a
 long or complex method into named steps, and merge a duplicated block into one shared method. A flat switch with one
@@ -52,7 +56,8 @@ def changed_lines():
         elif line.startswith("@@") and current:
             start, _, count = re.match(r"@@ -\S+ \+(\d+)(,(\d+))? @@", line).groups()
             start, count = int(start), int(count) if count is not None else 1
-            changed[current].update(range(start, start + max(count, 1)))
+            # A pure deletion has no new lines, and git names the line before it.
+            changed[current].update(range(start, start + count) if count > 0 else [start + 1])
     return changed
 
 
@@ -156,25 +161,13 @@ def report_length(changed):
     return True
 
 
-def parent_note():
-    """The slop note of HEAD, the parent of the commit, as a dict: its first line that parses, or None."""
-    shown = subprocess.run(["git", "notes", f"--ref={NOTES_REF}", "show", "HEAD"], capture_output=True, text=True,
-                           cwd=ROOT)
-    for line in shown.stdout.splitlines() if shown.returncode == 0 else []:
-        try:
-            note = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(note, dict) and all(isinstance(note.get(m), (int, float)) for m in ("erosion", "verbosity")):
-            return note
-    return None
-
-
-def metric_line(name, metric, value, note):
-    """The value of a metric of the staged tree, with its change against the parent's note when there is one."""
-    if note is None:
+def metric_line(name, metric, value, baseline):
+    """The value of a metric of the staged tree, with its change against the baseline's note when there is one."""
+    if baseline is None:
         return f"{name} {value:.4f}"
-    return f"{name} {value:.4f} ({value - note[metric]:+.4f} against the parent commit)"
+    # Rounded first, so that a change below the last shown digit prints as +0.0000, not as -0.0000.
+    change = round(value - baseline["note"][metric], 4) + 0.0
+    return f"{name} {value:.4f} ({change:+.4f} against {baseline['commit']}, the nearest noted commit up to HEAD)"
 
 
 def place(item):
@@ -187,9 +180,9 @@ def changes(changed, item):
     return touches(changed.get(item["file"], ()), item["line"], item["endLine"])
 
 
-def report_erosion(changed, erosion, note):
+def report_erosion(changed, erosion, baseline):
     """Prints the erosion and the functions above the CC limit that hold a changed line. True if it named any."""
-    print(metric_line("Erosion", "erosion", erosion["erosion"], note))
+    print(metric_line("Erosion", "erosion", erosion["erosion"], baseline))
     limit = erosion["complexityLimit"]
     functions = [f for f in erosion["highCcFunctions"] if changes(changed, f)]
     if not functions:
@@ -201,9 +194,9 @@ def report_erosion(changed, erosion, note):
     return True
 
 
-def report_verbosity(changed, verbosity, note):
+def report_verbosity(changed, verbosity, baseline):
     """Prints the verbosity, and the findings and clones that hold a changed line. True if it named any."""
-    print(metric_line("Verbosity", "verbosity", verbosity["verbosity"], note))
+    print(metric_line("Verbosity", "verbosity", verbosity["verbosity"], baseline))
     messages = {rule["id"]: rule["message"] for rule in verbosity["rules"]}
     findings = [f for f in verbosity["findings"] if changes(changed, f)]
     clones = [c for c in verbosity["clones"] if changes(changed, c["first"]) or changes(changed, c["second"])]
@@ -220,10 +213,10 @@ def report_verbosity(changed, verbosity, note):
 
 def report_slop(changed, details):
     """Prints the erosion and the verbosity of the staged tree from the measure's details file. True if it named any."""
-    report = json.loads(Path(details).read_text())
-    note = parent_note()
-    named = report_erosion(changed, report["erosion"], note)
-    return report_verbosity(changed, report["verbosity"], note) or named
+    details = json.loads(Path(details).read_text())
+    report, baseline = details["report"], details["baseline"]
+    named = report_erosion(changed, report["erosion"], baseline)
+    return report_verbosity(changed, report["verbosity"], baseline) or named
 
 
 def main():
@@ -231,8 +224,6 @@ def main():
     parser.add_argument("--slop", metavar="FILE", help="the details that Tertius.Slop measure wrote for the staged tree")
     arguments = parser.parse_args()
     changed = changed_lines()
-    if not changed:
-        return
     reports = [report_length]
     if arguments.slop:
         reports.append(lambda lines: report_slop(lines, arguments.slop))

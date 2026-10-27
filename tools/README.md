@@ -168,7 +168,7 @@ The git hooks keep the metrics of each commit in a git note under `refs/notes/sl
 
 The source is `pre-commit`, `pre-push` or `seed`. Four commands of the tool write and read the notes. `-C <folder>` before a command runs it in that repository.
 
-- `measure <tree> --branch <name> --source <source> [--details <file>]` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use. With `--details`, it also writes the JSON of `all` for the tree to the file. The pre-commit hook gives that file to the commit report ("Before a commit" below). The note on the output stays one line.
+- `measure <tree> --branch <name> --source <source> [--details <file> [--parent <commit>]]` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use. With `--details`, it also writes a JSON object to the file: `report`, the JSON of `all` for the tree, and `baseline`, the commit that the report compares the tree with, as `commit` (the short hash) and `note`. The baseline is the nearest noted commit on the first-parent line of `--parent`, by the rule of `summary`, and null without `--parent` or when no commit up to it has a note. The pre-commit hook gives that file to the commit report, with `--parent HEAD` ("Before a commit" below). The note on the output stays one line.
 - `note <from> <tip> --branch <name> --source <source>` attaches notes to the first-parent commits after `<from>` up to `<tip>`. It notes `<tip>`, and each commit that changes C# code under `src` and has no note.
 - `history [git log options and revisions]` prints the noted commits as CSV, newest first. The columns are commit, date, branch, tickets, erosion, verbosity and sloc. The tickets are the ticket ids in the commit message.
 - `summary <from> <tip>` prints the summary of the pre-push hook.
@@ -364,14 +364,14 @@ The folder `.githooks/` holds three git hooks. At its start, the dev shell sets 
 The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file in the working tree. It does four things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
-2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit. The hook skips a test project that has a test record for the staged code ("The test record" below).
+2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit, after the length part of the commit report (step 4). The hook skips a test project that has a test record for the staged code ("The test record" below).
 3. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure --details`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
 4. After the measure ends, it prints the commit report (`tools/commit_report.py`) for the changed lines only. The report never stops the commit. It has three parts:
    - Length: the methods over the length limit (MA0051), in `src` and in `tests`.
-   - Erosion: the erosion of the staged tree, and its change against the note of the parent commit. Under it, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
-   - Verbosity: the verbosity of the staged tree, and its change against the note of the parent commit. Under it, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
+   - Erosion: the erosion of the staged tree, and its change against the baseline. Under it, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
+   - Verbosity: the verbosity of the staged tree, and its change against the baseline. Under it, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
 
-   If the parent commit has no note, or its note does not parse, the erosion and the verbosity show their values without a change. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test stops the commit before the report.
+   The baseline is the nearest commit up to HEAD on the first-parent line that has a note, the rule of the push summary, and the report names it. That is the parent of a new commit, or an older commit when the parent has no note, as after a commit that changed only tickets or docs. In `git commit --amend`, HEAD is the commit that the amend replaces. Without a noted commit, the erosion and the verbosity show their values without a change. Both always show their values, also when the commit changes no C# file. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test prints the length part only, and then stops the commit.
 
 The tests of the changed code are:
 
@@ -389,7 +389,7 @@ The hook does not build or test the projects downstream of a change. Run `tools/
 
 If a staged file also holds unstaged changes, the hook says so. The build and the tests see the working tree, not only the staged changes.
 
-A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the length results from there. The length limit is in `.editorconfig` (MA0051). The erosion and the verbosity measure only `src`, so the report names no complexity or clone in `tests`. The complexity of the report is the erosion's own CC with its limit of 10, so the build's CA1502 is off.
+A changed line is a line that the staged diff adds or edits. A deletion changes the line after it, so a deletion inside a function changes that function, and a deletion of the lines that follow a function does not. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the length results from there. The length limit is in `.editorconfig` (MA0051). The erosion and the verbosity measure only `src`, so the report names no complexity or clone in `tests`. The complexity of the report is the erosion's own CC with its limit of 10, so the build's CA1502 is off.
 
 ### The test record
 

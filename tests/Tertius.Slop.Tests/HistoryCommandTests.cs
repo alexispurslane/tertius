@@ -91,7 +91,7 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("src/C.cs", Complex);
         git.Commit("first");
 
-        int exit = Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath);
+        int exit = MeasureWithDetails();
 
         exit.Should().Be(0);
         string[] lines = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -104,10 +104,10 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("src/C.cs", Complex);
         git.Commit("first");
 
-        Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath);
+        MeasureWithDetails();
 
         using JsonDocument details = Details();
-        JsonElement erosion = details.RootElement.GetProperty("erosion");
+        JsonElement erosion = details.RootElement.GetProperty("report").GetProperty("erosion");
         JsonElement function = erosion.GetProperty("highCcFunctions").EnumerateArray().Should().ContainSingle().Subject;
         (
             erosion.GetProperty("complexityLimit").GetInt32(),
@@ -128,10 +128,10 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("tests/Uses.cs", "class Uses { int F() => new D().G(); }");
         git.Commit("first");
 
-        Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath);
+        MeasureWithDetails();
 
         using JsonDocument details = Details();
-        JsonElement verbosity = details.RootElement.GetProperty("verbosity");
+        JsonElement verbosity = details.RootElement.GetProperty("report").GetProperty("verbosity");
         JsonElement finding = verbosity.GetProperty("findings").EnumerateArray().Should().ContainSingle().Subject;
         (
             finding.GetProperty("rule").GetString(),
@@ -158,11 +158,12 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("src/Deep/B.cs", $"class B\n{{\n{ClonedMethod}\n}}\n");
         git.Commit("first");
 
-        Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath);
+        MeasureWithDetails();
 
         using JsonDocument details = Details();
         JsonElement clone = details
-            .RootElement.GetProperty("verbosity")
+            .RootElement.GetProperty("report")
+            .GetProperty("verbosity")
             .GetProperty("clones")
             .EnumerateArray()
             .Should()
@@ -179,6 +180,36 @@ public sealed class HistoryCommandTests : IDisposable
         places
             .Should()
             .Equal(["src/A.cs:2-11", "src/Deep/B.cs:2-11"], "jscpd's copy runs from the brace of the class to the end");
+    }
+
+    [Fact]
+    public void TheDetailsGiveTheNoteOfTheNearestNotedCommitOnTheFirstParentLineOfTheParent()
+    {
+        git.Write("src/A.cs", Short);
+        string noted = git.Commit("first");
+        NoteAt(noted);
+        git.Write("README.md", "docs");
+        git.Commit("docs only, so no hook noted it");
+
+        MeasureWithDetails("--parent", "HEAD");
+
+        using JsonDocument details = Details();
+        JsonElement baseline = details.RootElement.GetProperty("baseline");
+        (baseline.GetProperty("commit").GetString(), baseline.GetProperty("note").GetProperty("sloc").GetInt32())
+            .Should()
+            .Be((noted[..7], 4));
+    }
+
+    [Fact]
+    public void TheDetailsGiveNoBaselineWhenNoCommitUpToTheParentHasANote()
+    {
+        git.Write("src/A.cs", Short);
+        git.Commit("first");
+
+        MeasureWithDetails("--parent", "HEAD");
+
+        using JsonDocument details = Details();
+        details.RootElement.GetProperty("baseline").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -371,6 +402,8 @@ public sealed class HistoryCommandTests : IDisposable
     [InlineData("note", "HEAD", "HEAD", "--branch", "main")]
     [InlineData("summary", "HEAD")]
     [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details")]
+    [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", "x", "--parent")]
+    [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--parent", "HEAD")]
     public void AHistoryCommandWithWrongArgumentsPrintsTheUsageAndFails(params string[] args)
     {
         int exit = Run(args);
@@ -389,6 +422,10 @@ public sealed class HistoryCommandTests : IDisposable
 
     // The details file goes outside the repository, as the hook puts it in the temporary folder.
     private string DetailsPath => git.Root + ".details.json";
+
+    // Measures HEAD with the details file, as the pre-commit hook does, and with the further options.
+    private int MeasureWithDetails(params string[] options) =>
+        Run(["measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath, .. options]);
 
     private JsonDocument Details() => JsonDocument.Parse(File.ReadAllText(DetailsPath));
 
