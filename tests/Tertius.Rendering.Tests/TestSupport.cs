@@ -184,6 +184,18 @@ internal static class Gpu
     /// <summary>The angular radius of the test star, in rad: about that of the Sun seen from Earth.</summary>
     public const float StarAngularRadius = 0.00467f;
 
+    /// <summary>
+    /// The entity of the test star, which no test instance holds: a glow of an instance's entity bounces only when no
+    /// light carries that entity (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// </summary>
+    public const uint StarEntity = 1_000_000;
+
+    /// <summary>
+    /// The entity of the test lamps and spot lights, which no test instance holds, for the reason of
+    /// <see cref="StarEntity"/>: a default instance near a test lamp glows as an instance of a real scene does.
+    /// </summary>
+    public const uint LampEntity = 1_000_001;
+
     /// <summary>The color of the test star, which scales its power per channel.</summary>
     public static readonly Vector3 StarColor = new(1f, 0.96f, 0.9f);
 
@@ -239,7 +251,7 @@ internal static class Gpu
     {
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
-            EntityIndex: 0,
+            EntityIndex: StarEntity,
             Position: position,
             PreviousPosition: position,
             Color: color,
@@ -257,7 +269,7 @@ internal static class Gpu
     /// </summary>
     public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity, ushort chainDepth) =>
         new(
-            EntityIndex: 0,
+            EntityIndex: LampEntity,
             Position: position,
             PreviousPosition: position,
             Color: color,
@@ -284,7 +296,7 @@ internal static class Gpu
     {
         double sine = Math.Sin(outerConeAngle / 2.0);
         return new(
-            EntityIndex: 0,
+            EntityIndex: LampEntity,
             Position: position,
             PreviousPosition: position,
             Direction: direction,

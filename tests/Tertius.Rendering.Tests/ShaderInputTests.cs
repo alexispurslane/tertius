@@ -263,6 +263,7 @@ public sealed class ShaderInputTests
             scale: Vector3.One,
             material: 0,
             map: 0,
+            holdsLight: false,
             hemisphere: HemisphereUp.Along(new(float.NaN, 1, 0))
         );
         var away = GpuInstance.From(
@@ -271,6 +272,7 @@ public sealed class ShaderInputTests
             scale: Vector3.One,
             material: 0,
             map: 0,
+            holdsLight: false,
             hemisphere: HemisphereUp.AwayFrom(new(float.PositiveInfinity, 0, 0))
         );
 

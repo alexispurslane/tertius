@@ -96,8 +96,8 @@ Each by the user's decisions and the project's rules, with its reason.
 12. A step blocks the sectors whose centers lie between the directions to its surface point and to the back of its slab: from floor(32 m + ½) to floor(32 m' + ½) − 1. The paper's listing marks every sector that the interval touches (floor at one end, ceiling at the other), which adds about one sector per step and side and darkens. Its text marks a sector that is half covered. The center rule counts neither more nor less on average. `floor(x + 0.5)` replaces `round`, whose ties GLSL leaves to the driver.
 13. The thickness is SSR's: a surface at view depth z fills z to z (1 + κ), κ = 0.1. One model of what is solid serves the near steps and SSR's trace, so a surface is as thick for the bounce as for a reflection. The paper uses a constant length t. SSR's share grows with the distance (SSR's decision 7, the user's). `ThicknessShare` moves from `ScreenRay` and `reflection.glsl` to `CellBounds` and `depth_pyramid.glsl`, because it says what the depth image means, and both the near steps and the trace read it.
 14. A step blocks only when its surface point lies within R of the center, GTAO's hard edge. So the masks reduce to GTAO's horizons at infinite thickness.
-15. A blocker gives its direct light, read from the direct image at its own pixel, when it faces the receiver, and no light otherwise. A blocker that faces away shows the receiver its back, whose light no pixel holds. The light is not weighted by the blocker's cosine, as the paper weights it. A Lambert blocker sends the same radiance in every direction, and the sector's share already holds the blocker's solid angle and the receiver's cosine. The paper's factor dims a wall that the point sees at a grazing angle a second time.
-16. The light that a blocker sends toward the eye stands for the light that it sends toward the receiver. That is exact for its diffuse part. For a glossy blocker, the highlight that the eye sees bounces, and the one toward the receiver does not. The exact light needs every light evaluated again toward the receiver at every step, the cost of the direct pass once per step.
+15. A blocker gives its bounce source (see "The bounce source"), read at its own pixel, when it faces the receiver, and no light otherwise. A blocker that faces away shows the receiver its back, whose light no pixel holds. The light is not weighted by the blocker's cosine, as the paper weights it. A Lambert blocker sends the same radiance in every direction, and the sector's share already holds the blocker's solid angle and the receiver's cosine. The paper's factor dims a wall that the point sees at a grazing angle a second time.
+16. The light that a blocker sends in every direction alike, its diffuse part, stands for the light that it sends toward the receiver (`ter-vtc7`, superseding the light toward the eye). That is exact for the diffuse part. A glossy blocker's highlight toward the receiver does not bounce, and neither does the one toward the eye, which bounced in every direction before. The exact light needs every light evaluated again toward the receiver at every step, the cost of the direct pass once per step.
 17. The estimate of a texel is normalized by its total slice weight, ΣW, so the open and the blocked shares sum to exactly 1 in every texel. GTAO divides by the number of slices, so an open surface comes to 1 only in the mean over slices, and its upsample clamps the excess. A texel whose total weight is below 10⁻⁶ holds no information and takes the open estimate, (0, 0, 0, 1). That needs one slice with a normal at right angles to its plane.
 18. Replaced by decision 40. It gave each slice one far ray (fork 2), through the center of one open sector that the fixed noise picked, whose outcome stood for every open sector of its slice.
 19. Replaced by decision 40. It started a far ray at R from the center along its direction, so the far range began where the near range ended.
@@ -238,7 +238,7 @@ where
 - `γ_g` = the angle of the projected geometric normal in the slice, taken within π of γ, so the geometric plane's two edges in the slice are γ_g ± π/2. A direction lies below the plane where its angle lies farther than π/2 from γ_g.
 - `n_g(2t)` = the view-space geometric normal of the step's representative pixel.
 - `faces(t)` = dot(n_g(2t), c − s_f) > 0.
-- `direct(2t)` = the direct image at that pixel, pre-exposed.
+- `direct(2t)` = the bounce source at that pixel, pre-exposed (see "The bounce source").
 - `light` = the slice's sum of newly blocked sectors times their light. The slice's weight W / 32 multiplies it at the end.
 
 Why the surface point lies on the slice (`ter-rxjr`). GTAO's step reads the texel nearest its exact place, and XeGTAO measures that texel's own point, P(t). P(t) lies off the slice plane by up to half a texel's diagonal on the screen, and θ is the angle of its full direction from V̂. On a floor seen at a grazing angle, one texel row spans several texel widths of floor in depth. So a texel one row nearer the eye than the slice line holds a floor point whose direction lies well inside the hemisphere, though the floor's own line in the slice is the hemisphere's edge. The slab of that step then blocks a run of sectors at the edge of the slice, and CenterBias lifts the center a little above the floor, so the step faces the center and gives it the floor's own light. On a sunlit flat floor at 640 × 360, 4,293 of 26,000 floor texels blocked sectors, and the bounce reached 1.2 % of the floor's direct light. A projection of P(t) onto the slice plane at right angles does not remove it: the projection of a floor point leaves the floor, and the largest bounce that remained fell only from 1.15 × 10⁻³ to 0.89 × 10⁻³. The step's surface point on the slice, the meeting of the exact ray and the texel's plane, lies on the floor for every floor step, so a floor step's angle is the floor's own edge, up to the lift of CenterBias, and it blocks nothing above the floor. A curved surface keeps the texel's tangent plane over at most half a texel's diagonal. The step reads the normal of its texel for every step, before the radius, not only for a step that blocks.
@@ -541,7 +541,7 @@ for (int slice = 0; slice < slices; slice++)
             if (fresh == 0u)
                 continue;
             blocked |= fresh;
-            light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
+            light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionSource, t).rgb, sampleNormal,
                                                         setup.center - samplePosition);
             if (readsMap)
                 mapLight += mapLightOf(g, run, fresh, map);
@@ -590,6 +590,28 @@ flowchart TD
     HDR --> RF["SSR: radiance pyramid and trace"]
     RF --> TR["Transparent pass"]
 ```
+
+### The bounce source
+
+The light that a blocker bounces, its bounce source, is the light that leaves it alike in every direction (`ter-vtc7`). Two rules make it:
+
+- Only the diffuse part of the direct light bounces (decision 16). A highlight leaves toward the eye alone, so it does not light the floor beside it.
+- An entity sends its power once (user, 2026-10-27). An entity that holds a light sends its power through that light, and its glowing surface is the face of that light, not a second source. So a glow bounces only where its entity holds no light. A lamp's panel lights its surroundings through the lamp's light alone. A screen or a marker, which holds no light, still bounces its glow.
+
+```mermaid
+flowchart LR
+    B["SceneBatcher: the entities that the snapshot's lights carry"] --> GI["GpuInstance.holdsLight"]
+    GI --> MV["mesh.vert, location 4 z"] --> GF["gbuffer.frag: the shading target's B"]
+    DP["Direct pass: the diffuse part of DirectTerms"] --> DF[("The diffuse image: rgb diffuse, a the skin mask")]
+    DF --> OD["occlusion depth: source = diffuse + (B = 0 ? emission : 0), capped at MaxRadiance"]
+    GF --> OD
+    EM[("The emissive target")] --> OD
+    OD --> SR[("The source copy at half resolution")] --> OS["occlusion sectors"]
+```
+
+- The diffuse image (`RenderTargets.Diffuse`, RGBA16F at full size) is the one store of the diffuse direct light of every lit pixel: rgb `exposed(DirectTerms.diffuse, k)`, a 1 at skin and 0 elsewhere. It exists when the skin scatter or the screen-space light is on, and the direct pass writes it from `direct_diffuse.frag` then. Sky and impostor pixels get 0. Under the skin scatter, the ambient pass then adds D's ambient part at skin, after the depth pass has copied the source. The scatter passes spread only pixels whose a is 1, so their output at skin is the same as before.
+- The batcher marks each GPU instance whose entity a light of the snapshot carries (`GpuInstance.HoldsLight`), whether that light shines or not. The G-buffer pass writes the mark into the shading target's B, a free channel. An impostor billboard writes 0 there, so an impostor keeps its glow in the bounce.
+- The depth pass reads the diffuse image as storage image binding 8 of the occlusion set, the emissive target and the shading target from the G-buffer set, and writes the half-resolution copy (`OcclusionImages.Source`).
 
 ### The direct pass
 
@@ -756,7 +778,7 @@ The host's `--screen-space-light off|<meters>` gives `NoScreenSpaceLight` or `Vi
 | The direct image | R16G16B16A16_SFLOAT | Full | 16,588,800 B | Color attachment, sampled, transfer source | `RenderTargets.Direct` | Always |
 | The estimate target | R16G16B16A16_SFLOAT | Full | 16,588,800 B | Sampled, storage, transfer source and destination | `RenderTargets.Estimate` | Always |
 | The view depth image | R32_SFLOAT | Half: 960 × 540 | 2,073,600 B | Storage | `OcclusionImages` | Under `VisibilityBitmaskLight` |
-| The copy of the direct light (decision 25) | R16G16B16A16_SFLOAT | Half | 4,147,200 B | Storage, transfer source | `OcclusionImages.Direct` | The same |
+| The copy of the bounce source (decision 25, "The bounce source") | R16G16B16A16_SFLOAT | Half | 4,147,200 B | Storage, transfer source | `OcclusionImages.Source` | The same |
 | The copy of the geometric normal (decision 25) | R16G16_SNORM, octahedral | Half | 2,073,600 B | Storage, transfer source | `OcclusionImages.GeometricNormal` | The same |
 | The edges image | R8_UNORM | Half | 518,400 B | Storage | `OcclusionImages` | The same |
 | Term A, term B | R16G16B16A16_SFLOAT | Half | 4,147,200 B each | Storage | `OcclusionImages` | The same |
@@ -789,11 +811,12 @@ Every compute shader keeps the local size 8 × 8. The depth, sectors and denoise
 | | The direct image | `ColorAttachment` | Yes | The last frame's ambient pass read, so the write waits for it |
 | | The exposure buffer | `ShaderRead` | | As the lighting pass today |
 | Occlusion depth | The distance target, the normals target | `SampledCompute` | | Read to read after the direct pass's fragment read |
-| | The direct image | `SampledCompute` | | The direct pass's color write to the compute read, a layout change |
-| | The view depth image, the copies of the direct light and the geometric normal | `StorageCompute` | Yes | The last frame's reads |
+| | The emissive and the shading target | `SampledCompute` | | Read to read after the G-buffer pass |
+| | The diffuse image | `StorageCompute` | | The direct pass's color write to the compute read, a layout change |
+| | The view depth image, the copies of the bounce source and the geometric normal | `StorageCompute` | Yes | The last frame's reads |
 | Occlusion sectors | The view depth image | `StorageCompute` | | The depth pass's write |
 | | The normals target, the distance target | `SampledCompute` | | Read to read |
-| | The copies of the direct light and the geometric normal | `StorageCompute` | | The depth pass's writes |
+| | The copies of the bounce source and the geometric normal | `StorageCompute` | | The depth pass's writes |
 | | The edges image, term A | `StorageCompute` | Yes | The last frame's reads |
 | | While the map is on: the base color target, the map's specular image | `SampledCompute` | | Read to read, after the G-buffer pass and the faces' prefilter |
 | | While the map is on: the exposure buffer | `ComputeRead` | | Read to read |
@@ -821,8 +844,9 @@ All four occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 t
 | 3 | Storage image, rgba16f | The estimate target |
 | 4 | Storage image, rgba16f | The denoise source |
 | 5 | Storage image, rgba16f | The denoise destination |
-| 6 | Storage image, rgba16f | The copy of the direct light (decision 25) |
+| 6 | Storage image, rgba16f | The copy of the bounce source (decision 25, "The bounce source") |
 | 7 | Storage image, rg16_snorm | The copy of the geometric normal (decision 25) |
+| 8 | Storage image, rgba16f, read only | The diffuse image, full size (`RenderTargets.Diffuse`) |
 
 `OcclusionImages` writes two such sets. `SetAToB` holds term A and term B in bindings 4 and 5, and `SetBToA` the other way. Every pass binds `SetAToB`, except the last denoise dispatch. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
 
@@ -882,7 +906,7 @@ The design keeps to the Vulkan specification and to what NVIDIA, RADV, ANV and l
 | R16G16B16A16_SFLOAT as a storage image, a color attachment and a sampled image | The spec's table of required formats. `rgba16f` is a base format qualifier, so it needs no `shaderStorageImageExtendedFormats`. |
 | R8_UNORM and R32_SFLOAT storage images | As GTAO today: `shaderStorageImageExtendedFormats` for `r8`, which the renderer requires already |
 | 4 bound sets | The spec's least `maxBoundDescriptorSets` is 4 |
-| 8 storage images per compute stage, in set 3 | The spec's least `maxPerStageDescriptorStorageImages` is 4, so the count is a limit to check, as GTAO's 6 were. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs the layout. The two copies of decision 25 added 2, and the sector masks buffer and the depth pyramid went with decision 40 |
+| 9 storage images per compute stage, in set 3 | The spec's least `maxPerStageDescriptorStorageImages` is 4, so the count is a limit to check, as GTAO's 6 were. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs the layout. The two copies of decision 25 added 2, the diffuse image of "The bounce source" 1, and the sector masks buffer and the depth pyramid went with decision 40 |
 | Derivatives in the ambient pass | Core in fragment shaders |
 | No new device feature | |
 
@@ -935,7 +959,7 @@ flowchart TD
 | `RendererOptions.ScreenSpaceLight` | The host (`ScriptCommand`, `WindowHost`), tests | Before the renderer is made | `CheckOptions`. `VulkanRenderer`, which makes `OcclusionImages` and the occlusion passes only under `VisibilityBitmaskLight`. Each occlusion pass, for its push constants | At creation, then in every frame | `RendererOptions`, then the passes' fields | `RendererOptions.AmbientOcclusion`, which it replaces |
 | The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
 | The view depth image, the edges image | As GTAO | As GTAO | As GTAO | The same frame | `OcclusionImages` | Unchanged |
-| The copies of the direct light and the geometric normal (decision 25) | The depth pass, from the direct image and the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionDirect` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Direct`, `GeometricNormal`, occlusion set bindings 6 and 7 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
+| The copies of the bounce source and the geometric normal (decision 25) | The depth pass, from the diffuse, the emissive and the shading target and from the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionSource` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Source`, `GeometricNormal`, occlusion set bindings 6 and 7 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
 | Term A | The sectors pass (the estimate), the last denoise | Stage `AmbientOcclusion` | The first denoise, the upsample, the test hook `ReadOcclusionTerm` | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
 | Term B | The first denoise | The same | The last denoise | The same | `OcclusionImages.TermB` | GTAO's |
 | The estimate target | `RecordEstimateClear` (first frame after a creation), the upsample (every frame under `VisibilityBitmaskLight`) | Before the graph, then stage `AmbientOcclusion` | The ambient pass, SSR's trace through `surfaceAt`, the test hook `ReadEstimate` | The same frame | `RenderTargets.Estimate`, G-buffer binding 7 | The occlusion target, which it replaces |
@@ -1027,13 +1051,13 @@ This design has the same parts, with these differences:
 - κ z is one thickness for everything: a thin pole 20 m away is 2 m thick, and a thick wall 0.5 m away is 5 cm thick, so light leaks behind it there.
 - A blocker that faces away from the receiver gives no light, even when its back is lit.
 - Sky counts with its depth, 10¹⁸ m, among the depths around a step's exact place, so the plane of a surface beside the sky is kept up to half a texel toward it. A face that the eye sees nearly edge-on can so reach up to half a texel of screen past its silhouette against the sky, which is a long way in depth.
-- A glossy blocker bounces the light that it sends toward the eye (decision 16).
+- A glossy blocker bounces no highlight, toward the receiver or toward the eye: only its diffuse light bounces (decision 16, "The bounce source").
+- A glow bounces only where its entity holds no light ("The bounce source"). A light whose glowing body is a separate entity bounces twice, through its light and through that body's glow: the scene puts the glow and the light on one entity.
+- The environment map keeps a lamp's glow (`environment_face.frag` adds the emission of every instance), so the lamp's power reaches the room a second time there: through the map's SH irradiance, as ambient light, in every open sector. The rule "an entity sends its power once" holds on the screen-space bounce alone. A face receives the light mark (`inMaterialMapAndLight.z`) and could drop the glow of an entity that holds a light, but that also darkens the lamp's panel in the map's specular reflections; to keep the reflections and drop the glow from the irradiance alone, the faces need a second output. The choice is open (`ter-vtc7`, review).
 - Glass and puffs neither block nor bounce.
 - An impostor bounces its captured light, its ambient light included (decision 30).
 - A blocker off the screen blocks nothing: a step whose texel lies outside the image is left out, so its directions take the ambient light.
 - On a normal-mapped surface, the near hemisphere follows the shading normal, and the receiver's own surface blocks by its geometric normal (decision 39).
-- A lamp panel's emission bounces twice (`ter-vtc7`, found by Part 7). The emission is in the direct image, and the sector pass bounces the direct image, so the panel lights its neighbors through the bounce on top of its point light, which already sends the same power. In `demo-exit`, the cabin wall beside the lamp shows soft bright blotches of 10 to 20 px at every setting. An experiment that left the emission out of the bounce source removed them, and twice the slices did not. Whether emission bounces at all waits for the user. The ticket is filed on main and waits for this branch's merge.
-- A highlight toward the eye bounces as if every direction saw it (`ter-vtc7`, found by Part 7). The direct image holds the light that a surface sends toward the eye (decision 16), and the bounce sends it in all directions, so a bright specular highlight lights the surfaces around it as much as a diffuse surface of the same brightness would. At R 2 m this gives bright dots on the floor where the spheres' highlights of `pbr-spheres` bounce, which is one reason for the default radius of 1 m.
 
 ## Tests
 

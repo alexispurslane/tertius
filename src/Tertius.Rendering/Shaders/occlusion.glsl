@@ -17,9 +17,11 @@ layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half:
 layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
 layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
 layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
-layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionDirect;  // half: the direct image at pixel 2t
+layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionSource;  // half: the bounce source at pixel 2t
 // half: the octahedral world geometric normal at pixel 2t, the normals target's ba
 layout(set = 3, binding = 7, rg16_snorm) uniform image2D occlusionGeometricNormal;
+// full: rgb the diffuse part of each lit pixel's direct light, pre-exposed (RenderTargets.Diffuse)
+layout(set = 3, binding = 8, rgba16f) uniform readonly image2D diffuseImage;
 
 layout(push_constant, std430) uniform OcclusionPush
 {

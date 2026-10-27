@@ -1,10 +1,12 @@
 #version 460
 // The occlusion depth pass (docs/plans/ambient-occlusion.md, "The occlusion depth pass"): the view depth of each
-// half-resolution texel, from the distance of its representative pixel, and copies of that pixel's direct light and
-// geometric normal, which the near steps read densely (docs/plans/screen-space-illumination.md, decision 25). Engine glue after the shape of vaGTAO.hlsl.
+// half-resolution texel, from the distance of its representative pixel, and copies of that pixel's bounce source and
+// geometric normal, which the near steps read densely (docs/plans/screen-space-illumination.md, decision 25 and "The
+// bounce source"). Engine glue after the shape of vaGTAO.hlsl.
 // XeGTAO's copyright and permission notice are in gtao.glsl.
 #extension GL_GOOGLE_include_directive : require
 #include "gtao.glsl"
+#include "exposure.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -19,7 +21,13 @@ void main()
     // The distance target holds 0 for sky. SkyDepth puts sky beyond every radius, where an infinite depth gives NaN.
     float z = distanceToEye > 0.0 ? distanceToEye / length(ray) : SkyDepth;
     imageStore(viewDepth, texel, vec4(z));
-    // Exact copies: a half float stores back as itself, and an SNORM16 value k / 32767 as k.
-    imageStore(occlusionDirect, texel, texelFetch(gbufferDirect, pixel, 0));
+    // The light that leaves the pixel alike in every direction: its diffuse light, and its glow where its entity holds no
+    // light, whose face the glow is otherwise. The G-buffer pass pre-exposed the glow. Sky and impostors hold no diffuse
+    // light, and an impostor marks no light, so it keeps its glow.
+    vec3 source = imageLoad(diffuseImage, pixel).rgb;
+    if (texelFetch(gbufferShading, pixel, 0).b == 0u)
+        source = min(source + texelFetch(gbufferEmissive, pixel, 0).rgb, vec3(MaxRadiance));
+    imageStore(occlusionSource, texel, vec4(source, 0.0));
+    // An exact copy: an SNORM16 value k / 32767 stores back as k.
     imageStore(occlusionGeometricNormal, texel, vec4(texelFetch(gbufferNormal, pixel, 0).ba, 0.0, 0.0));
 }

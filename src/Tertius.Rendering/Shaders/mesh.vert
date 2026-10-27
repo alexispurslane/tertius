@@ -12,9 +12,10 @@ layout(location = 0) out vec3 outPosition;
 layout(location = 1) out vec3 outNormal;
 layout(location = 2) out vec4 outTangent;
 layout(location = 3) out vec2 outTexCoord;
-// x: the material. y: the instance's environment map. They share a location so that environment_face.frag, which
-// reads only the material, still consumes the whole location: a face has no ambient light, and draw.map filters its lights.
-layout(location = 4) flat out uvec2 outMaterialAndMap;
+// x: the material. y: the instance's environment map. z: whether its entity holds a light, which only gbuffer.frag reads.
+// They share a location so that environment_face.frag, which reads only the material, still consumes the whole location:
+// a face has no ambient light, and draw.map filters its lights.
+layout(location = 4) flat out uvec3 outMaterialMapAndLight;
 layout(location = 5) flat out vec4 outHemisphere;
 
 void main()
@@ -29,7 +30,7 @@ void main()
     outNormal = linear * (inNormal * instance.inverseScaleSq);
     outTangent = vec4(linear * inTangent.xyz, inTangent.w);
     outTexCoord = inTexCoord;
-    outMaterialAndMap = uvec2(instance.material, instance.map);
+    outMaterialMapAndLight = uvec3(instance.material, instance.map, instance.holdsLight);
     outHemisphere = instance.hemisphere;
     gl_Position = draw.viewProj * vec4(world, 1.0);
 }

@@ -152,7 +152,7 @@ public sealed class SkinScatterRenderTests
     }
 
     [Fact]
-    public void TheScatterImageHoldsTheDiffuseLightOfSkinPixelsAndNothingElse()
+    public void TheDiffuseImageHoldsDOfSkinTheDirectDiffuseLightOfOtherLitPixelsAndTheSkinMask()
     {
         VulkanRenderer renderer = Scattering();
         try
@@ -165,26 +165,33 @@ public sealed class SkinScatterRenderTests
                 Facing(plane, Material(renderer, new StandardShading(0), SkinColor), new(0.5f, 0, -1))
             );
             renderer.Render(snapshot, 1f);
-            float[] scatter = renderer.ReadScatter();
+            float[] diffuse = renderer.ReadDiffuse();
 
             // D = the Lambert term of the sun plus the diffuse term of the even ambient light, with the diffuse color in
-            // both: the normal faces the camera, and the occlusion is 1 under no screen-space light.
+            // both: the normal faces the camera, and the occlusion is 1 under no screen-space light. A standard pixel
+            // keeps the direct part alone, the bounce light's source (docs/plans/screen-space-illumination.md, "The
+            // bounce source").
             Double3 sun = Of(Gpu.StarIrradianceRgb(snapshot)) * Vector3.Dot(toSun, Vector3.UnitZ);
             Double3 expected = SkinColor * sun / Math.PI + SkinColor * 0.4;
+            Double3 direct = SkinColor * sun / Math.PI;
             int skin = Height / 2 * Width + 80;
             ShouldBeNear(
-                actual: Rgb(scatter, skin),
+                actual: Rgb(diffuse, skin),
                 expected: expected,
                 tolerance: HalfRounding * expected.X,
                 because: "D of a skin pixel"
             );
-            scatter[skin * 4 + 3].Should().Be(1, "the alpha of a skin pixel is the mask");
+            diffuse[skin * 4 + 3].Should().Be(1, "the alpha of a skin pixel is the mask");
             int standard = Height / 2 * Width + 240;
             int sky = 2 * Width + 160;
-            scatter[(standard * 4)..(standard * 4 + 4)]
-                .Should()
-                .AllBeEquivalentTo(0f, "a standard pixel does not scatter");
-            scatter[(sky * 4)..(sky * 4 + 4)].Should().AllBeEquivalentTo(0f, "the sky does not scatter");
+            ShouldBeNear(
+                actual: Rgb(diffuse, standard),
+                expected: direct,
+                tolerance: HalfRounding * direct.X,
+                because: "the direct diffuse light of a standard pixel"
+            );
+            diffuse[standard * 4 + 3].Should().Be(0, "a standard pixel does not scatter");
+            diffuse[(sky * 4)..(sky * 4 + 4)].Should().AllBeEquivalentTo(0f, "the sky has no diffuse light");
         }
         finally
         {
@@ -290,7 +297,7 @@ public sealed class SkinScatterRenderTests
     /// <summary>The field as the passes read it: D and the mask of the scatter image, and z of the distance target.</summary>
     private static ScatterField FieldOf(VulkanRenderer renderer, (int Width, int Height) size)
     {
-        float[] scatter = renderer.ReadScatter();
+        float[] scatter = renderer.ReadDiffuse();
         float[] distances = renderer.ReadDistance();
         var light = new Double3[size.Width * size.Height];
         bool[] skin = new bool[size.Width * size.Height];
@@ -550,7 +557,7 @@ public sealed class SkinScatterRenderTests
         // Black and with no specular reflection, so that only the scatter lights it.
         snapshot.Instances.Add(Facing(plane, Black(renderer), new(0.5f, 0, -viewDepth)));
         (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
-        float[] scatter = renderer.ReadScatter();
+        float[] scatter = renderer.ReadDiffuse();
         // Half the light that the outermost tap carries from the lit side, in red, the channel that reaches farthest.
         double outermost = SkinProfile.Human.Kernel(SeparableSubsurface.Default.TapsPerSide).Taps[^1].Weight.X;
         double threshold = 0.5 * outermost * scatter[(Height / 2 * Width + Width / 4) * 4];

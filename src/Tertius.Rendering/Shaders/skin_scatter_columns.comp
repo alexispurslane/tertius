@@ -13,7 +13,7 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (!insideScatter(pixel))
         return;
-    vec4 diffuse = imageLoad(scatterImage, pixel);
+    vec4 diffuse = imageLoad(diffuseImage, pixel);
     if (diffuse.a <= 0.0)
         return;
     vec3 scattered = scatterAlong(pixel, ivec2(0, 1), imageLoad(rowImage, pixel).rgb);

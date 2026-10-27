@@ -140,6 +140,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                     scale: capture.Scale,
                     material: capture.Material,
                     map: capture.Map,
+                    // An impostor keeps its glow in the bounce light: its G-buffer marks no light of its own.
+                    holdsLight: false,
                     hemisphere: capture.Hemisphere
                 )
             );

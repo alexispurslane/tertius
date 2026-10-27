@@ -35,7 +35,7 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
         // A receiver's model code: a hair receiver's own card blocks nothing.
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
-        barriers.Image(images.Direct, ImageUse.StorageCompute);
+        barriers.Image(images.Source, ImageUse.StorageCompute);
         barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);

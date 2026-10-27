@@ -102,7 +102,10 @@ public sealed class AmbientSkipsTests
             if (reference)
             {
                 renderer.Graph.Skipped.Add("ambient light");
-                renderer.Graph.Add(FrameGraph.Stage.AmbientLight, new EveryTermAmbientPass(renderer.ScatterImages));
+                renderer.Graph.Add(
+                    FrameGraph.Stage.AmbientLight,
+                    new EveryTermAmbientPass(scatter: renderer.ScatterImages is not null)
+                );
             }
 
             RenderSnapshot snapshot = StarsInMetal(renderer);
@@ -139,8 +142,8 @@ public sealed class AmbientSkipsTests
     /// The ambient pass with the shaders of this project's build, which computes every term: an
     /// <see cref="AmbientLightPass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
-    /// <param name="scatter">The renderer's scatter images under the skin scatter, or null without it.</param>
-    private sealed class EveryTermAmbientPass(ScatterImages? scatter) : RenderPass
+    /// <param name="scatter">True under the skin scatter.</param>
+    private sealed class EveryTermAmbientPass(bool scatter) : RenderPass
     {
         private ShaderLibrary? shaders;
         private AmbientLightPass? pass;

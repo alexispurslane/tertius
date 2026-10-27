@@ -17,7 +17,7 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uvec2 inMaterialAndMap;   // x: the material. y: the instance's environment map
+layout(location = 4) flat in uvec3 inMaterialMapAndLight;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight
 layout(location = 5) flat in vec4 inHemisphere;
 
 layout(location = 0) out vec4 outColor;   // RGBA16F: lit color premultiplied by coverage (1 here), coverage
@@ -26,10 +26,10 @@ layout(location = 1) out float outDepth;  // R16F: view depth over the center's 
 void main()
 {
     vec3 V = towardEye(inPosition);
-    SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
+    SurfaceSample s = sampleMaterial(inMaterialMapAndLight.x, inTexCoord, inNormal, inTangent, V);
     // The capture bakes the light of the object's own map. It has no screen around it for the occlusion passes to
     // search, so it takes no estimate, as a forward surface does.
-    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialMapAndLight.y, V);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, ShadowMapsNone, 1.0);
     outColor = vec4(color, 1.0);

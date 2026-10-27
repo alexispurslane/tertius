@@ -131,6 +131,9 @@ internal struct PreparedInstance
     /// <summary>The instance's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
     public int Map;
 
+    /// <summary>Whether the instance's entity holds a light: a light of the snapshot carries the entity's index.</summary>
+    public bool HoldsLight;
+
     /// <summary>Whether the shadow views draw the instance: its flags hold <see cref="RenderFlags.CastsShadow"/>.</summary>
     public readonly bool CastsShadow => (Flags & RenderFlags.CastsShadow) != 0;
 }

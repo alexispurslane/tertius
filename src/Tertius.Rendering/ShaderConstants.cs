@@ -29,7 +29,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>
     /// The skin scatter's taps per side (docs/plans/skin-and-hair.md, "The two passes"), which only
     /// <see cref="SkinScatterPass"/> sets, from <see cref="ScatterImages.Setting"/>. Every other pipeline keeps
-    /// <see cref="NoSubsurface"/>: the lighting passes choose their shaders by the scatter images instead.
+    /// <see cref="NoSubsurface"/>: the direct pass chooses its shader by the diffuse image
+    /// (<see cref="RenderTargets.Diffuse"/>) instead, and the ambient pass by the scatter images.
     /// </summary>
     public SubsurfaceSetting Subsurface { get; init; }
 

@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 84 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
+/// <summary>One drawn instance in the instance storage buffer. 88 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 96)]
 internal struct GpuInstance
 {
@@ -34,13 +34,21 @@ internal struct GpuInstance
     /// </summary>
     public uint Map;
 
+    /// <summary>
+    /// 1 when the instance's entity holds a light, whose face its glow is, else 0: such a glow bounces no light
+    /// (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// </summary>
+    public uint HoldsLight;
+
     /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
+    /// <param name="holdsLight">Whether the instance's entity holds a light.</param>
     public static GpuInstance From(
         Vector3 position,
         Quaternion rotation,
         Vector3 scale,
         uint material,
         int map,
+        bool holdsLight,
         HemisphereUp hemisphere = default
     )
     {
@@ -70,6 +78,7 @@ internal struct GpuInstance
             Material = material,
             Hemisphere = HemisphereOf(position, hemisphere),
             Map = (uint)map,
+            HoldsLight = holdsLight ? 1u : 0u,
         };
     }
 

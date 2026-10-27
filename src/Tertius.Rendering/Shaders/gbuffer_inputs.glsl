@@ -27,7 +27,8 @@ layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: on
 layout(set = 2, binding = 9) uniform texture2D gbufferDirect;          // RGBA16F: the direct light, pre-exposed, 0 for
                                                                        // sky
 layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 UINT: rg a hair pixel's strand code (strandCode,
-                                                                       // octahedral.glsl), b 0, a the shading model's code;
+                                                                       // octahedral.glsl), b 1 where the entity holds a
+                                                                       // light, a the shading model's code;
                                                                        // 0 where nothing lit draws
 
 // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
