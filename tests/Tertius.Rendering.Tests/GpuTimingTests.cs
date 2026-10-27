@@ -217,6 +217,26 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
+    public void OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            renderer
+                .StampsLatchLate.Should()
+                .Be(
+                    OperatingSystem.IsMacOS(),
+                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, and the"
+                        + " desktop drivers of Linux latch a stamp when the work before it ends"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AFrameThatTheOutputSkipsStillReportsTheTimingsOfTheFrameThatItsWaitFoundFinished()
     {
         TestOutput? made = null;

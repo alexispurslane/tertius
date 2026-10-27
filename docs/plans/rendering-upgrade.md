@@ -65,7 +65,7 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
    git worktree remove ../tertius-base
    ```
 
-3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. On MoltenVK, a pass's time can hold part of the next pass's work (ARCHITECTURE.md, "GPU timings"), so compare there the spans and the sums of neighbouring passes, and take a single pass's cost from a trace of each build (tools/README.md, "GPU trace"). Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
 Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 
