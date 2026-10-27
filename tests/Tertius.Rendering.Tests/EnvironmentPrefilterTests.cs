@@ -69,14 +69,7 @@ public sealed class EnvironmentPrefilterTests
 
     /// <summary>A headless renderer with a map of <paramref name="faceSize"/> texels, 160 × 90.</summary>
     private static VulkanRenderer Renderer(int faceSize) =>
-        Gpu.Headless(
-            width: 160,
-            height: 90,
-            environmentMap: SceneEnvironmentMap.Default with
-            {
-                FaceSize = faceSize,
-            }
-        );
+        Gpu.Headless(width: 160, height: 90, environmentMap: SceneEnvironmentMap.Default with { FaceSize = faceSize });
 
     /// <summary>Every level of map <paramref name="map"/>'s radiance map, then each face in layer order, RGBA, rows from the top.</summary>
     private static Half[][][] RadianceMips(VulkanRenderer renderer, int faceSize, int map = 0)
@@ -106,7 +99,9 @@ public sealed class EnvironmentPrefilterTests
         for (int dx = 0; dx < 2; dx++)
         {
             double childAngle = CubeFaces.TexelSolidAngle(2 * x + dx, 2 * y + dy, 2 * size);
-            light += EnvironmentScenes.Texel(face: children, size: 2 * size, x: 2 * x + dx, y: 2 * y + dy) * (float)childAngle;
+            light +=
+                EnvironmentScenes.Texel(face: children, size: 2 * size, x: 2 * x + dx, y: 2 * y + dy)
+                * (float)childAngle;
             solidAngle += childAngle;
         }
 
@@ -165,7 +160,7 @@ public sealed class EnvironmentPrefilterTests
 
             var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
             // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
-            var worstOfLevel = new float[levels];
+            float[] worstOfLevel = new float[levels];
             for (int level = 1; level < levels; level++)
             {
                 int size = faceSize >> level;
@@ -193,7 +188,9 @@ public sealed class EnvironmentPrefilterTests
             }
 
             // Within 0.35 % of a texel's light: the GPU's filter weights and the halves of the stored levels.
-            worstOfLevel[1..].Should().OnlyContain(worst => worst < 3.5e-3f, "each level's texels sum over their samples");
+            worstOfLevel[1..]
+                .Should()
+                .OnlyContain(worst => worst < 3.5e-3f, "each level's texels sum over their samples");
         }
         finally
         {
@@ -217,7 +214,7 @@ public sealed class EnvironmentPrefilterTests
             renderer.Render(Colorful(renderer), 1f);
 
             Half[][][] mips = RadianceMips(renderer, faceSize);
-            var worstOfLevel = new float[mips.Length];
+            float[] worstOfLevel = new float[mips.Length];
             for (int level = 1; level < mips.Length; level++)
             {
                 int size = faceSize >> level;
@@ -583,7 +580,12 @@ public sealed class EnvironmentPrefilterTests
             var faces = new List<Half>();
             for (int layer = 0; layer < CubeFaces.Count; layer++)
                 faces.AddRange(
-                    renderer.ReadEnvironmentFace(map: 0, face: (CubeFace)layer, level: 0, image: EnvironmentImage.Radiance)
+                    renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: 0,
+                        image: EnvironmentImage.Radiance
+                    )
                 );
             var expected = Irradiance.Project([.. faces], size);
             Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
@@ -617,7 +619,7 @@ public sealed class EnvironmentPrefilterTests
         {
             renderer.Render(ColorfulInThreeFrames(renderer), 1f);
 
-            var worstOfMap = new float[3];
+            float[] worstOfMap = new float[3];
             for (int map = 0; map < worstOfMap.Length; map++)
             {
                 Half[][][] mips = RadianceMips(renderer, faceSize, map);
@@ -630,7 +632,10 @@ public sealed class EnvironmentPrefilterTests
                     {
                         Vector4 expected = ChildrenMean(children: mips[level - 1][layer], size: size, x: x, y: y);
                         Vector4 read = EnvironmentScenes.Texel(face: mips[level][layer], size: size, x: x, y: y);
-                        worstOfMap[map] = MathF.Max(worstOfMap[map], (read - expected).Length() / (1 + expected.Length()));
+                        worstOfMap[map] = MathF.Max(
+                            worstOfMap[map],
+                            (read - expected).Length() / (1 + expected.Length())
+                        );
                     }
                 }
             }
@@ -664,7 +669,7 @@ public sealed class EnvironmentPrefilterTests
         {
             renderer.Render(ColorfulInThreeFrames(renderer), 1f);
 
-            var worstOfMap = new float[3];
+            float[] worstOfMap = new float[3];
             for (int map = 0; map < worstOfMap.Length; map++)
             {
                 var reference = new PrefilterReference(RadianceMips(renderer, faceSize, map), faceSize);
@@ -689,7 +694,10 @@ public sealed class EnvironmentPrefilterTests
                             Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
                             Vector4 expected = reference.Prefilter(n, roughness);
                             Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
-                            worstOfMap[map] = MathF.Max(worstOfMap[map], (read - expected).Length() / (1 + expected.Length()));
+                            worstOfMap[map] = MathF.Max(
+                                worstOfMap[map],
+                                (read - expected).Length() / (1 + expected.Length())
+                            );
                         }
                     }
                 }

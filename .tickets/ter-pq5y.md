@@ -1,7 +1,7 @@
 ---
 id: ter-pq5y
 status: in_progress
-deps: [ter-nydu, ter-izsu, ter-ff6y, ter-of1p, ter-3g1g]
+deps: [ter-nydu, ter-izsu, ter-ff6y, ter-of1p, ter-3g1g, ter-okrp]
 links: []
 created: 2026-10-25T22:29:46Z
 type: epic

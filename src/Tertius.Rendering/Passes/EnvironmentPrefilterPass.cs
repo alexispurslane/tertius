@@ -208,7 +208,12 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 if (lastRun && index == lastDrawn)
                     break;
                 // The next run reads the last level of this one, and the next map writes through the same views.
-                AfterWrites(barriers: barriers, image: map.Radiance, baseMip: (uint)(source + 1), mipCount: (uint)count);
+                AfterWrites(
+                    barriers: barriers,
+                    image: map.Radiance,
+                    baseMip: (uint)(source + 1),
+                    mipCount: (uint)count
+                );
                 barriers.Flush(vk, commandBuffer);
             }
     }

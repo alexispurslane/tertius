@@ -8,18 +8,12 @@ namespace Tertius.Rendering.Tests;
 /// cross a face's edge into the next face, as Vulkan's cube filtering does. At a corner of the cube, where Vulkan takes
 /// the mean of three texels, this copy takes the one that the direction through the missing texel's center meets.
 /// </summary>
-internal sealed class PrefilterReference
+/// <param name="mips">Each level of the radiance map, then each face in layer order, RGBA, rows from the top.</param>
+/// <param name="faceSize">The texels along a side of a face of level 0.</param>
+internal sealed class PrefilterReference(Half[][][] mips, int faceSize)
 {
-    private readonly Half[][][] mips;
-    private readonly int faceSize;
-
-    /// <param name="mips">Each level of the radiance map, then each face in layer order, RGBA, rows from the top.</param>
-    /// <param name="faceSize">The texels along a side of a face of level 0.</param>
-    public PrefilterReference(Half[][][] mips, int faceSize)
-    {
-        this.mips = mips;
-        this.faceSize = faceSize;
-    }
+    private readonly Half[][][] mips = mips;
+    private readonly int faceSize = faceSize;
 
     /// <summary>The prefilter of roughness <paramref name="roughness"/> around the unit <paramref name="n"/>, RGBA.</summary>
     public Vector4 Prefilter(Vector3 n, float roughness)
