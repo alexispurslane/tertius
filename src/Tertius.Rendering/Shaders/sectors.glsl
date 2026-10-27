@@ -77,14 +77,26 @@ uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
 // value (ARCHITECTURE.md, "Portable Vulkan"), so 6.4 / 32767; 8 / 32767 leaves room (OwnCard.NormalPrecision).
 const float NormalPrecision = 8.0 / 32767.0;
 
+// How far the rasterizer's snapping can move a vertex across its view ray, per m of its distance: a vertex snaps to
+// 1 / 2^bits of a pixel, so it moves up to 2^−(bits + 1) pixels on each axis, √2 times that across, and a pixel is
+// texelWidth(1) / 2 m wide at a view depth of 1 m (OwnCard.SnapPerMeter).
+float vertexSnap()
+{
+    return 0.5 * texelWidth(1.0) * sqrt(2.0) / exp2(float(occlusion.subPixelPrecisionBits + 1u));
+}
+
 // Whether a step's texel point, the real point that it read, lies on a hair receiver's own card: the plane through the
 // receiver's surface point at right angles to its geometric normal, the card's (OwnCard.Holds). The tolerance is what
-// the reads can put a point of that plane off it: each point's depth by 1 − CenterBias of its distance along its view
-// ray, and the stored normal by NormalPrecision times the distance between the two points.
+// the reads can put a point of that plane off it:
+// - each point's depth, by 1 − CenterBias of its distance along its view ray;
+// - the snapping of each point's triangle, whose snapped plane holds the depth that the point reads: its vertices lie up
+//   to vertexSnap() of their distance off the card's plane, and a hair card's triangles are small, so they lie about as
+//   far from the eye as the point;
+// - the stored normal, by NormalPrecision times the distance between the two points.
 bool onOwnCard(vec3 receiverPoint, vec3 cardNormal, vec3 texelPoint)
 {
     float offPlane = abs(dot(cardNormal, texelPoint - receiverPoint));
-    float tolerance = (1.0 - CenterBias) * (length(receiverPoint) + length(texelPoint))
+    float tolerance = (1.0 - CenterBias + vertexSnap()) * (length(receiverPoint) + length(texelPoint))
                       + NormalPrecision * distance(texelPoint, receiverPoint);
     return offPlane <= tolerance;
 }

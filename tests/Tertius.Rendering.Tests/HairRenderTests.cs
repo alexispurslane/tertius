@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
@@ -337,11 +338,38 @@ public sealed class HairRenderTests
     }
 
     [Fact]
+    public void UnderTheScreenSpaceLightTheShadingTargetIsVisibleToTheComputeReadsOfTheOcclusionSectorsPass()
+    {
+        // No reflections, whose compute passes read the shading target too: the sectors pass reads it alone.
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenSpaceLight: VisibilityBitmaskLight.Default
+        );
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            Rendered(renderer, AmbientOnly(), Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera));
+
+            renderer
+                .ShadingTargetState.Stages.HasFlag(PipelineStageFlags2.ComputeShaderBit)
+                .Should()
+                .BeTrue(
+                    "the sectors pass reads a hair receiver's model code in a compute shader (Vulkan spec, memory dependencies)"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt()
     {
         // A card of half size 0.5, 0.2 m in front of the other and beside the line of sight ahead, from 0.1 m to its
         // right: within the default radius of 1 m.
-        Vector3 ShownAhead(bool withCardInFront)
+        static Vector3 ShownAhead(bool withCardInFront)
         {
             VulkanRenderer renderer = Gpu.Headless(
                 width: Width,

@@ -27,6 +27,8 @@ layout(push_constant, std430) uniform OcclusionPush
     uint slices;
     uint stepsPerSide;
     uint lastDenoise;
+    // The device's subPixelPrecisionBits: the rasterizer snaps a vertex to 1 / 2^bits of a pixel.
+    uint subPixelPrecisionBits;
 } occlusion;
 
 // (t_x, t_y): the tangents of half the horizontal and half the vertical field of view. The frame constants carry them

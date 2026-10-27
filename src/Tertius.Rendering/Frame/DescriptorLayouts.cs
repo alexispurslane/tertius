@@ -603,7 +603,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         // Compute shaders read the G-buffer: the pyramid builds and the trace of the reflections, and the occlusion
-        // passes, which read the normals (binding 1) and the distance (binding 4).
+        // passes, which read the normals (binding 1), the distance (binding 4) and, in the sectors pass, the shading
+        // target (binding 10).
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> gbuffer =
         [
@@ -622,7 +623,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Compute too, for the occlusion passes that gather the bounce from the direct image
             // (docs/plans/screen-space-illumination.md, "Push constants and sets").
             Image(binding: RenderTargets.DirectBinding, stages: shading),
-            // The reflections' compute passes read each pixel's surface, its model included.
+            // The reflections' compute passes read each pixel's surface, its model included, and the occlusion sectors
+            // pass reads a receiver's model, because a hair receiver's own card blocks nothing.
             Image(binding: RenderTargets.ShadingBinding, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];

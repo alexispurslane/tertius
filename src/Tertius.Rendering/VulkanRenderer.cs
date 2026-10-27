@@ -948,6 +948,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
         [.. ReadLevel(image: targets.Shading, layer: 0, mip: 0).Values.Select(value => (byte)value)];
 
     /// <summary>
+    /// The shading target's state after the last frame: the layout, and the stages and the accesses that its barriers
+    /// made the G-buffer pass's writes visible to. A test hook.
+    /// </summary>
+    internal ResourceState ShadingTargetState => targets.Shading.State;
+
+    /// <summary>The device's subPixelPrecisionBits, which the occlusion sectors pass reads. A test hook.</summary>
+    internal uint SubPixelPrecisionBits => device.Properties.Limits.SubPixelPrecisionBits;
+
+    /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
     /// </summary>

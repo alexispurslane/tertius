@@ -31,9 +31,9 @@ void main()
     // The screen place of the texel's representative pixel, where every slice line passes.
     vec2 centerPlace = pixelScreenPosition(2 * texel);
     // A hair receiver's own card blocks nothing (docs/plans/skin-and-hair.md, "Hair in each pass"): its own surface is
-    // its fibers, whose plane is the fiber normal's, and a step that reads a point of the card's plane is left out.
+    // its fibers, which block no sector, and a step that reads a point of the card's plane is left out. The C# copy's
+    // OwnSurface holds the two cases.
     bool hair = hairAt(2 * texel);
-    vec3 ownPlaneNormal = hair ? setup.normal : setup.geometricNormal;
     vec3 receiverPoint = gtaoViewPosition(centerPlace, z);
     float totalWeight = 0.0;
     float open = 0.0;
@@ -42,7 +42,7 @@ void main()
     {
         SliceGeometry g = gtaoSliceGeometry(setup, slice);
         // The receiver's own surface first, so no step gives light to a direction below it.
-        uint blocked = ownSurfaceSectors(g, ownPlaneNormal);
+        uint blocked = hair ? 0u : ownSurfaceSectors(g, setup.geometricNormal);
         vec3 light = vec3(0.0);
         // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
         // the C# copy of this loop: change both together.

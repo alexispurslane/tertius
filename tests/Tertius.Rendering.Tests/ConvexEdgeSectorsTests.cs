@@ -123,12 +123,13 @@ public sealed class ConvexEdgeSectorsTests(ITestOutputHelper output)
                 radiusInTexels: radiusInTexels,
                 halfSize: HalfSize,
                 rayThrough: RayAt,
-                texelAt: FaceAt
+                texelAt: FaceAt,
+                ownSurface: new OwnPlane(FrontNormal)
             );
             NearSlice near = SectorSearch.Near(
                 sectors: sectors,
                 center: center,
-                geometricNormal: FrontNormal,
+                ownSurface: new OwnPlane(FrontNormal),
                 radius: setting.RadiusMeters,
                 thicknessShare: CellBounds.ThicknessShare,
                 steps: [.. steps]
