@@ -1,33 +1,41 @@
-"""Prints the duplicated blocks and the complex or long methods that the staged changes touch.
+"""Prints what the staged changes touch in the code: the long methods, the erosion and the verbosity.
 
-The pre-commit hook runs it after the build. It never fails the commit: it is a report.
+The pre-commit hook runs it after the slop metrics of the staged tree end, which is after the tests. It never fails the
+commit: it is a report.
 
-- Duplicates: jscpd scans src/. The script prints each clone with a copy that holds a changed line.
-- Complexity and length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
-  (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads CA1502 (cyclomatic complexity)
-  and MA0051 (method length) from the projects of the staged files and prints each one whose method holds a changed
-  line. Test code gets the length rule only.
+- Length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
+  (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads MA0051 (method length) from the
+  projects of the staged files and prints each one whose method holds a changed line, in src and in tests.
+- Erosion and verbosity: with --slop <file>, the script reads the report that `Tertius.Slop measure --details <file>`
+  wrote for the staged tree (tools/README.md, "Slop metrics"). It prints each metric of src, with its change against the
+  baseline of the details: the note of the nearest noted commit up to HEAD on the first-parent line, by the rule of the
+  push summary. That is the parent of a new commit, or an older commit when the parent has no note. In a
+  `git commit --amend`, HEAD is the commit that the amend replaces. Under the erosion, it names each function with a CC
+  above the limit that holds a changed line. Under the verbosity, it names each finding of a rule and each clone that
+  holds a changed line. Each metric prints even when the commit changes no C# file. Without --slop, as when the
+  measure failed or a test failed, both sections are left out.
 
-Test code repeats its setup on purpose, so that each test reads on its own, and a test's branches are its checks. So
-the report leaves tests/ out of the duplicates and the complexity.
+The slop metrics measure only src, because test code repeats its setup on purpose, so that each test reads on its own,
+and a test's branches are its checks. So tests/ gets the length list only.
 
 When the report names anything, it ends with a prompt to refactor what the commit touches. The code improves a little
 at each change that passes through it, not all at once and not never.
 
-A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it.
+A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it, so
+that a deletion inside a function changes the function, and a deletion of the lines that follow a function leaves the
+function unchanged.
 """
+import argparse
 import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 ROOT = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                            check=True).stdout.strip())
-RULES = {"CA1502": "complexity", "MA0051": "length"}
-TEST_RULES = {"MA0051"}
+LENGTH_RULE = "MA0051"
 REFACTOR_PROMPT = """\
 Refactor now: this commit touches the code above, so improve it in this commit, as far as the task allows. Split a
 long or complex method into named steps, and merge a duplicated block into one shared method. A flat switch with one
@@ -48,42 +56,13 @@ def changed_lines():
         elif line.startswith("@@") and current:
             start, _, count = re.match(r"@@ -\S+ \+(\d+)(,(\d+))? @@", line).groups()
             start, count = int(start), int(count) if count is not None else 1
-            changed[current].update(range(start, start + max(count, 1)))
+            # A pure deletion has no new lines, and git names the line before it.
+            changed[current].update(range(start, start + count) if count > 0 else [start + 1])
     return changed
 
 
 def touches(lines, first, last):
     return any(first <= n <= last for n in lines)
-
-
-def project_relative(path):
-    # jscpd names each file relative to the folder that it scanned, so src/Tertius.Core/X.cs becomes Tertius.Core/X.cs.
-    parts = Path(path).parts
-    return str(Path(*parts[1:])) if parts and parts[0] in ("src", "tests") else path
-
-
-def report_clones(changed):
-    """Prints the clones in src/ with a copy that holds a changed line. True if it printed any."""
-    by_name = {project_relative(f): (f, lines) for f, lines in changed.items()}
-    with tempfile.TemporaryDirectory() as out:
-        subprocess.run(
-            ["jscpd", "src", "--format", "csharp", "--min-tokens", "70", "--mode", "mild",
-             "--reporters", "json", "--output", out, "--silent"],
-            check=True, capture_output=True, cwd=ROOT)
-        report = json.loads((Path(out) / "jscpd-report.json").read_text())
-
-    def hit(fragment):
-        entry = by_name.get(fragment["name"])
-        return entry is not None and touches(entry[1], fragment["start"], fragment["end"])
-
-    clones = [d for d in report["duplicates"] if hit(d["firstFile"]) or hit(d["secondFile"])]
-    if not clones:
-        return False
-    print(f"jscpd: {len(clones)} duplicated block(s) hold changed lines:")
-    for d in clones:
-        a, b = d["firstFile"], d["secondFile"]
-        print(f"  {d['lines']} lines: {a['name']}:{a['start']}-{a['end']} and {b['name']}:{b['start']}-{b['end']}")
-    return True
 
 
 def skip_literal(text, i):
@@ -149,8 +128,8 @@ def method_end_line(text, start):
     return text.count("\n", 0, i) + 1
 
 
-def report_metrics(changed):
-    """Prints the methods over a limit that hold a changed line, without the complexity of tests. True if any."""
+def report_length(changed):
+    """Prints the methods over the length limit that hold a changed line. True if any."""
     projects = set()
     for f in changed:
         for parent in (ROOT / f).parents:
@@ -161,12 +140,12 @@ def report_metrics(changed):
     for project in sorted(projects):
         for sarif in project.glob("obj/Checked/*/analyzers.sarif"):
             for result in json.loads(sarif.read_text())["runs"][0].get("results", []):
-                if result["ruleId"] not in RULES:
+                if result["ruleId"] != LENGTH_RULE:
                     continue
                 location = result["locations"][0]["physicalLocation"]
                 path = Path(unquote(urlparse(location["artifactLocation"]["uri"]).path))
                 name = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else None
-                if name not in changed or name.startswith("tests/") and result["ruleId"] not in TEST_RULES:
+                if name not in changed:
                     continue
                 text = path.read_text()
                 first = location["region"]["startLine"]
@@ -174,24 +153,86 @@ def report_metrics(changed):
                 offset = sum(len(line) + 1 for line in lines[:first - 1]) + location["region"]["startColumn"] - 1
                 last = method_end_line(text, offset)
                 if touches(changed[name], first, last):
-                    found.append(f"  {name}:{first} {RULES[result['ruleId']]}: {result['message']['text']}")
+                    found.append(f"  {name}:{first} length: {result['message']['text']}")
     if not found:
         return False
-    print(f"Complexity and length: {len(set(found))} changed method(s) are over a limit:")
+    print(f"Length: {len(set(found))} changed method(s) are over the limit:")
     print("\n".join(sorted(set(found))))
     return True
 
 
+def metric_line(name, metric, value, baseline):
+    """The value of a metric of the staged tree, with its change against the baseline's note when there is one."""
+    if baseline is None:
+        return f"{name} {value:.4f}"
+    # Rounded first, so that a change below the last shown digit prints as +0.0000, not as -0.0000.
+    change = round(value - baseline["note"][metric], 4) + 0.0
+    return f"{name} {value:.4f} ({change:+.4f} against {baseline['commit']}, the nearest noted commit up to HEAD)"
+
+
+def place(item):
+    """file:line, or file:first-last for an item of more than one line."""
+    lines = str(item["line"]) if item["line"] == item["endLine"] else f"{item['line']}-{item['endLine']}"
+    return f"{item['file']}:{lines}"
+
+
+def changes(changed, item):
+    return touches(changed.get(item["file"], ()), item["line"], item["endLine"])
+
+
+def report_erosion(changed, erosion, baseline):
+    """Prints the erosion and the functions above the CC limit that hold a changed line. True if it named any."""
+    print(metric_line("Erosion", "erosion", erosion["erosion"], baseline))
+    limit = erosion["complexityLimit"]
+    functions = [f for f in erosion["highCcFunctions"] if changes(changed, f)]
+    if not functions:
+        return False
+    print(f"  {len(functions)} changed function(s) have a CC above {limit}, the greatest mass first:")
+    for f in functions:
+        print(f"    {f['file']}:{f['line']} {f['name']}: CC {f['cc']}, SLOC {f['sloc']}, mass {f['mass']:.1f}")
+    print(f"  A split that brings such a function to CC {limit} or less lowers the erosion.")
+    return True
+
+
+def report_verbosity(changed, verbosity, baseline):
+    """Prints the verbosity, and the findings and clones that hold a changed line. True if it named any."""
+    print(metric_line("Verbosity", "verbosity", verbosity["verbosity"], baseline))
+    messages = {rule["id"]: rule["message"] for rule in verbosity["rules"]}
+    findings = [f for f in verbosity["findings"] if changes(changed, f)]
+    clones = [c for c in verbosity["clones"] if changes(changed, c["first"]) or changes(changed, c["second"])]
+    if findings:
+        print(f"  {len(findings)} finding(s) of the verbosity rules cover changed lines:")
+        for f in findings:
+            print(f"    {place(f)} {f['rule']}: {messages[f['rule']]}")
+    if clones:
+        print(f"  {len(clones)} clone(s) hold changed lines:")
+        for c in clones:
+            print(f"    {place(c['first'])} and {place(c['second'])}")
+    return bool(findings or clones)
+
+
+def report_slop(changed, details):
+    """Prints the erosion and the verbosity of the staged tree from the measure's details file. True if it named any."""
+    details = json.loads(Path(details).read_text())
+    report, baseline = details["report"], details["baseline"]
+    named = report_erosion(changed, report["erosion"], baseline)
+    return report_verbosity(changed, report["verbosity"], baseline) or named
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Prints what the staged changes touch in the code.")
+    parser.add_argument("--slop", metavar="FILE", help="the details that Tertius.Slop measure wrote for the staged tree")
+    arguments = parser.parse_args()
     changed = changed_lines()
-    if not changed:
-        return
+    reports = [report_length]
+    if arguments.slop:
+        reports.append(lambda lines: report_slop(lines, arguments.slop))
     reported = False
-    for report in (report_clones, report_metrics):
+    for report in reports:
         try:
             reported = report(changed) or reported
         except Exception as error:  # a report never stops the commit
-            print(f"{report.__name__} failed: {error}", file=sys.stderr)
+            print(f"the commit report failed: {error}", file=sys.stderr)
     if reported:
         print(REFACTOR_PROMPT)
 

@@ -40,10 +40,9 @@
     <Configurations>Debug;Checked;Release</Configurations>
   </PropertyGroup>
   <!--
-    Complexity and length reports. CA1502 (cyclomatic complexity, limit in CodeMetricsConfig.txt) and Meziantou's MA0051
-    (method length) report at suggestion level, so they never fail a build. The pre-commit hook prints the ones in the
-    methods that a commit changes. MeziantouAnalysisMode=None turns off every Meziantou rule, and .editorconfig turns
-    MA0051 back on.
+    Length report. Meziantou's MA0051 (method length) reports at suggestion level, so it never fails a build. The
+    pre-commit hook prints the ones in the methods that a commit changes. MeziantouAnalysisMode=None turns off every
+    Meziantou rule, and .editorconfig turns MA0051 back on.
   -->
   <PropertyGroup>
     <MeziantouAnalysisMode>None</MeziantouAnalysisMode>
@@ -52,7 +51,6 @@
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
     <!-- The fixes of tools/cleanup.sh that no IDE rule has. .editorconfig turns on only the rules that the cleanup applies. -->
     <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
-    <AdditionalFiles Include="$(MSBuildThisFileDirectory)analyzers/CodeMetricsConfig.txt" />
   </ItemGroup>
   <!--
     The union generator writes the members of every [GeneratedUnion] struct (docs/plans/union-tooling.md). The style

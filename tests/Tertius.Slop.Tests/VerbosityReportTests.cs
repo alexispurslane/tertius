@@ -166,6 +166,48 @@ public sealed class VerbosityReportTests
             );
     }
 
+    [Fact]
+    public void TheReportHoldsEveryFindingInTheOrderOfTheSource()
+    {
+        // 21 findings, one more than the top findings hold.
+        string methods = string.Concat(Enumerable.Range(0, 21).Select(i => $"    int F{i}() => a ? x : x;\n"));
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", $"class A\n{{\n{methods}}}\n"));
+
+        var report = VerbosityReport.Of(codebase, Clones.FromReport(Report()));
+
+        report
+            .Findings.Select(finding => (finding.File, finding.Line, finding.EndLine, finding.Rule))
+            .Should()
+            .Equal(Enumerable.Range(3, 21).Select(line => ("src/A.cs", line, line, "ternary-same-value")));
+    }
+
+    [Fact]
+    public void TheReportHoldsEveryCloneWithBothOfItsCopies()
+    {
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/A.cs", MinMax));
+
+        var report = VerbosityReport.Of(codebase, Clones.FromReport(Report(("A.cs", 4, 6), ("B.cs", 1, 3))));
+
+        report
+            .Clones.Should()
+            .Equal(
+                new Clone(
+                    new CloneCopy
+                    {
+                        File = "src/A.cs",
+                        Line = 4,
+                        EndLine = 6,
+                    },
+                    new CloneCopy
+                    {
+                        File = "src/B.cs",
+                        Line = 1,
+                        EndLine = 3,
+                    }
+                )
+            );
+    }
+
     /// <summary>A jscpd JSON report with one clone per pair of fragments, each a file under src and a line range.</summary>
     internal static string Report(params (string Name, int Start, int End)[] fragments)
     {

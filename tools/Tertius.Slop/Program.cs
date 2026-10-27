@@ -20,6 +20,7 @@ public static class Program
     private const string Usage = """
         usage: Tertius.Slop [-C folder] erosion|verbosity|all [root] [--text]
                Tertius.Slop [-C folder] measure <tree> --branch <name> --source pre-commit|pre-push|seed
+                   [--details <file> [--parent <commit>]]
                Tertius.Slop [-C folder] note <from> <tip> --branch <name> --source pre-commit|pre-push|seed
                Tertius.Slop [-C folder] history [git log options and revisions]
                Tertius.Slop [-C folder] summary <from> <tip>
@@ -27,7 +28,7 @@ public static class Program
 
     private static readonly string[] Metrics = ["erosion", "verbosity", "all"];
 
-    /// <summary>Runs the command line on the console, with the jscpd of the search path, as the commit report does.</summary>
+    /// <summary>Runs the command line on the console, with the jscpd of the search path, as the git hooks run it.</summary>
     public static int Main(string[] args) => Run(args: args, output: Console.Out, error: Console.Error, jscpd: "jscpd");
 
     /// <summary>
@@ -43,9 +44,16 @@ public static class Program
         {
             switch (command)
             {
-                case ["measure", var tree, "--branch", var branch, "--source", var name]
-                    when SlopNote.SourceNamed(name) is { } source:
-                    history.Measure(tree: tree, branch: branch, source: source);
+                case ["measure", var tree, "--branch", var branch, "--source", var name, .. var options]
+                    when SlopNote.SourceNamed(name) is { } source
+                        && options is [] or ["--details", _] or ["--details", _, "--parent", _]:
+                    history.Measure(
+                        tree: tree,
+                        branch: branch,
+                        source: source,
+                        details: options.ElementAtOrDefault(1),
+                        parent: options.ElementAtOrDefault(3)
+                    );
                     return 0;
                 case ["note", var from, var tip, "--branch", var branch, "--source", var name]
                     when SlopNote.SourceNamed(name) is { } source:
@@ -124,9 +132,14 @@ public static class Program
     }
 }
 
-/// <summary>The JSON form of the reports, with camel-case names, written at build time.</summary>
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+/// <summary>The JSON form of the reports and the details, with camel-case names, written at build time.</summary>
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    WriteIndented = true,
+    UseStringEnumConverter = true
+)]
 [JsonSerializable(typeof(ErosionReport))]
 [JsonSerializable(typeof(VerbosityReport))]
 [JsonSerializable(typeof(SlopReport))]
+[JsonSerializable(typeof(MeasureDetails))]
 internal sealed partial class SlopJson : JsonSerializerContext;

@@ -36,10 +36,27 @@ public sealed record VerbosityReport
     public required IReadOnlyList<RuleCount> Rules { get; init; }
 
     /// <summary>
+    /// Every finding, ordered by file, then in the order of <see cref="SourceFile.Findings"/>. The commit report names
+    /// the ones that a commit changes.
+    /// </summary>
+    public required IReadOnlyList<Finding> Findings { get; init; }
+
+    /// <summary>Every clone that jscpd found in src, in the order of <see cref="Slop.Clones.All"/>.</summary>
+    public required IReadOnlyList<Clone> Clones { get; init; }
+
+    /// <summary>
     /// The <see cref="TopCount"/> findings that cover the most lines, then ordered by file, line and rule, so that the
     /// report is the same on every run.
     /// </summary>
-    public required IReadOnlyList<Finding> TopFindings { get; init; }
+    public IReadOnlyList<Finding> TopFindings =>
+        [
+            .. Findings
+                .OrderByDescending(finding => finding.EndLine - finding.Line)
+                .ThenBy(finding => finding.File, StringComparer.Ordinal)
+                .ThenBy(finding => finding.Line)
+                .ThenBy(finding => finding.Rule, StringComparer.Ordinal)
+                .Take(TopCount),
+        ];
 
     /// <summary>The report of <paramref name="codebase"/>, with the clone lines of <paramref name="clones"/>.</summary>
     public static VerbosityReport Of(Codebase codebase, Clones clones)
@@ -73,15 +90,8 @@ public sealed record VerbosityReport
                         Lines = files.Sum(file => file.LinesOf(rule.Id).Count),
                     }),
             ],
-            TopFindings =
-            [
-                .. findings
-                    .OrderByDescending(finding => finding.EndLine - finding.Line)
-                    .ThenBy(finding => finding.File, StringComparer.Ordinal)
-                    .ThenBy(finding => finding.Line)
-                    .ThenBy(finding => finding.Rule, StringComparer.Ordinal)
-                    .Take(TopCount),
-            ],
+            Findings = findings,
+            Clones = clones.All,
         };
     }
 

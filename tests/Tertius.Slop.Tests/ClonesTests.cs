@@ -3,12 +3,12 @@ using AwesomeAssertions;
 namespace Tertius.Slop.Tests;
 
 /// <summary>
-/// The clone lines of src, from jscpd with the settings of the commit report (docs/plans/code-quality-tooling.md,
+/// The clones of src and their lines, from jscpd with the settings of Clones.Find (docs/plans/code-quality-tooling.md,
 /// decision 17). The tests that run jscpd need it on the search path, as the dev shell has it.
 /// </summary>
 public sealed class ClonesTests : IDisposable
 {
-    // A method of more than 70 tokens, the least that jscpd reports with the settings of the commit report.
+    // A method of more than 70 tokens, the least that jscpd reports with the settings of Clones.Find.
     private const string Method = """
             public int Sum(int first, int second, int third)
             {
@@ -31,6 +31,26 @@ public sealed class ClonesTests : IDisposable
 
         clones.LinesIn("src/Tertius.Core/A.cs").Should().BeEquivalentTo([3, 4, 5]);
         clones.LinesIn("src/B.cs").Should().BeEquivalentTo([7]);
+    }
+
+    [Fact]
+    public void TheClonesOfAReportAreOrderedByTheirFirstCopyThenTheirSecond()
+    {
+        var clones = Clones.FromReport(
+            VerbosityReportTests.Report(
+                ("B.cs", 1, 2),
+                ("C.cs", 1, 2),
+                ("A.cs", 5, 6),
+                ("C.cs", 1, 1),
+                ("A.cs", 5, 6),
+                ("B.cs", 7, 8)
+            )
+        );
+
+        clones
+            .All.Select(clone => (clone.First.File, clone.First.Line, clone.Second.File, clone.Second.Line))
+            .Should()
+            .Equal(("src/A.cs", 5, "src/B.cs", 7), ("src/A.cs", 5, "src/C.cs", 1), ("src/B.cs", 1, "src/C.cs", 1));
     }
 
     [Fact]

@@ -338,9 +338,10 @@ dotnet_diagnostic.RCS1049.severity = suggestion
 resharper_redundant_argument_default_value_highlighting = none
 
 # Analyzers.
-# Complexity and length reports: suggestions only, so they never fail a build. The pre-commit hook prints the ones in
-# the methods that a commit changes. The complexity limit is in analyzers/CodeMetricsConfig.txt.
-dotnet_diagnostic.CA1502.severity = suggestion
+# Length report: a suggestion only, so it never fails a build. The pre-commit hook prints the ones in the methods that
+# a commit changes. The complexity is the erosion's (tools/Tertius.Slop), with its own CC and limit, so CA1502 is off:
+# two counts of the complexity with two limits would disagree.
+dotnet_diagnostic.CA1502.severity = none
 dotnet_diagnostic.MA0051.severity = suggestion
 # Visible instance fields: the struct-of-arrays tables and the plain data structs expose fields on purpose.
 dotnet_diagnostic.CA1051.severity = none

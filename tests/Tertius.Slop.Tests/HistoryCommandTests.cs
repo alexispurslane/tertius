@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using Tertius.Slop.History;
 
@@ -20,12 +21,25 @@ public sealed class HistoryCommandTests : IDisposable
     private static readonly string Complex =
         $"class C\n{{\n    int F(int x)\n    {{\n{string.Concat(Enumerable.Range(0, 11).Select(i => $"        if (x == {i}) return {i};\n"))}        return 0;\n    }}\n}}\n";
 
+    // A method of more than 70 tokens, the least that jscpd reports.
+    private const string ClonedMethod = """
+            public int Sum(int first, int second, int third)
+            {
+                int total = first * 3 + second * 5 + third * 7;
+                total = total + first * second * third + 11;
+                total = total - first - second - third + 13;
+                total = total * 2 + first + second + third + 17;
+                return total + first + second + third + 19;
+            }
+        """;
+
     private readonly GitFolder git = new();
     private readonly StringWriter output = new();
     private readonly StringWriter error = new();
 
     public void Dispose()
     {
+        File.Delete(DetailsPath);
         git.Dispose();
         output.Dispose();
         error.Dispose();
@@ -69,6 +83,133 @@ public sealed class HistoryCommandTests : IDisposable
         Run("measure", "HEAD", "--branch", "main", "--source", "pre-commit");
 
         SlopNote.Parse(output.ToString())!.Verbosity.Should().Be(0, "the test uses the class and its method");
+    }
+
+    [Fact]
+    public void TheMeasureCommandWithDetailsStillPrintsTheNoteOnOneLine()
+    {
+        git.Write("src/C.cs", Complex);
+        git.Commit("first");
+
+        int exit = MeasureWithDetails();
+
+        exit.Should().Be(0);
+        string[] lines = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        SlopNote.Parse(lines.Should().ContainSingle().Subject)!.Erosion.Should().Be(1);
+    }
+
+    [Fact]
+    public void TheDetailsGiveTheLimitAndEveryFunctionAboveItWithItsSpanInTheRepository()
+    {
+        git.Write("src/C.cs", Complex);
+        git.Commit("first");
+
+        MeasureWithDetails();
+
+        using JsonDocument details = Details();
+        JsonElement erosion = details.RootElement.GetProperty("report").GetProperty("erosion");
+        JsonElement function = erosion.GetProperty("highCcFunctions").EnumerateArray().Should().ContainSingle().Subject;
+        (
+            erosion.GetProperty("complexityLimit").GetInt32(),
+            function.GetProperty("file").GetString(),
+            function.GetProperty("line").GetInt32(),
+            function.GetProperty("endLine").GetInt32(),
+            function.GetProperty("name").GetString(),
+            function.GetProperty("cc").GetInt32()
+        )
+            .Should()
+            .Be((ErosionReport.ComplexityLimit, "src/C.cs", 3, 17, "C.F", 12));
+    }
+
+    [Fact]
+    public void TheDetailsGiveEveryFindingWithItsSpanAndTheMessageOfItsRule()
+    {
+        git.Write("src/D.cs", "class D\n{\n    int G() => a ? x : x;\n}\n");
+        git.Write("tests/Uses.cs", "class Uses { int F() => new D().G(); }");
+        git.Commit("first");
+
+        MeasureWithDetails();
+
+        using JsonDocument details = Details();
+        JsonElement verbosity = details.RootElement.GetProperty("report").GetProperty("verbosity");
+        JsonElement finding = verbosity.GetProperty("findings").EnumerateArray().Should().ContainSingle().Subject;
+        (
+            finding.GetProperty("rule").GetString(),
+            finding.GetProperty("file").GetString(),
+            finding.GetProperty("line").GetInt32(),
+            finding.GetProperty("endLine").GetInt32()
+        )
+            .Should()
+            .Be(("ternary-same-value", "src/D.cs", 3, 3));
+        verbosity
+            .GetProperty("rules")
+            .EnumerateArray()
+            .Single(rule => rule.GetProperty("id").GetString() == "ternary-same-value")
+            .GetProperty("message")
+            .GetString()
+            .Should()
+            .NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public void TheDetailsGiveEveryCloneWithBothOfItsPlacesInTheRepository()
+    {
+        git.Write("src/A.cs", $"class A\n{{\n{ClonedMethod}\n}}\n");
+        git.Write("src/Deep/B.cs", $"class B\n{{\n{ClonedMethod}\n}}\n");
+        git.Commit("first");
+
+        MeasureWithDetails();
+
+        using JsonDocument details = Details();
+        JsonElement clone = details
+            .RootElement.GetProperty("report")
+            .GetProperty("verbosity")
+            .GetProperty("clones")
+            .EnumerateArray()
+            .Should()
+            .ContainSingle()
+            .Subject;
+        string[] places =
+        [
+            .. new[] { "first", "second" }.Select(side =>
+            {
+                JsonElement copy = clone.GetProperty(side);
+                return $"{copy.GetProperty("file").GetString()}:{copy.GetProperty("line").GetInt32()}-{copy.GetProperty("endLine").GetInt32()}";
+            }),
+        ];
+        places
+            .Should()
+            .Equal(["src/A.cs:2-11", "src/Deep/B.cs:2-11"], "jscpd's copy runs from the brace of the class to the end");
+    }
+
+    [Fact]
+    public void TheDetailsGiveTheNoteOfTheNearestNotedCommitOnTheFirstParentLineOfTheParent()
+    {
+        git.Write("src/A.cs", Short);
+        string noted = git.Commit("first");
+        NoteAt(noted);
+        git.Write("README.md", "docs");
+        git.Commit("docs only, so no hook noted it");
+
+        MeasureWithDetails("--parent", "HEAD");
+
+        using JsonDocument details = Details();
+        JsonElement baseline = details.RootElement.GetProperty("baseline");
+        (baseline.GetProperty("commit").GetString(), baseline.GetProperty("note").GetProperty("sloc").GetInt32())
+            .Should()
+            .Be((noted[..7], 4));
+    }
+
+    [Fact]
+    public void TheDetailsGiveNoBaselineWhenNoCommitUpToTheParentHasANote()
+    {
+        git.Write("src/A.cs", Short);
+        git.Commit("first");
+
+        MeasureWithDetails("--parent", "HEAD");
+
+        using JsonDocument details = Details();
+        details.RootElement.GetProperty("baseline").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -260,6 +401,9 @@ public sealed class HistoryCommandTests : IDisposable
     [InlineData("measure", "HEAD")]
     [InlineData("note", "HEAD", "HEAD", "--branch", "main")]
     [InlineData("summary", "HEAD")]
+    [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details")]
+    [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", "x", "--parent")]
+    [InlineData("measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--parent", "HEAD")]
     public void AHistoryCommandWithWrongArgumentsPrintsTheUsageAndFails(params string[] args)
     {
         int exit = Run(args);
@@ -275,6 +419,15 @@ public sealed class HistoryCommandTests : IDisposable
         git.Git("notes", "--ref=slop", "add", "-f", "-m", output.ToString().Trim(), commit);
         output.GetStringBuilder().Clear();
     }
+
+    // The details file goes outside the repository, as the hook puts it in the temporary folder.
+    private string DetailsPath => git.Root + ".details.json";
+
+    // Measures HEAD with the details file, as the pre-commit hook does, and with the further options.
+    private int MeasureWithDetails(params string[] options) =>
+        Run(["measure", "HEAD", "--branch", "main", "--source", "pre-commit", "--details", DetailsPath, .. options]);
+
+    private JsonDocument Details() => JsonDocument.Parse(File.ReadAllText(DetailsPath));
 
     private int Run(params string[] args) =>
         Program.Run(args: ["-C", git.Root, .. args], output: output, error: error, jscpd: "jscpd");
