@@ -10,7 +10,7 @@ namespace Tertius;
 /// Mutate the tree only at the sync point, then call <see cref="Update"/>. During a tick, the tree is read-only
 /// and safe to read from any thread.
 /// <para>
-/// Invariants, checked by <see cref="AssertInvariants()"/>:
+/// Invariants, checked by <see cref="AssertInvariants(int)"/>:
 /// <list type="bullet">
 /// <item>The rotation of every frame's local pose is a unit quaternion: the square of its length is within
 /// <see cref="DQuaternion.UnitTolerance"/> of 1. A frame whose rotation is a little long or short moves everything in its
@@ -44,8 +44,9 @@ namespace Tertius;
 /// <see cref="LeaveFollowingFrame"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
-/// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
-/// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
+/// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with thrust ticks above
+/// zero and quiet ticks from zero that last less than <see cref="NumericFrameOptions.ThrustWindow"/> at the World's tick
+/// rate.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -105,9 +106,9 @@ public sealed partial class FrameTree
     // reads (see BeginStep). Null for every other frame.
     private MotionSample?[] stepPlan = new MotionSample?[64];
 
-    // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
+    // How many ticks the members of each numeric frame have been apart, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
-    private double[] apartTime = new double[64];
+    private long[] apartTicks = new long[64];
 
     private int[] numericBodies = new int[64];
 
@@ -210,7 +211,7 @@ public sealed partial class FrameTree
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
         stepPlan[node.Id] = null;
-        apartTime[node.Id] = 0;
+        apartTicks[node.Id] = 0;
         numericBodies[node.Id] = 0;
         anchor[node.Id] = Entity.Null;
         // A new frame has had no step, so it has no turn and no last turn until its first BeginStep. A numeric frame keeps
@@ -590,7 +591,7 @@ public sealed partial class FrameTree
     /// step (see <see cref="FollowKindInStep"/>). Step 4 stores the changes of step k and swaps the intents, so after it the
     /// front intents are those of step k + 1, the next step: the World asks it for that step there (see
     /// <c>World.NextStepHullMotion</c>), and so does the check of the tree's invariants at the end of the sync point (see
-    /// <see cref="AssertInvariants()"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// <see cref="AssertInvariants(int)"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <param name="frame">The frame whose hull it asks about.</param>
     /// <param name="stepIntents">
@@ -681,19 +682,20 @@ public sealed partial class FrameTree
     internal void SetGravity(FrameHandle frame, in GravityField value) => gravity[Node(frame).Id] = value;
 
     /// <summary>
-    /// Checks the invariants of the tree for a step whose intents hold no change of motion (see
-    /// <see cref="AssertInvariants(ReadOnlySpan{PhysicsIntent})"/>).
+    /// Checks the invariants of the tree at <paramref name="tickRate"/> ticks per second for a step whose intents hold no
+    /// change of motion (see <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/>).
     /// </summary>
-    internal void AssertInvariants() => AssertInvariants([]);
+    internal void AssertInvariants(int tickRate) => AssertInvariants(tickRate, []);
 
     /// <summary>
     /// Checks the invariants of the tree (see the class summary): the rotation of every frame's local pose is unit length,
     /// and the numeric frames keep the rules of the class summary. The numeric frames are planned for the step that applies
     /// <paramref name="stepIntents"/>, so the rules about the motion of a hull read the motion of that step (see
     /// <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/>). At the end of a sync point, the World passes the intents that the next step
-    /// applies. O(frames). It runs only on demand, so it works in every build.
+    /// applies. The clocks of the numeric frames count ticks at <paramref name="tickRate"/> ticks per second, the World's
+    /// tick rate. O(frames). It runs only on demand, so it works in every build.
     /// </summary>
-    internal void AssertInvariants(ReadOnlySpan<PhysicsIntent> stepIntents)
+    internal void AssertInvariants(int tickRate, ReadOnlySpan<PhysicsIntent> stepIntents)
     {
         ReadOnlySpan<DPose> locals = poses.LocalPoses;
         bool[] holdsFrame = new bool[owner.Length];
@@ -712,104 +714,192 @@ public sealed partial class FrameTree
             NumericMode parentMode = parent.IsNull ? NumericMode.None : numeric[parent.Index];
             if (numeric[id] == NumericMode.None)
             {
-                Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
-                Contract.Invariant(anchor[id].IsNull);
-                // A nesting frame holds only numeric frames.
-                Contract.Invariant(parentMode != NumericMode.Nesting);
-                // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
-                // hull hangs in its semantic parent or at the origin of its following frame, in the step that the numeric frames
-                // are for. So a frame in any other numeric frame has a dynamic hull in that step.
-                if (parentMode == NumericMode.Following && anchor[parent.Index] == frame.Entity)
-                    Contract.Invariant(
-                        HullMotionInStep(frame, stepIntents) == BodyMotion.Kinematic
-                            && locals[i].Position == Double3.Zero
-                    );
-                else if (parentMode != NumericMode.None)
-                    Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic);
-                // Only a frame with a hull hangs in a numeric frame.
-                if (parentMode != NumericMode.None)
-                {
-                    if (hulls is null)
-                    {
-                        hulls = [];
-                        foreach (NumericBody body in sortedBodies)
-                            if (!body.OwnedFrame.IsNull)
-                                hulls.Add(body.OwnedFrame);
-                    }
-
-                    Contract.Invariant(hulls.Contains(frame));
-                }
-
+                AssertSemanticFrameInvariants(
+                    frame: frame,
+                    local: locals[i],
+                    parentMode: parentMode,
+                    stepIntents: stepIntents,
+                    hulls: ref hulls
+                );
                 continue;
             }
 
             numericFrames++;
-            Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
-            Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
-            Contract.Invariant(!gravity[id].HasValue && !medium[id].HasValue && !hullMotion[id].HasValue);
-            // A numeric frame never turns: it reads its semantic frame's turns, and keeps none of its own.
-            Contract.Invariant(turns[id] == NoTurns && angularAcceleration[id] == Double3.Zero && !withoutLastTurn[id]);
-            if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
-                Contract.Invariant(
-                    linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null
-                );
-            // Only a following frame has an anchor: a hull whose frame hangs in it, or a plain body of the last update whose
-            // home it is.
-            if (numeric[id] == NumericMode.Following)
-            {
-                Contract.Invariant(!anchor[id].IsNull);
-                if (byOwner.TryGetValue(anchor[id], out FrameHandle anchorFrame))
-                    Contract.Invariant(TreeParent(anchorFrame) == frame);
-                else
-                    Contract.Invariant(IsPlainAnchorOfTheLastUpdate(anchor[id], frame));
-            }
-            else
-            {
-                Contract.Invariant(anchor[id].IsNull);
-            }
-
-            // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
-            // frame, a following frame lies in one, and a nesting frame lies in one, on an exact grid point.
-            if (numeric[id] == NumericMode.Nesting)
-                Contract.Invariant(
-                    parentMode == NumericMode.None
-                        && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid)
-                );
-            else if (numeric[id] == NumericMode.Following)
-                Contract.Invariant(parentMode == NumericMode.None);
-            else
-                Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
-            // The last update left no falling or resting frame without a body or a frame, and no nesting frame without a
-            // frame or with a body.
-            if (numeric[id] == NumericMode.Nesting)
-                Contract.Invariant(numericBodies[id] == 0 && holdsFrame[id]);
-            else
-                Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
+            AssertNumericFrameInvariants(
+                frame: frame,
+                local: locals[i],
+                parentMode: parentMode,
+                holdsFrame: holdsFrame[id]
+            );
         }
 
         Contract.Invariant(NumericCount == numericFrames);
+        AssertAnchorGhostInvariants();
+        AssertThrustClockInvariants(tickRate);
+        AssertLeaveClockInvariants();
+    }
+
+    /// <summary>
+    /// The invariants of <paramref name="frame"/>, a frame that is not numeric, at <paramref name="local"/> in a tree parent of
+    /// <paramref name="parentMode"/>, for the step that applies <paramref name="stepIntents"/>. <paramref name="hulls"/> is the
+    /// set of the frames whose hulls were bodies of the last update, which the first call that needs it fills. For
+    /// <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertSemanticFrameInvariants(
+        FrameHandle frame,
+        in DPose local,
+        NumericMode parentMode,
+        ReadOnlySpan<PhysicsIntent> stepIntents,
+        ref HashSet<FrameHandle>? hulls
+    )
+    {
+        int id = Node(frame).Id;
+        FrameHandle parent = TreeParent(frame);
+        Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
+        Contract.Invariant(anchor[id].IsNull);
+        // A nesting frame holds only numeric frames.
+        Contract.Invariant(parentMode != NumericMode.Nesting);
+        // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
+        // hull hangs in its semantic parent or at the origin of its following frame, in the step that the numeric frames
+        // are for. So a frame in any other numeric frame has a dynamic hull in that step.
+        if (parentMode == NumericMode.Following && anchor[parent.Index] == frame.Entity)
+            Contract.Invariant(
+                HullMotionInStep(frame, stepIntents) == BodyMotion.Kinematic && local.Position == Double3.Zero
+            );
+        else if (parentMode != NumericMode.None)
+            Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic);
+        // Only a frame with a hull hangs in a numeric frame.
+        if (parentMode == NumericMode.None)
+            return;
+        if (hulls is null)
+        {
+            hulls = [];
+            foreach (NumericBody body in sortedBodies)
+                if (!body.OwnedFrame.IsNull)
+                    hulls.Add(body.OwnedFrame);
+        }
+
+        Contract.Invariant(hulls.Contains(frame));
+    }
+
+    /// <summary>
+    /// The invariants of the numeric frame <paramref name="frame"/>, at <paramref name="local"/> in a tree parent of
+    /// <paramref name="parentMode"/>. <paramref name="holdsFrame"/> is true when a frame hangs in it. For
+    /// <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertNumericFrameInvariants(
+        FrameHandle frame,
+        in DPose local,
+        NumericMode parentMode,
+        bool holdsFrame
+    )
+    {
+        int id = Node(frame).Id;
+        NumericMode mode = numeric[id];
+        Contract.Invariant(owner[id].IsNull && !TreeParent(frame).IsNull && bounds[id] == default);
+        Contract.Invariant(local.Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
+        Contract.Invariant(!gravity[id].HasValue && !medium[id].HasValue && !hullMotion[id].HasValue);
+        // A numeric frame never turns: it reads its semantic frame's turns, and keeps none of its own.
+        Contract.Invariant(turns[id] == NoTurns && angularAcceleration[id] == Double3.Zero && !withoutLastTurn[id]);
+        if (mode is NumericMode.Resting or NumericMode.Nesting)
+            Contract.Invariant(
+                linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null
+            );
+        AssertAnchorOf(frame);
+        AssertNumericParent(mode: mode, local: local, parentMode: parentMode);
+        // The last update left no falling or resting frame without a body or a frame, and no nesting frame without a
+        // frame or with a body.
+        if (mode == NumericMode.Nesting)
+            Contract.Invariant(numericBodies[id] == 0 && holdsFrame);
+        else
+            Contract.Invariant(numericBodies[id] > 0 || holdsFrame);
+    }
+
+    /// <summary>
+    /// The invariant of the tree parent of a numeric frame of <paramref name="mode"/> at <paramref name="local"/> in a tree
+    /// parent of <paramref name="parentMode"/>: the chain of tree parents ends at a semantic frame. A falling or resting
+    /// frame lies in one or in a nesting frame, a following frame lies in one, and a nesting frame lies in one, on an exact
+    /// grid point. For <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertNumericParent(NumericMode mode, in DPose local, NumericMode parentMode)
+    {
+        if (mode == NumericMode.Nesting)
+            Contract.Invariant(
+                parentMode == NumericMode.None && NumericFrameRules.OnGrid(local.Position, NumericOptions.NestGrid)
+            );
+        else if (mode == NumericMode.Following)
+            Contract.Invariant(parentMode == NumericMode.None);
+        else
+            Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
+    }
+
+    /// <summary>
+    /// The invariant of the anchor of the numeric frame <paramref name="frame"/>: only a following frame has an anchor, a
+    /// hull whose frame hangs in it, or a plain body of the last update whose home it is. For
+    /// <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertAnchorOf(FrameHandle frame)
+    {
+        int id = Node(frame).Id;
+        if (numeric[id] != NumericMode.Following)
+        {
+            Contract.Invariant(anchor[id].IsNull);
+            return;
+        }
+
+        Contract.Invariant(!anchor[id].IsNull);
+        if (byOwner.TryGetValue(anchor[id], out FrameHandle anchorFrame))
+            Contract.Invariant(TreeParent(anchorFrame) == frame);
+        else
+            Contract.Invariant(IsPlainAnchorOfTheLastUpdate(anchor[id], frame));
+    }
+
+    /// <summary>
+    /// The invariant of the anchor ghosts (see the list of invariants of <see cref="FrameTree"/>). For
+    /// <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertAnchorGhostInvariants()
+    {
         foreach (NumericGhost ghost in anchorGhosts)
         {
             FrameHandle following = FollowingFrameOf(ghost.Anchor);
             Contract.Invariant(!following.IsNull && IsAlive(ghost.Frame));
             Contract.Invariant(ghost.Frame != following && SemanticOf(ghost.Frame) == TreeParent(following));
         }
+    }
 
-        if (thrustClocks.Count > 0)
+    /// <summary>
+    /// The invariant of the thrust clocks (see the list of invariants of <see cref="FrameTree"/>), whose ticks last
+    /// <paramref name="tickRate"/> ticks per second. For <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/>
+    /// only.
+    /// </summary>
+    private void AssertThrustClockInvariants(int tickRate)
+    {
+        if (thrustClocks.Count == 0)
+            return;
+        // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static, and
+        // its hull.
+        var moving = new HashSet<Entity>();
+        foreach (NumericBody body in sortedBodies)
+            if (!body.Static)
+                moving.Add(body.Entity);
+        foreach ((Entity entity, (long thrustTicks, long quietTicks)) in thrustClocks)
         {
-            // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static,
-            // and its hull.
-            var moving = new HashSet<Entity>();
-            foreach (NumericBody body in sortedBodies)
-                if (!body.Static)
-                    moving.Add(body.Entity);
-            foreach ((Entity entity, (double thrustTime, double quietTime)) in thrustClocks)
-            {
-                Contract.Invariant(moving.Contains(entity));
-                Contract.Invariant(thrustTime > 0 && quietTime >= 0 && quietTime < NumericOptions.ThrustWindow);
-            }
+            Contract.Invariant(moving.Contains(entity));
+            Contract.Invariant(
+                thrustTicks > 0
+                    && quietTicks >= 0
+                    && NumericFrameRules.Seconds(quietTicks, tickRate) < NumericOptions.ThrustWindow
+            );
         }
+    }
 
+    /// <summary>
+    /// The invariant of the leave clocks (see the list of invariants of <see cref="FrameTree"/>). For
+    /// <see cref="AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertLeaveClockInvariants()
+    {
         if (leaveClocks.Count == 0)
             return;
         // Only a body that is not an anchor has a clock. A frame owner has two bodies, its interior, an anchor, and its hull.
@@ -817,7 +907,7 @@ public sealed partial class FrameTree
         foreach (NumericBody body in sortedBodies)
             if (!NumericFrameRules.IsAnchor(body, NumericOptions))
                 lastBodies[body.Entity] = body;
-        foreach ((Entity entity, double apart) in leaveClocks)
+        foreach ((Entity entity, long apart) in leaveClocks)
         {
             bool known = lastBodies.TryGetValue(entity, out NumericBody body);
             Contract.Invariant(apart >= 0 && known);
@@ -1481,7 +1571,7 @@ public sealed partial class FrameTree
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);
         Array.Resize(ref stepPlan, size);
-        Array.Resize(ref apartTime, size);
+        Array.Resize(ref apartTicks, size);
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref anchor, size);
         Array.Resize(ref anchorSeen, size);

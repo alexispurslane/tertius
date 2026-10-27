@@ -192,28 +192,37 @@ public sealed partial class FrameTree
     /// backward (see <see cref="ProperAccelerationFrom"/>): its proper acceleration of the last step turned out of its axes,
     /// plus the parent's effective gravity at its semantic place and the parent's Coriolis term on its velocity there. Jolt
     /// adds the acceleration to the velocity and then moves the body by the new velocity, so from the row's instant velocity
-    /// v the hull moves by the chord v + a dt / 2 and ends at the instant velocity v + a dt.
+    /// v the hull moves by the chord v + a dt / 2 and ends at the instant velocity v + a dt. The step dt is physics' step
+    /// over a tick of <paramref name="step"/> seconds (see <see cref="PhysicsStep"/>).
     /// </summary>
     private FrameMotion HullPrediction(int id, FrameHandle treeParent, FrameHandle parent, in DPose start, double step)
     {
+        double dt = PhysicsStep(step);
         Double3 place = InSemantic(treeParent, parent, start.Position);
         // The row keeps a velocity under a numeric home relative to the home's frame velocity, so the sum is the instant
         // velocity in the semantic parent (see HomeInstantVelocityOverChord).
         Double3 velocity = linearVelocity[id] + HomeVelocity(treeParent, parent);
-        Double3 spin = angularVelocity[id] + angularAcceleration[id] * step;
-        DQuaternion rotation = DQuaternion.FromAxisAngle(spin, spin.Length * step) * start.Rotation;
+        Double3 spin = angularVelocity[id] + angularAcceleration[id] * dt;
+        DQuaternion rotation = DQuaternion.FromAxisAngle(spin, spin.Length * dt) * start.Rotation;
         Double3 acceleration = rotation.Rotate((Double3)properAcceleration[id]) + SemanticGravity(parent, place);
         ref readonly FrameTurns parentTurns = ref turns[parent.Index];
         if (parentTurns.Turns)
             acceleration += parentTurns.Coriolis(velocity);
         return new(
-            Pose: new(place + (velocity + acceleration * (step / 2)) * step, rotation),
-            Velocity: velocity + acceleration * step,
+            Pose: new(place + (velocity + acceleration * (dt / 2)) * dt, rotation),
+            Velocity: velocity + acceleration * dt,
             AngularVelocity: spin,
             Acceleration: acceleration,
             AngularAcceleration: angularAcceleration[id]
         );
     }
+
+    /// <summary>
+    /// The step by which physics moves and turns a dynamic hull over a tick of <paramref name="step"/> seconds: the float
+    /// nearest the tick, by which Jolt steps. The frame of a dynamic hull takes the hull's pose at each sync point, so a
+    /// prediction of the hull's motion runs over this step (ARCHITECTURE.md, "Threads and the tick").
+    /// </summary>
+    private static double PhysicsStep(double step) => (float)step;
 
     /// <summary>
     /// <paramref name="inParent"/>, the motion of a frame at the end of the step relative to its semantic parent

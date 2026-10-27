@@ -88,7 +88,7 @@ public sealed class FrameProperAccelerationTests
             .ProperAcceleration(cabin)
             .Should()
             .Be(new Vector3(0, 9.81f, 0), "a skipped update changes nothing, as for the velocities");
-        frames.AssertInvariants();
+        frames.AssertInvariants(tickRate: 60);
     }
 
     [Fact]
@@ -309,8 +309,8 @@ public sealed class FrameProperAccelerationTests
         };
         frames.UpdateNumericFrames(
             bodies: [body],
-            dt: 0.1,
-            step: 0.1,
+            ticks: 1,
+            tickRate: 10,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );

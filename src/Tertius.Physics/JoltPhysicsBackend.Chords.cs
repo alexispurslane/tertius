@@ -19,7 +19,7 @@ namespace Tertius.Physics;
 //
 // A velocity relative to a numeric home has two forms. A velocity that gameplay gives is relative to the home's frame
 // velocity in the step, as LocalVelocity gives it. The home's frame velocity is a chord too, because the numeric update
-// steps it the way that Jolt steps a body (see FrameTree.AdvanceNumericFrames), so the home's instant velocity lies further
+// steps it by Jolt's scheme over the tick (see FrameTree.AdvanceNumericFrames), so the home's instant velocity lies further
 // on. Where the step starts, that is half a step of the home's step acceleration (see
 // FrameTree.HomeInstantVelocityOverChordAtStepStart), and only the velocity relative to it is the body's local instant
 // velocity, whose chord Jolt needs: a velocity that a spawn, gameplay or a hand-off gives a body converts by it, and the
@@ -267,7 +267,7 @@ public sealed partial class JoltPhysicsBackend
                 ? moment.Turn.AngularChordBehind(velocity, stepDt).ToVector3()
                 : velocity;
         // Damping slows a spin by k·ω, so the chord is half a step of that faster.
-        return chord * (1 + record.Material.AngularDamping * 0.5f * stepDt);
+        return chord * (1 + record.Material.AngularDamping * 0.5f * (float)stepDt);
     }
 
     /// <summary>
@@ -351,7 +351,7 @@ public sealed partial class JoltPhysicsBackend
             !record.IsCharacter && StepEnd(record.Frame) is { } moment
                 ? moment.Turn.InstantAngularAtEnd(s.Angular, stepDt).ToVector3()
                 : s.Angular;
-        return relative * (1 - record.Material.AngularDamping * 0.5f * stepDt);
+        return relative * (1 - record.Material.AngularDamping * 0.5f * (float)stepDt);
     }
 
     /// <summary>

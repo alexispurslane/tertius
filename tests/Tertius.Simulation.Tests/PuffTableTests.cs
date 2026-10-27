@@ -96,7 +96,7 @@ public sealed class PuffTableTests
                 .BeInDescendingOrder(
                     "the survivors keep their order and the newborns come last, in their order of birth"
                 );
-            ages[^1].Should().BeLessThan(test.World.DeltaTime);
+            ages[^1].Should().BeLessThan((float)test.World.DeltaTime);
         }
     }
 

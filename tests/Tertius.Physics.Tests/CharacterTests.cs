@@ -255,7 +255,7 @@ public sealed class CharacterTests
             Vector3 pushed = world.VelocityInOwnFrame(person);
             pushed.X.Should().BeApproximately(2, 1e-3f);
             pushed.Z.Should().BeApproximately(1, 1e-3f);
-            pushed.Y.Should().BeApproximately(falling.Y - 9.81f * world.DeltaTime, 1e-3f);
+            pushed.Y.Should().BeApproximately(falling.Y - 9.81f * (float)world.DeltaTime, 1e-3f);
 
             // SetVelocity replaces the velocity; gravity then acts for the step.
             Send(world, pilot, body => body.SetVelocity(new(0, 3, 0)));
@@ -264,7 +264,7 @@ public sealed class CharacterTests
             thrown.X.Should().BeApproximately(0, 1e-3f);
             thrown.Z.Should().BeApproximately(0, 1e-3f);
             // The set velocity is an instant velocity, and the velocity after the step is the chord of the step.
-            thrown.Y.Should().BeApproximately(3 - 9.81f * world.DeltaTime / 2, 1e-3f);
+            thrown.Y.Should().BeApproximately(3 - 9.81f * (float)world.DeltaTime / 2, 1e-3f);
             world.Errors.Should().BeEmpty();
         }
     }
@@ -494,7 +494,7 @@ public sealed class CharacterTests
         Tick(world, 60);
 
         // The character's velocity is the chord of the last step, the instant velocity half a step before its end.
-        world.VelocityInOwnFrame(person).Z.Should().BeApproximately(0.04f * (1 - world.DeltaTime / 2), 1e-5f);
+        world.VelocityInOwnFrame(person).Z.Should().BeApproximately(0.04f * (1 - (float)world.DeltaTime / 2), 1e-5f);
         world.VelocityInOwnFrame(person).Z.Should().BeApproximately(world.VelocityInOwnFrame(crate).Z, 1e-4f);
         Vector3
             .Distance(UpOf(world, person), Vector3.UnitY)

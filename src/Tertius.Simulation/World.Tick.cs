@@ -91,7 +91,14 @@ public sealed partial class World
     /// <c>TimeAt(TickNumber + 1)</c>, which is the end of the first step of an entity spawned now (see
     /// <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public double TimeAt(long tick) => Options.StartTime + tick * (double)DeltaTime;
+    public double TimeAt(long tick) => startTime + Seconds(tick);
+
+    /// <summary>
+    /// The length of <paramref name="ticks"/> ticks, in seconds: the count divided by the tick rate, exactly as that
+    /// division rounds. A clock that counts ticks compares this with a time in seconds, never a sum of tick lengths
+    /// (ARCHITECTURE.md, "Threads and the tick").
+    /// </summary>
+    public double Seconds(long ticks) => ticks / (double)tickRate;
 
     private void PrepareTick()
     {
@@ -101,7 +108,7 @@ public sealed partial class World
         if (numericUpdateDue)
         {
             numericUpdateDue = false;
-            UpdateNumericFrames(0);
+            UpdateNumericFrames(ticks: 0);
             DeriveAttachments();
             SwapSnapshot();
         }

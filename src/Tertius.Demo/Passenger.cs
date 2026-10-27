@@ -209,62 +209,25 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
         switch (State)
         {
             case Boarding:
-                if (
-                    self.Frame == seat.Frame
-                    && Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius
-                )
-                    State = new Seated(0);
+                BuckleAtSeat(self);
                 return;
             case Seated { WeightlessTicks: int ticks }:
-                if (self.Frame != seat.Frame)
-                    return;
-                ticks = HoldAtSeat(self, mass) ? ticks + 1 : 0;
-                State = ticks * (double)self.DeltaTime >= UnbuckleSeconds ? new Fetching() : new Seated(ticks);
+                CountWeightlessTicks(self: self, ticks: ticks, mass: mass);
                 return;
             case Fetching:
-                for (int i = 0; i < events.Count; i++)
-                    if (
-                        events[i].Is<CrateOffer>()
-                        && events[i].Sender == pen
-                        && Take(self, outbox, events[i].As<CrateOffer>().Crate)
-                    )
-                    {
-                        Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
-                        return;
-                    }
-
-                Fetch(self, outbox, mass);
+                FetchOrTakePen(self: self, events: ref events, outbox: outbox, mass: mass);
                 return;
             case Holding { Copy: Entity held }:
-                if (!events.Of<FastenBelt>().Any())
-                {
-                    Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
-                    return;
-                }
-
-                State = new Returning(held);
-                Return(self: self, outbox: outbox, held: held, mass: mass);
+                HoldUntilBelt(self: self, events: ref events, outbox: outbox, held: held, mass: mass);
                 return;
             case Returning { Copy: Entity held }:
                 Return(self: self, outbox: outbox, held: held, mass: mass);
                 return;
             case Strapped { Copy: Entity held }:
-                if (events.Of<LeaveShip>().Any())
-                {
-                    State = new Unstrapped(held);
-                    return;
-                }
-
-                if (self.Frame == seat.Frame)
-                    HoldAtSeat(self, mass);
+                StayStrapped(self: self, events: ref events, held: held, mass: mass);
                 return;
             case Unstrapped { Copy: Entity held }:
-                if (events.Of<PlayWithBoxes>().Any())
-                {
-                    outbox.Send(held, new Destroy());
-                    State = new PenAway();
-                }
-
+                PutPenAwayOnPlay(events: ref events, outbox: outbox, held: held);
                 return;
             case PenAway:
                 return;
@@ -276,6 +239,80 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                     $"The passenger state {State} has a case that the passenger does not run."
                 );
         }
+    }
+
+    /// <summary>Buckles the boarding passenger when it is in its seat's frame within the buckle radius of its seat.</summary>
+    private void BuckleAtSeat(Self self)
+    {
+        if (
+            self.Frame == seat.Frame
+            && Double3.Distance(self.PoseIn(seat.Frame).Position, seat.Position) <= BuckleRadius
+        )
+            State = new Seated(0);
+    }
+
+    /// <summary>
+    /// Counts the seated passenger's weightless ticks on from <paramref name="ticks"/>, and opens its belt to fetch the pen
+    /// once they last <see cref="UnbuckleSeconds"/>, as the world clock divides them.
+    /// </summary>
+    private void CountWeightlessTicks(Self self, int ticks, float mass)
+    {
+        if (self.Frame != seat.Frame)
+            return;
+        ticks = HoldAtSeat(self, mass) ? ticks + 1 : 0;
+        State = self.Seconds(ticks) >= UnbuckleSeconds ? new Fetching() : new Seated(ticks);
+    }
+
+    /// <summary>Takes the pen that the pen offers in <paramref name="events"/> and stops, or else floats on toward it.</summary>
+    private void FetchOrTakePen(Self self, scoped ref EventList events, Outbox outbox, float mass)
+    {
+        for (int i = 0; i < events.Count; i++)
+            if (
+                events[i].Is<CrateOffer>()
+                && events[i].Sender == pen
+                && Take(self, outbox, events[i].As<CrateOffer>().Crate)
+            )
+            {
+                Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
+                return;
+            }
+
+        Fetch(self, outbox, mass);
+    }
+
+    /// <summary>Holds still with the pen <paramref name="held"/> until it is told to fasten its belt, then returns to its seat.</summary>
+    private void HoldUntilBelt(Self self, scoped ref EventList events, Outbox outbox, Entity held, float mass)
+    {
+        if (!events.Of<FastenBelt>().Any())
+        {
+            Steer(self: self, outbox: outbox, velocity: Double3.Zero, mass: mass);
+            return;
+        }
+
+        State = new Returning(held);
+        Return(self: self, outbox: outbox, held: held, mass: mass);
+    }
+
+    /// <summary>Stays strapped in its seat with the pen <paramref name="held"/> until it is told to leave the ship.</summary>
+    private void StayStrapped(Self self, scoped ref EventList events, Entity held, float mass)
+    {
+        if (events.Of<LeaveShip>().Any())
+        {
+            State = new Unstrapped(held);
+            return;
+        }
+
+        if (self.Frame == seat.Frame)
+            HoldAtSeat(self, mass);
+    }
+
+    /// <summary>Puts the pen <paramref name="held"/> away when it is told to play with the boxes.</summary>
+    private void PutPenAwayOnPlay(scoped ref EventList events, Outbox outbox, Entity held)
+    {
+        if (!events.Of<PlayWithBoxes>().Any())
+            return;
+        outbox.Send(held, new Destroy());
+        State = new PenAway();
     }
 
     /// <summary>

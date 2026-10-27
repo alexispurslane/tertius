@@ -99,16 +99,16 @@ public sealed class SpinStationBodyTests
     /// The expected path of a free body in the station without a field: its inertial line, with Jolt's linear damping
     /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"). In each step the chord of
     /// the body in the station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor
-    /// max(0, 1 − c dt), which Jolt computes in floats. Without damping it is the inertial line. A force adds its
+    /// max(0, 1 − c dt), which Jolt computes in floats with its float step. Without damping it is the inertial line. A force adds its
     /// acceleration times the step to the chord before the damping. The force is fixed in the station's axes, and it acts
     /// at the start of the step, in the axes then, so in the axes at the end of the step it has turned by the station's turn
     /// of the step, as the field does (docs/plans/spin-gravity.md, "The two-turn update"). The path starts
     /// at <paramref name="place"/>, which the body reached by the move <paramref name="lastMove"/> over the step before, both
     /// in inertial space, or from rest there.
     /// </summary>
-    internal sealed class ExpectedPath(Double3 place, float damping, float dt, Double3 lastMove = default)
+    internal sealed class ExpectedPath(Double3 place, float damping, double dt, Double3 lastMove = default)
     {
-        private readonly double factor = MathF.Max(0f, 1f - damping * dt);
+        private readonly double factor = MathF.Max(0f, 1f - damping * (float)dt);
 
         // The body's places in inertial space at the ends of the last two steps.
         private Double3 previous = place - lastMove;
@@ -125,7 +125,7 @@ public sealed class SpinStationBodyTests
             Double3 free = end.InverseTransformPoint(2 * Place - previous);
             Double3 turnedPush = end.Rotation.Conjugate().Rotate(start.Rotation.Rotate(push));
             previous = Place;
-            Place = end.TransformPoint(from + (free - from + turnedPush * ((double)dt * dt)) * factor);
+            Place = end.TransformPoint(from + (free - from + turnedPush * (dt * dt)) * factor);
         }
     }
 
@@ -670,7 +670,7 @@ public sealed class SpinStationBodyTests
         DQuaternion still = station.Pose(world).Rotation;
         // In its first step the station holds still. Jolt turns the ball by its chord, the spin plus half a step of its
         // damping (see AngularChord), shrunk by the damping factor.
-        float dt = world.DeltaTime;
+        float dt = (float)world.DeltaTime;
         double firstChord =
             spin.X * (1 + Ball.AngularDamping * 0.5f * dt) * MathF.Max(0f, 1f - Ball.AngularDamping * dt);
         var firstTurn = DQuaternion.FromAxisAngle(still.Rotate(Double3.UnitX), firstChord * dt);

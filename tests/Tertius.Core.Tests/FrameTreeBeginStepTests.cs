@@ -231,7 +231,7 @@ public sealed class FrameTreeBeginStepTests
             Character = true,
             OwnedFrame = ship,
         };
-        frames.UpdateNumericFrames(bodies: [hull], dt: 0.1, step: Step, changes: new(), applyMoves: _ => { });
+        frames.UpdateNumericFrames(bodies: [hull], ticks: 6, tickRate: 60, changes: new(), applyMoves: _ => { });
         frames.IsNumeric(frames.TreeParent(ship)).Should().BeTrue();
 
         frames.Update();
@@ -273,10 +273,12 @@ public sealed class FrameTreeBeginStepTests
     }
 
     [Fact]
-    public void ADynamicHullTurnsItsFrameByTheAngularVelocityOfItsLastRecordPlusItsAngularAccelerationTimesTheStep()
+    public void ADynamicHullTurnsItsFrameByTheAngularVelocityOfItsLastRecordPlusItsAngularAccelerationTimesPhysicsStep()
     {
         // Fork F3: the rate of the step in flight is the row's angular velocity plus the record's angular acceleration times
-        // the step, 0.25 + 0.125 / 60 rad/s about Y.
+        // the step, 0.25 + 0.125 / 60 rad/s about Y. Physics turns the hull over its own step, the float nearest the tick,
+        // and the frame takes the hull's pose at the sync point, so the prediction turns it over that step too
+        // (ARCHITECTURE.md, "Threads and the tick"): the tick would fall short of the hull's turn by 2.2e-10 rad.
         FrameHandle ship = Frame(space, DPose.Identity, BodyMotion.Dynamic);
         var record = new MotionSample(
             Pose: DPose.Identity,
@@ -292,10 +294,11 @@ public sealed class FrameTreeBeginStepTests
         frames.Update();
         frames.BeginStep([], Step, lastStepFailed: false);
 
-        double rate = 0.25 + 0.125 * Step;
+        const double physicsStep = (float)Step;
+        double rate = 0.25 + 0.125 * physicsStep;
         ExpectNear(
             frames.StepTurn(ship),
-            new(DQuaternion.FromAxisAngle(Double3.UnitY, -rate * Step), new(0, rate, 0)),
+            new(DQuaternion.FromAxisAngle(Double3.UnitY, -rate * physicsStep), new(0, rate, 0)),
             1e-15
         );
     }
@@ -850,8 +853,8 @@ public sealed class FrameTreeBeginStepTests
         };
         frames.UpdateNumericFrames(
             bodies: [ball],
-            dt: Step,
-            step: Step,
+            ticks: 1,
+            tickRate: 60,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );
@@ -904,8 +907,8 @@ public sealed class FrameTreeBeginStepTests
         };
         frames.UpdateNumericFrames(
             bodies: [body],
-            dt: 0.1,
-            step: 0.1,
+            ticks: 1,
+            tickRate: 10,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );

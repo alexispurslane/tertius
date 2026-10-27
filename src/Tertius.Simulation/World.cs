@@ -51,6 +51,11 @@ public sealed partial class World : IDisposable
     private readonly Action<int> runChunk;
     private readonly List<string> errors = [];
     private readonly List<string> pendingLog = [];
+
+    // The tick rate and the start time of the options, read once when the world is created: the caller keeps the options
+    // object and may change it later (see WorldOptions).
+    private readonly int tickRate;
+    private readonly double startTime;
     private bool inTick;
     private bool disposed;
     private long fallbackSpawnTotal;
@@ -76,8 +81,10 @@ public sealed partial class World : IDisposable
         EngineEvents.Register();
         ComponentTypes.ScanLoadedAssemblies();
         Physics = physics;
-        DeltaTime = 1f / Options.TickRate;
-        Time = Options.StartTime;
+        tickRate = Options.TickRate;
+        startTime = Options.StartTime;
+        DeltaTime = 1.0 / tickRate;
+        Time = startTime;
         parallelOptions = new() { MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
 
@@ -127,8 +134,8 @@ public sealed partial class World : IDisposable
     /// <summary>Simulation time, in seconds. During a tick, the time at the start of the tick.</summary>
     public double Time { get; private set; }
 
-    /// <summary>The fixed time step, in seconds.</summary>
-    public float DeltaTime { get; }
+    /// <summary>The fixed time step, in seconds: 1 / <see cref="WorldOptions.TickRate"/>, rounded once to a double.</summary>
+    public double DeltaTime { get; }
 
     /// <summary>The blueprints that <see cref="Spawn(string, FrameHandle, in DPose)"/> and
     /// <see cref="Self.Spawn(string, FrameHandle, in DPose)"/> use.</summary>
@@ -424,7 +431,7 @@ public sealed partial class World : IDisposable
         }
 
         // The numeric frames are planned for the next step, which applies the front intents.
-        Frames.AssertInvariants(Entities.FrontIntents.Span);
+        Frames.AssertInvariants(tickRate, Entities.FrontIntents.Span);
     }
 
     /// <summary>

@@ -57,7 +57,7 @@ public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSecon
             {
                 // The open order joins the routing cycleTicks ticks after the close order does. A delayed send waits at
                 // least one tick.
-                int cycleTicks = Math.Max(1, (int)MathF.Round(cycleSeconds / self.DeltaTime));
+                int cycleTicks = Math.Max(1, (int)Math.Round(cycleSeconds / self.DeltaTime));
                 outbox.Send(outerOpen ? outerDoor : innerDoor, new CloseDoor());
                 outerOpen = !outerOpen;
                 outbox.SendAfter(ticks: cycleTicks, target: outerOpen ? outerDoor : innerDoor, payload: new OpenDoor());

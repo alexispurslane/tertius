@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// Ticket ter-swgm. The local rotation of every frame is a unit quaternion. The pose tree composes poses and inverts them
 /// on that assumption, so a frame whose rotation is a little longer or shorter than 1 moves everything below it, and
 /// everything seen from it, by that much of the distance to the frame's parent. The tree checks it in
-/// <see cref="FrameTree.AssertInvariants()"/>, which works in every build, and its setters refuse a rotation that
+/// <see cref="FrameTree.AssertInvariants(int)"/>, which works in every build, and its setters refuse a rotation that
 /// is not unit length in a build with contracts. The tolerance is 1E-12 in the square of the length.
 /// </summary>
 public sealed class FrameTreeUnitRotationTests
@@ -84,7 +84,7 @@ public sealed class FrameTreeUnitRotationTests
     {
         var test = new OrbitingShip();
 
-        Action check = test.Frames.AssertInvariants;
+        Action check = () => test.Frames.AssertInvariants(tickRate: 60);
 
         check.Should().NotThrow();
     }
@@ -96,7 +96,7 @@ public sealed class FrameTreeUnitRotationTests
         var test = new OrbitingShip();
         test.Corrupt(test.Ship, new(InOrbit, rotation));
 
-        Action check = test.Frames.AssertInvariants;
+        Action check = () => test.Frames.AssertInvariants(tickRate: 60);
 
         check.Should().NotThrow(why);
     }
@@ -108,7 +108,7 @@ public sealed class FrameTreeUnitRotationTests
         var test = new OrbitingShip();
         test.Corrupt(test.Ship, new(InOrbit, rotation));
 
-        Action check = test.Frames.AssertInvariants;
+        Action check = () => test.Frames.AssertInvariants(tickRate: 60);
 
         check.Should().Throw<ContractException>(why).WithMessage("*Invariant*");
     }
@@ -119,7 +119,7 @@ public sealed class FrameTreeUnitRotationTests
         var test = new OrbitingShip();
         test.Corrupt(test.Earth, new(Double3.Zero, Widened));
 
-        Action check = test.Frames.AssertInvariants;
+        Action check = () => test.Frames.AssertInvariants(tickRate: 60);
 
         check.Should().Throw<ContractException>().WithMessage("*Invariant*");
     }
@@ -142,7 +142,7 @@ public sealed class FrameTreeUnitRotationTests
         test.Frames.Destroy(station);
         test.Frames.Update();
 
-        Action check = test.Frames.AssertInvariants;
+        Action check = () => test.Frames.AssertInvariants(tickRate: 60);
         check.Should().NotThrow();
     }
 

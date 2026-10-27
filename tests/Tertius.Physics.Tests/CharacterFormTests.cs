@@ -647,7 +647,7 @@ public sealed class CharacterFormTests
         Entity person = SpawnPerson(world: world, frame: space, pose: At(0), velocity: new(1, 0, 0.5));
         Tick(world, 10);
         backend.HasRigidForm(person).Should().BeTrue();
-        float dt = world.DeltaTime;
+        float dt = (float)world.DeltaTime;
 
         // Each tick around a switch: the step adds its gravity to the velocity, then moves the character by the velocity.
         void ExpectOneStep(Vector3 gravity, string because)
