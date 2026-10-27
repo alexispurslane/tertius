@@ -45,3 +45,7 @@ The user approved the design sketch above as it stands on 2026-10-24. Build from
 **2026-10-27T10:49:54Z**
 
 2026-10-27: merged. KeplerAttitude is a [GeneratedUnion] of Spin(AxialTilt, Rate, PhaseAtEpoch) and FacesParent with no ZeroCase; KeplerOrbit.IsValid refuses the empty attitude, so KeplerMotion's setter throws ArgumentException for it. Valid orbits sample bit for bit as before (lock-in tests). Coverage of the changed lines 37/37.
+
+**2026-10-27T10:53:36Z**
+
+2026-10-27: the merge commit is 77dc5d44 and carries the message 'Close ter-7oi8'. The first commit of the merge stopped in the pre-commit hook with 'a test failed', although every module it listed reported 0 failed (Core 1201, Host 1877, 54 Physics and 70 Simulation tests in the changed classes). The next command's commit then took the staged merge, and its hook run passed. A test host that exits non-zero without a failed test is the likely cause; watch for it again.
