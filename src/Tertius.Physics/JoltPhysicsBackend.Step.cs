@@ -137,9 +137,9 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// The stop rule (ARCHITECTURE.md, "Rails components and motion intents"). A dynamic body that a steer target moved last
-    /// step stops in its home. A kinematic body that a motion intent moved last step, and every kinematic body in a numeric
-    /// home, takes the chord that holds it still in its semantic frame (see <see cref="KinematicRestChord"/>).
+    /// The stop rule (ARCHITECTURE.md, "Rails components and motion intents"). A body that a motion intent moved last step,
+    /// and every kinematic body in a numeric home, takes the chord that stops it in its semantic frame (see
+    /// <see cref="RestChord"/>).
     /// </summary>
     private void StopBodies()
     {
@@ -166,21 +166,23 @@ public sealed partial class JoltPhysicsBackend
         // come on coasts on.
         if (record.VelocitySetStep == stepIndex)
             return;
-        Vector3 linear = record.Motion == BodyMotion.Kinematic ? KinematicRestChord(record) : Vector3.Zero;
-        record.World.Bodies.SetLinearAndAngularVelocity(record.Body, linear, Vector3.Zero);
+        record.World.Bodies.SetLinearAndAngularVelocity(record.Body, RestChord(record), Vector3.Zero);
     }
 
     /// <summary>
-    /// Jolt's velocity for the kinematic body of <paramref name="record"/> that holds it still in its semantic frame over the
-    /// step: its home's velocity at the end of the step, reversed (see <see cref="FrameTree.AdvanceNumericFrames"/>). A hull
-    /// holds still in its home, where the frame tree holds its frame (see <see cref="PredictRecord"/>).
+    /// Jolt's velocity in its home for the rigid body of <paramref name="record"/> that stops: it moves the body in its
+    /// semantic frame as zero moves it in that frame's own system (ARCHITECTURE.md, "Rails components and motion intents").
     /// </summary>
-    private Vector3 KinematicRestChord(BodyRecord record)
+    private Vector3 RestChord(BodyRecord record)
     {
-        Contract.Requires(record.Motion == BodyMotion.Kinematic);
-        if (record.IsHull)
-            return Vector3.Zero;
-        return (-frames.HomeVelocityAfter(record.Frame, frames.SemanticOf(record.Frame), stepDt)).ToVector3();
+        FrameHandle semantic = frames.SemanticOf(record.Frame);
+        // A dynamic body's linear gravity takes away the home's acceleration over the step (see FrameTree.LinearGravity). A
+        // kinematic body feels no gravity, so its velocity takes it away.
+        Double3 home =
+            record.Motion == BodyMotion.Kinematic
+                ? frames.HomeVelocityAfter(record.Frame, semantic, stepDt)
+                : frames.HomeVelocity(record.Frame, semantic);
+        return (-home).ToVector3();
     }
 
     /// <summary>
@@ -307,7 +309,7 @@ public sealed partial class JoltPhysicsBackend
         // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic body takes the
         // stop's chord, unless a motion intent of the same intent aims it (see ApplyMotionIntent).
         if (record.Motion == BodyMotion.Kinematic)
-            bodies.SetLinearAndAngularVelocity(id, KinematicRestChord(record), Vector3.Zero);
+            bodies.SetLinearAndAngularVelocity(id, RestChord(record), Vector3.Zero);
         else
             bodies.SetLinearAndAngularVelocity(
                 id,

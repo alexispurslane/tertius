@@ -4,13 +4,14 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// In a step without a motion intent, a kinematic body holds still in its semantic frame, whatever numeric frame holds it
-/// (docs/plans/numeric-frames.md, "Limits", and ticket ter-unpc), and <see cref="Self.PoseAtNextStepStartIn"/> gives its pose
-/// now. These tests pin it for a plain kinematic ball that lives as a member, not as an anchor, in the falling frame of a
-/// crate that thrusts: after its end poses stop, after a teleport, and after a move out of that frame or into one. The
-/// world runs on the real backend.
+/// A body that physics stops holds still in its semantic frame, whatever numeric frame holds it, as it does without numeric
+/// frames (docs/plans/numeric-frames.md, "Limits", and ticket ter-unpc). These tests pin it for a plain kinematic ball that
+/// lives as a member, not as an anchor, in the falling frame of a crate that thrusts: after its end poses stop, after a
+/// teleport, and after a move out of that frame or into one, where <see cref="Self.PoseAtNextStepStartIn"/> gives its pose
+/// now. They pin it for a dynamic box and a dynamic hull in such a frame after their steer targets stop. The world runs on
+/// the real backend.
 /// </summary>
-public sealed class StoppedKinematicBodyInNumericHomeTests
+public sealed class StoppedBodyInNumericHomeTests
 {
     /// <summary>
     /// The velocity of the group along +X in the semantic frame, in m/s, from the spawn on. It is below the drain limit of
@@ -46,6 +47,23 @@ public sealed class StoppedKinematicBodyInNumericHomeTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
             Seen.Add(new(self.PoseAtNextStepStartIn(self.Frame), self.PoseIn(self.Frame)));
+    }
+
+    /// <summary>
+    /// Steers its dynamic body along at <paramref name="velocity"/>, in m/s in the axes of the body's frame, in every tick:
+    /// the target is two steps of that velocity from the pose now, because the step beside the tick runs first from there.
+    /// </summary>
+    private sealed class SteerAlong(Double3 velocity) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            DPose now = self.PoseIn(self.Frame);
+            self.Body.SteerTo(new(now.Position + velocity * (2 * self.DeltaTime), now.Rotation));
+        }
     }
 
     /// <summary>The scene of these tests: the ball, its pilot and the crate.</summary>
@@ -294,5 +312,174 @@ public sealed class StoppedKinematicBodyInNumericHomeTests
         world.Frames.HomeVelocity(home, space).Y.Should().BeLessThan(-0.04, "the home falls with the gravity");
         world.PoseIn(ball, space).Position.Length.Should().BeLessThan(1e-6, "the ball holds still in space");
         world.VelocityIn(ball, space).Length.Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>A dynamic body without damping, which keeps any velocity that physics gives it in its home.</summary>
+    private static BodyDesc Undamped(BodyDesc body) => body with { LinearDamping = 0, AngularDamping = 0 };
+
+    /// <summary>Removes the steering of <paramref name="entity"/>, so that it writes no more steer targets from the next tick on.</summary>
+    private static void StopSteering(World world, Entity entity) =>
+        world.RemoveComponent(entity, world.GetComponent<SteerAlong>(entity)!).Should().BeTrue();
+
+    /// <summary>
+    /// A dynamic box without damping that steer targets carry at <see cref="Drift"/> through space without gravity, beside
+    /// a crate that thrusts, as in <see cref="DriftingGroup"/>. Its steer targets stop. In the step after the last one physics
+    /// stops it, and it holds still in space, its semantic frame, while its falling home flies on with the crate at 0.5 m/s.
+    /// Before the stop gave a dynamic body the rest of its semantic frame, the box stopped in its home and flew on with it.
+    /// </summary>
+    [Fact]
+    public void ADynamicBodyWhoseSteerTargetsStopHoldsStillInSpaceAndNotInItsFallingHome()
+    {
+        using World world = NewWorld(backend: out _);
+        world.Frames.NumericOptions = ThrustingGroupsFall;
+        FrameHandle space = Ground(world, 0);
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Undamped(Cube()),
+                LinearVelocity = Drift.ToVector3(),
+                Components = [new SteerAlong(Drift)],
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 0, 3),
+                Body = Cube(),
+                LinearVelocity = Drift.ToVector3(),
+                Components = [new Thruster(10)],
+            }
+        );
+        Tick(world, 40);
+        FrameHandle home = world.PhysicsHomeOf(box);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
+
+        StopSteering(world, box);
+        // The step beside this tick applies the last steer target.
+        world.Tick();
+        DPose stopped = world.PoseIn(box, space);
+        Tick(world, 10);
+
+        world.Errors.Should().BeEmpty();
+        world.PhysicsHomeOf(box).Should().Be(home, "the box still lives in the falling frame with the crate");
+        (world.PoseIn(box, space).Position - stopped.Position)
+            .Length.Should()
+            .BeLessThan(1e-6, "the box holds still in space over ten steps");
+        world.VelocityIn(box, space).Length.Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>What a stopped box did over the ten steps after the step that stopped it, in space.</summary>
+    private readonly record struct StoppedFall(Double3 Move, Double3 Velocity);
+
+    /// <summary>
+    /// A dynamic box without damping that steer targets hold in place in a weak uniform gravity of 0.1 m/s², beside a crate
+    /// that thrusts, under the membership rules <paramref name="options"/>, which put it in a home of <paramref name="homeMode"/>.
+    /// Then its steer targets stop, and the method gives how the box moves in space over the ten steps after
+    /// the last steer target's step.
+    /// </summary>
+    private static StoppedFall StopInGravity(NumericFrameOptions options, NumericMode homeMode)
+    {
+        using World world = NewWorld(backend: out _);
+        world.Frames.NumericOptions = options;
+        FrameHandle space = Ground(world, 0.1f);
+        Entity box = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Undamped(Cube()),
+                Components = [new SteerAlong(Double3.Zero)],
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 0, 3),
+                Body = Cube(),
+                Components = [new Thruster(10)],
+            }
+        );
+        Tick(world, 60);
+        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(homeMode);
+
+        StopSteering(world, box);
+        world.Tick();
+        DPose stopped = world.PoseIn(box, space);
+        Tick(world, 10);
+
+        world.Errors.Should().BeEmpty();
+        return new(world.PoseIn(box, space).Position - stopped.Position, world.VelocityIn(box, space));
+    }
+
+    /// <summary>
+    /// A dynamic box that physics stops in a home that falls with gravity starts to fall in space from rest, as it does
+    /// without numeric frames: the stop is Jolt's velocity of zero in the system of its semantic frame, carried into its
+    /// home. Before the stop gave a dynamic body the rest of its semantic frame, the box stopped in its home and fell on
+    /// with it at the home's speed.
+    /// </summary>
+    [Fact]
+    public void ADynamicBodyThatStopsInAHomeThatFallsWithGravityFallsAsWithoutNumericFrames()
+    {
+        StoppedFall numeric = StopInGravity(ThrustingGroupsFall, NumericMode.Falling);
+        StoppedFall plain = StopInGravity(NumericFrameTesting.WithoutNumericFrames, NumericMode.None);
+
+        plain.Move.Y.Should().BeLessThan(-1e-3, "the box falls 55 steps of g dt² in ten steps after the stop");
+        (numeric.Move - plain.Move).Length.Should().BeLessThan(1e-7);
+        (numeric.Velocity - plain.Velocity).Length.Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// A ship with a dynamic hull without damping that steer targets carry at <see cref="Drift"/> beside a crate that
+    /// thrusts, so the hull lives in the crate's falling frame. Its steer targets stop. The ship holds still in space, and
+    /// the place of its frame agrees with the place where physics put the hull.
+    /// </summary>
+    [Fact]
+    public void ADynamicHullWhoseSteerTargetsStopHoldsStillInSpaceWithItsFrame()
+    {
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        world.Frames.NumericOptions = ThrustingGroupsFall;
+        FrameHandle space = Ground(world, 0);
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Body = Undamped(Ball()),
+                AsFrame = new(FrameBounds.Sphere(1)),
+                LinearVelocity = Drift.ToVector3(),
+                Components = [new SteerAlong(Drift)],
+            }
+        );
+        world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = At(0, 0, 4),
+                Body = Cube(),
+                LinearVelocity = Drift.ToVector3(),
+                Components = [new Thruster(10)],
+            }
+        );
+        Tick(world, 40);
+        FrameHandle home = world.PhysicsHomeOf(ship);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
+
+        StopSteering(world, ship);
+        // The step beside this tick applies the last steer target.
+        world.Tick();
+        DPose stopped = world.PoseIn(ship, space);
+        Tick(world, 10);
+
+        world.Errors.Should().BeEmpty();
+        world.PhysicsHomeOf(ship).Should().Be(home, "the hull still lives in the falling frame with the crate");
+        DPose frame = world.PoseIn(ship, space);
+        (frame.Position - stopped.Position).Length.Should().BeLessThan(1e-6, "the ship holds still in space");
+        world.VelocityIn(ship, space).Length.Should().BeLessThan(1e-6);
+        BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == ship);
+        hull.Frame.Should().Be(home, "physics reports the hull in its home");
+        (hull.Pose.Position + world.Frames.HomeOffset(home, space) - frame.Position)
+            .Length.Should()
+            .BeLessThan(1e-6, "the frame stands where physics put the hull");
     }
 }

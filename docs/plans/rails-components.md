@@ -429,7 +429,7 @@ The table "Terms" at the top of this doc defines "Motion intent", its three case
 
 ### The flow per kind of entity
 
-Tick k writes the motion intent. Step k + 1 applies it. The sync point after step k + 1 lands its record. Every kind that takes an end pose or a full sample holds still in a step without a motion intent. A dynamic body moves under physics. In the step after its last steer target, physics stops it before it applies that step's intents, so a velocity or an impulse of that step acts on the stopped body (`ter-unpc`).
+Tick k writes the motion intent. Step k + 1 applies it. The sync point after step k + 1 lands its record. Every kind that takes an end pose or a full sample holds still in a step without a motion intent. A dynamic body moves under physics. In the step after its last steer target, physics stops it in its semantic frame, whatever numeric frame holds it, before it applies that step's intents, so a velocity or an impulse of that step acts on the stopped body (`ter-unpc`, see "Rails components and motion intents" in ARCHITECTURE.md).
 
 | Kind of entity | The cases that it takes | Who makes the step record, and when | Where the record lands | What follows the entity | Its frame's proper acceleration |
 |---|---|---|---|---|---|

@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// that runs beside the tick leaves it (docs/plans/rails-components.md, "The motion intent, PhysicsIntent.Move"). A kinematic
 /// body without a motion intent in that step holds still in its semantic frame, whatever numeric frame holds it, so a rails
 /// component that starts from the read starts where the body stands (see also
-/// <see cref="StoppedKinematicBodyInNumericHomeTests"/>). The following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
+/// <see cref="StoppedBodyInNumericHomeTests"/>). The following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
 /// ter-zsku), so the read gives the pose now there. The world runs on the real backend.
 /// </summary>
 public sealed class PoseAtNextStepStartTests
