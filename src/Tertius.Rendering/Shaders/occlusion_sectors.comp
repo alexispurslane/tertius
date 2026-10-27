@@ -30,6 +30,11 @@ void main()
     int stepsPerSide = int(occlusion.stepsPerSide);
     // The screen place of the texel's representative pixel, where every slice line passes.
     vec2 centerPlace = pixelScreenPosition(2 * texel);
+    // A hair receiver's own card blocks nothing (docs/plans/skin-and-hair.md, "Hair in each pass"): its own surface is
+    // its fibers, whose plane is the fiber normal's, and a step that reads a point of the card's plane is left out.
+    bool hair = hairAt(2 * texel);
+    vec3 ownPlaneNormal = hair ? setup.normal : setup.geometricNormal;
+    vec3 receiverPoint = gtaoViewPosition(centerPlace, z);
     float totalWeight = 0.0;
     float open = 0.0;
     vec3 bounce = vec3(0.0);
@@ -37,7 +42,7 @@ void main()
     {
         SliceGeometry g = gtaoSliceGeometry(setup, slice);
         // The receiver's own surface first, so no step gives light to a direction below it.
-        uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
+        uint blocked = ownSurfaceSectors(g, ownPlaneNormal);
         vec3 light = vec3(0.0);
         // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
         // the C# copy of this loop: change both together.
@@ -58,6 +63,9 @@ void main()
                 // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
                 if (sampleDepth >= SkyDepth)
                     continue;
+                vec3 texelPoint = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
+                if (hair && onOwnCard(receiverPoint, setup.geometricNormal, texelPoint))
+                    continue;
                 // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
                 vec3 sampleNormal = texelGeometricNormalAt(t);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.
@@ -65,7 +73,7 @@ void main()
                 vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
                 vec3 samplePosition;
                 bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
-                                                gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
+                                                texelPoint,
                                                 sampleNormal, around, setup.center.z + occlusion.radiusMeters,
                                                 samplePosition);
                 // GTAO's hard edge: a step blocks only within the radius.

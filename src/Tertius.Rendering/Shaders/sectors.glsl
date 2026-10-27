@@ -72,6 +72,23 @@ uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
            | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
 }
 
+// The angle in radians by which a normal that the normals target stores can miss the normal that it encodes: a step of
+// one SNORM16 component turns an octahedral normal by at most 3√2 / 32767, and a driver may round 1.5 steps from the
+// value (ARCHITECTURE.md, "Portable Vulkan"), so 6.4 / 32767; 8 / 32767 leaves room (OwnCard.NormalPrecision).
+const float NormalPrecision = 8.0 / 32767.0;
+
+// Whether a step's texel point, the real point that it read, lies on a hair receiver's own card: the plane through the
+// receiver's surface point at right angles to its geometric normal, the card's (OwnCard.Holds). The tolerance is what
+// the reads can put a point of that plane off it: each point's depth by 1 − CenterBias of its distance along its view
+// ray, and the stored normal by NormalPrecision times the distance between the two points.
+bool onOwnCard(vec3 receiverPoint, vec3 cardNormal, vec3 texelPoint)
+{
+    float offPlane = abs(dot(cardNormal, texelPoint - receiverPoint));
+    float tolerance = (1.0 - CenterBias) * (length(receiverPoint) + length(texelPoint))
+                      + NormalPrecision * distance(texelPoint, receiverPoint);
+    return offPlane <= tolerance;
+}
+
 // The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
 // neighbors toward the place, along the row and along the column. The place lies within half a texel of t on each axis,
 // so their triangle holds it. towardPlace is the place minus t, in half-resolution texels (SectorSearch.DepthsAround).

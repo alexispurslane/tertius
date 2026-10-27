@@ -13,11 +13,16 @@ internal static class EnvironmentScenes
     public const int FaceSize = 32;
 
     /// <summary>A headless renderer with the map on, 160 × 90.</summary>
-    public static VulkanRenderer Renderer(int facesPerFrame = 1, ExposureSetting exposure = default) =>
+    public static VulkanRenderer Renderer(
+        int facesPerFrame = 1,
+        ExposureSetting exposure = default,
+        ScreenSpaceLightSetting screenSpaceLight = default
+    ) =>
         Gpu.Headless(
             width: 160,
             height: 90,
             exposure: exposure,
+            screenSpaceLight: screenSpaceLight,
             environmentMap: SceneEnvironmentMap.Default with
             {
                 FaceSize = FaceSize,

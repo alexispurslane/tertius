@@ -85,9 +85,74 @@ public sealed class SectorSearchTests
             )
         );
 
+    /// <summary>
+    /// The steps of <see cref="StepsOnAWall"/> from texel (160, 90) of a hair receiver whose own card is the plane at
+    /// right angles to the eye's line of sight through its surface point <paramref name="cardDepth"/> m ahead.
+    /// </summary>
+    private static List<NearStep> StepsOfAHairReceiverOnAWall(double cardDepth) =>
+        SectorSearch.SliceSteps(
+            texel: (X: 160, Y: 90),
+            slice: 0,
+            sliceAngle: 0,
+            stepsPerSide: 3,
+            stepNoise: 0,
+            radiusInTexels: 20,
+            halfSize: (Width: 320, Height: 180),
+            rayThrough: WallRayThrough,
+            texelAt: place => new StepTexel(
+                Position: WallRayThrough(place) * 5,
+                GeometricNormal: TowardTheEye,
+                DirectLight: Red
+            ),
+            ownCard: new OwnCard(Point: WallRayThrough((X: 160, Y: 90)) * cardDepth, Normal: TowardTheEye)
+        );
+
     /// <summary>A view ray, whose z is 1, through a place in the half image of <see cref="StepsOnAWall"/>, 90° wide.</summary>
     private static Double3 WallRayThrough((double X, double Y) place) =>
         new((place.X - 160) / 160, (90 - place.Y) / 160, 1);
+
+    [Fact]
+    public void AHairReceiverTakesNoStepThatReadsItsOwnCard()
+    {
+        StepsOnAWall((X: 160, Y: 90))
+            .Should()
+            .HaveCount(6, "the wall holds every step of the receiver that is not hair");
+
+        StepsOfAHairReceiverOnAWall(cardDepth: 5).Should().BeEmpty("the wall is the receiver's own card");
+    }
+
+    [Fact]
+    public void AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn()
+    {
+        // At 5 m, the reads can put a point of the card's plane at most 0.25 mm off it.
+        StepsOfAHairReceiverOnAWall(cardDepth: 4.999)
+            .Should()
+            .BeEquivalentTo(StepsOnAWall((X: 160, Y: 90)), "the wall is another card, 1 mm behind the receiver's own");
+    }
+
+    [Fact]
+    public void AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane()
+    {
+        // Points of the plane z = 10, the second 0.19 mm deeper: within 1 − CenterBias of their 20 m of distance.
+        var card = new OwnCard(Point: new(0, 0, 10), Normal: TowardTheEye);
+
+        card.Holds(new(0.01, 0, 10.00019))
+            .Should()
+            .BeTrue("the depths' precision can put a point of the card this far off");
+    }
+
+    [Fact]
+    public void AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane()
+    {
+        // The plane z = 1 with its normal turned by 2·10⁻⁴ rad, less than NormalPrecision, and a point of that plane 1 m
+        // away, which the turned normal puts 0.2 mm off it.
+        const double turn = 2e-4;
+        var card = new OwnCard(Point: new(0, 0, 1), Normal: new(Math.Sin(turn), 0, -Math.Cos(turn)));
+
+        card.Holds(new(1, 0, 1))
+            .Should()
+            .BeTrue("the stored normal's precision can put a point of the card this far off");
+    }
 
     [Fact]
     public void AStepGivesItsLightOnlyToTheSectorsThatNoNearerStepBlocked()

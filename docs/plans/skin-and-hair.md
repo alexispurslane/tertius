@@ -526,7 +526,7 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 |---|---|
 | G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
-| Occlusion and bounce | As any surface, around n_f |
+| Occlusion and bounce | Around n_f. Its own card blocks nothing: its own plane is n_f's, and a step that reads a point of its card's plane is left out. Other cards and surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
 | Reflections | As any surface, along the dominant direction about n_f |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |

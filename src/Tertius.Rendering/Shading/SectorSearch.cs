@@ -25,6 +25,37 @@ internal readonly record struct NearStep(
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
 internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNormal, Double3 DirectLight);
 
+/// <summary>
+/// A hair receiver's own card, which blocks nothing (docs/plans/skin-and-hair.md, "Hair in each pass"): the plane
+/// through the receiver's surface point at right angles to its geometric normal, the card's, in view space.
+/// </summary>
+/// <param name="Point">The receiver's surface point: the view position of its texel's representative pixel.</param>
+/// <param name="Normal">The receiver's unit view-space geometric normal.</param>
+internal readonly record struct OwnCard(Double3 Point, Double3 Normal)
+{
+    /// <summary>
+    /// The angle in radians by which a normal that the normals target stores can miss the normal that it encodes: a step
+    /// of one SNORM16 component turns an octahedral normal by at most 3√2 / 32767, and a driver may round 1.5 steps from
+    /// the value, so 6.4 / 32767; 8 / 32767 leaves room. sectors.glsl holds the same.
+    /// </summary>
+    public const double NormalPrecision = 8.0 / 32767;
+
+    /// <summary>
+    /// Whether <paramref name="texelPoint"/>, the real point that a step read, lies on the card's plane, within what the
+    /// reads can put a point of that plane off it (sectors.glsl, onOwnCard): each point's depth by 1 −
+    /// <see cref="HorizonSearch.CenterBias"/> of its distance along its view ray, and the stored normal by
+    /// <see cref="NormalPrecision"/> times the distance between the two points.
+    /// </summary>
+    public bool Holds(Double3 texelPoint)
+    {
+        double offPlane = Math.Abs(Double3.Dot(Normal, texelPoint - Point));
+        double tolerance =
+            (1 - HorizonSearch.CenterBias) * (Point.Length + texelPoint.Length)
+            + NormalPrecision * Double3.Distance(texelPoint, Point);
+        return offPlane <= tolerance;
+    }
+}
+
 /// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
 internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
 
@@ -116,6 +147,7 @@ internal static class SectorSearch
     /// <param name="texel">The receiver's half-resolution texel.</param>
     /// <param name="rayThrough">The view ray, whose z is 1, through a place in half-resolution texels, at whole numbers a representative pixel.</param>
     /// <param name="texelAt">What a step reads at a texel inside the image, or null for sky.</param>
+    /// <param name="ownCard">A hair receiver's own card, or null for every other receiver: a step that reads a point of it is left out.</param>
     public static List<NearStep> SliceSteps(
         (int X, int Y) texel,
         int slice,
@@ -125,7 +157,8 @@ internal static class SectorSearch
         double radiusInTexels,
         (int Width, int Height) halfSize,
         Func<(double X, double Y), Double3> rayThrough,
-        Func<(int X, int Y), StepTexel?> texelAt
+        Func<(int X, int Y), StepTexel?> texelAt,
+        OwnCard? ownCard = null
     )
     {
         var steps = new List<NearStep>();
@@ -158,6 +191,8 @@ internal static class SectorSearch
                     && stepTexel.X < halfSize.Width
                     && stepTexel.Y < halfSize.Height;
                 if (!inside || texelAt(stepTexel) is not { } read)
+                    continue;
+                if (ownCard is { } card && card.Holds(read.Position))
                     continue;
                 Double3? surfacePoint = SurfacePoint(
                     exactRay: rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)),
@@ -197,7 +232,10 @@ internal static class SectorSearch
     /// A step blocks only within <paramref name="radius"/> of the center, GTAO's hard edge. A blocker that faces away
     /// blocks with no light: no pixel holds the light of its back.
     /// </remarks>
-    /// <param name="geometricNormal">The receiver's unit view-space geometric normal, whose plane blocks what lies below it.</param>
+    /// <param name="geometricNormal">
+    /// The unit view-space normal of the receiver's own plane, which blocks what lies below it: its geometric normal, and
+    /// a hair receiver's fiber normal, because its card blocks nothing (occlusion_sectors.comp).
+    /// </param>
     public static NearSlice Near(
         SliceSectors sectors,
         Double3 center,

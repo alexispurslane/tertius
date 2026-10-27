@@ -85,6 +85,12 @@ vec3 geometricNormalAt(ivec2 pixel)
     return toViewAxes(octDecode(texelFetch(gbufferNormal, pixel, 0).ba));
 }
 
+// Whether a full-resolution pixel shades as hair: its shading model's code in the shading target.
+bool hairAt(ivec2 pixel)
+{
+    return texelFetch(gbufferShading, pixel, 0).a == ShadingHair;
+}
+
 // The view-space geometric normal of a half-resolution texel's representative pixel, from the depth pass's copy.
 vec3 texelGeometricNormalAt(ivec2 texel)
 {
