@@ -1,6 +1,6 @@
 ---
 id: ter-2cmo
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-17T00:20:12Z

@@ -1,6 +1,6 @@
 ---
 id: ter-9sri
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-17T03:35:29Z
