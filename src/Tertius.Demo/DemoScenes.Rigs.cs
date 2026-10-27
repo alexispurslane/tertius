@@ -167,7 +167,7 @@ public static partial class DemoScenes
     /// <summary>
     /// The crowd of the rigs scenes, which measures the cost of the deformation (docs/plans/skinning-and-morphs.md,
     /// "Memory and cost"): in the root frame <c>ground</c>, in daylight, 100 blue bending cylinders, <c>cylinder-0</c> to
-    /// <c>cylinder-99</c>, of 20,000 vertices each, 1.2 m apart on a square grid round the origin. Each bends as
+    /// <c>cylinder-99</c>, of 20,202 vertices each, 1.2 m apart on a square grid round the origin. Each bends as
     /// <c>bending-cylinder</c> of <see cref="Rigs"/> does, with a phase 0.61 rad past its neighbor's. A gray
     /// <c>floor</c> 18 m square, the <c>sun</c> and the <c>lamp</c> light them, and the view <c>camera</c> looks down
     /// across them from a corner.
@@ -177,7 +177,8 @@ public static partial class DemoScenes
         var scene = new SceneInstance();
         FrameHandle ground = RigGround(world: world, resources: resources, scene: scene, halfSize: 9);
 
-        // 200 rings of 100 vertices: 20,000 vertices, the size of a human (docs/plans/skinning-and-morphs.md, "Memory and cost").
+        // 200 rings of 100 vertices: a wall of 20,000 vertices, the size of a human, and two caps of 101 that add about 1%
+        // (docs/plans/skinning-and-morphs.md, "Memory and cost").
         MeshData cylinder = Primitives.BendingCylinder(
             radius: RigCylinderRadius,
             length: RigCylinderLength,

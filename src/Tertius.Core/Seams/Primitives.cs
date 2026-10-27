@@ -115,7 +115,7 @@ public static class Primitives
     }
 
     /// <summary>
-    /// An open tube along +Y from 0 to <paramref name="length"/> that bends at its middle. Its rig has the joint Base at
+    /// A closed tube along +Y from 0 to <paramref name="length"/> that bends at its middle. Its rig has the joint Base at
     /// the origin and its child Tip at half the length, and its skin blends the two over the middle quarter
     /// (docs/plans/skinning-and-morphs.md, "Part 1: the seam").
     /// </summary>
@@ -144,8 +144,8 @@ public static class Primitives
     }
 
     /// <summary>
-    /// <see cref="BendingCylinder"/> with the morph Twist, which turns the ring at height y by (π / 2)(y / length) about
-    /// +Y, its positions, normals and tangents alike.
+    /// <see cref="BendingCylinder"/> with the morph Twist, which turns each vertex at height y by (π / 2)(y / length)
+    /// about +Y, its position, normal and tangent alike, so the top cap turns with the top ring.
     /// </summary>
     public static MeshData TwistingBendingCylinder(float radius, float length, int segments = 24, int rings = 16)
     {
@@ -154,11 +154,14 @@ public static class Primitives
         return tube with { Rigging = new(rig, BendSkin(tube, rig, length), [Twist(tube, length, morph: 0)]) };
     }
 
-    /// <summary>An open tube along +Y from 0 to <paramref name="length"/>, with radial normals and counterclockwise front faces.</summary>
+    /// <summary>
+    /// A closed tube along +Y from 0 to <paramref name="length"/>: a wall with radial normals and a flat cap at each end,
+    /// with vertices of its own so that its edge stays hard, and counterclockwise front faces.
+    /// </summary>
     private static MeshData Tube(float radius, float length, int segments, int rings)
     {
-        var vertices = new List<Vertex>((segments + 1) * (rings + 1));
-        var indices = new List<uint>(segments * rings * 6);
+        var vertices = new List<Vertex>((segments + 1) * (rings + 1) + 2 * (segments + 2));
+        var indices = new List<uint>(segments * rings * 6 + 2 * segments * 3);
         for (int r = 0; r <= rings; r++)
         {
             float v = (float)r / rings;
@@ -190,7 +193,45 @@ public static class Primitives
             indices.AddRange([a, a + 1, b, a + 1, b + 1, b]);
         }
 
+        AddCap(vertices: vertices, indices: indices, radius: radius, height: 0, segments: segments);
+        AddCap(vertices: vertices, indices: indices, radius: radius, height: length, segments: segments);
         return new([.. vertices], [.. indices]);
+    }
+
+    /// <summary>
+    /// Adds the tube's flat cap at <paramref name="height"/>, facing -Y at 0 and +Y above: a center and a rim of one vertex
+    /// per seam of the wall, with the tangent +X and the disc spanning [0, 1] in its texture coordinates.
+    /// </summary>
+    private static void AddCap(List<Vertex> vertices, List<uint> indices, float radius, float height, int segments)
+    {
+        bool top = height > 0;
+        Vector3 normal = top ? Vector3.UnitY : -Vector3.UnitY;
+        // As on the wall, v shrinks along the bitangent, normal × tangent: -Z on the top cap and +Z on the bottom one.
+        float vAlongZ = top ? 0.5f : -0.5f;
+        Vertex At(Vector3 position) =>
+            new()
+            {
+                Position = position,
+                Normal = normal,
+                Tangent = new(x: 1, y: 0, z: 0, w: 1),
+                TexCoord = new(0.5f + 0.5f * position.X / radius, 0.5f + vAlongZ * position.Z / radius),
+            };
+
+        uint center = (uint)vertices.Count;
+        vertices.Add(At(new(0, height, 0)));
+        for (int s = 0; s <= segments; s++)
+        {
+            // The wall's formula, so that the rim stands exactly on the wall's end ring.
+            float theta = (float)s / segments * MathF.Tau;
+            vertices.Add(At(new Vector3(MathF.Cos(theta), 0, -MathF.Sin(theta)) * radius + new Vector3(0, height, 0)));
+        }
+
+        // The rim turns toward -Z, so (center, s, s + 1) winds counterclockwise seen from +Y, and the reverse from -Y.
+        for (uint s = 0; s < segments; s++)
+        {
+            uint rim = center + 1 + s;
+            indices.AddRange(top ? [center, rim, rim + 1] : [center, rim + 1, rim]);
+        }
     }
 
     private static ImmutableArray<RigJoint> BendJoints(float length) =>
@@ -256,7 +297,7 @@ public static class Primitives
         );
     }
 
-    /// <summary>The deltas that turn the ring at height y by (π / 2)(y / <paramref name="length"/>) about +Y.</summary>
+    /// <summary>The deltas that turn each vertex at height y by (π / 2)(y / <paramref name="length"/>) about +Y.</summary>
     private static MorphTarget Twist(MeshData tube, float length, int morph)
     {
         int count = tube.Vertices.Length;

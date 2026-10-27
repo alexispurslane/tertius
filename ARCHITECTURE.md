@@ -1189,7 +1189,7 @@ The terms:
 - A posed instance is an instance whose entity has a rig pose, with an entry in the snapshot's `RigPoses`. A rig pose fits a deforming mesh when it has as many joint poses and weights as the mesh's rig has joints and morphs.
 - A deformed copy is the vertices of a deforming mesh after its morphs and its skin, for one posed instance in one frame. The deform region is the part of the global vertex buffer after the static capacity that holds the frame's copies. A posed instance whose frame mesh is its static mesh is drawn as uploaded.
 
-`Primitives` makes the three test meshes in code: `BendingCylinder`, a tube whose joint Tip, at half its length, bends its top half; `MorphingBox`, a box with no joints and the morphs Stretch and Lean; and `TwistingBendingCylinder`, the bending cylinder with the morph Twist, a quarter turn of its top about its axis.
+`Primitives` makes the three test meshes in code: `BendingCylinder`, a closed tube with a flat cap at each end, whose joint Tip, at half its length, bends its top half; `MorphingBox`, a box with no joints and the morphs Stretch and Lean; and `TwistingBendingCylinder`, the bending cylinder with the morph Twist, a quarter turn of its top about its axis.
 
 ```mermaid
 flowchart LR
@@ -1230,7 +1230,7 @@ The pass, `DeformPass`, named "deformation", the one pass of `FrameGraph.Stage.D
 
 Every pass that draws a mesh reads the frame meshes: the sun's cascades (`ShadowPass`), the local shadow tiles (`LocalShadowPass`), the environment faces (`BatchFaces`), the impostor captures (`ImpostorPass`), the G-buffer and the transparent pass. So a shadow and a reflection match the body, and `mesh.vert` and `shadow.vert` are unchanged. A tile record keeps each posed caster's static mesh and its pose rows, and compares them bit for bit, so a still pose keeps its tiles (fork 1, B, see "Local shadows"). A deformed instance never becomes an impostor (see "Impostors").
 
-The demo scenes, in SI units (`DemoScenes.Rigs.cs`, scripts `rigs.json` and `rigs-crowd.json`): `rigs` holds a bending cylinder, a morphing box and a striped twisting cylinder on a floor in daylight, under the Sun and a household bulb that casts shadows, each swayed by `RigSway`, a demo component that writes its own entity's rig pose from the time, with a period of 4 s. `rigs-crowd` holds 100 bending cylinders of 20,000 vertices each, the vertex count of an MPFB human, with phases 0.61 rad apart.
+The demo scenes, in SI units (`DemoScenes.Rigs.cs`, scripts `rigs.json` and `rigs-crowd.json`): `rigs` holds a bending cylinder, a morphing box and a striped twisting cylinder on a floor in daylight, under the Sun and a household bulb that casts shadows, each swayed by `RigSway`, a demo component that writes its own entity's rig pose from the time, with a period of 4 s. `rigs-crowd` holds 100 bending cylinders of 20,202 vertices each, with phases 0.61 rad apart: 20,000 on the wall, the vertex count of an MPFB human, and 101 on each cap.
 
 The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring the cost of a feature": Release, 1920 × 1080 into a video, each run twice, one run at a time, on the development Mac (Apple M1 Max), 2026-10-26. The machine was shared: the 1-minute load was 5.5 to 9.8 at the starts and ends of the runs, and another agent's demo process was running at the start and the end of every run after the first, whose check did not look for one. Times are the means over each run's timed frames, in ms.
 
@@ -1242,6 +1242,7 @@ The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring 
 | `rigs-crowd`, `FramesInFlight` 1 | 0.83, 0.77 | 2.74, 2.76 | 1.85, 1.84 | 1.56, 1.57 | 16.2 / 23.2, 16.0 / 20.7 |
 
 - A frame without a posed instance records nothing in the deform pass: `demo-exit` has none, its pass "deformation" costs 0.024 ms, the stamp of an empty pass, and every other pass and the frame span differ from the base by less than the two runs of one build differ.
+- The runs measured the cylinders before they had caps, 20,000 vertices each. The caps add 202 vertices per cylinder, about 1%, so the numbers stand.
 - 100 deformed instances of 20,000 vertices each, 2,000,000 vertices per frame, cost the deform pass 0.8 ms: about 8 µs per instance of a human's size, 0.4 ns per vertex. That is near the plan's estimate of about 1 ms for 100 humans, and below its 0.02 to 0.05 ms per human.
 - `FramesInFlight` changes nothing here, because a headless run captures every timed frame, and a capture waits for its frame on the GPU (see "GPU timings"). So no frame before is in flight when the deform pass starts, and its first barrier waits for nothing in either setting. In a window, that barrier can wait for the frame before, and the wait shows in the pass's time.
 - The rest of the crowd's frame is the cost of drawing 2,000,000 vertices, not of deforming them: the four cascades draw every cylinder, and the lamp's six tiles are drawn again in every frame, because each swaying caster's pose rows change (fork 1, B).
@@ -1260,10 +1261,10 @@ A posed instance of 53 joints costs the batch about 4 µs, posing and drawing to
 
 The memory, by arithmetic (docs/plans/skinning-and-morphs.md, "Memory and cost"):
 
-| Item | Size | `rigs-crowd`: one mesh of V = 20,000 vertices, 2 joints, 100 instances | A human: V = 20,000, J = 53 joints, no morphs |
+| Item | Size | `rigs-crowd`: one mesh of V = 20,202 vertices, 2 joints, 100 instances | A human: V = 20,000, J = 53 joints, no morphs |
 |---|---|---|---|
-| Static vertices | 48 B × V, once per mesh | 0.96 MB | 0.96 MB |
-| Deform vertices | 80 B × V, once per mesh | 1.6 MB | 1.6 MB |
+| Static vertices | 48 B × V, once per mesh | 0.97 MB | 0.96 MB |
+| Deform vertices | 80 B × V, once per mesh | 1.62 MB | 1.6 MB |
 | Morph deltas | 48 B per nonzero entry, once per mesh | 0 | 0, and 4.8 MB for 50 face targets of 2,000 vertices each |
 | The deform region | 48 B × V per deformed instance, grown to a power of two, shared by the frames in flight | 2,097,152 vertices, 100.7 MB | 0.96 MB per instance |
 | The pose buffer | 16 B × (3J + ⌈W / 4⌉) per deformed instance, per frame slot | 96 B per instance, 9.6 KB per slot | 2.5 KB per instance |
@@ -1273,7 +1274,7 @@ The memory, by arithmetic (docs/plans/skinning-and-morphs.md, "Memory and cost")
 | A tile record's pose rows | 16 B × the pose rows per posed caster per tile | 96 B | 2.5 KB |
 | `MeshDeform` on the CPU | 16 B per influence sphere, 28 B per inverse bind, 4 B per target, once per mesh | 88 B | 2.3 KB |
 
-The region of `rigs-crowd` holds 2,000,000 vertices, so it grows to 2^21 vertices, 100.7 MB, within the spec's least `maxStorageBufferRange` of 128 MB. A deformed human costs 0.96 MB of region, and a deforming mesh 2.56 MB of static and deform vertices once.
+The region of `rigs-crowd` holds 2,020,200 vertices, so it grows to 2^21 vertices, 100.7 MB, within the spec's least `maxStorageBufferRange` of 128 MB. A deformed human costs 0.96 MB of region, and a deforming mesh 2.56 MB of static and deform vertices once.
 
 The known limits (docs/plans/skinning-and-morphs.md, "Known limits"):
 

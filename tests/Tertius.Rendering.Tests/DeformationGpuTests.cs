@@ -234,7 +234,7 @@ public sealed class DeformationGpuTests
                 twisting = Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
             Rig rig = cylinder.Rigging!.Rig,
                 twistingRig = twisting.Rigging!.Rig;
-            // Copies of 425, 24 and 425 vertices: 7, 1 and 7 workgroups, so a job's groups start mid-dispatch.
+            // Copies of 477, 24 and 477 vertices: 8, 1 and 8 workgroups, so a job's groups start mid-dispatch.
             (MeshData Mesh, RigPose Pose)[] copies =
             [
                 (cylinder, BentTip(rig.Rest, rig, angle: 1.1f)),
@@ -442,7 +442,7 @@ public sealed class DeformationGpuTests
             snapshot.Instances.Add(Posed(first, white, Stand));
             AddStillPose(snapshot, instance: 0, pose: box.Rigging!.Rig.Rest with { Weights = [1, 0] });
             renderer.Render(snapshot, 1f);
-            // Twelve cylinders of 425 vertices pass the deform store's first 4,096 deform vertices, so it grows and
+            // Twelve cylinders of 477 vertices pass the deform store's first 4,096 deform vertices, so it grows and
             // keeps the box's sources.
             MeshData twisting = Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
             Rig rig = twisting.Rigging!.Rig;

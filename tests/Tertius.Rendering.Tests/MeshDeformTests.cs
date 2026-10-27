@@ -260,7 +260,7 @@ public sealed class MeshDeformTests
             checkedVertices++;
         }
 
-        checkedVertices.Should().Be(7 * (Segments + 1), "the rings at 1.25 m to 2 m");
+        checkedVertices.Should().Be(7 * (Segments + 1) + Segments + 2, "the rings at 1.25 m to 2 m and the top cap");
     }
 
     [Fact]

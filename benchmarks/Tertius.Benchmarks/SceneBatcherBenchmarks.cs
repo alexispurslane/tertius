@@ -210,7 +210,7 @@ public class SceneBatcherBenchmarks
 
     /// <summary>
     /// A tube along +Y of <see cref="ChainLength"/> m whose rig is a chain of <see cref="ChainJoints"/> joints,
-    /// <see cref="ChainStep"/> apart, with ring r of the tube bound to joint r alone.
+    /// <see cref="ChainStep"/> apart, with ring r of the tube bound to joint r alone and each cap to its end ring's joint.
     /// </summary>
     private static MeshData ChainTube()
     {
@@ -234,13 +234,12 @@ public class SceneBatcherBenchmarks
         var skin = new MeshSkin(
             Vertices:
             [
-                .. Enumerable
-                    .Range(0, tube.Vertices.Length)
-                    .Select(vertex =>
-                    {
-                        ushort ring = (ushort)(vertex / (segments + 1));
-                        return new VertexSkin(Joint0: ring, Joint1: 0, Joint2: 0, Joint3: 0, Weights: Vector4.UnitX);
-                    }),
+                .. tube.Vertices.Select(vertex =>
+                {
+                    // By height, so that each cap follows its end ring's joint.
+                    ushort ring = (ushort)MathF.Round(vertex.Position.Y / ChainStep);
+                    return new VertexSkin(Joint0: ring, Joint1: 0, Joint2: 0, Joint3: 0, Weights: Vector4.UnitX);
+                }),
             ],
             InverseBinds:
             [

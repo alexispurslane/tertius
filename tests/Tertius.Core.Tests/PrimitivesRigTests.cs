@@ -4,13 +4,14 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The test meshes with rigging (docs/plans/skinning-and-morphs.md, "Part 1: the seam"): the bending cylinder's skin, the
-/// morphing box's two morphs, and the twist of the twisting, bending cylinder.
+/// The test meshes with rigging (docs/plans/skinning-and-morphs.md, "Part 1: the seam"): the closed tube of both bending
+/// cylinders, the bending cylinder's skin, the morphing box's two morphs, and the twist of the twisting, bending cylinder.
 /// </summary>
 public sealed class PrimitivesRigTests
 {
     private const float Radius = 0.25f;
     private const float Length = 2;
+    private const int Segments = 24;
 
     // Each half extent differs from the others, so a swap of two axes shows.
     private static readonly Vector3 HalfExtents = new(0.5f, 1, 0.75f);
@@ -21,6 +22,18 @@ public sealed class PrimitivesRigTests
             nameof(Primitives.MorphingBox),
             nameof(Primitives.TwistingBendingCylinder),
         ];
+
+    public static TheoryData<string> Cylinders =>
+        [nameof(Primitives.BendingCylinder), nameof(Primitives.TwistingBendingCylinder)];
+
+    public static TheoryData<string, float> CylinderEnds =>
+        new()
+        {
+            { nameof(Primitives.BendingCylinder), 0 },
+            { nameof(Primitives.BendingCylinder), Length },
+            { nameof(Primitives.TwistingBendingCylinder), 0 },
+            { nameof(Primitives.TwistingBendingCylinder), Length },
+        };
 
     private static MeshData Named(string name) =>
         name switch
@@ -48,6 +61,21 @@ public sealed class PrimitivesRigTests
             weight += skin.Weights.W;
         return weight;
     }
+
+    /// <summary>The outward normal of the flat cap at <paramref name="height"/>: -Y at the bottom, +Y at the top.</summary>
+    private static Vector3 CapNormalAt(float height) => height == 0 ? -Vector3.UnitY : Vector3.UnitY;
+
+    /// <summary>The indices of the vertices at <paramref name="height"/> whose normal is the cap's flat normal there.</summary>
+    private static int[] CapAt(MeshData cylinder, float height) =>
+        [
+            .. cylinder
+                .Vertices.Index()
+                .Where(each => each.Item.Position.Y == height && each.Item.Normal == CapNormalAt(height))
+                .Select(each => each.Index),
+        ];
+
+    /// <summary>The unnormalized normal of a triangle, along which its corners wind counterclockwise.</summary>
+    private static Vector3 FaceNormal(Vector3 a, Vector3 b, Vector3 c) => Vector3.Cross(b - a, c - a);
 
     /// <summary>The skins of the vertices at <paramref name="height"/>, with each one's weights on the base and the tip.</summary>
     private static (float onBase, float onTip)[] WeightsOfTheRingAt(float height)
@@ -85,6 +113,103 @@ public sealed class PrimitivesRigTests
         skinLengths.Concat(deltaLengths).Should().NotBeEmpty().And.AllBeEquivalentTo(data.Vertices.Length);
     }
 
+    [Theory]
+    [MemberData(nameof(Cylinders))]
+    public void EachBendingCylinderIsAClosedTubeWhoseEveryEdgeTwoTrianglesShare(string mesh)
+    {
+        // The wall's seam and the caps' rims repeat a position in vertices of their own, so the edges are counted
+        // between welded positions: each vertex stands for the first vertex at its position.
+        MeshData cylinder = Named(mesh);
+        Vertex[] vertices = [.. cylinder.Vertices];
+        int[] welded =
+        [
+            .. vertices.Select(vertex =>
+                Array.FindIndex(vertices, other => Vector3.Distance(other.Position, vertex.Position) < 1e-5f)
+            ),
+        ];
+        var sharing = new Dictionary<(int low, int high), int>();
+        for (int corner = 0; corner < cylinder.Indices.Length; corner += 3)
+        for (int side = 0; side < 3; side++)
+        {
+            int from = welded[cylinder.Indices[corner + side]],
+                to = welded[cylinder.Indices[corner + (side + 1) % 3]];
+            (int low, int high) edge = (Math.Min(from, to), Math.Max(from, to));
+            sharing[edge] = sharing.GetValueOrDefault(edge) + 1;
+        }
+
+        sharing.Values.Should().AllBeEquivalentTo(2, "a closed tube has no rim that only one triangle borders");
+    }
+
+    [Theory]
+    [MemberData(nameof(CylinderEnds))]
+    public void EachEndOfABendingCylinderIsAFlatCapWhoseFacesFaceOut(string mesh, float height)
+    {
+        MeshData cylinder = Named(mesh);
+        Vector3[] capFaceNormals =
+        [
+            .. cylinder
+                .Indices.Chunk(3)
+                .Select(corners => corners.Select(index => cylinder.Vertices[(int)index].Position).ToArray())
+                .Where(corners => corners.All(corner => corner.Y == height))
+                .Select(corners => Vector3.Normalize(FaceNormal(corners[0], corners[1], corners[2]))),
+        ];
+
+        capFaceNormals
+            .Should()
+            .HaveCount(Segments, "the cap is a fan of one triangle for each segment")
+            .And.AllSatisfy(normal =>
+                Vector3
+                    .Distance(normal, CapNormalAt(height))
+                    .Should()
+                    .BeLessThan(1e-5f, "the cap faces out of the tube")
+            );
+    }
+
+    [Theory]
+    [MemberData(nameof(CylinderEnds))]
+    public void EachCapHasVerticesOfItsOwnSoItsEdgeWithTheWallStaysHard(string mesh, float height)
+    {
+        MeshData cylinder = Named(mesh);
+        Vertex[] wallRing = [.. cylinder.Vertices.Where(vertex => vertex.Position.Y == height && vertex.Normal.Y == 0)];
+
+        CapAt(cylinder, height)
+            .Should()
+            .HaveCount(Segments + 2, "a center and a rim of one vertex per seam of the wall");
+        wallRing.Should().HaveCount(Segments + 1, "the wall keeps its own ring with radial normals");
+    }
+
+    [Theory]
+    [MemberData(nameof(CylinderEnds))]
+    public void EachCapsTangentLiesInItsPlaneAndItsTextureFollowsItsTangentFrame(string mesh, float height)
+    {
+        // As on the wall and the plane, u grows along the tangent and v shrinks along the bitangent, which is
+        // w × (normal × tangent). The cap's disc spans [0, 1] in u and v.
+        MeshData cylinder = Named(mesh);
+        int[] cap = CapAt(cylinder, height);
+        Vertex center = cylinder.Vertices[cap.Single(index => cylinder.Vertices[index].Position is { X: 0, Z: 0 })];
+
+        var misses = new List<float>();
+        foreach (int index in cap)
+        {
+            Vertex vertex = cylinder.Vertices[index];
+            var tangent = new Vector3(vertex.Tangent.X, vertex.Tangent.Y, vertex.Tangent.Z);
+            Vector3 bitangent = vertex.Tangent.W * Vector3.Cross(vertex.Normal, tangent);
+            Vector3 offset = vertex.Position - center.Position;
+            Vector2 expected =
+                new Vector2(Vector3.Dot(offset, tangent), -Vector3.Dot(offset, bitangent)) / (2 * Radius);
+            vertex.Tangent.W.Should().Be(1);
+            tangent.Y.Should().Be(0, "the tangent lies in the cap's plane");
+            misses.Add(MathF.Abs(tangent.Length() - 1));
+            misses.Add(Vector2.Distance(vertex.TexCoord - center.TexCoord, expected));
+        }
+
+        center.TexCoord.Should().Be(new Vector2(0.5f, 0.5f), "the center of the disc is the center of the texture");
+        misses
+            .Should()
+            .HaveCount(2 * (Segments + 2))
+            .And.AllSatisfy(miss => miss.Should().BeLessThan(1e-5f, "the texture follows the unit tangent frame"));
+    }
+
     [Fact]
     public void BendingCylinderWeightsSumToOneAtEveryVertex()
     {
@@ -97,12 +222,18 @@ public sealed class PrimitivesRigTests
     }
 
     [Fact]
-    public void BendingCylinderBindsItsLowestRingToTheBaseOnly() =>
-        WeightsOfTheRingAt(0).Should().HaveCount(25).And.AllBeEquivalentTo((onBase: 1f, onTip: 0f));
+    public void BendingCylinderBindsItsLowestRingAndItsBottomCapToTheBaseOnly() =>
+        WeightsOfTheRingAt(0)
+            .Should()
+            .HaveCount(Segments + 1 + Segments + 2, "the wall's ring and the cap's own vertices")
+            .And.AllBeEquivalentTo((onBase: 1f, onTip: 0f));
 
     [Fact]
-    public void BendingCylinderBindsItsHighestRingToTheTipOnly() =>
-        WeightsOfTheRingAt(Length).Should().HaveCount(25).And.AllBeEquivalentTo((onBase: 0f, onTip: 1f));
+    public void BendingCylinderBindsItsHighestRingAndItsTopCapToTheTipOnly() =>
+        WeightsOfTheRingAt(Length)
+            .Should()
+            .HaveCount(Segments + 1 + Segments + 2, "the wall's ring and the cap's own vertices")
+            .And.AllBeEquivalentTo((onBase: 0f, onTip: 1f));
 
     [Fact]
     public void BendingCylinderInverseBindsUndoTheRestModelPoses()
@@ -188,9 +319,37 @@ public sealed class PrimitivesRigTests
 
         misses
             .Should()
-            .HaveCount(3 * 17 * 25)
+            .HaveCount(3 * (17 * (Segments + 1) + 2 * (Segments + 2)), "every vertex of the wall and the caps")
             .And.AllSatisfy(miss =>
                 miss.Should().BeLessThan(1e-5f, "the twist turns the position, normal and tangent")
+            );
+    }
+
+    [Fact]
+    public void TwistTurnsTheTopCapWithTheTopRingAndKeepsItFacingUp()
+    {
+        MeshData cylinder = Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
+        MeshRigging rigging = cylinder.Rigging!;
+        MorphTarget twist = rigging.Morphs.Single(target => target.Morph == rigging.Rig.MorphNamed("Twist"));
+        var quarterTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+
+        var misses = new List<float>();
+        foreach (int index in CapAt(cylinder, Length))
+        {
+            Vertex rest = cylinder.Vertices[index];
+            var tangent = new Vector3(rest.Tangent.X, rest.Tangent.Y, rest.Tangent.Z);
+            misses.Add(
+                Vector3.Distance(rest.Position + twist.Positions[index], Vector3.Transform(rest.Position, quarterTurn))
+            );
+            misses.Add(Vector3.Distance(tangent + twist.Tangents[index], Vector3.Transform(tangent, quarterTurn)));
+            misses.Add(Vector3.Distance(rest.Normal + twist.Normals[index], Vector3.UnitY));
+        }
+
+        misses
+            .Should()
+            .HaveCount(3 * (Segments + 2))
+            .And.AllSatisfy(miss =>
+                miss.Should().BeLessThan(1e-5f, "the top cap turns by a quarter turn and still faces up")
             );
     }
 }
