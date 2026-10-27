@@ -1,6 +1,6 @@
 ---
 id: ter-vtc7
-status: in_progress
+status: closed
 deps: [ter-a24f, ter-k1ne, ter-hx3r, ter-3dp5]
 links: []
 created: 2026-10-27T03:59:20Z
@@ -37,3 +37,7 @@ The specular part waits for skin and hair Part 4 (ter-k1ne), whose DirectTerms s
 **2026-10-27T11:48:41Z**
 
 2026-10-27, the emission part, the user's answer: a glowing surface lights what is near it only if it has no light of its own. Model: an entity sends its power once. An entity that holds a light sends it through that light, and its glowing surface is the face of that light, not a second source (the demo's lamps: one entity with the panel mesh and the LampLight). So the bounce light's copy adds a pixel's emission only where the pixel's entity holds no light. The renderer knows this per instance from the render row (an entity holds one light), so the G-buffer needs one bit per pixel. The blotches beside the demo lamps go, and a screen or another glow without a light still lights its surroundings.
+
+**2026-10-27T15:31:26Z**
+
+2026-10-27: merged; the branch took main (the map's light per direction) in 7d0e0e7b, tested there: Checked 9,311 total, 0 failed; Release 9,298, 0 failed; the merged main is the same tree. Coverage of the changed lines 105/109 (96.3%): the misses are the unsupported-format guard of the diffuse image and an unreachable arm. The glow of an entity that holds a light still reaches the environment map's faces: ter-ylzk, options for the user.
