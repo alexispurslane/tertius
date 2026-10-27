@@ -1,7 +1,7 @@
 ---
 id: ter-fhlb
 status: open
-deps: []
+deps: [ter-a24f]
 links: []
 created: 2026-10-26T20:50:21Z
 type: task
@@ -14,3 +14,9 @@ tags: [rendering, performance]
 
 ter-of1p measured the lighting pass on a 120-frame window of demo-exit at 1920x1080, Release, Apple M1 Max (2026-10-26): about 2.15 to 2.29 ms with the map on and 1.39 to 1.77 ms with it off. Two parts of environmentAmbient each cost about 0.2 ms there: reflectionFootprintAt in gbuffer_surface.glsl, which reads the G-buffer at two more pixels to find the footprint f (three dominantDirectionAt calls, each with up to three fetches), and reflectedStars, which hashes the 27 cells around d below the end of the fade. Without both the pass took about 2.0 ms. Candidates that keep the image: skip the footprint where the lobe alone already ends the fade (starWidth(p, alpha) >= 2c, so fade = 1 for any f >= p, since w grows with f), and skip the cells of pixels whose open-sky share is 0. Measure each on demo-exit and mirror-balls, and check the captures pixel by pixel.
 
+
+## Notes
+
+**2026-10-27T02:34:41Z**
+
+2026-10-26: waits for the bounce light (ter-a24f), whose lighting split moves the environment map's ambient into the ambient pass; this ticket then works on that pass.
