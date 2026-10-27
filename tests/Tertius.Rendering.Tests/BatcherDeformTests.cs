@@ -446,6 +446,31 @@ public sealed class BatcherDeformTests
         scene.Commands[near.First].VertexOffset.Should().Be(RegionBase);
     }
 
+    /// <summary>
+    /// The one interpolation of each instance gives every face the instance's frame mesh, also for an instance that the
+    /// main view culls: a posed box behind the camera, after a rigid box and a posed cylinder ahead of it, draws its own
+    /// deformed copy in the face that looks at it.
+    /// </summary>
+    [Fact]
+    public void AFaceDrawsTheDeformedCopyOfAPosedInstanceThatTheMainViewCulls()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(Instance(Rigid, new(0, 0, -10)));
+        AddPosed(snapshot, Instance(Cylinder, new(0, 0, -10)), CylinderRest);
+        AddPosed(snapshot, Instance(MorphBox, new(0, 0, 10)), BoxRest);
+        EnvironmentDraw map = new WithMap(Faces: new[] { FaceMask.PositiveZ }, Irradiance: new IrradianceReading?[1]);
+
+        PreparedScene scene = Prepare(snapshot, Roomy, map);
+
+        scene.VisibleCount.Should().Be(2, "the main view culls the box behind the camera");
+        CommandRange near = scene.EnvironmentFaces.Single().Near;
+        near.Count.Should().Be(1);
+        scene
+            .Commands[near.First]
+            .VertexOffset.Should()
+            .Be(RegionBase + CylinderDeform.VertexCount, "the box's copy follows the cylinder's in the region");
+    }
+
     [Fact]
     public void DeformNeedCountsTheVerticesOfEveryPosedDeformingInstance()
     {

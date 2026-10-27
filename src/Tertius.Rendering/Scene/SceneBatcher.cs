@@ -43,6 +43,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         LargestScale = 1.1529215e18f;
 
     private DrawItem[] opaque = new DrawItem[256];
+    private readonly OpaqueSorter opaqueSorter = new();
 
     // The frame mesh of each entry of the snapshot's rig poses, or −1 for an instance with no mesh on the GPU.
     private int[] entryMeshes = new int[16];
@@ -51,6 +52,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     // The opaque instances that the map's faces may draw, interpolated once for every face of the frame.
     private PreparedInstance[] mapInstances = new PreparedInstance[256];
+    private int mapInstanceCount;
 
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly CommandRange[] faceRanges = new CommandRange[DepthRanges.Count];
@@ -118,7 +120,13 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
         // First, because every collector reads the frame meshes and their bounds.
         PoseInstances(snapshot: snapshot, alpha: alpha, meshes: meshes, region: region, scene: scene);
-        CollectVisible(snapshot: snapshot, alpha: alpha, materialCount: materialCount, scene: scene);
+        CollectVisible(
+            snapshot: snapshot,
+            alpha: alpha,
+            materialCount: materialCount,
+            forMaps: facesOfMaps.ContainsAnyExcept(FaceMask.None),
+            scene: scene
+        );
         CollectPuffs(snapshot, alpha, scene);
         CollectCasters(snapshot: snapshot, alpha: alpha, scene: scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
@@ -128,7 +136,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             processor.Process(scene);
         Batch(scene, scene.Meshes);
         // After the main view, so that its instances and commands keep the places that they have without the map.
-        BatchFaces(snapshot: snapshot, alpha: alpha, materialCount: materialCount, faces: facesOfMaps, scene: scene);
+        BatchFaces(meshes: scene.Meshes, faces: facesOfMaps, scene: scene);
         WriteConstants(snapshot, scene);
     }
 
@@ -352,10 +360,24 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             staticMeshCount: scene.StaticMeshCount
         );
 
-    private void CollectVisible(RenderSnapshot snapshot, float alpha, int materialCount, PreparedScene scene)
+    /// <summary>
+    /// Interpolates each instance that a view can draw once, for the main view and every face of every map: the instances
+    /// that the main view does not cull go into the scene's visible instances, and when <paramref name="forMaps"/> holds,
+    /// the opaque ones go into the maps' instances too, before any face culls them or any map's draw rule leaves them out.
+    /// Each draws its frame mesh, so a posed instance draws its deformed copy in the main view and in every face. The
+    /// shadow views interpolate their casters themselves (<see cref="CollectCasters"/>).
+    /// </summary>
+    private void CollectVisible(
+        RenderSnapshot snapshot,
+        float alpha,
+        int materialCount,
+        bool forMaps,
+        PreparedScene scene
+    )
     {
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         scene.SubmittedInstances = instances.Length;
+        mapInstanceCount = 0;
         CameraView camera = scene.Camera;
         ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
         FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
@@ -365,23 +387,37 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             int mesh = frameMeshes.MeshOf(index, instance);
             if (
                 Place(instance: instance, mesh: mesh, alpha: alpha, meshes: meshes, eye: camera.Offset)
-                    is not { } placement
-                || camera.Culls(placement.Position, placement.Radius)
+                is not { } placement
             )
                 continue;
+            bool inMaps = forMaps && (instance.Flags & RenderFlags.Transparent) == 0;
+            bool inView = !camera.Culls(placement.Position, placement.Radius);
+            if (!inMaps && !inView)
+                continue;
 
-            scene.AddVisible() = Prepared(
+            PreparedInstance prepared = Prepared(
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
                 materialCount: materialCount,
                 maps: scene.MapCount
-            ) with
-            {
-                Depth = Vector3.Dot(placement.Position, camera.Forward),
-                Distance = placement.Position.Length(),
-            };
+            );
+            if (inMaps)
+                AddMapInstance(prepared);
+            if (inView)
+                scene.AddVisible() = prepared with
+                {
+                    Depth = Vector3.Dot(placement.Position, camera.Forward),
+                    Distance = placement.Position.Length(),
+                };
         }
+    }
+
+    private void AddMapInstance(in PreparedInstance instance)
+    {
+        if (mapInstanceCount == mapInstances.Length)
+            Array.Resize(ref mapInstances, mapInstances.Length * 2);
+        mapInstances[mapInstanceCount++] = instance;
     }
 
     /// <summary>
@@ -441,26 +477,15 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// order, after the main view's instances and commands: the opaque instances of the snapshot that the map draws (the
     /// draw rule) and that the face does not cull in the map's axes, by their depth along its axis, as geometry and with no
     /// impostor (docs/plans/environment-map.md, "Culling and level of detail", and docs/plans/environment-maps-per-frame.md,
-    /// "What a map draws").
+    /// "What a map draws"). The instances are the maps', which <see cref="CollectVisible"/> interpolated with the main
+    /// view's.
     /// </summary>
     /// <param name="faces">The faces of each served map, root first.</param>
-    private void BatchFaces(
-        RenderSnapshot snapshot,
-        float alpha,
-        int materialCount,
-        ReadOnlySpan<FaceMask> faces,
-        PreparedScene scene
-    )
+    private void BatchFaces(ReadOnlySpan<MeshInfo> meshes, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
     {
         if (!faces.ContainsAnyExcept(FaceMask.None))
             return;
-        ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
-        Span<PreparedInstance> instances = CollectMapInstances(
-            snapshot: snapshot,
-            alpha: alpha,
-            materialCount: materialCount,
-            scene: scene
-        );
+        Span<PreparedInstance> instances = mapInstances.AsSpan(0, mapInstanceCount);
         for (int map = 0; map < faces.Length; map++)
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
@@ -500,7 +525,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             AppendOpaque(count: ref opaqueCount, mask: mask, mesh: instance.Mesh, index: i);
         }
 
-        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
         EnsureCapacity(ref scene.Instances, scene.InstanceCount + opaqueCount);
         Array.Clear(faceRanges);
         Emit(
@@ -520,43 +545,6 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 Near: faceRanges[DepthRanges.Near]
             )
         );
-    }
-
-    /// <summary>The opaque instances of the snapshot that a face may draw, interpolated, before any face culls them.</summary>
-    private Span<PreparedInstance> CollectMapInstances(
-        RenderSnapshot snapshot,
-        float alpha,
-        int materialCount,
-        PreparedScene scene
-    )
-    {
-        Vector3 eye = scene.Camera.Offset;
-        ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
-        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
-        FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
-        int count = 0;
-        for (int index = 0; index < instances.Length; index++)
-        {
-            ref readonly RenderInstance instance = ref instances[index];
-            // Every instance moves the cursor, the transparent ones too.
-            int mesh = frameMeshes.MeshOf(index, instance);
-            if (
-                (instance.Flags & RenderFlags.Transparent) != 0
-                || Place(instance: instance, mesh: mesh, alpha: alpha, meshes: meshes, eye: eye) is not { } placement
-            )
-                continue;
-            if (count == mapInstances.Length)
-                Array.Resize(ref mapInstances, mapInstances.Length * 2);
-            mapInstances[count++] = Prepared(
-                instance: instance,
-                placement: placement,
-                alpha: alpha,
-                materialCount: materialCount,
-                maps: scene.MapCount
-            );
-        }
-
-        return mapInstances.AsSpan(0, count);
     }
 
     /// <summary>
@@ -665,7 +653,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             );
         }
 
-        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
         Emit(
@@ -1209,7 +1197,41 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             Array.Resize(ref array, Math.Max(count, array.Length * 2));
     }
 
-    private readonly record struct DrawItem(ulong Key, int Index);
+    internal readonly record struct DrawItem(ulong Key, int Index);
+
+    /// <summary>
+    /// Sorts a view's opaque draw items by key, and keeps their order at equal keys. A view appends its items in the
+    /// order of its instances, so this is the order of (key, index). A key is (range, mesh), one of
+    /// <see cref="DepthRanges.Count"/> × meshes, so the sorter counts the items of each key and moves each item once: a
+    /// counting sort, in time linear in the items and the meshes, where a comparison sort takes n log n comparisons.
+    /// Allocates nothing once its arrays have grown to the view.
+    /// </summary>
+    internal sealed class OpaqueSorter
+    {
+        private int[] starts = new int[64];
+        private DrawItem[] sorted = new DrawItem[256];
+
+        /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
+        public void Sort(Span<DrawItem> items, int meshCount)
+        {
+            int keys = DepthRanges.Count * meshCount;
+            EnsureCapacity(ref starts, keys + 1);
+            EnsureCapacity(ref sorted, items.Length);
+            Span<int> start = starts.AsSpan(0, keys + 1);
+            start.Clear();
+            foreach (DrawItem item in items)
+                start[KeyIndex(item, meshCount) + 1]++;
+            for (int key = 1; key < start.Length; key++)
+                start[key] += start[key - 1];
+            foreach (DrawItem item in items)
+                sorted[start[KeyIndex(item, meshCount)]++] = item;
+            sorted.AsSpan(0, items.Length).CopyTo(items);
+        }
+
+        /// <summary>The place of an item's key in key order: its range, then its mesh.</summary>
+        private static int KeyIndex(DrawItem item, int meshCount) =>
+            (int)(item.Key >> 32) * meshCount + (int)(uint)item.Key;
+    }
 
     /// <summary>
     /// Gives each instance of the snapshot its frame mesh, walked in instance order beside the rig poses, which are sorted by

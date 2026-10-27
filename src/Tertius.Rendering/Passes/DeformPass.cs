@@ -9,12 +9,6 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed unsafe class DeformPass : RenderPass
 {
-    /// <summary>
-    /// The workgroups that a dispatch may count along each of X, Y and Z on every Vulkan device: the least
-    /// <c>maxComputeWorkGroupCount</c> that the specification allows.
-    /// </summary>
-    public const uint MaxGroupsPerDimension = 65_535;
-
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly DeformStore deforms;
@@ -126,12 +120,13 @@ internal sealed unsafe class DeformPass : RenderPass
 
     /// <summary>
     /// The grid of a dispatch of <paramref name="groups"/> workgroups: as few rows as hold them with at most
-    /// <see cref="MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the grid ends fewer than <c>Y</c>
-    /// workgroups past the last, which return at once.
+    /// <see cref="ComputeLimits.MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the grid ends fewer
+    /// than <c>Y</c> workgroups past the last, which return at once.
     /// </summary>
     internal static (uint X, uint Y) Grid(uint groups)
     {
-        uint rows = (groups + MaxGroupsPerDimension - 1) / MaxGroupsPerDimension;
+        const uint perRow = ComputeLimits.MaxGroupsPerDimension;
+        uint rows = (groups + perRow - 1) / perRow;
         return ((groups + rows - 1) / rows, rows);
     }
 }

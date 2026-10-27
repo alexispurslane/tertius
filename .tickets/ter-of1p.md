@@ -28,3 +28,7 @@ Part 6 of ter-nl5u (08380881) measured the prefilter at 1.16 to 1.35 ms in every
 **2026-10-25T23:20:19Z**
 
 2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.
+
+**2026-10-26T22:52:28Z**
+
+2026-10-26: built, reviewed and fixed on ter-of1p-prefilter-profile (8 commits, review fixes 4eefb3a1, among them a dispatch over the 65,535 workgroup limit at W = 1024). The prefilter takes 0.43 ms, from 1.27 ms, with the image kept. The orchestrator settled the fork: 64 samples stay, because 16 and 32 samples do not reach 0.2 ms either (0.344 and 0.379 ms) and change rough reflections by up to 82 levels of 255; Part 3 of the coda weighs the rest. Next: merge main into the branch (the per-frame maps and the lights epic conflict in about ten files), review that merge, coverage, then the merge into main.

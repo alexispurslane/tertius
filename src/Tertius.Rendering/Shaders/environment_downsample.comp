@@ -2,44 +2,88 @@
 #extension GL_GOOGLE_include_directive : require
 #include "cube_faces.glsl"
 
-// One level of the environment map's radiance map, from the level above it (EnvironmentPrefilterPass.cs,
-// docs/plans/environment-map.md, "The radiance map's mips"). Each texel of level k is the mean of its four children in
-// level k − 1, weighted by each child's solid angle, in all four channels. So a texel holds the mean radiance over its
-// own solid angle, and its alpha the open-sky share of that solid angle, wherever it lies on the face. One invocation
-// per texel of one map, over (W_k, W_k, 6): face z of map m is layer 6m + z.
+// A run of up to three levels of the environment map's radiance map, k + 1 to k + 3, from level k
+// (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The radiance map's mips"). Each texel of a level is the mean of its four children in
+// the level above it, weighted by each child's solid angle, in all four channels. So a texel holds the mean radiance over
+// its own solid angle, and its alpha the open-sky share of that solid angle, wherever it lies on the face.
+//
+// One invocation per texel of level k + 1 of one map, over (W_k+1, W_k+1, 6): face z of map m is layer 6m + z. A workgroup's 8 by 8 texels of level k + 1 are the
+// children of 4 by 4 texels of level k + 2, and those of 2 by 2 texels of level k + 3. So the workgroup makes those too,
+// from the texels that it wrote, and the chain takes one dispatch and one barrier for every three levels. It reads them
+// back from the images, not from registers or shared memory, so a level is the mean of the level above as stored, in
+// halves rounded as the device rounds them, whichever dispatch made that level.
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-// Set 1 holds level k − 1 and set 2 level k, each a storage image of six layers per map, so the pipeline needs two storage
-// images (DescriptorLayouts.EnvironmentPrefilterLayout).
-layout(set = 1, binding = 0, rgba16f) uniform readonly image2DArray children;
-layout(set = 2, binding = 0, rgba16f) uniform writeonly image2DArray texels;
+// Binding 0 holds level k, and bindings 1 to 3 levels k + 1 to k + 3, each a storage image of six layers per map
+// (DescriptorLayouts.EnvironmentLevelsSet). A binding past the run's last level holds that level again, and nothing
+// writes or reads it. The workgroup reads back levels k + 1 and k + 2, so they are coherent.
+layout(set = 1, binding = 0, rgba16f) uniform readonly image2DArray source;
+layout(set = 1, binding = 1, rgba16f) uniform coherent image2DArray level1;
+layout(set = 1, binding = 2, rgba16f) uniform coherent image2DArray level2;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2DArray level3;
 
 // EnvironmentDownsamplePushConstants in GpuTypes.cs.
 layout(push_constant, std430) uniform DownsamplePush
 {
-    uint levelSize;   // W_k, of level k ≥ 1
+    uint levelSize;   // W_k+1, of level k + 1 ≥ 1
+    uint levelCount;  // the levels of the run, 1 to 3
     uint map;         // m: the dispatch reads and writes layers 6m to 6m + 5
 } downsample;
 
+// Texel `texel` of the run's level `level`, 0 for level k.
+vec4 load(uint level, ivec3 texel)
+{
+    switch (level)
+    {
+        case 0u: return imageLoad(source, texel);
+        case 1u: return imageLoad(level1, texel);
+        default: return imageLoad(level2, texel);
+    }
+}
+
+void store(uint level, ivec3 texel, vec4 value)
+{
+    switch (level)
+    {
+        case 1u: imageStore(level1, texel, value); break;
+        case 2u: imageStore(level2, texel, value); break;
+        default: imageStore(level3, texel, value); break;
+    }
+}
+
 void main()
 {
-    uvec3 id = gl_GlobalInvocationID;
-    if (id.x >= downsample.levelSize || id.y >= downsample.levelSize)
-        return;
-    uint layer = 6u * downsample.map + id.z;
-    uint childSize = 2u * downsample.levelSize;
-    vec4 light = vec4(0.0);
-    float solidAngle = 0.0;
-    // The children in row and column order, so one map always gives the same bits on one GPU.
-    for (uint dy = 0u; dy < 2u; dy++)
-        for (uint dx = 0u; dx < 2u; dx++)
+    uvec2 local = gl_LocalInvocationID.xy;
+    uint layer = 6u * downsample.map + gl_WorkGroupID.z;
+    uint size = 2u * downsample.levelSize;
+    uint tile = 16u;
+    // The push constants are the same in the whole dispatch, so every invocation reaches each barrier or none does.
+    for (uint level = 1u; level <= downsample.levelCount; level++)
+    {
+        uint childSize = size;
+        size = max(size / 2u, 1u);
+        tile /= 2u;
+        // The workgroup's texels of this level: tile by tile of them, the parents of its texels of the level above.
+        uvec2 texel = tile * gl_WorkGroupID.xy + local;
+        if (local.x < tile && local.y < tile && texel.x < size && texel.y < size)
         {
-            uvec2 child = 2u * id.xy + uvec2(dx, dy);
-            float childAngle = texelSolidAngle(child, childSize);
-            light += imageLoad(children, ivec3(child, layer)) * childAngle;
-            solidAngle += childAngle;
+            vec4 light = vec4(0.0);
+            float solidAngle = 0.0;
+            // The children in row and column order, so one map always gives the same bits on one GPU.
+            for (uint dy = 0u; dy < 2u; dy++)
+                for (uint dx = 0u; dx < 2u; dx++)
+                {
+                    uvec2 child = 2u * texel + uvec2(dx, dy);
+                    float childAngle = texelSolidAngle(child, childSize);
+                    light += load(level - 1u, ivec3(child, layer)) * childAngle;
+                    solidAngle += childAngle;
+                }
+            // The children's solid angles add up to the texel's own, so this is the mean over the texel.
+            store(level, ivec3(texel, layer), light / solidAngle);
         }
-    // The children's solid angles add up to the texel's own, so this is the mean over the texel.
-    imageStore(texels, ivec3(id.xy, layer), light / solidAngle);
+        // The texels of this level reach the next level's invocations in the workgroup.
+        memoryBarrierImage();
+        barrier();
+    }
 }
