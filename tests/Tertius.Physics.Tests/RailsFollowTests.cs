@@ -688,7 +688,7 @@ public sealed class RailsFollowTests
         {
             "no body, on rails" => RailsPose(Slow, world.Time),
             "no body, and a transform write" => climber.Written!.Value,
-            "a static hull that teleported" => park.Target!.Value,
+            "a static hull that teleported" => park.UnitTarget,
             _ => faults.Outputs[^1].Frames.Single(state => state.Frame == frame).Motion.Pose,
         };
         world.Frames.TreeLocalPose(frame).Should().Be(standsAt, "the frame stands where its step record puts it");
@@ -1122,6 +1122,12 @@ public sealed class RailsFollowTests
     private sealed class ParkAndHopOnce(IComponent? rails) : IComponent
     {
         public DPose? Target { get; private set; }
+
+        /// <summary>
+        /// The target with a unit rotation, where the teleport puts a static hull: a rotation from the rails can round off
+        /// unit length by an ulp.
+        /// </summary>
+        public DPose UnitTarget => Target!.Value with { Rotation = Target.Value.Rotation.Normalized() };
 
         public int Priority => 0;
 

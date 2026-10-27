@@ -91,7 +91,7 @@ public sealed partial class World
     /// <c>TimeAt(TickNumber + 1)</c>, which is the end of the first step of an entity spawned now (see
     /// <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public double TimeAt(long tick) => Options.StartTime + tick * (double)DeltaTime;
+    public double TimeAt(long tick) => Options.StartTime + tick / (double)Options.TickRate;
 
     private void PrepareTick()
     {
@@ -101,7 +101,7 @@ public sealed partial class World
         if (numericUpdateDue)
         {
             numericUpdateDue = false;
-            UpdateNumericFrames(0);
+            UpdateNumericFrames(ticks: 0);
             DeriveAttachments();
             SwapSnapshot();
         }

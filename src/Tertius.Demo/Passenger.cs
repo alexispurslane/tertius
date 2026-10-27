@@ -219,7 +219,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
                 if (self.Frame != seat.Frame)
                     return;
                 ticks = HoldAtSeat(self, mass) ? ticks + 1 : 0;
-                State = ticks * (double)self.DeltaTime >= UnbuckleSeconds ? new Fetching() : new Seated(ticks);
+                State = ticks * self.DeltaTime >= UnbuckleSeconds ? new Fetching() : new Seated(ticks);
                 return;
             case Fetching:
                 for (int i = 0; i < events.Count; i++)

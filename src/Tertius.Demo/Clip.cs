@@ -64,7 +64,7 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
         Double3 gravity = self.Snapshot.Frames.FeltGravity(self.Frame, place.Position);
         bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
         int weightlessTicks = weightless ? clipped.WeightlessTicks + 1 : 0;
-        if (weightlessTicks * (double)self.DeltaTime >= ReleaseSeconds)
+        if (weightlessTicks * self.DeltaTime >= ReleaseSeconds)
         {
             State = new Released();
             self.Body.SetVelocity(push);

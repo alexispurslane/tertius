@@ -6,7 +6,7 @@ namespace Tertius;
 public struct Tick : IEventPayload
 {
     public long Number;
-    public float DeltaTime;
+    public double DeltaTime;
 }
 
 /// <summary>Sent on the first tick of a new entity.</summary>

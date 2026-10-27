@@ -283,7 +283,10 @@ public sealed class PlumeTests : IDisposable
 
     /// <summary>
     /// The shuttle burns its main engine at full throttle for 2 s, in vacuum and in air. Its puffs stay in the frame of
-    /// their birth while the hull speeds away along its nose, so every puff lies aft of the nozzle, in the hull's axes.
+    /// their birth while the hull speeds away along its nose, so every puff lies aft of the nozzle, in the hull's axes, or
+    /// at the nozzle itself. At 240 puffs a second a tick of 1/60 s gathers 4 puffs exactly, so the last puff of every step
+    /// is born at its end, with age 0, where the main engine's part is: at the nozzle's Z as its float offset holds it,
+    /// 7.7 rounded to a float.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -306,7 +309,7 @@ public sealed class PlumeTests : IDisposable
             hull.Inverse()
                 .TransformPoint(puff.Place)
                 .Z.Should()
-                .BeGreaterThan(Shuttle.NozzleZ, "a puff falls behind the hull");
+                .BeGreaterThanOrEqualTo((float)Shuttle.NozzleZ, "a puff falls behind the hull");
     }
 
     /// <summary>

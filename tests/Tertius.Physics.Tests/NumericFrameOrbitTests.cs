@@ -353,8 +353,11 @@ public sealed class NumericFrameOrbitTests
     /// Without a first motion intent, the hull holds still for its first step, and K lands on that plan, so K loses the
     /// orbit's 7.66 km/s in one step (ticket ter-zsku). The body moves on by the field alone: physics converts its spawn
     /// velocity with half a step of K's step acceleration, K's instant velocity where the step starts. Its float velocity in
-    /// K holds the orbit's speed for that step and rounds there, by up to 0.24 mm/s, so after the second it is within 0.3 mm
-    /// of its orbit. When the conversion took the plan's instant velocity past its chord at the end of the step, the body
+    /// K holds the orbit's speed for that step and rounds there, where a float step of velocity is 0.49 mm/s: a rock's once
+    /// in the narrowing, by up to 0.24 mm/s, and a character's also in the float sums of its velocity rule with a step of
+    /// a gravity of 4.6e5 m/s², by up to 0.73 mm/s in all. Jolt's longer float step moves it 6.7 µm further in that step.
+    /// So after the second it is within 0.75 mm of its orbit (measured 0.14 mm for a rock and 0.34 mm for a character).
+    /// When the conversion took the plan's instant velocity past its chord at the end of the step, the body
     /// lost half the orbit's speed and was 3.8 km off its orbit after the second.
     /// </para>
     /// </summary>
@@ -396,7 +399,7 @@ public sealed class NumericFrameOrbitTests
         Tick(world, 59);
 
         Double3 off = world.PoseIn(body, earth).Position - own.StateAt(world.Time, Scenes.EarthMu).Position;
-        off.Length.Should().BeLessThan(firstMove ? 2e-6 : 3e-4, $"the body keeps its orbit, but is off by {off}");
+        off.Length.Should().BeLessThan(firstMove ? 2e-6 : 7.5e-4, $"the body keeps its orbit, but is off by {off}");
         world.Errors.Should().BeEmpty();
     }
 

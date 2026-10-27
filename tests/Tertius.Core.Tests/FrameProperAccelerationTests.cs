@@ -309,8 +309,8 @@ public sealed class FrameProperAccelerationTests
         };
         frames.UpdateNumericFrames(
             bodies: [body],
-            dt: 0.1,
-            step: 0.1,
+            ticks: 1,
+            tickRate: 10,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );

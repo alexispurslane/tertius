@@ -44,8 +44,9 @@ namespace Tertius;
 /// <see cref="LeaveFollowingFrame"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
-/// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
-/// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
+/// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with thrust ticks above
+/// zero and quiet ticks from zero. The quiet ticks last less than <see cref="NumericFrameOptions.ThrustWindow"/>, which
+/// the update checks, because only it knows the tick rate.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -105,9 +106,9 @@ public sealed partial class FrameTree
     // reads (see BeginStep). Null for every other frame.
     private MotionSample?[] stepPlan = new MotionSample?[64];
 
-    // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
+    // How many ticks the members of each numeric frame have been apart, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
-    private double[] apartTime = new double[64];
+    private long[] apartTicks = new long[64];
 
     private int[] numericBodies = new int[64];
 
@@ -210,7 +211,7 @@ public sealed partial class FrameTree
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
         stepPlan[node.Id] = null;
-        apartTime[node.Id] = 0;
+        apartTicks[node.Id] = 0;
         numericBodies[node.Id] = 0;
         anchor[node.Id] = Entity.Null;
         // A new frame has had no step, so it has no turn and no last turn until its first BeginStep. A numeric frame keeps
@@ -795,21 +796,37 @@ public sealed partial class FrameTree
             Contract.Invariant(ghost.Frame != following && SemanticOf(ghost.Frame) == TreeParent(following));
         }
 
-        if (thrustClocks.Count > 0)
-        {
-            // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static,
-            // and its hull.
-            var moving = new HashSet<Entity>();
-            foreach (NumericBody body in sortedBodies)
-                if (!body.Static)
-                    moving.Add(body.Entity);
-            foreach ((Entity entity, (double thrustTime, double quietTime)) in thrustClocks)
-            {
-                Contract.Invariant(moving.Contains(entity));
-                Contract.Invariant(thrustTime > 0 && quietTime >= 0 && quietTime < NumericOptions.ThrustWindow);
-            }
-        }
+        AssertThrustClockInvariants();
+        AssertLeaveClockInvariants();
+    }
 
+    /// <summary>
+    /// The invariant of the thrust clocks (see the list of invariants of <see cref="FrameTree"/>). For
+    /// <see cref="AssertInvariants(ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertThrustClockInvariants()
+    {
+        if (thrustClocks.Count == 0)
+            return;
+        // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static, and
+        // its hull.
+        var moving = new HashSet<Entity>();
+        foreach (NumericBody body in sortedBodies)
+            if (!body.Static)
+                moving.Add(body.Entity);
+        foreach ((Entity entity, (long thrustTicks, long quietTicks)) in thrustClocks)
+        {
+            Contract.Invariant(moving.Contains(entity));
+            Contract.Invariant(thrustTicks > 0 && quietTicks >= 0);
+        }
+    }
+
+    /// <summary>
+    /// The invariant of the leave clocks (see the list of invariants of <see cref="FrameTree"/>). For
+    /// <see cref="AssertInvariants(ReadOnlySpan{PhysicsIntent})"/> only.
+    /// </summary>
+    private void AssertLeaveClockInvariants()
+    {
         if (leaveClocks.Count == 0)
             return;
         // Only a body that is not an anchor has a clock. A frame owner has two bodies, its interior, an anchor, and its hull.
@@ -817,7 +834,7 @@ public sealed partial class FrameTree
         foreach (NumericBody body in sortedBodies)
             if (!NumericFrameRules.IsAnchor(body, NumericOptions))
                 lastBodies[body.Entity] = body;
-        foreach ((Entity entity, double apart) in leaveClocks)
+        foreach ((Entity entity, long apart) in leaveClocks)
         {
             bool known = lastBodies.TryGetValue(entity, out NumericBody body);
             Contract.Invariant(apart >= 0 && known);
@@ -1481,7 +1498,7 @@ public sealed partial class FrameTree
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);
         Array.Resize(ref stepPlan, size);
-        Array.Resize(ref apartTime, size);
+        Array.Resize(ref apartTicks, size);
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref anchor, size);
         Array.Resize(ref anchorSeen, size);

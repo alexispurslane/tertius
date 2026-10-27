@@ -14,9 +14,6 @@ public sealed class NumericFrameRulesTests
 {
     // ---- ThrustClock ---------------------------------------------------------------------------------------------
 
-    /// <summary>One tick of the engine at 60 Hz: a float, a little longer than a sixtieth of a second.</summary>
-    private const double FloatTick = 1f / 60;
-
     private static readonly NumericFrameOptions Options = new();
     private static readonly FrameHandle Ground = new(new(1, 1), 0, 1);
     private static readonly FrameHandle Pod = new(Entity.Null, 1, 1);
@@ -321,23 +318,24 @@ public sealed class NumericFrameRulesTests
     }
 
     /// <summary>
-    /// Runs the thrust clock from zero over one tick of <paramref name="dt"/> seconds for each acceleration of
+    /// Runs the thrust clock from zero over one tick at <paramref name="tickRate"/> ticks per second for each acceleration of
     /// <paramref name="accelerations"/>, in m/s², and returns what it says after each tick.
     /// </summary>
-    private static List<(bool Thrusts, double ThrustTime, double QuietTime)> RunClock(
-        double dt,
+    private static List<(bool Thrusts, long ThrustTicks, long QuietTicks)> RunClock(
+        int tickRate,
         IEnumerable<double> accelerations
     )
     {
-        var after = new List<(bool Thrusts, double ThrustTime, double QuietTime)>();
-        (bool Thrusts, double ThrustTime, double QuietTime) clock = (false, 0, 0);
+        var after = new List<(bool Thrusts, long ThrustTicks, long QuietTicks)>();
+        (bool Thrusts, long ThrustTicks, long QuietTicks) clock = (false, 0, 0);
         foreach (double acceleration in accelerations)
         {
             clock = ThrustClock(
                 acceleration: acceleration,
-                thrustTime: clock.ThrustTime,
-                quietTime: clock.QuietTime,
-                dt: dt,
+                thrustTicks: clock.ThrustTicks,
+                quietTicks: clock.QuietTicks,
+                ticks: 1,
+                tickRate: tickRate,
                 options: Options
             );
             after.Add(clock);
@@ -350,47 +348,45 @@ public sealed class NumericFrameRulesTests
 
     [Fact]
     public void A_body_that_thrusts_on_every_tick_counts_from_the_thirtieth_tick_at_60_Hz() =>
-        // Half a second of thrust: 29 ticks of a float sixtieth are 0.4833 s, and 30 are a hair over 0.5 s.
-        RunClock(FloatTick, Ticks(1, 40)).FindIndex(clock => clock.Thrusts).Should().Be(29);
+        // Half a second of thrust: 30 ticks of a sixtieth of a second, counted, not summed: 30 sums of 1.0 / 60 give
+        // 0.49999999999999994 s.
+        RunClock(60, Ticks(1, 40)).FindIndex(clock => clock.Thrusts).Should().Be(29);
 
     [Fact]
     public void A_single_tick_of_thrust_never_counts_however_strong() =>
         // An impulse lasts one tick: 1,000 m/s² over 1/60 s is a kick of 17 m/s.
-        RunClock(FloatTick, Ticks(1_000, 1).Concat(Ticks(0, 60 * 25))).Should().NotContain(clock => clock.Thrusts);
+        RunClock(60, Ticks(1_000, 1).Concat(Ticks(0, 60 * 25))).Should().NotContain(clock => clock.Thrusts);
 
     [Fact]
     public void Thrust_in_pulses_less_than_the_window_apart_adds_up()
     {
         // Two ticks of a quarter second, 19.75 s apart: half a second of thrust within the window of 20 s.
-        List<(bool Thrusts, double ThrustTime, double QuietTime)> after = RunClock(
-            0.25,
+        List<(bool Thrusts, long ThrustTicks, long QuietTicks)> after = RunClock(
+            4,
             Ticks(1, 1).Concat(Ticks(0, 79)).Concat(Ticks(1, 1))
         );
-        after[^2].Should().Be((false, 0.25, 19.75));
-        after[^1].Should().Be((true, 0.5, 0.0));
+        after[^2].Should().Be((false, 1L, 79L));
+        after[^1].Should().Be((true, 2L, 0L));
     }
 
     [Fact]
     public void A_quiet_window_starts_the_clock_again()
     {
-        List<(bool Thrusts, double ThrustTime, double QuietTime)> after = RunClock(
-            0.25,
+        List<(bool Thrusts, long ThrustTicks, long QuietTicks)> after = RunClock(
+            4,
             Ticks(1, 1).Concat(Ticks(0, 80)).Concat(Ticks(1, 1))
         );
-        after[^2].Should().Be((false, 0.0, 0.0), "the quiet time reached the window of 20 s");
-        after[^1].Should().Be((false, 0.25, 0.0), "the next pulse starts from zero");
+        after[^2].Should().Be((false, 0L, 0L), "the quiet ticks reached the window of 20 s");
+        after[^1].Should().Be((false, 1L, 0L), "the next pulse starts from zero");
     }
 
     [Fact]
     public void A_body_keeps_counting_for_the_window_after_its_last_thrust_tick()
     {
-        List<(bool Thrusts, double ThrustTime, double QuietTime)> after = RunClock(
-            0.25,
-            Ticks(1, 2).Concat(Ticks(0, 80))
-        );
+        List<(bool Thrusts, long ThrustTicks, long QuietTicks)> after = RunClock(4, Ticks(1, 2).Concat(Ticks(0, 80)));
         after[1].Thrusts.Should().BeTrue("half a second of thrust");
-        after[80].Should().Be((true, 0.5, 19.75));
-        after[81].Should().Be((false, 0.0, 0.0));
+        after[80].Should().Be((true, 2L, 79L));
+        after[81].Should().Be((false, 0L, 0L));
     }
 
     [Fact]
@@ -398,8 +394,8 @@ public sealed class NumericFrameRulesTests
     {
         // The minimum is 1 mm/s per minute.
         const double minimum = 1e-3 / 60;
-        RunClock(0.25, Ticks(Math.BitDecrement(minimum), 10)).Should().OnlyContain(clock => clock.ThrustTime == 0);
-        RunClock(0.25, Ticks(minimum, 1)).Single().ThrustTime.Should().Be(0.25);
+        RunClock(4, Ticks(Math.BitDecrement(minimum), 10)).Should().OnlyContain(clock => clock.ThrustTicks == 0);
+        RunClock(4, Ticks(minimum, 1)).Single().ThrustTicks.Should().Be(1);
     }
 
     // ---- Options -------------------------------------------------------------------------------------------------
@@ -716,85 +712,134 @@ public sealed class NumericFrameRulesTests
 
     [Fact]
     public void Members_that_are_together_need_no_hold_and_reset_the_clock() =>
-        SplitClock(together: true, apart: 0.5, dt: 0.25, options: Options).Should().Be((false, 0.0));
+        SplitClock(together: true, apart: 2, ticks: 1, tickRate: 4, options: Options).Should().Be((false, 0L));
 
     [Fact]
     public void Members_that_are_apart_are_held_before_the_cooldown() =>
-        SplitClock(together: false, apart: 0, dt: 0.25, options: Options).Should().Be((true, 0.25));
+        SplitClock(together: false, apart: 0, ticks: 1, tickRate: 4, options: Options).Should().Be((true, 1L));
 
     [Fact]
     public void The_split_clock_adds_up_over_sync_points() =>
-        SplitClock(together: false, apart: 0.5, dt: 0.25, options: Options).Should().Be((true, 0.75));
+        SplitClock(together: false, apart: 2, ticks: 1, tickRate: 4, options: Options).Should().Be((true, 3L));
 
     [Fact]
     public void Members_split_when_the_clock_reaches_the_cooldown_and_the_clock_starts_again() =>
-        SplitClock(together: false, apart: 0.75, dt: 0.25, options: Options).Should().Be((false, 0.0));
+        SplitClock(together: false, apart: 3, ticks: 1, tickRate: 4, options: Options).Should().Be((false, 0L));
 
     [Fact]
     public void A_sync_point_without_time_holds_members_that_are_apart() =>
-        SplitClock(together: false, apart: 0, dt: 0, options: Options).Should().Be((true, 0.0));
+        SplitClock(together: false, apart: 0, ticks: 0, tickRate: 4, options: Options).Should().Be((true, 0L));
 
     [Fact]
     public void A_zero_cooldown_splits_at_once() =>
-        SplitClock(together: false, apart: 0, dt: 0, options: Options with { SplitCooldown = 0 })
+        SplitClock(together: false, apart: 0, ticks: 0, tickRate: 4, options: Options with { SplitCooldown = 0 })
             .Should()
-            .Be((false, 0.0));
+            .Be((false, 0L));
 
     // ---- LeaveClock ----------------------------------------------------------------------------------------------
 
     [Fact]
     public void A_body_whose_group_stays_in_the_semantic_system_needs_no_hold_and_resets_its_clock() =>
-        LeaveClock(mode: NumericMode.None, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options)
+        LeaveClock(mode: NumericMode.None, frame: FrameHandle.Null, apart: 2, ticks: 1, tickRate: 4, options: Options)
             .Should()
-            .Be((false, 0.0));
+            .Be((false, 0L));
 
     [Fact]
     public void A_body_whose_group_would_rest_in_a_new_frame_is_held_before_the_cooldown() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0, dt: 0.25, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 0,
+                ticks: 1,
+                tickRate: 4,
+                options: Options
+            )
             .Should()
-            .Be((true, 0.25));
+            .Be((true, 1L));
 
     [Fact]
     public void The_leave_clock_adds_up_over_sync_points() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 2,
+                ticks: 1,
+                tickRate: 4,
+                options: Options
+            )
             .Should()
-            .Be((true, 0.75));
+            .Be((true, 3L));
 
     [Fact]
     public void A_body_is_held_just_below_the_cooldown() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.5, dt: 0.4990234375, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 58,
+                ticks: 1,
+                tickRate: 60,
+                options: Options
+            )
             .Should()
-            .Be((true, 0.9990234375));
+            .Be((true, 59L));
 
     [Fact]
     public void A_body_leaves_when_its_clock_reaches_the_cooldown() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0.75, dt: 0.25, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 59,
+                ticks: 1,
+                tickRate: 60,
+                options: Options
+            )
             .Should()
-            .Be((false, 1.0));
+            .Be((false, 60L));
 
     [Fact]
     public void A_clock_past_the_cooldown_keeps_counting_so_that_another_member_cannot_restart_it() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 1.5, dt: 0.25, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 6,
+                ticks: 1,
+                tickRate: 4,
+                options: Options
+            )
             .Should()
-            .Be((false, 1.75));
+            .Be((false, 7L));
 
     [Fact]
     public void A_sync_point_without_time_holds_a_body_about_to_leave() =>
-        LeaveClock(mode: NumericMode.Resting, frame: FrameHandle.Null, apart: 0, dt: 0, options: Options)
+        LeaveClock(
+                mode: NumericMode.Resting,
+                frame: FrameHandle.Null,
+                apart: 0,
+                ticks: 0,
+                tickRate: 4,
+                options: Options
+            )
             .Should()
-            .Be((true, 0.0));
+            .Be((true, 0L));
 
     [Fact]
     public void A_body_whose_group_falls_leaves_at_once() =>
-        LeaveClock(mode: NumericMode.Falling, frame: FrameHandle.Null, apart: 0.5, dt: 0.25, options: Options)
+        LeaveClock(
+                mode: NumericMode.Falling,
+                frame: FrameHandle.Null,
+                apart: 2,
+                ticks: 1,
+                tickRate: 4,
+                options: Options
+            )
             .Should()
-            .Be((false, 0.0));
+            .Be((false, 0L));
 
     [Fact]
     public void A_body_whose_group_joins_a_numeric_frame_merges_at_once() =>
-        LeaveClock(mode: NumericMode.Resting, frame: Pod, apart: 0.5, dt: 0.25, options: Options)
+        LeaveClock(mode: NumericMode.Resting, frame: Pod, apart: 2, ticks: 1, tickRate: 4, options: Options)
             .Should()
-            .Be((false, 0.0));
+            .Be((false, 0L));
 
     // ---- Summarize -----------------------------------------------------------------------------------------------
 

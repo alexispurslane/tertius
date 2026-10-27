@@ -29,12 +29,12 @@ internal struct Puff
     /// its frame, lifted and slowed by the frame's medium. Where the medium fills the puff's place, the lift share is the
     /// puff's temperature ratio, which moves from the look's temperature ratio at its birth to 1 at the end of its life by
     /// its own share, and the drag is the medium's drag times the lift share. Elsewhere both are 0, so the puff moves as a
-    /// free body. The age grows by the step, as a float.
+    /// free body. The age grows by the step, rounded to a float.
     /// </summary>
     /// <param name="step">What the last finished step of the puff's frame does to a loose body in it.</param>
     /// <param name="look">The puff's look.</param>
-    /// <param name="dt">The length of the step, in s: the World's float step.</param>
-    public readonly Puff Stepped(in LooseBodyStep step, in PuffLook look, float dt)
+    /// <param name="dt">The length of the step, in s.</param>
+    public readonly Puff Stepped(in LooseBodyStep step, in PuffLook look, double dt)
     {
         double lift = 0;
         if (step.Medium.Fills(Place))
@@ -49,7 +49,7 @@ internal struct Puff
         {
             Place = Place + chord * dt,
             Chord = chord,
-            Age = Age + dt,
+            Age = Age + (float)dt,
             Look = Look,
         };
     }

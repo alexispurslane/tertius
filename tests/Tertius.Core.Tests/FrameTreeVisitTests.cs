@@ -74,7 +74,7 @@ public sealed class FrameTreeVisitTests
             Character = true,
             OwnedFrame = hull,
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: _ => { });
+        frames.UpdateNumericFrames(bodies: [body], ticks: 1, tickRate: 10, changes: new(), applyMoves: _ => { });
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         return (ground, hull, pod);

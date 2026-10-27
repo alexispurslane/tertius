@@ -67,8 +67,8 @@ public sealed class FrameTreeOwnerViewStampTests
         FrameHandle after = physicsHome;
         frames.UpdateNumericFrames(
             bodies: [body],
-            dt: 0.1,
-            step: 0.1,
+            ticks: 1,
+            tickRate: 10,
             changes: new(),
             applyMoves: moves =>
             {

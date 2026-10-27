@@ -178,8 +178,8 @@ internal sealed class PuffTable
     /// drops the range and records an error.
     /// </summary>
     /// <param name="tick">The tick of the sync point, later than the tick of the last step.</param>
-    /// <param name="dt">The length of the step, in s: the World's float step.</param>
-    public void Step(long tick, float dt)
+    /// <param name="dt">The length of the step, in s.</param>
+    public void Step(long tick, double dt)
     {
         Contract.Requires(tick > lastStepTick);
         lastStepTick = tick;
@@ -266,8 +266,6 @@ internal sealed class PuffTable
             end = SliceStart(slice + 1);
         Span<Puff> all = rows.AsSpan(0, Count);
         ReadOnlySpan<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
-        // The float step that Step widened into the double step, back as it came: the narrowing of a widened float is exact.
-        float dt = (float)step;
         int write = start,
             dead = start;
         for (int r = RangeOf(list, start); r < list.Length && list[r].Start < end; r++)
@@ -280,7 +278,7 @@ internal sealed class PuffTable
                 for (int i = from; i < to; i++)
                 {
                     ref readonly PuffLook look = ref Looks[all[i].Look];
-                    Puff next = all[i].Stepped(in loose, in look, dt);
+                    Puff next = all[i].Stepped(in loose, in look, step);
                     if (next.Age < look.Life)
                         all[write++] = next;
                     else
@@ -399,8 +397,8 @@ internal sealed class PuffTable
     /// capacity, the oldest survivors die first. The rebuild then puts each frame's newborns at the end of its range.
     /// </summary>
     /// <param name="tick">The tick of the sync point, whose <see cref="Step"/> ran before.</param>
-    /// <param name="dt">The length of the step, in s: the World's float step.</param>
-    public void AddNewborns(long tick, float dt)
+    /// <param name="dt">The length of the step, in s.</param>
+    public void AddNewborns(long tick, double dt)
     {
         Contract.Requires(lastStepTick == tick);
         if (Capacity == 0)
@@ -465,7 +463,7 @@ internal sealed class PuffTable
     /// of the first of them (see <see cref="PuffBirths.FirstLiving"/>). <paramref name="next"/> is the birth phase where the
     /// next step starts.
     /// </summary>
-    private static long Living(in PuffEmitter emitter, double phase, float dt, out long first, out double next)
+    private static long Living(in PuffEmitter emitter, double phase, double dt, out long first, out double next)
     {
         long made = PuffBirths.Count(phase: phase, rate: emitter.Rate, dt: dt, next: out next);
         first = PuffBirths.FirstLiving(count: made, phase: phase, rate: emitter.Rate, dt: dt, life: emitter.Look.Life);
@@ -480,7 +478,7 @@ internal sealed class PuffTable
         long first,
         long last,
         long tick,
-        float dt
+        double dt
     )
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
@@ -574,7 +572,7 @@ internal sealed class PuffTable
         dropsAtEdge = 0;
         if (drop == 0 || dropAll)
             return;
-        // Every step adds the same float step to every age, so the order of the ages is the order of the births.
+        // Every step adds the same step, rounded to a float, to every age, so the order of the ages is the order of the births.
         Span<float> sorted = Scratch(ref ages, Count);
         for (int i = 0; i < Count; i++)
             sorted[i] = rows[i].Age;

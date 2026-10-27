@@ -189,7 +189,7 @@ public sealed partial class World
         //     changes of this sync reach physics with the update's first batch, so that a spawn that joins a numeric frame
         //     is created in it, with its velocity converted in doubles.
         if (Physics != null)
-            UpdateNumericFrames(DeltaTime);
+            UpdateNumericFrames(ticks: 1);
         FlushPhysicsChanges();
         Profile.Lap(11);
 

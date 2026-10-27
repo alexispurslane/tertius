@@ -231,7 +231,7 @@ public sealed class FrameTreeBeginStepTests
             Character = true,
             OwnedFrame = ship,
         };
-        frames.UpdateNumericFrames(bodies: [hull], dt: 0.1, step: Step, changes: new(), applyMoves: _ => { });
+        frames.UpdateNumericFrames(bodies: [hull], ticks: 6, tickRate: 60, changes: new(), applyMoves: _ => { });
         frames.IsNumeric(frames.TreeParent(ship)).Should().BeTrue();
 
         frames.Update();
@@ -850,8 +850,8 @@ public sealed class FrameTreeBeginStepTests
         };
         frames.UpdateNumericFrames(
             bodies: [ball],
-            dt: Step,
-            step: Step,
+            ticks: 1,
+            tickRate: 60,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );
@@ -904,8 +904,8 @@ public sealed class FrameTreeBeginStepTests
         };
         frames.UpdateNumericFrames(
             bodies: [body],
-            dt: 0.1,
-            step: 0.1,
+            ticks: 1,
+            tickRate: 10,
             changes: new(),
             applyMoves: moves => home = moves.Single().To
         );

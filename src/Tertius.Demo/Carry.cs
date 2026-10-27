@@ -130,7 +130,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         // Stryker disable once Arithmetic : while ChargeSeconds is 1, dividing by it and multiplying by it give the same speed.
         float speed = MathF.Min(
             MaxThrowSpeed,
-            MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds
+            MaxThrowSpeed * (self.Tick - chargeStart) * (float)self.DeltaTime / ChargeSeconds
         );
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;

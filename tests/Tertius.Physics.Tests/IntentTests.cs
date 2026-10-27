@@ -147,8 +147,11 @@ public sealed class IntentTests
                 );
                 (pose.Position - target.Position).Length.Should().BeLessThan(1e-4, "{0} ends at its target", entity);
                 Math.Abs(Dot(pose.Rotation, target.Rotation)).Should().BeGreaterThan(1 - 1e-5);
-                world.VelocityInOwnFrame(entity).X.Should().BeApproximately(0.5f / world.DeltaTime, 1e-3f);
-                world.AngularVelocityInOwnFrame(entity).Y.Should().BeApproximately(0.1f / world.DeltaTime, 1e-3f);
+                world.VelocityInOwnFrame(entity).X.Should().BeApproximately(0.5f / (float)world.DeltaTime, 1e-3f);
+                world
+                    .AngularVelocityInOwnFrame(entity)
+                    .Y.Should()
+                    .BeApproximately(0.1f / (float)world.DeltaTime, 1e-3f);
             }
 
             world.Errors.Should().BeEmpty();
@@ -166,7 +169,7 @@ public sealed class IntentTests
             Send(world, pilot, body => body.AddTorque(new(0, 12, 0)));
             world.Tick();
             // α = τ / I = 12 / 0.2 = 60 rad/s², for one step.
-            world.AngularVelocityInOwnFrame(ball).Y.Should().BeApproximately(60 * world.DeltaTime, 5e-4f);
+            world.AngularVelocityInOwnFrame(ball).Y.Should().BeApproximately(60 * (float)world.DeltaTime, 5e-4f);
             world.Errors.Should().BeEmpty();
         }
     }
@@ -227,7 +230,7 @@ public sealed class IntentTests
             DPose pose = world.PoseInOwnFrame(mover);
             (pose.Position - target.Position).Length.Should().BeLessThan(1e-5);
             Math.Abs(Dot(pose.Rotation, target.Rotation)).Should().BeGreaterThan(1 - 1e-6);
-            world.VelocityInOwnFrame(mover).X.Should().BeApproximately(0.5f / world.DeltaTime, 5e-3f);
+            world.VelocityInOwnFrame(mover).X.Should().BeApproximately(0.5f / (float)world.DeltaTime, 5e-3f);
 
             Tick(world, 10);
             (world.PoseInOwnFrame(mover).Position - target.Position).Length.Should().BeLessThan(1e-5);
@@ -286,7 +289,7 @@ public sealed class IntentTests
             .Be(sent.ProperAcceleration!.Value, "a dynamic hull takes the proper acceleration that physics measured");
         world.Frames.LinearVelocity(ship).Z.Should().BeApproximately(2, 5e-5);
         // An impulse is a jolt: the accelerometer sees Δv / dt for that one step.
-        world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / world.DeltaTime, 0.05f);
+        world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / (float)world.DeltaTime, 0.05f);
         world.Tick();
         world.Frames.ProperAcceleration(ship).Length().Should().BeLessThan(1e-3f);
         world.Errors.Should().BeEmpty();

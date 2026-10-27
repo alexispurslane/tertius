@@ -75,7 +75,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     // The intents that the current step applies, by entity slot (see PhysicsStepContext.Intents). Valid during a step only.
     private ReadOnlyMemory<PhysicsIntent> stepIntents;
     private long stepIndex;
-    private float stepDt;
+    private double stepDt;
     private bool disposed;
 
     // The list that takes the messages of ReportBug: the errors of the change batch or of the step output that the backend

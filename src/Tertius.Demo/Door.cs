@@ -104,7 +104,7 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
         FrameTree frames = self.Snapshot.Frames;
         if (!frames.IsAlive(closedFrame))
             return;
-        float step = self.DeltaTime / openSeconds;
+        float step = (float)self.DeltaTime / openSeconds;
         openness = opening ? MathF.Min(openness + step, 1) : MathF.Max(openness - step, 0);
         // An end pose moves the body there over the next step, and stops it there. It is relative to the frame that the
         // door is in.

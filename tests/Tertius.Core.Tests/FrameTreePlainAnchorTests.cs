@@ -100,8 +100,8 @@ public sealed class FrameTreePlainAnchorTests
         moves = [];
         frames.UpdateNumericFrames(
             bodies: bodies,
-            dt: Step,
-            step: Step,
+            ticks: 1,
+            tickRate: 60,
             changes: changes,
             applyMoves: handed =>
             {

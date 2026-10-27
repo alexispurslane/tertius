@@ -76,7 +76,7 @@ public sealed partial class World : IDisposable
         EngineEvents.Register();
         ComponentTypes.ScanLoadedAssemblies();
         Physics = physics;
-        DeltaTime = 1f / Options.TickRate;
+        DeltaTime = 1.0 / Options.TickRate;
         Time = Options.StartTime;
         parallelOptions = new() { MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
@@ -127,8 +127,8 @@ public sealed partial class World : IDisposable
     /// <summary>Simulation time, in seconds. During a tick, the time at the start of the tick.</summary>
     public double Time { get; private set; }
 
-    /// <summary>The fixed time step, in seconds.</summary>
-    public float DeltaTime { get; }
+    /// <summary>The fixed time step, in seconds: 1 / <see cref="WorldOptions.TickRate"/>, rounded once to a double.</summary>
+    public double DeltaTime { get; }
 
     /// <summary>The blueprints that <see cref="Spawn(string, FrameHandle, in DPose)"/> and
     /// <see cref="Self.Spawn(string, FrameHandle, in DPose)"/> use.</summary>

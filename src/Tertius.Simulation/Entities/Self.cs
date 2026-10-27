@@ -32,7 +32,7 @@ public readonly ref struct Self
     public long Tick => world.TickNumber;
 
     /// <summary>The fixed time step, in seconds.</summary>
-    public float DeltaTime => world.DeltaTime;
+    public double DeltaTime => world.DeltaTime;
 
     /// <summary>Simulation time at the start of this tick, in seconds.</summary>
     public double Time => world.Time;
