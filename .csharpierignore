@@ -2,6 +2,7 @@
 # so it reports syntax errors and leaves each file as it was. tools/cleanup.sh still applies the Roslyn fixes to them.
 # Remove a line when a CSharpier release parses the file.
 src/Tertius.Core/Seams/PhysicsSeam.cs
+src/Tertius.Host/ScriptCommand.HeadlessVideo.cs
 src/Tertius.Host/Scripting/CaptureTarget.cs
 src/Tertius.Host/Scripting/Script.cs
 src/Tertius.Host/Scripting/ScriptRunner.cs
