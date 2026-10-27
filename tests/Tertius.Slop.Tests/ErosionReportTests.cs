@@ -94,11 +94,54 @@ public sealed class ErosionReportTests
             .Equal(("src/A.cs", 3), ("src/A.cs", 9), ("src/B.cs", 1));
     }
 
+    [Fact]
+    public void TheHighCcFunctionsAreEveryFunctionAboveTheLimitFromHeaviestDown()
+    {
+        // CC 10 to 22: twelve functions above the limit, more than the top functions hold, and one at the limit.
+        FunctionMeasure[] functions = [.. Enumerable.Range(10, 13).Select(complexity => Measure(complexity, sloc: 4))];
+
+        ErosionReport
+            .Of(functions, sloc: 52, fileCount: 1)
+            .HighCcFunctions.Select(function => function.Complexity)
+            .Should()
+            .Equal(22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11);
+    }
+
+    [Fact]
+    public void HighCcFunctionsOfEqualMassAreOrderedByFileThenLine()
+    {
+        FunctionMeasure[] functions =
+        [
+            Measure(complexity: 11, sloc: 4) with
+            {
+                File = "src/B.cs",
+                Line = 1,
+            },
+            Measure(complexity: 11, sloc: 4) with
+            {
+                File = "src/A.cs",
+                Line = 9,
+            },
+            Measure(complexity: 11, sloc: 4) with
+            {
+                File = "src/A.cs",
+                Line = 3,
+            },
+        ];
+
+        ErosionReport
+            .Of(functions, sloc: 12, fileCount: 2)
+            .HighCcFunctions.Select(function => (function.File, function.Line))
+            .Should()
+            .Equal(("src/A.cs", 3), ("src/A.cs", 9), ("src/B.cs", 1));
+    }
+
     private static FunctionMeasure Measure(int complexity, int sloc) =>
         new()
         {
             File = "src/T.cs",
             Line = 1,
+            EndLine = 1,
             Name = "C.F",
             Complexity = complexity,
             Sloc = sloc,

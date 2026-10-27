@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Tertius.Slop.History;
 
 /// <summary>
@@ -11,18 +13,20 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
     // that many commits shows the metrics of the tip only.
     private const int NoteSearchDepth = 500;
 
-    /// <summary>Prints the note of the tree <paramref name="tree"/>, measured now, as the pre-commit hook does.</summary>
-    public void Measure(string tree, string branch, NoteSource source) =>
+    /// <summary>
+    /// Prints the note of the tree <paramref name="tree"/>, measured now, as the pre-commit hook does. With a
+    /// <paramref name="details"/> path, it also writes the whole report of the tree there as JSON, as the
+    /// <c>all</c> command prints it, for the commit report.
+    /// </summary>
+    public void Measure(string tree, string branch, NoteSource source, string? details)
+    {
+        SlopReport report = repository.Measure(tree, jscpd);
+        if (details is not null)
+            File.WriteAllText(details, JsonSerializer.Serialize(report, SlopJson.Default.SlopReport));
         output.WriteLine(
-            SlopNote
-                .Of(
-                    report: repository.Measure(tree, jscpd),
-                    branch: branch,
-                    source: source,
-                    measured: DateTimeOffset.UtcNow
-                )
-                .ToLine()
+            SlopNote.Of(report: report, branch: branch, source: source, measured: DateTimeOffset.UtcNow).ToLine()
         );
+    }
 
     /// <summary>
     /// Notes each commit on the first-parent line after <paramref name="from"/> up to <paramref name="tip"/> that has

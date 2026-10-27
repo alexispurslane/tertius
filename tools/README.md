@@ -143,18 +143,20 @@ The command line is `Tertius.Slop <metric> [root] [--text]`. The metric is a sub
 
 A function is a method, a constructor, a destructor, an operator, an accessor with a body, an expression-bodied property or indexer, or a local function. A lambda counts toward the function that holds it. A local function is its own function.
 
-The JSON of `erosion` holds `erosion`, `totalMass`, `highCcMass`, `functionCount`, `highCcFunctionCount`, `sloc` (every line of code in `src/`, inside functions or not), `fileCount`, and `topFunctions`: the 10 functions of the greatest mass, each with `file`, `line`, `name`, `cc`, `sloc` and `mass`.
+The JSON of `erosion` holds `complexityLimit` (10), `erosion`, `totalMass`, `highCcMass`, `functionCount`, `highCcFunctionCount`, `sloc` (every line of code in `src/`, inside functions or not), `fileCount`, `topFunctions` and `highCcFunctions`. `topFunctions` holds the 10 functions of the greatest mass. `highCcFunctions` holds every function with CC above 10, the greatest mass first. Each function has `file`, `line` (the first line after its attributes), `endLine` (the line of its closing brace or semicolon), `name`, `cc`, `sloc` and `mass`. Functions of equal mass are ordered by file, then by line.
 
 ### Verbosity
 
 The verbosity is the number of lines that a rule flags or that jscpd finds in a clone, divided by the SLOC of `src/`. A line counts once, however many findings and clones cover it. A blank line never counts. It goes from 0 to 1, and less is better.
 
-- A clone line is a line of either copy of a clone that jscpd finds in `src/`, with the settings of the commit report: `--format csharp --min-tokens 70 --mode mild`. The program runs the `jscpd` of the search path, which the dev shell has. Without it, `verbosity` and `all` print a message and exit with code 2.
+- A clone line is a line of either copy of a clone that jscpd finds in `src/`, with the settings `--format csharp --min-tokens 70 --mode mild`. The program runs the `jscpd` of the search path, which the dev shell has. Without it, `verbosity` and `all` print a message and exit with code 2.
 - A flagged line is a line that a finding covers. A rule reads the syntax of one node and flags a span of the source. A finding covers every line of its span, not only the first line. The whole span is the code that the rewrite removes or replaces. Five rules flag lines without code: a comment that repeats the code under it, a doc comment that repeats a name, commented-out code, a TODO without a ticket, and a `#region`. Those lines count too.
 - There are 48 rules: the C# forms of the slop rules of [scb-check](https://github.com/gabeorlanski/scb-check), and 20 rules of the user's. Each rule has an id, a message that says what to write instead, and its source. Decision 17 lists them, and the rules that the program leaves out, with the reasons.
 - Five rules ask where a name is used: low-use-short-function, constant-argument, unused-optional-parameter, single-implementation-interface and unused-code. They read the uses in the syntax of `src/`, and the names in the files outside `src/` as text. A name is matched by its text, so two members with one name share their uses. Thus such a rule flags less, never more.
 
-The JSON of `verbosity` holds `verbosity`, `verboseLines`, `flaggedLines`, `cloneLines`, `sloc`, `fileCount`, `rules` and `topFindings`. `rules` holds every rule, ordered by id. Each one has its `id`, `message` and `source`, the number of its `findings`, and the number of `lines` that they cover. `topFindings` holds the 20 findings that cover the most lines, each with `rule`, `file`, `line` and `endLine`. The JSON of `all` holds the two reports as `erosion` and `verbosity`.
+The JSON of `verbosity` holds `verbosity`, `verboseLines`, `flaggedLines`, `cloneLines`, `sloc`, `fileCount`, `rules`, `findings`, `clones` and `topFindings`. `rules` holds every rule, ordered by id. Each one has its `id`, `message` and `source`, the number of its `findings`, and the number of `lines` that they cover. `findings` holds every finding, ordered by file and then in the order of the source, each with `rule`, `file`, `line` and `endLine`. `clones` holds every clone, each with its `first` and `second` copy, and each copy with `file`, `line` and `endLine`. The clones are ordered by the file and line of the first copy, then of the second. `topFindings` holds the 20 findings of `findings` that cover the most lines. The JSON of `all` holds the two reports as `erosion` and `verbosity`.
+
+Every `file` is the path in the repository, such as `src/Tertius.Core/World.cs`, so that the commit report can match it with the lines of the staged diff.
 
 ### History
 
@@ -166,7 +168,7 @@ The git hooks keep the metrics of each commit in a git note under `refs/notes/sl
 
 The source is `pre-commit`, `pre-push` or `seed`. Four commands of the tool write and read the notes. `-C <folder>` before a command runs it in that repository.
 
-- `measure <tree> --branch <name> --source <source>` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use.
+- `measure <tree> --branch <name> --source <source> [--details <file>]` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use. With `--details`, it also writes the JSON of `all` for the tree to the file. The pre-commit hook gives that file to the commit report ("Before a commit" below). The note on the output stays one line.
 - `note <from> <tip> --branch <name> --source <source>` attaches notes to the first-parent commits after `<from>` up to `<tip>`. It notes `<tip>`, and each commit that changes C# code under `src` and has no note.
 - `history [git log options and revisions]` prints the noted commits as CSV, newest first. The columns are commit, date, branch, tickets, erosion, verbosity and sloc. The tickets are the ticket ids in the commit message.
 - `summary <from> <tip>` prints the summary of the pre-push hook.
@@ -362,9 +364,14 @@ The folder `.githooks/` holds three git hooks. At its start, the dev shell sets 
 The pre-commit hook runs on every commit that stages C# files or projects. A commit with no such file, such as a ticket note, skips it. The hook changes no file in the working tree. It does four things:
 
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
-2. It prints a report for the changed lines only: the duplicated blocks (jscpd) and the methods over the complexity limit (CA1502) or the length limit (MA0051). Test code gets the length limit only. If the report names anything, it ends with a prompt to refactor that code in the same commit. The report never stops the commit.
-3. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit. The hook skips a test project that has a test record for the staged code ("The test record" below).
-4. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
+2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit. The hook skips a test project that has a test record for the staged code ("The test record" below).
+3. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure --details`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
+4. After the measure ends, it prints the commit report (`tools/commit_report.py`) for the changed lines only. The report never stops the commit. It has three parts:
+   - Length: the methods over the length limit (MA0051), in `src` and in `tests`.
+   - Erosion: the erosion of the staged tree, and its change against the note of the parent commit. Under it, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
+   - Verbosity: the verbosity of the staged tree, and its change against the note of the parent commit. Under it, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
+
+   If the parent commit has no note, or its note does not parse, the erosion and the verbosity show their values without a change. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test stops the commit before the report.
 
 The tests of the changed code are:
 
@@ -382,7 +389,7 @@ The hook does not build or test the projects downstream of a change. Run `tools/
 
 If a staged file also holds unstaged changes, the hook says so. The build and the tests see the working tree, not only the staged changes.
 
-A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the complexity and length results from there. The limits are in `analyzers/CodeMetricsConfig.txt` (complexity) and `.editorconfig` (MA0051).
+A changed line is a line that the staged diff adds or edits. Each compile writes its diagnostics to `obj/<configuration>/<framework>/analyzers.sarif`, and the report reads the length results from there. The length limit is in `.editorconfig` (MA0051). The erosion and the verbosity measure only `src`, so the report names no complexity or clone in `tests`. The complexity of the report is the erosion's own CC with its limit of 10, so the build's CA1502 is off.
 
 ### The test record
 
@@ -392,7 +399,7 @@ A test record says that every test of one test project passed on one exact versi
 2. The stamp. After each build of a test project, the target `StampCodeTree` in `Directory.Build.targets` writes the code hash to `code-tree.txt` next to the test assembly. A run with `--no-build` tests the binaries of the last build, and the stamp holds the code hash of that build.
 3. The record. Every test project loads the test platform extension in `tools/Tertius.TestRecord` (`Directory.Build.props`). After a full run with at least one passed test and no failed test, the extension copies the hash from the stamp to `tertius-tested/<configuration>/<test project>` in the git folder. A full run with a failed test deletes the record. A run with a `--filter-*`, `--treenode-filter`, `--list-tests` or `--explicit` option, or with a response file, is not full and leaves the record as it was.
 
-The pre-commit hook computes the staged code hash. For each test project that it must run, it reads the Checked record. If the record holds the staged code hash, the hook prints a line and skips that project. The build and the code report still run.
+The pre-commit hook computes the staged code hash. For each test project that it must run, it reads the Checked record. If the record holds the staged code hash, the hook prints a line and skips that project. The build, the slop metrics and the commit report still run.
 
 So any full Checked run just before the commit lets the commit skip its tests:
 

@@ -40,6 +40,9 @@ public sealed record Function(SyntaxNode Node)
             .GetLineSpan()
             .StartLinePosition.Line + 1;
 
+    /// <summary>The last line of the declaration, from 1: the line of its closing brace or semicolon.</summary>
+    public int EndLine => Node.GetLocation().GetLineSpan().EndLinePosition.Line + 1;
+
     /// <summary>The nodes that the function owns: its descendants, but not those of its local functions.</summary>
     public IEnumerable<SyntaxNode> OwnNodes =>
         Node.DescendantNodes(descendIntoChildren: node => node == Node || node is not LocalFunctionStatementSyntax)
@@ -55,6 +58,7 @@ public sealed record Function(SyntaxNode Node)
         {
             File = file,
             Line = Line,
+            EndLine = EndLine,
             Name = Name,
             Complexity = Complexity,
             Sloc = Sloc,

@@ -184,4 +184,22 @@ public sealed class FunctionTests
     [Fact]
     public void AMeasureCarriesTheFileThatItWasTakenFrom() =>
         Source.Functions("class C { void F() { } }").Should().ContainSingle().Which.File.Should().Be(Source.FileName);
+
+    [Fact]
+    public void AFunctionEndsOnTheLastLineOfItsDeclaration() =>
+        Source
+            .Functions(
+                """
+                class C
+                {
+                    void F()
+                    {
+                    }
+                    int G() => 1;
+                }
+                """
+            )
+            .Select(function => (function.Line, function.EndLine))
+            .Should()
+            .Equal((3, 5), (6, 6));
 }
