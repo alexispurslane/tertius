@@ -170,7 +170,7 @@ public sealed class PenClipTests : IDisposable
         world = NewJoltWorld(tickRate: 49);
         Board();
 
-        WorldTesting.TickUntil(world, () => ClipOf().State.Value is Clipped { WeightlessTicks: 48 }, limit: 120);
+        TickUntil(world, () => ClipOf().State.Value is Clipped { WeightlessTicks: 48 }, limit: 120);
         ClipOf().State.Value.Should().BeOfType<Clipped>().Which.WeightlessTicks.Should().Be(48);
         world.Tick();
 
