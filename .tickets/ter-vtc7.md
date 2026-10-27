@@ -1,7 +1,7 @@
 ---
 id: ter-vtc7
 status: open
-deps: []
+deps: [ter-a24f]
 links: []
 created: 2026-10-27T03:59:20Z
 type: bug
