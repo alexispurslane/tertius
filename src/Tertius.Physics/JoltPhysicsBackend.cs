@@ -263,7 +263,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
     /// character in either form, also one in the rigid form that sleeps, plus one last report for a body that fell asleep.
-    /// Velocities are at the center of mass, and each is Jolt's: the chord of the last step, its displacement divided by
+    /// Each linear velocity is that of the body's origin, from Jolt's: the chord of the last step, its displacement divided by
     /// the step, which is the velocity half a step earlier. Both forms of a character store that chord.
     /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, in either form, after the hand-offs, with
     /// whether physics stood it in this step. A character that a hand-off moved has not stood in its new frame yet, and a
@@ -1060,8 +1060,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (OwnerRecord(frame) is { Motion: BodyMotion.Dynamic, HasPrimary: true, Character: null } hull)
         {
             BodySnapshot s = ReadPrimary(hull);
-            // Jolt's velocity is at the center of mass. The frame origin is the body origin.
-            Double3 chord = s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
+            // The frame origin is the body origin.
+            Double3 chord = s.OriginVelocity;
             Double3 acceleration = hull.StepAcceleration;
             // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
             // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see

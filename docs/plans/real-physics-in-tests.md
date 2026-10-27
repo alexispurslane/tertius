@@ -45,7 +45,7 @@ These gaps hold between the fakes and Jolt:
 | Which bodies report | Every body, every step | Awake bodies. A body that comes to rest sends one last report. |
 | Frame states | One every tick | No test makes sure that a frame keeps its state on a tick with no report. |
 | Rotation | Never reported | Reported after the first spin or collision |
-| Velocity | Nothing states which point of the body the velocity belongs to. | The velocity of the center of mass, which the World reads as the velocity of the origin. See "The velocity point". |
+| Velocity | Nothing states which point of the body the velocity belongs to. | The velocity of the origin, which the backend converts from and to Jolt's velocity of the center of mass. See "The velocity point". |
 | Change batches | Tests read the lists, never the frame tree that comes with them. | Jolt needs the frame in the tree. |
 | A batch that partly fails | Never happens | Can leave some entities without a Jolt body |
 | Intents | `FakePhysics` adds impulses first, then sets the velocity. | Jolt sets the velocity first, then adds impulses. |
@@ -119,31 +119,38 @@ A test that scripted a hand-off now builds a scene that causes one, for example 
 
 ### The velocity point
 
-Jolt reports the position of a body's origin, but the velocity of its center of mass:
+Jolt keeps the velocity of a body's center of mass, but the pose that it reports names the body's origin. The seam carries the velocity of the origin, the point that the pose names, in every direction (`IPhysicsBackend` in `PhysicsSeam.cs`, ticket ter-jkqr). So the Jolt backend converts at each place where a body velocity crosses the seam:
 
 ```csharp
-bodies.GetRPosition(record.Body, out RVector3 origin);
-bodies.GetRCenterOfMassPosition(record.Body, out RVector3 centerOfMass);
-bodies.GetLinearAndAngularVelocity(record.Body, out Vector3 linear, out Vector3 angular);
+private static Double3 PointVelocity(Double3 velocity, Double3 angular, Double3 offset) =>
+    velocity + Double3.Cross(angular, offset);
 ...
-return new BodySnapshot(new DPose(origin.ToDouble3(), rotation.ToDouble()), centerOfMass.ToDouble3(), linear, angular);
-...
-BodySnapshot s = ReadPrimary(record);
-output.Bodies.Add(new BodyState(record.Entity, record.Frame, s.Pose, s.Linear, s.Angular));
+public Double3 OriginVelocity => PointVelocity(Linear, Angular, Pose.Position - CenterOfMass);
 ```
 
 where
 
-- `origin` = the position of the body's origin in its frame, in meters.
-- `centerOfMass` = the position of the body's center of mass in its frame, in meters.
-- `linear` = the velocity of the center of mass in frame axes, in meters per second.
-- `angular` = the angular velocity in frame axes, in radians per second.
-- `ReadPrimary` = reads this snapshot for one body.
-- `BodyState` = the state of one body that the World receives. It gets `s.Linear`, the velocity of the center of mass.
+- `PointVelocity` = the velocity of the point of a rigid body at `offset` from a point whose velocity is `velocity`.
+- `angular` = the body's angular velocity in frame axes, in radians per second.
+- `offset` = the place of the second point relative to the first, in frame axes, in meters.
+- `OriginVelocity` = the velocity of the body's origin, from one `BodySnapshot`: what Jolt holds for one body.
+- `Linear` and `Angular` = Jolt's velocity of the center of mass and Jolt's angular velocity.
+- `Pose.Position` and `CenterOfMass` = the places of the body's origin and of its center of mass in its frame.
 
-The World reads that velocity as the velocity of the origin. One example is the rehome of an entity. The two points are the same for a box or a sphere. A spinning body can have its center of mass away from its origin. For such a body, the World's velocity is wrong by the angular velocity times the offset. The round six reviewer measured an error of 1.5 m/s. The hull spun at 0.5 rad/s, with its center of mass 3 m from its origin.
+The places:
 
-The fix makes `PhysicsSeam.cs` state that every velocity belongs to the origin, the point that the pose names. The backend converts the velocity in both directions: in every report, and in body creation and intents.
+| Place | Direction | What it does |
+|---|---|---|
+| `Report`, the `BodyState` of each body | Out | `OriginVelocity`. A plain kinematic body that a motion intent aimed reports the record's velocity, which is the origin's already. |
+| `ExecuteHandOff`, the `HandOff` | Out | `OriginVelocity` of the body in its new frame |
+| `HullRecordOf`, a dynamic hull's step record | Out | `OriginVelocity`, as before: the frame's origin is the hull's origin |
+| The creation of a body from a `BodyCreate` | In | Adds the spawn's angular velocity times the offset of the center of mass from the origin |
+| `CreateHullFromTree` | In | The same, from the frame tree's velocities, as before |
+| `ApplyBodyIntent`, a `SetVelocity` | In | The same, with the angular velocity that the same intent sets, or else the body's angular velocity in Jolt |
+
+A `SetAngularVelocity` alone keeps Jolt's velocity of the center of mass, as an angular impulse does, so the body turns about its center of mass. Every other path inside the backend keeps Jolt's velocity of the center of mass, which never leaves the backend: the moves between systems, the shifts of numeric frames, the growth of a system, the ghosts, the chords and the contacts. A character never turns in Jolt and has its center of mass at its origin, so its velocity takes no conversion.
+
+Before the fix, the World read Jolt's velocity of the center of mass as the velocity of the origin. For a spinning body, it was wrong by the angular velocity times the offset: 1.5 m/s on a body that spun at 0.5 rad/s, with its center of mass 3 m from its origin. The tests are in `tests/Tertius.Physics.Tests/OriginVelocityTests.cs`. A body whose center of mass is its origin, such as a box, reports Jolt's velocity bit for bit.
 
 ### One command for both builds
 
