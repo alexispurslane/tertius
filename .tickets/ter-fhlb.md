@@ -1,6 +1,6 @@
 ---
 id: ter-fhlb
-status: open
+status: in_progress
 deps: [ter-a24f]
 links: []
 created: 2026-10-26T20:50:21Z
