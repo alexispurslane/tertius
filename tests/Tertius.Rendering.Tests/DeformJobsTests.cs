@@ -107,33 +107,4 @@ public sealed class DeformJobsTests
 
         Enumerable.Range(0, (int)groups).Should().OnlyContain(group => DeformPass.JobOf(records, (uint)group) == 0);
     }
-
-    [Theory]
-    [InlineData(1u)]
-    [InlineData(4_096u)]
-    [InlineData(65_535u)]
-    public void GridOfAtMostTheLeastMaxWorkgroupCountIsOneRow(uint groups) =>
-        DeformPass.Grid(groups).Should().Be((groups, 1u));
-
-    [Theory]
-    [InlineData(65_536u, 32_768u, 2u)]
-    [InlineData(196_606u, 49_152u, 4u)]
-    [InlineData(200_000u, 50_000u, 4u)]
-    public void GridPastTheLeastMaxWorkgroupCountTakesAsFewRowsAsHoldIt(uint groups, uint x, uint y) =>
-        DeformPass.Grid(groups).Should().Be((x, y));
-
-    [Theory]
-    [InlineData(65_536u)]
-    [InlineData(196_606u)]
-    [InlineData(4_194_240u)]
-    [InlineData(70_000_000u)]
-    public void GridStaysWithinEveryDeviceAndEndsLessThanOneRowPastTheLastWorkgroup(uint groups)
-    {
-        (uint x, uint y) = DeformPass.Grid(groups);
-
-        x.Should().BeLessThanOrEqualTo(65_535, "the spec's least maxComputeWorkGroupCount[0]");
-        y.Should().BeLessThanOrEqualTo(65_535, "the spec's least maxComputeWorkGroupCount[1]");
-        ((ulong)x * y).Should().BeGreaterThanOrEqualTo(groups, "the grid holds every workgroup");
-        ((ulong)x * y - groups).Should().BeLessThan(y, "the rows are as short as hold the workgroups");
-    }
 }

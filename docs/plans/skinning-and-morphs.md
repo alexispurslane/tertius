@@ -455,7 +455,7 @@ where
 
 `deform.comp` runs 64 invocations per workgroup, one per vertex, and one dispatch per frame over every job. A job has ⌈count / 64⌉ workgroups, and its workgroups follow those of the job before it. Its set holds five storage buffers: binding 0 is the window, the region's range of the vertex buffer as a `float` array, because std430 pads a `vec3` to 16 bytes and a vertex is 48 bytes. Bindings 1, 2, 3 and 4 are the deform vertices, the morph deltas, the pose buffer and the job table.
 
-The grid of the dispatch is `DeformPass.Grid(groups)`: as few rows as hold the workgroups with at most 65,535 per row, and rows as short as hold them. So it stays within the spec's least `maxComputeWorkGroupCount` of 65,535 per dimension, and it ends fewer than one row's count of workgroups past the last, which return at once.
+The grid of the dispatch is `ComputeLimits.Grid(groups)`: as few rows as hold the workgroups with at most 65,535 per row, and rows as short as hold them. So it stays within the spec's least `maxComputeWorkGroupCount` of 65,535 per dimension, and it ends fewer than one row's count of workgroups past the last, which return at once.
 
 Each workgroup finds its job by a binary search of the job table: its job is the last whose `firstGroup` is at most the workgroup's index. The index is the same for every invocation of the workgroup, so the search is uniform and costs about log2 of the job count reads, 7 for 100 jobs. `DeformPass.JobOf` is its C# copy.
 
@@ -974,8 +974,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `FirstAndLastWorkgroupOfAJobFindIt`
 - `JobOfOneVertexHasOneWorkgroupBetweenItsNeighbours`
 - `SingleJobOwnsEveryWorkgroup`
-- `GridOfAtMostTheLeastMaxWorkgroupCountIsOneRow`
-- `GridPastTheLeastMaxWorkgroupCountTakesAsFewRowsAsHoldIt`
+- `AGridOfAtMostTheLeastMaxWorkgroupCountIsOneRow` (`ComputeLimitsTests`)
+- `AGridPastTheLeastMaxWorkgroupCountTakesAsFewRowsAsHoldItAndRowsAsShortAsHoldIt` (`ComputeLimitsTests`)
 - `GridStaysWithinEveryDeviceAndEndsLessThanOneRowPastTheLastWorkgroup`
 
 `DeformRegionTests` gains, from the review fixes: `PoseBufferOfTheRegionStaysWithinTheStorageRange`, `JobTableOfTheRegionStaysWithinTheStorageRange`, `StorageArrayGrowsByDoubling`, `StorageArrayStopsGrowingAtTheMostThatTheStorageRangeHolds` and `StorageArrayHoldsDataPastTheStorageRange`.
@@ -1185,7 +1185,7 @@ Part 4b, the deform pass on the GPU:
   ```
 
   where `ReadDeformedVertices` = waits for the device, then copies the last frame's deformed vertices, job after job, as the test hooks of the shadow cascade do.
-- Then the one dispatch (settled by the orchestrator on 2026-10-26): `GpuDeformJob` and `GpuDeformJob.FromJobs` (`Scene/GpuDeformTypes.cs`), the job table and `DeformGroups` per slot (`FrameResources`), the fifth binding (`DescriptorLayouts`), `DeformPass.JobOf`, `DeformPass.Grid` and the test hook `DeformPass.Dispatches`, and the 8-byte `DeformPushConstants`. Tests first: `DeformJobsTests` and `OneDispatchDeformsEveryJobOfTheFrame`.
+- Then the one dispatch (settled by the orchestrator on 2026-10-26): `GpuDeformJob` and `GpuDeformJob.FromJobs` (`Scene/GpuDeformTypes.cs`), the job table and `DeformGroups` per slot (`FrameResources`), the fifth binding (`DescriptorLayouts`), `DeformPass.JobOf`, `ComputeLimits.Grid` and the test hook `DeformPass.Dispatches`, and the 8-byte `DeformPushConstants`. Tests first: `DeformJobsTests` and `OneDispatchDeformsEveryJobOfTheFrame`.
 - The reviewer checks the claims of "Portable Vulkan" against the Linux drivers, the two barriers of the pass and none inside it, and that a frame with no job records nothing.
 - Done for both: the user's model, end to end. A posed instance deforms in every pass that draws it, its shadow and its reflection follow, and the counts say so.
 

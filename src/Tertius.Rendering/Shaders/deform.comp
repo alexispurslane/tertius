@@ -104,7 +104,7 @@ void writeVertex(uint k, vec3 position, vec3 normal, vec4 tangent, vec2 texCoord
 
 void main()
 {
-    // The grid stays within the least maxComputeWorkGroupCount of the specification (DeformPass.Grid), and the workgroups
+    // The grid stays within the least maxComputeWorkGroupCount of the specification (ComputeLimits.Grid), and the workgroups
     // past the last row's end return at once.
     uint g = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
     if (g >= frame.groups)

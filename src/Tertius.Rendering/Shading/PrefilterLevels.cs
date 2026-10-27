@@ -80,19 +80,6 @@ internal static class PrefilterLevels
         return (CubeFaces.Count * size * size + texelsPerGroup - 1) / texelsPerGroup;
     }
 
-    /// <summary>
-    /// The grid of a dispatch of environment_prefilter.comp of <paramref name="groups"/> workgroups: as few rows as hold
-    /// them with at most <see cref="ComputeLimits.MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the
-    /// grid ends fewer than <c>Y</c> workgroups past the last, which return at once. At W = 1024 the first dispatch needs
-    /// 172,032.
-    /// </summary>
-    public static (int X, int Y) Grid(int groups)
-    {
-        const int perRow = ComputeLimits.MaxGroupsPerDimension;
-        int rows = (groups + perRow - 1) / perRow;
-        return ((groups + rows - 1) / rows, rows);
-    }
-
     /// <summary>The roughness that level <paramref name="level"/> of <paramref name="levels"/> holds, linear in perceptual roughness.</summary>
     public static float Roughness(int level, int levels) => (float)level / (levels - 1);
 
