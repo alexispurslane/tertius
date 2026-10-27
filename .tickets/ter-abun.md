@@ -17,3 +17,9 @@ Found in ter-izsu (2026-10-26): GpuTimingTests.APassThatRecordsNothingReportsThe
 
 The test passes in 20 runs of the Rendering tests in a row while another process renders, and still fails when the empty pass is made to record a dispatch.
 
+
+## Notes
+
+**2026-10-27T02:41:53Z**
+
+2026-10-26 (ter-okrp): the flake is probably the late stamp on MoltenVK: the empty pass's time can hold part of the next pass's work (ARCHITECTURE.md, 'GPU timings'). A bound that holds under load may need to read the pass beside it, or the test may hold only on drivers whose stamps do not latch late (VulkanRenderer.StampsLatchLate).
