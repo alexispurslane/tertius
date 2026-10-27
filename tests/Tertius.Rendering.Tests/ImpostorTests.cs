@@ -101,7 +101,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         material: assets.Red,
                         position: new(0, 0, -distance),
                         scale: Vector3.One,
-                        entity: 7
+                        entity: 7,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 Capture image = Gpu.RenderAndCapture(
@@ -154,7 +155,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: Vector3.One,
                             flags: flags,
                             entity: 4,
-                            part: 0
+                            part: 0,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -165,7 +167,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: Vector3.One,
                             flags: flags,
                             entity: 4,
-                            part: 1
+                            part: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -233,7 +236,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: direction * distance,
                         scale: new(1.5f),
                         rotation: BoxTurn,
-                        entity: 3
+                        entity: 3,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return snapshot;
@@ -321,7 +325,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: position,
                         scale: new(1.5f),
                         rotation: BoxTurn,
-                        entity: 9
+                        entity: 9,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return snapshot;
@@ -391,7 +396,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: Vector3.Transform(new(0, 0, -distance), direction),
                         scale: Vector3.One,
                         rotation: BoxTurn,
-                        entity: 1000 + i
+                        entity: 1000 + i,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             }
@@ -485,7 +491,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             material: materials[index],
                             position: position,
                             scale: Vector3.One,
-                            entity: (uint)index
+                            entity: (uint)index,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -639,7 +646,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         material: assets.Ground,
                         position: new(0, -1.2f, -20f),
                         scale: new(40f, 1f, 40f),
-                        flags: RenderFlags.CastsShadow
+                        flags: RenderFlags.CastsShadow,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 if (objects)
@@ -651,7 +659,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: new(-0.9f, -1.2f, -distance),
                             scale: Vector3.One,
                             flags: flags | RenderFlags.CastsShadow,
-                            entity: 1
+                            entity: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -662,7 +671,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: new(1.1f),
                             rotation: Quaternion.CreateFromYawPitchRoll(0.5f, 0.6f, 0.3f),
                             flags: flags | RenderFlags.CastsShadow,
-                            entity: 2
+                            entity: 2,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -712,7 +722,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: new(-250f, 0, -2_000f),
                             scale: new(400f),
                             flags: flags,
-                            entity: 1
+                            entity: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -723,7 +734,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: new(1_000f),
                             rotation: BoxTurn,
                             flags: flags,
-                            entity: 2
+                            entity: 2,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -889,7 +901,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: position,
                             scale: Vector3.One,
                             rotation: Quaternion.CreateFromYawPitchRoll(angle, angle * 0.5f, 0),
-                            entity: i
+                            entity: i,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -972,7 +985,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     material: assets.Red,
                     position: new(0, 0, -40f),
                     scale: Vector3.One,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             renderer.Render(snapshot, 1f);
@@ -1008,7 +1022,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     material: assets.Red,
                     position: new(0, 0, -40f),
                     scale: Vector3.One,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "impostor-one-tile");
@@ -1065,7 +1080,14 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0.3f, 1), starIrradiance: 1f);
             snapshot.Ambient.Intensity = 0f;
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: gray, position: center, scale: Vector3.One, entity: 1)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: gray,
+                    position: center,
+                    scale: Vector3.One,
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             if (withTheLamp)
                 snapshot.Lights.Add(

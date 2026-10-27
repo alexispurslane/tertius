@@ -199,7 +199,14 @@ public sealed class ShaderInputTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -10), scale: new(1, 1, z), radius: 1)
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -10),
+                scale: new(1, 1, z),
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
 
         Prepare(snapshot).VisibleCount.Should().Be(drawn ? 1 : 0);
@@ -211,10 +218,24 @@ public sealed class ShaderInputTests
         // The bounding radius is set, so only the mesh's own extent times the scale, 10^39 m, leaves the float range.
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(1), material: new(0), position: new(0, 0, -10), scale: new(1e18f), radius: 1)
+            Gpu.Instance(
+                mesh: new(1),
+                material: new(0),
+                position: new(0, 0, -10),
+                scale: new(1e18f),
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -10), scale: new(1e18f), radius: 1)
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -10),
+                scale: new(1e18f),
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
 
         Prepare(snapshot).VisibleCount.Should().Be(1, "the box scaled by 10^18 stays inside the float range");
@@ -356,10 +377,24 @@ public sealed class ShaderInputTests
         // reaches just short of the limit.
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(1), material: new(0), position: new(0, 0, -10), scale: Vector3.One, radius: 1)
+            Gpu.Instance(
+                mesh: new(1),
+                material: new(0),
+                position: new(0, 0, -10),
+                scale: Vector3.One,
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -4e18f), scale: Vector3.One, radius: 1)
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -4e18f),
+                scale: Vector3.One,
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
 
         PreparedScene scene = Prepare(snapshot);
@@ -430,7 +465,8 @@ public sealed class ShaderInputTests
                 position: new(0, 0, -1e19f),
                 scale: Vector3.One,
                 flags: RenderFlags.CastsShadow,
-                radius: 1e18f
+                radius: 1e18f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

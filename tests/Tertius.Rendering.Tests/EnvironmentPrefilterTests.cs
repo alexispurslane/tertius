@@ -358,7 +358,8 @@ public sealed class EnvironmentPrefilterTests
                 material: EnvironmentScenes.Emissive(renderer, Vector3.One),
                 position: new(u * distance, -0.6f * distance, distance),
                 scale: new(0.6f / size * distance, 1, 0.6f * distance),
-                rotation: EnvironmentScenes.FrontToward(-Vector3.UnitZ)
+                rotation: EnvironmentScenes.FrontToward(-Vector3.UnitZ),
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;

@@ -28,10 +28,22 @@ public sealed class HookAndCameraTests
             snapshot.Camera.Rotation = left;
             snapshot.Camera.PreviousRotation = left;
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: white, position: new(-6, 0, 0), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: white,
+                    position: new(-6, 0, 0),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: red, position: new(0, 0, -6), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: red,
+                    position: new(0, 0, -6),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "rotated-camera");
@@ -89,7 +101,13 @@ public sealed class HookAndCameraTests
             renderer.Graph.Add(FrameGraph.Stage.ShadowMaps, probe);
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: white, position: new(0, 0, -5), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: new(0, 0, -5),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             renderer.Render(snapshot, 1f);
 

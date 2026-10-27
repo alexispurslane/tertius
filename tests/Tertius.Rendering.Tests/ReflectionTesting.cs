@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -90,12 +91,20 @@ internal static class ReflectionTesting
             material: renderer.CreateMaterial(material with { NormalMap = FlatNormalMap(renderer) }),
             position: new(0, FloorHeight, -20),
             scale: new(30, 1, 30),
-            radius: 43
+            radius: 43,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A box of <paramref name="size"/> in m centered on <paramref name="center"/>.</summary>
     public static RenderInstance Block(MeshId box, MaterialId material, Vector3 center, Vector3 size) =>
-        Gpu.Instance(mesh: box, material: material, position: center, scale: size, radius: size.Length() / 2);
+        Gpu.Instance(
+            mesh: box,
+            material: material,
+            position: center,
+            scale: size,
+            radius: size.Length() / 2,
+            chainDepth: TestChains.CamerasFrame
+        );
 
     /// <summary>A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light.</summary>
     public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance) => BrdfTesting.Glow(renderer, radiance);

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -103,7 +104,8 @@ internal static class OcclusionScenes
                 position: center,
                 scale: size,
                 flags: flags,
-                radius: size.Length() / 2
+                radius: size.Length() / 2,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

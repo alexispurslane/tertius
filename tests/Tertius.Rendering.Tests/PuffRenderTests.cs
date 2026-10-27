@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -75,7 +76,13 @@ public sealed class PuffRenderTests
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.4f, 0.8f), starIrradiance: 0.5f);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
+            Gpu.Instance(
+                mesh: plane,
+                material: ground,
+                position: new(0, -2, -30),
+                scale: new(40, 1, 40),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.PuffLooks.Add(
             new(
@@ -158,7 +165,13 @@ public sealed class PuffRenderTests
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), starIrradiance: 0.6f);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(40, 1, 40))
+            Gpu.Instance(
+                mesh: plane,
+                material: ground,
+                position: new(0, -2, -30),
+                scale: new(40, 1, 40),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Instances.Add(
             Gpu.Instance(
@@ -166,7 +179,8 @@ public sealed class PuffRenderTests
                 material: glass,
                 position: new(-3.5f, 0.5f, -8),
                 scale: new(7, 5, 0.05f),
-                flags: RenderFlags.Transparent
+                flags: RenderFlags.Transparent,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.PuffLooks.Add(
@@ -241,10 +255,22 @@ public sealed class PuffRenderTests
         snapshot.Camera.Rotation = SoftCamera;
         snapshot.Camera.PreviousRotation = SoftCamera;
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: plane, material: gray, position: new(0, -3, -10), scale: new(20, 1, 20))
+            Gpu.Instance(
+                mesh: plane,
+                material: gray,
+                position: new(0, -3, -10),
+                scale: new(20, 1, 20),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: box, material: gray, position: new(0, 0, -10.2f), scale: new(20, 6, 0.4f))
+            Gpu.Instance(
+                mesh: box,
+                material: gray,
+                position: new(0, 0, -10.2f),
+                scale: new(20, 6, 0.4f),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.PuffLooks.Add(
             new(
@@ -338,7 +364,13 @@ public sealed class PuffRenderTests
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f), starIrradiance: 2f);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: plane, material: ground, position: new(0, -300, -20_000), scale: new(30_000, 1, 30_000))
+            Gpu.Instance(
+                mesh: plane,
+                material: ground,
+                position: new(0, -300, -20_000),
+                scale: new(30_000, 1, 30_000),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.PuffLooks.Add(
             new(

@@ -61,7 +61,8 @@ internal static class EnvironmentScenes
             material: material,
             position: center,
             scale: new(halfSize, 1, halfSize),
-            rotation: FrontToward(-Vector3.Normalize(center))
+            rotation: FrontToward(-Vector3.Normalize(center)),
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A square of half size <paramref name="halfSize"/> at <paramref name="center"/> whose front faces along <paramref name="normal"/>.</summary>
@@ -79,7 +80,8 @@ internal static class EnvironmentScenes
             position: center,
             scale: new(halfSize, 1, halfSize),
             rotation: FrontToward(normal),
-            flags: flags
+            flags: flags,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>Six squares facing inward around the eye, <paramref name="distance"/> away: a box that fills every direction.</summary>
@@ -281,7 +283,8 @@ public sealed class EnvironmentFaceTests
                     material: matte,
                     position: new(0, -10, 0),
                     scale: new(200, 1, 200),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // 30 m behind the camera, where the main view's rule picks cascade 0, which does not hold it. Its shadow falls
@@ -292,7 +295,8 @@ public sealed class EnvironmentFaceTests
                     material: matte,
                     position: new(0, -5, 30),
                     scale: new(10),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 

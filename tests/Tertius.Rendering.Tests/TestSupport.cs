@@ -145,6 +145,8 @@ internal static class Gpu
     /// <summary>
     /// A still, visible instance: <see cref="RenderInstance.Create"/> with <see cref="RenderFlags.Visible"/> always
     /// added. Its hemisphere ambient light has up along +Y: the test scenes stand on level ground in the camera's frame.
+    /// <paramref name="chainDepth"/> is the depth of the instance's frame in the camera's chain, named by every test
+    /// (<see cref="TestChains.CamerasFrame"/> for an instance in the camera's frame).
     /// Tests that need an instance that is not visible call <see cref="RenderInstance.Create"/> themselves.
     /// </summary>
     public static RenderInstance Instance(
@@ -152,6 +154,7 @@ internal static class Gpu
         MaterialId material,
         Vector3 position,
         Vector3 scale,
+        ushort chainDepth,
         Quaternion? rotation = null,
         RenderFlags flags = RenderFlags.None,
         float radius = 0,
@@ -166,7 +169,7 @@ internal static class Gpu
             scale: scale,
             boundingRadius: radius,
             hemisphere: HemisphereUp.Along(Vector3.UnitY),
-            chainDepth: TestChains.CamerasFrame,
+            chainDepth: chainDepth,
             flags: flags | RenderFlags.Visible,
             entityIndex: entity,
             part: part

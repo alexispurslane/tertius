@@ -67,7 +67,8 @@ public sealed class ShadowTests
                     material: kit.Ground,
                     position: new(0, ground, -15),
                     scale: new(30, 1, 30),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // Turned so that its sunlit +X face looks toward the camera.
@@ -78,7 +79,8 @@ public sealed class ShadowTests
                     position: box,
                     scale: new(1.5f),
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // The analytic term: an invisible sphere of 20 m radius 2.2 km toward the sun from the ground at (28, ground, -10).
@@ -151,7 +153,15 @@ public sealed class ShadowTests
             snapshot.Camera.Rotation = camera;
             snapshot.Camera.PreviousRotation = camera;
             snapshot.Camera.VerticalFov = fov;
-            snapshot.Instances.Add(Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(10f)));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: box,
+                    scale: new(10f),
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
             snapshot.Instances.Add(
                 RenderInstance.Create(
                     mesh: kit.Sphere,
@@ -220,11 +230,19 @@ public sealed class ShadowTests
                     mesh: kit.Plane,
                     material: kit.Ground,
                     position: new(0, ground, -3_000f),
-                    scale: new(3_000f, 1, 3_000f)
+                    scale: new(3_000f, 1, 3_000f),
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: kit.Sphere, material: kit.White, position: center, scale: new(150f), flags: Caster)
+                Gpu.Instance(
+                    mesh: kit.Sphere,
+                    material: kit.White,
+                    position: center,
+                    scale: new(150f),
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture image = Gpu.RenderAndCapture(
@@ -275,11 +293,19 @@ public sealed class ShadowTests
                     material: kit.Ground,
                     position: new(0, ground, -1_500f),
                     scale: new(2_500f, 1, 2_500f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: kit.Box, material: kit.White, position: box, scale: new(40f), flags: Caster)
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: box,
+                    scale: new(40f),
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-1500m");
@@ -335,7 +361,8 @@ public sealed class ShadowTests
                     material: kit.Ground,
                     position: new(0, ground, -2_500f),
                     scale: new(3_000f, 1, 3_000f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
@@ -345,7 +372,8 @@ public sealed class ShadowTests
                     material: kit.White,
                     position: new(0, ground + 20f, -2_250f),
                     scale: new(10f, 40f, 1_500f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
@@ -356,7 +384,8 @@ public sealed class ShadowTests
                     material: kit.White,
                     position: new(-600f, ground + 20f, -2_600f),
                     scale: new(10f, 40f, 200f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -457,7 +486,8 @@ public sealed class ShadowTests
                             material: kit.Ground,
                             position: new(0, -heightAboveGround, -1_000f),
                             scale: new(1_500f, 1, 1_500f),
-                            flags: groundCasts ? Caster : RenderFlags.None
+                            flags: groundCasts ? Caster : RenderFlags.None,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     // Something else casts, so the cascades are drawn in both images.
@@ -467,7 +497,8 @@ public sealed class ShadowTests
                             material: kit.White,
                             position: new(-40f, -heightAboveGround + 1f, -30f),
                             scale: new(2f),
-                            flags: Caster
+                            flags: Caster,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     return snapshot;
@@ -569,7 +600,8 @@ public sealed class ShadowTests
                             material: kit.Ground,
                             position: new(0, -cameraHeight, -400f),
                             scale: new(800f, 1, 800f),
-                            flags: Caster
+                            flags: Caster,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     if (wall)
@@ -579,7 +611,8 @@ public sealed class ShadowTests
                                 material: kit.White,
                                 position: new(wallX, -cameraHeight + wallHeight / 2, -230f),
                                 scale: new(4f, wallHeight, 420f),
-                                flags: Caster
+                                flags: Caster,
+                                chainDepth: TestChains.CamerasFrame
                             )
                         );
                     return snapshot;
@@ -682,7 +715,8 @@ public sealed class ShadowTests
                     material: kit.Ground,
                     position: new(0, ground, -10f),
                     scale: new(20f, 1, 20f),
-                    flags: Caster
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
@@ -826,7 +860,13 @@ public sealed class ShadowTests
             var kit = Kit.Create(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: kit.Box, material: kit.White, position: new(0, 0, -5), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: new(0, 0, -5),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(0, "nothing casts a shadow");
@@ -838,7 +878,8 @@ public sealed class ShadowTests
                 material: kit.White,
                 position: new(0, 0, -5),
                 scale: Vector3.One,
-                flags: Caster
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ShadowCascades.Should().Be(4);
@@ -908,7 +949,8 @@ public sealed class ShadowTests
                 material: kit.White,
                 position: (casterInFrame - eye).ToVector3(),
                 scale: Vector3.One,
-                flags: Caster
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         renderer.Render(snapshot, alpha);

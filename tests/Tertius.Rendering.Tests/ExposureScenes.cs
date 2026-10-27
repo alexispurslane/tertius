@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -63,7 +64,8 @@ internal static class ExposureScenes
                 material: gray,
                 position: Ahead,
                 scale: Vector3.One,
-                rotation: FacingTheCamera
+                rotation: FacingTheCamera,
+                chainDepth: TestChains.CamerasFrame
             )
         );
     }
@@ -89,7 +91,8 @@ internal static class ExposureScenes
                 material: ramp,
                 position: position,
                 scale: Vector3.One,
-                rotation: rotation
+                rotation: rotation,
+                chainDepth: TestChains.CamerasFrame
             )
         );
     }
@@ -108,7 +111,8 @@ internal static class ExposureScenes
                 material: BrdfTesting.Glow(renderer, radiance),
                 position: position,
                 scale: Vector3.One,
-                rotation: FacingTheCamera
+                rotation: FacingTheCamera,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -27,7 +28,8 @@ public sealed class FrameTests
                 material: white,
                 position: right,
                 scale: Vector3.One,
-                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4)
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                chainDepth: TestChains.CamerasFrame
             );
             instance.PreviousPosition = left;
             instance.PreviousRotation = Quaternion.Identity;
@@ -71,7 +73,8 @@ public sealed class FrameTests
                 material: white,
                 position: new(0, 0, -8),
                 scale: Vector3.One,
-                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4)
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                chainDepth: TestChains.CamerasFrame
             );
             spinner.PreviousRotation = Quaternion.Identity;
             turning.Instances.Add(spinner);
@@ -113,7 +116,13 @@ public sealed class FrameTests
             );
             RenderSnapshot snapshot = LitFromBehind();
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: white, position: new(0, 0, -6), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: new(0, 0, -6),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             // The camera moved 2 m to the right during the tick; the box is fixed in the world.
             snapshot.Camera.PreviousPosition = new(-2f, 0, 0);
@@ -159,7 +168,13 @@ public sealed class FrameTests
             );
             RenderSnapshot snapshot = LitFromBehind();
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: orange, position: new(0, 0, -5), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: orange,
+                    position: new(0, 0, -5),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture small = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "resize-320x180");
@@ -216,7 +231,13 @@ public sealed class FrameTests
             );
             RenderSnapshot snapshot = LitFromBehind();
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: white, position: new(0, 0, -8), scale: new(4, 4, 1))
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: new(0, 0, -8),
+                    scale: new(4, 4, 1),
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             // In front of the wall, and a second one hidden behind it.
             snapshot.Instances.Add(
@@ -225,7 +246,8 @@ public sealed class FrameTests
                     material: redGlass,
                     position: new(-1, 0, -5),
                     scale: new(0.7f),
-                    flags: RenderFlags.Transparent
+                    flags: RenderFlags.Transparent,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
@@ -234,7 +256,8 @@ public sealed class FrameTests
                     material: redGlass,
                     position: new(1, 0, -11),
                     scale: new(0.7f),
-                    flags: RenderFlags.Transparent
+                    flags: RenderFlags.Transparent,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -282,14 +305,21 @@ public sealed class FrameTests
             // A rail 200 m below the eye from 1 km to 3 km, across the near/middle boundary at 2 km, and a slab
             // 400 km below and to the left from 1,000 km to 3,000 km, across the middle/far boundary at 2,000 km.
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: white, position: new(0, -200, -2_000), scale: new(30, 4, 2_000))
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: new(0, -200, -2_000),
+                    scale: new(30, 4, 2_000),
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: box,
                     material: white,
                     position: new(-400_000, -400_000, -2_000_000),
-                    scale: new(200_000, 4_000, 2_000_000)
+                    scale: new(200_000, 4_000, 2_000_000),
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -371,11 +401,18 @@ public sealed class FrameTests
                     mesh: plane,
                     material: white,
                     position: new(0, ground, -1_500f),
-                    scale: new(100f, 1, 2_500f)
+                    scale: new(100f, 1, 2_500f),
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: red, position: new(0, ground + 20f, -1_500f), scale: new(40f))
+                Gpu.Instance(
+                    mesh: box,
+                    material: red,
+                    position: new(0, ground + 20f, -1_500f),
+                    scale: new(40f),
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture image = Gpu.RenderAndCapture(

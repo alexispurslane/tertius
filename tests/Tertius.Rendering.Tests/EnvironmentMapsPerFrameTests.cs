@@ -845,7 +845,8 @@ public sealed class EnvironmentMapsPerFrameTests
                         position: balls[i].Center,
                         scale: new(balls[i].Radius),
                         flags: flags,
-                        entity: (uint)(i + 1)
+                        entity: (uint)(i + 1),
+                        chainDepth: TestChains.CamerasFrame
                     )
                 )
             );
@@ -976,11 +977,18 @@ public sealed class EnvironmentMapsPerFrameTests
                     mesh: sphere,
                     material: EnvironmentScenes.Matte(renderer),
                     position: new(-1.5f, 0, -5),
-                    scale: Vector3.One
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: mirror, position: new(1.5f, 0, -5), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: mirror,
+                    position: new(1.5f, 0, -5),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             byte[] rgba = Shown(renderer, snapshot, name).Rgba;
             // The fourth byte of each pixel holds no defined value.

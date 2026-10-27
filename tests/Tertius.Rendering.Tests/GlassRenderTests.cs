@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -67,7 +68,8 @@ public sealed class GlassRenderTests
                 position: new(0, 0, -6),
                 scale: new(3),
                 rotation: facing,
-                radius: 4.3f
+                radius: 4.3f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -78,7 +80,8 @@ public sealed class GlassRenderTests
                 scale: new(0.5f),
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2 - tilt * MathF.PI / 180),
                 flags: RenderFlags.Transparent,
-                radius: 0.75f
+                radius: 0.75f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name).Color(PanePixel);

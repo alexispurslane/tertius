@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -82,7 +83,8 @@ public sealed class AntiAliasingTests
                 position: new(0, 0, -6),
                 scale: Vector3.One,
                 rotation: facing,
-                radius: 45
+                radius: 45,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -92,7 +94,8 @@ public sealed class AntiAliasingTests
                 position: new Vector3(0, 0, -3) - halfSize * toEdge,
                 scale: Vector3.One,
                 rotation: turned,
-                radius: 6
+                radius: 6,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;
@@ -341,7 +344,8 @@ public sealed class AntiAliasingTests
                     position: new(0, 0, -12),
                     scale: Vector3.One,
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    radius: 45
+                    radius: 45,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Outlines.Add(new RestingOutline(new(0, 0, -6), 2.4f));

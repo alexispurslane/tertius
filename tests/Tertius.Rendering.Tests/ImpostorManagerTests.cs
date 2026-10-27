@@ -109,7 +109,8 @@ public sealed class ImpostorManagerTests
             rotation: rotation,
             flags: flags,
             entity: entity,
-            part: part
+            part: part,
+            chainDepth: TestChains.CamerasFrame
         );
         ball.Hemisphere = hemisphere ?? ball.Hemisphere;
         return ball;
@@ -211,7 +212,8 @@ public sealed class ImpostorManagerTests
                 material: BallMaterial,
                 position: new(0, 0, -DistanceFor(150, radius: Meshes[MorphingBox].Radius)),
                 scale: Vector3.One,
-                entity: 1
+                entity: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         RigPose rest = MorphingBoxData.Rigging!.Rig.Rest;

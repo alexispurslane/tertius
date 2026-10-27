@@ -50,7 +50,8 @@ public sealed class BrdfRenderTests
             position: center,
             scale: Vector3.One,
             rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-            radius: 0.45f
+            radius: 0.45f,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>
@@ -144,7 +145,8 @@ public sealed class BrdfRenderTests
                 material: material,
                 position: center.ToVector3(),
                 scale: Vector3.One,
-                radius: 1
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
             );
             RenderSnapshot dimSnapshot = SunOnly(Vector3.UnitZ, dim);
             dimSnapshot.Instances.Add(instance);
@@ -266,7 +268,14 @@ public sealed class BrdfRenderTests
                 new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: (float)roughness, Reflectance: 0.5f)
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: ground, material: material, position: new(0, -1, 0), scale: Vector3.One, radius: 71)
+                Gpu.Instance(
+                    mesh: ground,
+                    material: material,
+                    position: new(0, -1, 0),
+                    scale: Vector3.One,
+                    radius: 71,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-tail")
                 .Color(pixel);
@@ -309,7 +318,8 @@ public sealed class BrdfRenderTests
                     material: material,
                     position: center.ToVector3(),
                     scale: Vector3.One,
-                    radius: 1
+                    radius: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-ambient-metal");

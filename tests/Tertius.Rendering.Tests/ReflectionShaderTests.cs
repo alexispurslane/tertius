@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -407,7 +408,8 @@ public sealed class ReflectionShaderTests
                 material: mirror,
                 position: new(-3, FloorHeight + 0.8f, -6.5f),
                 scale: Vector3.One,
-                radius: 0.8f
+                radius: 0.8f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         // The near end of the ramp goes down: its top's near edge lies on the floor.
@@ -420,7 +422,8 @@ public sealed class ReflectionShaderTests
                 position: new Vector3(2.5f, FloorHeight, -7) - nearTopEdge,
                 scale: new(2.5f, 0.1f, 3),
                 rotation: tilt,
-                radius: 2
+                radius: 2,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
