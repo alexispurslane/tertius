@@ -50,12 +50,17 @@ internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, in
 }
 
 /// <summary>
-/// The Jolt physics system of one reference frame. Positions in the system are frame coordinates, so a body's pose
-/// in Jolt is its pose in the frame. Gravity is zero: the backend applies the frame's effective gravity as forces.
+/// The Jolt physics system of one reference frame, in frame coordinates, with zero gravity: the backend applies the
+/// frame's effective gravity as forces.
 /// </summary>
 /// <remarks>
-/// A system that is full can be replaced by a larger one (<see cref="ReplaceSystem"/>). The <see cref="FrameWorld"/>
-/// stays the same object, with the same members, so every reference to it stays valid.
+/// A full system can be replaced by a larger one (<see cref="ReplaceSystem"/>), and this object stays, so every reference
+/// to it stays valid. Invariants of the pair tables:
+/// <list type="bullet">
+/// <item>Every pending pair is in <c>touching</c>.</item>
+/// <item>No pair is in <c>touching</c> and held at once, and every pair of <c>touching</c> counts at least one contact.</item>
+/// <item>The pair index holds exactly the pairs of <c>touching</c> and held (see <see cref="BodyPairIndex"/>).</item>
+/// </list>
 /// </remarks>
 internal sealed class FrameWorld : IDisposable
 {
@@ -659,7 +664,7 @@ internal sealed class FrameWorld : IDisposable
         if (!pending.Remove(key))
             held.Add(key);
         else
-            pairIndex.Remove(key);
+            Unindex(key);
     }
 
     /// <summary>
@@ -804,7 +809,7 @@ internal sealed class FrameWorld : IDisposable
                     ended.Add(EndOf(key));
                 touching.Remove(key);
                 held.Remove(key);
-                pairIndex.Remove(key);
+                Unindex(key);
             }
 
             Contract.Ensures(!pairIndex.HasPairs(body));
@@ -828,14 +833,23 @@ internal sealed class FrameWorld : IDisposable
     private void Unhold(ulong key)
     {
         if (held.Remove(key))
-            pairIndex.Remove(key);
+            Unindex(key);
     }
 
     /// <summary>
-    /// Checks the invariants of the pair tables: every pending pair is in <c>touching</c>, no pair is in <c>touching</c> and
-    /// held at once, and the index holds exactly the pairs of <c>touching</c> and held (see <see cref="BodyPairIndex"/>).
-    /// Costs O(pairs).
+    /// Takes the pair <paramref name="key"/>, which leaves both pair tables, out of the index. Reports a bug when the index
+    /// does not hold it.
     /// </summary>
+    private void Unindex(ulong key)
+    {
+        if (!pairIndex.Remove(key))
+            reportBug(
+                $"Physics: the pair of the bodies {First(key).ID} and {Second(key).ID} left the pair tables of the system of {Frame}, "
+                    + "but the pair index did not hold it. Only a bug makes the index disagree with the tables."
+            );
+    }
+
+    /// <summary>Checks the invariants of the pair tables (see the remarks of this type). Costs O(pairs).</summary>
     public void AssertInvariants()
     {
         lock (contactGate)
@@ -852,8 +866,8 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// The hash of the pair tables: the high 32 bits of the key times the odd 64-bit number nearest 2^64 over the golden
-    /// ratio (Fibonacci hashing). The default hash XORs the two body IDs, which pairs of neighbors with consecutive IDs share.
+    /// The hash of the pair tables: the high 32 bits of the product of the key and the odd 64-bit number nearest 2^64 over
+    /// the golden ratio (Fibonacci hashing). The default hash XORs the two body IDs, which pairs of neighbors with consecutive IDs share.
     /// </summary>
     internal sealed class PairKeyHash : IEqualityComparer<ulong>
     {

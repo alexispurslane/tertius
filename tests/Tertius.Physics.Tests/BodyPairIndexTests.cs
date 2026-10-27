@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
 using Tertius.Simulation;
@@ -117,6 +118,92 @@ public sealed class BodyPairIndexTests
         Allocations.Fewest(churn).Should().Be(0);
         index.Count.Should().Be(0);
     }
+
+    /// <summary>
+    /// A hub body loses its 100,000 pairs, and its empty set waits in the pool. The next body that gets a pair takes that
+    /// set. It reads its one pair about as fast as a body with a new set: a read costs time in proportion to the pairs of
+    /// the body, not to the pairs of the set's earlier owner.
+    /// </summary>
+    [Fact]
+    public void ABodyThatTakesTheSetOfABodyWithManyPairsReadsItsPairsAsFastAsWithANewSet()
+    {
+        const uint Many = 100_000;
+        var hub = new BodyID(Many + 1);
+        var reused = new BodyPairIndex();
+        for (uint i = 1; i <= Many; i++)
+            reused.Add(FrameWorld.PairKey(new BodyID(i), hub));
+        // The hub has the higher ID of each pair, so the last removal pools its set last, on top of the pool.
+        for (uint i = 1; i <= Many; i++)
+            reused.Remove(FrameWorld.PairKey(new BodyID(i), hub));
+        var body = new BodyID(Many + 2);
+        ulong pair = FrameWorld.PairKey(body, new BodyID(Many + 3));
+        reused.Add(pair);
+        var fresh = new BodyPairIndex();
+        fresh.Add(pair);
+
+        double reusedTime = FastestThousandReads(reused, body);
+        double freshTime = FastestThousandReads(fresh, body);
+
+        PairsOf(reused, body).Should().Equal(pair);
+        reusedTime
+            .Should()
+            .BeLessThan(20 * freshTime, "a pooled set keeps no trace of the 100,000 pairs that it held before");
+    }
+
+    /// <summary>The fewest microseconds, of five runs, that 1,000 reads of the pairs of <paramref name="body"/> take.</summary>
+    private static double FastestThousandReads(BodyPairIndex index, BodyID body)
+    {
+        var pairs = new List<ulong>(1);
+        double fastest = double.MaxValue;
+        for (int run = 0; run < 5; run++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            for (int read = 0; read < 1000; read++)
+            {
+                pairs.Clear();
+                index.CopyPairsOf(body, pairs);
+            }
+
+            fastest = Math.Min(fastest, Stopwatch.GetElapsedTime(start).TotalMicroseconds);
+        }
+
+        return fastest;
+    }
+
+#if TERTIUS_CONTRACTS
+    /// <summary>Only a bug removes a pair that the index does not hold, so a build with contracts fails the precondition.</summary>
+    [Fact]
+    public void RemovingAPairThatTheIndexDoesNotHoldFailsAContract()
+    {
+        var index = new BodyPairIndex();
+        index.Add(FrameWorld.PairKey(A, B));
+
+        index
+            .Invoking(i => i.Remove(FrameWorld.PairKey(A, C)))
+            .Should()
+            .Throw<ContractException>()
+            .WithMessage("Precondition failed*");
+    }
+#else
+    /// <summary>
+    /// Only a bug removes a pair that the index does not hold. A Release build skips it, keeps the index as it was, and
+    /// says so, so that the system records the bug (STYLE.md, "Errors and contracts").
+    /// </summary>
+    [Fact]
+    public void RemovingAPairThatTheIndexDoesNotHoldChangesNothingInRelease()
+    {
+        var index = new BodyPairIndex();
+        ulong ab = FrameWorld.PairKey(A, B);
+        index.Add(ab);
+
+        bool removed = index.Remove(FrameWorld.PairKey(A, C));
+
+        removed.Should().BeFalse();
+        PairsOf(index, A).Should().Equal(ab);
+        index.Count.Should().Be(1);
+        index.Invoking(i => i.AssertInvariants()).Should().NotThrow();
+    }
+#endif
 
     /// <summary>
     /// Three cubes stand side by side on the floor, each face against the next. The middle one is destroyed. Its contacts

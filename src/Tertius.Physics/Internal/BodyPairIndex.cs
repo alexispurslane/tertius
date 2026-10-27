@@ -3,15 +3,16 @@ using JoltPhysicsSharp;
 namespace Tertius.Physics;
 
 /// <summary>
-/// The body pairs of one system by body, so that a body that leaves the system visits only its own pairs (ter-9sri). It
-/// holds pair keys (see <see cref="FrameWorld.PairKey(BodyID, BodyID)"/>), and <see cref="FrameWorld"/> keeps it equal to
-/// its pair tables. A set that a body no longer needs waits in a pool, so pairs that come and go allocate nothing.
+/// The body pairs of one system by body, as pair keys (see <see cref="FrameWorld.PairKey(BodyID, BodyID)"/>), so that a
+/// body that leaves the system visits only its own pairs (ter-9sri). <see cref="FrameWorld"/> keeps it equal to its pair
+/// tables.
 /// </summary>
 /// <remarks>
 /// Invariants, which <see cref="AssertInvariants"/> checks:
 /// <list type="bullet">
 /// <item>Each pair is in the set of each of its two bodies, and in no other set.</item>
 /// <item>No set is empty: a body whose last pair goes leaves the index.</item>
+/// <item>Every spare set is empty and cleared, so that the next body that takes it reads only its own pairs.</item>
 /// <item><see cref="Count"/> is the number of pairs.</item>
 /// </list>
 /// </remarks>
@@ -20,7 +21,7 @@ internal sealed class BodyPairIndex
     // The pairs of each body that has one, by the body's full ID.
     private readonly Dictionary<uint, HashSet<ulong>> pairsByBody = [];
 
-    // Empty sets, for the next bodies that get a pair.
+    // Empty sets, for the next bodies that get a pair, so that pairs that come and go allocate nothing.
     private readonly Stack<HashSet<ulong>> spareSets = [];
 
     /// <summary>The number of pairs in the index.</summary>
@@ -36,16 +37,22 @@ internal sealed class BodyPairIndex
         Contract.Ensures(Contains(key) && pairsByBody[High(key)].Contains(key));
     }
 
-    /// <summary>Removes the pair <paramref name="key"/>, which the index holds.</summary>
-    public void Remove(ulong key)
+    /// <summary>
+    /// Removes the pair <paramref name="key"/>, which the index holds. Returns false, and changes nothing, for a pair that
+    /// the index does not hold, which only a bug asks to remove.
+    /// </summary>
+    public bool Remove(ulong key)
     {
         Contract.Requires(Contains(key));
+        if (!Contains(key))
+            return false;
         RemoveFrom(Low(key), key);
         RemoveFrom(High(key), key);
         Count--;
         Contract.Ensures(
             !Contains(key) && !(pairsByBody.TryGetValue(High(key), out HashSet<ulong>? high) && high.Contains(key))
         );
+        return true;
     }
 
     /// <summary>True when the index holds the pair <paramref name="key"/>.</summary>
@@ -95,6 +102,8 @@ internal sealed class BodyPairIndex
         }
 
         Contract.Invariant(entries == 2 * Count);
+        foreach (HashSet<ulong> spare in spareSets)
+            Contract.Invariant(spare.Count == 0);
     }
 
     /// <summary>The full ID of the body of a pair key with the lower ID.</summary>
@@ -119,6 +128,9 @@ internal sealed class BodyPairIndex
         if (pairs.Count > 0)
             return;
         pairsByBody.Remove(body);
+        // A removal frees a slot but keeps the set's count of used slots, which a read walks. Clear resets that count, so
+        // that the next body reads only its own pairs, not every slot of the bodies that had the set before.
+        pairs.Clear();
         spareSets.Push(pairs);
     }
 }
