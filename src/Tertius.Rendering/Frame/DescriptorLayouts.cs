@@ -33,8 +33,9 @@ namespace Tertius.Rendering;
 /// written once.</description></item>
 /// <item><term>environment prefilter</term><description>the environment map's radiance map with its sampler and the
 /// irradiance buffer, for the prefilter's compute stage. One, written once, with the map on.</description></item>
-/// <item><term>environment level</term><description>one level of the radiance map or the specular map as a storage image.
-/// One per level of each cube, written once, with the map on.</description></item>
+/// <item><term>environment levels</term><description>four storage images: the levels of the radiance map or the specular
+/// map that one downsample or prefilter dispatch reads and writes, as views that span every map. One per dispatch of the
+/// largest map's downsample and specular map (EnvironmentLevelsSets), written once, with the map on.</description></item>
 /// <item><term>occlusion</term><description>set 3 of <see cref="OcclusionLayout"/>: the half-resolution images, the
 /// estimate target, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
 /// direction of the denoise, rewritten on resize.</description></item>
@@ -646,11 +647,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // glow source set, two for the meter set, one per pyramid level set, one for the depth tail set, two for the
             // reflection set and one for the prefilter set.
             new(DescriptorType.SampledImage, 20 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1),
-            // Eight for each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
+            // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set and four per environment levels set.
             new(
                 DescriptorType.StorageImage,
-                2 * 8 + PyramidLevelSets + DepthPyramidTail.Mips + 3 + 4 * EnvironmentLevelsSets
+                2 * OcclusionImages.StorageImages
+                    + PyramidLevelSets
+                    + DepthPyramidTail.Mips
+                    + 3
+                    + 4 * EnvironmentLevelsSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
@@ -746,16 +751,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateOcclusionSetLayout()
     {
         Span<DescriptorSetLayoutBinding> occlusion =
-        [
-            StorageImage(binding: 0),
-            StorageImage(binding: 1),
-            StorageImage(binding: 2),
-            StorageImage(binding: 3),
-            StorageImage(binding: 4),
-            StorageImage(binding: 5),
-            StorageImage(binding: 6),
-            StorageImage(binding: 7),
-        ];
+            stackalloc DescriptorSetLayoutBinding[OcclusionImages.StorageImages];
+        for (int binding = 0; binding < occlusion.Length; binding++)
+            occlusion[binding] = StorageImage(binding: (uint)binding);
         return CreateLayout(bindings: occlusion, name: "occlusion set");
     }
 

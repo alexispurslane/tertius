@@ -89,6 +89,17 @@ public sealed class OcclusionImagesTests
         log.Snapshot().Should().BeEmpty("the sets must point at the new images, and the old ones must be released");
     }
 
+    [Fact]
+    public void ADeviceWithTheSpecsMinimumOfFourStorageImagesInAStageCannotBindTheOcclusionSet() =>
+        OcclusionImages
+            .StorageImageProblem(maxPerStageStorageImages: 4)
+            .Should()
+            .Contain("8 storage images", "the occlusion set binds every image of the four passes in one compute stage");
+
+    [Fact]
+    public void ADeviceWithEightStorageImagesInAStageCanBindTheOcclusionSet() =>
+        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 8).Should().BeNull();
+
     [Theory]
     [InlineData("occlusion_depth.comp")]
     [InlineData("occlusion_sectors.comp")]

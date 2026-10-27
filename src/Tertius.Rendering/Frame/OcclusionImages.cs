@@ -16,11 +16,17 @@ internal sealed class OcclusionImages : IDisposable
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
     public const Format GeometricNormalFormat = Format.R16G16SNorm;
 
+    /// <summary>The storage images of the occlusion set, which the four passes bind in one compute stage.</summary>
+    public const int StorageImages = 8;
+
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
-    /// <exception cref="NotSupportedException">A format is not a storage image on the device.</exception>
+    /// <exception cref="NotSupportedException">
+    /// A format is not a storage image on the device, or the device binds fewer than <see cref="StorageImages"/> storage
+    /// images in one stage.
+    /// </exception>
     public OcclusionImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -31,11 +37,21 @@ internal sealed class OcclusionImages : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        CheckFormats(device);
+        CheckDevice(device);
         SetAToB = layouts.AllocateOcclusionSet();
         SetBToA = layouts.AllocateOcclusionSet();
         Create(targets);
     }
+
+    /// <summary>
+    /// Why a device that binds at most <paramref name="maxPerStageStorageImages"/> storage images in one shader stage
+    /// cannot bind the occlusion set, or null when it can: the set binds <see cref="StorageImages"/>, and Vulkan
+    /// guarantees only 4.
+    /// </summary>
+    internal static string? StorageImageProblem(uint maxPerStageStorageImages) =>
+        maxPerStageStorageImages < StorageImages
+            ? $"The occlusion set binds {StorageImages} storage images in one compute stage, above the device's maxPerStageDescriptorStorageImages of {maxPerStageStorageImages}."
+            : null;
 
     /// <summary>⌈W / 2⌉ × ⌈H / 2⌉ for targets of W × H pixels: each texel stands for a 2 × 2 block of pixels.</summary>
     public Extent2D HalfExtent { get; private set; }
@@ -128,8 +144,10 @@ internal sealed class OcclusionImages : IDisposable
             name: name
         );
 
-    private static void CheckFormats(VulkanDevice device)
+    private static void CheckDevice(VulkanDevice device)
     {
+        if (StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is { } storageImages)
+            throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         foreach (
             Format format in (Format[])[ViewDepthFormat, DirectFormat, GeometricNormalFormat, EdgesFormat, TermFormat]
         )
