@@ -1,6 +1,6 @@
 ---
 id: ter-unpc
-status: in_progress
+status: closed
 deps: [ter-xdt8]
 links: []
 created: 2026-10-19T17:19:52Z
@@ -23,3 +23,7 @@ Found by the fix stage of ter-xdt8 (2026-10-19), not confirmed by a test. In a n
 **2026-10-27T09:41:52Z**
 
 Review fix (2026-10-27): the related limit above is gone. A kinematic hull that teleports without a motion intent in a numeric tree parent is the anchor of its own following frame, which AimStillAnchors aims at the teleport's place, so the read and the step agree. World.PoseNowAtRunningStepEnd no longer moves a hull's pose with its tree parent.
+
+**2026-10-27T10:13:22Z**
+
+2026-10-27: merged. One stop rule (StopBodies, before the step's intents) gives every body that stops the rest chord of its semantic frame (RestChord: the home's velocity reversed, at the end of the step for a kinematic body and at its start for a dynamic body, because LinearGravity already takes out the home's acceleration). Coverage of the changed lines 34/34. The damped case drifts 63 µm (ter-u75o), and a kinematic body that a hand-off gives a velocity now stops in a numeric home but keeps it in a semantic home (ter-64tv, waits for the user).
