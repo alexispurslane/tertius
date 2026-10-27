@@ -1,6 +1,6 @@
 ---
 id: ter-6pzm
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T20:22:28Z
