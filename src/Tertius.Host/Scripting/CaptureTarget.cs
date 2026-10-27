@@ -2,14 +2,14 @@ namespace Tertius.Host.Scripting;
 
 /// <summary>
 /// Where the captures of a run go, for the whole run: a <see cref="PngFolder"/>, which writes one PNG file for each capture,
-/// or a <see cref="VideoFile"/>, which makes each capture the next frame of one video. A run names its outputs by the names
-/// of its steps, so the playback gets the name of each capture and its target makes the output. See
-/// docs/plans/blue-danube-demo.md, change 1.
+/// a <see cref="VideoFile"/>, which makes each capture the next frame of one video, or <see cref="Discard"/>, which drops
+/// each drawn capture. A run names its outputs by the names of its steps, so the playback gets the name of each capture and
+/// its target makes the output. See docs/plans/blue-danube-demo.md, change 1.
 /// This is a built-in C# 15 union, like <see cref="ScriptStep"/>: its cases are classes, so it is a struct around one
 /// reference and allocates nothing beyond its case. The default value holds no case and matches the <c>null</c> pattern.
 /// A null case makes the default value too, and <see cref="HeadlessPlayback"/> refuses it.
 /// </summary>
-public union CaptureTarget(PngFolder, VideoFile) : IEquatable<CaptureTarget>
+public union CaptureTarget(PngFolder, VideoFile, Discard) : IEquatable<CaptureTarget>
 {
     // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
     // The built-in union has only the equality of ValueType, which reads the field by reflection, and no == operator.
@@ -84,3 +84,9 @@ public sealed record VideoFile
     /// <summary>True if <paramref name="path"/> ends in <see cref="Extension"/>, in any case.</summary>
     public static bool HasVideoExtension(string path) => path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>
+/// Captures that are drawn, waited for and read back exactly as for a <see cref="VideoFile"/>, and then dropped, so that a
+/// run that only times its frames writes no image and no video. Only a headless run has this target.
+/// </summary>
+public sealed record Discard;

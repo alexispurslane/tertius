@@ -13,9 +13,10 @@ namespace Tertius.Host;
 /// <summary>
 /// The command line of the host. The Demo's Main calls it with its table of scenes.
 /// <list type="bullet">
-/// <item><c>--script &lt;file&gt; --headless --out &lt;folder&gt; [--video &lt;file.mkv&gt; [--fps &lt;rate&gt;]]</c> runs a script with
-/// no window, as fast as it can. With <c>--video</c>, its captures become the frames of one video, which ffmpeg encodes,
-/// at <c>--fps</c> frames per second, 30 without the option. Its dumps still go into the output folder.</item>
+/// <item><c>--script &lt;file&gt; --headless --out &lt;folder&gt; [--video none|&lt;file.mkv&gt; [--fps &lt;rate&gt;]]</c> runs a script
+/// with no window, as fast as it can. With <c>--video</c>, its captures become the frames of one video, which ffmpeg
+/// encodes, at <c>--fps</c> frames per second, 30 without the option. With <c>--video none</c>, they are drawn and dropped,
+/// for a run that only times them. Its dumps still go into the output folder.</item>
 /// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
 /// <item><c>--size &lt;width&gt;x&lt;height&gt;</c>, such as <c>--size 1920x1080</c>, replaces the size of a script's window
 /// in either run.</item>
@@ -79,7 +80,10 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+
+    // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
+    private const string NoVideo = "none";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -147,37 +151,18 @@ public static class ScriptCommand
         if (options.Scene is { } sceneName)
             return RunFreePlay(options: options, sceneName: sceneName, scenes: scenes, output: output, error: error);
 
-        // ReadOptions gives a run that is not free play its script and its output folder.
-        if (options is not { Script: { } scriptPath, Out: { } outFolder })
-            throw new UnreachableException("A script run has its script and its output folder.");
-        Script script;
-        try
+        // ReadOptions gives a run that is not free play its script, its output folder and its capture target.
+        if (options is not { Script: { } scriptPath, Out: { } outFolder, Target: { } target })
+            throw new UnreachableException("A script run has its script, its output folder and its capture target.");
+        Result<Script, RunFailure> loaded = ScriptOf(scriptPath: scriptPath, target: target, options: options);
+        if (loaded.Problem is { Code: var code, Message: var message })
         {
-            script = Script.Load(scriptPath);
-            if (options.Size is { } size)
-                script = script with { Window = size };
-        }
-        catch (ScriptException ex)
-        {
-            error.WriteLine($"{options.Script}: {ex.Message}");
-            return ScriptError;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"Cannot read the script {options.Script}: {ex.Message}");
-            return FileError;
+            error.WriteLine(message);
+            return code;
         }
 
-        bool captures = script.Steps.Any(step => step is CaptureStep or FilmStep);
-        if (options.Video is not null && !captures)
-        {
-            error.WriteLine(
-                $"--video makes a video of the captures, and {options.Script} has no capture or film step."
-            );
-            error.WriteLine(Usage);
-            return CommandLineError;
-        }
-
+        Script script = loaded.Ok ?? throw new UnreachableException("A result without a problem holds its script.");
+        bool captures = HasCaptures(script);
         Scene? scene = scenes.FirstOrDefault(s => s.Name == script.Scene);
         if (scene is null)
         {
@@ -203,12 +188,46 @@ public static class ScriptCommand
             script: script,
             scene: scene,
             outFolder: outFolder,
+            target: target,
             createRenderer: captures ? createRenderer : null,
             startVideo: startVideo ?? FfmpegVideoSink.Start,
             output: output,
             error: error
         );
     }
+
+    /// <summary>
+    /// The script at <paramref name="scriptPath"/> with the window of <c>--size</c>, or why the run cannot use it: it cannot
+    /// be read, or <paramref name="target"/> takes captures that the script does not have.
+    /// </summary>
+    private static Result<Script, RunFailure> ScriptOf(string scriptPath, CaptureTarget target, Options options)
+    {
+        Script script;
+        try
+        {
+            script = Script.Load(scriptPath);
+        }
+        catch (ScriptException ex)
+        {
+            return new RunFailure(ScriptError, $"{options.Script}: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new RunFailure(FileError, $"Cannot read the script {options.Script}: {ex.Message}");
+        }
+
+        if (target is VideoFile or Discard && !HasCaptures(script))
+            return new RunFailure(
+                CommandLineError,
+                $"--video takes the captures, into a video or into nothing, and {options.Script} has no capture or film step."
+                    + Environment.NewLine
+                    + Usage
+            );
+        return options.Size is { } size ? script with { Window = size } : script;
+    }
+
+    /// <summary>True if the script draws a frame: it has a capture or a film step.</summary>
+    private static bool HasCaptures(Script script) => script.Steps.Any(step => step is CaptureStep or FilmStep);
 
     /// <summary>
     /// Runs a script with no window, as fast as it can. Makes a renderer with <paramref name="createRenderer"/>, which is
@@ -219,6 +238,7 @@ public static class ScriptCommand
         Script script,
         Scene scene,
         string outFolder,
+        CaptureTarget target,
         Func<RendererOptions, VulkanRenderer>? createRenderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
         TextWriter output,
@@ -248,6 +268,7 @@ public static class ScriptCommand
             script: script,
             scene: scene,
             outFolder: outFolder,
+            target: target,
             world: world,
             renderer: renderer,
             startVideo: startVideo,
@@ -265,6 +286,7 @@ public static class ScriptCommand
         Script script,
         Scene scene,
         string outFolder,
+        CaptureTarget target,
         World world,
         VulkanRenderer? renderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
@@ -272,12 +294,11 @@ public static class ScriptCommand
         TextWriter error
     )
     {
-        CaptureTarget target = options.Video is { } video ? video : new PngFolder(outFolder);
         var readings = new FrameReadings();
         HeadlessPlayback? playback = null;
         if (renderer != null)
         {
-            Result<HeadlessPlayback, PlaybackFailure> started = StartPlayback(
+            Result<HeadlessPlayback, RunFailure> started = StartPlayback(
                 renderer: renderer,
                 size: script.Window,
                 target: target,
@@ -354,7 +375,7 @@ public static class ScriptCommand
     /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
     /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder.
     /// </summary>
-    private static Result<HeadlessPlayback, PlaybackFailure> StartPlayback(
+    private static Result<HeadlessPlayback, RunFailure> StartPlayback(
         VulkanRenderer renderer,
         ScriptWindow size,
         CaptureTarget target,
@@ -375,25 +396,22 @@ public static class ScriptCommand
         }
         // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
         // search path or cannot start.
-        catch (Win32Exception ex) when (options.Video is { } file)
+        catch (Win32Exception ex) when (target is VideoFile file)
         {
-            return new PlaybackFailure(
+            return new RunFailure(
                 ToolError,
                 $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}"
             );
         }
         // The folder of the video cannot be made: a file problem, as for a dump or an image.
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && target is VideoFile file)
         {
-            return new PlaybackFailure(
-                FileError,
-                $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}"
-            );
+            return new RunFailure(FileError, $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
         }
     }
 
-    /// <summary>Why the playback of a headless run cannot start: the exit code and the message.</summary>
-    private sealed record PlaybackFailure(int Code, string Message);
+    /// <summary>Why a script run cannot start: the exit code and the message.</summary>
+    private sealed record RunFailure(int Code, string Message);
 
     /// <summary>The headless renderer, or null after writing why it cannot start to <paramref name="error"/>.</summary>
     private static VulkanRenderer? StartRenderer(
@@ -496,8 +514,8 @@ public static class ScriptCommand
             case VideoFile video when result.Captures.Count > 0:
                 output.WriteLine(video.Path);
                 break;
-            case VideoFile or null:
-                // A video without captures holds no frames, and no target writes no files.
+            case VideoFile or Discard or null:
+                // A video without captures holds no frames, and the discard target and no target write no files.
                 break;
             default:
                 throw new UnreachableException(
@@ -603,7 +621,7 @@ public static class ScriptCommand
     /// <param name="Headless">True to run a script with no window.</param>
     /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
     /// <param name="Record">The file that free play writes its session to as a script, or null to record nothing.</param>
-    /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
+    /// <param name="Target">Where a script run's captures go, the PNG files of <paramref name="Out"/> without --video, or null for free play.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="AmbientOcclusion">The setting that replaces the headless renderer's default, or null to keep it.</param>
@@ -620,7 +638,7 @@ public static class ScriptCommand
         bool Headless,
         double Speed,
         string? Record = null,
-        VideoFile? Video = null,
+        CaptureTarget? Target = null,
         ScriptWindow? Size = null,
         ToneCurve? ToneCurve = null,
         AmbientOcclusionSetting? AmbientOcclusion = null,
@@ -640,17 +658,15 @@ public static class ScriptCommand
         problem = PlayProblem(given) ?? ValueProblem(given);
         if (problem is not null)
             return null;
-        string? video = given.Value("--video");
+        string? outFolder = given.Value("--out");
         return new Options(
             Script: given.Value("--script"),
             Scene: given.Value("--scene"),
-            Out: given.Value("--out"),
+            Out: outFolder,
             Headless: given.Headless,
             Speed: SpeedOf(given.Value("--speed")) ?? 1,
             Record: given.Value("--record"),
-            Video: video is null
-                ? null
-                : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
+            Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
             Size: SizeOf(given.Value("--size")),
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
             AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
@@ -749,10 +765,12 @@ public static class ScriptCommand
             fps = given.Value("--fps");
         if (video != null && !given.Headless)
             return "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.";
-        if (video != null && !VideoFile.HasVideoExtension(video))
-            return $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.";
+        if (video is not (null or NoVideo) && !VideoFile.HasVideoExtension(video))
+            return $"--video needs {NoVideo} or a file whose name ends in {VideoFile.Extension}, not '{video}'.";
         if (fps != null && video is null)
             return "--fps applies to a video, so give --video too.";
+        if (fps != null && video is NoVideo)
+            return $"--fps sets the frame rate of a video file, and --video {NoVideo} writes no video.";
         if (fps != null && FpsOf(fps) is null)
             return $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fps}'.";
         return null;
@@ -861,6 +879,22 @@ public static class ScriptCommand
     /// <summary>The frame rate that the text gives, or null for no text or one that is not a whole number in the range of a video.</summary>
     private static int? FpsOf(string? text) =>
         WholeNumberOf(text: text, least: VideoFile.MinFramesPerSecond, most: VideoFile.MaxFramesPerSecond);
+
+    /// <summary>
+    /// The capture target of a script run: <see cref="Discard"/> for <c>--video none</c>, the video that <c>--video</c>
+    /// names at its frame rate, or the PNG files of <paramref name="outFolder"/> without <c>--video</c>. Null for free
+    /// play, which has no output folder.
+    /// </summary>
+    private static CaptureTarget? TargetOf(string? video, string? fps, string? outFolder)
+    {
+        if (video is NoVideo)
+            return new Discard();
+        if (video is not null)
+            return new VideoFile(video, FpsOf(fps) ?? VideoFile.DefaultFramesPerSecond);
+        if (outFolder is null)
+            return null;
+        return new PngFolder(outFolder);
+    }
 
     /// <summary>The whole number that the text gives, or null for no text or one that is not a number from least to most.</summary>
     private static int? WholeNumberOf(string? text, int least, int most)

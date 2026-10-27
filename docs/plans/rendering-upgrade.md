@@ -48,12 +48,12 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 ### Measuring the cost of a feature
 
-The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. A video keeps the run short, because the PNG encode of each frame takes far longer than its draw, and the GPU times do not depend on the target.
+The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. `--video none` keeps the run short, because the PNG encode of each frame takes far longer than its draw. It draws, waits for and reads back each frame as `--video <file.mkv>` does, then drops it, so the run writes only `gpu-timings.json`, `exposure.json` and its log, and its GPU times compare with those of the earlier runs that wrote a video.
 
 1. In the checkout of the branch, run the script at 1080p:
 
    ```sh
-   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video captures/gpu-branch/run.mkv
+   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video none
    ```
 
    The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes`.
@@ -62,9 +62,11 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
 
    ```sh
    git worktree add ../tertius-base "$(git merge-base main HEAD)"
-   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video "$OLDPWD/captures/gpu-base/run.mkv")
+   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video none)
    git worktree remove ../tertius-base
    ```
+
+   A base from before `--video none` (ticket `ter-j1mf`) refuses it. Give that base `--video "$OLDPWD/captures/gpu-base/run.mkv"`, and delete the video after the run: it holds 550 to 690 MB that nobody reads.
 
 3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. On MoltenVK, a pass's time can hold part of the next pass's work (ARCHITECTURE.md, "GPU timings"), so compare there the spans and the sums of neighbouring passes, and take a single pass's cost from a trace of each build (tools/README.md, "GPU trace"). Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
