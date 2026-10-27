@@ -699,7 +699,14 @@ public sealed class BatcherTests
         var rotation = Quaternion.Normalize(new(x: 0.3f, y: -0.5f, z: 0.2f, w: 0.8f));
         var scale = new Vector3(2, 3, 0.5f);
         var position = new Vector3(10, -20, 30);
-        var instance = GpuInstance.From(position: position, rotation: rotation, scale: scale, material: 7, map: 0);
+        var instance = GpuInstance.From(
+            position: position,
+            rotation: rotation,
+            scale: scale,
+            material: 7,
+            map: 0,
+            holdsLight: false
+        );
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);
         var transformed = new Vector3(
@@ -1026,6 +1033,30 @@ public sealed class BatcherTests
         GpuInstance reflected = scene.Instances[scene.Commands[face.First].FirstInstance];
         reflected.Should().Be(seen, "the face and the main view draw one interpolation of the instance");
         seen.ModelRow0.W.Should().NotBe(1, "the place is interpolated");
+    }
+
+    /// <summary>
+    /// An entity that holds a light sends its power through that light, so its glow is the light's face and bounces no
+    /// light of its own (docs/plans/screen-space-illumination.md, "The bounce source"). The lights of the snapshot carry
+    /// their entities, so the batcher marks the GPU instances of those entities alone.
+    /// </summary>
+    [Fact]
+    public void TheGpuInstanceOfAnEntityThatHoldsALightSaysSoAndAnyOtherDoesNot()
+    {
+        RenderSnapshot snapshot = Empty();
+        RenderInstance lamp = Box(new(-2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        lamp.EntityIndex = 7;
+        RenderInstance screen = Box(new(2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        screen.EntityIndex = 8;
+        snapshot.Instances.Add(lamp);
+        snapshot.Instances.Add(screen);
+        snapshot.Lights.Add(Lamp(new(-2, 1, -10)) with { EntityIndex = 7 });
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        GpuInstance[] drawn = scene.Instances[..scene.InstanceCount];
+        drawn.Single(each => each.ModelRow0.W < 0).HoldsLight.Should().Be(1u, "a light carries the lamp's entity");
+        drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "no light carries the screen's entity");
     }
 
     [Fact]

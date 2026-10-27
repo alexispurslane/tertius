@@ -184,6 +184,12 @@ internal static class Gpu
     /// <summary>The angular radius of the test star, in rad: about that of the Sun seen from Earth.</summary>
     public const float StarAngularRadius = 0.00467f;
 
+    /// <summary>
+    /// The entity of the test star, which no test instance holds: a glow of an instance's entity bounces only when no
+    /// light carries that entity (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// </summary>
+    public const uint StarEntity = 1_000_000;
+
     /// <summary>The color of the test star, which scales its power per channel.</summary>
     public static readonly Vector3 StarColor = new(1f, 0.96f, 0.9f);
 
@@ -239,7 +245,7 @@ internal static class Gpu
     {
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
-            EntityIndex: 0,
+            EntityIndex: StarEntity,
             Position: position,
             PreviousPosition: position,
             Color: color,

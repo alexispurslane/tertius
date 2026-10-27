@@ -21,7 +21,7 @@ public sealed class OcclusionImagesTests
         Extent2D[] extents =
         [
             images.ViewDepth.Extent,
-            images.Direct.Extent,
+            images.Source.Extent,
             images.GeometricNormal.Extent,
             images.Edges.Extent,
             images.TermA.Extent,
@@ -42,7 +42,7 @@ public sealed class OcclusionImagesTests
         images.Edges.Format.Should().Be(Format.R8Unorm, "occlusion.glsl declares occlusionEdges r8");
         images.TermA.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
         images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
-        images.Direct.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionDirect rgba16f");
+        images.Source.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionSource rgba16f");
         images
             .GeometricNormal.Format.Should()
             .Be(Format.R16G16SNorm, "occlusion.glsl declares occlusionGeometricNormal rg16_snorm");
@@ -94,11 +94,11 @@ public sealed class OcclusionImagesTests
         OcclusionImages
             .StorageImageProblem(maxPerStageStorageImages: 4)
             .Should()
-            .Contain("8 storage images", "the occlusion set binds every image of the four passes in one compute stage");
+            .Contain("9 storage images", "the occlusion set binds every image of the four passes in one compute stage");
 
     [Fact]
-    public void ADeviceWithEightStorageImagesInAStageCanBindTheOcclusionSet() =>
-        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 8).Should().BeNull();
+    public void ADeviceWithNineStorageImagesInAStageCanBindTheOcclusionSet() =>
+        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 9).Should().BeNull();
 
     [Theory]
     [InlineData("occlusion_depth.comp")]
@@ -142,7 +142,8 @@ public sealed class OcclusionImagesTests
                 glowLevels: 0,
                 smaaTables: null,
                 reflections: null,
-                subsurface: false
+                subsurface: false,
+                diffuse: true
             );
         }
 

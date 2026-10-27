@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct image, the estimate
-/// target, the HDR target, the bloom levels, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// target, the HDR target, the bloom levels, under the skin scatter or the screen-space light, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
 /// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
@@ -23,12 +23,16 @@ namespace Tertius.Rendering;
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
 /// <item><term>shading</term>
-/// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 0 in b, the shading model's code in a, all 0 where nothing
-/// lit draws (docs/plans/skin-and-hair.md, "The shading target").</description></item>
+/// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 1 in b where the pixel's entity holds a light, the
+/// shading model's code in a, all 0 where nothing lit draws (docs/plans/skin-and-hair.md, "The shading target").
+/// </description></item>
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
 /// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
 /// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight.
+/// The diffuse image is R16G16B16A16_SFLOAT too: the diffuse part of the direct light of each lit pixel, which the
+/// bounce light sends on, and the skin mask, whose pixels the skin scatter spreads (docs/plans/skin-and-hair.md, "The
+/// diffuse light D").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
 /// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections or the skin scatter
 /// the HDR target is also a storage image, which the trace and the scatter's columns pass write; without both it is not,
@@ -46,6 +50,7 @@ internal sealed class RenderTargets : IDisposable
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
     public const Format EstimateFormat = Format.R16G16B16A16Sfloat;
+    public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
     public const uint EstimateBinding = 7;
@@ -94,6 +99,9 @@ internal sealed class RenderTargets : IDisposable
     // True under reflections or the skin scatter, whose compute passes write the HDR target as a storage image.
     private readonly bool hdrStorage;
 
+    // True under the skin scatter or the screen-space light, which read the diffuse image.
+    private readonly bool diffuse;
+
     // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
     private bool estimateNeedsClear;
 
@@ -101,6 +109,7 @@ internal sealed class RenderTargets : IDisposable
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
     /// <param name="subsurface">True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target.</param>
+    /// <param name="diffuse">True under the skin scatter or the screen-space light, which read the diffuse image.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -109,7 +118,8 @@ internal sealed class RenderTargets : IDisposable
         int glowLevels,
         SmaaTables? smaaTables,
         TraceResolution? reflections,
-        bool subsurface
+        bool subsurface,
+        bool diffuse
     )
     {
         if (reflections is not null)
@@ -118,7 +128,8 @@ internal sealed class RenderTargets : IDisposable
         this.allocator = allocator;
         this.layouts = layouts;
         hdrStorage = reflections is not null || subsurface;
-        CheckFormats(device: device, reflections: reflections is not null);
+        this.diffuse = diffuse;
+        CheckFormats(device: device, reflections: reflections is not null, diffuse: diffuse);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
@@ -161,6 +172,13 @@ internal sealed class RenderTargets : IDisposable
     /// frame after each creation.
     /// </summary>
     public GpuImage Estimate { get; private set; }
+
+    /// <summary>
+    /// The diffuse image, or null without the skin scatter and the screen-space light. After the direct pass: rgb the
+    /// diffuse part of each lit pixel's direct light, pre-exposed, a 1 at skin, else 0. The ambient pass adds D's ambient part at
+    /// skin under the scatter.
+    /// </summary>
+    public GpuImage? Diffuse { get; private set; }
 
     /// <summary>The images of SMAA, or null when SMAA is off.</summary>
     public SmaaTargets? Smaa { get; }
@@ -263,6 +281,7 @@ internal sealed class RenderTargets : IDisposable
             name: "estimate"
         );
         estimateNeedsClear = true;
+        Diffuse = diffuse ? DiffuseImage(extent) : null;
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading];
         // The first five targets' bindings are their attachments' indices; the shading target came after the bindings
         // 5 to 9 were taken.
@@ -280,6 +299,21 @@ internal sealed class RenderTargets : IDisposable
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
         CreateGlow(extent);
     }
+
+    /// <summary>
+    /// The diffuse image at <paramref name="extent"/>. The direct pass draws it, the bounce light's copy and the scatter
+    /// passes read it as a storage image, the ambient pass blends into it, and the read hook copies it.
+    /// </summary>
+    private GpuImage DiffuseImage(Extent2D extent) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: DiffuseFormat,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: "diffuse"
+        );
 
     /// <summary>Makes the bloom levels at their sizes for <paramref name="extent"/>, and points every set at them.</summary>
     private void CreateGlow(Extent2D extent)
@@ -351,7 +385,7 @@ internal sealed class RenderTargets : IDisposable
         estimateNeedsClear = false;
     }
 
-    private static void CheckFormats(VulkanDevice device, bool reflections)
+    private static void CheckFormats(VulkanDevice device, bool reflections, bool diffuse)
     {
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat, DirectFormat])
         {
@@ -380,6 +414,18 @@ internal sealed class RenderTargets : IDisposable
             );
         if (reflections)
             CheckReflectionFormats(device);
+        // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
+        const FormatFeatureFlags diffuseFeatures =
+            FormatFeatureFlags.ColorAttachmentBit
+            | FormatFeatureFlags.ColorAttachmentBlendBit
+            | FormatFeatureFlags.StorageImageBit;
+        if (
+            diffuse
+            && (device.FormatProperties(DiffuseFormat).OptimalTilingFeatures & diffuseFeatures) != diffuseFeatures
+        )
+            throw new NotSupportedException(
+                $"{DiffuseFormat} cannot be a blended color attachment and a storage image on {device.DeviceName}."
+            );
     }
 
     /// <summary>
@@ -415,6 +461,7 @@ internal sealed class RenderTargets : IDisposable
         Hdr?.Dispose();
         Direct?.Dispose();
         Estimate?.Dispose();
+        Diffuse?.Dispose();
         foreach (GpuImage? level in Glow)
             level?.Dispose();
         GBuffer = [];

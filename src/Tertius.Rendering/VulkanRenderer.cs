@@ -155,7 +155,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections,
-                subsurface: options.Subsurface
+                subsurface: options.Subsurface,
+                screenSpaceLight: options.ScreenSpaceLight
             );
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -971,13 +972,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
 
     /// <summary>
-    /// The scatter image of the last frame, RGBA per pixel, row by row from the top: D, pre-exposed, and 1 in a at a skin
-    /// pixel, 0 at every other pixel. A test hook: it waits for the device to be idle and submits its own copy.
+    /// The diffuse image of the last frame, RGBA per pixel, row by row from the top, as <see cref="RenderTargets.Diffuse"/>
+    /// says. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The scatter is off.</exception>
-    internal float[] ReadScatter() =>
+    /// <exception cref="InvalidOperationException">The skin scatter and the screen-space light are off.</exception>
+    internal float[] ReadDiffuse() =>
         ReadLevel(
-            image: (ScatterImages ?? throw new InvalidOperationException("The skin scatter is off.")).Scatter,
+            image: targets.Diffuse
+                ?? throw new InvalidOperationException("The skin scatter and the screen-space light are off."),
             layer: 0,
             mip: 0
         ).Values;
@@ -999,12 +1001,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ReadLevel(image: OcclusionImagesOrThrow().ViewDepth, layer: 0, mip: 0);
 
     /// <summary>
-    /// The depth pass's copy of the direct image of the last frame at half resolution, RGBA per texel, row by row from the
-    /// top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// The bounce source of the last frame at half resolution, RGBA per texel, row by row from the top, as
+    /// <see cref="OcclusionImages.Source"/> says. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadOcclusionDirect() =>
-        ReadLevel(image: OcclusionImagesOrThrow().Direct, layer: 0, mip: 0);
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionSource() =>
+        ReadLevel(image: OcclusionImagesOrThrow().Source, layer: 0, mip: 0);
 
     /// <summary>
     /// The depth pass's copy of the octahedral geometric normal of the last frame at half resolution, RG per texel, row by
@@ -1536,7 +1538,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         int glowLevels,
         AntiAliasing antiAliasing,
         ReflectionSetting reflections,
-        SubsurfaceSetting subsurface
+        SubsurfaceSetting subsurface,
+        ScreenSpaceLightSetting screenSpaceLight
     )
     {
         SmaaTables? smaaTables = antiAliasing switch
@@ -1558,7 +1561,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     NoReflections => null,
                     ConeTracedReflections on => on.Resolution,
                 },
-                subsurface: subsurface is SeparableSubsurface
+                subsurface: subsurface is SeparableSubsurface,
+                diffuse: subsurface is SeparableSubsurface || screenSpaceLight is VisibilityBitmaskLight
             )
         );
     }
@@ -1917,7 +1921,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: ScatterImages
+                diffuse: targets.Diffuse is not null
             )
         );
         Graph.Add(
@@ -1927,7 +1931,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: ScatterImages
+                scatter: ScatterImages is not null
             )
         );
     }

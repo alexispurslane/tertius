@@ -83,7 +83,7 @@ void main()
                 if (fresh == 0u)
                     continue;
                 blocked |= fresh;
-                light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
+                light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionSource, t).rgb, sampleNormal,
                                                             setup.center - samplePosition);
             }
         }

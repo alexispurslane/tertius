@@ -78,6 +78,9 @@ internal sealed class SceneBatcher(
 
     private DrawItem[] transparent = new DrawItem[64];
 
+    // The entities of this frame's snapshot that hold a light, which the lights carry. Refilled each frame.
+    private readonly HashSet<uint> lightHolders = [];
+
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly SidedRuns[] faceRanges = new SidedRuns[DepthRanges.Count];
 
@@ -396,6 +399,7 @@ internal sealed class SceneBatcher(
         CameraView camera = scene.Camera;
         ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
         FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
+        CollectLightHolders(snapshot);
         for (int index = 0; index < instances.Length; index++)
         {
             ref readonly RenderInstance instance = ref instances[index];
@@ -412,7 +416,8 @@ internal sealed class SceneBatcher(
                 placement: placement,
                 alpha: alpha,
                 materials: materials,
-                maps: scene.MapCount
+                maps: scene.MapCount,
+                holdsLight: lightHolders.Contains(instance.EntityIndex)
             );
             bool visible = (instance.Flags & RenderFlags.Visible) != 0;
             if (visible && !camera.Culls(placement.Position, placement.Radius))
@@ -453,7 +458,8 @@ internal sealed class SceneBatcher(
         Placement placement,
         float alpha,
         ReadOnlySpan<MaterialInfo> materials,
-        int maps
+        int maps,
+        bool holdsLight
     )
     {
         uint material = MaterialStore.Resolve(instance.Material, materials.Length);
@@ -473,7 +479,29 @@ internal sealed class SceneBatcher(
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
             Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
+            HoldsLight = holdsLight,
         };
+    }
+
+    /// <summary>
+    /// Fills <see cref="lightHolders"/> with the entity of each light of <paramref name="snapshot"/>, whether it shines or
+    /// not: an entity's glow is its light's face either way (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// </summary>
+    private void CollectLightHolders(RenderSnapshot snapshot)
+    {
+        lightHolders.Clear();
+        foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
+        {
+            uint? holder = light switch
+            {
+                PointRenderLight point => point.EntityIndex,
+                SpotRenderLight spot => spot.EntityIndex,
+                // A light that holds no case is no light, and the renderer skips it.
+                null => null,
+            };
+            if (holder is { } entity)
+                lightHolders.Add(entity);
+        }
     }
 
     /// <summary>
@@ -834,6 +862,7 @@ internal sealed class SceneBatcher(
             scale: instance.Scale,
             material: instance.Material,
             map: instance.Map,
+            holdsLight: instance.HoldsLight,
             hemisphere: instance.Hemisphere
         );
         if (instance.Mesh == currentMesh)

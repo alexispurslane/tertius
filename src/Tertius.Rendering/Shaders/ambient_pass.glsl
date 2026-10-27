@@ -1,6 +1,6 @@
 // The ambient pass (docs/plans/screen-space-illumination.md, "The ambient pass"): the direct image plus the ambient light
 // with the estimate applied, capped, into the HDR image, and the sky and the stars on sky pixels. Under the scatter, it
-// also adds D's ambient part to the scatter image (docs/plans/skin-and-hair.md, "The diffuse light D").
+// also adds D's ambient part to the diffuse image at skin (docs/plans/skin-and-hair.md, "The diffuse light D").
 // ambient.frag and ambient_scatter.frag, which defines SCATTER_OUTPUT, include it, as direct_pass.glsl says.
 #ifndef TERTIUS_AMBIENT_PASS_GLSL
 #define TERTIUS_AMBIENT_PASS_GLSL
@@ -11,7 +11,7 @@
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
 #ifdef SCATTER_OUTPUT
-// The scatter image. The blend adds the output's rgb and keeps the image's alpha, the mask that the direct pass wrote.
+// The diffuse image. The blend adds the output's rgb and keeps the image's alpha, the mask that the direct pass wrote.
 layout(location = 1) out vec4 outScatter;
 #endif
 

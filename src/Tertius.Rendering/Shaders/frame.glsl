@@ -24,7 +24,9 @@ struct GpuInstance
     vec4 hemisphere;
     // The instance's map: the index, root first, of the environment map that lights it. 0 with the map off.
     uint map;
-};                            // std430: 84 bytes of members, a stride of 96
+    // 1 when the instance's entity holds a light, whose face its glow is, else 0 (GpuInstance.HoldsLight).
+    uint holdsLight;
+};                            // std430: 88 bytes of members, a stride of 96
 
 // GpuMaterial.NoMap: the map index of a material that has no such map.
 const uint NoMap = 0xFFFFFFFFu;

@@ -5,36 +5,33 @@ namespace Tertius.Rendering;
 /// <summary>
 /// One fullscreen pass over all depth ranges that writes the direct image: the light of each light, shadowed by its slot's
 /// cascades and occluder spheres or by its atlas tiles, plus the emission, pre-exposed and capped. No ambient light
-/// (docs/plans/screen-space-illumination.md, "The direct pass"). Sky pixels get 0. Under the scatter it also writes the
-/// scatter image: D's direct part and the mask at skin pixels, 0 elsewhere (docs/plans/skin-and-hair.md, "The diffuse
-/// light D").
+/// (docs/plans/screen-space-illumination.md, "The direct pass"). Sky pixels get 0. When the targets hold the diffuse image,
+/// it also writes that: the diffuse part and the skin mask (docs/plans/skin-and-hair.md, "The diffuse light D").
 /// </summary>
 internal sealed unsafe class DirectLightPass : RenderPass
 {
     private readonly VulkanDevice device;
-    private readonly ScatterImages? scatter;
     private readonly Pipeline pipeline;
 
-    /// <param name="scatter">The scatter images under <see cref="SeparableSubsurface"/>, or null without the scatter.</param>
+    /// <param name="diffuse">True when the targets hold the diffuse image.</param>
     public DirectLightPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ShaderConstants constants,
-        ScatterImages? scatter
+        bool diffuse
     )
     {
         this.device = device;
-        this.scatter = scatter;
         pipeline = new GraphicsPipelineDesc
         {
             Name = "direct light",
             VertexShader = "lighting.vert",
-            FragmentShader = scatter is null ? "direct.frag" : "direct_scatter.frag",
+            FragmentShader = diffuse ? "direct_diffuse.frag" : "direct.frag",
             Layout = layouts.SceneLayout,
-            ColorAttachments = scatter is null
-                ? [new(RenderTargets.DirectFormat)]
-                : [new(RenderTargets.DirectFormat), new(ScatterImages.ScatterFormat)],
+            ColorAttachments = diffuse
+                ? [new(RenderTargets.DirectFormat), new(RenderTargets.DiffuseFormat)]
+                : [new(RenderTargets.DirectFormat)],
             CullMode = CullModeFlags.None,
             Constants = constants,
         }.Create(device, shaders);
@@ -55,14 +52,17 @@ internal sealed unsafe class DirectLightPass : RenderPass
         // Discarded, and still after the last frame's ambient pass read it.
         barriers.Image(targets.Direct, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
-        if (scatter is { } images)
+        // The renderer makes the pass and the targets from the same options, so the image is there exactly when the
+        // pipeline draws it.
+        if (targets.Diffuse is { } diffuse)
         {
-            // Discarded, and still after the last frame's columns pass read it: the pass writes every pixel.
-            barriers.Image(images.Scatter, ImageUse.ColorAttachment, discard: true);
+            // Discarded, and still after the last frame's readers, the copy and the scatter passes: the pass writes every
+            // pixel.
+            barriers.Image(diffuse, ImageUse.ColorAttachment, discard: true);
             barriers.Flush(context.Vk, context.CommandBuffer);
             context.DrawSceneFullScreen(
                 pipeline,
-                [(targets.Direct, AttachmentLoadOp.DontCare), (images.Scatter, AttachmentLoadOp.DontCare)]
+                [(targets.Direct, AttachmentLoadOp.DontCare), (diffuse, AttachmentLoadOp.DontCare)]
             );
             return;
         }

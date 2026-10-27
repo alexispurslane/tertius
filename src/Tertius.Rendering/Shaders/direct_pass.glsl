@@ -1,9 +1,9 @@
 // The direct pass (docs/plans/screen-space-illumination.md, "The direct pass"): the light of each light of the list
 // that the main view keeps, plus the emission, pre-exposed and capped, into the direct image. No ambient light: the
-// ambient pass adds it after the occlusion passes, and the occlusion passes read this image. Under the scatter, it also
-// writes D's direct part and the skin mask into the scatter image (docs/plans/skin-and-hair.md, "The diffuse light D").
-// direct.frag and direct_scatter.frag, which defines SCATTER_OUTPUT, include it: the scatter image is a second color
-// attachment only under SeparableSubsurface, and an output with no attachment is a write that validation reports.
+// ambient pass adds it after the occlusion passes. When the targets hold the diffuse image, under the skin scatter or the
+// screen-space light, it also writes the diffuse part and the skin mask into it (docs/plans/skin-and-hair.md, "The
+// diffuse light D"). direct.frag and direct_diffuse.frag, which defines DIFFUSE_OUTPUT, include it: the diffuse image is
+// a second color attachment only then, and an output with no attachment is a write that validation reports.
 #ifndef TERTIUS_DIRECT_PASS_GLSL
 #define TERTIUS_DIRECT_PASS_GLSL
 
@@ -12,15 +12,15 @@
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
-#ifdef SCATTER_OUTPUT
-// The scatter image: the pass writes every one of its pixels, 0 where no skin is.
-layout(location = 1) out vec4 outScatter;
+#ifdef DIFFUSE_OUTPUT
+// The diffuse image: the pass writes every one of its pixels.
+layout(location = 1) out vec4 outDiffuse;
 #endif
 
-void writeScatter(vec4 value)
+void writeDiffuse(vec4 value)
 {
-#ifdef SCATTER_OUTPUT
-    outScatter = value;
+#ifdef DIFFUSE_OUTPUT
+    outDiffuse = value;
 #endif
 }
 
@@ -35,7 +35,7 @@ void main()
     if (distanceToEye <= 0.0)
     {
         outColor = vec4(0.0);
-        writeScatter(vec4(0.0));
+        writeDiffuse(vec4(0.0));
         return;
     }
 
@@ -46,7 +46,7 @@ void main()
     if (texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
     {
         outColor = vec4(emissive, 1.0);
-        writeScatter(vec4(0.0));
+        writeDiffuse(vec4(0.0));
         return;
     }
 
@@ -58,8 +58,9 @@ void main()
     DirectTerms direct = directLight(s, lobesOf(s, V), position, V, ShadowMapsMainView, MainView);
     float k = exposureScale();
     outColor = vec4(min(exposed(directSum(direct), k) + emissive, vec3(MaxRadiance)), 1.0);
-    // The light of skin that scatters: the diffuse part alone, at most MaxRadiance, and 1 for the mask.
-    writeScatter(s.model == ShadingSkin ? vec4(exposed(direct.diffuse, k), 1.0) : vec4(0.0));
+    // The diffuse part alone, at most MaxRadiance: the light that skin scatters and that the bounce light sends on. The
+    // mask marks skin, whose pixels alone the scatter passes spread.
+    writeDiffuse(vec4(exposed(direct.diffuse, k), s.model == ShadingSkin ? 1.0 : 0.0));
 }
 
 #endif

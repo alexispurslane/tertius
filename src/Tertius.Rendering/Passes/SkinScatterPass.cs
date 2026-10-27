@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -76,7 +77,11 @@ internal sealed unsafe class SkinScatterPass : RenderPass
         BarrierBatch barriers = context.Barriers;
         // The view depth of each tap comes from the distance target.
         barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
-        barriers.Image(images.Scatter, ImageUse.StorageCompute);
+        barriers.Image(
+            context.Targets.Diffuse
+                ?? throw new UnreachableException("The targets of the scatter hold the diffuse image."),
+            ImageUse.StorageCompute
+        );
         barriers.Buffer(images.Kernel, BufferUse.ComputeUniformRead);
         switch (axis)
         {
@@ -89,7 +94,7 @@ internal sealed unsafe class SkinScatterPass : RenderPass
                 barriers.Image(context.Targets.Hdr, ImageUse.StorageCompute);
                 break;
             default:
-                throw new System.Diagnostics.UnreachableException();
+                throw new UnreachableException();
         }
     }
 }

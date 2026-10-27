@@ -38,7 +38,7 @@ namespace Tertius.Rendering;
 /// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
 /// largest map, rewritten when the map's images grow.</description></item>
 /// <item><term>occlusion</term><description>set 3 of <see cref="OcclusionLayout"/>: the half-resolution images, the
-/// estimate target, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
+/// estimate target, the diffuse image, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
 /// direction of the denoise, rewritten on resize.</description></item>
 /// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
 /// is on, its screen-sized images rewritten on resize.</description></item>
@@ -265,9 +265,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
-    /// 3), the source and the destination term of a denoise dispatch (bindings 4 and 5), and the depth pass's copies of
-    /// the direct light and the geometric normal (bindings 6 and 7), as storage images
-    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
+    /// 3), the source and the destination term of a denoise dispatch (bindings 4 and 5), the depth pass's copies of
+    /// the bounce source and the geometric normal (bindings 6 and 7), and the targets' diffuse image (binding 8), as
+    /// storage images (docs/plans/screen-space-illumination.md, "Push constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 

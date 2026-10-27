@@ -25,6 +25,21 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     /// <summary>The view depth of the convex edge's front face, in m.</summary>
     private const float FrontFaceDepth = 5;
 
+    /// <summary>The glowing panel's entity, which no other instance or light of the scenes holds.</summary>
+    private const uint PanelEntity = 7;
+
+    /// <summary>The side of the glowing panel's square top face, in m.</summary>
+    private const float PanelSide = 0.6f;
+
+    /// <summary>The height of the glowing panel, in m.</summary>
+    private const float PanelHeight = 0.1f;
+
+    /// <summary>The width of the half-resolution images.</summary>
+    private const int HalfWidth = (Width + 1) / 2;
+
+    /// <summary>The center of the glowing panel's top face, on the floor of the corner, 2 m in front of the red wall.</summary>
+    private static readonly Vector3 PanelTop = new(0.6f, FloorHeight + PanelHeight, BackWallZ + 2);
+
     /// <summary>Toward the sun: above the open side of the corner, so it lights the floor and the back wall.</summary>
     private static readonly Vector3 SunDirection = new(0.4f, 0.8f, 0.45f);
 
@@ -384,17 +399,17 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TheDepthPassCopiesTheDirectLightAndTheGeometricNormalOfEachTexelsRepresentativePixel()
+    public void TheDepthPassCopiesTheDiffuseLightAndTheGeometricNormalOfEachTexelsRepresentativePixel()
     {
         // The near steps read the copies in place of the full-resolution images, so the copies must hold the very values
-        // of pixel 2t (decision 25).
+        // of pixel 2t (decision 25). Nothing glows, so the bounce source is the diffuse light alone.
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             renderer.Render(RedWallWithANormalMappedSphere(renderer), 1f);
-            float[] direct = renderer.ReadDirect();
+            float[] direct = renderer.ReadDiffuse();
             float[] normals = renderer.ReadNormals();
-            (float[] directCopy, int width, int height) = renderer.ReadOcclusionDirect();
+            (float[] directCopy, int width, int height) = renderer.ReadOcclusionSource();
             float[] normalCopy = renderer.ReadOcclusionGeometricNormal().Rg;
 
             float[] directAtTexels = new float[3 * width * height];
@@ -427,6 +442,105 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             // may come back one step off (ARCHITECTURE.md, "Portable Vulkan").
             const float snormStep = 1f / 32767;
             normalCopy.Should().Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALampsGlowingPanelBouncesOnlyItsLight()
+    {
+        // The panel glows with its light's power, L = P / (π A), as the demo's lamps do. The light sends that power
+        // once, so the glow is the light's face and no second source ("The bounce source").
+        const float glow = 5;
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot snapshot = GlowingPanel(renderer, glow);
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: PanelTop + new Vector3(0, 0.05f, 0),
+                    color: Vector3.One,
+                    intensity: glow * PanelSide * PanelSide / 4,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
+                {
+                    EntityIndex = PanelEntity,
+                }
+            );
+            renderer.Render(snapshot, 1f);
+            float[] direct = renderer.ReadDirect();
+            float[] source = renderer.ReadOcclusionSource().Rgba;
+
+            foreach (int texel in PanelTexels())
+            {
+                direct[4 * RepresentativePixel(texel)].Should().BeGreaterThan(0, "the panel glows");
+                source[(4 * texel)..(4 * texel + 3)]
+                    .Should()
+                    .AllBeEquivalentTo(0f, "the black panel sends no diffuse light, and its glow is its light's face");
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AGlowWithoutALightOfItsOwnBouncesItsGlow()
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            renderer.Render(GlowingPanel(renderer, glow: 5), 1f);
+            float[] direct = renderer.ReadDirect();
+            float[] source = renderer.ReadOcclusionSource().Rgba;
+
+            foreach (int texel in PanelTexels())
+            {
+                float glowing = direct[4 * RepresentativePixel(texel)];
+                glowing.Should().BeGreaterThan(0, "the panel glows");
+                // The direct image adds the black panel's dim highlight of the sun to the glow.
+                source[4 * texel]
+                    .Should()
+                    .BeInRange(0.9f * glowing, glowing, "a glow with no light of its own is a source of its own");
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHighlightTowardTheEyeIsNotInTheBounceSource()
+    {
+        // The source is the light that leaves in every direction alike. A highlight leaves toward the eye alone, and the
+        // floor beside a glossy sphere sees none of it ("The bounce source").
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            RenderSnapshot snapshot = RedWall(renderer, CornerView);
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Sphere(1)),
+                    material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.2f)),
+                    position: new(0.8f, FloorHeight + 0.6f, BackWallZ + 1.5f),
+                    scale: new(0.6f),
+                    radius: 0.6f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            renderer.Render(snapshot, 1f);
+            float[] direct = renderer.ReadDirect();
+            (float[] source, int width, int height) = renderer.ReadOcclusionSource();
+
+            int highlight = Enumerable.Range(0, width * height).MaxBy(texel => direct[4 * RepresentativePixel(texel)]);
+            float brightest = direct[4 * RepresentativePixel(highlight)];
+            output.WriteLine($"the highlight: direct {brightest:0.000}, source {source[4 * highlight]:0.000}");
+            source[4 * highlight].Should().BeLessThan(0.5f * brightest, "the highlight toward the eye does not bounce");
         }
         finally
         {
@@ -509,6 +623,47 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             Gpu.DisposeAndAssertClean(renderer);
         }
     }
+
+    /// <summary>
+    /// The lit red wall in the corner and a black panel of entity <see cref="PanelEntity"/> on the floor, whose top face,
+    /// <see cref="PanelSide"/> on a side, glows with the radiance <paramref name="glow"/>.
+    /// </summary>
+    private static RenderSnapshot GlowingPanel(VulkanRenderer renderer, float glow)
+    {
+        RenderSnapshot snapshot = RedWall(renderer, CornerView);
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: UnitBox(renderer),
+                material: renderer.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0, y: 0, z: 0, w: 1), roughness: 1) with
+                    {
+                        Emissive = new(glow),
+                    }
+                ),
+                position: PanelTop - new Vector3(0, PanelHeight / 2, 0),
+                scale: new(PanelSide, PanelHeight, PanelSide),
+                chainDepth: TestChains.CamerasFrame,
+                entity: PanelEntity
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>The half-resolution texels within 2 texels of the panel's top center, whose pixels all show the top face.</summary>
+    private static int[] PanelTexels()
+    {
+        Vector2 pixel = PixelOf(PanelTop, CornerView);
+        var center = new Vector2(MathF.Floor(pixel.X / 2), MathF.Floor(pixel.Y / 2));
+        return
+        [
+            .. from dy in Enumerable.Range(-2, 5)
+            from dx in Enumerable.Range(-2, 5)
+            select ((int)center.Y + dy) * HalfWidth + (int)center.X + dx,
+        ];
+    }
+
+    /// <summary>The full-resolution pixel 2t that half-resolution texel t stands for.</summary>
+    private static int RepresentativePixel(int texel) => 2 * (texel / HalfWidth) * Width + 2 * (texel % HalfWidth);
 
     /// <summary>
     /// The floor and the red back wall of the corner, without the side wall, under the sun and a dim white ambient light,

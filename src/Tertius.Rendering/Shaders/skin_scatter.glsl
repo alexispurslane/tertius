@@ -10,8 +10,8 @@
 #include "screen.glsl"
 #include "subsurface.glsl"
 
-layout(set = 3, binding = 0, rgba16f) uniform readonly image2D scatterImage;  // D in rgb, 1 in a at a skin pixel, else 0
-layout(set = 3, binding = 1, rgba16f) uniform image2D rowImage;               // the scatter image after the rows pass
+layout(set = 3, binding = 0, rgba16f) uniform readonly image2D diffuseImage;  // a 1 at skin, else 0; rgb D at skin
+layout(set = 3, binding = 1, rgba16f) uniform image2D rowImage;               // the rows pass's sum at skin, else 0
 layout(set = 3, binding = 2, rgba16f) uniform image2D hdrImage;               // the lit image, at the pixel only
 layout(set = 3, binding = 3) uniform ScatterKernel
 {
@@ -33,10 +33,10 @@ float viewDepthAt(ivec2 pixel)
     return texelFetch(gbufferDistance, pixel, 0).r / length(viewRayThrough(vec2(pixel) + 0.5));
 }
 
-// The pass's source at a tap: the scatter image for the rows, the row image for the columns.
+// The pass's source at a tap: the diffuse image for the rows, the row image for the columns.
 vec3 sourceAt(ivec2 pixel, ivec2 axis)
 {
-    return axis.x != 0 ? imageLoad(scatterImage, pixel).rgb : imageLoad(rowImage, pixel).rgb;
+    return axis.x != 0 ? imageLoad(diffuseImage, pixel).rgb : imageLoad(rowImage, pixel).rgb;
 }
 
 // The kernel's sum along axis at the skin pixel, whose source holds center. Each tap reads the one pixel nearest it. A
@@ -48,7 +48,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
     float pixelsPerMeter = frame.viewport.y / (2.0 * depth * length(frame.cameraUp.xyz));
     if (Reach * pixelsPerMeter < 0.5)
         return center;
-    ivec2 last = imageSize(scatterImage) - 1;
+    ivec2 last = imageSize(diffuseImage) - 1;
     vec3 sum = vec3(0.0);
     for (int i = 0; i <= 2 * scatterTapsPerSide; i++)
     {
@@ -56,7 +56,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         float offset = clamp(floor(tap.a * pixelsPerMeter + 0.5), -MaxSide, MaxSide);
         ivec2 at = clamp(pixel + axis * int(offset), ivec2(0), last);
         vec3 light = center;
-        if (i != scatterTapsPerSide && imageLoad(scatterImage, at).a > 0.0)
+        if (i != scatterTapsPerSide && imageLoad(diffuseImage, at).a > 0.0)
         {
             // Up to the slope limit the tap keeps its own light, and up to twice the limit it gives way to the center's.
             float rise = abs(viewDepthAt(at) - depth) / (abs(tap.a) * SlopeLimit);
@@ -70,7 +70,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
 // Whether the pixel lies inside the images: the dispatch rounds the image up to whole workgroups.
 bool insideScatter(ivec2 pixel)
 {
-    return all(lessThan(pixel, imageSize(scatterImage)));
+    return all(lessThan(pixel, imageSize(diffuseImage)));
 }
 
 #endif

@@ -136,10 +136,10 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
-                Direct: renderer.ReadDirect()
+                Source: renderer.ReadDiffuse()
             );
-            // The brightest channel of the direct light, which one sector's light can reach.
-            double brightest = images.Direct.Where((_, i) => i % 4 != 3).Max();
+            // The brightest channel of the bounce source, which one sector's light can reach.
+            double brightest = images.Source.Where((_, i) => i % 4 != 3).Max();
 
             AmbientEstimate atTheCorner = images
                 .Near(TexelOf(FloorAtTheCorner), setting, everyBlockerFaces: false)
@@ -200,11 +200,11 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             var images = new HairCardImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
-                Direct: renderer.ReadDirect(),
+                Source: renderer.ReadDiffuse(),
                 Normals: renderer.ReadNormals(),
                 SubPixelPrecisionBits: (int)renderer.SubPixelPrecisionBits
             );
-            double brightest = images.Direct.Where((_, i) => i % 4 != 3).Max();
+            double brightest = images.Source.Where((_, i) => i % 4 != 3).Max();
 
             foreach (Vector3 point in OnTheHairCard)
             {
@@ -244,7 +244,14 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             float[] hdr = renderer.ReadHdr();
 
             Vector2 corner = PixelOf(FloorAtTheCorner, CornerView);
-            EstimateAt(estimate, corner).Bounce.X.Should().BePositive("the sunlit walls bounce light onto the corner");
+            if (smoothMetal)
+                EstimateAt(estimate, corner)
+                    .Bounce.X.Should()
+                    .Be(0, "a metal sends no diffuse light, and only the diffuse light bounces");
+            else
+                EstimateAt(estimate, corner)
+                    .Bounce.X.Should()
+                    .BePositive("the sunlit walls bounce light onto the corner");
             foreach ((Vector3 point, Double3 normal) in Points)
             {
                 Vector2 pixel = PixelOf(point, CornerView);
@@ -531,9 +538,9 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     /// <summary>
     /// The images of the corner that the sector pass reads, as the renderer read them back: the view depth of each
-    /// half-resolution texel and the direct image. The corner's three planes give the normals.
+    /// half-resolution texel and the diffuse image, the bounce source where nothing glows. The corner's three planes give the normals.
     /// </summary>
-    private sealed record CornerImages(float[] ViewDepth, (int Width, int Height) HalfSize, float[] Direct)
+    private sealed record CornerImages(float[] ViewDepth, (int Width, int Height) HalfSize, float[] Source)
     {
         /// <summary>
         /// The near slices of <paramref name="texel"/> by the C# copy: the steps of each slice of GTAO, then
@@ -604,7 +611,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             return new StepTexel(
                 Position: position,
                 GeometricNormal: NormalAt(position),
-                DirectLight: new(Direct[pixel], Direct[pixel + 1], Direct[pixel + 2])
+                DirectLight: new(Source[pixel], Source[pixel + 1], Source[pixel + 2])
             );
         }
 
@@ -669,13 +676,13 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     /// <summary>
     /// The images of the corner with the hair card that the sector pass reads, as the renderer read them back: the view
-    /// depth of each half-resolution texel, the direct image and the normals target, whose normals the C# copy decodes
-    /// as the pass does, and the device's sub-pixel precision.
+    /// depth of each half-resolution texel, the diffuse image, the bounce source where nothing glows, and the normals
+    /// target, whose normals the C# copy decodes as the pass does, and the device's sub-pixel precision.
     /// </summary>
     private sealed record HairCardImages(
         float[] ViewDepth,
         (int Width, int Height) HalfSize,
-        float[] Direct,
+        float[] Source,
         float[] Normals,
         int SubPixelPrecisionBits
     )
@@ -761,7 +768,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             return new StepTexel(
                 Position: ViewPosition(texel, DepthAt(texel)),
                 GeometricNormal: ToView(StoredNormal(Normals, pixel, channel: 2)),
-                DirectLight: new(Direct[pixel * 4], Direct[pixel * 4 + 1], Direct[pixel * 4 + 2])
+                DirectLight: new(Source[pixel * 4], Source[pixel * 4 + 1], Source[pixel * 4 + 2])
             );
         }
 

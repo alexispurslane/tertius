@@ -204,7 +204,8 @@ internal sealed unsafe class ShadowPass : RenderPass
             rotation: caster.Rotation,
             scale: caster.Scale,
             material: caster.Material,
-            map: 0
+            map: 0,
+            holdsLight: caster.HoldsLight
         );
 
     /// <summary>
