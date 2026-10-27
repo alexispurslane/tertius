@@ -1,6 +1,6 @@
 ---
 id: ter-gk9o
-status: open
+status: in_progress
 deps: [ter-4zt6, ter-yiii]
 links: []
 created: 2026-10-21T16:10:46Z
