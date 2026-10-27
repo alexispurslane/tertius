@@ -727,7 +727,16 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
-            snapshot.Instances.Add(Ball(entity: 1, position: position) with { ChainDepth = (ushort)chainDepth });
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: new(Sphere),
+                    material: BallMaterial,
+                    position: position,
+                    scale: Vector3.One,
+                    entity: 1,
+                    chainDepth: (ushort)chainDepth
+                )
+            );
             IrradianceReading?[] readings =
                 chainDepth == 1 ? [Reading(ownMap), Reading(otherMap)] : [Reading(otherMap), Reading(ownMap)];
             harness.Run(snapshot, new WithMap(Faces: new[] { FaceMask.None, FaceMask.None }, Irradiance: readings));

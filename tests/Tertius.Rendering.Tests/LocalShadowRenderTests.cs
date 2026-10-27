@@ -903,7 +903,8 @@ public sealed class LocalShadowRenderTests
                 center: center,
                 normal: normal,
                 halfSize: halfSize,
-                flags: flags
+                flags: flags,
+                chainDepth: TestChains.CamerasFrame
             );
 
         /// <summary>A white box of <paramref name="size"/> that casts shadows.</summary>

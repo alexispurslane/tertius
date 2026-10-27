@@ -16,7 +16,7 @@ public sealed class EnvironmentPrefilterTests
     private static readonly int Levels = PrefilterLevels.Count(Size);
 
     /// <summary>Six squares of six colors on the six axes, and a sunlit white wall toward −Z.</summary>
-    private static RenderSnapshot Colorful(VulkanRenderer renderer)
+    private static RenderSnapshot Colorful(VulkanRenderer renderer, ushort chainDepth)
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
         RenderSnapshot snapshot = Gpu.Snapshot(starDirection: new(0.3f, 0.5f, 1f), starIrradiance: 3f);
@@ -26,7 +26,8 @@ public sealed class EnvironmentPrefilterTests
                     plane: plane,
                     material: EnvironmentScenes.Emissive(renderer, 2 * EnvironmentScenes.ColorOf(layer)),
                     center: CubeFaces.Basis((CubeFace)layer).Forward * 10 + new Vector3(1, 2, 0.5f),
-                    halfSize: 3
+                    halfSize: 3,
+                    chainDepth: chainDepth
                 )
             );
         snapshot.Instances.Add(
@@ -34,7 +35,8 @@ public sealed class EnvironmentPrefilterTests
                 plane: plane,
                 material: EnvironmentScenes.Matte(renderer),
                 center: new(-4, -3, -8),
-                halfSize: 3
+                halfSize: 3,
+                chainDepth: chainDepth
             )
         );
         return snapshot;
@@ -55,9 +57,7 @@ public sealed class EnvironmentPrefilterTests
     /// </summary>
     private static RenderSnapshot ColorfulInThreeFrames(VulkanRenderer renderer)
     {
-        RenderSnapshot snapshot = Colorful(renderer);
-        for (int i = 0; i < snapshot.Instances.Count; i++)
-            snapshot.Instances[i] = snapshot.Instances[i] with { ChainDepth = TestChains.Root };
+        RenderSnapshot snapshot = Colorful(renderer, TestChains.Root);
         TestChains.Of(
             snapshot,
             (2, Quaternion.Identity),
@@ -156,7 +156,7 @@ public sealed class EnvironmentPrefilterTests
         int levels = PrefilterLevels.Count(faceSize);
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
             // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
@@ -211,7 +211,7 @@ public sealed class EnvironmentPrefilterTests
         VulkanRenderer renderer = Renderer(faceSize);
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             Half[][][] mips = RadianceMips(renderer, faceSize);
             float[] worstOfLevel = new float[mips.Length];
@@ -244,7 +244,7 @@ public sealed class EnvironmentPrefilterTests
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             Half[] radiance = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance);
             Half[] mirror = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Specular);
@@ -270,7 +270,8 @@ public sealed class EnvironmentPrefilterTests
                 snapshot: snapshot,
                 plane: plane,
                 material: EnvironmentScenes.Emissive(renderer, Vector3.One),
-                distance: 5
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
             );
 
             renderer.Render(snapshot, 1f);
@@ -317,7 +318,8 @@ public sealed class EnvironmentPrefilterTests
                     material: EnvironmentScenes.Emissive(renderer, new(100)),
                     center: 10 * axis,
                     normal: -axis,
-                    halfSize: 1
+                    halfSize: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -441,7 +443,7 @@ public sealed class EnvironmentPrefilterTests
         int levels = PrefilterLevels.Count(faceSize);
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             Half[] radiance = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance);
             Half[] mirror = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Specular);
@@ -493,7 +495,7 @@ public sealed class EnvironmentPrefilterTests
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             var expected = Irradiance.Project(
                 AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
@@ -528,7 +530,7 @@ public sealed class EnvironmentPrefilterTests
         VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
         try
         {
-            RenderSnapshot colorful = Colorful(renderer);
+            RenderSnapshot colorful = Colorful(renderer, TestChains.CamerasFrame);
             RenderSnapshot moved = Gpu.Snapshot(starDirection: new(-0.6f, 0.2f, 0.4f), starIrradiance: 1f);
             moved.Instances.AddRange(colorful.Instances);
             Irradiance? before = null;
@@ -576,7 +578,7 @@ public sealed class EnvironmentPrefilterTests
         VulkanRenderer renderer = Renderer(size);
         try
         {
-            renderer.Render(Colorful(renderer), 1f);
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
             var faces = new List<Half>();
             for (int layer = 0; layer < CubeFaces.Count; layer++)
@@ -779,7 +781,10 @@ public sealed class EnvironmentPrefilterTests
             renderer.Graph.Add(FrameGraph.Stage.EnvironmentFaces, before);
             renderer.Graph.Add(FrameGraph.Stage.EnvironmentPrefilter, after);
 
-            renderer.Render(maps == 1 ? Colorful(renderer) : ColorfulInThreeFrames(renderer), 1f);
+            renderer.Render(
+                maps == 1 ? Colorful(renderer, TestChains.CamerasFrame) : ColorfulInThreeFrames(renderer),
+                1f
+            );
 
             int runs = PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(faceSize));
             int barriers = after.Flushes - before.Flushes;
@@ -807,7 +812,8 @@ public sealed class EnvironmentPrefilterTests
                     material: EnvironmentScenes.Emissive(renderer, Vector3.One),
                     center: new(-50, 0, 10),
                     normal: -Vector3.UnitZ,
-                    halfSize: 50
+                    halfSize: 50,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -848,7 +854,8 @@ public sealed class EnvironmentPrefilterTests
                     material: white,
                     center: new(0, 5, 0),
                     normal: -Vector3.UnitY,
-                    halfSize: 5.5f
+                    halfSize: 5.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             foreach (
@@ -860,7 +867,8 @@ public sealed class EnvironmentPrefilterTests
                         material: white,
                         center: side * 5 + new Vector3(0, 5.5f, 0),
                         normal: -side,
-                        halfSize: 5.5f
+                        halfSize: 5.5f,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
 

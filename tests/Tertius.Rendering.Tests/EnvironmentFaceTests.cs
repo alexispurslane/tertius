@@ -55,14 +55,20 @@ internal static class EnvironmentScenes
     }
 
     /// <summary>A square of <paramref name="plane"/>, a plane mesh of half size 1, centered at <paramref name="center"/> and facing the eye.</summary>
-    public static RenderInstance Square(MeshId plane, MaterialId material, Vector3 center, float halfSize) =>
+    public static RenderInstance Square(
+        MeshId plane,
+        MaterialId material,
+        Vector3 center,
+        float halfSize,
+        ushort chainDepth
+    ) =>
         Gpu.Instance(
             mesh: plane,
             material: material,
             position: center,
             scale: new(halfSize, 1, halfSize),
             rotation: FrontToward(-Vector3.Normalize(center)),
-            chainDepth: TestChains.CamerasFrame
+            chainDepth: chainDepth
         );
 
     /// <summary>A square of half size <paramref name="halfSize"/> at <paramref name="center"/> whose front faces along <paramref name="normal"/>.</summary>
@@ -72,6 +78,7 @@ internal static class EnvironmentScenes
         Vector3 center,
         Vector3 normal,
         float halfSize,
+        ushort chainDepth,
         RenderFlags flags = RenderFlags.None
     ) =>
         Gpu.Instance(
@@ -81,11 +88,17 @@ internal static class EnvironmentScenes
             scale: new(halfSize, 1, halfSize),
             rotation: FrontToward(normal),
             flags: flags,
-            chainDepth: TestChains.CamerasFrame
+            chainDepth: chainDepth
         );
 
     /// <summary>Six squares facing inward around the eye, <paramref name="distance"/> away: a box that fills every direction.</summary>
-    public static void AddEnclosure(RenderSnapshot snapshot, MeshId plane, MaterialId material, float distance)
+    public static void AddEnclosure(
+        RenderSnapshot snapshot,
+        MeshId plane,
+        MaterialId material,
+        float distance,
+        ushort chainDepth
+    )
     {
         for (int layer = 0; layer < CubeFaces.Count; layer++)
             snapshot.Instances.Add(
@@ -93,7 +106,8 @@ internal static class EnvironmentScenes
                     plane: plane,
                     material: material,
                     center: CubeFaces.Basis((CubeFace)layer).Forward * distance,
-                    halfSize: distance * 1.1f
+                    halfSize: distance * 1.1f,
+                    chainDepth: chainDepth
                 )
             );
     }
@@ -168,7 +182,8 @@ public sealed class EnvironmentFaceTests
                         plane: plane,
                         material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(layer)),
                         center: CubeFaces.Basis((CubeFace)layer).Forward * 10,
-                        halfSize: 2
+                        halfSize: 2,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             var marker = new Vector3(4);
@@ -178,7 +193,8 @@ public sealed class EnvironmentFaceTests
                     plane: plane,
                     material: EnvironmentScenes.Emissive(renderer, marker),
                     center: new(10, 5, -5),
-                    halfSize: 0.5f
+                    halfSize: 0.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -233,7 +249,8 @@ public sealed class EnvironmentFaceTests
                         plane: plane,
                         material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(color)),
                         center: CubeFaces.Basis(face).Forward * distance,
-                        halfSize: 0.2f * distance
+                        halfSize: 0.2f * distance,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
 
@@ -337,7 +354,8 @@ public sealed class EnvironmentFaceTests
                     plane: plane,
                     material: EnvironmentScenes.Matte(renderer),
                     center: new(0, 0, 22),
-                    halfSize: 5
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // Its reach, from z ≈ 8.7 to 31.3, lies wholly behind the camera.
@@ -377,7 +395,8 @@ public sealed class EnvironmentFaceTests
                     plane: plane,
                     material: EnvironmentScenes.Matte(renderer),
                     center: new(10, 0, 0),
-                    halfSize: 5
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             // A bright wall behind the camera fills the map with light, which an ambient term would read from the frame
@@ -387,7 +406,8 @@ public sealed class EnvironmentFaceTests
                     plane: plane,
                     material: EnvironmentScenes.Emissive(renderer, new(5)),
                     center: new(-10, 0, 0),
-                    halfSize: 5
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -420,7 +440,8 @@ public sealed class EnvironmentFaceTests
                     material: EnvironmentScenes.Matte(renderer),
                     center: new(-50, 0, 10),
                     normal: -Vector3.UnitZ,
-                    halfSize: 50
+                    halfSize: 50,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -486,7 +507,8 @@ public sealed class EnvironmentFaceTests
                         plane: plane,
                         material: EnvironmentScenes.Emissive(renderer, new(1, 0.5f, 0.25f)),
                         center: new(10, 0, 0),
-                        halfSize: 4
+                        halfSize: 4,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 snapshot.Instances.Add(
@@ -494,7 +516,8 @@ public sealed class EnvironmentFaceTests
                         plane: plane,
                         material: EnvironmentScenes.Matte(renderer),
                         center: new(-10, 0, 0),
-                        halfSize: 4
+                        halfSize: 4,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 renderer.Render(snapshot, 1f);
@@ -531,7 +554,8 @@ public sealed class EnvironmentFaceTests
                     plane: plane,
                     material: EnvironmentScenes.Emissive(renderer, radiance),
                     center: new(10, 0, 0),
-                    halfSize: 5
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             MaterialId glass = renderer.CreateMaterial(
@@ -547,7 +571,8 @@ public sealed class EnvironmentFaceTests
                     center: new(5, 0, 0),
                     normal: -Vector3.UnitX,
                     halfSize: 3,
-                    flags: RenderFlags.Transparent
+                    flags: RenderFlags.Transparent,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.PuffLooks.Add(
@@ -598,7 +623,13 @@ public sealed class EnvironmentFaceTests
                     .Range(0, 7)
                     .Select(i => EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(i))),
             ];
-            EnvironmentScenes.AddEnclosure(snapshot: snapshot, plane: plane, material: materials[0], distance: 5);
+            EnvironmentScenes.AddEnclosure(
+                snapshot: snapshot,
+                plane: plane,
+                material: materials[0],
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: 0);
             Vector3[] before = EnvironmentScenes.Centers(renderer);
             foreach (Vector3 center in before)
@@ -615,7 +646,8 @@ public sealed class EnvironmentFaceTests
                     snapshot: snapshot,
                     plane: plane,
                     material: materials[frame],
-                    distance: 5
+                    distance: 5,
+                    chainDepth: TestChains.CamerasFrame
                 );
                 EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: frame / 60.0);
 
@@ -649,7 +681,13 @@ public sealed class EnvironmentFaceTests
                     .Range(0, 4)
                     .Select(i => EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(i))),
             ];
-            EnvironmentScenes.AddEnclosure(snapshot: snapshot, plane: plane, material: materials[0], distance: 5);
+            EnvironmentScenes.AddEnclosure(
+                snapshot: snapshot,
+                plane: plane,
+                material: materials[0],
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: 0);
             Vector3[] before = EnvironmentScenes.Centers(renderer);
 
@@ -660,7 +698,8 @@ public sealed class EnvironmentFaceTests
                     snapshot: snapshot,
                     plane: plane,
                     material: materials[frame],
-                    distance: 5
+                    distance: 5,
+                    chainDepth: TestChains.CamerasFrame
                 );
                 EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: frame / 60.0);
 
@@ -781,7 +820,8 @@ public sealed class EnvironmentFaceTests
                 snapshot: snapshot,
                 plane: plane,
                 material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(still)),
-                distance: 5
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
             );
             TestChains.Of(snapshot, (still == 2 ? thirdFrame : 0, Quaternion.Identity));
             EnvironmentScenes.Still(renderer: renderer, snapshot: snapshot, time: times[still]);
