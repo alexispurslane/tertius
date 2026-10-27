@@ -575,25 +575,12 @@ public sealed class ScriptCommandTests : IDisposable
     // run then ends in ScriptError or FileError before any window code runs, instead of opening a window on a test thread.
 
     [Fact]
-    public void TheWindowOptionsCarryTheirValues()
+    public void FreePlayCarriesItsSpeedWithoutARecord()
     {
         ScriptCommand.RunOptions? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
-        ScriptCommand.RunOptions? played = ScriptCommand.ReadOptions(["--script", "s.json", "--out", "o"], out _);
 
         free.Should()
             .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlay("drop-box", Speed: 0.5, Record: null)));
-        played
-            .Should()
-            .Be(
-                new ScriptCommand.RunOptions(
-                    new ScriptCommand.ScriptRun(
-                        Script: "s.json",
-                        Out: "o",
-                        Size: null,
-                        Display: new ScriptCommand.InWindow(Speed: 1)
-                    )
-                )
-            );
     }
 
     /// <summary>The script run of a command line that ReadOptions takes.</summary>
@@ -789,8 +776,8 @@ public sealed class ScriptCommandTests : IDisposable
             "o/v.mkv",
         ]);
 
-        rated.Target.Should().Be(new CaptureTarget(new VideoFile("o/v.mkv", 24)));
-        plain.Target.Should().Be(new CaptureTarget(new VideoFile("o/v.mkv", 30)));
+        rated.Video.Should().Be(new ScriptCommand.HeadlessVideo(new VideoFile("o/v.mkv", 24)));
+        plain.Video.Should().Be(new ScriptCommand.HeadlessVideo(new VideoFile("o/v.mkv", 30)));
     }
 
     [Theory]
@@ -818,7 +805,7 @@ public sealed class ScriptCommandTests : IDisposable
             "none",
         ]);
 
-        discarded.Target.Should().Be(new CaptureTarget(new Discard()));
+        discarded.Video.Should().Be(new ScriptCommand.HeadlessVideo(new Discard()));
     }
 
     [Fact]
@@ -860,23 +847,6 @@ public sealed class ScriptCommandTests : IDisposable
         File.Exists(Path.Combine(Out, "end.json"))
             .Should()
             .BeFalse("the command refuses the run before the first tick");
-    }
-
-    [Fact]
-    public void TheRecordOptionOfFreePlayCarriesItsPath()
-    {
-        ScriptCommand.RunOptions? recorded = ScriptCommand.ReadOptions(
-            ["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"],
-            out _
-        );
-
-        recorded
-            .Should()
-            .Be(
-                new ScriptCommand.RunOptions(
-                    new ScriptCommand.FreePlay("drop-box", Speed: 2, Record: "sessions/today.json")
-                )
-            );
     }
 
     [Fact]

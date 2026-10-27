@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
 
@@ -184,6 +185,89 @@ public sealed class ScriptCommandOptionsTests
         problem.Should().Be(expected);
     }
 
+    // Command lines with two or more problems. Each gets the problem of the option that comes first in the order of the
+    // checks: the options that choose the run (--headless, --record, --out), then the missing --out of a script run, then
+    // each other option in the order of the usage line, with its place in the run before its value.
+    public static TheoryData<string[], string> CommandLinesWithSeveralProblems =>
+        new()
+        {
+            {
+                ["--script", "s.json", "--record", "r.json"],
+                "--record applies to free play, so give --scene. A script is a record already."
+            },
+            {
+                ["--scene", "drop-box", "--headless", "--out", "o"],
+                "--scene is free play, and free play needs the window. Leave out --headless."
+            },
+            {
+                ["--script", "s.json", "--out", "o", "--size", "big", "--tone-curve", "hable"],
+                $"--size needs a width and a height of 1 to {ScriptWindow.MaxSide} pixels, such as 1920x1080, not 'big'."
+            },
+            {
+                ["--scene", "drop-box", "--speed", "0", "--video", "v.mkv"],
+                "--speed needs a positive number, such as 0.5 or 2, not '0'."
+            },
+            {
+                ["--script", "s.json", "--out", "o", "--speed", "0", "--video", "v.mkv"],
+                "--speed needs a positive number, such as 0.5 or 2, not '0'."
+            },
+            {
+                ["--script", "s.json", "--headless", "--out", "o", "--video", "v.txt", "--speed", "2"],
+                "--speed applies to the window. A headless run runs its ticks back to back."
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(CommandLinesWithSeveralProblems))]
+    public void ACommandLineWithSeveralProblemsGetsTheProblemOfTheOptionThatIsCheckedFirst(
+        string[] args,
+        string expected
+    )
+    {
+        ScriptCommand.ReadOptions(args, out string? problem);
+
+        problem.Should().Be(expected);
+    }
+
+    // Each case of the command line, and the options that it takes. --headless chooses the display of a script run, so a
+    // script run in the window counts it as taken.
+    public static TheoryData<string[], string[]> CasesAndTheirOptions =>
+        new()
+        {
+            { ["--scene", "drop-box"], ["--scene", "--speed", "--record"] },
+            { ["--script", "s.json", "--out", "o"], ["--script", "--out", "--speed", "--size", "--headless"] },
+            {
+                ["--script", "s.json", "--headless", "--out", "o"],
+                [
+                    "--script",
+                    "--headless",
+                    "--out",
+                    "--video",
+                    "--fps",
+                    "--size",
+                    .. RendererOptions.Select(option => option[0]),
+                ]
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(CasesAndTheirOptions))]
+    public void EveryOptionOfTheUsageLineIsKnownAndACaseThatDoesNotTakeItRefusesIt(string[] run, string[] taken)
+    {
+        var usage = new StringWriter();
+        ScriptCommand.Run(args: [], scenes: [], output: TextWriter.Null, error: usage);
+        string[] options = [.. Regex.Matches(usage.ToString(), "--[a-z-]+").Select(match => match.Value).Distinct()];
+
+        foreach (string option in options.Except(taken))
+        {
+            string[] given = option == "--headless" ? [option] : [option, "x"];
+            ScriptCommand.ReadOptions([.. run, .. given], out string? problem);
+
+            problem.Should().NotBeNull($"{option} does not belong to {string.Join(' ', run)}");
+            problem.Should().NotStartWith("Unknown option", $"the usage line names {option}");
+        }
+    }
+
     public static TheoryData<string[], string> RendererOptionsOutsideAHeadlessRun()
     {
         var rows = new TheoryData<string[], string>();
@@ -291,7 +375,7 @@ public sealed class ScriptCommandOptionsTests
                         Out: "o",
                         Size: null,
                         Display: new ScriptCommand.Headless(
-                            Target: new PngFolder("o"),
+                            Video: null,
                             Renderer: new ScriptCommand.RendererOverrides()
                         )
                     )
@@ -354,9 +438,33 @@ public sealed class ScriptCommandOptionsTests
                         Script: "s.json",
                         Out: "o",
                         Size: new ScriptWindow(800, 600),
-                        Display: new ScriptCommand.Headless(Target: new PngFolder("o"), Renderer: renderer)
+                        Display: new ScriptCommand.Headless(Video: null, Renderer: renderer)
                     )
                 )
             );
+    }
+
+    [Fact]
+    public void AHeadlessRunWithoutVideoWritesPngFilesIntoTheOutputFolderOfItsScriptRun()
+    {
+        var headless = new ScriptCommand.Headless(Video: null, Renderer: new ScriptCommand.RendererOverrides());
+
+        headless.TargetIn("o").Should().Be(new CaptureTarget(new PngFolder("o")));
+    }
+
+    [Fact]
+    public void AHeadlessRunWithVideoSendsItsCapturesToTheVideoAndNotToTheOutputFolder()
+    {
+        var filmed = new ScriptCommand.Headless(
+            Video: new ScriptCommand.HeadlessVideo(new VideoFile("v.mkv", 24)),
+            Renderer: new ScriptCommand.RendererOverrides()
+        );
+        var discarded = new ScriptCommand.Headless(
+            Video: new ScriptCommand.HeadlessVideo(new Discard()),
+            Renderer: new ScriptCommand.RendererOverrides()
+        );
+
+        filmed.TargetIn("o").Should().Be(new CaptureTarget(new VideoFile("v.mkv", 24)));
+        discarded.TargetIn("o").Should().Be(new CaptureTarget(new Discard()));
     }
 }

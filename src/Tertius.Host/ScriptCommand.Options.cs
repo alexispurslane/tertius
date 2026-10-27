@@ -31,9 +31,22 @@ public static partial class ScriptCommand
     internal readonly record struct InWindow(double Speed);
 
     /// <summary>A script run with no window, which runs its ticks back to back.</summary>
-    /// <param name="Target">Where the captures go: the PNG files of the output folder without <c>--video</c>.</param>
+    /// <param name="Video">The choice of <c>--video</c>, or null without the option.</param>
     /// <param name="Renderer">The settings that replace the headless renderer's defaults.</param>
-    internal readonly record struct Headless(CaptureTarget Target, RendererOverrides Renderer);
+    internal readonly record struct Headless(HeadlessVideo? Video, RendererOverrides Renderer)
+    {
+        /// <summary>
+        /// Where the captures go: the video or the discard of <c>--video</c>, or without the option the PNG files of
+        /// <paramref name="outFolder"/>, the output folder of the script run.
+        /// </summary>
+        public CaptureTarget TargetIn(string outFolder) =>
+            Video switch
+            {
+                VideoFile file => file,
+                Discard discard => discard,
+                null => new PngFolder(outFolder),
+            };
+    }
 
     /// <summary>
     /// The settings of a headless run that replace the headless renderer's defaults. The default value replaces none.

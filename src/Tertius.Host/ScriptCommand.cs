@@ -92,65 +92,74 @@ public static partial class ScriptCommand
         WriteIndented = true,
     };
 
-    // The options that take a value. --headless is the one option without one.
+    // The options of the headless renderer, in the order of the usage line, each with the function that gives the problem
+    // with its value, or null for a value that it takes. Two of them also read another option's value:
+    // --screen-space-light-steps and --local-shadow-tiles.
+    private static readonly (
+        string Option,
+        Func<GivenOptions, string, string?> ValueProblem
+    )[] HeadlessRendererOptions =
+    [
+        ("--tone-curve", (_, curve) => ToneCurveProblem(curve)),
+        ("--screen-space-light", (_, light) => ScreenSpaceLightProblem(light)),
+        ("--screen-space-light-steps", ScreenSpaceLightStepsProblem),
+        ("--bloom", (_, value) => OnOffProblem("--bloom", value)),
+        ("--reflections", (_, value) => OnOffProblem("--reflections", value)),
+        ("--anti-aliasing", (_, antiAliasing) => AntiAliasingProblem(antiAliasing)),
+        ("--local-shadows", (_, localShadows) => LocalShadowsProblem(localShadows)),
+        ("--local-shadow-tiles", LocalShadowTilesProblem),
+        ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
+        ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
+    ];
+
+    // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
+    // gets the problem of the first of these before the missing --out of a script run, and before every other option.
+    private static readonly (string Option, string Stray)[] RunChoiceOptions =
+    [
+        ("--headless", "--scene is free play, and free play needs the window. Leave out --headless."),
+        ("--record", "--record applies to free play, so give --scene. A script is a record already."),
+        ("--out", "--out applies to a script. Free play writes only the file that --record names."),
+    ];
+
+    // Every other option but --script and --scene, in the order of the usage line. Each option is checked in turn, first
+    // for its place in the run and then for its value, so a command line gets the problem of the first option that has
+    // one. Declared after HeadlessRendererOptions, which its initializer reads.
+    private static readonly OptionRule[] OptionRules =
+    [
+        new(
+            Option: "--speed",
+            Stray: "--speed applies to the window. A headless run runs its ticks back to back.",
+            ValueProblem: (_, speed) => SpeedProblem(speed)
+        ),
+        new(
+            Option: "--video",
+            Stray: "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.",
+            ValueProblem: (_, video) => VideoProblem(video)
+        ),
+        new(Option: "--fps", Stray: "--fps applies to a video, so give --video too.", ValueProblem: FpsProblem),
+        new(
+            Option: "--size",
+            Stray: "--size applies to a script, so give --script.",
+            ValueProblem: (_, size) => SizeProblem(size)
+        ),
+        .. HeadlessRendererOptions.Select(renderer => new OptionRule(
+            Option: renderer.Option,
+            Stray: $"{renderer.Option} applies to a headless run, so add --headless.",
+            ValueProblem: renderer.ValueProblem
+        )),
+    ];
+
+    // The options that take a value: every option of the tables above but --headless, which takes none. Declared after
+    // them, which its initializer reads, so that an option that the tables do not check is unknown.
     private static readonly string[] ValueOptions =
     [
         "--script",
         "--scene",
-        "--out",
-        "--speed",
-        "--record",
-        "--video",
-        "--fps",
-        "--size",
-        "--tone-curve",
-        "--screen-space-light",
-        "--screen-space-light-steps",
-        "--bloom",
-        "--reflections",
-        "--anti-aliasing",
-        "--local-shadows",
-        "--local-shadow-tiles",
-        "--cascaded-lights",
-        "--environment-map",
+        .. RunChoiceOptions.Select(choice => choice.Option).Where(option => option != "--headless"),
+        .. OptionRules.Select(rule => rule.Option),
     ];
 
-    // The options of the headless renderer, in the order of the usage line.
-    private static readonly string[] RendererOverrideOptions =
-    [
-        "--tone-curve",
-        "--screen-space-light",
-        "--screen-space-light-steps",
-        "--bloom",
-        "--reflections",
-        "--anti-aliasing",
-        "--local-shadows",
-        "--local-shadow-tiles",
-        "--cascaded-lights",
-        "--environment-map",
-    ];
-
-    // Each option that only some runs take, with the problem when a run that does not take it is given it. A command line
-    // with several such options gets the problem of the first, so the options that choose the run come first, then the
-    // rest in the order of the usage line. Declared after RendererOverrideOptions, which its initializer reads.
-    private static readonly (string Option, string Problem)[] StrayProblems =
-    [
-        ("--headless", "--scene is free play, and free play needs the window. Leave out --headless."),
-        ("--out", "--out applies to a script. Free play writes only the file that --record names."),
-        ("--record", "--record applies to free play, so give --scene. A script is a record already."),
-        ("--speed", "--speed applies to the window. A headless run runs its ticks back to back."),
-        (
-            "--video",
-            "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video."
-        ),
-        ("--fps", "--fps applies to a video, so give --video too."),
-        ("--size", "--size applies to a script, so give --script."),
-        .. RendererOverrideOptions.Select(option =>
-            (Option: option, Problem: $"{option} applies to a headless run, so add --headless.")
-        ),
-    ];
-
-    // The options of StrayProblems that each run takes. Declared after RendererOverrideOptions, which they read.
+    // The options of the tables above that each run takes. Declared after HeadlessRendererOptions, which they read.
     private static readonly string[] FreePlayOptions = ["--speed", "--record"];
     private static readonly string[] WindowOptions = ["--out", "--speed", "--size"];
     private static readonly string[] HeadlessOptions =
@@ -160,7 +169,7 @@ public static partial class ScriptCommand
         "--video",
         "--fps",
         "--size",
-        .. RendererOverrideOptions,
+        .. HeadlessRendererOptions.Select(renderer => renderer.Option),
     ];
 
     /// <summary>
@@ -289,7 +298,7 @@ public static partial class ScriptCommand
             return new RunFailure(FileError, $"Cannot read the script {run.Script}: {ex.Message}");
         }
 
-        bool takesCaptures = run.Display is Headless { Target: VideoFile or Discard };
+        bool takesCaptures = run.Display is Headless { Video: not null };
         if (takesCaptures && !HasCaptures(script))
             return new RunFailure(
                 CommandLineError,
@@ -339,7 +348,7 @@ public static partial class ScriptCommand
         using VulkanRenderer? rendererToDispose = renderer;
         return Play(
             run: run,
-            target: headless.Target,
+            target: headless.TargetIn(run.Out),
             script: script,
             scene: scene,
             world: world,
@@ -686,17 +695,49 @@ public static partial class ScriptCommand
         public string? Value(string option) => Values.GetValueOrDefault(option);
 
         /// <summary>
-        /// The problem with the first option of <see cref="StrayProblems"/> that the command line gives and that a run with
-        /// the options <paramref name="taken"/> does not take, or null.
+        /// The problem with the first option of <see cref="RunChoiceOptions"/> that the command line gives and that a run
+        /// with the options <paramref name="taken"/> does not take, or null.
         /// </summary>
-        public string? StrayProblem(string[] taken) =>
-            StrayProblems
-                .Where(stray => Gives(stray.Option) && !taken.Contains(stray.Option))
-                .Select(stray => stray.Problem)
+        public string? RunChoiceProblem(string[] taken) =>
+            RunChoiceOptions
+                .Where(choice => Gives(choice.Option) && !taken.Contains(choice.Option))
+                .Select(choice => choice.Stray)
                 .FirstOrDefault();
+
+        /// <summary>
+        /// The problem with the first option of <see cref="OptionRules"/> that the command line gives and that a run with
+        /// the options <paramref name="taken"/> does not take, or whose value it does not take, or null.
+        /// </summary>
+        public string? OptionProblem(string[] taken)
+        {
+            foreach (OptionRule rule in OptionRules)
+            {
+                if (Value(rule.Option) is not { } value)
+                    continue;
+                if (!taken.Contains(rule.Option))
+                    return rule.Stray;
+                if (rule.ValueProblem(this, value) is { } problem)
+                    return problem;
+            }
+
+            return null;
+        }
 
         private bool Gives(string option) => option == "--headless" ? Headless : Values.ContainsKey(option);
     }
+
+    /// <summary>An option that only some runs take, and its problems.</summary>
+    /// <param name="Option">The option, such as <c>--speed</c>.</param>
+    /// <param name="Stray">The problem when a run that does not take the option is given it.</param>
+    /// <param name="ValueProblem">
+    /// The problem with the option's value, given the options as given and the value, or null for a value that the option
+    /// takes.
+    /// </param>
+    private readonly record struct OptionRule(
+        string Option,
+        string Stray,
+        Func<GivenOptions, string, string?> ValueProblem
+    );
 
     /// <summary>The options as given, or null and the problem for an unknown option or a missing value.</summary>
     private static GivenOptions? Gather(string[] args, out string? problem)
@@ -743,7 +784,7 @@ public static partial class ScriptCommand
 
     private static Result<RunOptions, string> ReadFreePlay(GivenOptions given, string scene)
     {
-        if ((given.StrayProblem(FreePlayOptions) ?? SpeedProblem(given)) is { } problem)
+        if ((given.RunChoiceProblem(FreePlayOptions) ?? given.OptionProblem(FreePlayOptions)) is { } problem)
             return problem;
         return new RunOptions(
             new FreePlay(Scene: scene, Speed: SpeedOf(given.Value("--speed")) ?? 1, Record: given.Value("--record"))
@@ -752,14 +793,18 @@ public static partial class ScriptCommand
 
     private static Result<RunOptions, string> ReadScriptRun(GivenOptions given, string script)
     {
-        // The missing output folder is the first problem of a script run, because every script run needs it.
+        string[] taken = given.Headless ? HeadlessOptions : WindowOptions;
+        if (given.RunChoiceProblem(taken) is { } choiceProblem)
+            return choiceProblem;
+        // Every script run needs its output folder, so its absence comes after the options that choose the run and before
+        // the other options.
         if (given.Value("--out") is not { } outFolder)
             return "The option --out is missing.";
-        if (ScriptRunProblem(given) is { } problem)
+        if (given.OptionProblem(taken) is { } problem)
             return problem;
         ScriptDisplay display = given.Headless
             ? new Headless(
-                Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
+                Video: VideoOf(video: given.Value("--video"), fps: given.Value("--fps")),
                 Renderer: RendererOverridesOf(given)
             )
             : new InWindow(Speed: SpeedOf(given.Value("--speed")) ?? 1);
@@ -767,26 +812,6 @@ public static partial class ScriptCommand
             new ScriptRun(Script: script, Out: outFolder, Size: SizeOf(given.Value("--size")), Display: display)
         );
     }
-
-    /// <summary>
-    /// The problem with an option that a script run in the window or headless does not take, or with the value of an
-    /// option that it takes, or null.
-    /// </summary>
-    private static string? ScriptRunProblem(GivenOptions given) =>
-        given.Headless
-            ? given.StrayProblem(HeadlessOptions) ?? VideoProblem(given) ?? SizeProblem(given) ?? RendererProblem(given)
-            : given.StrayProblem(WindowOptions) ?? SpeedProblem(given) ?? SizeProblem(given);
-
-    /// <summary>The problem with the value of an option of the headless renderer, or null.</summary>
-    private static string? RendererProblem(GivenOptions given) =>
-        ToneCurveProblem(given)
-        ?? ScreenSpaceLightProblem(given)
-        ?? OnOffProblem(given, "--bloom")
-        ?? OnOffProblem(given, "--reflections")
-        ?? AntiAliasingProblem(given)
-        ?? LocalShadowsProblem(given)
-        ?? CascadedLightsProblem(given)
-        ?? OnOffProblem(given, "--environment-map");
 
     /// <summary>The overrides of the headless renderer that the options as given choose.</summary>
     private static RendererOverrides RendererOverridesOf(GivenOptions given) =>
@@ -805,102 +830,69 @@ public static partial class ScriptCommand
             EnvironmentMapOff = given.Value("--environment-map") == "off",
         };
 
-    private static string? SpeedProblem(GivenOptions given)
-    {
-        if (given.Value("--speed") is not { } speed)
-            return null;
-        if (SpeedOf(speed) is null)
-            return $"--speed needs a positive number, such as 0.5 or 2, not '{speed}'.";
-        return null;
-    }
+    private static string? SpeedProblem(string speed) =>
+        SpeedOf(speed) is null ? $"--speed needs a positive number, such as 0.5 or 2, not '{speed}'." : null;
 
-    private static string? VideoProblem(GivenOptions given)
-    {
-        string? video = given.Value("--video"),
-            fps = given.Value("--fps");
-        if (video is not (null or NoVideo) && !VideoFile.HasVideoExtension(video))
-            return $"--video needs {NoVideo} or a file whose name ends in {VideoFile.Extension}, not '{video}'.";
-        if (fps != null && video is null)
-            return "--fps applies to a video, so give --video too.";
-        if (fps != null && video is NoVideo)
-            return $"--fps sets the frame rate of a video file, and --video {NoVideo} writes no video.";
-        if (fps != null && FpsOf(fps) is null)
-            return $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fps}'.";
-        return null;
-    }
+    private static string? VideoProblem(string video) =>
+        video is not NoVideo && !VideoFile.HasVideoExtension(video)
+            ? $"--video needs {NoVideo} or a file whose name ends in {VideoFile.Extension}, not '{video}'."
+            : null;
 
-    private static string? SizeProblem(GivenOptions given)
-    {
-        if (given.Value("--size") is not { } size)
-            return null;
-        if (SizeOf(size) is null)
-            return $"--size needs a width and a height of 1 to {ScriptWindow.MaxSide} pixels, such as 1920x1080, not '{size}'.";
-        return null;
-    }
+    private static string? FpsProblem(GivenOptions given, string fps) =>
+        given.Value("--video") switch
+        {
+            null => "--fps applies to a video, so give --video too.",
+            NoVideo => $"--fps sets the frame rate of a video file, and --video {NoVideo} writes no video.",
+            _ when FpsOf(fps) is null =>
+                $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fps}'.",
+            _ => null,
+        };
 
-    private static string? ToneCurveProblem(GivenOptions given)
-    {
-        if (given.Value("--tone-curve") is not { } curve)
-            return null;
-        if (ToneCurveOf(curve) is null)
-            return $"--tone-curve needs aces or hable, not '{curve}'.";
-        return null;
-    }
+    private static string? SizeProblem(string size) =>
+        SizeOf(size) is null
+            ? $"--size needs a width and a height of 1 to {ScriptWindow.MaxSide} pixels, such as 1920x1080, not '{size}'."
+            : null;
 
-    private static string? ScreenSpaceLightProblem(GivenOptions given)
+    private static string? ToneCurveProblem(string curve) =>
+        ToneCurveOf(curve) is null ? $"--tone-curve needs aces or hable, not '{curve}'." : null;
+
+    private static string? ScreenSpaceLightProblem(string light) =>
+        light is "off" || RadiusOf(light) is not null
+            ? null
+            : $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
+
+    private static string? ScreenSpaceLightStepsProblem(GivenOptions given, string steps)
     {
-        string? light = given.Value("--screen-space-light"),
-            steps = given.Value("--screen-space-light-steps");
-        bool lightReads = light is null or "off" || RadiusOf(light) is not null;
-        if (!lightReads)
-            return $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
-        if (steps is not null && StepsOf(steps) is null)
+        if (StepsOf(steps) is null)
             return $"--screen-space-light-steps needs a whole number from 1 to {ScreenSpaceLightSetting.MaxStepsPerSide}, not '{steps}'.";
-        if (steps is not null && light == "off")
+        if (given.Value("--screen-space-light") == "off")
             return "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off.";
         return null;
     }
 
     /// <summary>The problem with a switch of the headless renderer, such as <c>--bloom</c>, which takes on or off, or null.</summary>
-    private static string? OnOffProblem(GivenOptions given, string option)
-    {
-        if (given.Value(option) is not { } value)
-            return null;
-        if (value is not ("on" or "off"))
-            return $"{option} needs on or off, not '{value}'.";
-        return null;
-    }
+    private static string? OnOffProblem(string option, string value) =>
+        value is "on" or "off" ? null : $"{option} needs on or off, not '{value}'.";
 
-    private static string? AntiAliasingProblem(GivenOptions given)
-    {
-        if (given.Value("--anti-aliasing") is not { } antiAliasing)
-            return null;
-        if (AntiAliasingOf(antiAliasing) is null)
-            return $"--anti-aliasing needs off or smaa, not '{antiAliasing}'.";
-        return null;
-    }
+    private static string? AntiAliasingProblem(string antiAliasing) =>
+        AntiAliasingOf(antiAliasing) is null ? $"--anti-aliasing needs off or smaa, not '{antiAliasing}'." : null;
 
-    private static string? LocalShadowsProblem(GivenOptions given)
+    private static string? LocalShadowsProblem(string localShadows) =>
+        localShadows is "off" or "on" ? null : $"--local-shadows needs off or on, not '{localShadows}'.";
+
+    private static string? LocalShadowTilesProblem(GivenOptions given, string tiles)
     {
-        string? localShadows = given.Value("--local-shadows"),
-            tiles = given.Value("--local-shadow-tiles");
-        if (localShadows is not (null or "off" or "on"))
-            return $"--local-shadows needs off or on, not '{localShadows}'.";
-        if (tiles is not null && TilesOf(tiles) is null)
+        if (TilesOf(tiles) is null)
             return $"--local-shadow-tiles needs a whole number of 1 or more, not '{tiles}'.";
-        if (tiles is not null && localShadows == "off")
+        if (given.Value("--local-shadows") == "off")
             return "--local-shadow-tiles sets the budget of local shadows, so leave out --local-shadows off.";
         return null;
     }
 
-    private static string? CascadedLightsProblem(GivenOptions given)
-    {
-        if (given.Value("--cascaded-lights") is not { } count)
-            return null;
-        if (CascadedLightsOf(count) is null)
-            return $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'.";
-        return null;
-    }
+    private static string? CascadedLightsProblem(string count) =>
+        CascadedLightsOf(count) is null
+            ? $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'."
+            : null;
 
     /// <summary>The wall-clock speed that the text gives, or null for no text or one that is not a positive finite number.</summary>
     private static double? SpeedOf(string? text)
@@ -919,17 +911,16 @@ public static partial class ScriptCommand
         WholeNumberOf(text: text, least: VideoFile.MinFramesPerSecond, most: VideoFile.MaxFramesPerSecond);
 
     /// <summary>
-    /// The capture target of a headless run: <see cref="Discard"/> for <c>--video none</c>, the video that <c>--video</c>
-    /// names at its frame rate, or the PNG files of <paramref name="outFolder"/> without <c>--video</c>.
+    /// The choice of <c>--video</c> of a headless run: <see cref="Discard"/> for <c>--video none</c>, the video that
+    /// <c>--video</c> names at its frame rate, or null without <c>--video</c>.
     /// </summary>
-    private static CaptureTarget TargetOf(string? video, string? fps, string outFolder)
-    {
-        if (video is NoVideo)
-            return new Discard();
-        if (video is not null)
-            return new VideoFile(video, FpsOf(fps) ?? VideoFile.DefaultFramesPerSecond);
-        return new PngFolder(outFolder);
-    }
+    private static HeadlessVideo? VideoOf(string? video, string? fps) =>
+        video switch
+        {
+            null => null,
+            NoVideo => new Discard(),
+            _ => new VideoFile(video, FpsOf(fps) ?? VideoFile.DefaultFramesPerSecond),
+        };
 
     /// <summary>The whole number that the text gives, or null for no text or one that is not a number from least to most.</summary>
     private static int? WholeNumberOf(string? text, int least, int most)
