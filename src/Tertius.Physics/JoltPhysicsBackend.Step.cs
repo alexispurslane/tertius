@@ -661,92 +661,117 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private void ApplyGravity()
     {
-        float wakeThreshold = options.WakeAccelerationThreshold;
         foreach (FrameWorld world in worldList)
         {
             FrameHandle frame = world.Frame;
-            Vector3 push = frames.PushInStep(frame);
-            GravityField field = frames.Gravity(frame);
             // A numeric frame reads its semantic frame's turns, and the update acts on the semantic chord of each body: Jolt's
             // velocity plus the frame velocity of its home, the same for every body of the system.
             FrameTurns turns = frames.Turns(frame);
-            Double3 angularVelocity = turns.Step.AngularVelocity;
-            Double3 angularAcceleration = turns.AngularAcceleration(stepDt);
-            // The reach costs a read of every dynamic member, so it is measured only when the turn changed and the push's
-            // change alone does not wake the system.
-            double turn = TurnChangeSinceWake(world, angularVelocity, angularAcceleration);
-            bool wake =
-                world.HasGravityState
-                && (
-                    field != world.LastGravity
-                    || FeltChangeWakes(
-                        push: push,
-                        wakePush: world.WakePush,
-                        turn: 0,
-                        reach: 0,
-                        threshold: wakeThreshold
-                    )
-                    || (
-                        turn > 0
-                        && FeltChangeWakes(
-                            push: push,
-                            wakePush: world.WakePush,
-                            turn: turn,
-                            reach: Reach(world),
-                            threshold: wakeThreshold
-                        )
-                    )
-                );
-            if (wake)
-                WakeDynamicMembers(world);
-            if (wake || !world.HasGravityState)
-            {
-                world.WakePush = push;
-                world.WakeAngularVelocity = angularVelocity;
-                world.WakeAngularAcceleration = angularAcceleration;
-            }
-
-            world.HasGravityState = true;
-            world.LastGravity = field;
-            world.HomeAcceleration = frames.IsNumeric(frame)
-                ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3()
-                : Vector3.Zero;
-
-            // BodyInterface.AddForce resets the sleep timer of the body, so a body under gravity would never sleep. The
-            // force goes on the locked body instead, which changes nothing else.
-            BodyLockInterface locks = world.System.BodyLockInterface;
-            int count = CopyActiveBodies(world);
-            float weakest = float.PositiveInfinity;
-            Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
-            Double3 homeAcceleration = turns.Turns
-                ? frames.HomeAcceleration(frame, frames.SemanticOf(frame))
-                : Double3.Zero;
-            for (int i = 0; i < count; i++)
-            {
-                BodyID id = activeScratch[i];
-                locks.LockWrite(id, out BodyLockWrite write);
-                if (write.Succeeded && write.Body is { } body)
-                    weakest = MathF.Min(
-                        weakest,
-                        ApplyGravity(
-                            frame: frame,
-                            turns: turns,
-                            homeVelocity: homeVelocity,
-                            homeAcceleration: homeAcceleration,
-                            id: id,
-                            body: body
-                        )
-                    );
-                locks.UnlockWrite(write);
-            }
-
-            if (weakest < float.PositiveInfinity)
-                world.SetSleepThreshold(SleepThresholdFor(weakest));
+            // Before the force, so that the bodies that this step wakes get it.
+            UpdateGravityWake(world, turns);
+            ApplyGravityToAwakeBodies(world, turns);
         }
 
-        // A sleeping hull still rests against gravity, and its frame's accelerometer reads that: the effective gravity, with
-        // the centrifugal and the Euler term of a turning frame, against which it rests. The field is the linear part, and the
-        // two terms are the turning part (V4 of docs/plans/spin-gravity.md).
+        RecordSleepingHullAccelerations();
+    }
+
+    /// <summary>
+    /// Wakes the dynamic members of <paramref name="world"/>, whose frame's turns are <paramref name="turns"/>, when its
+    /// gravity field changed or the wake test passes (see <see cref="FeltChangeWakes"/>), and keeps the state of the wake
+    /// test and the field for the next step.
+    /// </summary>
+    private void UpdateGravityWake(FrameWorld world, in FrameTurns turns)
+    {
+        float wakeThreshold = options.WakeAccelerationThreshold;
+        FrameHandle frame = world.Frame;
+        Vector3 push = frames.PushInStep(frame);
+        GravityField field = frames.Gravity(frame);
+        Double3 angularVelocity = turns.Step.AngularVelocity;
+        Double3 angularAcceleration = turns.AngularAcceleration(stepDt);
+        // The reach costs a read of every dynamic member, so it is measured only when the turn changed and the push's
+        // change alone does not wake the system.
+        double turn = TurnChangeSinceWake(world, angularVelocity, angularAcceleration);
+        bool wake =
+            world.HasGravityState
+            && (
+                field != world.LastGravity
+                || FeltChangeWakes(push: push, wakePush: world.WakePush, turn: 0, reach: 0, threshold: wakeThreshold)
+                || (
+                    turn > 0
+                    && FeltChangeWakes(
+                        push: push,
+                        wakePush: world.WakePush,
+                        turn: turn,
+                        reach: Reach(world),
+                        threshold: wakeThreshold
+                    )
+                )
+            );
+        if (wake)
+            WakeDynamicMembers(world);
+        if (wake || !world.HasGravityState)
+        {
+            world.WakePush = push;
+            world.WakeAngularVelocity = angularVelocity;
+            world.WakeAngularAcceleration = angularAcceleration;
+        }
+
+        world.HasGravityState = true;
+        world.LastGravity = field;
+        world.HomeAcceleration = frames.IsNumeric(frame)
+            ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3()
+            : Vector3.Zero;
+    }
+
+    /// <summary>
+    /// Gives each awake body of <paramref name="world"/>, whose frame's turns are <paramref name="turns"/>, its gravity (see
+    /// <see cref="ApplyGravity(FrameHandle, in FrameTurns, Double3, Double3, BodyID, nint)"/>), and the system the sleep
+    /// threshold of the weakest effective gravity on them.
+    /// </summary>
+    private void ApplyGravityToAwakeBodies(FrameWorld world, in FrameTurns turns)
+    {
+        FrameHandle frame = world.Frame;
+        // BodyInterface.AddForce resets the sleep timer of the body, so a body under gravity would never sleep. The force
+        // goes on the locked body instead, which changes nothing else. The pass reads and writes the body through the
+        // pointer of its lock: JoltPhysicsSharp's managed Body would allocate again after each garbage collection.
+        BodyLockInterface locks = world.System.BodyLockInterface;
+        int count = CopyActiveBodies(world);
+        float weakest = float.PositiveInfinity;
+        Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
+        Double3 homeAcceleration = turns.Turns
+            ? frames.HomeAcceleration(frame, frames.SemanticOf(frame))
+            : Double3.Zero;
+        for (int i = 0; i < count; i++)
+        {
+            BodyID id = activeScratch[i];
+            locks.LockWrite(id, out BodyLockWrite write);
+            if (write.Succeeded)
+                weakest = MathF.Min(
+                    weakest,
+                    ApplyGravity(
+                        frame: frame,
+                        turns: turns,
+                        homeVelocity: homeVelocity,
+                        homeAcceleration: homeAcceleration,
+                        id: id,
+                        body: write.BodyHandle
+                    )
+                );
+            locks.UnlockWrite(write);
+        }
+
+        if (weakest < float.PositiveInfinity)
+            world.SetSleepThreshold(SleepThresholdFor(weakest));
+    }
+
+    /// <summary>
+    /// Writes the frame acceleration of each sleeping dynamic hull. A sleeping hull still rests against gravity, and its
+    /// frame's accelerometer reads that: the effective gravity, with the centrifugal and the Euler term of a turning frame,
+    /// against which it rests. The field is the linear part, and the two terms are the turning part (V4 of
+    /// docs/plans/spin-gravity.md).
+    /// </summary>
+    private void RecordSleepingHullAccelerations()
+    {
         foreach (BodyRecord owner in frameOwners)
         {
             if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
@@ -836,23 +861,25 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <param name="homeVelocity">The frame velocity of the system's home relative to its semantic frame, in the step.</param>
     /// <param name="homeAcceleration">The acceleration of the system's home relative to its semantic frame, in the step.</param>
-    private float ApplyGravity(
+    /// <param name="body">The pointer to the locked Jolt body.</param>
+    private unsafe float ApplyGravity(
         FrameHandle frame,
         in FrameTurns turns,
         Double3 homeVelocity,
         Double3 homeAcceleration,
         BodyID id,
-        Body body
+        nint body
     )
     {
-        ulong data = body.GetUserData();
+        ulong data = JoltNative.BodyUserData(body);
         if (
             BodyUserData.Kind(data) != BodyKind.Primary
             || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record
             || record.Body != id
         )
             return float.PositiveInfinity;
-        body.GetRCenterOfMassPosition(out RVector3 center);
+        RVector3 center;
+        JoltNative.BodyCenterOfMass(body, &center);
         var place = center.ToDouble3();
         Double3 linear = frames.LinearGravity(frame, place);
         var gravity = linear.ToVector3();
@@ -876,7 +903,10 @@ public sealed partial class JoltPhysicsBackend
             if (record.Shadow.HasValue)
                 record.Shadow = default;
             if (gravity != Vector3.Zero)
-                body.AddForce(gravity * record.Material.Mass);
+            {
+                Vector3 weight = gravity * record.Material.Mass;
+                JoltNative.BodyAddForce(body, &weight);
+            }
         }
 
         // The effective gravity adds the rotation terms to the linear gravity, without a second evaluation of the field.
@@ -918,9 +948,10 @@ public sealed partial class JoltPhysicsBackend
     /// <param name="center">The body's center of mass in its home, as Jolt holds it, in m.</param>
     /// <param name="homeVelocity">The frame velocity of the body's home relative to its semantic frame, in the step.</param>
     /// <param name="homeAcceleration">The acceleration of the body's home relative to its semantic frame, in the step.</param>
+    /// <param name="body">The pointer to the locked Jolt body.</param>
     private unsafe void ApplyTurningUpdate(
         BodyRecord record,
-        Body body,
+        nint body,
         in FrameTurns turns,
         FrameHandle frame,
         Double3 center,
@@ -935,7 +966,8 @@ public sealed partial class JoltPhysicsBackend
         double dt = stepDt;
         float joltStep = (float)stepDt;
         double jolt = joltStep;
-        Vector3 velocity = body.GetLinearVelocity();
+        Vector3 velocity;
+        JoltNative.BodyLinearVelocity(body, &velocity);
         (Double3 chord, Double3 place) = TurningUpdateStart(
             record: record,
             velocity: velocity,
@@ -946,7 +978,7 @@ public sealed partial class JoltPhysicsBackend
         Double3 velocityChange = impulse ? record.ImpulseVelocityChange * (jolt / dt) : Double3.Zero;
         // A force of the intent, which Jolt adds to the velocity in the step, unturned.
         Vector3 intentForce;
-        JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
+        JoltNative.BodyAccumulatedForce(body, &intentForce);
         Double3 ahead = TurningChordAhead(
             behind: chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange),
             semanticPlace: frames.InSemantic(frame, frames.SemanticOf(frame), place),
@@ -957,7 +989,7 @@ public sealed partial class JoltPhysicsBackend
         );
         // Jolt's damping factor, in floats, as Jolt computes it.
         float damping = MathF.Max(0f, 1f - record.Material.LinearDamping * joltStep);
-        float inverseMass = body.MotionProperties.InverseMassUnchecked;
+        float inverseMass = JoltNative.MotionPropertiesInverseMass(JoltNative.BodyMotionProperties(body));
         // The acceleration of the intent's force, which Jolt adds over its own step, and the update's chord after the step,
         // before Jolt's damping, with the intent's force over the tick.
         Double3 intentAcceleration = (Double3)intentForce * inverseMass;
@@ -969,7 +1001,7 @@ public sealed partial class JoltPhysicsBackend
             reach += (place - center) / damping;
         Double3 acceleration = (reach / jolt - velocity) / jolt - intentAcceleration;
         var force = (acceleration * record.Material.Mass).ToVector3();
-        body.AddForce(force);
+        JoltNative.BodyAddForce(body, &force);
         // Everything that the force gives beyond the field is the frame's: the rotation part of the update, the turn of the
         // field and of the intent's force, the move of an impulse's change behind, the take-back of Jolt's rounding and the
         // contact turn. The contact turn belongs there too:
@@ -1061,7 +1093,7 @@ public sealed partial class JoltPhysicsBackend
     /// step, when <paramref name="impulse"/> is true, and a torque of the intent change the inertial angular velocity at the
     /// start of the step, in the frame's axes then.
     /// </summary>
-    private unsafe void ApplyTurningAngularForm(BodyRecord record, Body body, in FrameTurns turns, bool impulse)
+    private unsafe void ApplyTurningAngularForm(BodyRecord record, nint body, in FrameTurns turns, bool impulse)
     {
         double dt = stepDt;
         double jolt = (float)stepDt;
@@ -1071,22 +1103,24 @@ public sealed partial class JoltPhysicsBackend
         // Jolt adds the change I⁻¹ τ dt of a torque of the intent itself, over its own step, unturned, after the angular form
         // sets the velocity, so the form leaves it out.
         Vector3 torque;
-        JoltNative.BodyAccumulatedTorque(body.Handle, &torque);
+        JoltNative.BodyAccumulatedTorque(body, &torque);
         Double3 torqueAcceleration = Double3.Zero;
         if (torque != Vector3.Zero)
         {
             Matrix4x4 inverseInertia;
-            JoltNative.BodyInverseInertia(body.Handle, &inverseInertia);
+            JoltNative.BodyInverseInertia(body, &inverseInertia);
             torqueAcceleration = (Double3)Vector3.TransformNormal(torque, inverseInertia);
         }
 
+        Vector3 angularVelocity;
+        JoltNative.BodyAngularVelocity(body, &angularVelocity);
         Double3 angularChord = turns.AngularChordAhead(
-            (Double3)body.GetAngularVelocity() * (jolt / dt) - angularChange,
+            (Double3)angularVelocity * (jolt / dt) - angularChange,
             angularChange + torqueAcceleration * dt,
             dt
         );
         var angular = (angularChord * (dt / jolt) - torqueAcceleration * jolt).ToVector3();
-        body.SetAngularVelocityClamped(angular);
+        JoltNative.BodySetAngularVelocityClamped(body, &angular);
     }
 
     /// <summary>

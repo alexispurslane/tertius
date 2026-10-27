@@ -142,6 +142,15 @@ internal static class JoltNative
 
     [DllImport(Library, EntryPoint = "JPH_Body_IsSensor", CallingConvention = CallingConvention.Cdecl)]
     public static extern byte BodyIsSensor(nint body);
+
+    // What the gravity pass writes on the body pointer of its write lock, with the reads above. JoltPhysicsSharp binds these
+    // only on its managed Body, whose wrapper a garbage collection drops and the next lookup allocates again.
+
+    [DllImport(Library, EntryPoint = "JPH_Body_AddForce", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyAddForce(nint body, Vector3* force);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_SetAngularVelocityClamped", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodySetAngularVelocityClamped(nint body, Vector3* velocity);
 }
 
 /// <summary>

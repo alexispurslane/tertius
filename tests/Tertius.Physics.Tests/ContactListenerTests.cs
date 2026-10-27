@@ -319,9 +319,8 @@ public sealed class ContactAllocationTests
 
         // The test counts the bytes per report, not in all. An allocation in a callback happens at every report, so it gives at
         // least 1 byte per report. The runtime can compile a hot method again during one window, which allocates once, so the
-        // test takes the smaller window. It collects no garbage: the callbacks hold no managed objects that a collection could
-        // drop, while the backend's gravity pass looks up JoltPhysicsSharp's wrapper of each awake body, which a collection
-        // drops and the next step makes again.
+        // test takes the smaller window. It collects the garbage before every tick, because a collection drops a managed
+        // wrapper of a Jolt body, such as JoltPhysicsSharp makes for a locked body, and the next lookup makes it again.
         const int Ticks = 200;
         const int ReportsPerTick = Columns * Rows + Rows * (Columns - 1);
         long first = BytesPerReport(world, Ticks, ReportsPerTick);
@@ -414,10 +413,25 @@ public sealed class ContactAllocationTests
 
     private static long BytesPerTick(World world, int ticks)
     {
-        long before = GC.GetTotalAllocatedBytes(precise: true);
+        long bytes = 0;
         for (int t = 0; t < ticks; t++)
-            world.Tick();
-        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ticks;
+            bytes += BytesOfATickAfterACollection(world);
+        return bytes / ticks;
+    }
+
+    /// <summary>
+    /// The bytes that the whole process allocates in a tick of <paramref name="world"/> after a full garbage collection,
+    /// which drops every managed object that nothing holds. The finalizers that the collection queues run before the count
+    /// starts, because they allocate on their own thread: after a full collection, .NET's shared array pools trim
+    /// themselves and read the memory load.
+    /// </summary>
+    private static long BytesOfATickAfterACollection(World world)
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        long before = GC.GetTotalAllocatedBytes(precise: true);
+        world.Tick();
+        return GC.GetTotalAllocatedBytes(precise: true) - before;
     }
 
     /// <summary>Counts the Collision and CollisionEnded events that its entity hears, without allocating.</summary>
@@ -442,9 +456,9 @@ public sealed class ContactAllocationTests
 
     private static long BytesPerReport(World world, int ticks, int reportsPerTick)
     {
-        long before = GC.GetTotalAllocatedBytes(precise: true);
+        long bytes = 0;
         for (int t = 0; t < ticks; t++)
-            world.Tick();
-        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ((long)ticks * reportsPerTick);
+            bytes += BytesOfATickAfterACollection(world);
+        return bytes / ((long)ticks * reportsPerTick);
     }
 }
