@@ -1,6 +1,6 @@
 ---
 id: ter-ozwq
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T04:21:29Z
