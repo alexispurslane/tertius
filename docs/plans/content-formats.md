@@ -430,10 +430,15 @@ A frame on rails takes its `pose` and `velocity` as any frame does. It holds sti
 
 An orbit, the value of the field `orbit` of `KeplerMotion`, has one of two kinds:
 
-- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad). The last three keys build the orbit's attitude, the spin case `Spin(AxialTilt, Rate, PhaseAtEpoch)` of `KeplerAttitude`.
-- `{"kind": "circular", "radius": r, "phase": p, "spinRate": s}` calls `KeplerOrbit.Circular`, whose attitude is a spin with no tilt.
+- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s) and `attitude`.
+- `{"kind": "circular", "radius": r, "phase": p, "attitude": a}` is a circular orbit of radius `r` (m) in the parent's XZ plane, at the angle `p` (rad) at time 0, as `KeplerOrbit.Circular` builds it.
 
-So this format cannot yet give an orbit the facing case `FacesParent`. Ticket ter-bmiu settles how the format writes the attitude.
+The field `attitude` of both kinds is the orbit's `KeplerAttitude`. It has one of two kinds, one for each case of the union:
+
+- `{"kind": "spin", "tilt": a rotation, "rate": rad/s, "phaseAtEpoch": rad}` is the case `Spin(AxialTilt, Rate, PhaseAtEpoch)`. The frame turns by its tilt and spins about its own +Y, as a planet turns. The keys default to no tilt, a rate of 0 and a phase of 0, as in the field `spin` of `SpinMotion`.
+- `{"kind": "facesParent"}` is the case `FacesParent`, which holds no values. The frame points its belly at its parent and its nose along its motion, as a station in low orbit flies.
+
+An orbit without the field `attitude` takes `{"kind": "spin"}`, a spin with no tilt and a rate of 0, the attitude that `KeplerOrbit.Circular` gives. (User, ter-bmiu) The attitude is one nested field with its own kind, like the union in the code, so a file cannot give an orbit both a spin and a facing.
 
 An orbit has no μ. (User) `KeplerMotion` takes μ from the point gravity of the parent frame, so μ lives in one place, and a Kepler frame and the loose bodies in its parent fall on the same G·M. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
 
@@ -500,8 +505,7 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
             "kind": "elements", "semiMajorAxis": 1.495978707e11, "eccentricity": 0.0167,
             "inclination": 0, "longitudeOfAscendingNode": 0,
             "argumentOfPeriapsis": { "deg": 102.9 }, "meanAnomalyAtEpoch": { "deg": 100.5 }, "epoch": 0,
-            "axialTilt": { "axis": [1, 0, 0], "angle": { "deg": -23.44 } },
-            "spinRate": 0, "spinPhaseAtEpoch": 0
+            "attitude": { "kind": "spin", "tilt": { "axis": [1, 0, 0], "angle": { "deg": -23.44 } } }
           }
         }
       }
@@ -512,7 +516,7 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
     },
     "corvette": {
       "blueprint": "ships/corvette", "frame": "terra",
-      "components": { "KeplerMotion": { "orbit": { "kind": "circular", "radius": 6.771e6, "phase": { "deg": 40 } } } }
+      "components": { "KeplerMotion": { "orbit": { "kind": "circular", "radius": 6.771e6, "phase": { "deg": 40 }, "attitude": { "kind": "facesParent" } } } }
     },
     "pilot": {
       "blueprint": "people/crew", "frame": "corvette",
