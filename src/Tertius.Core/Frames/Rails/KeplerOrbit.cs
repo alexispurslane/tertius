@@ -103,7 +103,11 @@ public record struct KeplerOrbit(
     private static InvalidOperationException NoAttitude() =>
         new("The orbit has no attitude, so it does not say how its frame turns (see KeplerOrbit.IsValid).");
 
-    /// <summary>A circular orbit in the reference plane.</summary>
+    /// <summary>
+    /// A circular orbit in the reference plane, of <paramref name="radius"/> m, at the mean anomaly <paramref name="phase"/>
+    /// rad at the epoch 0. Its attitude is a <see cref="Spin"/> with no tilt: the frame turns about the parent's +Y at
+    /// <paramref name="spinRate"/> rad/s, from the spin angle 0 at the epoch.
+    /// </summary>
     public static KeplerOrbit Circular(double radius, double phase = 0, double spinRate = 0) =>
         new(
             SemiMajorAxis: radius,

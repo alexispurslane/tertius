@@ -529,7 +529,6 @@ public sealed class RailsMotionIntentTests
         }
     }
 
-    /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     /// <summary>A full sample with a place, a turn and every velocity and acceleration other than zero.</summary>
     private static readonly MotionSample TurnedSample = new(
         Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
@@ -565,6 +564,7 @@ public sealed class RailsMotionIntentTests
         );
     }
 
+    /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     private static MotionSample SampleOfTick(long tick) =>
         new(
             Pose: new(new(tick, 0, 0), DQuaternion.Identity),

@@ -24,6 +24,20 @@ public sealed class RailsComponentTests
             { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
             { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
             { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) },
+            {
+                "a tilt that is not a number",
+                KeplerOrbit.Circular(1000) with
+                {
+                    Attitude = new Spin(AxialTilt: new(X: double.NaN, Y: 0, Z: 0, W: 1), Rate: 0, PhaseAtEpoch: 0),
+                }
+            },
+            {
+                "a spin phase that is not a number",
+                KeplerOrbit.Circular(1000) with
+                {
+                    Attitude = new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: double.NaN),
+                }
+            },
             { "no attitude", KeplerOrbit.Circular(1000) with { Attitude = default } },
         };
 

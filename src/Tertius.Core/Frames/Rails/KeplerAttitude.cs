@@ -29,16 +29,18 @@ public readonly record struct FacesParent;
 [GeneratedUnion(typeof(Spin), typeof(FacesParent))]
 public readonly partial struct KeplerAttitude
 {
-    /// <summary>True for an attitude that a Kepler frame can follow: a spin whose values are all finite, or a facing.</summary>
+    /// <summary>
+    /// True for an attitude that a Kepler frame can follow: a spin that is a valid <see cref="FrameSpin"/>, the turn that
+    /// the orbit makes of it, or a facing.
+    /// </summary>
     public bool IsValid =>
         this switch
         {
-            Spin { AxialTilt: var tilt, Rate: var rate, PhaseAtEpoch: var phase } => double.IsFinite(rate)
-                && double.IsFinite(phase)
-                && double.IsFinite(tilt.X)
-                && double.IsFinite(tilt.Y)
-                && double.IsFinite(tilt.Z)
-                && double.IsFinite(tilt.W),
+            Spin { AxialTilt: var tilt, Rate: var rate, PhaseAtEpoch: var phase } => new FrameSpin(
+                Tilt: tilt,
+                Rate: rate,
+                PhaseAtEpoch: phase
+            ).IsValid,
             FacesParent => true,
             null => false,
         };

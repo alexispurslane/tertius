@@ -75,7 +75,6 @@ public sealed class HandOffTests
             )
         );
 
-    /// <summary>The hand-offs that Jolt sent, in the order of the steps.</summary>
     /// <summary>
     /// The oval of the stations that face their planet, around a G·M of 5e9 m³/s²: periapsis at t = 0 and apoapsis at half
     /// the 31.4 s period. A station on it turns at 0.389 rad/s at periapsis and at 0.113 rad/s at apoapsis.
@@ -111,6 +110,7 @@ public sealed class HandOffTests
             )
         );
 
+    /// <summary>The hand-offs that Jolt sent, in the order of the steps.</summary>
     private static List<HandOff> HandOffsSent(FaultInjectingBackend faults) =>
         [.. faults.Outputs.SelectMany(output => output.HandOffs)];
 

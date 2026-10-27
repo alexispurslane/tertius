@@ -430,8 +430,10 @@ A frame on rails takes its `pose` and `velocity` as any frame does. It holds sti
 
 An orbit, the value of the field `orbit` of `KeplerMotion`, has one of two kinds:
 
-- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad).
-- `{"kind": "circular", "radius": r, "phase": p, "spinRate": s}` calls `KeplerOrbit.Circular`.
+- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad). The last three keys build the orbit's attitude, the spin case `Spin(AxialTilt, Rate, PhaseAtEpoch)` of `KeplerAttitude`.
+- `{"kind": "circular", "radius": r, "phase": p, "spinRate": s}` calls `KeplerOrbit.Circular`, whose attitude is a spin with no tilt.
+
+So this format cannot yet give an orbit the facing case `FacesParent`. Ticket ter-bmiu settles how the format writes the attitude.
 
 An orbit has no μ. (User) `KeplerMotion` takes μ from the point gravity of the parent frame, so μ lives in one place, and a Kepler frame and the loose bodies in its parent fall on the same G·M. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
 

@@ -382,6 +382,27 @@ public sealed class KeplerOrbitTests
             .Be(new Double3(-9.807016102816993E-08, -2.786577102503453E-07, -1.1643299765604292E-07));
     }
 
+    [Theory]
+    [InlineData(nameof(KeplerOrbit.RotationAt))]
+    [InlineData(nameof(KeplerOrbit.AngularVelocityAt))]
+    [InlineData(nameof(KeplerOrbit.AngularAccelerationAt))]
+    [InlineData(nameof(KeplerOrbit.Sample))]
+    public void AnOrbitWithoutAnAttitudeRefusesToSayHowItsFrameTurns(string member)
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6) with { Attitude = default };
+        Action read = member switch
+        {
+            nameof(KeplerOrbit.RotationAt) => () => orbit.RotationAt(1334.56, Mu),
+            nameof(KeplerOrbit.AngularVelocityAt) => () => orbit.AngularVelocityAt(1334.56, Mu),
+            nameof(KeplerOrbit.AngularAccelerationAt) => () => orbit.AngularAccelerationAt(1334.56, Mu),
+            _ => () => orbit.Sample(Mu, 1334.56, Tick),
+        };
+
+        read.Should()
+            .Throw<InvalidOperationException>("an orbit without an attitude is not valid")
+            .WithMessage("*no attitude*");
+    }
+
     // ---- An orbit around no G·M ---------------------------------------------------------------------------------
 
     [Fact]
