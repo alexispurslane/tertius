@@ -912,7 +912,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `AddMeshRefusesTwoTargetsOfOneMorph`
 - `AddMeshRefusesADeltaArrayOfAnotherLength`
 - `AddMeshRefusesANormalDeltaLongerThanTwo`
-- `AddMeshRefusesADeformingMeshPastTheLargestDispatch`
+- `AddMeshRefusesADeformingMeshPastTheLargestDispatch`, removed in Part 4b with `MeshDeform.MaxVertices`: the 2D grid has no limit per mesh
 - `AddMeshThrowsWhenTheDeformDataPassesTheDeviceLimit`
 
 `GpuDeformTypesTests`: `GpuDeformVertexIs80Bytes`, `GpuMorphDeltaIs48Bytes`, and, from Part 4b's one dispatch, `GpuDeformJobIs28Bytes` and `DeformPushConstantsAre8Bytes`, each with the offsets of its fields.
@@ -988,6 +988,9 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 
 - `RigsSceneDeformsEveryPosedInstance`: `DeformedInstances` counts the scene's posed instances, and `UndeformedPosedInstances` is 0.
 - `RigsSceneGivesTheSameRigPosesOnEveryRun`
+- `EveryPosedInstanceOfARigsSceneChangesItsRigPoseFromTickToTick` and `TheCheckedInScriptOfEachRigsScenePassesTheChecksOfARun`
+
+`RigSwayTests` (Host.Tests) pins the demo component `RigSway`: the turn of a joint and its sign, a morph's weight, the phase, the rest of the joints and morphs that no sway names, and the write of its own entity's rig pose for the end of each tick.
 
 ## Known limits
 

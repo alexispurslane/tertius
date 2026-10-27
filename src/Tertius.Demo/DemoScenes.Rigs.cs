@@ -177,7 +177,7 @@ public static partial class DemoScenes
         var scene = new SceneInstance();
         FrameHandle ground = RigGround(world: world, resources: resources, scene: scene, halfSize: 9);
 
-        // 100 segments by 200 rings: 20,000 vertices, the size of a human (docs/plans/skinning-and-morphs.md, "Memory and cost").
+        // 200 rings of 100 vertices: 20,000 vertices, the size of a human (docs/plans/skinning-and-morphs.md, "Memory and cost").
         MeshData cylinder = Primitives.BendingCylinder(
             radius: RigCylinderRadius,
             length: RigCylinderLength,

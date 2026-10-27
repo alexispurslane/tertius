@@ -1212,6 +1212,7 @@ The data on the GPU:
 - A deforming mesh is uploaded twice: as 48-byte static vertices, which every instance drawn as uploaded draws, and as 80-byte deform vertices (`GpuDeformVertex`) with 48-byte deltas (`GpuMorphDelta`) in `DeformStore`'s two storage buffers (decision 16). A storage binding of the whole vertex buffer could pass the spec's least `maxStorageBufferRange`, 128 MB, so the deform pass does not read the static vertices.
 - The deform region lies in the global vertex buffer, after the static capacity, so that each depth range and each cascade still issue one `vkCmdDrawIndexedIndirect` over one bound vertex buffer (decision 17). Its base is a multiple of 16 vertices, 768 bytes, a multiple of the largest `minStorageBufferOffsetAlignment` that the spec allows. `GeometryStore.ReserveDeformed`, the one place that grows it, grows it to the next power of two of the frame's need, at most `maxStorageBufferRange` / 48 vertices. It never shrinks. One region serves every frame in flight, because the sun's shadow map already orders frame N's shadow pass after frame N − 1's transparent pass (decision 18).
 - Each frame slot holds a pose buffer of the frame's pose rows, a job table of one 28-byte `GpuDeformJob` per job, and a deform set. `FrameResources.Write` fills them after `Prepare`, as it copies the instances.
+- A frame's `DeformRegion` holds three capacities, which `DeformRegion.Holds` tests together: the region's vertices, from `ReserveDeformed`; the pose rows, `maxStorageBufferRange` / 16; and the jobs, `maxStorageBufferRange` / 28 (`DeformRegion.Within`). So the region's window, the pose buffer and the job table each stay within one storage binding. At the spec's least range, 2^27 bytes, that is 2,796,192 vertices, about 139 instances of 20,000 vertices, and far more pose rows and jobs than that.
 
 Posing, in `SceneBatcher.PoseInstances`, the first step of `Prepare` and the one place that decides which instance deforms (decision 29). It walks `snapshot.RigPoses` in order, and for each entry:
 
@@ -1221,7 +1222,7 @@ Posing, in `SceneBatcher.PoseInstances`, the first step of `Prepare` and the one
 4. Otherwise `MeshDeform.PoseInto` interpolates the rig pose at the frame's alpha and writes the job's pose rows, three `vec4` rows per palette joint and the weights four to a row, and returns the posed bound. A bound that is not finite or passes `ShaderInput.PositionLimit` draws as uploaded.
 5. Otherwise the batcher appends the job, `DeformJob(Mesh, Target, Pose)`, and a frame mesh of the static mesh's index range over the copy's vertices, with the bound as its radius.
 
-Every placed posed instance deforms, whether a view sees it or not, because the views are culled after posing, from the posed bound (decision 22). A joint pose's position lerps and its rotation turns through `SceneBatcher.Interpolate`, the slerp of the instance rotations, and a weight lerps. A value whose two ends are equal takes its current value, so a still rig gives the same pose rows in every frame (decision 21). `ShaderInput.MorphWeight` reads each weight as its nearest value within ±1,024, and a NaN as 0. The palette composes the joints parents first, because a joint's model pose needs its parent's. A mesh without a skin deforms by one identity joint with the weights (1, 0, 0, 0) on every vertex, so one shader path serves skins and morphs alike (decision 14). `RenderStats.DeformedInstances` counts the deformed instances, `DeformedVertices` their vertices, and `UndeformedPosedInstances` the posed instances drawn as uploaded. The render row's `BoundingRadius` still overrides the posed bound when it is above 0 (decision 24). `MeshDeform.Deformed` is the C# copy of the shader for one vertex, which the GPU tests pin `deform.comp` to.
+Every posed instance that step 1 keeps deforms, whether a view's culling keeps it or not, because the views are culled after posing, from the posed bound (decision 22). A joint pose's position lerps and its rotation turns through `SceneBatcher.Interpolate`, the slerp of the instance rotations, and a weight lerps. A value whose two ends are equal takes its current value, so a still rig gives the same pose rows in every frame (decision 21). `ShaderInput.MorphWeight` reads each weight as its nearest value within ±1,024, and a NaN as 0. The palette composes the joints parents first, because a joint's model pose needs its parent's. A mesh without a skin deforms by one identity joint with the weights (1, 0, 0, 0) on every vertex, so one shader path serves skins and morphs alike (decision 14). `RenderStats.DeformedInstances` counts the deformed instances, `DeformedVertices` their vertices, and `UndeformedPosedInstances` the posed instances drawn as uploaded. The render row's `BoundingRadius` still overrides the posed bound when it is above 0 (decision 24). `MeshDeform.Deformed` is the C# copy of the shader for one vertex, which the GPU tests pin `deform.comp` to.
 
 The posed bound is the largest |S_i(c_i)| + r_i over the palette joints, where (c_i, r_i) is the sphere that holds every vertex with a weight above 0 on joint i, plus the sum over the targets of |w_k| m_k, where m_k is the length of target k's longest position delta. A skinned position is a convex sum of rigid maps of the morphed position, so every deformed vertex lies within it (docs/plans/skinning-and-morphs.md, "The posed bound"). A mesh without a skin has one sphere at the origin with the mesh's radius.
 
@@ -1231,7 +1232,7 @@ Every pass that draws a mesh reads the frame meshes: the sun's cascades (`Shadow
 
 The demo scenes, in SI units (`DemoScenes.Rigs.cs`, scripts `rigs.json` and `rigs-crowd.json`): `rigs` holds a bending cylinder, a morphing box and a striped twisting cylinder on a floor in daylight, under the Sun and a household bulb that casts shadows, each swayed by `RigSway`, a demo component that writes its own entity's rig pose from the time, with a period of 4 s. `rigs-crowd` holds 100 bending cylinders of 20,000 vertices each, the vertex count of an MPFB human, with phases 0.61 rad apart.
 
-The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring the cost of a feature": Release, 1920 × 1080 into a video, each run twice, one run at a time, on the development Mac (Apple M1 Max), 2026-10-26. The machine was shared: the 1-minute load was 5.5 to 9.8 at the starts and ends of the runs, and another agent's demo run used the GPU beside every run. Times are the means over each run's timed frames, in ms.
+The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring the cost of a feature": Release, 1920 × 1080 into a video, each run twice, one run at a time, on the development Mac (Apple M1 Max), 2026-10-26. The machine was shared: the 1-minute load was 5.5 to 9.8 at the starts and ends of the runs, and another agent's demo process was running at the start and the end of every run after the first, whose check did not look for one. Times are the means over each run's timed frames, in ms.
 
 | Run | Deformation | Shadow maps | Local shadows | G-buffer | Frame span (mean / p95) |
 |---|---|---|---|---|---|
@@ -1241,7 +1242,7 @@ The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring 
 | `rigs-crowd`, `FramesInFlight` 1 | 0.83, 0.77 | 2.74, 2.76 | 1.85, 1.84 | 1.56, 1.57 | 16.2 / 23.2, 16.0 / 20.7 |
 
 - A frame without a posed instance records nothing in the deform pass: `demo-exit` has none, its pass "deformation" costs 0.024 ms, the stamp of an empty pass, and every other pass and the frame span differ from the base by less than the two runs of one build differ.
-- 100 deformed instances of 20,000 vertices each, 2,000,000 vertices per frame, cost the deform pass 0.8 ms: about 8 µs per instance of a human's size, 0.4 ns per vertex. The plan expected 0.02 to 0.05 ms per human and about 1 ms for 100.
+- 100 deformed instances of 20,000 vertices each, 2,000,000 vertices per frame, cost the deform pass 0.8 ms: about 8 µs per instance of a human's size, 0.4 ns per vertex. That is near the plan's estimate of about 1 ms for 100 humans, and below its 0.02 to 0.05 ms per human.
 - `FramesInFlight` changes nothing here, because a headless run captures every timed frame, and a capture waits for its frame on the GPU (see "GPU timings"). So no frame before is in flight when the deform pass starts, and its first barrier waits for nothing in either setting. In a window, that barrier can wait for the frame before, and the wait shows in the pass's time.
 - The rest of the crowd's frame is the cost of drawing 2,000,000 vertices, not of deforming them: the four cascades draw every cylinder, and the lamp's six tiles are drawn again in every frame, because each swaying caster's pose rows change (fork 1, B).
 
@@ -1270,18 +1271,21 @@ The memory, by arithmetic (docs/plans/skinning-and-morphs.md, "Memory and cost")
 | The simulation's block | 3 × (28 B × J + 4 B × W) per posed entity | 168 B per entity, 16.8 KB | 4.5 KB |
 | The snapshot | 2 × (28 B × J + 4 B × W) + 20 B per posed entity, per snapshot buffer, three buffers | 132 B per entity, 13.2 KB per buffer | 3 KB per buffer |
 | A tile record's pose rows | 16 B × the pose rows per posed caster per tile | 96 B | 2.5 KB |
+| `MeshDeform` on the CPU | 16 B per influence sphere, 28 B per inverse bind, 4 B per target, once per mesh | 88 B | 2.3 KB |
 
 The region of `rigs-crowd` holds 2,000,000 vertices, so it grows to 2^21 vertices, 100.7 MB, within the spec's least `maxStorageBufferRange` of 128 MB. A deformed human costs 0.96 MB of region, and a deforming mesh 2.56 MB of static and deform vertices once.
 
 The known limits (docs/plans/skinning-and-morphs.md, "Known limits"):
 
 - Joints are rigid. Linear blend skinning loses volume at a sharply bent joint and pinches at a twisted one. A vertex has at most four joints.
-- A deformed instance never becomes an impostor, so a far crowd costs full geometry and full deformation, and every placed posed instance deforms in every frame, seen or not.
+- A deformed instance never becomes an impostor, so a far crowd costs full geometry and full deformation, and every posed instance that some view may draw deforms in every frame, whether the views' culling keeps it or not.
 - Nothing attaches to a joint: an entity attached to a posed entity follows its origin (decision 30). Physics ignores the rig pose.
 - No clips, no blending and no state machines. The MPFB humans stay frozen until the asset importer exists.
 - The posed bound is a sphere about the model's origin, so culling is looser than the body.
 - The shape of a rig pose is fixed at spawn. An entity that switches its mesh to one of another rig draws as uploaded and is counted.
 - A deforming mesh is uploaded twice, 128 bytes per vertex in all. The deform region never shrinks.
+- The deform region holds at most `maxStorageBufferRange` / 48 vertices: at the spec's least range, about 139 deformed instances of 20,000 vertices. The posed instances past it draw as uploaded and are counted.
+- A morph weight is clamped to ±1,024.
 - Morph deltas are linear in their weights: normals and tangents blend linearly and are then normalized, and a twist's deltas at a weight below 0 or between 0 and 1 widen or narrow the rings rather than turn them. `rigs` keeps the Twist weight from 0 to 1.
 - A posed caster whose pose changes redraws the tiles that it shows in, in every frame.
 - Each deformed instance takes an indirect command of its own in each view, because its copy has vertices of its own.
