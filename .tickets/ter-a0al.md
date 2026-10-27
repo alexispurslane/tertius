@@ -1,6 +1,6 @@
 ---
 id: ter-a0al
-status: open
+status: in_progress
 deps: [ter-4vzc]
 links: []
 created: 2026-10-27T02:06:33Z

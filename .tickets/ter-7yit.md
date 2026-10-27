@@ -1,6 +1,6 @@
 ---
 id: ter-7yit
-status: open
+status: in_progress
 deps: [ter-of1p, ter-4vzc]
 links: []
 created: 2026-10-27T01:21:05Z
