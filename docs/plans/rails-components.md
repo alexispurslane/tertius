@@ -677,7 +677,7 @@ Every reader reads the front intents, the intents of the step that applies them.
 | `JoltPhysicsBackend.ApplyBodyIntent`, one `Move` branch for every body that takes a motion intent | Step k + 1, at the start, after the teleport | For a kinematic body, the aim pose as the kinematic target, and the record, for the snap and the step's output. For a dynamic body, the steer target. A case that the body's motion in the step refuses comes only from a bug (see "Output that only a bug produces" in `ARCHITECTURE.md`). | `AimPose`, and `PhysicsIntent.StepRecord` with the body's pose at the start of the step |
 | `JoltPhysicsBackend.PredictRecord`, for the ghosts and hand-offs of the bodies around a frame | Step k + 1 | The record of a frame whose owner has an end pose or a full sample. A frame with a dynamic hull takes Jolt's state, as today, with or without a steer target. | `FrameTree.StepRecordInStep` |
 | `JoltPhysicsBackend.WriteFrames` | End of step k + 1 | Whether a kinematic hull releases a record, and the record | `KinematicTargetStep`, which the `Move` branch sets, and the record that `StepRecordOf` caches for the hull's frame (see "The step record of a step in flight") |
-| `JoltPhysicsBackend.Report` and `HandedOffVelocities`, for a plain body | End of step k + 1 | The record's pose and instant velocities. As for every body, the linear velocity is that of the centre of mass, which adds the turn of the arm from the body's origin. | The record that the body's physics record keeps for the step (`BodyRecord.AimedRecord`), while the body is still in the home where the step started |
+| `JoltPhysicsBackend.Report` and `HandedOffVelocities`, for a plain body | End of step k + 1 | The record's pose and instant velocities. As for every body, the linear velocity is that of the body's origin (docs/plans/real-physics-in-tests.md, "The velocity point"). | The record that the body's physics record keeps for the step (`BodyRecord.AimedRecord`), while the body is still in the home where the step started |
 | `FrameTree.BeginStep` | `PrepareTick` of tick k + 1, before the step | The anchor's record, as the step plan | `FrameTree.StepRecordInStep` |
 | `FrameTree.TakeStepRecords`, for a frame without a hull | Step 2 of the sync point of tick k + 1, before the swap | The record | `FrameTree.StepRecordOfIntent`, the rule of `FrameTree.StepRecordInStep`, with the frame's tree pose |
 | `FrameTree.TakeStepRecords`, for the follow kind | Step 2, before the swap | The case: a full sample gives `Rails`, and an end pose gives `Kinematic`. A dynamic hull gives `Physics`, with or without a steer target. | `MotionIntent.FollowKind`, which reads the case alone and copies no field |
@@ -1105,7 +1105,7 @@ Stage 6, one guard for every entity:
 71. `ASpawnTakesAFirstMotionIntentThatItsEntityTakes`, in `FirstMotionIntentTests`: the interim refusals of stage 2 go
 72. `AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt`, in `WorldBugOnlyTests`
 73. `APlainBodyOnRailsReadsTheSamplesInstantAngularVelocity`
-74. `APlainBodyOnRailsReadsTheInstantVelocityOfItsCentreOfMass`
+74. `APlainBodyOnRailsWhoseCentreOfMassLiesOffItsOriginReadsTheInstantVelocityOfItsOrigin`
 75. `APlainBodyOnRailsInANumericFrameReadsTheVelocityOfItsMotionIntents`
 76. `APlainBodyOnRailsThatHandsOffFromANumericFrameCarriesTheVelocityOfItsMotionIntents`
 

@@ -421,15 +421,13 @@ public sealed partial class JoltPhysicsBackend
             angularVelocity: plan.AngularVelocity,
             upFromGravity: record.Standing
         );
-        DPose pose = plan.Pose;
-        if (record.Character is { } character)
-        {
-            // Jolt starts a new character in the air. The character looks up its contacts now, as after a growth, so that
-            // its next update knows the ground under it.
-            character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: target.System);
-            // The hand-off reports the rotation that the character got, which a turn to the new up can change.
-            pose = ReadPrimary(record).Pose;
-        }
+        // Jolt starts a new character in the air. The character looks up its contacts now, as after a growth, so that its
+        // next update knows the ground under it.
+        record.Character?.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: target.System);
+        // The plan holds Jolt's velocity of the center of mass, and the hand-off carries that of the origin. It reports the
+        // rotation that a walking character got, which a turn to the new up can change.
+        BodySnapshot handed = ReadPrimary(record);
+        DPose pose = record.Character is not null ? handed.Pose : plan.Pose;
 
         if (record.IsHull)
         {
@@ -450,7 +448,7 @@ public sealed partial class JoltPhysicsBackend
                 From: plan.From,
                 To: plan.To,
                 Pose: pose,
-                LinearVelocity: plan.LinearVelocity,
+                LinearVelocity: handed.OriginVelocity.ToVector3(),
                 AngularVelocity: plan.AngularVelocity
             )
         );
@@ -1178,7 +1176,7 @@ public sealed partial class JoltPhysicsBackend
     /// aimed in the step, and that no hand-off moved, reports the step record of that motion intent (see
     /// <see cref="AimedRecordOf"/>): the record's pose, exact in doubles with its rotation, where the snap put the body, and
     /// the record's instant velocity at the end of the step, not Jolt's chord. As for every body, the linear velocity is
-    /// that of the centre of mass relative to the home, which a read adds to the home's velocity after the sync point (see
+    /// that of the origin relative to the home, which a read adds to the home's velocity after the sync point (see
     /// <see cref="FrameTree.HomeVelocityAfter"/>).
     /// </summary>
     private void Report(FrameWorld world, BodyRecord record, PhysicsStepOutput output, bool track)
@@ -1186,11 +1184,8 @@ public sealed partial class JoltPhysicsBackend
         BodySnapshot s = ReadPrimary(record);
         if (AimedRecordOf(record) is { } aimed)
         {
-            Double3 center = s.CenterOfMass - s.Pose.Position;
             Double3 linear =
-                aimed.Velocity
-                + Double3.Cross(aimed.AngularVelocity, center)
-                - frames.HomeVelocityAfter(record.Frame, frames.SemanticOf(record.Frame), stepDt);
+                aimed.Velocity - frames.HomeVelocityAfter(record.Frame, frames.SemanticOf(record.Frame), stepDt);
             output.Bodies.Add(
                 new(
                     Entity: record.Entity,
@@ -1208,7 +1203,7 @@ public sealed partial class JoltPhysicsBackend
                     Entity: record.Entity,
                     Frame: record.Frame,
                     Pose: s.Pose,
-                    LinearVelocity: s.Linear,
+                    LinearVelocity: s.OriginVelocity.ToVector3(),
                     AngularVelocity: s.Angular
                 )
             );

@@ -234,7 +234,8 @@ public sealed partial class World : IDisposable
     public FrameHandle GetFrame(Entity entity) => Entities.FrontRow(entity).Frame;
 
     /// <summary>
-    /// The entity's linear velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot. Throws
+    /// The linear velocity of the entity's origin, the point that its pose names, relative to <paramref name="frame"/>, in its
+    /// axes, from the front snapshot. Throws
     /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Double3 VelocityIn(Entity entity, FrameHandle frame) =>

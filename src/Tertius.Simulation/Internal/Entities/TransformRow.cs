@@ -29,8 +29,8 @@ internal struct TransformRow
     /// </summary>
     public Double3 HomePosition;
 
-    /// <summary>The local linear velocity relative to <see cref="PhysicsHome"/>, in its axes, which are those of
-    /// <see cref="Frame"/>.</summary>
+    /// <summary>The local linear velocity of the entity's origin, the point that <see cref="Pose"/> names, relative to
+    /// <see cref="PhysicsHome"/>, in its axes, which are those of <see cref="Frame"/>.</summary>
     public Vector3 LinearVelocity;
 
     /// <summary>Angular velocity in the axes of <see cref="Frame"/>.</summary>
