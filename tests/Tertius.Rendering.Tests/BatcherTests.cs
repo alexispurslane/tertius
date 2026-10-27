@@ -862,6 +862,28 @@ public sealed class BatcherTests
         scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
     }
 
+    [Fact]
+    public void APlacedSlotHoldsNothingOfTheInstanceThatFilledItTheFrameBefore()
+    {
+        var scene = new PreparedScene();
+        scene.AddPlaced() = new()
+        {
+            Depth = 5f,
+            Mesh = 2,
+            Material = 3,
+            Map = 1,
+        };
+        scene.Reset();
+
+        PreparedInstance slot = scene.AddPlaced();
+
+        slot.Should()
+            .Be(
+                default(PreparedInstance),
+                "a caller that sets the fields one by one must not keep the last frame's others"
+            );
+    }
+
     // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
     // parent, id 1, and the root, id 0, all in the camera's axes: depth 0 takes map 2, depth 1 map 1, and depth 2 map 0.
 

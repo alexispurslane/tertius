@@ -1180,6 +1180,18 @@ The batcher cuts the sorted transparent list of each range into runs. A run is a
 
 Every command and every view reads the frame's meshes, `PreparedScene.Meshes`: the static meshes as uploaded (`GeometryStore.Meshes`) first, then one frame mesh for each deformed copy of the frame. An instance's `Mesh` is the index of its frame mesh, so a deformed instance is culled by its posed bound and drawn from its copy in every view, and a pass needs no rule of its own for it (see "Skinning and morph targets" below). `PreparedScene.IsDeformed(mesh)` is true exactly for an index at least `StaticMeshCount`: an index range, not a flag beside the index.
 
+#### One placement per instance
+
+The batcher places each instance that some view may draw exactly once per frame, by one interpolation by alpha, whichever view draws it (`SceneBatcher.PlaceInstances`, ticket ter-7yit). An instance may be drawn when it is `Visible` or `CastsShadow`, has a frame mesh on the GPU and a volume, and its sphere lies within `ShaderInput.PositionLimit` of the eye. Its placement is a `PreparedInstance`: the lerped place relative to the interpolated eye, the slerped rotation, the scale, its bounding radius (the render row's `RenderInstance.BoundingRadius` when it is set, else its frame mesh's radius times its largest scale factor), its distance from the eye, its frame mesh, its resolved material, its map and its flags. The placements live in one store, `PreparedScene.Placed`, in the snapshot's order, and every view reads that store:
+
+| View | Which placements it draws |
+|---|---|
+| The main view | The `Visible` ones that its frustum does not cull. It copies each into `PreparedScene.Visible`, with its depth along the view axis, the one field that depends on the view. The instance processors edit that list, so it is the main view's own draw list, not a second store of the placement. |
+| A face of map i | The `Visible`, opaque ones whose map is at most i and that the face does not cull (see "The environment map"). |
+| The shadow views: the cascade sets, the tiles of the local shadow atlas and the far shadows | The `CastsShadow` ones, `PreparedInstance.CastsShadow`, visible or not and in view or not. A tile's casters are indices into `Placed` (`ShadowTiles.CasterIndices`). |
+
+The frame mesh comes from the one walk of the frame mesh cursor beside the rig poses, so a posed instance draws its deformed copy in every view, a hidden posed caster included. Before this rule, the shadow views lerped and slerped every caster a second time, into a list of their own.
+
 #### Skinning and morph targets
 
 A mesh can carry a rig, a skin and morph targets, and an entity with a rig pose deforms it in every pass that draws a mesh (docs/plans/skinning-and-morphs.md, epic `ter-4vzc`). Animation clips do not exist yet: a component writes the rig pose by hand, and a later animation epic becomes one more writer of it.
@@ -1273,6 +1285,8 @@ After the merge with the environment map's prefilter profile, whose batcher inte
 | Four maps, 24 faces | 4.219 ms | 4.232 ms | 4.659 ms |
 
 So the shared interpolation and the counting sort save about 0.23 to 0.30 ms with one face, 0.32 to 0.34 ms with six and 0.83 to 0.84 ms with 24 faces, posed or not, and 0.03 to 0.04 ms with the map off, within the load's noise. The cost of posing stays as it was.
+
+Since then, one placement per instance (see "One placement per instance") lowered these medians again, to 954 µs, 964 µs and 1,357 µs with the map off, 1,493 µs, 1,503 µs and 1,890 µs with one face, and 4,053 µs, 4,073 µs and 4,508 µs with four maps and 24 faces, for 0, 1 and 100 posed. The table of every case is under the environment map's "Cost". The cost of posing stays about 400 µs for 100.
 
 A posed instance of 53 joints costs the batch about 4 µs, posing and drawing together: 0.41 ms for 100, which the plan estimated at 0.3 ms. The calls allocate nothing. Each deformed instance is its own frame mesh, so it takes an indirect command of its own in each view that draws it: 100 posed instances add 100 commands to the main view.
 
@@ -1528,7 +1542,7 @@ Each map's six faces look out from the eye, in the axes of the map's frame. Thei
 | Transparent instances and puffs | No, so the map shows what SSR's rays will show |
 | Frame outlines | No |
 
-`CubeFaces.Culls` culls a sphere behind the near plane, 5 cm ahead, or outside one of the four side planes of the 90° face. A face has no level of detail and culls no small object, because a texel's center point-samples the object as the screen does. The batcher interpolates each instance by the frame's alpha once, for the main view and every face of every map (`SceneBatcher.CollectVisible`), with its frame mesh, so a posed instance draws its deformed copy in every face, also when the main view culls it (see "Skinning and morph targets"). The shadow views interpolate their casters a second time (`SceneBatcher.CollectCasters`). A face of map i keeps only the opaque instances whose map is at most i. It writes the face's `GpuInstance` rows and commands after the main view's, into the same arrays, so the main view's instances and commands keep the places that they have without the map. `PreparedScene.EnvironmentFaces` holds an `EnvironmentFaceDraw(Map, Face, Basis, Far, Middle, Near)` per drawn face, map by map and each map's in layer order. The face pass pushes the face's map in `DrawPushConstants.Map`, which grew the push range from 80 to 84 bytes.
+`CubeFaces.Culls` culls a sphere behind the near plane, 5 cm ahead, or outside one of the four side planes of the 90° face. A face has no level of detail and culls no small object, because a texel's center point-samples the object as the screen does. A face reads the frame's placed instances, which the batcher interpolates once for every view (see "One placement per instance"), with their frame meshes, so a posed instance draws its deformed copy in every face, also when the main view culls it (see "Skinning and morph targets"). A face of map i keeps only the opaque instances whose map is at most i. It writes the face's `GpuInstance` rows and commands after the main view's, into the same arrays, so the main view's instances and commands keep the places that they have without the map. `PreparedScene.EnvironmentFaces` holds an `EnvironmentFaceDraw(Map, Face, Basis, Far, Middle, Near)` per drawn face, map by map and each map's in layer order. The face pass pushes the face's map in `DrawPushConstants.Map`, which grew the push range from 80 to 84 bytes.
 
 `environment_face.frag` is `impostor_capture.frag` without the ambient light. Its surfaces get every light of the list with its shadows, a far light's far shadows and cascade set and a near light's tiles of the local shadow atlas, and their emission through `directRadiance`. The result is plain radiance, capped at `MaxRadiance`, 32,256 (see "Portable Vulkan"), with an alpha of 0. V is the direction toward the eye, which every face shares, so a face's highlights are those that the eye sees. The capture takes no ambient light. So the main view's surfaces get one bounce of the light of the light list, and a face depends only on the frame that draws it. In a room, the parts that only bounced light reaches are black in the map. For each light with a cascade set, a face samples that set's finest box that holds the point (see "Shadows").
 
@@ -1738,7 +1752,7 @@ The CPU cost of the faces' views: `SceneBatcherBenchmarks` times one `SceneBatch
 | One face, -Z, which keeps all 20,000 instances | 1,598 µs |
 | Six faces | 2,566 µs |
 
-In the state that Part 6 measured, a face looped over the snapshot's instances and interpolated each that it kept. So a face that kept every instance cost about as much as the main view, 0.79 ms, not the third that the design expected, and a refresh added 1.75 ms, about twice the main view. Since the profile below, the faces cull the map's instances, which `CollectVisible` prepares once with the main view's.
+In the state that Part 6 measured, a face looped over the snapshot's instances and interpolated each that it kept. So a face that kept every instance cost about as much as the main view, 0.79 ms, not the third that the design expected, and a refresh added 1.75 ms, about twice the main view. Since the profile below, the faces cull the instances that the batcher places once for every view (see "One placement per instance").
 
 The images take about 2.1 MB per map at the default (see "Images, sets and barriers").
 
@@ -1812,7 +1826,7 @@ The batcher's share, `SceneBatcherBenchmarks` medians (loads 5.9 to 10):
 | One face, which keeps all 20,000 instances | 1,805 µs | 1,724 and 1,739 µs | 1,547 and 1,555 µs |
 | Six faces | 2,775 µs | 2,630 and 2,633 µs | 2,477 and 2,538 µs |
 
-A face that keeps every instance does what the main view does: it culls, picks the depth ranges, sorts and writes one GPU instance and command per instance. It no longer interpolates the snapshot a second time, because `CollectVisible` prepares each instance once for the main view and the map. The opaque items sort by counting their keys (`SceneBatcher.OpaqueSorter`), which saved about 85 µs per view of 20,000 instances. A key is a depth range and a frame mesh, so the deformed copies count after the static meshes. A face that keeps every instance still adds about 0.68 ms, because it writes its own GPU instances. With the map off, the median rose from 933 to 960 and 963 µs after the shared interpolation, at a higher load (5.9 against 7.5 to 8.0). A write of the main view's row in place, which saves one copy of each prepared instance, then measured 853 and 872 µs against 862 and 864 µs without it, in alternating runs at loads 4.8 to 5.9. So the copy costs nothing that the benchmark can measure, the rise came from the load, and the batcher keeps the copy.
+A face that keeps every instance does what the main view does: it culls, picks the depth ranges, sorts and writes one GPU instance and command per instance. It no longer interpolates the snapshot a second time, because the batcher prepares each instance once for the main view and the map. The opaque items sort by counting their keys (`SceneBatcher.OpaqueSorter`), which saved about 85 µs per view of 20,000 instances. A key is a depth range and a frame mesh, so the deformed copies count after the static meshes. A face that keeps every instance still adds about 0.68 ms, because it writes its own GPU instances. With the map off, the median rose from 933 to 960 and 963 µs after the shared interpolation, at a higher load (5.9 against 7.5 to 8.0). A write of the main view's row in place, which saves one copy of each prepared instance, then measured 853 and 872 µs against 862 and 864 µs without it, in alternating runs at loads 4.8 to 5.9. So the copy costs nothing that the benchmark can measure, the rise came from the load, and the batcher keeps the copy.
 
 After the merge with the maps per frame and the lights epic, `SceneBatcherBenchmarks` ran on main as it stood (760e2c62) and on the merged branch, in turn, one run at a time, twice each (1-minute loads 6.4 to 11.7):
 
@@ -1824,7 +1838,29 @@ After the merge with the maps per frame and the lights epic, `SceneBatcherBenchm
 | Four maps, one face | 1,894 and 1,906 µs | 1,712 and 1,803 µs |
 | Four maps, 24 faces | 4,568 and 4,608 µs | 4,145 and 4,562 µs |
 
-So the shared interpolation and the counting sort save about 100 to 190 µs in every case with faces, and 46 to 423 µs with 24 faces, where the branch's two runs differ the most. With the map off, the branch and main agree within 13 µs: the rise from the 935 µs of the maps per frame alone to about 1,045 µs is main's own. It came with main's changes since then, among them the lights epic, whose `CollectCasters` interpolates every caster a second time for the shadow views, and all 20,000 instances of the benchmark cast shadows; no run separated those changes.
+So the shared interpolation and the counting sort save about 100 to 190 µs in every case with faces, and 46 to 423 µs with 24 faces, where the branch's two runs differ the most. With the map off, the branch and main agree within 13 µs: the rise from the 935 µs of the maps per frame alone to about 1,045 µs is main's own. It came with main's changes since then, among them the lights epic, whose `CollectCasters` interpolated every caster a second time for the shadow views, and all 20,000 instances of the benchmark cast shadows; no run separated those changes.
+
+Since the casters share the one placement of each instance (see "One placement per instance", ticket ter-7yit), `SceneBatcherBenchmarks` gave these medians, one run on the base (308ae371) and then one on the branch, at 1-minute loads of 12.9 to 14.6 for the base and 13.2 to 6.6 for the branch:
+
+| Map | Posed | Base | One placement | Saved |
+|---|---|---|---|---|
+| Off | 0 | 1,099 µs | 954 µs | 146 µs |
+| Off | 1 | 1,117 µs | 964 µs | 153 µs |
+| Off | 100 | 1,503 µs | 1,357 µs | 146 µs |
+| One face | 0 | 1,789 µs | 1,493 µs | 296 µs |
+| One face | 1 | 1,804 µs | 1,503 µs | 301 µs |
+| One face | 100 | 2,203 µs | 1,890 µs | 313 µs |
+| Six faces | 0 | 1,983 µs | 1,715 µs | 268 µs |
+| Six faces | 1 | 2,003 µs | 1,725 µs | 279 µs |
+| Six faces | 100 | 2,407 µs | 2,118 µs | 289 µs |
+| Four maps, one face | 0 | 1,783 µs | 1,482 µs | 301 µs |
+| Four maps, one face | 1 | 1,795 µs | 1,515 µs | 280 µs |
+| Four maps, one face | 100 | 2,175 µs | 1,931 µs | 244 µs |
+| Four maps, 24 faces | 0 | 4,213 µs | 4,053 µs | 160 µs |
+| Four maps, 24 faces | 1 | 4,235 µs | 4,073 µs | 162 µs |
+| Four maps, 24 faces | 100 | 4,660 µs | 4,508 µs | 152 µs |
+
+With the map off, the second interpolation of the 20,000 casters cost about 150 µs, 13% of the batch, about 7.5 ns per caster. With faces, the batch also no longer copies each opaque instance into a list of the maps, because the faces read the placed instances, which is probably why the cases with one or six faces save about 250 to 310 µs. The cases with 24 faces save about 155 µs, probably because each of the 24 faces now tests the flags of every placed instance, a test that the maps' list made once per frame. The load fell during the branch's run, so part of the saving may be the load. No case allocates.
 
 #### Known limits
 
@@ -2358,7 +2394,7 @@ A caster casts two kinds of shadow:
 - Map shadows. Each cascade set covers receivers in the first 2 km of view depth, with four cascades along its own light's direction (`LightBasis.FromDirection`) and blending at the seams. The sets share one camera, so the splits, the blend bands, the texel sizes and the bias of `FrameBlock` hold for every set, and each set has its own `GpuCascadeSet` of 288 bytes: the four view-projections and the light's axes. The shadow map holds 4 layers per set, and set s, cascade c is layer 4s + c (`ShadowMap.Layer`). The maps draw every caster whose bounding sphere comes within 2 km of the camera, however big it is, for example a ground plane or a planet under the camera, and the shadow pass culls each caster against every cascade of every set (`ShadowPass.CascadeMask`). Map shadows have the caster's real shape. A frame with no set, or with no caster, draws no map: `CascadeSetCount` and `counts.z` are 0, and the shaders skip the maps. `RenderStats.CascadeSets` counts the drawn sets.
 - Far shadows. Every caster is also a sphere of its bounding radius, tested analytically in the shader against the light's disc, of angular radius asin(R / d), so the edge is soft (`farShadowVisibility`, and `Eclipse.Visibility` on the CPU). A sphere never shadows a point inside it, so a caster never shadows its own surface, and a planet's ground needs no such shadow: it faces away from its star at night. Each far light with a slot has its own run of the occluder buffer, `GpuLight.occluders`. A caster that the light's cascade set draws comes first in that run, and counts as a sphere only beyond the maps' reach, faded in over the last cascade's blend, so no receiver gets both shadows from one caster. A long or flat caster shadows as a rough sphere there. A `FarShadowsOnly` light counts every caster as a sphere.
 
-A far shadow must also be big enough to notice, by its own light's angular radius. A caster beyond the maps must cover a pixel, or a fifth of the light's angular radius, seen from the camera. A caster in the maps must hide 4% of the light, seen from where its far receivers start. They start 2 km from the camera. So the distance is 2 km minus the distance of the caster from the camera, and at least the radius of the caster. A 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The batcher interpolates each caster once per frame, and every light reads that one place.
+A far shadow must also be big enough to notice, by its own light's angular radius. A caster beyond the maps must cover a pixel, or a fifth of the light's angular radius, seen from the camera. A caster in the maps must hide 4% of the light, seen from where its far receivers start. They start 2 km from the camera. So the distance is 2 km minus the distance of the caster from the camera, and at least the radius of the caster. A 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The batcher places each caster once per frame, with the instance's one placement that every view reads (see "One placement per instance"), and every light reads that one place.
 
 The cascades are fitted to the main view, and the lighting pass, the transparent pass and the lit puffs pick a cascade by the view depth along the camera's forward axis, with blend bands (`ShadowMapsMainView` in `lighting.glsl`). That rule holds only for points in the main view's frustum. The faces of the environment map pick the finest cascade whose box holds the point, with the margin of the filter (`ShadowMapsHolding`). The impostor capture takes the far shadows alone (`ShadowMapsNone`). So at a 60° field of view every point within about 9 m of the camera, in any direction, gets cascade 0. In the outer tenth of the coarsest box the map shadow fades into the far shadows by the same weight as the main view's last blend band, and beyond every box the far shadows alone decide (docs/plans/environment-map.md, "The shadow maps in a face"). The shadow pass culls its casters against every cascade's box, so a caster behind the camera is in the maps when its shadow falls into a box.
 
