@@ -27,7 +27,8 @@ internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNor
 
 /// <summary>
 /// The own surface of a receiver that is not hair: the plane at right angles to its geometric normal, which blocks the
-/// sectors below it with no light (docs/plans/screen-space-illumination.md, decision 39).
+/// sectors below it with no light and reads the map along them (docs/plans/screen-space-illumination.md, decisions 39
+/// and 42).
 /// </summary>
 /// <param name="Normal">The receiver's unit view-space geometric normal.</param>
 internal readonly record struct OwnPlane(Double3 Normal);
@@ -82,12 +83,15 @@ internal readonly record struct OwnCard(Double3 Point, Double3 Normal, double Ve
 [GeneratedUnion(typeof(OwnPlane), typeof(OwnCard))]
 internal readonly partial struct OwnSurface
 {
-    /// <summary>The sectors of <paramref name="sectors"/> that the own surface blocks, with no light.</summary>
-    public SectorMask Blocks(SliceSectors sectors) =>
+    /// <summary>
+    /// The run of <paramref name="sectors"/> that the own surface blocks, with no light: the sectors along which the map's
+    /// light M counts. A hair receiver's run is empty: its fibers block nothing and read no M along its own surface.
+    /// </summary>
+    public SectorRun Run(SliceSectors sectors) =>
         this switch
         {
-            OwnPlane(var normal) => sectors.BelowPlane(normal),
-            OwnCard => SectorMask.None,
+            OwnPlane(var normal) => sectors.RunBelowPlane(normal),
+            OwnCard => sectors.NoRun,
             null => throw new InvalidOperationException("A receiver's own surface has a kind."),
         };
 
@@ -101,8 +105,10 @@ internal readonly partial struct OwnSurface
         };
 }
 
-/// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
-internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
+/// <summary>A slice after its near steps: its sectors and its blocked sectors.</summary>
+/// <param name="Light">The sum of newly blocked sectors times their blocker's light.</param>
+/// <param name="MapLight">M: the sum of blocked sectors times the map's light along them, 0 with the map off.</param>
+internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light, Double3 MapLight);
 
 /// <summary>
 /// The search of one slice's sectors: the near steps, which block what their slabs cover and give it their direct
@@ -271,25 +277,30 @@ internal static class SectorSearch
 
     /// <summary>
     /// The near steps of one slice, in order, nearest first: each blocks what it covers and neither the receiver's own
-    /// surface nor a nearer step blocked.
+    /// surface nor a nearer step blocked. Each unbroken piece of the sectors that a step newly blocks reads the map along
+    /// the middle of its angles, with the lobe for its width (docs/plans/screen-space-illumination.md, decision 42).
     /// </summary>
     /// <remarks>
     /// A step blocks only within <paramref name="radius"/> of the center, GTAO's hard edge. A blocker that faces away
     /// blocks with no light: no pixel holds the light of its back.
     /// </remarks>
-    /// <param name="ownSurface">The receiver's own surface, which blocks before every step.</param>
+    /// <param name="ownSurface">The receiver's own surface, whose run blocks before every step and reads the map.</param>
+    /// <param name="mapLight">The map's light along a unit view-space direction, read with the lobe for a part this many rad wide (<see cref="GgxLobe.RoughnessForWidth"/>); null with the map off.</param>
     public static NearSlice Near(
         SliceSectors sectors,
         Double3 center,
         OwnSurface ownSurface,
         double radius,
         double thicknessShare,
-        ReadOnlySpan<NearStep> steps
+        ReadOnlySpan<NearStep> steps,
+        Func<Double3, double, Double3>? mapLight
     )
     {
         // The receiver's own surface first, so no step gives light to a direction below it.
-        SectorMask blocked = ownSurface.Blocks(sectors);
+        SectorRun ownRun = ownSurface.Run(sectors);
+        SectorMask blocked = ownRun.Sectors;
         Double3 light = Double3.Zero;
+        Double3 replaced = MapLightOf(sectors: sectors, run: ownRun, part: blocked, mapLight: mapLight);
         foreach (NearStep step in steps)
         {
             if (!HorizonSlice.Hides(sampleDistance: Double3.Distance(step.Position, center), radius: radius))
@@ -301,12 +312,39 @@ internal static class SectorSearch
                 side: step.Side,
                 thicknessShare: thicknessShare
             );
-            SectorMask fresh = sectors.Covering(front, back).Except(blocked);
+            SectorRun run = sectors.RunBetween(Math.Min(front, back), Math.Max(front, back));
+            SectorMask fresh = run.Sectors.Except(blocked);
             blocked = blocked.Union(fresh);
             if (Faces(step.GeometricNormal, center - step.Position))
                 light += step.DirectLight * fresh.Count;
+            replaced += MapLightOf(sectors: sectors, run: run, part: fresh, mapLight: mapLight);
         }
-        return new(Sectors: sectors, Blocked: blocked, Light: light);
+        return new(Sectors: sectors, Blocked: blocked, Light: light, MapLight: replaced);
+    }
+
+    /// <summary>
+    /// The sum over the unbroken pieces of <paramref name="part"/> of each piece's count times the map's light along the
+    /// middle of its angles in <paramref name="run"/>, read with the lobe for its width; 0 for an empty part or with no
+    /// map. A nearer step can block sectors amid the run, so the part can fall in pieces, and a read for the whole part
+    /// would stand on the nearer step's directions.
+    /// </summary>
+    private static Double3 MapLightOf(
+        SliceSectors sectors,
+        SectorRun run,
+        SectorMask part,
+        Func<Double3, double, Double3>? mapLight
+    )
+    {
+        if (mapLight is null)
+            return Double3.Zero;
+        Double3 light = Double3.Zero;
+        for (SectorMask rest = part; rest.Count > 0; rest = rest.Except(rest.LowestPiece))
+        {
+            SectorMask piece = rest.LowestPiece;
+            (double middle, double width) = run.PartAngles(piece);
+            light += mapLight(sectors.DirectionAt(middle), width) * piece.Count;
+        }
+        return light;
     }
 
     /// <summary>σ acos(V̂ · d / |d|): the signed angle of the direction <paramref name="direction"/> in the slice.</summary>

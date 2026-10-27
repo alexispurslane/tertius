@@ -19,7 +19,8 @@ internal sealed class OcclusionUpsamplePass(
         layouts: layouts,
         images: images,
         setting: setting,
-        shader: "occlusion_upsample"
+        shader: "occlusion_upsample",
+        constants: null
     );
 
     public override string Name => "occlusion upsample";

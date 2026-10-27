@@ -67,21 +67,39 @@ vec3 environmentDiffuse(uint map, vec3 normal)
     return max(irradiance, vec3(0.0)) / PI;
 }
 
-// S(d, r): map `map`'s specular light along the lobe of the floored roughness r at the unit direction d, plus the
-// reflected stars for the footprint f, times the open-sky share there. The stars stay in world axes at d. L comes from the
-// image, so no other store holds it. The layer coordinate float(map) is an integer, which Vulkan rounds to itself.
-vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)
+// Map `map`'s specular map along the lobe of roughness r, from 0 to 1, at the unit world direction d: the light in rgb
+// and the open-sky share in a. The layer coordinate float(map) is an integer, which Vulkan rounds to itself.
+vec4 environmentLobe(uint map, vec3 d, float roughness)
 {
     float levels = float(textureQueryLevels(samplerCubeArray(environmentSpecularMap, environmentSampler)));
-    vec4 lobe = textureLod(
+    return textureLod(
         samplerCubeArray(environmentSpecularMap, environmentSampler),
         vec4(inMapAxes(map, d), float(map)),
         roughness * (levels - 1.0));
+}
+
+// S(d, r): map `map`'s specular light along the lobe of the floored roughness r at the unit direction d, plus the
+// reflected stars for the footprint f, times the open-sky share there. The stars stay in world axes at d. L comes from the
+// image, so no other store holds it.
+vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)
+{
+    vec4 lobe = environmentLobe(map, d, roughness);
     // Where the lobe sees no open sky, its share is 0, and 0 times the reflected stars, which are finite, is a zero,
     // whose sum with lobe.rgb equals lobe.rgb, so the stars' cells are not hashed.
     if (skipsTermsThatAddNothing && lobe.a == 0.0)
         return lobe.rgb;
     return lobe.rgb + lobe.a * reflectedStars(d, starWidth(footprint, roughness * roughness));
+}
+
+// α of the specular map's lobe per rad of the width of the part of the sky that a read stands for: GgxLobe.AlphaPerWidth.
+const float LobeAlphaPerWidth = 0.12108;
+
+// The roughness of the specular map's lobe that blurs a read over a part of the sky `width` rad wide: at most 5 % of the
+// lobe's weight lies beyond either end of the part, so the read keeps to its part (docs/plans/screen-space-illumination.md,
+// decision 41). GgxLobe.RoughnessForWidth is the C# copy.
+float roughnessForWidth(float width)
+{
+    return sqrt(LobeAlphaPerWidth * width);
 }
 
 // The mean of map `map`'s radiance over every direction, E_00 Y_00 / π, without the stars: the lit puffs' ambient light.

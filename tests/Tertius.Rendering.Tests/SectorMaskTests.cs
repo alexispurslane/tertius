@@ -1,8 +1,8 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The 32-bit mask of a slice's blocked sectors: its runs, its counts, its unions and its exceptions
-/// (docs/plans/screen-space-illumination.md, "A near step").
+/// The 32-bit mask of a slice's blocked sectors: its runs, its counts, its unions, its exceptions and its unbroken
+/// pieces (docs/plans/screen-space-illumination.md, "A near step").
 /// </summary>
 public sealed class SectorMaskTests
 {
@@ -44,4 +44,17 @@ public sealed class SectorMaskTests
     [Fact]
     public void AnExceptionKeepsTheSectorsThatTheOtherDoesNotBlock() =>
         new SectorMask(0b0111u).Except(new SectorMask(0b0110u)).Should().Be(new SectorMask(0b0001u));
+
+    [Fact]
+    public void TheLowestPieceRunsFromTheLowestSectorToTheFirstGap() =>
+        new SectorMask(0b1100_1110_0011_1000u).LowestPiece.Should().Be(new SectorMask(0b0011_1000u));
+
+    [Fact]
+    public void ALowestPieceThatEndsAtTheLastSectorHoldsIt() =>
+        new SectorMask(0xF000_0000u)
+            .LowestPiece.Should()
+            .Be(new SectorMask(0xF000_0000u), "the sum that clears the piece wraps to 0 past sector 31");
+
+    [Fact]
+    public void AnEmptySetHasNoLowestPiece() => SectorMask.None.LowestPiece.Should().Be(SectorMask.None);
 }

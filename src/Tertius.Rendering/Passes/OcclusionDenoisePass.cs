@@ -18,7 +18,8 @@ internal sealed class OcclusionDenoisePass(
         layouts: layouts,
         images: images,
         setting: setting,
-        shader: "occlusion_denoise"
+        shader: "occlusion_denoise",
+        constants: null
     );
 
     public override string Name => "occlusion denoise";

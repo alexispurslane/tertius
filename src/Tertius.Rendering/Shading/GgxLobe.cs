@@ -5,6 +5,12 @@ internal readonly record struct GgxLobe
 {
     public const double MinRoughness = 0.045;
 
+    /// <summary>
+    /// α per rad of the width that a read of the specular map stands for. With n = v, the lobe's weight across a line x
+    /// rad from its axis falls about as (a² + x²)^(−3/2), a = 2α, which leaves 5 % beyond x where a = 0.484 x.
+    /// </summary>
+    public const double AlphaPerWidth = 0.12108;
+
     /// <summary>Clamps <paramref name="roughness"/> to the range from <see cref="MinRoughness"/> to 1.</summary>
     public GgxLobe(double roughness)
     {
@@ -18,6 +24,13 @@ internal readonly record struct GgxLobe
 
     /// <summary>The width of the lobe, α = r².</summary>
     public double Alpha { get; }
+
+    /// <summary>
+    /// The roughness of the specular map's lobe that blurs a read over a part of the sky <paramref name="width"/> rad
+    /// wide: at most 5 % of the lobe's weight lies beyond either end of the part
+    /// (docs/plans/screen-space-illumination.md, decision 41). roughnessForWidth in environment.glsl is the GPU copy.
+    /// </summary>
+    public static double RoughnessForWidth(double width) => Math.Sqrt(AlphaPerWidth * width);
 
     /// <summary>The GGX distribution D of the microfacet normals, per steradian, at the cosine of h to n.</summary>
     public double Distribution(double nDotH)

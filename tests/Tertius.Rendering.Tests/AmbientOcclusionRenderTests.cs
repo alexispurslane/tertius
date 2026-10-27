@@ -218,8 +218,17 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             );
     }
 
+    /// <summary>
+    /// Under the map, each direction around the floor at the corner counts once (docs/plans/screen-space-illumination.md,
+    /// decision 41). The walls block most directions within the radius, and they have no direct light, so those
+    /// directions bring nothing. The map, drawn from the camera, 5.5 m from the corner, shows the glowing ceiling along
+    /// many of them, past the walls' tops and ends, and the map's irradiance without the screen-space light counts that
+    /// light. The estimate takes it away. Were the map's light along the blocked directions not taken away, the walls'
+    /// net bounce would be 0 and the floor would keep the map's irradiance, to within the rounding of one 8-bit step of
+    /// <see cref="ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight"/>. Four steps keep the test clear of it.
+    /// </summary>
     [Fact]
-    public void UnderTheEnvironmentMapAnInnerCornerGetsLessAmbientLightThanWithoutOcclusion()
+    public void UnderTheEnvironmentMapAnInnerCornerLosesTheMapsLightAlongTheDirectionsThatItsWallsHide()
     {
         (Capture on, Capture off) = OnAndOff(
             renderer =>
@@ -254,9 +263,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         (unoccluded - occluded)
             .Should()
             .BeGreaterThanOrEqualTo(
-                20f / 255,
-                "the occlusion scales the map's ambient terms as it scales the hemisphere's, and the walls hide "
-                    + "much of the hemisphere 0.1 m from both"
+                4f / 255,
+                "the walls hide from the floor the glowing ceiling that the map shows along their directions"
             );
     }
 
