@@ -103,21 +103,13 @@ internal sealed partial class EntityTable
     /// <item><see cref="PlacedStamp"/> is the build that wrote the placed copy, or 0, which no build has, since the spawn.</item>
     /// </list>
     /// </remarks>
-    internal sealed class RigPoseBlock
+    internal sealed class RigPoseBlock(int jointCount, int weightCount)
     {
-        private readonly Pose[] joints;
-        private readonly float[] weights;
+        private readonly Pose[] joints = new Pose[3 * jointCount];
+        private readonly float[] weights = new float[3 * weightCount];
 
-        public RigPoseBlock(int jointCount, int weightCount)
-        {
-            JointCount = jointCount;
-            WeightCount = weightCount;
-            joints = new Pose[3 * jointCount];
-            weights = new float[3 * weightCount];
-        }
-
-        public int JointCount { get; }
-        public int WeightCount { get; }
+        public int JointCount { get; } = jointCount;
+        public int WeightCount { get; } = weightCount;
 
         /// <summary>The build that wrote the placed copy, or 0 when no build has since the spawn.</summary>
         public long PlacedStamp { get; private set; }
@@ -159,8 +151,7 @@ internal sealed partial class EntityTable
         }
 
         /// <summary>True when the front copy equals the back copy bit for bit.</summary>
-        public bool FrontEqualsBack() =>
-            BitEquals<Pose>(BackJoints, FrontJoints) && BitEquals<float>(BackWeights, FrontWeights);
+        public bool FrontEqualsBack() => BitEquals(BackJoints, FrontJoints) && BitEquals(BackWeights, FrontWeights);
 
         /// <summary>Checks that the arrays hold three copies of the block's counts.</summary>
         public void AssertShape() =>

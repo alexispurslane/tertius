@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using AwesomeAssertions;
 using static Tertius.Simulation.Tests.RenderSnapshotSupport;
@@ -340,11 +339,7 @@ public sealed class RigPoseTests
     }
 
     public static TheoryData<string, RigPose> PosesWithADefaultArray =>
-        new()
-        {
-            { "default joint poses", new(default, []) },
-            { "default weights", new([Pose.Identity], default) },
-        };
+        new() { { "default joint poses", new(default, []) }, { "default weights", new([Pose.Identity], default) } };
 
     [Theory]
     [MemberData(nameof(PosesWithADefaultArray))]
@@ -425,7 +420,7 @@ public sealed class RigPoseTests
             table.Release(entity);
         Entity[] respawned = [table.SpawnLive(), table.SpawnLive(), table.SpawnLive()];
         int next = 0;
-        Action respawn = () => table.SetSpawnRigPose(respawned[next++], pose);
+        void respawn() => table.SetSpawnRigPose(respawned[next++], pose);
 
         long allocated = Allocations.Fewest(respawn);
 
@@ -478,7 +473,7 @@ public sealed class RigPoseTests
         using var test = new TestWorld();
         var spawned = new Queue<Entity>();
         // Spawns a posed entity of one of three shapes in every tick, and destroys the oldest of five.
-        Lambda churn = Lambda.OnTick(
+        var churn = Lambda.OnTick(
             (self, scoped ref _, scoped ref outbox) =>
             {
                 int shape = (int)(self.Tick % 3);

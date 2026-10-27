@@ -620,7 +620,9 @@ public sealed class MeshDeformTests
         (_, float bound) = Rows(deform: packed.Deform, previous: moved, current: moved, alpha: 1);
 
         still.Should().BeLessThan(2, "the box is 1 m wide, and nothing moves");
-        bound.Should().BeGreaterThan(49, "the joint's sphere holds the vertex, so the bound follows the joint out to 50 m");
+        bound
+            .Should()
+            .BeGreaterThan(49, "the joint's sphere holds the vertex, so the bound follows the joint out to 50 m");
     }
 
     [Fact]

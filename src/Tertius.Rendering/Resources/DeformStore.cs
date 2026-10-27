@@ -10,7 +10,8 @@ namespace Tertius.Rendering;
 /// <see cref="Add"/> places a mesh after the meshes before it, and <see cref="Upload"/> records the copy of every mesh
 /// added since the upload before. The upload queue keeps each buffer within the device's maxStorageBufferRange.
 /// </remarks>
-internal sealed class DeformStore : IDisposable
+/// <param name="maxBytes">The most bytes of each buffer: the device's maxStorageBufferRange.</param>
+internal sealed class DeformStore(VulkanDevice device, DeviceAllocator allocator, long maxBytes) : IDisposable
 {
     private const int InitialVertices = 4 * 1024;
     private const int InitialDeltas = 4 * 1024;
@@ -20,27 +21,22 @@ internal sealed class DeformStore : IDisposable
     private int placedVertices;
     private int placedDeltas;
 
-    /// <param name="maxBytes">The most bytes of each buffer: the device's maxStorageBufferRange.</param>
-    public DeformStore(VulkanDevice device, DeviceAllocator allocator, long maxBytes)
-    {
-        Vertices = new(
+    public DeviceArray<GpuDeformVertex> Vertices { get; } =
+        new(
             device: device,
             allocator: allocator,
             name: "deform vertices",
             initialCapacity: InitialVertices,
             maxBytes: maxBytes
         );
-        Deltas = new(
+    public DeviceArray<GpuMorphDelta> Deltas { get; } =
+        new(
             device: device,
             allocator: allocator,
             name: "morph deltas",
             initialCapacity: InitialDeltas,
             maxBytes: maxBytes
         );
-    }
-
-    public DeviceArray<GpuDeformVertex> Vertices { get; }
-    public DeviceArray<GpuMorphDelta> Deltas { get; }
 
     /// <summary>Counts every replacement of either buffer, so that a descriptor set that points at them knows to follow.</summary>
     public int Version => Vertices.Version + Deltas.Version;
