@@ -1,6 +1,6 @@
 ---
 id: ter-okrp
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T22:18:40Z
