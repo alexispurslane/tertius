@@ -119,9 +119,43 @@ internal static class ShadowCascades
     /// True when the shadow maps draw a caster with bounding radius <paramref name="radius"/> whose center is
     /// <paramref name="distance"/> meters from the camera: its bounding sphere comes within <see cref="Distance"/>, however
     /// big it is, such as a ground plane or a planet under the camera. Every caster is also a far shadow, if it is big enough
-    /// to notice; for a caster that the maps draw, that sphere counts only where the maps end.
+    /// to notice; for a caster that its light's set draws, that sphere counts only where the maps end.
     /// </summary>
     public static bool TakesCaster(float distance, float radius) => distance - radius <= Distance;
+
+    /// <summary>True when an instance casts shadows and the maps take it (<see cref="TakesCaster"/>).</summary>
+    public static bool InReach(in PreparedInstance caster) =>
+        caster.CastsShadow && TakesCaster(caster.Distance, caster.Radius);
+
+    /// <summary>
+    /// The cascades of one set that draw an instance, as a mask with bit i for cascade i: none unless it is in reach
+    /// (<see cref="InReach"/>), and then each cascade whose box its sphere overlaps, or the part of the set's light view in
+    /// front of the box, toward the light. The shadow pass culls its casters by this test, and the batcher counts a far
+    /// shadow as mapped by it.
+    /// </summary>
+    /// <param name="light">The light basis of the set's light.</param>
+    /// <param name="cascades">The set's cascades, as <see cref="Fit"/> fitted them.</param>
+    /// <param name="caster">The instance, placed for this frame.</param>
+    public static int SetMask(in LightBasis light, in ShadowCascadeArray cascades, in PreparedInstance caster)
+    {
+        if (!InReach(caster))
+            return 0;
+        int mask = 0;
+        Vector3 lightPosition = light.ToLight(caster.Position);
+        for (int i = 0; i < Count; i++)
+        {
+            ref readonly ShadowCascade cascade = ref cascades[i];
+            float reach = cascade.HalfExtent + caster.Radius;
+            if (
+                MathF.Abs(lightPosition.X - cascade.Center.X) <= reach
+                && MathF.Abs(lightPosition.Y - cascade.Center.Y) <= reach
+                && lightPosition.Z + caster.Radius >= cascade.Center.Z - cascade.DepthHalfRange
+            )
+                mask |= 1 << i;
+        }
+
+        return mask;
+    }
 
     /// <summary>The view depth where cascade <paramref name="cascade"/> ends.</summary>
     public static float Split(int cascade) => Splits[cascade];

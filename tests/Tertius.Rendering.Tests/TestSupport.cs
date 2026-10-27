@@ -540,9 +540,21 @@ internal static class TestTextures
 internal static class Batchers
 {
     /// <summary>A batcher with the exposure and the cascaded light budget of a renderer made with default options.</summary>
-    public static SceneBatcher Default()
-    {
-        var options = new RendererOptions();
-        return new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
-    }
+    public static SceneBatcher Default() => WithCascadedLights(new RendererOptions().CascadedLights);
+
+    /// <summary>A batcher of <see cref="Default"/>, but with <paramref name="cascadedLights"/> cascade sets.</summary>
+    public static SceneBatcher WithCascadedLights(int cascadedLights) =>
+        With(exposure: new RendererOptions().Exposure, cascadedLights: cascadedLights);
+
+    /// <summary>
+    /// A batcher with <paramref name="exposure"/> and <paramref name="cascadedLights"/> cascade sets, whose boxes are
+    /// those of the default shadow map on a device that filters D32 depth.
+    /// </summary>
+    public static SceneBatcher With(ExposureSetting exposure, int cascadedLights) =>
+        new(
+            exposure: exposure,
+            cascadedLights: cascadedLights,
+            shadowMapSize: ShadowMap.DefaultSize,
+            depthRangeScale: 16f
+        );
 }

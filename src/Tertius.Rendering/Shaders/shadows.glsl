@@ -57,8 +57,8 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
 }
 
 // How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over
-// the last cascade's fade, where the maps' shadow fades out. A far shadow of a caster that the maps also draw counts by
-// this weight, so the two shadows hand over without a seam. Every set has the same splits.
+// the last cascade's fade, where the maps' shadow fades out. A far shadow of a caster that the light's own set also draws
+// counts by this weight, so the two shadows hand over without a seam. Every set has the same splits.
 float beyondShadowMaps(vec3 position)
 {
     uint count = frame.counts.z;
@@ -141,8 +141,8 @@ float coarsestBoxFade(uint set, vec3 position)
 }
 
 // How far a world position is beyond a set's maps by the finest box that holds it: 0 in a box finer than the coarsest,
-// to 1 over the coarsest box's outer tenth, and 1 outside every box. A far shadow of a caster that the maps also draw
-// counts by this weight, as beyondShadowMaps does for the main view.
+// to 1 over the coarsest box's outer tenth, and 1 outside every box. A far shadow of a caster that the light's own set
+// also draws counts by this weight, as beyondShadowMaps does for the main view.
 float beyondShadowMapsHolding(uint set, vec3 position)
 {
     uint count = frame.counts.z;

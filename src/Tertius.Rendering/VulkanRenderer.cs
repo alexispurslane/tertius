@@ -127,7 +127,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
         deformation = options.Deformation;
-        Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
         {
@@ -141,13 +140,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
-            deforms = Own(
-                new DeformStore(
-                    device: device,
-                    allocator: Allocator,
-                    maxBytes: device.Properties.Limits.MaxStorageBufferRange
-                )
-            );
+            deforms = CreateDeformStore();
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
@@ -160,16 +153,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections
             );
-            exposure = Own(
-                new ExposureResources(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    framesInFlight: options.FramesInFlight
-                )
-            );
+            exposure = CreateExposure(options.FramesInFlight);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
+            // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
+            Batcher = CreateBatcher(options);
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
@@ -1637,6 +1625,36 @@ public sealed unsafe class VulkanRenderer : IRenderer
             NoLocalShadows => null,
             LocalShadowAtlas atlas => Own(new ShadowAtlas(device: device, allocator: Allocator, setting: atlas)),
         };
+
+    /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
+    private DeformStore CreateDeformStore() =>
+        Own(
+            new DeformStore(
+                device: device,
+                allocator: Allocator,
+                maxBytes: device.Properties.Limits.MaxStorageBufferRange
+            )
+        );
+
+    /// <summary>The exposure buffer, the histogram and the readbacks of <paramref name="framesInFlight"/> frame slots, which the renderer owns.</summary>
+    private ExposureResources CreateExposure(int framesInFlight) =>
+        Own(
+            new ExposureResources(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                framesInFlight: framesInFlight
+            )
+        );
+
+    /// <summary>The batcher of <paramref name="options"/>, which fits the cascade boxes of <see cref="ShadowMap"/>.</summary>
+    private SceneBatcher CreateBatcher(RendererOptions options) =>
+        new(
+            exposure: options.Exposure,
+            cascadedLights: options.CascadedLights,
+            shadowMapSize: ShadowMap.Size,
+            depthRangeScale: ShadowMap.DepthRangeScale
+        );
 
     /// <summary>The environment map that <paramref name="options"/> ask for, which the renderer owns, or null for none.</summary>
     private EnvironmentMap? CreateEnvironmentMap(RendererOptions options) =>

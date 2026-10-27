@@ -268,6 +268,155 @@ public sealed class ShadowTests
         }
     }
 
+    // ---- A far shadow of a caster that its light's set does not draw ------------------------------------------
+    // The camera, 40 m above the ground, looks level along −Z with a view 0.88 wide per unit of depth and 0.05 high, so
+    // that set 0's coarsest box ends 10 m past the view's right edge at 2 km. A large star of 0.1 rad stands overhead
+    // and takes set 0. A sphere of 50 km lies 5 m past that box's side, its center 2 km above the ground: it comes within
+    // 2 km of the camera, but its light's set does not draw it, so near the right edge it dims the ground through its
+    // far shadow alone.
+
+    private const int UndrawnWidth = 880,
+        UndrawnHeight = 50;
+    private const float UndrawnTanHalfY = 0.05f,
+        UndrawnGround = -40f,
+        UndrawnSphereRadius = 50_000f;
+
+    /// <summary>The scene of the sphere that its light's set does not draw, and the ground that it dims.</summary>
+    private static RenderSnapshot UndrawnSphereScene(Kit kit)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        Gpu.Star(snapshot: snapshot, angularRadius: 0.1f);
+        snapshot.Camera.VerticalFov = 2f * MathF.Atan(UndrawnTanHalfY);
+        // No ambient light, so that the star alone lights the ground.
+        snapshot.Ambient = default;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, UndrawnGround, -2_000f),
+                scale: new(6_000f, 1, 6_000f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        float tanHalfX = UndrawnTanHalfY * UndrawnWidth / UndrawnHeight;
+        float radius = ShadowCascades
+            .BoundingSphere(
+                near: ShadowCascades.BlendStart(2),
+                far: ShadowCascades.Split(3),
+                tanHalfX: tanHalfX,
+                tanHalfY: UndrawnTanHalfY
+            )
+            .Radius;
+        // Fit's half extent: the sphere plus the margin of texels on each side.
+        float boxSide = radius * ShadowMap.DefaultSize / (ShadowMap.DefaultSize - 2 * ShadowCascades.MarginTexels);
+        snapshot.Instances.Add(
+            InvisibleCaster(
+                kit: kit,
+                position: new(boxSide + 5f + UndrawnSphereRadius, UndrawnGround + 2_000f, -1_900f),
+                radius: UndrawnSphereRadius
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>A sphere that casts shadows and that no view draws.</summary>
+    private static RenderInstance InvisibleCaster(Kit kit, Vector3 position, float radius) =>
+        RenderInstance.Create(
+            mesh: kit.Sphere,
+            material: kit.White,
+            position: position,
+            rotation: Quaternion.Identity,
+            scale: new(radius),
+            boundingRadius: 0,
+            hemisphere: HemisphereUp.Along(Vector3.UnitY),
+            chainDepth: TestChains.CamerasFrame,
+            flags: Caster,
+            entityIndex: 0,
+            part: 0
+        );
+
+    /// <summary>
+    /// Renders the scene of the undrawn sphere and gives the luma of the ground at 1.9 km near the view's right edge,
+    /// which the sphere dims, and at the left edge, which it does not. Checks that set 0 does not draw the sphere.
+    /// </summary>
+    private static (float Dimmed, float Lit) UndrawnSphereLumas(
+        VulkanRenderer renderer,
+        RenderSnapshot snapshot,
+        string name
+    )
+    {
+        Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
+        PreparedScene scene = renderer.LastScene;
+        PreparedInstance sphere = scene.PlacedSpan.ToArray().Single(each => each.Radius > 0.5f * UndrawnSphereRadius);
+        ShadowCascades.TakesCaster(sphere.Distance, sphere.Radius).Should().BeTrue("the sphere comes within 2 km");
+        (ShadowPass.CascadeMask(scene, sphere) & 0xF).Should().Be(0, "the sphere is beside every box of set 0");
+        float fov = 2f * MathF.Atan(UndrawnTanHalfY);
+        float edge = 0.99f * UndrawnTanHalfY * UndrawnWidth / UndrawnHeight * 1_900f;
+        Vector2 Pixel(float x) =>
+            Gpu.Project(point: new(x, UndrawnGround, -1_900f), width: UndrawnWidth, height: UndrawnHeight, fov: fov);
+        return (image.MeanLuma(Pixel(edge), 1), image.MeanLuma(Pixel(-edge), 1));
+    }
+
+    [Fact]
+    public void AFarShadowInTheMapsStaysTheSameWhenAnotherLightsSetGainsACaster()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: UndrawnWidth, height: UndrawnHeight, cascadedLights: 2);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot snapshot = UndrawnSphereScene(kit);
+            // Set 1: a dimmer star behind the camera, below the horizon, which lights none of the ground.
+            snapshot.Lights.Add(
+                Gpu.StarLight(
+                    direction: new(0, -0.1f, 1),
+                    irradiance: 1,
+                    angularRadius: Gpu.StarAngularRadius,
+                    color: Gpu.StarColor,
+                    chainDepth: TestChains.Root
+                )
+            );
+            (float dimmed, float lit) = UndrawnSphereLumas(renderer, snapshot, "undrawn-sphere");
+            // A small caster 500 m behind the camera, which only set 1 draws.
+            snapshot.Instances.Add(InvisibleCaster(kit: kit, position: new(0, -20, 500), radius: 1));
+            (float dimmedThen, float litThen) = UndrawnSphereLumas(renderer, snapshot, "undrawn-sphere-other-set");
+
+            renderer.LastScene.ShadowCasters.Should().Be(1, "set 1 draws the small caster");
+            dimmed.Should().BeLessThan(0.97f * lit, "the sphere's far shadow dims the ground near the right edge");
+            litThen.Should().BeApproximately(lit, 1.5f / 255);
+            dimmedThen.Should().BeApproximately(dimmed, 1.5f / 255, "set 0 draws no caster, whatever set 1 draws");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AFarShadowOfACasterThatTheSetDoesNotDrawStaysTheSameWhenTheSetDrawsAnotherCaster()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: UndrawnWidth, height: UndrawnHeight);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot snapshot = UndrawnSphereScene(kit);
+            (float dimmed, float lit) = UndrawnSphereLumas(renderer, snapshot, "undrawn-sphere");
+            // A small caster on the ground 100 m ahead, which set 0 draws, far from the dimmed ground.
+            snapshot.Instances.Add(InvisibleCaster(kit: kit, position: new(0, UndrawnGround + 1, -100), radius: 1));
+            (float dimmedThen, float litThen) = UndrawnSphereLumas(renderer, snapshot, "undrawn-sphere-same-set");
+
+            renderer.LastScene.ShadowCasters.Should().Be(1, "set 0 draws the small caster");
+            dimmed.Should().BeLessThan(0.97f * lit, "the sphere's far shadow dims the ground near the right edge");
+            litThen.Should().BeApproximately(lit, 1.5f / 255);
+            dimmedThen
+                .Should()
+                .BeApproximately(dimmed, 1.5f / 255, "the set does not draw the sphere, whatever else it draws");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheLastCascadeStillShadowsAtOnePointFiveKilometres()
     {
