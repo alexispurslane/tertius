@@ -191,23 +191,52 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void APassThatRecordsNothingReportsTheTimeItTookWhichIsNearlyZero()
+    public void APassThatRecordsNothingAddsNearlyNoTimeBetweenTheEndOfThePassBeforeItAndTheEndOfThePassAfterIt()
+    {
+        VulkanRenderer without = TimedRenderer();
+        VulkanRenderer with = TimedRenderer();
+        try
+        {
+            // Between the G-buffer pass and the lighting pass. On a driver whose stamps latch late, the empty pass's own
+            // time can hold part of the lighting's work, and the lighting's time then shows that much less, so only the
+            // time from the G-buffer's stamp to the lighting's stamp holds (ARCHITECTURE.md, "GPU timings").
+            with.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
+
+            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfLighting, without, with);
+
+            (fewest[1] - fewest[0])
+                .Should()
+                .BeLessThan(0.05, "the pass gave the GPU no work, only one more stamp to write");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(without);
+            Gpu.DisposeAndAssertClean(with);
+        }
+    }
+
+    [Fact]
+    public void OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn()
     {
         VulkanRenderer renderer = TimedRenderer();
         try
         {
+            if (renderer.StampsLatchLate)
+            {
+                Assert.Skip(
+                    $"{renderer.DeviceName}'s stamps latch late, so a pass's own time can hold the next pass's work, and"
+                        + " only the sum of neighbouring passes holds (ARCHITECTURE.md, \"GPU timings\")."
+                );
+            }
+
             // After the G-buffer pass, the costliest pass of the scene, so a stamp that took the G-buffer's time into the
             // empty pass's would show.
             renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
-            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
-            for (int i = 0; i < 3; i++)
-                renderer.Render(snapshot, 1f);
 
-            renderer
-                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+            FewestMilliseconds(passes => passes.Single(pass => pass.Pass == "empty").Milliseconds, renderer)
                 .Should()
-                .ContainSingle(pass => pass.Pass == "empty")
-                .Which.Milliseconds.Should()
+                .ContainSingle()
+                .Which.Should()
                 .BeLessThan(0.05, "the pass gave the GPU no work, and a mean over frames counts it as it is");
         }
         finally
@@ -276,6 +305,37 @@ public sealed class GpuTimingTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The fewest milliseconds that <paramref name="measure"/> reads from each renderer's timings over 64 frames of the
+    /// test scene. The renderers draw in turn, so a load on the GPU from another process falls on each alike. Such a
+    /// load stretches a pass's time in some frames, by the work of the other process that the GPU ran between two
+    /// stamps, and the fewest is a frame that the load left alone (ARCHITECTURE.md, "GPU timings", gives the margin).
+    /// </summary>
+    private static double[] FewestMilliseconds(Func<PassTiming[], double> measure, params VulkanRenderer[] renderers)
+    {
+        RenderSnapshot[] snapshots = [.. renderers.Select(renderer => TestScene.Create(renderer).Snapshot())];
+        double[] fewest = [.. renderers.Select(_ => double.MaxValue)];
+        for (int frame = 0; frame < 64; frame++)
+        {
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                renderers[i].Render(snapshots[i], 1f);
+                if (renderers[i].LastFrameStats.GpuTimings is { } timings)
+                    fewest[i] = Math.Min(fewest[i], measure(timings.Passes.ToArray()));
+            }
+        }
+
+        return fewest;
+    }
+
+    /// <summary>The time from the G-buffer's stamp to the lighting's stamp: the passes after the G-buffer pass up to the lighting pass.</summary>
+    private static double FromTheGBufferToTheEndOfLighting(PassTiming[] passes)
+    {
+        int gBuffer = Array.FindIndex(passes, pass => pass.Pass == "G-buffer");
+        int lighting = Array.FindIndex(passes, pass => pass.Pass == "lighting");
+        return passes[(gBuffer + 1)..(lighting + 1)].Sum(pass => pass.Milliseconds);
     }
 
     private sealed class EmptyPass : RenderPass
