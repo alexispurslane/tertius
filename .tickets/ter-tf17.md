@@ -1,6 +1,6 @@
 ---
 id: ter-tf17
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T17:20:30Z
@@ -35,3 +35,9 @@ The measure runs in parallel with the tests, so the two sections print after it 
 - tools/README.md ("Before a commit", "Slop metrics") and docs/plans/code-quality-tooling.md say the new report.
 - The hook's own tests (if any) and Tertius.Slop.Tests cover the new output.
 
+
+## Notes
+
+**2026-10-27T18:01:04Z**
+
+The user's answer (2026-10-27): replace them. The erosion and verbosity sections replace the CA1502 list and the jscpd list of the commit report, CA1502 goes off, and the MA0051 length list stays.
