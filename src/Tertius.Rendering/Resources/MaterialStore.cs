@@ -4,8 +4,11 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>What the batcher needs of a material slot: how its alpha draws.</summary>
-internal readonly record struct MaterialInfo(AlphaMode Alpha);
+/// <summary>
+/// What the batcher needs of a material slot: how its alpha draws, and whether the passes that shade draw its back faces
+/// (docs/plans/skin-and-hair.md, "Both sides of a hair card").
+/// </summary>
+internal readonly record struct MaterialInfo(AlphaMode Alpha, bool TwoSided);
 
 /// <summary>
 /// All materials in one device-local storage buffer. Slot <see cref="DefaultSlot"/> holds the default material
@@ -96,6 +99,18 @@ internal sealed unsafe class MaterialStore : IDisposable
             SkinShading or HairShading => 0,
         };
 
+    /// <summary>
+    /// Whether the passes that shade draw both sides of a surface of <paramref name="model"/>: a hair card is a sheet of
+    /// strands with no back, and every other surface is solid, so its back faces are hidden (docs/plans/skin-and-hair.md,
+    /// "Both sides of a hair card").
+    /// </summary>
+    internal static bool DrawsBothSides(ShadingModel model) =>
+        model switch
+        {
+            HairShading => true,
+            StandardShading or SkinShading => false,
+        };
+
     /// <summary>Records the upload of queued materials, creating the default on the first call.</summary>
     public void Upload(
         CommandBuffer commandBuffer,
@@ -169,7 +184,7 @@ internal sealed unsafe class MaterialStore : IDisposable
     private void Stage(Span<GpuMaterial> staged, ref int cursor, MaterialDesc desc)
     {
         staged[cursor++] = ToGpu(desc);
-        infos.Add(new(desc.Alpha));
+        infos.Add(new(Alpha: desc.Alpha, TwoSided: DrawsBothSides(desc.Model)));
     }
 
     private GpuBuffer Create(int materials) =>

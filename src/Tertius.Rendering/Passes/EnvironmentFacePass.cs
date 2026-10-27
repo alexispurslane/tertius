@@ -23,8 +23,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     private readonly VulkanDevice device;
     private readonly EnvironmentMap map;
     private readonly Pipeline sky;
-    private readonly Pipeline surfaces;
-    private readonly Pipeline cutoutSurfaces;
+    private readonly SidedPipeline surfaces;
+    private readonly SidedPipeline cutoutSurfaces;
 
     public EnvironmentFacePass(
         VulkanDevice device,
@@ -61,7 +61,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         };
         try
         {
-            surfaces = desc.Create(device, shaders);
+            surfaces = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         }
         catch
         {
@@ -72,18 +72,20 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         try
         {
             // A face reads no ambient light, so its pipelines keep every other constant at its default, as the solid one does.
-            cutoutSurfaces = (
-                desc with
+            cutoutSurfaces = SidedPipeline.Create(
+                device: device,
+                shaders: shaders,
+                desc: desc with
                 {
                     Name = "environment faces cutout",
                     Constants = new ShaderConstants(EnvironmentMap: false) { CutoutAlpha = true },
                 }
-            ).Create(device, shaders);
+            );
         }
         catch
         {
             device.Vk.DestroyPipeline(device.Device, sky, null);
-            device.Vk.DestroyPipeline(device.Device, surfaces, null);
+            surfaces.Destroy(device);
             throw;
         }
     }
@@ -119,8 +121,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, sky, null);
-        device.Vk.DestroyPipeline(device.Device, surfaces, null);
-        device.Vk.DestroyPipeline(device.Device, cutoutSurfaces, null);
+        surfaces.Destroy(device);
+        cutoutSurfaces.Destroy(device);
     }
 
     /// <summary>
@@ -153,7 +155,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
                 DrawSky(context, draw.Basis);
             }
 
-            OpaqueRuns runs = draw[range];
+            SidedRuns runs = draw[range];
             if (runs.Count > 0)
             {
                 GeometryPass.PushDraw(

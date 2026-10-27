@@ -26,7 +26,7 @@ void main()
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
     // A face takes no ambient light, so nothing reads the sky shares or the footprint that forwardShading gives it.
-    ShadingInput shading = forwardShading(s, inPosition, inNormal, vec4(0.0), draw.map, V);
+    ShadingInput shading = forwardShading(s, inPosition, vec4(0.0), draw.map, V);
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
     outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding, draw.map), 0.0);

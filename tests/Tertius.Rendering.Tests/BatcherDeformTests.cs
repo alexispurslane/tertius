@@ -459,7 +459,7 @@ public sealed class BatcherDeformTests
 
         PreparedScene scene = Prepare(snapshot, Roomy, map);
 
-        CommandRange near = scene.EnvironmentFaces.Single().Near.Solid;
+        CommandRange near = scene.EnvironmentFaces.Single().Near.OneSided.Solid;
         near.Count.Should().Be(1);
         scene.Commands[near.First].VertexOffset.Should().Be(RegionBase);
     }
@@ -481,7 +481,7 @@ public sealed class BatcherDeformTests
         PreparedScene scene = Prepare(snapshot, Roomy, map);
 
         scene.VisibleCount.Should().Be(2, "the main view culls the box behind the camera");
-        CommandRange near = scene.EnvironmentFaces.Single().Near.Solid;
+        CommandRange near = scene.EnvironmentFaces.Single().Near.OneSided.Solid;
         near.Count.Should().Be(1);
         scene
             .Commands[near.First]

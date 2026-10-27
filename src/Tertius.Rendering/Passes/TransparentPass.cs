@@ -9,15 +9,16 @@ namespace Tertius.Rendering;
 /// light and multiply what lies behind by the share that they let through (<see cref="BlendMode.Transmittance"/>). Each
 /// range draws its runs in order: a <see cref="GlassCommands"/> run with the glass pipeline, a <see cref="FringeCommands"/>
 /// run with the fringe pipeline, which blends a texel below the cutoff by its coverage (docs/plans/skin-and-hair.md, "The
-/// fringe"), and a <see cref="PuffSprites"/> run with the puff pipeline, one instanced draw of 6 vertices per puff. So
+/// fringe"), each in the variant that draws back faces for a two-sided run, and a <see cref="PuffSprites"/> run with the
+/// puff pipeline, one instanced draw of 6 vertices per puff. So
 /// glass dims a puff behind it and leaves one in front of it as it is. There is no depth buffer here: occlusion by opaque surfaces in any range uses the G-buffer distance, and depth
 /// clamping keeps each object and each puff whole inside its range.
 /// </summary>
 internal sealed unsafe class TransparentPass : RenderPass
 {
     private readonly VulkanDevice device;
-    private readonly Pipeline pipeline;
-    private readonly Pipeline fringePipeline;
+    private readonly SidedPipeline pipeline;
+    private readonly SidedPipeline fringePipeline;
     private readonly Pipeline puffPipeline;
 
     public TransparentPass(
@@ -40,14 +41,22 @@ internal sealed unsafe class TransparentPass : RenderPass
             Blend = BlendMode.Transmittance,
             Constants = constants,
         };
-        pipeline = glass.Create(device, shaders);
+        pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: glass);
         try
         {
-            fringePipeline = (glass with { Name = "fringes", FragmentShader = "fringe.frag" }).Create(device, shaders);
+            fringePipeline = SidedPipeline.Create(
+                device: device,
+                shaders: shaders,
+                desc: glass with
+                {
+                    Name = "fringes",
+                    FragmentShader = "fringe.frag",
+                }
+            );
         }
         catch
         {
-            device.Vk.DestroyPipeline(device.Device, pipeline, null);
+            pipeline.Destroy(device);
             throw;
         }
 
@@ -70,8 +79,8 @@ internal sealed unsafe class TransparentPass : RenderPass
         }
         catch
         {
-            device.Vk.DestroyPipeline(device.Device, pipeline, null);
-            device.Vk.DestroyPipeline(device.Device, fringePipeline, null);
+            pipeline.Destroy(device);
+            fringePipeline.Destroy(device);
             throw;
         }
     }
@@ -128,7 +137,7 @@ internal sealed unsafe class TransparentPass : RenderPass
     private void DrawRuns(FrameContext context, PreparedScene scene, Vk vk, CommandBuffer commandBuffer)
     {
         // Every pipeline has the scene layout, so the sets and the push constants stay bound when the pipeline changes.
-        Pipeline bound = pipeline;
+        Pipeline bound = pipeline.OneSided;
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, bound);
         context.BindSceneSets();
         context.SetFullViewport();
@@ -142,12 +151,17 @@ internal sealed unsafe class TransparentPass : RenderPass
             foreach (TransparentRun run in runs)
                 switch (run)
                 {
-                    case FringeCommands(var fringes):
-                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: fringePipeline);
+                    case FringeCommands { Commands: var fringes, TwoSided: var twoSided }:
+                        Bind(
+                            vk: vk,
+                            commandBuffer: commandBuffer,
+                            bound: ref bound,
+                            wanted: fringePipeline.For(twoSided)
+                        );
                         GeometryPass.DrawIndirect(context, fringes);
                         break;
-                    case GlassCommands(var commands):
-                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: pipeline);
+                    case GlassCommands { Commands: var commands, TwoSided: var twoSided }:
+                        Bind(vk: vk, commandBuffer: commandBuffer, bound: ref bound, wanted: pipeline.For(twoSided));
                         GeometryPass.DrawIndirect(context, commands);
                         break;
                     case PuffSprites { First: var first, Count: var count }:
@@ -179,8 +193,8 @@ internal sealed unsafe class TransparentPass : RenderPass
 
     public override void Dispose()
     {
-        device.Vk.DestroyPipeline(device.Device, pipeline, null);
-        device.Vk.DestroyPipeline(device.Device, fringePipeline, null);
+        pipeline.Destroy(device);
+        fringePipeline.Destroy(device);
         device.Vk.DestroyPipeline(device.Device, puffPipeline, null);
     }
 }

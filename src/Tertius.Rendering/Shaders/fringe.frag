@@ -26,7 +26,7 @@ void main()
     vec3 V = towardEye(inPosition);
     // Before the discards below, so implicit derivatives stay defined for the whole quad.
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inNormal, inHemisphere, inMaterialAndMap.y, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
     float coverage = s.baseColor.a;
     // The core drew in the G-buffer pass, and a clear texel covers nothing.
     if (reachesCutoff(coverage, materials[inMaterialAndMap.x].alphaCutoff) || coverage <= 0.0)

@@ -227,6 +227,7 @@ public static partial class DemoScenes
         .. ShadowScenes,
         .. BounceLightScenes,
         .. RigScenes,
+        .. HairCardScenes,
     ];
 
     /// <summary>

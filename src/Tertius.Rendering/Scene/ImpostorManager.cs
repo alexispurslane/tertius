@@ -27,6 +27,9 @@ internal struct ImpostorCapture
     /// <summary>How the material's alpha draws: the object's <see cref="PreparedInstance.Alpha"/>, which chooses the capture pipeline.</summary>
     public AlphaMode Alpha;
 
+    /// <summary>Whether the capture draws the object's back faces: its <see cref="PreparedInstance.TwoSided"/>, which chooses the capture pipeline.</summary>
+    public bool TwoSided;
+
     /// <summary>The object's interpolated, camera-relative transform this frame.</summary>
     public Vector3 Position;
 
@@ -436,6 +439,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             Mesh = instance.Mesh,
             Material = instance.Material,
             Alpha = instance.Alpha,
+            TwoSided = instance.TwoSided,
             Position = instance.Position,
             Rotation = instance.Rotation,
             Scale = instance.Scale,

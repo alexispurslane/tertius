@@ -17,15 +17,15 @@ internal interface IRangeDrawer
 /// <summary>
 /// Fills the G-buffer: the far, middle and near depth ranges in that order, each with its own projection and a
 /// freshly cleared depth buffer. The G-buffer is cleared once, before the far range, so nearer ranges draw over
-/// farther ones. Every range draws its solid run and then its cutout run, each one vkCmdDrawIndexedIndirect, followed by
-/// the <see cref="RangeDrawers"/>. A range's depth is cleared to the depth of its far boundary, which cuts off what lies
+/// farther ones. Every range draws its solid runs and then its cutout runs, each one vkCmdDrawIndexedIndirect, followed
+/// by the <see cref="RangeDrawers"/>. A range's depth is cleared to the depth of its far boundary, which cuts off what lies
 /// beyond it (see <see cref="DepthRanges"/>).
 /// </summary>
 internal sealed unsafe class GeometryPass : RenderPass
 {
     private readonly VulkanDevice device;
-    private readonly Pipeline pipeline;
-    private readonly Pipeline cutoutPipeline;
+    private readonly SidedPipeline pipeline;
+    private readonly SidedPipeline cutoutPipeline;
 
     public GeometryPass(
         VulkanDevice device,
@@ -49,20 +49,22 @@ internal sealed unsafe class GeometryPass : RenderPass
             DepthCompare = CompareOp.Greater,
             Constants = constants,
         };
-        pipeline = desc.Create(device, shaders);
+        pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         try
         {
-            cutoutPipeline = (
-                desc with
+            cutoutPipeline = SidedPipeline.Create(
+                device: device,
+                shaders: shaders,
+                desc: desc with
                 {
                     Name = "g-buffer cutout",
                     Constants = constants with { CutoutAlpha = true },
                 }
-            ).Create(device, shaders);
+            );
         }
         catch
         {
-            device.Vk.DestroyPipeline(device.Device, pipeline, null);
+            pipeline.Destroy(device);
             throw;
         }
     }
@@ -99,7 +101,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 BindGeometry(context);
             }
 
-            OpaqueRuns runs = scene.Opaque[range];
+            SidedRuns runs = scene.Opaque[range];
             if (runs.Count > 0)
             {
                 PushDraw(context: context, viewProjection: scene.RangeViewProjection[range]);
@@ -221,17 +223,30 @@ internal sealed unsafe class GeometryPass : RenderPass
     {
         // The solid run first, so that its early depth writes hide the cutout fragments behind it before their shader
         // runs (docs/plans/skin-and-hair.md, decision 25).
-        if (runs.Solid.Count > 0)
-        {
-            context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, solid);
-            DrawIndirect(context, runs.Solid);
-        }
+        DrawRun(context: context, commands: runs.Solid, pipeline: solid);
+        DrawRun(context: context, commands: runs.Cutout, pipeline: cutout);
+    }
 
-        if (runs.Cutout.Count > 0)
-        {
-            context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, cutout);
-            DrawIndirect(context, runs.Cutout);
-        }
+    /// <summary>
+    /// Draws one view's opaque runs of a pass that shades: both solid runs with the variants of <paramref name="solid"/>,
+    /// then both cutout runs with those of <paramref name="cutout"/>, as <see cref="DrawRuns(FrameContext, OpaqueRuns, Pipeline, Pipeline)"/> does.
+    /// </summary>
+    public static void DrawRuns(FrameContext context, SidedRuns runs, SidedPipeline solid, SidedPipeline cutout)
+    {
+        // Both solid runs first, for the early depth writes of decision 25.
+        DrawRun(context: context, commands: runs.OneSided.Solid, pipeline: solid.OneSided);
+        DrawRun(context: context, commands: runs.TwoSided.Solid, pipeline: solid.TwoSided);
+        DrawRun(context: context, commands: runs.OneSided.Cutout, pipeline: cutout.OneSided);
+        DrawRun(context: context, commands: runs.TwoSided.Cutout, pipeline: cutout.TwoSided);
+    }
+
+    /// <summary>Binds <paramref name="pipeline"/> and draws <paramref name="commands"/>, when they are any.</summary>
+    private static void DrawRun(FrameContext context, CommandRange commands, Pipeline pipeline)
+    {
+        if (commands.Count == 0)
+            return;
+        context.Vk.CmdBindPipeline(context.CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        DrawIndirect(context, commands);
     }
 
     /// <summary>One multi-draw over a run of this frame's indirect commands.</summary>
@@ -250,7 +265,7 @@ internal sealed unsafe class GeometryPass : RenderPass
 
     public override void Dispose()
     {
-        device.Vk.DestroyPipeline(device.Device, pipeline, null);
-        device.Vk.DestroyPipeline(device.Device, cutoutPipeline, null);
+        pipeline.Destroy(device);
+        cutoutPipeline.Destroy(device);
     }
 }

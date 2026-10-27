@@ -22,7 +22,7 @@ void main()
     vec3 V = towardEye(inPosition);
     // Before the discard below, so implicit derivatives stay defined for the whole quad.
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inNormal, inHemisphere, inMaterialAndMap.y, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.

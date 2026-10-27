@@ -85,6 +85,9 @@ public sealed class HairRenderTests
 
     private static Quaternion FacingTheCamera => CardWith(normal: Vector3.UnitZ, strand: Vector3.UnitY);
 
+    /// <summary>The card of <see cref="FacingTheCamera"/> turned about its strand to face away: the eye sees its back.</summary>
+    private static Quaternion TurnedAway => CardWith(normal: -Vector3.UnitZ, strand: Vector3.UnitY);
+
     /// <summary>A material of the brown hair's colors, of <paramref name="model"/>, drawn as <paramref name="alpha"/>.</summary>
     private static MaterialId Brownish(VulkanRenderer renderer, ShadingModel model, AlphaMode alpha = default) =>
         renderer.CreateMaterial(
@@ -259,7 +262,7 @@ public sealed class HairRenderTests
         // A quarter turn about +X: the plane's front, +Y, faces the camera, and its +Z, where v grows, turns to -Y.
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
         Vertex[] vertices = Primitives.Plane(1).Vertices;
-        Vector3 vGrows = Vector3.Normalize(
+        var vGrows = Vector3.Normalize(
             vertices.Single(each => each.TexCoord == new Vector2(0, 1)).Position
                 - vertices.Single(each => each.TexCoord == new Vector2(0, 0)).Position
         );
@@ -631,9 +634,9 @@ public sealed class HairRenderTests
 
     /// <summary>
     /// The middle texel of the +X face of the map, which sees a matte card of <paramref name="model"/> 5 m away, facing
-    /// the eye, under a sun behind it of <paramref name="irradiance"/>.
+    /// the eye or <paramref name="turnedAway"/> from it, under a sun behind it of <paramref name="irradiance"/>.
     /// </summary>
-    private static Vector3 FaceLitFromBehind(ShadingModel model, out Vector3 irradiance)
+    private static Vector3 FaceLitFromBehind(ShadingModel model, out Vector3 irradiance, bool turnedAway = false)
     {
         VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
@@ -646,7 +649,7 @@ public sealed class HairRenderTests
                     plane: plane,
                     material: MatteOf(renderer, model),
                     center: new(5, 0, 0),
-                    normal: -Vector3.UnitX,
+                    normal: turnedAway ? Vector3.UnitX : -Vector3.UnitX,
                     halfSize: 3,
                     chainDepth: TestChains.CamerasFrame
                 )
@@ -661,10 +664,10 @@ public sealed class HairRenderTests
     }
 
     /// <summary>
-    /// The middle texel of the impostor capture of a matte card of <paramref name="model"/> 6 m ahead, facing the eye,
-    /// under a sun behind it of <paramref name="irradiance"/>.
+    /// The middle texel of the impostor capture of a matte card of <paramref name="model"/> 6 m ahead, facing the eye or
+    /// <paramref name="turnedAway"/> from it, under a sun behind it of <paramref name="irradiance"/>.
     /// </summary>
-    private static Vector3 CaptureLitFromBehind(ShadingModel model, out Vector3 irradiance)
+    private static Vector3 CaptureLitFromBehind(ShadingModel model, out Vector3 irradiance, bool turnedAway = false)
     {
         VulkanRenderer renderer = Gpu.Headless(width: 320, height: 180, impostors: true);
         try
@@ -674,7 +677,12 @@ public sealed class HairRenderTests
             RenderSnapshot snapshot = SunOnly(-Vector3.UnitZ);
             irradiance = Gpu.StarIrradianceRgb(snapshot);
             snapshot.Instances.Add(
-                Card(plane: plane, material: material, rotation: FacingTheCamera, center: new(0, 0, -6))
+                Card(
+                    plane: plane,
+                    material: material,
+                    rotation: turnedAway ? TurnedAway : FacingTheCamera,
+                    center: new(0, 0, -6)
+                )
             );
             renderer.Render(snapshot, 1f);
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(1, "a 2 m card 6 m away is an impostor");
@@ -720,6 +728,132 @@ public sealed class HairRenderTests
             .Should()
             .Be(Vector3.Zero, "a standard card takes none, so the test can fail");
     }
+
+    [Theory]
+    [InlineData(ForwardView.EnvironmentFace)]
+    [InlineData(ForwardView.ImpostorCapture)]
+    public void AnEnvironmentFaceAndACaptureShadeAHairCardSeenFromBehindAsSeenFromTheFront(ForwardView view)
+    {
+        var hair = new HairShading(StrandDirection.PlusV);
+        Vector3 Shown(bool turnedAway) =>
+            view switch
+            {
+                ForwardView.EnvironmentFace => FaceLitFromBehind(hair, out _, turnedAway),
+                ForwardView.ImpostorCapture => CaptureLitFromBehind(hair, out _, turnedAway),
+            };
+
+        Vector3 front = Shown(turnedAway: false);
+        front.X.Should().BePositive("the fiber takes the light from behind its card");
+        ShouldBeNear(
+            actual: Shown(turnedAway: true),
+            expected: front,
+            relative: 4 * HalfRounding,
+            because: "a hair card is a sheet of strands with no back"
+        );
+    }
+
+    /// <summary>
+    /// The middle pixel of a card of <paramref name="material"/>, facing the camera or <paramref name="turnedAway"/> from
+    /// it, under the hemisphere and a sun from the front.
+    /// </summary>
+    private static Vector3 CardShownAhead(Func<VulkanRenderer, MaterialId> material, bool turnedAway)
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            RenderSnapshot snapshot = AmbientOnly();
+            Gpu.Star(snapshot: snapshot, irradiance: 2, direction: Vector3.Normalize(new(0.5f, 0.3f, 0.81f)));
+            RenderInstance card = Card(
+                plane: plane,
+                material: material(renderer),
+                rotation: turnedAway ? TurnedAway : FacingTheCamera
+            );
+            return At(Rendered(renderer, snapshot, card), Ahead);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHairCardSeenFromBehindShadesAsTheSameCardSeenFromTheFront()
+    {
+        Vector3 front = CardShownAhead(renderer => Hair(renderer), turnedAway: false);
+
+        front.X.Should().BePositive("the light reaches the card's front");
+        ShouldBeNear(
+            actual: CardShownAhead(renderer => Hair(renderer), turnedAway: true),
+            expected: front,
+            relative: 4 * HalfRounding,
+            because: "a hair card is a sheet of strands with no back"
+        );
+    }
+
+    [Fact]
+    public void AHairCardSeenFromBehindStoresTheNormalsOfTheCardSeenFromTheFront()
+    {
+        static float[] NormalsAhead(Quaternion rotation)
+        {
+            VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+            try
+            {
+                MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+                Rendered(renderer, AmbientOnly(), Card(plane: plane, material: Hair(renderer), rotation: rotation));
+                int index = (int)Ahead.Y * Width + (int)Ahead.X;
+                return renderer.ReadNormals()[(4 * index)..(4 * index + 4)];
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        // The two rotations may round their normals apart by a step of the SNORM16 target.
+        const float snormStep = 1f / 32767;
+        NormalsAhead(TurnedAway)
+            .Should()
+            .Equal(
+                NormalsAhead(FacingTheCamera),
+                (behind, front) => Math.Abs(behind - front) <= 2 * snormStep,
+                "a hair card's normals turn toward the eye: its fiber normal and its card's normal, which the shadow lookups read"
+            );
+    }
+
+    [Fact]
+    public void AFringedHairCardSeenFromBehindShadesAsTheSameCardSeenFromTheFront()
+    {
+        // Alpha 0.4 under a cutoff of 0.5: the whole card is fringe, and the transparent pass alone draws it.
+        static MaterialId Fringe(VulkanRenderer renderer) =>
+            renderer.CreateMaterial(
+                new(
+                    BaseColor: new(x: (float)Brown.X, y: (float)Brown.Y, z: (float)Brown.Z, w: FringeCardAlpha),
+                    Roughness: Roughness,
+                    Reflectance: Reflectance,
+                    Model: new HairShading(StrandDirection.PlusV),
+                    Alpha: new FringedAlpha(0.5f)
+                )
+            );
+        Vector3 front = CardShownAhead(Fringe, turnedAway: false);
+
+        front.X.Should().BePositive("the fringe covers 0.4 of the pixel");
+        ShouldBeNear(
+            actual: CardShownAhead(Fringe, turnedAway: true),
+            expected: front,
+            relative: 4 * HalfRounding,
+            because: "a hair card's fringe has no back either"
+        );
+    }
+
+    [Fact]
+    public void AStandardCardSeenFromBehindDrawsNothing() =>
+        CardShownAhead(Standard, turnedAway: true)
+            .Should()
+            .Be(
+                Vector3.Zero,
+                "only a hair card is a sheet with no back, and the opaque passes cull every other back face"
+            );
 
     [Fact]
     public void StandardPixelsKeepTheirLight()

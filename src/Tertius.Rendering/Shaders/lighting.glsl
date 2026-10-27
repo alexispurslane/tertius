@@ -408,12 +408,12 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 // The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
 // G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and the bounce 0, and the surface
 // behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
-ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)
+ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
-    shading.geometricNormal = normalizedOr(vertexNormal, V);
+    shading.geometricNormal = s.geometricNormal;
     shading.metallic = s.metallic;
     shading.roughness = s.roughness;
     shading.reflectance = s.reflectance;

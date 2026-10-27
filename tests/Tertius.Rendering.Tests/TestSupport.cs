@@ -571,24 +571,33 @@ internal static class MaterialSlots
     /// <summary>The glass material of the CPU tests: slot 7 of <see cref="Of"/>.</summary>
     public static readonly MaterialId Glass = new(6);
 
+    /// <summary>The opaque hair material of the CPU tests, two-sided: slot 8 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Hair = new(7);
+
+    /// <summary>The fringed hair material of the CPU tests, two-sided, with a cutoff of 0.5: slot 9 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId FringedHair = new(8);
+
     /// <summary>
-    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque but those of
-    /// <see cref="Cutout"/>, <see cref="Fringed"/> and <see cref="Glass"/>, when there are such slots.
+    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque and one-sided but those
+    /// of <see cref="Cutout"/>, <see cref="Fringed"/>, <see cref="Glass"/>, <see cref="Hair"/> and
+    /// <see cref="FringedHair"/>, when there are such slots.
     /// </summary>
     public static MaterialInfo[] Of(int count = 8)
     {
         var slots = new MaterialInfo[count];
-        Set(slots, Cutout, new CutoutAlpha(Cutoff: 0.5f));
-        Set(slots, Fringed, new FringedAlpha(Cutoff: 0.5f));
-        Set(slots, Glass, new GlassAlpha());
+        Set(slots, Cutout, new(Alpha: new CutoutAlpha(Cutoff: 0.5f), TwoSided: false));
+        Set(slots, Fringed, new(Alpha: new FringedAlpha(Cutoff: 0.5f), TwoSided: false));
+        Set(slots, Glass, new(Alpha: new GlassAlpha(), TwoSided: false));
+        Set(slots, Hair, new(Alpha: new OpaqueAlpha(), TwoSided: true));
+        Set(slots, FringedHair, new(Alpha: new FringedAlpha(Cutoff: 0.5f), TwoSided: true));
         return slots;
     }
 
-    private static void Set(MaterialInfo[] slots, MaterialId material, AlphaMode alpha)
+    private static void Set(MaterialInfo[] slots, MaterialId material, MaterialInfo info)
     {
         uint slot = MaterialStore.Slot(material);
         if (slot < slots.Length)
-            slots[slot] = new(alpha);
+            slots[slot] = info;
     }
 }
 

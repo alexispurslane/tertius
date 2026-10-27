@@ -102,6 +102,7 @@ Each by the user's decisions and the project's rules, with its reason.
 29. The setting is `RendererOptions.Subsurface`, the generated union `SubsurfaceSetting` of `NoSubsurface`, its zero case, and `SeparableSubsurface(TapsPerSide)`. The default is `SeparableSubsurface.Default`: 8 taps per side, 17 per pass, as Jimenez's high setting. The test helpers set `NoSubsurface`, as they set `NoReflections`. Reason: the rule of every member, a switch and its measured cost.
 30. No renderer switch for the fringe or for the hair model. Reason: a material chooses them, and a switch beside the material would be a second store that can disagree with it. A `CutoutAlpha` in place of a `FringedAlpha` turns a fringe off.
 31. The importer names a material's shading model and its fringe through glTF `extras` (see "The importer's mapping from glTF"). Reason: no ratified KHR extension describes a diffusion profile or a hair fiber.
+32. A hair card draws from both sides in every pass that shades, and its normals turn toward the eye (`ter-xlp8`, settled at the Part 4 review on 2026-10-27; see "Both sides of a hair card"). Reason: a hair card is a sheet of strands with no back, and MPFB's cards are authored to be seen from either side, such as those at the back of a head. Decision 2 asks that the cards do not show, and a card seen from behind drew nothing.
 
 ## The model
 
@@ -507,11 +508,20 @@ where
 
 `sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, s.normal)`. Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.
 
+### Both sides of a hair card
+
+A hair card is a sheet of strands with no back (decision 32). So a hair material is two-sided, and every other model is one-sided, because a solid's back faces are hidden: `MaterialStore.DrawsBothSides(model)` sets `MaterialInfo.TwoSided` once, when the material uploads, and the batcher copies it into `PreparedInstance.TwoSided`, as it copies the alpha mode.
+
+- The opaque views that shade, the main view and the faces of the maps, split each `OpaqueRuns` by the sides into a `SidedRuns(OneSided, TwoSided)`. The sort key holds the run as two bits, cutout above two-sided, so the runs come in the order one-sided solid, two-sided solid, one-sided cutout, two-sided cutout, and both solid runs keep decision 25's early depth writes.
+- Each pass that shades holds its pipelines as `SidedPipeline`s, one variant with the pass's cull mode and one with `CullModeFlags.None`: the G-buffer pass and the faces for their solid and cutout runs, the impostor captures for the solid and the cutout capture, chosen by the capture's `TwoSided`, and the transparent pass for its glass and fringe runs, which `GlassCommands` and `FringeCommands` mark by their `TwoSided`. A glass hair material is two-sided too, by the same rule.
+- The shadow views already cull no face, so their runs stay one `OpaqueRuns`, and a card casts its shadow from either side.
+- `sampleMaterial` takes the strand first, from the frame that the mesh gives, so the strand runs the same way seen from either side. Then it turns the card's normals toward the eye: the geometric normal, which the G-buffer stores and `forwardShading` takes, and the card's shading normal, which `fiberNormal` falls back to. So a card seen from behind stores and shades as the same card seen from the front.
+
 ### Hair in each pass
 
 | Pass | What it does with a hair pixel |
 |---|---|
-| G-buffer | Writes n_f as the shading normal, the card's vertex normal as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
+| G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
 | Occlusion and bounce | As any surface, around n_f |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
@@ -697,7 +707,9 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 | `GpuMaterial.Shading`, `GpuMaterial.AlphaCutoff` | `MaterialStore.ToGpu` | The uploads | `sampleMaterial` in every mesh pass, `shadow_cutout.frag`, `fringe.frag` | `ShadowMaps` to `Transparent` | The material buffer | `GpuMaterial.NormalMap` |
 | `MaterialInfo` of a slot | `MaterialStore.Upload` | The uploads | `SceneBatcher.Prepare` | Batching | `MaterialStore.Infos` | `MeshInfo` |
 | `PreparedInstance.Alpha` | `SceneBatcher`, from the slot's `MaterialInfo` | Batching | The opaque sort, the runs, the transparent list, `ImpostorManager` | Batching | The prepared scene | `PreparedInstance.Flags` |
-| `OpaqueRuns` of each view | `SceneBatcher` | Batching | `GeometryPass`, `ShadowPass`, `LocalShadowPass`, `EnvironmentFacePass` | `ShadowMaps`, `EnvironmentFaces`, `GBuffer` | `PreparedScene` | Today's `CommandRange` per view |
+| `OpaqueRuns` of each view | `SceneBatcher`, `ShadowPass`, `LocalShadowPass` | Batching | `GeometryPass`, `ShadowPass`, `LocalShadowPass`, `EnvironmentFacePass` | `ShadowMaps`, `EnvironmentFaces`, `GBuffer` | `PreparedScene` | Today's `CommandRange` per view |
+| `MaterialInfo.TwoSided`, `PreparedInstance.TwoSided` (decision 32) | `MaterialStore.Upload`, then `SceneBatcher` | The uploads, batching | The opaque sort, the runs, the transparent runs, `ImpostorManager` | Batching | `MaterialStore.Infos`, the prepared scene | `PreparedInstance.Alpha` |
+| `SidedRuns` of the main view and of each face (decision 32) | `SceneBatcher` | Batching | `GeometryPass`, `EnvironmentFacePass` | `EnvironmentFaces`, `GBuffer` | `PreparedScene` | `OpaqueRuns` |
 | `FringeCommands` runs | `SceneBatcher` | Batching | `TransparentPass` | `Transparent` | `PreparedScene.Transparent` | `MeshCommands` |
 | The kernel | `SkinProfile.Kernel`, once at creation, then uploaded | The first frame's uploads | The scatter passes | `SkinScatter` | The kernel buffer of `ScatterImages` | The BRDF tables |
 | `SurfaceSample.model`, `.strand`, the fiber normal | `sampleMaterial` | Per fragment | `gbuffer.frag`, the forward passes | Per fragment | None: values in the shader | `SurfaceSample.normal` |
@@ -712,7 +724,7 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 Each ordering rule has its reason:
 
 - The uploads write a material's GPU row and its `MaterialInfo` before batching, so the batcher never sees a slot that the buffer lacks.
-- The solid run comes before the cutout run in each view, so the solid pipeline's early depth writes hide the hair fragments behind solid surfaces (decision 25).
+- The solid run comes before the cutout run in each view, so the solid pipeline's early depth writes hide the hair fragments behind solid surfaces (decision 25). Both solid runs, one-sided and two-sided, come before both cutout runs for the same reason.
 - The direct pass writes the scatter image before the ambient pass adds to it, because the ambient pass reads the direct image and runs after the occlusion passes.
 - The scatter runs after the ambient pass and before the reflections (decision 18).
 - The fringe draws in the transparent pass, after the reflections, as the glass does, so the reflections neither show it nor lose it.

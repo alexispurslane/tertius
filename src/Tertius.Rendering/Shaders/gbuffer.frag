@@ -38,7 +38,7 @@ void main()
     outBaseColor = vec4(s.baseColor.rgb, mapCode(inMaterialAndMap.y));
     // The shading normal for lighting, a hair's fiber normal, and the vertex normal for shadow-map bias: a normal map does
     // not move the surface that the shadow map sees.
-    outNormal = vec4(octEncode(s.normal), octEncode(normalizedOr(inNormal, V)));
+    outNormal = vec4(octEncode(s.normal), octEncode(s.geometricNormal));
     // The alphas: how much of the hemisphere ambient light the lobe and the normal get from the sky. Both need the
     // instance's up, which only this pass knows. Only the hemisphere reads them, so with the map on they hold 0.
     float lobeSky = environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);

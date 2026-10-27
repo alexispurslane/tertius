@@ -117,6 +117,9 @@ internal struct PreparedInstance
     /// <summary>How the material's alpha draws: the <see cref="MaterialInfo"/> of <see cref="Material"/>'s slot.</summary>
     public AlphaMode Alpha;
 
+    /// <summary>Whether the passes that shade draw the instance's back faces: the <see cref="MaterialInfo"/> of <see cref="Material"/>'s slot.</summary>
+    public bool TwoSided;
+
     public uint EntityIndex;
 
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
@@ -157,20 +160,44 @@ internal readonly record struct OpaqueRuns(CommandRange Solid, CommandRange Cuto
         };
 }
 
+/// <summary>
+/// The opaque commands of one view of a pass that shades: the runs of the one-sided materials, whose back faces the pass
+/// culls, and those of the two-sided ones, hair, whose back faces it draws (docs/plans/skin-and-hair.md, "Both sides of a
+/// hair card"). The pass draws both solid runs before both cutout runs (decision 25). The shadow views cull no face, so
+/// their commands are one <see cref="OpaqueRuns"/>.
+/// </summary>
+internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSided)
+{
+    /// <summary>The commands of all four runs.</summary>
+    public int Count => OneSided.Count + TwoSided.Count;
+
+    /// <summary>The runs with the run that <paramref name="cutout"/> and <paramref name="twoSided"/> name set to <paramref name="commands"/>.</summary>
+    public SidedRuns With(bool cutout, bool twoSided, CommandRange commands)
+    {
+        OpaqueRuns sided = twoSided ? TwoSided : OneSided;
+        sided = cutout ? sided with { Cutout = commands } : sided with { Solid = commands };
+        return twoSided ? this with { TwoSided = sided } : this with { OneSided = sided };
+    }
+}
+
 /// <summary>The caster commands of a tile view that the frame draws: <see cref="PreparedScene.ShadowTiles"/>[View].</summary>
 internal readonly record struct TileCommands(int View, OpaqueRuns Commands);
 
 /// <summary>A run of GPU instances for one instanced draw.</summary>
 internal readonly record struct InstanceRange(int First, int Count);
 
-/// <summary>A run of the transparent pass that draws glass: indirect commands, in order.</summary>
-internal readonly record struct GlassCommands(CommandRange Commands);
+/// <summary>
+/// A run of the transparent pass that draws glass: indirect commands, in order, of one-sided materials or of
+/// <paramref name="TwoSided"/> ones, whose back faces it draws (<see cref="MaterialInfo.TwoSided"/>).
+/// </summary>
+internal readonly record struct GlassCommands(CommandRange Commands, bool TwoSided);
 
 /// <summary>
 /// A run of the transparent pass that draws the fringes of fringed instances, their texels below the cutoff blended by
-/// their coverage: indirect commands, in order.
+/// their coverage: indirect commands, in order, of one-sided materials or of <paramref name="TwoSided"/> ones, whose back
+/// faces it draws (<see cref="MaterialInfo.TwoSided"/>).
 /// </summary>
-internal readonly record struct FringeCommands(CommandRange Commands);
+internal readonly record struct FringeCommands(CommandRange Commands, bool TwoSided);
 
 /// <summary>A run of the transparent pass that draws puffs: <see cref="PreparedScene.Puffs"/> from First, Count of them.</summary>
 internal readonly record struct PuffSprites(int First, int Count);
@@ -219,8 +246,8 @@ internal sealed class PreparedScene
     public DrawIndexedIndirectCommand[] Commands = new DrawIndexedIndirectCommand[64];
     public int CommandCount;
 
-    /// <summary>Opaque commands per depth range, indexed by <see cref="DepthRanges"/>: the solid run, then the cutout run.</summary>
-    public readonly OpaqueRuns[] Opaque = new OpaqueRuns[DepthRanges.Count];
+    /// <summary>Opaque commands per depth range, indexed by <see cref="DepthRanges"/>: the solid runs, then the cutout runs.</summary>
+    public readonly SidedRuns[] Opaque = new SidedRuns[DepthRanges.Count];
 
     /// <summary>
     /// The runs of the transparent pass per depth range, indexed by <see cref="DepthRanges"/>, each list in draw order. The
@@ -362,8 +389,8 @@ internal sealed class PreparedScene
             foreach (TransparentRun run in runs)
                 count += run switch
                 {
-                    GlassCommands(var commands) => commands.Count,
-                    FringeCommands(var commands) => commands.Count,
+                    GlassCommands { Commands: var commands } => commands.Count,
+                    FringeCommands { Commands: var commands } => commands.Count,
                     PuffSprites or null => 0,
                 };
 

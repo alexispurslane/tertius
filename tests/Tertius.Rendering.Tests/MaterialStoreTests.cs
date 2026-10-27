@@ -74,6 +74,24 @@ public sealed class MaterialStoreTests
     }
 
     [Fact]
+    public void OnlyAHairSlotIsTwoSided()
+    {
+        ShadingModel[] models = [new StandardShading(0.5f), new SkinShading(), new HairShading(StrandDirection.PlusV)];
+        using VulkanRenderer renderer = Gpu.Headless(width: 160, height: 90);
+        MaterialId[] ids = [.. models.Select(model => renderer.CreateMaterial(Material(model: model)))];
+
+        renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1f);
+
+        MaterialInfo[] infos = renderer.MaterialInfos.ToArray();
+        ids.Select(id => infos[MaterialStore.Slot(id)].TwoSided)
+            .Should()
+            .Equal(
+                [false, false, true],
+                "a hair card is a sheet of strands with no back, and every other surface is solid"
+            );
+    }
+
+    [Fact]
     public void TheDefaultSlotIsOpaque()
     {
         using VulkanRenderer renderer = Gpu.Headless(width: 160, height: 90);

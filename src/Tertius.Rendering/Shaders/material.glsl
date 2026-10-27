@@ -13,6 +13,7 @@ struct SurfaceSample
 {
     vec4 baseColor;       // linear RGB and alpha
     vec3 normal;          // unit world-space normal after normal mapping
+    vec3 geometricNormal; // the unit interpolated vertex normal: the surface that the shadow maps see
     float metallic;       // 0 to 1
     float roughness;      // r₀, 0 to 1, before the BRDF's floor
     float reflectance;    // 0 to 1: a non-metal's F0 is 0.16 times its square
@@ -95,7 +96,8 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
     // normal of +Z. The branch reads no texture for NoMap, which names no slot. The material comes from a flat input,
     // so every invocation of a quad takes the same branch, and the implicit derivatives of the sample inside it stay
     // defined.
-    s.normal = normalizedOr(vertexNormal, V);
+    s.geometricNormal = normalizedOr(vertexNormal, V);
+    s.normal = s.geometricNormal;
     if (m.normalMap != NoMap)
         s.normal = normalMapped(m.normalMap, uv, s.normal, vertexTangent);
 
@@ -109,8 +111,12 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
     s.strand = vec3(0.0);
     if (s.model == ShadingHair)
     {
+        // The strand first, from the frame that the mesh gives, so that it runs the same way seen from either side.
         s.strand = strandOf((m.shading >> 2) & 3u, s.normal, vertexTangent);
-        s.normal = fiberNormal(s.strand, V, s.normal);
+        // A hair card has no back, and the passes that shade draw its back faces (docs/plans/skin-and-hair.md, "Both sides
+        // of a hair card"): seen from behind, its normals turn toward the eye, as those of the card seen from the front.
+        s.geometricNormal = turnedToward(s.geometricNormal, V);
+        s.normal = fiberNormal(s.strand, V, turnedToward(s.normal, V));
     }
     // After every sample, so the implicit derivatives of the quad stay defined: discard demotes to a helper (VulkanDevice).
     if (cutoutAlpha && !reachesCutoff(s.baseColor.a, m.alphaCutoff))
