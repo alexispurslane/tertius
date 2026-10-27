@@ -5,15 +5,15 @@ namespace Tertius.Host;
 
 public static partial class ScriptCommand
 {
-    /// <summary>The options of a command line: a <see cref="FreePlay"/> or a <see cref="ScriptRun"/>.</summary>
-    [GeneratedUnion(typeof(FreePlay), typeof(ScriptRun))]
+    /// <summary>The options of a command line: a <see cref="FreePlayRun"/> or a <see cref="ScriptRun"/>.</summary>
+    [GeneratedUnion(typeof(FreePlayRun), typeof(ScriptRun))]
     internal readonly partial struct RunOptions;
 
     /// <summary>A scene that runs live in a window until the user closes it.</summary>
     /// <param name="Scene">The name of the scene.</param>
     /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
     /// <param name="Record">The file that the run writes its session to as a script, or null to record nothing.</param>
-    internal readonly record struct FreePlay(string Scene, double Speed, string? Record);
+    internal readonly record struct FreePlayRun(string Scene, double Speed, string? Record);
 
     /// <summary>A script that runs in a window or headless.</summary>
     /// <param name="Script">The script file.</param>

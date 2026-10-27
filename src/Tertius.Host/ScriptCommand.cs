@@ -209,7 +209,7 @@ public static partial class ScriptCommand
 
         return options switch
         {
-            FreePlay free => RunFreePlay(free: free, scenes: scenes, output: output, error: error),
+            FreePlayRun free => RunFreePlay(free: free, scenes: scenes, output: output, error: error),
             ScriptRun run => RunScript(
                 run: run,
                 scenes: scenes,
@@ -535,7 +535,7 @@ public static partial class ScriptCommand
         };
 
     /// <summary>Runs the scene of <paramref name="free"/> live in a window, after it finds the scene before a window opens.</summary>
-    private static int RunFreePlay(FreePlay free, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error)
+    private static int RunFreePlay(FreePlayRun free, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error)
     {
         Scene? live = scenes.FirstOrDefault(s => s.Name == free.Scene);
         if (live is null)
@@ -787,7 +787,7 @@ public static partial class ScriptCommand
         if ((given.RunChoiceProblem(FreePlayOptions) ?? given.OptionProblem(FreePlayOptions)) is { } problem)
             return problem;
         return new RunOptions(
-            new FreePlay(Scene: scene, Speed: SpeedOf(given.Value("--speed")) ?? 1, Record: given.Value("--record"))
+            new FreePlayRun(Scene: scene, Speed: SpeedOf(given.Value("--speed")) ?? 1, Record: given.Value("--record"))
         );
     }
 

@@ -297,7 +297,7 @@ public sealed class ScriptCommandOptionsTests
 
         options
             .Should()
-            .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlay("drop-box", Speed: 1, Record: null)));
+            .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlayRun("drop-box", Speed: 1, Record: null)));
     }
 
     [Fact]
@@ -312,7 +312,7 @@ public sealed class ScriptCommandOptionsTests
             .Should()
             .Be(
                 new ScriptCommand.RunOptions(
-                    new ScriptCommand.FreePlay("drop-box", Speed: 2, Record: "sessions/today.json")
+                    new ScriptCommand.FreePlayRun("drop-box", Speed: 2, Record: "sessions/today.json")
                 )
             );
     }

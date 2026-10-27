@@ -580,7 +580,7 @@ public sealed class ScriptCommandTests : IDisposable
         ScriptCommand.RunOptions? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
 
         free.Should()
-            .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlay("drop-box", Speed: 0.5, Record: null)));
+            .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlayRun("drop-box", Speed: 0.5, Record: null)));
     }
 
     /// <summary>The script run of a command line that ReadOptions takes.</summary>
