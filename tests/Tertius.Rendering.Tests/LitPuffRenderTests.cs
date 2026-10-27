@@ -249,8 +249,8 @@ public sealed class LitPuffRenderTests
     {
         // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0.
         float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
-        Vector3 outward = Vector3.Normalize(new(1, 0, tanHalfX));
-        Vector3 along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        var outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        var along = Vector3.Normalize(new(tanHalfX, 0, -1));
         Vector3 puff = 10 * along + 0.5f * outward;
         const float reach = 0.5f;
         VulkanRenderer renderer = Gpu.Headless(

@@ -1038,8 +1038,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             height = 360;
         // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0.
         float tanHalfX = MathF.Tan(Gpu.Fov / 2) * width / height;
-        Vector3 outward = Vector3.Normalize(new(1, 0, tanHalfX));
-        Vector3 along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        var outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        var along = Vector3.Normalize(new(tanHalfX, 0, -1));
         Vector3 center = 12 * along;
         Vector3 toward = MathF.Cos(MathF.PI / 6) * outward - MathF.Sin(MathF.PI / 6) * along;
         const float reach = 0.5f;
