@@ -28,3 +28,7 @@ The user picks an option. A kinematic body that a hand-off gives a velocity move
 **2026-10-27T09:49:45Z**
 
 2026-10-27: before ter-unpc, both homes kept the hand-off's velocity (option B's behavior), but a stopped kinematic member of a falling frame rode that frame at its last speed for good. ter-unpc fixed the riding and, as a side effect, gives the numeric-home case option A's behavior. The orchestrator merged ter-unpc because the riding happened in more scenes; this ticket restores one behavior in both homes once the user picks.
+
+**2026-10-27T11:48:41Z**
+
+2026-10-27: the user chose option B: the body keeps the velocity that the hand-off or the re-creation gives it, in both kinds of home, because a change of frame never changes how a body moves. A swept door stays where it is in the station while the ship passes. The numeric-home loop carries that velocity in the rest chord, Self.PoseAtNextStepStartIn predicts the move, and the docs drop 'every step' from the stop rule.

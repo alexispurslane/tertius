@@ -26,3 +26,9 @@ Options, waiting for the user:
 
 The user picks an option. Two hair cards with one strand and different normals shade alike under the default screen-space light, within the tolerance of the option.
 
+
+## Notes
+
+**2026-10-27T11:48:41Z**
+
+2026-10-27: the user chose option A: for a hair receiver, a step that lies on the receiver's own card plane blocks nothing. The receiver needs its card normal beside its fiber normal. Start from the fiber-plane patch (refs/wip/n7lw-fiber-plane) only where the tests need it.

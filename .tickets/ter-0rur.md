@@ -1,6 +1,6 @@
 ---
 id: ter-0rur
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-27T11:03:33Z
@@ -17,3 +17,9 @@ Tried in ter-1924 and taken out, because it changes the demo. The person of demo
 
 Test to keep: a person spawned at the standing height on a floor and a person teleported to the same place in another world both stand in that step, at the same height (it was CharacterStandingTests.ACharacterSpawnedOnGroundStandsInItsFirstStepAsOneTeleportedThereDoes in the ter-1924 work, red before the change).
 
+
+## Notes
+
+**2026-10-27T11:52:15Z**
+
+2026-10-27: the user chose to leave it: a spawned walking character stands from its second step. The test of the spawned and the teleported person stays out.

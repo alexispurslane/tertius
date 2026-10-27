@@ -22,3 +22,9 @@ Options, waiting for the user:
 
 The user picks an option. Under A or C, a body's Jolt velocity has one meaning, and SetVelocity in a turning frame reads back exactly.
 
+
+## Notes
+
+**2026-10-27T11:52:15Z**
+
+2026-10-27: the user chose option C: the default tick rate is 64, which a float holds exactly, so Jolt's step is the tick. A tick rate must be a power of two, so the conversion code goes away everywhere (the two-turn update's tick / Jolt's step factor, the divisions by Jolt's step in the steer velocities and MoveKinematic, the hull prediction over Jolt's step): one meaning for a body's Jolt velocity. WorldOptions refuses another rate with an always-on guard. The scripts that count ticks and the pinned hashes are regenerated. The renderer interpolates between the last two snapshots, so a 60 Hz display stays smooth.

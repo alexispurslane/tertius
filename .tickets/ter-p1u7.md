@@ -1,6 +1,6 @@
 ---
 id: ter-p1u7
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T18:23:33Z
@@ -35,3 +35,7 @@ The demo run scripts/demo-exit.json at 1080p shows the same cost (Part 7, 2026-1
 **2026-10-27T02:23:15Z**
 
 2026-10-26: built on ter-p1u7-light-share (52f53dee, 79b1b31c, e0cc3820), held for the user. The bound is slower than main: the lighting pass takes 4.58 ms in lamp-hall-16 at S = 1/4 against 4.19 ms, and 8.49 ms in demo-exit against 7.44 ms. The acceptance criterion (shadows at most 2 ms over --local-shadows off) is not met. Cause: U may sum only the lights whose shadow the view does not sample (the literal rule, every light, darkened the hub and spoke outside discs around the lamps), and where most lamps cast shadows U is small, so step 2 skips almost nothing while step 1's second pass over the lights costs 0.4 to 1 ms. The profile of main: about 3.6 ms of demo-exit's lighting pass is the lamps' reach (every lamp at every pixel), about 1.3 ms the lamps' shadows, limited by PCF sample rate. Captures in the scratchpad p1u7-captures: S = 1/4 changes 0.023 % of the hall's pixels by more than 2 levels. Open for the user: drop the bound, or a different design.
+
+**2026-10-27T11:48:52Z**
+
+2026-10-27: the user dropped the share bound; it stays in the history of ter-p1u7-light-share. The follow-up is ter-ox1a: a light's reach from the last frame's exposure.
