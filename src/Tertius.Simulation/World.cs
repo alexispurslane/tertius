@@ -103,7 +103,8 @@ public sealed partial class World : IDisposable
             entities: Entities,
             frames: Frames,
             capacity: Options.PuffCapacity,
-            reportError: message => Report(message, isError: true)
+            reportError: message => Report(message, isError: true),
+            workers: workers
         );
         heirOf = HeirOf;
         Frames.NumericOptions = Options.NumericFrames;

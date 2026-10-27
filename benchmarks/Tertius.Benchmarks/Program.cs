@@ -39,6 +39,18 @@ public static class Program
             return;
         }
 
+        // ter-fwsy: --puffstep <puffs> <frame> <rounds> times the puff step on one thread and on the workers (see
+        // PuffTableBenchmarks.Workers).
+        if (args.Length == 4 && args[0] == "--puffstep")
+        {
+            PuffTableBenchmarks.Workers(
+                int.Parse(args[1], CultureInfo.InvariantCulture),
+                args[2],
+                int.Parse(args[3], CultureInfo.InvariantCulture)
+            );
+            return;
+        }
+
         // ter-fb3w: --edges <rounds> times the scenes of EdgeRemovalBenchmarks in turn, a tick of each per round.
         if (args.Length == 2 && args[0] == "--edges")
         {

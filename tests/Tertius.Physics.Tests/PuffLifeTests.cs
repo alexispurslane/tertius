@@ -649,41 +649,6 @@ public sealed class PuffLifeTests
         return world;
     }
 
-    private static ulong PuffHash(World world)
-    {
-        PuffView view = world.Puffs.View;
-        ulong hash = 0;
-        foreach (Puff row in view.Rows)
-        {
-            hash = WorldHash.Mix(hash, row.Place.X);
-            hash = WorldHash.Mix(hash, row.Place.Y);
-            hash = WorldHash.Mix(hash, row.Place.Z);
-            hash = WorldHash.Mix(hash, row.Chord.X);
-            hash = WorldHash.Mix(hash, row.Chord.Y);
-            hash = WorldHash.Mix(hash, row.Chord.Z);
-            hash = WorldHash.Mix(hash, BitConverter.SingleToUInt32Bits(row.Age));
-            hash = WorldHash.Mix(hash, (ulong)row.Look);
-        }
-
-        foreach (PuffRange range in view.Ranges)
-            hash = WorldHash.Mix(
-                WorldHash.Mix(WorldHash.Mix(hash, range.Frame.Entity.Raw), (ulong)range.Start),
-                (ulong)range.Count
-            );
-        // Each field of each look, because the hash code of a union mixes with a seed that changes from process to process.
-        foreach (PuffLook look in view.Looks)
-        {
-            hash = WorldHash.Mix(WorldHash.Mix(hash, look.Life), look.TemperatureRatio);
-            hash = WorldHash.Mix(WorldHash.Mix(hash, look.StartRadius), look.EndRadius);
-            if (look.Shading.TryGetValue(out GlowPuffs glow))
-                hash = WorldHash.Mix(WorldHash.Mix(hash, 1UL), glow.Radiance);
-            else if (look.Shading.TryGetValue(out LitPuffs lit))
-                hash = WorldHash.Mix(WorldHash.Mix(hash, 2UL), lit.Albedo);
-        }
-
-        return hash;
-    }
-
     [Fact]
     public void PuffsChangeNothingThatGameplayOrPhysicsReads()
     {
@@ -707,9 +672,9 @@ public sealed class PuffLifeTests
         Tick(second, 300);
 
         first.Puffs.Count.Should().Be(500, "the cap binds in this scene");
-        PuffHash(second).Should().Be(PuffHash(first));
+        PuffTesting.TableHash(second).Should().Be(PuffTesting.TableHash(first));
         // tools/test-all.sh runs this test in Debug and in Release, so both builds must give this hash.
-        PuffHash(first).Should().Be(PinnedHash);
+        PuffTesting.TableHash(first).Should().Be(PinnedHash);
         first.Errors.Should().BeEmpty();
     }
 

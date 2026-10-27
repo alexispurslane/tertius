@@ -44,9 +44,23 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class PuffTable
 {
+    /// <summary>
+    /// The default of <see cref="StepParallelThreshold"/>, in live puffs. Measured on ter-fwsy with PuffTableBenchmarks.Workers
+    /// (Apple M1 Max, 1-minute load 6 to 10): the hand-off to the workers costs about 20 us and they step 2.5 times as fast,
+    /// so they tie at 1,024 to 1,440 puffs and win by a tenth at 2,048.
+    /// </summary>
+    internal const int DefaultStepParallelThreshold = 2048;
+
+    /// <summary>
+    /// How many slices a step on the workers cuts the rows into. More slices than workers lets a fast worker take the work of
+    /// a slow one, and any count gives the same rows.
+    /// </summary>
+    private const int StepSlices = 16;
+
     private readonly EntityTable entities;
     private readonly FrameTree frames;
     private readonly Action<string> reportError;
+    private readonly ParallelOptions? workers;
 
     // The share of the next puff that each emitter's entity has gathered, from 0 up to but not including 1. The entity
     // table clears it when it releases the entity, so a new entity in a reused slot starts at 0. Only AddNewborns writes it.
@@ -76,6 +90,19 @@ internal sealed class PuffTable
     private double step;
     private long lastStepTick = long.MinValue;
 
+    // Scratch of the step of 2b: the loose-body step of each range's frame, null for a frame that is not live; and per slice
+    // its survivors and its deaths, the look of each dead row from the slice's first row on, and its survivors in each range
+    // that it overlaps, at the range's index plus the slice's. A slice's overlaps lie after those of the slice before,
+    // because slice k + 1 starts in the range where slice k ends or in a later one.
+    private LooseBodyStep?[] rangeSteps = [];
+    private int[] sliceKept = [];
+    private int[] sliceDeaths = [];
+    private int[] deadLooks = [];
+    private int[] overlapKept = [];
+    private int[] rangeKept = [];
+    private int sliceCount;
+    private readonly Action<int> stepSlice;
+
     // Which rows the running rebuild leaves out for the cap: every row older than the edge age, and the first rows at it.
     private bool dropAll;
     private float edgeAge = float.PositiveInfinity;
@@ -85,18 +112,41 @@ internal sealed class PuffTable
     /// <param name="frames">The frame tree, which gives each frame's loose-body step.</param>
     /// <param name="capacity">The most puffs that live at once, 0 or more.</param>
     /// <param name="reportError">Records a state that only a bug makes, in <see cref="World.Errors"/>.</param>
-    public PuffTable(EntityTable entities, FrameTree frames, int capacity, Action<string> reportError)
+    /// <param name="workers">The workers on which a large step runs, or null to run every step on the calling thread.</param>
+    public PuffTable(
+        EntityTable entities,
+        FrameTree frames,
+        int capacity,
+        Action<string> reportError,
+        ParallelOptions? workers = null
+    )
     {
         Contract.Requires(capacity >= 0);
         this.entities = entities;
         this.frames = frames;
         Capacity = capacity;
         this.reportError = reportError;
+        this.workers = workers;
         phases = entities.AddColumn<double>();
+        stepSlice = StepSlice;
     }
 
     /// <summary>The most puffs that live at once, <see cref="WorldOptions.PuffCapacity"/>. 0 turns puffs off.</summary>
     public int Capacity { get; }
+
+    /// <summary>
+    /// The fewest live puffs for which a step runs on the workers. 1 or more. Both paths give the same rows, so only tests
+    /// change it: at 1, every step with a puff takes the workers.
+    /// </summary>
+    internal int StepParallelThreshold
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            field = value;
+        }
+    } = DefaultStepParallelThreshold;
 
     /// <summary>The number of live puffs.</summary>
     public int Count { get; private set; }
@@ -119,9 +169,11 @@ internal sealed class PuffTable
     /// <summary>
     /// Step 2b of the sync point of tick <paramref name="tick"/>: every puff takes the end of the step that just ended, by the
     /// rule of motion of its frame, and the puffs whose age reached their life die. It reads the loose-body step of each
-    /// range's frame once, which describes the step that ended from step 2 of the sync point on. It removes rows only, so it
-    /// compacts the survivors toward row 0 in place. A range whose frame is not live comes only from a bug: a Debug build
-    /// fails a contract, and a Release build drops the range and records an error.
+    /// range's frame once, which describes the step that ended from step 2 of the sync point on. It cuts the rows into equal
+    /// slices, on the workers from <see cref="StepParallelThreshold"/> puffs on, and each slice compacts its survivors toward
+    /// its first row. The join then moves the slices together in slice order (docs/plans/particles.md, "The parallel
+    /// pieces"). A range whose frame is not live comes only from a bug: a Debug build fails a contract, and a Release build
+    /// drops the range and records an error.
     /// </summary>
     /// <param name="tick">The tick of the sync point, later than the tick of the last step.</param>
     /// <param name="dt">The length of the step, in s: the World's float step.</param>
@@ -132,49 +184,155 @@ internal sealed class PuffTable
         step = dt;
         if (Count == 0)
             return;
-        Span<Puff> all = rows.AsSpan(0, Count);
-        Span<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
-        int write = 0,
-            kept = 0;
-        foreach (PuffRange range in list)
+        ReadRangeSteps(tick);
+        Grow(ref deadLooks, Count);
+        if (workers is { } options && Count >= StepParallelThreshold)
         {
-            if (!frames.IsAlive(range.Frame))
-            {
-                DropRange(range, tick);
-                continue;
-            }
-
-            LooseBodyStep loose = frames.LastLooseBodyStep(range.Frame);
-            int start = write;
-            for (int i = range.Start, end = range.Start + range.Count; i < end; i++)
-            {
-                ref readonly PuffLook look = ref Looks[all[i].Look];
-                Puff next = all[i].Stepped(in loose, in look, dt);
-                if (next.Age < look.Life)
-                    all[write++] = next;
-                else
-                    Looks.Release(next.Look);
-            }
-
-            if (write > start)
-                list[kept++] = new(range.Frame, start, write - start);
+            SetSlices(Math.Min(StepSlices, Count));
+            Parallel.For(fromInclusive: 0, toExclusive: sliceCount, parallelOptions: options, body: stepSlice);
+        }
+        else
+        {
+            SetSlices(1);
+            StepSlice(0);
         }
 
-        ranges.RemoveRange(kept, ranges.Count - kept);
-        Count = write;
+        JoinSlices();
         Contract.Ensures(HoldsRows());
     }
 
-    /// <summary>Drops a range whose frame is not live, which only a bug makes, and records it.</summary>
-    private void DropRange(PuffRange range, long tick)
+    /// <summary>The loose-body step of each range's frame, or null for a frame that is not live, which it reports.</summary>
+    private void ReadRangeSteps(long tick)
+    {
+        ReadOnlySpan<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
+        Grow(ref rangeSteps, list.Length);
+        for (int r = 0; r < list.Length; r++)
+        {
+            bool alive = frames.IsAlive(list[r].Frame);
+            rangeSteps[r] = alive ? frames.LastLooseBodyStep(list[r].Frame) : null;
+            if (!alive)
+                ReportDeadRange(list[r], tick);
+        }
+    }
+
+    /// <summary>Records a range whose frame is not live, which only a bug makes. Its slices drop its puffs.</summary>
+    private void ReportDeadRange(PuffRange range, long tick)
     {
         string message =
             $"tick {tick}: {range.Count} puffs are in the frame {range.Frame}, which is not live. Only a bug in the engine "
             + "makes this state: the destroy path moves the puffs of every dying frame into its heir. The puffs were dropped.";
         Contract.Assert(false, message);
-        foreach (Puff row in rows.AsSpan(range.Start, range.Count))
-            Looks.Release(row.Look);
         reportError(message);
+    }
+
+    /// <summary>Cuts the rows into <paramref name="count"/> slices for the step that runs.</summary>
+    private void SetSlices(int count)
+    {
+        sliceCount = count;
+        Grow(ref sliceKept, count);
+        Grow(ref sliceDeaths, count);
+        Grow(ref overlapKept, ranges.Count + count);
+    }
+
+    /// <summary>The first row of slice <paramref name="slice"/>, and of the slice after the last one the row count.</summary>
+    private int SliceStart(int slice) => (int)((long)Count * slice / sliceCount);
+
+    /// <summary>The index of the range that holds <paramref name="row"/>, a live row, by a search by halves of the starts.</summary>
+    private static int RangeOf(ReadOnlySpan<PuffRange> list, int row)
+    {
+        int low = 0,
+            high = list.Length - 1;
+        while (low < high)
+        {
+            int middle = (low + high + 1) / 2;
+            if (list[middle].Start <= row)
+                low = middle;
+            else
+                high = middle - 1;
+        }
+
+        return low;
+    }
+
+    /// <summary>
+    /// Steps the rows of one slice. It writes only its own rows, compacted toward its first row, its own stretch of the dead
+    /// looks, its own counts, and its survivors in each range that it overlaps, at the range's index plus the slice's.
+    /// </summary>
+    private void StepSlice(int slice)
+    {
+        int start = SliceStart(slice),
+            end = SliceStart(slice + 1);
+        Span<Puff> all = rows.AsSpan(0, Count);
+        ReadOnlySpan<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
+        // The float step that Step widened into the double step, back as it came: the narrowing of a widened float is exact.
+        float dt = (float)step;
+        int write = start,
+            dead = start;
+        for (int r = RangeOf(list, start); r < list.Length && list[r].Start < end; r++)
+        {
+            int from = Math.Max(start, list[r].Start),
+                to = Math.Min(end, list[r].Start + list[r].Count),
+                kept = write;
+            if (rangeSteps[r] is { } loose)
+            {
+                for (int i = from; i < to; i++)
+                {
+                    ref readonly PuffLook look = ref Looks[all[i].Look];
+                    Puff next = all[i].Stepped(in loose, in look, dt);
+                    if (next.Age < look.Life)
+                        all[write++] = next;
+                    else
+                        deadLooks[dead++] = next.Look;
+                }
+            }
+            else
+            {
+                for (int i = from; i < to; i++)
+                    deadLooks[dead++] = all[i].Look;
+            }
+
+            overlapKept[r + slice] = write - kept;
+        }
+
+        sliceKept[slice] = write - start;
+        sliceDeaths[slice] = dead - start;
+    }
+
+    /// <summary>
+    /// Joins the slices in slice order: moves each one's survivors after those of the slices before, frees the looks of its
+    /// dead rows, and adds its survivors to the ranges. A range left empty leaves the list, and the others keep their order.
+    /// </summary>
+    private void JoinSlices()
+    {
+        Span<PuffRange> list = CollectionsMarshal.AsSpan(ranges);
+        Span<int> kept = Scratch(ref rangeKept, list.Length);
+        int write = 0;
+        for (int slice = 0; slice < sliceCount; slice++)
+        {
+            int start = SliceStart(slice),
+                end = SliceStart(slice + 1);
+            // Slice order is row order, so the survivors keep their order and the looks are freed in the order of one thread.
+            if (write != start)
+                rows.AsSpan(start, sliceKept[slice]).CopyTo(rows.AsSpan(write));
+            write += sliceKept[slice];
+            foreach (int look in deadLooks.AsSpan(start, sliceDeaths[slice]))
+                Looks.Release(look);
+            for (int r = RangeOf(list, start); r < list.Length && list[r].Start < end; r++)
+                kept[r] += overlapKept[r + slice];
+        }
+
+        int live = 0,
+            next = 0;
+        for (int r = 0; r < list.Length; r++)
+        {
+            if (kept[r] == 0)
+                continue;
+            list[live++] = new(list[r].Frame, next, kept[r]);
+            next += kept[r];
+        }
+
+        ranges.RemoveRange(live, ranges.Count - live);
+        Count = write;
     }
 
     // ---- The destroy path ---------------------------------------------------------------------------------------------
@@ -496,6 +654,13 @@ internal sealed class PuffTable
         Span<T> span = array.AsSpan(0, length);
         span.Clear();
         return span;
+    }
+
+    /// <summary>Grows a scratch array to hold <paramref name="length"/> entries, by doubling, and keeps what it holds.</summary>
+    private static void Grow<T>(ref T[] array, int length)
+    {
+        if (array.Length < length)
+            array = new T[Math.Max(length, array.Length * 2)];
     }
 
     // ---- Invariants ---------------------------------------------------------------------------------------------------
