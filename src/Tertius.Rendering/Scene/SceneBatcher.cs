@@ -784,7 +784,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// Keeps each light of the snapshot, in its order, that <see cref="Shines(in RenderLight)"/> and whose reach can touch the
     /// main view or a face that keeps it: a face of a map at or above the light's map
     /// (docs/plans/environment-maps-per-frame.md, decision 13). One light list serves every view of the frame
-    /// (docs/plans/environment-map.md, decision 20). Then chooses the far lights' slots (<see cref="FarShadows.Choose"/>).
+    /// (docs/plans/environment-map.md, decision 20), each marked with whether the main view keeps it. Then chooses the far
+    /// lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
     /// <param name="faces">The faces of each served map, root first.</param>
     private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
@@ -793,13 +794,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         {
             if (!Shines(light))
                 continue;
-            PreparedLight prepared = Prepared(
-                light: light,
-                alpha: alpha,
-                eye: scene.Camera.Offset,
-                maps: scene.MapCount
-            );
-            if (Reaches(camera: scene.Camera, faces: faces, axes: scene.MapAxes, light: prepared))
+            PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
 
@@ -807,11 +803,11 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
-    /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated <paramref name="eye"/>, with
-    /// its radiant intensity, its reach and its distance computed in doubles, its map among <paramref name="maps"/> served
-    /// maps, and no shadow slot yet.
+    /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated eye of
+    /// <paramref name="camera"/>, with its radiant intensity, its reach and its distance computed in doubles, whether the
+    /// main view keeps it, its map among <paramref name="maps"/> served maps, and no shadow slot yet.
     /// </summary>
-    private PreparedLight Prepared(in RenderLight light, float alpha, Vector3 eye, int maps)
+    private PreparedLight Prepared(in RenderLight light, float alpha, in CameraView camera, int maps)
     {
         (
             uint entity,
@@ -846,18 +842,20 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             ),
             null => throw new UnreachableException("A light that shines holds a case."),
         };
-        Vector3 relative = position - eye;
+        Vector3 relative = position - camera.Offset;
+        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance);
         return new()
         {
             EntityIndex = entity,
             Position = relative,
             RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
             Radius = radius,
-            Reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance),
+            Reach = reach,
             Distance = Math.Sqrt(
                 (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
             ),
             CastsShadow = castsShadow,
+            InMainView = !camera.Culls(relative, reach),
             Spread = spread,
             Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
@@ -942,18 +940,14 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// Whether a prepared light can light a surface that a view draws: it lies within
-    /// <see cref="ShaderInput.PositionLimit"/> of the eye, and its reach sphere is not outside the main view's frustum or
-    /// that of a drawn face of a map that keeps the light: a map at or above the light's map, in the map's axes.
+    /// <see cref="ShaderInput.PositionLimit"/> of the eye, and the main view keeps it (<see cref="PreparedLight.InMainView"/>)
+    /// or its reach sphere is not outside the frustum of a drawn face of a map that keeps the light: a map at or above
+    /// the light's map, in the map's axes.
     /// </summary>
-    private static bool Reaches(
-        in CameraView camera,
-        ReadOnlySpan<FaceMask> faces,
-        Quaternion[] axes,
-        in PreparedLight light
-    ) =>
+    private static bool Reaches(ReadOnlySpan<FaceMask> faces, Quaternion[] axes, in PreparedLight light) =>
         ShaderInput.InPositionRange(light.Position, 0f)
         && (
-            !camera.Culls(light.Position, light.Reach)
+            light.InMainView
             || AnyFaceKeeps(faces: faces, lightMap: light.Map, axes: axes, center: light.Position, radius: light.Reach)
         );
 

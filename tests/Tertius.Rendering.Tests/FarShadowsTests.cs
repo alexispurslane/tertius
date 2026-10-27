@@ -4,29 +4,37 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="FarShadows.Choose"/>: which far lights get a cascade set, which get far shadows only and which get no slot,
-/// by their irradiance at the eye, with ties in list order (docs/plans/local-light-shadows.md, "Shadows of each light").
+/// by their irradiance at the eye, with ties in list order (docs/plans/local-light-shadows.md, "Shadows of each light"),
+/// the main view's lights before the lights that only a face of a map keeps (docs/plans/environment-map.md, decision 20).
 /// </summary>
 public sealed class FarShadowsTests
 {
     /// <summary>A far light 10^8 m from the eye: beyond FarDistance, so every caster sees it as one direction.</summary>
     private const double FarAway = 1e8;
 
-    /// <summary>A white far light of <paramref name="intensity"/> W/sr, FarAway from the eye, that casts shadows.</summary>
+    /// <summary>
+    /// A white far light of <paramref name="intensity"/> W/sr, FarAway from the eye, that casts shadows, in the main view.
+    /// </summary>
     private static PreparedLight Far(float intensity, bool castsShadow = true) =>
         new()
         {
             RadiantIntensity = new(intensity),
             Distance = FarAway,
             CastsShadow = castsShadow,
+            InMainView = true,
         };
 
-    /// <summary>A white near light of <paramref name="intensity"/> W/sr, 10 m from the eye, that casts shadows.</summary>
+    /// <summary>The far light of <see cref="Far"/> that only a drawn face of a map keeps.</summary>
+    private static PreparedLight FaceOnly(float intensity) => Far(intensity) with { InMainView = false };
+
+    /// <summary>A white near light of <paramref name="intensity"/> W/sr, 10 m from the eye, that casts shadows, in the main view.</summary>
     private static PreparedLight Near(float intensity) =>
         new()
         {
             RadiantIntensity = new(intensity),
             Distance = 10,
             CastsShadow = true,
+            InMainView = true,
         };
 
     private static LightShadow Set(int set) => new(new CascadeSet(Set: set, Occluders: default, Mapped: 0));
@@ -115,6 +123,49 @@ public sealed class FarShadowsTests
     [Fact]
     public void WithNoCascadedLightsEveryShadowedFarLightGetsFarShadowsOnly() =>
         Slots([Far(3), Far(1)], cascadedLights: 0).Should().Equal(FarOnly, FarOnly);
+
+    [Fact]
+    public void AFarLightOfTheMainViewOutranksABrighterOneThatOnlyAFaceKeeps() =>
+        Slots([FaceOnly(5), Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal([FarOnly, Set(0)], "a light that only a face keeps must not change the main view's pixels");
+
+    [Fact]
+    public void AFarLightThatOnlyAFaceKeepsTakesACascadeSetThatTheMainViewLeavesFree() =>
+        Slots([FaceOnly(5), Far(1)], cascadedLights: 2).Should().Equal(Set(1), Set(0));
+
+    [Fact]
+    public void FarLightsThatOnlyAFaceKeepsRankAmongThemselvesByIrradianceWithTiesInListOrder() =>
+        Slots([FaceOnly(2), FaceOnly(3), FaceOnly(3), Far(1)], cascadedLights: 3)
+            .Should()
+            .Equal(FarOnly, Set(1), Set(2), Set(0));
+
+    [Fact]
+    public void TheShareOfTheMainViewsLightsCountsFromTheBrightestFarLightOfTheMainView() =>
+        Slots([FaceOnly(1_000), Far(3), Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal(
+                [FarOnly, Set(0), FarOnly],
+                "the main view's lights get the slots that they would get if no face kept the brighter light"
+            );
+
+    [Fact]
+    public void TheShareOfALightThatOnlyAFaceKeepsCountsFromABrighterFarLightOfTheMainView() =>
+        Slots([Far(1_000), FaceOnly(1)], cascadedLights: 2)
+            .Should()
+            .Equal(
+                [Set(0), default],
+                "past the main view's lights the choice is as before, with the share counted from every far light"
+            );
+
+    [Fact]
+    public void TheShareOfALightThatOnlyAFaceKeepsCountsFromABrighterFarLightThatOnlyAFaceKeeps() =>
+        Slots([FaceOnly(1_000), Far(10), FaceOnly(1)], cascadedLights: 3)
+            .Should()
+            .Equal(
+                [Set(1), Set(0), default],
+                "past the main view's lights the choice is as before, with the share counted from every far light"
+            );
 
     [Fact]
     public void ChoosingAgainGivesTheSameSlots()

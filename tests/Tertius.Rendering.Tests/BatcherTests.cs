@@ -730,6 +730,50 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void EachLightSaysWhetherTheMainViewKeepsIt()
+    {
+        // Faces only, the main view only, the main view and a face, and faces only.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -50)));
+        snapshot.Lights.Add(Lamp(new(0, 50, 0)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(false, true, true, false);
+    }
+
+    [Fact]
+    public void AFarLightOfTheMainViewTakesTheCascadeSetBeforeABrighterOneThatOnlyAFaceKeeps()
+    {
+        const float distance = 3e7f;
+        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(-10));
+        PointRenderLight FarLamp(float z, double eyeShareOfTheCutoff) =>
+            Gpu.Lamp(
+                position: new(0, 0, z),
+                color: Vector3.One,
+                intensity: (float)(eyeShareOfTheCutoff * cutoff * distance * distance),
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                CastsShadow = true,
+            };
+        // Behind the camera, with a reach of 0.9 of its distance, so that only face +Z keeps it, then ahead of it.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(FarLamp(z: distance, eyeShareOfTheCutoff: 0.81));
+        snapshot.Lights.Add(FarLamp(z: -distance, eyeShareOfTheCutoff: 0.25));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene
+            .LightSpan.ToArray()
+            .Select(light => light.Shadow.TryGetValue(out CascadeSet _))
+            .Should()
+            .Equal([false, true], "the batcher's one cascade set goes to the main view's light");
+    }
+
+    [Fact]
     public void ALightThatOnlyAFaceThatThisFrameSkipsCouldReachIsLeftOut()
     {
         RenderSnapshot snapshot = Dark();

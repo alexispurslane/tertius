@@ -66,6 +66,13 @@ internal struct PreparedLight
     public double Distance;
 
     public bool CastsShadow;
+
+    /// <summary>
+    /// Whether the light's reach touches the main view's frustum. False for a light that only a drawn face of a map keeps:
+    /// every shadow budget ranks such a light after the lights of the main view (docs/plans/environment-map.md, decision 20).
+    /// </summary>
+    public bool InMainView;
+
     public LightSpread Spread;
 
     /// <summary>How the light casts shadows in this frame. The default holds none.</summary>
