@@ -1,7 +1,7 @@
 ---
 id: ter-vtc7
 status: open
-deps: [ter-a24f, ter-k1ne, ter-hx3r]
+deps: [ter-a24f, ter-k1ne, ter-hx3r, ter-3dp5]
 links: []
 created: 2026-10-27T03:59:20Z
 type: bug
@@ -29,3 +29,7 @@ The specular part waits for skin and hair Part 4 (ter-k1ne), whose DirectTerms s
 **2026-10-27T08:42:08Z**
 
 2026-10-27: now also waits for Part 5 (ter-hx3r), which separates the diffuse light D in the direct and ambient passes for the skin scatter. The specular part of this ticket reads the same split, so it builds on the epic branch after Part 5.
+
+**2026-10-27T09:41:05Z**
+
+2026-10-27: the specular part, settled by the orchestrator by the one-store rule: Part 5's scatter image already holds the diffuse direct light of skin pixels. It becomes the one store of the diffuse direct light of every lit pixel (RGB the diffuse part of DirectTerms, A the skin mask), and it exists when the scatter or the bounce light is on. The bounce light's half-resolution copy (occlusion_depth.comp) reads that image in place of the direct image, so highlights toward the eye no longer bounce. The copy keeps adding the G-buffer's pre-exposed emission, as today, until the user answers the emission question; that answer then removes or keeps one term. Builds after Part 6 (ter-3dp5), so that Part 6's cost numbers stay true, on main after the epic merges.
