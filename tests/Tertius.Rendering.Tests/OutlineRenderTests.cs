@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -122,10 +123,22 @@ public sealed class OutlineRenderTests
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.5f, 0.8f));
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: box, material: white, position: new(2, 2, -6), scale: new(2.5f, 2.5f, 0.5f))
+            Gpu.Instance(
+                mesh: box,
+                material: white,
+                position: new(2, 2, -6),
+                scale: new(2.5f, 2.5f, 0.5f),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: box, material: white, position: new(-4, -4, -20), scale: new(6, 6, 0.5f))
+            Gpu.Instance(
+                mesh: box,
+                material: white,
+                position: new(-4, -4, -20),
+                scale: new(6, 6, 0.5f),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Outlines.Add(new SemanticOutline(new(0, 0, -10), Quaternion.Identity, new(3)));
         return snapshot;
@@ -379,18 +392,37 @@ public sealed class OutlineRenderTests
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.5f));
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: plane, material: ground, position: new(0, -2, -30), scale: new(30, 1, 30))
+            Gpu.Instance(
+                mesh: plane,
+                material: ground,
+                position: new(0, -2, -30),
+                scale: new(30, 1, 30),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
 
         var turned = Quaternion.CreateFromYawPitchRoll(0.5f, 0, 0);
         Vector3 boxCenter = new(-3, -0.5f, -11);
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: box, material: gray, position: boxCenter, scale: new(1.2f), rotation: turned)
+            Gpu.Instance(
+                mesh: box,
+                material: gray,
+                position: boxCenter,
+                scale: new(1.2f),
+                rotation: turned,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Outlines.Add(new SemanticOutline(boxCenter, turned, new(1.8f, 1.3f, 1.6f)));
 
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: box, material: gray, position: new(3, -0.8f, -9), scale: new(2.8f, 2.5f, 0.4f))
+            Gpu.Instance(
+                mesh: box,
+                material: gray,
+                position: new(3, -0.8f, -9),
+                scale: new(2.8f, 2.5f, 0.4f),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Outlines.Add(new FallingOutline(new(2.5f, 0, -14), 2.2f));
         snapshot.Outlines.Add(new RestingOutline(new(-0.5f, 2.6f, -14), 1f));

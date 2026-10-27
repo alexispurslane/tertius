@@ -52,7 +52,8 @@ public sealed class LightUnitsRenderTests
             position: Center.ToVector3(),
             scale: Vector3.One,
             rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-            radius: 0.75f * side
+            radius: 0.75f * side,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A caster of <paramref name="mesh"/> at <paramref name="position"/> that only casts shadows: it draws nothing.</summary>
@@ -508,7 +509,8 @@ public sealed class LightUnitsRenderTests
                     position: Center.ToVector3(),
                     scale: Vector3.One,
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    radius: 0.75f
+                    radius: 0.75f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Lights.Add(

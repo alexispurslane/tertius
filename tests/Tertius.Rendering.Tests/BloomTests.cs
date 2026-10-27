@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -65,7 +66,8 @@ public sealed class BloomTests
                 position: new(0, 0, -2 * Depth),
                 scale: new(40),
                 rotation: facing,
-                radius: 30
+                radius: 30,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         foreach (Square square in squares)
@@ -94,7 +96,8 @@ public sealed class BloomTests
                     scale: new(square.Side * metersPerPixel),
                     rotation: facing,
                     flags: square.Opacity < 1 ? RenderFlags.Transparent : RenderFlags.None,
-                    radius: square.Side * metersPerPixel
+                    radius: square.Side * metersPerPixel,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
         }

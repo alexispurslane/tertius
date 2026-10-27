@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using Xunit.Sdk;
 
 namespace Tertius.Rendering.Tests;
@@ -44,7 +45,8 @@ public sealed class ReferenceImageRenderTests
                     scale: Vector3.One,
                     rotation: Quaternion.CreateFromYawPitchRoll(0.6f, 0.3f, 0),
                     radius: 0.87f,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);

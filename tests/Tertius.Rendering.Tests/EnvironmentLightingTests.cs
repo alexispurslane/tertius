@@ -64,7 +64,8 @@ public sealed class EnvironmentLightingTests
                 position: position,
                 scale: new(radius),
                 flags: flags,
-                entity: entity
+                entity: entity,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -76,7 +77,8 @@ public sealed class EnvironmentLightingTests
                 material: BrdfTesting.Glow(renderer, new(radiance, 0, 0)),
                 position: new(0, 0, 4),
                 scale: Vector3.One,
-                rotation: FacingMinusZ
+                rotation: FacingMinusZ,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -105,7 +107,14 @@ public sealed class EnvironmentLightingTests
         ];
         foreach ((Vector3 position, Quaternion rotation, Vector3 scale) in panels)
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: panel, material: glow, position: position, scale: scale, rotation: rotation)
+                Gpu.Instance(
+                    mesh: panel,
+                    material: glow,
+                    position: position,
+                    scale: scale,
+                    rotation: rotation,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
     }
 
@@ -306,7 +315,8 @@ public sealed class EnvironmentLightingTests
                         position: new(0, 0, -3),
                         scale: Vector3.One,
                         rotation: FacingPlusZ,
-                        flags: RenderFlags.Transparent
+                        flags: RenderFlags.Transparent,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 snapshot.Instances.Add(
@@ -315,7 +325,8 @@ public sealed class EnvironmentLightingTests
                         material: BrdfTesting.Glow(renderer, Vector3.Zero),
                         position: new(0, 0, -5),
                         scale: Vector3.One,
-                        rotation: FacingPlusZ
+                        rotation: FacingPlusZ,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return Shown(renderer, snapshot, name).Color(Center);
@@ -471,7 +482,8 @@ public sealed class EnvironmentLightingTests
                     material: BrdfTesting.Glow(renderer, Vector3.Zero),
                     position: new(0, 0, -10),
                     scale: Vector3.One,
-                    rotation: FacingPlusZ
+                    rotation: FacingPlusZ,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             var look = new PuffLook(
@@ -648,7 +660,8 @@ public sealed class EnvironmentLightingTests
                         mesh: sphere,
                         material: mirror,
                         position: new(side * 4.1f, 0, -4),
-                        scale: new(1, 20, 1)
+                        scale: new(1, 20, 1),
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 snapshot.Instances.Add(
@@ -656,7 +669,8 @@ public sealed class EnvironmentLightingTests
                         mesh: sphere,
                         material: mirror,
                         position: new(0, side * 2.3f, -4),
-                        scale: new(20, 1, 1)
+                        scale: new(20, 1, 1),
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             }
@@ -720,7 +734,8 @@ public sealed class EnvironmentLightingTests
                     material: Metal(renderer, roughness: 0),
                     position: new(0, 0, -3),
                     scale: Vector3.One,
-                    rotation: FacingPlusZ
+                    rotation: FacingPlusZ,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -1007,7 +1022,8 @@ public sealed class EnvironmentLightingTests
                             material: BrdfTesting.Glow(renderer, Vector3.Zero),
                             position: new(0, 0, 3),
                             scale: Vector3.One,
-                            rotation: FacingMinusZ
+                            rotation: FacingMinusZ,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);

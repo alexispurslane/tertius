@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -51,7 +52,13 @@ public sealed class BatcherDeformTests
     private static RenderSnapshot Empty() => Gpu.Snapshot(Vector3.UnitY);
 
     private static RenderInstance Instance(int mesh, Vector3 position) =>
-        Gpu.Instance(mesh: new(mesh), material: new(0), position: position, scale: Vector3.One);
+        Gpu.Instance(
+            mesh: new(mesh),
+            material: new(0),
+            position: position,
+            scale: Vector3.One,
+            chainDepth: TestChains.CamerasFrame
+        );
 
     /// <summary>Appends <paramref name="instance"/> with <paramref name="pose"/> as its rig pose at both ends.</summary>
     private static void AddPosed(RenderSnapshot snapshot, RenderInstance instance, RigPose pose)

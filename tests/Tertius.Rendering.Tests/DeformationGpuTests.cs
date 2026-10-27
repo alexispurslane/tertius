@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -44,7 +45,8 @@ public sealed class DeformationGpuTests
             material: material,
             position: position,
             scale: Vector3.One,
-            flags: RenderFlags.CastsShadow
+            flags: RenderFlags.CastsShadow,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>Every vertex of <paramref name="mesh"/> deformed in C# by the still <paramref name="pose"/>.</summary>
@@ -334,7 +336,8 @@ public sealed class DeformationGpuTests
                     material: white,
                     position: new(0, ground, -6),
                     scale: new(10, 1, 10),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             AddStillPose(snapshot, instance: 0, pose: BentTip(rig.Rest, rig, angle: MathF.PI / 2));
@@ -485,7 +488,15 @@ public sealed class DeformationGpuTests
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
             var boxAt = new Vector3(1.5f, 0, -6);
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.2f));
-            snapshot.Instances.Add(Gpu.Instance(mesh: box, material: white, position: boxAt, scale: Vector3.One));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: box,
+                    material: white,
+                    position: boxAt,
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
             renderer.Render(snapshot, 1f);
             // Behind the camera, so that no copy covers the box; the batcher deforms them all the same.
             const int many = 64;

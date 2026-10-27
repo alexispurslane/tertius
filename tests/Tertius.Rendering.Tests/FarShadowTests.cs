@@ -202,7 +202,8 @@ public sealed class FarShadowTests
                 material: new(0),
                 position: new(1.5e11f, 0, 0),
                 scale: new(7e8f),
-                flags: RenderFlags.Celestial
+                flags: RenderFlags.Celestial,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

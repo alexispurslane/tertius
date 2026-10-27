@@ -109,7 +109,8 @@ public sealed class ImpostorManagerTests
             rotation: rotation,
             flags: flags,
             entity: entity,
-            part: part
+            part: part,
+            chainDepth: TestChains.CamerasFrame
         );
         ball.Hemisphere = hemisphere ?? ball.Hemisphere;
         return ball;
@@ -211,7 +212,8 @@ public sealed class ImpostorManagerTests
                 material: BallMaterial,
                 position: new(0, 0, -DistanceFor(150, radius: Meshes[MorphingBox].Radius)),
                 scale: Vector3.One,
-                entity: 1
+                entity: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         RigPose rest = MorphingBoxData.Rigging!.Rig.Rest;
@@ -725,7 +727,16 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
-            snapshot.Instances.Add(Ball(entity: 1, position: position) with { ChainDepth = (ushort)chainDepth });
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: new(Sphere),
+                    material: BallMaterial,
+                    position: position,
+                    scale: Vector3.One,
+                    entity: 1,
+                    chainDepth: (ushort)chainDepth
+                )
+            );
             IrradianceReading?[] readings =
                 chainDepth == 1 ? [Reading(ownMap), Reading(otherMap)] : [Reading(otherMap), Reading(ownMap)];
             harness.Run(snapshot, new WithMap(Faces: new[] { FaceMask.None, FaceMask.None }, Irradiance: readings));

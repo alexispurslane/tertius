@@ -603,7 +603,8 @@ public sealed class LocalShadowRenderTests
                 material: glass,
                 position: pane,
                 scale: new(0.12f, 1, 0.12f),
-                flags: RenderFlags.Transparent
+                flags: RenderFlags.Transparent,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.PuffLooks.Add(
@@ -902,7 +903,8 @@ public sealed class LocalShadowRenderTests
                 center: center,
                 normal: normal,
                 halfSize: halfSize,
-                flags: flags
+                flags: flags,
+                chainDepth: TestChains.CamerasFrame
             );
 
         /// <summary>A white box of <paramref name="size"/> that casts shadows.</summary>
@@ -919,7 +921,8 @@ public sealed class LocalShadowRenderTests
                 scale: size,
                 rotation: rotation,
                 flags: RenderFlags.CastsShadow,
-                entity: entity
+                entity: entity,
+                chainDepth: TestChains.CamerasFrame
             );
 
         /// <summary>

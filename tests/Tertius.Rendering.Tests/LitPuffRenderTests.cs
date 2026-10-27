@@ -359,7 +359,8 @@ public sealed class LitPuffRenderTests
                     material: gray,
                     position: shaded + new Vector3(0.3f, 3f, 0.15f),
                     scale: new(1.6f, 0.2f, 1.6f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             AddLitPuff(snapshot, shaded);
@@ -399,7 +400,8 @@ public sealed class LitPuffRenderTests
                     material: gray,
                     position: puff + 3_000f * Gpu.StarDirection(snapshot),
                     scale: new(500f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             AddLitPuff(snapshot, puff);
@@ -466,7 +468,8 @@ public sealed class LitPuffRenderTests
                 material: gray,
                 position: new(0, -1.5f, -20),
                 scale: new(30, 1, 30),
-                flags: RenderFlags.CastsShadow
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         // The sun rises 3 m for each 1 m that it moves along x and along z, so the roof's shadow 2 m below it is 0.67 m to the
@@ -477,7 +480,8 @@ public sealed class LitPuffRenderTests
                 material: gray,
                 position: new(-1.1f, 2.35f, -8.93f),
                 scale: new(5f, 0.3f, 2.6f),
-                flags: RenderFlags.CastsShadow
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Lights.Add(

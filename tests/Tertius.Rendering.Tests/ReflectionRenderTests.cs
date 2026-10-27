@@ -336,7 +336,8 @@ public sealed class ReflectionRenderTests
                     position: new(0, 0, -8),
                     scale: new(10),
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    radius: 15
+                    radius: 15,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
@@ -382,7 +383,8 @@ public sealed class ReflectionRenderTests
                     material: renderer.CreateMaterial(floor),
                     position: new(0, FloorHeight, -20),
                     scale: new(30, 1, 30),
-                    radius: 43
+                    radius: 43,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return snapshot;
@@ -418,7 +420,8 @@ public sealed class ReflectionRenderTests
                     position: new(0, 0, -3),
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
                     scale: new(1_000, 1, 1_000),
-                    radius: 1_500
+                    radius: 1_500,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return snapshot;
@@ -489,7 +492,8 @@ public sealed class ReflectionRenderTests
                     scale: new(0.5f),
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
                     flags: RenderFlags.Transparent,
-                    radius: 0.75f
+                    radius: 0.75f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.PuffLooks.Add(
@@ -540,7 +544,8 @@ public sealed class ReflectionRenderTests
                     position: center,
                     scale: new(0.5f),
                     radius: 0.5f,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return snapshot;
@@ -579,7 +584,8 @@ public sealed class ReflectionRenderTests
                     material: Glow(renderer, radiance),
                     position: new(0, 4e6f, -1e7f),
                     scale: new(3e6f),
-                    radius: 3e6f
+                    radius: 3e6f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return snapshot;
@@ -988,7 +994,8 @@ public sealed class ReflectionRenderTests
                 position: new(8, 8, -40.05f),
                 scale: new(20, 40, 0.1f),
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 20 * MathF.PI / 180),
-                radius: 23
+                radius: 23,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -1070,7 +1077,8 @@ public sealed class ReflectionRenderTests
                 position: new(x, -0.5f, -6 - MathF.Sqrt(2) / 2),
                 scale: Vector3.One,
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
-                radius: 1
+                radius: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         MaterialId red = Glow(renderer, new(Bright, 0, 0));
@@ -1098,7 +1106,8 @@ public sealed class ReflectionRenderTests
                     material: renderer.CreateMaterial(material with { NormalMap = FlatNormalMap(renderer) }),
                     position: new(center, FloorHeight, -20),
                     scale: new(15, 1, 30),
-                    radius: 34
+                    radius: 34,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
@@ -1235,7 +1244,8 @@ public sealed class ReflectionRenderTests
                     mesh: sphere,
                     material: renderer.CreateMaterial(Mirror()),
                     position: MirrorBall,
-                    scale: Vector3.One
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
@@ -1243,7 +1253,8 @@ public sealed class ReflectionRenderTests
                     mesh: sphere,
                     material: Glow(renderer, new(Bright)),
                     position: MirrorBall + new Vector3(2.5f, 0, 0),
-                    scale: Vector3.One
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return snapshot;

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -167,7 +168,13 @@ public sealed class ResourceTests
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0, 1));
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: box,
+                    material: material,
+                    position: new(0, 0, -4),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             Capture image = Gpu.RenderAndCapture(
                 renderer: renderer,
@@ -204,7 +211,13 @@ public sealed class ResourceTests
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 0.5f, 1f));
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: first, material: green, position: new(-1.5f, 0, -6), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: first,
+                    material: green,
+                    position: new(-1.5f, 0, -6),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             renderer.Render(snapshot, 1f);
             renderer.Render(snapshot, 1f);
@@ -220,7 +233,13 @@ public sealed class ResourceTests
                     MaterialDesc.Color(new(x: 0.9f, y: 0.1f + i / 1000f, z: 0.1f, w: 1), roughness: 0.38f)
                 );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: last, material: lastMaterial, position: new(1.5f, 0, -6), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: last,
+                    material: lastMaterial,
+                    position: new(1.5f, 0, -6),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             // Not captured: a capture waits until its frame has finished, which would release the old buffers at once.
@@ -289,11 +308,23 @@ public sealed class ResourceTests
             };
             foreach ((Vector3 position, MaterialId material, _) in places)
                 snapshot.Instances.Add(
-                    Gpu.Instance(mesh: box, material: material, position: position, scale: Vector3.One)
+                    Gpu.Instance(
+                        mesh: box,
+                        material: material,
+                        position: position,
+                        scale: Vector3.One,
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
             // MeshId.None draws nothing.
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: MeshId.None, material: gray, position: new(0, 0, -3), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: MeshId.None,
+                    material: gray,
+                    position: new(0, 0, -3),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "default-textures");

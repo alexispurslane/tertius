@@ -376,7 +376,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 material: tilted,
                 position: new(0.8f, FloorHeight + 0.6f, BackWallZ + 1.5f),
                 scale: new(0.6f),
-                radius: 0.6f
+                radius: 0.6f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;
@@ -566,7 +567,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     // The box's x turns onto the inward normal.
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan(tanHalfX)),
                     scale: new(1, 20, 8),
-                    radius: 11
+                    radius: 11,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -725,7 +727,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                         position: Vector3.Transform(center, rotation),
                         scale: size,
                         rotation: rotation,
-                        radius: size.Length() / 2
+                        radius: size.Length() / 2,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             renderer.Render(snapshot, 1f);

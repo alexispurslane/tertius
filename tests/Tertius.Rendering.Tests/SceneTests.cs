@@ -118,13 +118,28 @@ public sealed class SceneTests
                     material: rock,
                     position: planet,
                     scale: new(6.0e6f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: rock, position: shadowed, scale: new(moonRadius))
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: rock,
+                    position: shadowed,
+                    scale: new(moonRadius),
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
-            snapshot.Instances.Add(Gpu.Instance(mesh: sphere, material: rock, position: lit, scale: new(moonRadius)));
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: rock,
+                    position: lit,
+                    scale: new(moonRadius),
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "eclipse");
             // Sample both moons on the side that faces the sun.
@@ -153,7 +168,13 @@ public sealed class SceneTests
             );
             RenderSnapshot snapshot = Gpu.Snapshot(new(0, 1, 0));
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: plane, material: ground, position: new(0, -1.5f, -20), scale: new(20, 1, 20))
+                Gpu.Instance(
+                    mesh: plane,
+                    material: ground,
+                    position: new(0, -1.5f, -20),
+                    scale: new(20, 1, 20),
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             // An invisible caster of 200 m radius, 2.4 km straight up from a point 200 m to the left of the view. It stays
             // farther than 2 km from the camera, so it casts a far shadow, whose edge crosses the ground at x = 0. The sun's

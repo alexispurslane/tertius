@@ -133,7 +133,8 @@ internal sealed class TestScene
                 material: Ground,
                 position: new(0, -1.5f, -40f),
                 scale: new(40f, 1f, 40f),
-                flags: caster
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         instances.Add(
@@ -143,7 +144,8 @@ internal sealed class TestScene
                 position: TexturedBox,
                 scale: new(1.8f),
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f),
-                flags: caster
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         instances.Add(
@@ -153,7 +155,8 @@ internal sealed class TestScene
                 position: TallBox,
                 scale: new(1.2f, 2f, 1.2f),
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.3f),
-                flags: caster
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         instances.Add(
@@ -163,12 +166,29 @@ internal sealed class TestScene
                 position: new(3.8f, -1.0f, -9f),
                 scale: new(1f),
                 rotation: Quaternion.CreateFromYawPitchRoll(0.4f, 0f, 0f),
-                flags: caster
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
             )
         );
-        instances.Add(Gpu.Instance(mesh: Sphere, material: Red, position: RedSphere, scale: new(0.8f), flags: caster));
         instances.Add(
-            Gpu.Instance(mesh: Sphere, material: Blue, position: BlueSphere, scale: new(0.6f), flags: caster)
+            Gpu.Instance(
+                mesh: Sphere,
+                material: Red,
+                position: RedSphere,
+                scale: new(0.8f),
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        instances.Add(
+            Gpu.Instance(
+                mesh: Sphere,
+                material: Blue,
+                position: BlueSphere,
+                scale: new(0.6f),
+                flags: caster,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         instances.Add(
             Gpu.Instance(
@@ -176,7 +196,8 @@ internal sealed class TestScene
                 material: Glass,
                 position: GreenGlass,
                 scale: new(0.5f),
-                flags: RenderFlags.Transparent
+                flags: RenderFlags.Transparent,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -187,7 +208,8 @@ internal sealed class TestScene
                 material: Station,
                 position: StationCenter,
                 scale: new(1_000f),
-                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.35f)
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.35f),
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -199,7 +221,8 @@ internal sealed class TestScene
                 material: PlanetMaterial,
                 position: PlanetCenter,
                 scale: new(PlanetRadius),
-                flags: RenderFlags.Celestial | RenderFlags.CastsShadow
+                flags: RenderFlags.Celestial | RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         instances.Add(
@@ -208,7 +231,8 @@ internal sealed class TestScene
                 material: StarMaterial,
                 position: StarCenter,
                 scale: new(StarRadius),
-                flags: RenderFlags.Celestial
+                flags: RenderFlags.Celestial,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

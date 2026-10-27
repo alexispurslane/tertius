@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -90,7 +91,8 @@ public sealed class PreExposureTests
                         material: BrdfTesting.Glow(renderer, new(0.05f * light)),
                         position: FarAhead,
                         scale: Vector3.One,
-                        entity: 1
+                        entity: 1,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 break;
@@ -120,7 +122,8 @@ public sealed class PreExposureTests
                 material: BrdfTesting.Glow(renderer, new(radiance)),
                 position: new(0, 0, 4),
                 scale: Vector3.One,
-                rotation: Quaternion.Conjugate(FacingTheCamera)
+                rotation: Quaternion.Conjugate(FacingTheCamera),
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -136,7 +139,8 @@ public sealed class PreExposureTests
             position: position,
             scale: Vector3.One,
             rotation: FacingTheCamera,
-            flags: flags
+            flags: flags,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A black square of reflectance 0 behind the middle of the image, so that no star shines through.</summary>
@@ -147,7 +151,8 @@ public sealed class PreExposureTests
                 material: BrdfTesting.Glow(renderer, Vector3.Zero),
                 position: new(0, 0, -5),
                 scale: Vector3.One,
-                rotation: FacingTheCamera
+                rotation: FacingTheCamera,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 
@@ -298,7 +303,14 @@ public sealed class PreExposureTests
                 RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 4);
                 snapshot.Ambient.Intensity = 0;
                 snapshot.Instances.Add(
-                    Gpu.Instance(mesh: sphere, material: material, position: FarAhead, scale: Vector3.One, entity: 1)
+                    Gpu.Instance(
+                        mesh: sphere,
+                        material: material,
+                        position: FarAhead,
+                        scale: Vector3.One,
+                        entity: 1,
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
                 for (int frame = 0; frame < 3; frame++)
                     renderer.Render(snapshot, 1f);
@@ -350,7 +362,8 @@ public sealed class PreExposureTests
                         position: FarAhead,
                         scale: Vector3.One,
                         flags: flags,
-                        entity: 1
+                        entity: 1,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return snapshot;

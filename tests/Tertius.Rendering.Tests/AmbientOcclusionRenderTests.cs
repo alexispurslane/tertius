@@ -193,7 +193,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                                 position: new(0, 0, -1e7f),
                                 scale: new(6.4e6f),
                                 flags: RenderFlags.Celestial,
-                                radius: 6.4e6f
+                                radius: 6.4e6f,
+                                chainDepth: TestChains.CamerasFrame
                             )
                         );
                         break;
@@ -436,7 +437,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                 scale: Vector3.One,
                 flags: flags,
                 radius: MathF.Sqrt(0.75f),
-                entity: 1
+                entity: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;

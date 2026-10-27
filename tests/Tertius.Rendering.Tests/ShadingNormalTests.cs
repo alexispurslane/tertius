@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -89,7 +90,8 @@ public sealed class ShadingNormalTests
                     position: new(0, 0, -3),
                     scale: Vector3.One,
                     rotation: Facing,
-                    radius: 1.5f
+                    radius: 1.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             return HighlightCenter(Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name));
