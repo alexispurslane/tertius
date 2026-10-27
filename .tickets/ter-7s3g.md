@@ -1,7 +1,7 @@
 ---
 id: ter-7s3g
 status: open
-deps: [ter-izsu]
+deps: [ter-izsu, ter-uhd8]
 links: []
 created: 2026-10-25T20:07:17Z
 type: task

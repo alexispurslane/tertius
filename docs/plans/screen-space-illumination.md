@@ -107,7 +107,7 @@ Each by the user's decisions and the project's rules, with its reason.
 22. The near search and the far rays are two passes, "occlusion sectors" and "occlusion far rays". The GPU timers then report each, as GTAO's decision 28 wants, and the near loop does not carry the trace's registers. The sector masks buffer passes the masks from one to the other: 6.2 MB at 1080p and 3 slices.
 23. The occlusion passes take the layout of SSR's compute passes: sets 0 to 2 of `SceneLayout` and their own set 3. The far ray pass includes `gtao.glsl` for the slices and SSR's `reflection.glsl` for the trace, so both must see the same sets. The camera then has one store, the frame constants, and the push constants keep only the setting. GTAO's decision 29 put the camera in push constants because the frame set had no compute stage. SSR adds it.
 24. The direct pass writes its own image, the direct image, and the ambient pass, a fragment pass, reads it and writes the HDR image once: min(direct + ambient, c). Three reasons. The environment map's reflected stars take their footprint from fragment derivatives (its decision 33), which a compute pass lacks. A blend cannot cap the sum, because a fragment shader cannot read the color attachment that it blends into. And the HDR image needs no storage usage, so SSR's decision 30 stays. It costs 16.6 MB at 1080p. (Merge of main, 2026-10-26: the map as merged takes a G-buffer pixel's footprint from the G-buffer, `reflectionFootprintAt` in `surfaceAt`, not from derivatives, so the first reason no longer binds. The other two stand.)
-25. A near step reads the direct light and the geometric normal of its representative pixel 2t from the full-resolution direct image and normals target, and a far ray reads them at its hit pixel. No half-resolution copy. One store of the direct light, and each step reads the light of the very pixel whose depth it used. If the cost shows the sectors pass bound by these reads, a copy beside the view depth image, written by the depth pass, is the measured fix (see "Cost").
+25. A near step reads the direct light and the geometric normal of its representative pixel 2t from the full-resolution direct image and normals target, and a far ray reads them at its hit pixel. No half-resolution copy. One store of the direct light, and each step reads the light of the very pixel whose depth it used. If the cost shows the sectors pass bound by these reads, a copy beside the view depth image, written by the depth pass, is the measured fix (see "Cost"). (`ter-izsu`, 2026-10-26: the profile showed the sectors pass near the worst case of these reads, so the fix is in. The depth pass copies the direct light and the geometric normal of pixel 2t into two half-resolution images, which it rewrites in every frame from the direct pass's image of that frame, so the copy is a derived read of the one store and never disagrees with it. A step reads the copies at its texel t. A far ray still reads its hit's pixel in the full-resolution images. The image is the same bytes.)
 26. The estimate target replaces the occlusion target: one RGBA16F image at full size, rgb the bounce and a the occlusion, because one estimate makes both. It is cleared to (0, 0, 0, 1) in the first frame after each creation, as the occlusion target was cleared to 1.
 27. The images hold the bounce pre-exposed, and `ShadingInput.bounce` holds it as plain radiance: the reader divides by k. Pre-exposed, the bounce is a weighted mean of direct pixels, at most c, so it fits a half float. Plain radiance passes 65,504 in a sunlit scene in SI units at a low exposure.
 28. The bounce enters the ambient light in `occludedAmbient`, the one place where the estimate applies. The diffuse term becomes T_d · V + c_diff · G. The specular term becomes T_s · V_s, with V_s from V by Lagarde's fit as before. The bounce is diffuse light only. Light that the screen reflects is SSR's.
@@ -720,12 +720,14 @@ The host's `--screen-space-light off|<meters>` gives `NoScreenSpaceLight` or `Vi
 | The direct image | R16G16B16A16_SFLOAT | Full | 16,588,800 B | Color attachment, sampled, transfer source | `RenderTargets.Direct` | Always |
 | The estimate target | R16G16B16A16_SFLOAT | Full | 16,588,800 B | Sampled, storage, transfer source and destination | `RenderTargets.Estimate` | Always |
 | The view depth image | R32_SFLOAT | Half: 960 × 540 | 2,073,600 B | Storage | `OcclusionImages` | Under `VisibilityBitmaskLight` |
+| The copy of the direct light (decision 25) | R16G16B16A16_SFLOAT | Half | 4,147,200 B | Storage, transfer source | `OcclusionImages.Direct` | The same |
+| The copy of the geometric normal (decision 25) | R16G16_SNORM, octahedral | Half | 2,073,600 B | Storage, transfer source | `OcclusionImages.GeometricNormal` | The same |
 | The edges image | R8_UNORM | Half | 518,400 B | Storage | `OcclusionImages` | The same |
 | Term A, term B | R16G16B16A16_SFLOAT | Half | 4,147,200 B each | Storage | `OcclusionImages` | The same |
 | The sector masks buffer | 32-bit words, `Slices` per texel | Half × `Slices` | 6,220,800 B at 3 slices | Storage buffer | `OcclusionImages.SectorMasks` | The same |
 | The depth pyramid | RG32_SFLOAT, mips for levels 1 to L | SSR's, padded to 1024 × 1024 at 1080p | 11.2 MB | SSR's | `DepthPyramidImage` | Under reflections or `VisibilityBitmaskLight` |
 
-The sector masks buffer is also a transfer source, for the test hook `ReadSectorMasks`, and it must fit one storage buffer descriptor (see "Portable Vulkan"). Under `VisibilityBitmaskLight` the bounce takes 50.3 MB, and 61.5 MB with the depth pyramid when the reflections are off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM.
+The sector masks buffer is also a transfer source, for the test hook `ReadSectorMasks`, and it must fit one storage buffer descriptor (see "Portable Vulkan"). Under `VisibilityBitmaskLight` the bounce takes 56.5 MB with the two copies of decision 25, and 67.7 MB with the depth pyramid when the reflections are off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM, and checks R16G16B16A16_SFLOAT and R16G16_SNORM for the copies.
 
 ## The frame
 
@@ -752,16 +754,18 @@ Every compute shader keeps the local size 8 × 8. The depth, sectors, far ray an
 | Direct light | The G-buffer targets, the shadow maps | `SampledFragment` | | The G-buffer pass's writes, the shadow pass's writes |
 | | The direct image | `ColorAttachment` | Yes | The last frame's ambient pass read, so the write waits for it |
 | | The exposure buffer | `ShaderRead` | | As the lighting pass today |
-| Occlusion depth | The distance target | `SampledCompute` | | Read to read after the direct pass's fragment read |
-| | The view depth image | `StorageCompute` | Yes | The last frame's reads |
+| Occlusion depth | The distance target, the normals target | `SampledCompute` | | Read to read after the direct pass's fragment read |
+| | The direct image | `SampledCompute` | | The direct pass's color write to the compute read, a layout change |
+| | The view depth image, the copies of the direct light and the geometric normal | `StorageCompute` | Yes | The last frame's reads |
 | Occlusion sectors | The view depth image | `StorageCompute` | | The depth pass's write |
 | | The normals target, the distance target | `SampledCompute` | | Read to read |
-| | The direct image | `SampledCompute` | | The direct pass's color write to the compute read, a layout change |
+| | The copies of the direct light and the geometric normal | `StorageCompute` | | The depth pass's writes |
 | | The edges image, term A | `StorageCompute` | Yes | The last frame's reads |
 | | The sector masks buffer | `ComputeWrite` | | The last frame's far ray read |
 | Occlusion far rays | The sector masks buffer | `ComputeRead` | | The sectors pass's write |
 | | Term A | `StorageCompute` | | The sectors pass's write. Each invocation reads and writes its own texel only |
-| | The view depth image, the normals, the direct image | As in the sectors pass | | Read to read |
+| | The view depth image | As in the sectors pass | | Read to read |
+| | The normals target, the direct image | `SampledCompute` | | Read to read after the depth pass's read |
 | | The depth pyramid | `SampledComputeGeneral` | | The depth pyramid pass's last write |
 | Occlusion denoise | Term A, term B, the edges image | As today | | As today |
 | Occlusion upsample | Term A, the view depth image | `StorageCompute` | | The last denoise write |
@@ -789,6 +793,8 @@ All five occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 t
 | 5 | Sampled image, all mips, `General` | The depth pyramid |
 | 6 | Storage image, rgba16f | The denoise source |
 | 7 | Storage image, rgba16f | The denoise destination |
+| 8 | Storage image, rgba16f | The copy of the direct light (decision 25) |
+| 9 | Storage image, rg16_snorm | The copy of the geometric normal (decision 25) |
 
 `OcclusionImages` writes two such sets, `SetAToB` with term A and term B in bindings 6 and 7, and `SetBToA` the other way. Every pass binds `SetAToB`, except the last denoise dispatch. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
 
@@ -801,11 +807,11 @@ The G-buffer set changes:
 
 Binding 8 is the lights' shadow atlas (local-light-shadows.md, decision 46), so the direct image takes 9 whatever merges first.
 
-`OcclusionPushConstants` keeps only the setting, 20 bytes:
+`OcclusionPushConstants` keeps only the setting, 24 bytes:
 
 ```csharp
 /// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from
-/// the frame constants. 20 bytes.</summary>
+/// the frame constants. 24 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
 {
@@ -816,6 +822,9 @@ internal struct OcclusionPushConstants
 
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
+
+    /// <summary>1 when each texel traces one far ray (`FarRays.OnePerTexel`, fork 2's option B), 0 for one per slice.</summary>
+    public uint FarRayPerTexel;
 
     public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise);
 }
@@ -903,8 +912,9 @@ flowchart TD
 | Value | Written by | When | Read by | When | Stored in | Analogue |
 |---|---|---|---|---|---|---|
 | `RendererOptions.ScreenSpaceLight` | The host (`ScriptCommand`, `WindowHost`), tests | Before the renderer is made | `CheckOptions`. `VulkanRenderer`, which makes `OcclusionImages`, the occlusion passes and the depth pyramid only under `VisibilityBitmaskLight`. Each occlusion pass, for its push constants | At creation, then in every frame | `RendererOptions`, then the passes' fields | `RendererOptions.AmbientOcclusion`, which it replaces |
-| The direct image | The direct pass | Stage `DirectLight`, every frame | The sectors pass (at 2t), the far ray pass (at the hit), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
+| The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the far ray pass (at the hit), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
 | The view depth image, the edges image | As GTAO | As GTAO | As GTAO, and the far ray pass reads the view depth | The same frame | `OcclusionImages` | Unchanged |
+| The copies of the direct light and the geometric normal (decision 25) | The depth pass, from the direct image and the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionDirect` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Direct`, `GeometricNormal`, occlusion set bindings 8 and 9 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
 | Term A | The sectors pass (the near estimate), the far ray pass (the estimate), the last denoise | Stage `AmbientOcclusion` | The far ray pass, the first denoise, the upsample | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
 | Term B | The first denoise | The same | The last denoise | The same | `OcclusionImages.TermB` | GTAO's |
 | The sector masks buffer | The sectors pass | The same | The far ray pass | The same frame | `OcclusionImages.SectorMasks` | The edges image: one occlusion pass writes it for a later one |
@@ -913,7 +923,7 @@ flowchart TD
 | `ShadingInput.occlusion` | `surfaceAt` from the estimate's a. `transparent.frag` and `impostor_capture.frag`: 1 | Per pixel | `occludedAmbient` | Per pixel | None: a value in the shader | Unchanged in form, now near and far |
 | `ShadingInput.bounce` | `surfaceAt` from the estimate's rgb over k. `transparent.frag` and `impostor_capture.frag`: 0 | Per pixel | `occludedAmbient` | Per pixel | None | `ShadingInput.occlusion` |
 | `AmbientTerms` after `occludedAmbient` | `occludedAmbient` | Per pixel | `ambientLight`, SSR's trace | Per pixel | None | Unchanged: its diffuse term gains the bounce |
-| `OcclusionPushConstants` | Each occlusion pass | Each dispatch | The occlusion shaders | The dispatch | Push constants | `ReflectionPushConstants`: the setting alone |
+| `OcclusionPushConstants`, `FarRayPerTexel` among them | Each occlusion pass, from the setting (`FarRays`) | Each dispatch | The occlusion shaders; the far ray pass picks option A or B by `FarRayPerTexel` | The dispatch | Push constants | `ReflectionPushConstants`: the setting alone |
 | The occlusion sets | `OcclusionImages` | At creation and on every resize | The occlusion passes | Every frame | `OcclusionImages.SetAToB`, `SetBToA` | GTAO's occlusion and denoise sets |
 | The noise, the far ray's rank | None: fixed functions of the texel | | The sectors and far ray passes | | None | GTAO's noise |
 | A far ray and its outcome | None: computed in the far ray pass | | The far ray pass | | None | SSR's ray |
@@ -1110,14 +1120,14 @@ In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFiveOcclusionPassesRunBetween
 | `HorizonSliceTests`, `HorizonSearchTests` | `HorizonSlice` stays, as the slice geometry and the reference of the reduction. `HorizonSearch.Fade` and `Faded` go with the fade | The fade's three tests go, replaced by the empty near range's |
 | `GpuTimingTests`, `ScriptCommandCaptureTests` | The new pass list | "direct light", the five occlusion passes, "ambient light" |
 | The six reference images | Pass within their FLIP tolerance of 0.1 | The fixtures are off, and the split rounds the direct light once more. The builder reports the largest FLIP value of each. Any failure gets the three-image review of CLAUDE.md |
-| `BatcherTests`, the struct sizes | `OcclusionPushConstants` is 20 bytes | |
+| `BatcherTests`, the struct sizes | `OcclusionPushConstants` is 24 bytes, with `FarRayPerTexel` (`ter-izsu`) | |
 | `OcclusionImagesTests` | The terms are RGBA16F, the sector masks buffer exists, two sets | |
 
 ## Cost
 
 To measure in Part 7, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": Release, `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, each build twice, one run at a time, with the load of the machine in the report. The runs: the default, `--screen-space-light off`, the radii and steps of "The default radius and steps", and fork 2's options.
 
-The table gives the memory traffic per frame at 1080p and the default setting, by arithmetic. The expected time came from the rate that each kind of pass reached in GTAO's measurements (ARCHITECTURE.md, "Ambient occlusion", "Cost"). The last column holds the time that `ter-izsu` measured instead, after the half-resolution copy below, mean of two runs (ARCHITECTURE.md, "Ambient occlusion", "Cost", has each run, the method and the load):
+The table gives the memory traffic per frame at 1080p and the default setting, by arithmetic. The expected time came from the rate that each kind of pass reached in GTAO's measurements (ARCHITECTURE.md, "Ambient occlusion", "Cost"). The last column holds the time that `ter-izsu` measured instead in a Metal System Trace, after the half-resolution copy below, mean of two runs, three for option B (ARCHITECTURE.md, "Ambient occlusion", "Cost", has each run, the method and the load). The "Today" column came from the GPU timers of the renderer before main's per-frame environment maps, another instrument: a trace of main gave its lighting pass 2.96 ms (ARCHITECTURE.md, "The environment map", "Cost"). The expected times were fit to those timers:
 
 - the upsample moved 76.7 MB in 0.78 ms, about 98 GB/s
 - the denoise moved 25.9 MB in 0.16 ms, about 160 GB/s
@@ -1125,30 +1135,30 @@ The table gives the memory traffic per frame at 1080p and the default setting, b
 
 | Pass | Today | Reads | Writes | Expected | Measured |
 |---|---|---|---|---|---|
-| Direct light | Lighting: 1.64 ms | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms | 2.14 ms |
-| Occlusion depth | 0.13 ms | 2.1 MB | 2.1 MB | 0.13 ms, unchanged | 0.07 ms |
-| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 74.6 MB of the 8 B normal of each of 18 steps, which finds its surface point on the slice (`ter-rxjr`), 74.6 MB of the two 4 B depths around each of 18 steps' exact place (`ter-y1s7`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms | 2.01 ms |
-| Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more | 5.98 ms, 2.59 ms with option B |
-| Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms | 0.13 ms |
-| Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.32 ms |
-| Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.66 ms |
+| Direct light | Lighting: 1.64 ms by the timers, 2.96 ms in a trace of main | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms, so below 2.96 ms in the trace | 2.09 ms |
+| Occlusion depth | 0.13 ms | 2.1 MB of distances, and for the copies of decision 25 the direct image (8 B) and the normals (8 B) at each texel's pixel 2t: 10.4 MB | 2.1 MB of view depth, and 6.2 MB of the copies (8 B of direct light and 4 B of geometric normal per texel): 8.3 MB | 0.13 ms, unchanged | 0.07 ms |
+| Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 37.3 MB of the 4 B geometric normal of each of 18 steps from the dense copy, which finds its surface point on the slice (`ter-rxjr`), 74.6 MB of the two 4 B depths around each of 18 steps' exact place (`ter-y1s7`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps from the dense copy of the direct light | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms | 1.93 ms |
+| Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more | 5.86 ms, 2.38 ms with option B |
+| Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms | 0.14 ms |
+| Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.33 ms |
+| Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.67 ms |
 
 The two depths around each step's exact place (`ter-y1s7`) cost no time that the GPU timers could tell from the noise. On `demo-surface.json` at 1280 × 720 in Release on the M1 Max, two runs of 7 frames per build, with the 1-minute load from 7.9 to 11.1, the sectors pass took a mean of 2.304 and 2.054 ms (median 2.225 and 2.087 ms) before, and 2.304 and 2.310 ms (median 2.247 and 2.197 ms) after: the difference lies within the 0.25 ms between two runs of one build.
 
-So the occlusion passes were expected to take 4.0 to 8.4 ms together, against 1.7 ms for GTAO's, and the split 0.3 to 0.7 ms more. As built they took 9.1 ms on the M1 Max at 1080p, over the expectation and far over the 1 ms limit of the crease shadowing. The split took about 1 ms. The arithmetic still gives the reasons, and the counters of a GPU trace show where it missed:
+So the occlusion passes were expected to take 4.0 to 8.4 ms together, against 1.7 ms for GTAO's, and the split 0.3 to 0.7 ms more. As built they took 8.9 to 9.2 ms on the M1 Max at 1080p, over the expectation and far over the 1 ms limit of the crease shadowing. The split costs about nothing: the direct and the ambient pass took 2.85 to 2.88 ms together as built, and 2.5 to 2.8 ms after the changes below, where main's one lighting pass took 2.96 ms in a trace of the same frames. The expected 0.3 to 0.7 ms more came from the timers' 1.64 ms. The arithmetic still gives the reasons, and the counters of a GPU trace show where it missed:
 
 - The far rays took 6.2 ms, nearly twice the top of the expected range. Their trace loop is bound by arithmetic, not by memory (ALU 88 %, last-level cache 29 %): with one far step the pass took 0.79 ms. The expectation came from SSR's estimate of the time per ray, not from the traffic of the table.
 - The sectors pass took 2.3 ms, within the expected range, near its top. Its reads were near their worst case (ALU 72 %, last-level cache 71 %).
 - The upsample took 0.32 ms, a quarter of the expected 1.4 to 1.5 ms. The 124.4 MB of the table are requests, and the caches serve them: the counters show about 4 MB from memory each way. The denoise took 0.13 ms, also a quarter of its expectation, for the same reason.
-- The direct pass took 2.2 ms, above the expected 1.5 to 1.7 ms, with a fragment occupancy of 19 %.
+- The direct pass took 2.0 to 2.2 ms. Against the timers' 1.64 ms it looked above the expected 1.5 to 1.7 ms, but it is main's lighting pass, 2.96 ms in the trace, less its ambient terms, as expected. Its fragment occupancy is 19 %.
 
 The three levers, each measured on its own (`ter-izsu`, 2026-10-26):
 
-- Fork 2's option B, a third of the far rays: the far rays took 2.6 ms in place of 6.2 ms, and the five passes 4.9 ms. It changes the image, the bounce's speckle grows, so it is a setting, `VisibilityBitmaskLight.FarRays`, with option A as the default until Part 7.
-- The half-resolution copy of the direct light and the geometric normal (decision 25): the sectors pass took 0.28 ms less, and the image is the same bytes. It is the new behavior.
+- Fork 2's option B, a third of the far rays: on its own, without the copy, the far rays took 2.6 to 2.8 ms in place of 6.2 ms, and the five passes about 5.4 ms (5.24 and 5.66 ms). With the copy, the five passes took 4.9 to 5.0 ms, and 4.7 to 4.8 ms once the review made its pick find the direction once (ARCHITECTURE.md). It changes the image, the bounce's speckle grows, so it is a setting, `VisibilityBitmaskLight.FarRays`, with option A as the default until Part 7.
+- The half-resolution copy of the direct light and the geometric normal (decision 25): in matched pairs of runs the sectors pass took 0.25 to 0.36 ms less and the frame span about 0.5 ms less, and the image is the same bytes. It is the new behavior.
 - The upsample, which the profile shows needs no change.
 
-With the copy and option B, the occlusion passes take 4.9 to 5.0 ms. The far rays' trace loop remains the largest cost. Its other levers change the image, such as `FarSteps`, or change the reflections' shared `traceRay`.
+With the copy and option B, the occlusion passes take 4.7 to 4.8 ms. The far rays' trace loop remains the largest cost. Its other levers change the image, such as `FarSteps`, or change the reflections' shared `traceRay`.
 
 With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image's round trip: about 0.3 to 0.7 ms and 31.1 MB more than today (fork 3).
 

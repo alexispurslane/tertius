@@ -274,21 +274,28 @@ internal static class SectorSearch
         foreach (NearSlice slice in slices)
             openWeight += slice.Sectors.Weight * slice.Blocked.Open.Count;
         double target = farRayNoise * openWeight;
-        (int Slice, int Sector)? picked = null;
+        // The loop only picks the slice and the rank, as the shader does, which finds the direction once after it.
+        int picked = -1;
+        int rank = 0;
         for (int k = 0; k < slices.Length; k++)
         {
-            SectorMask open = slices[k].Blocked.Open;
+            int count = slices[k].Blocked.Open.Count;
             double weight = slices[k].Sectors.Weight;
-            double share = weight * open.Count;
+            double share = weight * count;
             if (!(share > 0))
                 continue;
-            // A noise that rounds up to 1 falls through every slice and keeps the last open sector.
-            picked = (Slice: k, Sector: open.SectorOfRank(Math.Min((int)(target / weight), open.Count - 1)));
+            picked = k;
             if (target < share)
+            {
+                // target < W · count, so the quotient is below the count up to a rounding.
+                rank = Math.Min((int)(target / weight), count - 1);
                 break;
+            }
+            // A noise that rounds up to 1 falls through every slice and keeps the last open sector of the last open slice.
+            rank = count - 1;
             target -= share;
         }
-        return picked;
+        return picked < 0 ? null : (Slice: picked, Sector: slices[picked].Blocked.Open.SectorOfRank(rank));
     }
 
     /// <summary>σ acos(V̂ · d / |d|): the signed angle of the direction <paramref name="direction"/> in the slice.</summary>

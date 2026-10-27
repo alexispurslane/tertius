@@ -94,10 +94,6 @@ public sealed class ScreenSpaceLightSettingTests
             .Contain("FarSteps");
 
     [Fact]
-    public void TheDefaultTracesOneFarRayPerSlice() =>
-        VisibilityBitmaskLight.Default.FarRays.Should().Be(FarRays.OnePerSlice, "fork 2's option A, until Part 7 decides");
-
-    [Fact]
     public void AFarRayCountThatTheEnumDoesNotNameIsRefused() =>
         new ScreenSpaceLightSetting(VisibilityBitmaskLight.Default with { FarRays = (FarRays)2 })
             .Problem.Should()

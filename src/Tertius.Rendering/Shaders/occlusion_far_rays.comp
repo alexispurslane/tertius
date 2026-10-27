@@ -90,26 +90,34 @@ vec4 farRayPerTexel(GtaoTexel setup, vec4 estimate)
         openWeight += gtaoSliceGeometry(setup, slice).weight * float(bitCount(~sectorMasks[maskIndex(texel(), slice)]));
     int stepsPerSide = int(occlusion.stepsPerSide);
     float target = fract(setup.noise.y + float(stepsPerSide * stepsPerSide) * 0.6180339887498948482) * openWeight;
-    bool picked = false;
-    vec3 direction = vec3(0.0);
+    // The loop only picks the slice and the rank. The direction, a bisection with trigonometry, is computed once after it.
+    int picked = -1;
+    uint pickedOpen = 0u;
+    uint rank = 0u;
     for (int slice = 0; slice < slices; slice++)
     {
-        SliceGeometry g = gtaoSliceGeometry(setup, slice);
+        float weight = gtaoSliceGeometry(setup, slice).weight;
         uint open = ~sectorMasks[maskIndex(texel(), slice)];
         uint count = uint(bitCount(open));
-        float share = g.weight * float(count);
+        float share = weight * float(count);
         if (!(share > 0.0))
             continue;
-        // A noise that rounds up to 1 falls through every slice and keeps the last open sector. The rank is below the
-        // count, so findLSB never meets 0.
-        picked = true;
-        direction = farRayDirection(g, open, min(uint(target / g.weight), count - 1u));
+        picked = slice;
+        pickedOpen = open;
         if (target < share)
+        {
+            // target < W · count, so the quotient is below the count up to a rounding: finite and within the uint range.
+            // The rank is below the count, so findLSB never meets 0.
+            rank = min(uint(target / weight), count - 1u);
             break;
+        }
+        // A noise that rounds up to 1 falls through every slice and keeps the last open sector of the last open slice.
+        rank = count - 1u;
         target -= share;
     }
-    if (!picked)
+    if (picked < 0)
         return estimate;
+    vec3 direction = farRayDirection(gtaoSliceGeometry(setup, picked), pickedOpen, rank);
     FarOutcome outcome = farRay(setup, direction);
     return vec4(estimate.rgb + estimate.a * outcome.light, estimate.a - estimate.a * outcome.blocked);
 }

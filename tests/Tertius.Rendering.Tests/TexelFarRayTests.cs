@@ -62,6 +62,20 @@ public sealed class TexelFarRayTests
     }
 
     [Fact]
+    public void ANoiseOnTheBoundaryOfTwoSlicesPicksTheFirstOpenSectorOfTheLaterSlice()
+    {
+        // Rank ⌊η Σ W c⌋: each slice owns the half-open run of ranks [start, end), as each sector does. Two slices of one
+        // weight with 12 open sectors each, so η = 1/2 is rank 12 exactly, the first of slice 1.
+        NearSlice[] slices =
+        [
+            Slice(Tilted(0), SectorMask.Run(start: 0, end: 20)),
+            Slice(Tilted(0), SectorMask.Run(start: 12, end: 32)),
+        ];
+
+        SectorSearch.TexelFarRay(slices, 0.5f).Should().Be((Slice: 1, Sector: 0));
+    }
+
+    [Fact]
     public void ANoiseThatRoundsUpToOnePicksTheLastOpenSectorOfTheLastOpenSlice()
     {
         // GLSL lets a driver's fract and product err by an ulp, so the noise can reach 1.

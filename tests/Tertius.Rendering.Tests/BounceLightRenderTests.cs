@@ -77,15 +77,81 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     public void WithOneFarRayPerTexelTheFarRaysLeaveEachTexelAllOpenOrAllBlocked()
     {
         // Fork 2's option B: the texel's one ray decides its whole open share, which is the near V. So where the ray
-        // meets a wall well inside the screen, V falls to 0, and where it meets nothing, V stays. Under option A, each
-        // of three slices decides its own share, and a texel whose slices disagree keeps part of its open share.
-        VulkanRenderer renderer = Gpu.Headless(
-            screenSpaceLight: VisibilityBitmaskLight.Default with
+        // meets a wall well inside the screen, V falls to 0, and where it meets nothing, V stays.
+        (int blocked, int partly) = TexelsThatTheFarRaysBlock(
+            VisibilityBitmaskLight.Default with
             {
                 RadiusMeters = 0.25f,
                 FarRays = FarRays.OnePerTexel,
             }
         );
+
+        // The edge fade lets a hit near the screen's edge block part of the share. Measured on 2026-10-26: 14 % of the
+        // blocked texels keep part of their share.
+        partly
+            .Should()
+            .BeLessThan(blocked / 4, "one ray decides a texel's whole open share, except where the edge fades it");
+    }
+
+    [Fact]
+    public void TheRenderersDefaultTracesAFarRayPerSliceSoABlockedTexelKeepsTheShareOfItsOpenSlices()
+    {
+        // Fork 2's option A, the default until Part 7 decides: each of three slices decides its own share, and a texel
+        // whose slices disagree keeps part of its open share. Measured on 2026-10-26: 99 % of the blocked texels.
+        (int blocked, int partly) = TexelsThatTheFarRaysBlock(
+            VisibilityBitmaskLight.Default with
+            {
+                RadiusMeters = 0.25f,
+            }
+        );
+
+        partly.Should().BeGreaterThan(blocked / 2, "each slice's far ray decides only that slice's open share");
+    }
+
+    [Fact]
+    public void OneFarRayPerTexelLeavesTheSameMeanOpenShareAsOnePerSlice()
+    {
+        // Fork 2's option B picks each open sector with the probability of its share of the estimate, W_k / (32 ΣW) per
+        // sector, so over many texels it leaves the mean open share that option A leaves, which traces each slice. A
+        // pick that weighed the slices otherwise would favor some slices' directions and move the mean.
+        VisibilityBitmaskLight perSlice = VisibilityBitmaskLight.Default with { RadiusMeters = 0.25f };
+        double meanA = MeanOpenShareAfterTheFarRays(perSlice);
+        double meanB = MeanOpenShareAfterTheFarRays(perSlice with { FarRays = FarRays.OnePerTexel });
+
+        output.WriteLine($"mean open share after the far rays: one per slice {meanA:0.0000}, one per texel {meanB:0.0000}");
+        // Measured on 2026-10-26: 0.7916 and 0.7935, 0.0019 apart. Three wrong weightings of the pick moved option B's
+        // mean by 0.008 to 0.047.
+        meanB.Should().BeApproximately(meanA, 0.004, "both options are unbiased estimates of the same open share");
+    }
+
+    /// <summary>The mean of term A's open share over the matte corner's texels under white ambient light, after the far rays.</summary>
+    private static double MeanOpenShareAfterTheFarRays(VisibilityBitmaskLight setting)
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
+        try
+        {
+            RenderSnapshot scene = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
+            renderer.Render(scene, 1f);
+            float[] term = renderer.ReadOcclusionTerm().Rgba;
+            double sum = 0;
+            for (int i = 3; i < term.Length; i += 4)
+                sum += term[i];
+            return sum / (term.Length / 4);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The texels of the matte corner under white ambient light whose far rays block some of their near open share, and of
+    /// them those that keep more than a tenth of it, from term A before and after the far ray pass.
+    /// </summary>
+    private (int Blocked, int Partly) TexelsThatTheFarRaysBlock(VisibilityBitmaskLight setting)
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
             RenderSnapshot scene = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -103,17 +169,12 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 if (near[i] < 0.1f || far[i] > near[i] - 0.01f)
                     continue;
                 blocked++;
-                // The edge fade lets a hit near the screen's edge block part of the share, so only a remainder above
-                // a tenth of the open share counts. Measured on 2026-10-26: 14 % of the blocked texels under option B,
-                // 99 % under option A.
                 if (far[i] > 0.1f * near[i])
                     partly++;
             }
             output.WriteLine($"texels whose far rays block: {blocked}, of them partly: {partly}");
             blocked.Should().BeGreaterThan(1000, "the test needs far rays that meet the walls");
-            partly
-                .Should()
-                .BeLessThan(blocked / 4, "one ray decides a texel's whole open share, except where the edge fades it");
+            return (blocked, partly);
         }
         finally
         {
@@ -400,6 +461,32 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The lit red wall in the corner, and a sphere whose normal map tilts its shading normals away from its geometric
+    /// normals, so that the two normals of the normals target differ.
+    /// </summary>
+    private static RenderSnapshot RedWallWithANormalMappedSphere(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = RedWall(renderer, CornerView);
+        byte[] tiltedTexel = [128, 200, 220, 255];
+        MaterialId tilted = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.8f) with
+            {
+                NormalMap = renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: tiltedTexel, Srgb: false)),
+            }
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Sphere(1)),
+                material: tilted,
+                position: new(0.8f, FloorHeight + 0.6f, BackWallZ + 1.5f),
+                scale: new(0.6f),
+                radius: 0.6f
+            )
+        );
+        return snapshot;
+    }
+
     [Fact]
     public void TheDepthPassCopiesTheDirectLightAndTheGeometricNormalOfEachTexelsRepresentativePixel()
     {
@@ -408,25 +495,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            RenderSnapshot snapshot = RedWall(renderer, CornerView);
-            // A sphere whose normal map tilts its shading normals away from its geometric normals.
-            byte[] tiltedTexel = [128, 200, 220, 255];
-            MaterialId tilted = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.8f) with
-                {
-                    NormalMap = renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: tiltedTexel, Srgb: false)),
-                }
-            );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: renderer.CreateMesh(Primitives.Sphere(1)),
-                    material: tilted,
-                    position: new(0.8f, FloorHeight + 0.6f, BackWallZ + 1.5f),
-                    scale: new(0.6f),
-                    radius: 0.6f
-                )
-            );
-            renderer.Render(snapshot, 1f);
+            renderer.Render(RedWallWithANormalMappedSphere(renderer), 1f);
             float[] direct = renderer.ReadDirect();
             float[] normals = renderer.ReadNormals();
             (float[] directCopy, int width, int height) = renderer.ReadOcclusionDirect();
@@ -454,8 +523,13 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
 
             directAtTexels.Count(value => value > 0).Should().BeGreaterThan(1000, "the sun lights the wall and the floor");
             mappedTexels.Should().BeGreaterThan(100, "the sphere's shading normals differ from its geometric normals");
-            directCopyRgb.Should().Equal(directAtTexels);
-            normalCopy.Should().Equal(normalAtTexels);
+            directCopyRgb.Should().Equal(directAtTexels, "a half float stores back as itself on every driver");
+            // The spec lets a driver round a float to SNORM16 other than to the nearest value, so the stored k / 32767
+            // may come back one step off (ARCHITECTURE.md, "Portable Vulkan").
+            const float snormStep = 1f / 32767;
+            normalCopy
+                .Should()
+                .Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
         }
         finally
         {
