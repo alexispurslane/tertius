@@ -1026,6 +1026,89 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The atlas tile of a gray ball of radius 1 m in the sun, 12 m from the eye, whose center lies on the view's right
+    /// side plane, so that its inner half shows, under an environment map that draws all six faces in the frame, after one
+    /// frame. With <paramref name="withTheLamp"/>, a lamp stands 2 cm off the ball's surface, 30° from the plane's outward
+    /// normal toward the eye, with a reach of 0.5 m: its reach sphere lies 0.38 m outside the plane, so only a face of the
+    /// map keeps it, and it lights a part of the ball's off-screen half that the eye sees.
+    /// </summary>
+    private static (float[] Tile, int Lights) BallAtTheRightEdge(bool withTheLamp)
+    {
+        const int width = 640,
+            height = 360;
+        // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0.
+        float tanHalfX = MathF.Tan(Gpu.Fov / 2) * width / height;
+        Vector3 outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        Vector3 along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        Vector3 center = 12 * along;
+        Vector3 toward = MathF.Cos(MathF.PI / 6) * outward - MathF.Sin(MathF.PI / 6) * along;
+        const float reach = 0.5f;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            impostors: true,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = EnvironmentMapSetting.MinFaceSize,
+                FacesPerFrame = CubeFaces.Count,
+            }
+        );
+        try
+        {
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
+            MaterialId gray = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.9f) with
+                {
+                    Reflectance = 0f,
+                }
+            );
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0.3f, 1), starIrradiance: 1f);
+            snapshot.Ambient.Intensity = 0f;
+            snapshot.Instances.Add(
+                Gpu.Instance(mesh: sphere, material: gray, position: center, scale: Vector3.One, entity: 1)
+            );
+            if (withTheLamp)
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: center + 1.02f * toward,
+                        color: Vector3.One,
+                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(new FixedExposure(0))),
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+            renderer.Render(snapshot, 1f);
+            renderer.LastFrameStats.Impostors.Should().Be(1, "a ball 12 m away is about 50 px high");
+            ImpostorStatus status = renderer
+                .Impostors!.Status(
+                    new(EntityIndex: 1, Part: 0, Mesh: sphere.Value, Material: MaterialStore.Slot(gray))
+                )!
+                .Value;
+            return (renderer.ReadImpostorTile(status.Tile).Rgba, renderer.LastFrameStats.Lights);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnImpostorCaptureTakesNoDirectLightFromALampThatOnlyAFaceOfTheMapKeeps()
+    {
+        (float[] withIt, int lights) = BallAtTheRightEdge(withTheLamp: true);
+        (float[] withoutIt, _) = BallAtTheRightEdge(withTheLamp: false);
+
+        lights.Should().Be(2, "a face keeps the lamp, so the frame's one list holds the sun and the lamp");
+        withoutIt.Max().Should().BePositive("the tile holds the sunlit ball");
+        // The lamp lights the ball in the map's faces too, which the capture takes as a little more ambient light:
+        // about 1e-5 of radiance. Its direct light would give up to 0.04.
+        withIt
+            .Zip(withoutIt, (a, b) => MathF.Abs(a - b))
+            .Max()
+            .Should()
+            .BeLessThan(1e-3f, "the capture takes only the lights whose reach touches the main view");
+    }
+
+    /// <summary>
     /// The mean absolute difference per channel of two renders inside the first one's silhouette, the intersection
     /// over union of the two silhouettes, and the silhouette's size. A pixel is in a silhouette when it differs from
     /// the empty background.

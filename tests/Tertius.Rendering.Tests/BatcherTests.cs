@@ -730,6 +730,67 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void EachLightSaysWhetherTheMainViewKeepsIt()
+    {
+        // Faces only, the main view only, the main view and a face, and faces only.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -50)));
+        snapshot.Lights.Add(Lamp(new(0, 50, 0)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(false, true, true, false);
+    }
+
+    [Fact]
+    public void TheGpuFormOfEachLightSaysWhetherTheMainViewKeepsIt()
+    {
+        // Faces only, then the main view only.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene
+            .LightSpan.ToArray()
+            .Select(light => GpuLight.From(light).InMainView)
+            .Should()
+            .Equal([0u, 1u], "the main view's shaders skip the lights that only a face keeps");
+    }
+
+    [Fact]
+    public void AFarLightOfTheMainViewTakesTheCascadeSetBeforeABrighterOneThatOnlyAFaceKeeps()
+    {
+        const float distance = 3e7f;
+        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(-10));
+        PointRenderLight FarLamp(float z, double eyeShareOfTheCutoff) =>
+            Gpu.Lamp(
+                position: new(0, 0, z),
+                color: Vector3.One,
+                intensity: (float)(eyeShareOfTheCutoff * cutoff * distance * distance),
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                CastsShadow = true,
+            };
+        // Behind the camera, with a reach of 0.9 of its distance, so that only face +Z keeps it, then ahead of it.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(FarLamp(z: distance, eyeShareOfTheCutoff: 0.81));
+        snapshot.Lights.Add(FarLamp(z: -distance, eyeShareOfTheCutoff: 0.25));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene
+            .LightSpan.ToArray()
+            .Select(light => light.Shadow.TryGetValue(out CascadeSet _))
+            .Should()
+            .Equal([false, true], "the batcher's one cascade set goes to the main view's light");
+    }
+
+    [Fact]
     public void ALightThatOnlyAFaceThatThisFrameSkipsCouldReachIsLeftOut()
     {
         RenderSnapshot snapshot = Dark();
@@ -1606,10 +1667,11 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
-        Unsafe.SizeOf<GpuLight>().Should().Be(96);
+        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 100 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.InMainView))).Should().Be(96);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);

@@ -54,8 +54,8 @@ struct ShadingInput
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
 };
 
-// The lastMap of directLight that keeps every light: every view but an environment face.
-const uint EveryMap = 0xFFFFFFFFu;
+// The view of directLight that is the main view: every caller but an environment face, which passes its face's map.
+const uint MainView = 0xFFFFFFFFu;
 
 // The values that every light at one pixel shares, computed once per pixel.
 struct SurfaceLobes
@@ -245,18 +245,25 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
     return terms.diffuse + terms.specular;
 }
 
-// Every light of the list whose map is at most lastMap reflected toward V, each dimmed by its shadows as shadowMaps says
-// (docs/plans/environment-maps-per-frame.md, decision 13): a face of map i passes i, and every other view EveryMap. The
-// lights add in the order of the list, so the sum rounds the same way on every run. A normal map can tilt the shading
-// normal toward a light on a surface that itself faces away; that surface is in its own shadow, so every light needs both
-// normals to face it.
-vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
+// Whether a view keeps a light of the list (docs/plans/environment-map.md, decision 20): the main view the lights whose
+// reach touches its frustum, and a face of map i the lights whose map is at most i
+// (docs/plans/environment-maps-per-frame.md, decision 13).
+bool viewKeeps(uint view, GpuLight light)
+{
+    return view == MainView ? light.inMainView != 0u : light.map <= view;
+}
+
+// Every light of the list that the view keeps reflected toward V, each dimmed by its shadows as shadowMaps says: a face
+// of map i passes i, and every other caller MainView. The lights add in the order of the list, so the sum rounds the
+// same way on every run. A normal map can tilt the shading normal toward a light on a surface that itself faces away;
+// that surface is in its own shadow, so every light needs both normals to face it.
+vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     vec3 color = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
-        if (light.map > lastMap)
+        if (!viewKeeps(view, light))
             continue;
         vec3 L;
         float d;
@@ -281,7 +288,7 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps, EveryMap);
+    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps, MainView);
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
@@ -291,12 +298,12 @@ vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec
     return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, shadowMaps, exposure);
 }
 
-// The light that the lights of the maps up to lastMap send from a surface point toward V, plus its emission, in plain
+// The light that the lights that the view keeps send from a surface point toward V, plus its emission, in plain
 // radiance: no ambient light and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
-vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
+vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    return min(directLight(s, lobes, position, V, shadowMaps, lastMap) + emission, vec3(MaxRadiance));
+    return min(directLight(s, lobes, position, V, shadowMaps, view) + emission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
@@ -305,6 +312,8 @@ vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint s
 // gives albedo / (4π) times its irradiance and visibility. The ambient light gives the albedo times the mean radiance of
 // its source: its map's without the stars, or the mean of the sky and the ground color, whose shares average one half. A
 // light's visibility samples its maps with L as the normal, which needs no normal offset and no receiver-plane slope.
+// Only the main view draws puffs, and a puff's center can lie outside its frustum, so the puff takes only the lights that
+// the main view keeps.
 vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 {
     vec3 meanAmbient = environmentMapOn
@@ -314,6 +323,8 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
+        if (!viewKeeps(MainView, light))
+            continue;
         vec3 L;
         float d;
         vec3 incoming = lightIrradiance(light, position, L, d);
