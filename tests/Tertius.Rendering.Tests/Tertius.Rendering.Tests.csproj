@@ -23,7 +23,7 @@
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <ReferenceShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag" />
+    <ReferenceShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag;$(EngineShaders)/ambient_scatter.frag" />
     <ReferenceShaderInclude Include="$(EngineShaders)/*.glsl" />
   </ItemGroup>
 

@@ -551,7 +551,12 @@ public sealed class LocalShadowRenderTests
             var pane = new Vector3(-0.25f, -1.8f, -6.6f);
             var puff = new Vector3(0.25f, -1.8f, -6.6f);
             MaterialId glass = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.8f), Roughness: 0.5f, Reflectance: 0)
+                new(
+                    BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.8f),
+                    Roughness: 0.5f,
+                    Reflectance: 0,
+                    Alpha: new GlassAlpha()
+                )
             );
             RenderSnapshot Scene(bool withBox) =>
                 GlassAndPuffUnderASpot(kit: kit, glass: glass, pane: pane, puff: puff, withBox: withBox);
@@ -603,7 +608,6 @@ public sealed class LocalShadowRenderTests
                 material: glass,
                 position: pane,
                 scale: new(0.12f, 1, 0.12f),
-                flags: RenderFlags.Transparent,
                 chainDepth: TestChains.CamerasFrame
             )
         );

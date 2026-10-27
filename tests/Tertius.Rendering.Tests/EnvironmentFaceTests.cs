@@ -562,6 +562,7 @@ public sealed class EnvironmentFaceTests
                 MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.5f), roughness: 0.1f) with
                 {
                     Emissive = new(0, 3, 0),
+                    Alpha = new GlassAlpha(),
                 }
             );
             snapshot.Instances.Add(
@@ -571,7 +572,6 @@ public sealed class EnvironmentFaceTests
                     center: new(5, 0, 0),
                     normal: -Vector3.UnitX,
                     halfSize: 3,
-                    flags: RenderFlags.Transparent,
                     chainDepth: TestChains.CamerasFrame
                 )
             );

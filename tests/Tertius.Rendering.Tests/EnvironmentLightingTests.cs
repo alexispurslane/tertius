@@ -41,7 +41,9 @@ public sealed class EnvironmentLightingTests
     }
 
     private static MaterialId Metal(VulkanRenderer renderer, float roughness) =>
-        renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: roughness, Metallic: 1));
+        renderer.CreateMaterial(
+            new(BaseColor: Vector4.One, Roughness: roughness, Model: new StandardShading(Metallic: 1))
+        );
 
     private static MaterialId Matte(VulkanRenderer renderer) =>
         renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 1));
@@ -306,7 +308,12 @@ public sealed class EnvironmentLightingTests
                 // The pane passes 0.8 of what lies behind it and blends its own light by 0.2, so the square is bright.
                 AddRedSquareBehind(renderer, snapshot, radiance: 40);
                 MaterialId glass = renderer.CreateMaterial(
-                    new(BaseColor: new(x: 1, y: 1, z: 1, w: 0.2f), Roughness: 0, Reflectance: 0.5f)
+                    new(
+                        BaseColor: new(x: 1, y: 1, z: 1, w: 0.2f),
+                        Roughness: 0,
+                        Reflectance: 0.5f,
+                        Alpha: new GlassAlpha()
+                    )
                 );
                 snapshot.Instances.Add(
                     Gpu.Instance(
@@ -315,7 +322,6 @@ public sealed class EnvironmentLightingTests
                         position: new(0, 0, -3),
                         scale: Vector3.One,
                         rotation: FacingPlusZ,
-                        flags: RenderFlags.Transparent,
                         chainDepth: TestChains.CamerasFrame
                     )
                 );

@@ -161,6 +161,7 @@ public sealed class PuffRenderTests
             MaterialDesc.Color(new(x: 0.6f, y: 0.7f, z: 0.8f, w: 0.2f), roughness: 0.65f) with
             {
                 Reflectance = 0f,
+                Alpha = new GlassAlpha(),
             }
         );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.6f, 0.8f), starIrradiance: 0.6f);
@@ -179,7 +180,6 @@ public sealed class PuffRenderTests
                 material: glass,
                 position: new(-3.5f, 0.5f, -8),
                 scale: new(7, 5, 0.05f),
-                flags: RenderFlags.Transparent,
                 chainDepth: TestChains.CamerasFrame
             )
         );

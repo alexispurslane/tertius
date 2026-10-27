@@ -47,7 +47,7 @@ public sealed class FarShadowTests
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
-                materialCount: 8,
+                materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
                 scene: scene

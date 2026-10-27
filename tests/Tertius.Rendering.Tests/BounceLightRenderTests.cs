@@ -459,7 +459,11 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 snapshot: snapshot,
                 box: UnitBox(renderer),
                 material: renderer.CreateMaterial(
-                    new(BaseColor: new(x: 1, y: 1, z: 1, w: 1), Roughness: 0.2f, Metallic: 1)
+                    new(
+                        BaseColor: new(x: 1, y: 1, z: 1, w: 1),
+                        Roughness: 0.2f,
+                        Model: new StandardShading(Metallic: 1)
+                    )
                 ),
                 center: new(0, FloorHeight - 0.5f, -10),
                 size: new(40, 1, 40)

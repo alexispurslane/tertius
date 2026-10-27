@@ -165,7 +165,7 @@ public static partial class DemoScenes
                                 new(
                                     BaseColor: row.BaseColor,
                                     Roughness: PbrRoughnesses[i],
-                                    Metallic: row.Metallic,
+                                    Model: new StandardShading(Metallic: row.Metallic),
                                     Reflectance: 0.5f
                                 )
                             ),

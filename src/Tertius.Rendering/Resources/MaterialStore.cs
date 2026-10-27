@@ -5,6 +5,12 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
+/// What the batcher needs of a material slot: how its alpha draws, and whether the passes that shade draw its back faces
+/// (docs/plans/skin-and-hair.md, "Both sides of a hair card").
+/// </summary>
+internal readonly record struct MaterialInfo(AlphaMode Alpha, bool TwoSided);
+
+/// <summary>
 /// All materials in one device-local storage buffer. Slot <see cref="DefaultSlot"/> holds the default material
 /// (a white non-metal of roughness 0.5 and reflectance 0.5, the default textures and no normal map) that
 /// <see cref="MaterialId.None"/> and ids this renderer did not hand out resolve to. Material n from <see cref="VulkanRenderer.CreateMaterial"/> lives in slot
@@ -23,6 +29,9 @@ internal sealed unsafe class MaterialStore : IDisposable
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
+
+    // One per slot on the GPU, written with the slot's row from one MaterialDesc, so the two never disagree.
+    private readonly List<MaterialInfo> infos = [];
     private int capacity;
 
     public MaterialStore(VulkanDevice device, DeviceAllocator allocator)
@@ -40,6 +49,9 @@ internal sealed unsafe class MaterialStore : IDisposable
 
     /// <summary>Slots on the GPU, the default material included.</summary>
     public int Count { get; private set; }
+
+    /// <summary>The CPU's facts of each slot on the GPU, the default material's first.</summary>
+    public ReadOnlySpan<MaterialInfo> Infos => CollectionsMarshal.AsSpan(infos);
 
     /// <summary>Materials from <see cref="VulkanRenderer.CreateMaterial"/> on the GPU.</summary>
     public int UserCount => Math.Max(Count - BuiltInCount, 0);
@@ -66,7 +78,7 @@ internal sealed unsafe class MaterialStore : IDisposable
             // The colors and the factors reach the shaders in their ranges (ShaderInput), with a NaN as 0.
             BaseColor = ShaderInput.Fraction(desc.BaseColor),
             Emissive = ShaderInput.Radiance(desc.Emissive),
-            Metallic = ShaderInput.Fraction(desc.Metallic),
+            Metallic = ShaderInput.Fraction(MetallicOf(desc.Model)),
             Roughness = ShaderInput.Fraction(desc.Roughness),
             Reflectance = ShaderInput.Fraction(desc.Reflectance),
             BaseColorMap = TextureStore.Resolve(desc.BaseColorMap, TextureStore.White),
@@ -75,6 +87,28 @@ internal sealed unsafe class MaterialStore : IDisposable
                 desc.MetallicRoughnessMap,
                 TextureStore.DefaultMetallicRoughness
             ),
+            Shading = ShadingCode.Word(desc.Model),
+            AlphaCutoff = desc.Alpha.Cutoff ?? 0,
+        };
+
+    /// <summary>The metallic of a standard model, and 0 for skin and hair, which have none (docs/plans/skin-and-hair.md, decision 6).</summary>
+    private static float MetallicOf(ShadingModel model) =>
+        model switch
+        {
+            StandardShading(var metallic) => metallic,
+            SkinShading or HairShading => 0,
+        };
+
+    /// <summary>
+    /// Whether the passes that shade draw both sides of a surface of <paramref name="model"/>: a hair card is a sheet of
+    /// strands with no back, and every other surface is solid, so its back faces are hidden (docs/plans/skin-and-hair.md,
+    /// "Both sides of a hair card").
+    /// </summary>
+    internal static bool DrawsBothSides(ShadingModel model) =>
+        model switch
+        {
+            HairShading => true,
+            StandardShading or SkinShading => false,
         };
 
     /// <summary>Records the upload of queued materials, creating the default on the first call.</summary>
@@ -123,13 +157,13 @@ internal sealed unsafe class MaterialStore : IDisposable
         Span<GpuMaterial> staged = MemoryMarshal.Cast<byte, GpuMaterial>(stage.Bytes);
         int cursor = 0;
         if (Count == 0)
-            staged[cursor++] = ToGpu(new(BaseColor: Vector4.One, Roughness: 0.5f));
+            Stage(staged, ref cursor, new(BaseColor: Vector4.One, Roughness: 0.5f));
         foreach ((MaterialId id, MaterialDesc desc) in pending)
         {
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
             // slot. If that broke, an instance would draw with another material.
             Contract.Assert(Slot(id) == (uint)(first + cursor));
-            staged[cursor++] = ToGpu(desc);
+            Stage(staged, ref cursor, desc);
         }
 
         barriers.Buffer(Buffer, BufferUse.TransferDestination);
@@ -143,6 +177,14 @@ internal sealed unsafe class MaterialStore : IDisposable
             pRegions: &region
         );
         Count += added;
+        Contract.Assert(infos.Count == Count);
+    }
+
+    /// <summary>Writes the GPU row of <paramref name="desc"/> at <paramref name="cursor"/> and its slot's info next.</summary>
+    private void Stage(Span<GpuMaterial> staged, ref int cursor, MaterialDesc desc)
+    {
+        staged[cursor++] = ToGpu(desc);
+        infos.Add(new(Alpha: desc.Alpha, TwoSided: DrawsBothSides(desc.Model)));
     }
 
     private GpuBuffer Create(int materials) =>

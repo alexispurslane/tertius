@@ -39,6 +39,9 @@ namespace Tertius.Rendering;
 /// target.</item>
 /// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
 /// the ambient light with the estimate target applied, capped.</item>
+/// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
+/// skin pixels, which the direct and ambient passes write into the scatter image, summed along the rows and then the
+/// columns, and the difference added to the lit image at skin pixels.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
 /// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
@@ -95,6 +98,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
+
+    /// <summary>The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter.</summary>
+    private readonly ScatterImages? scatterImages;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureResources exposure;
@@ -151,8 +157,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets = CreateTargets(
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,
-                reflections: options.Reflections
+                reflections: options.Reflections,
+                subsurface: options.Subsurface
             );
+            // Before every pass, whose shading constants say whether the scatter is on.
+            scatterImages = CreateScatterImages(options.Subsurface);
             exposure = CreateExposure(options.FramesInFlight);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
@@ -164,6 +173,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
+            AddScatterPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
             context = CreateContext();
@@ -207,6 +217,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
 
+    /// <summary>
+    /// The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter. A test hook.
+    /// </summary>
+    internal ScatterImages? ScatterImages => scatterImages;
+
     internal SceneBatcher Batcher { get; }
 
     internal FrameGraph Graph { get; } = new();
@@ -218,6 +233,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>Materials from <see cref="CreateMaterial"/> on the GPU, not counting the default material.</summary>
     internal int MaterialCount => materials.UserCount;
+
+    /// <summary>The CPU's facts of each material slot on the GPU, the default material's first.</summary>
+    internal ReadOnlySpan<MaterialInfo> MaterialInfos => materials.Infos;
 
     internal int MeshCount => geometry.Meshes.Length;
     internal int PendingReleases => releases.Count;
@@ -353,7 +371,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 ? ReflectionTargets.ScreenProblem(options.Width, options.Height)
                 : null
         )
-        ?? options.EnvironmentMap.Problem;
+        ?? options.EnvironmentMap.Problem
+        ?? options.Subsurface.Problem;
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -388,9 +407,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Queues a material. Base and emissive colors are linear. A texture slot holding <see cref="TextureId.None"/>, its
     /// default, uses the built-in default for that slot: a white base color map, a flat normal map, and a
-    /// metallic-roughness map that keeps <see cref="MaterialDesc.Metallic"/> and <see cref="MaterialDesc.Roughness"/> as they are.
+    /// metallic-roughness map that keeps the metallic of <see cref="StandardShading"/> and <see cref="MaterialDesc.Roughness"/>
+    /// as they are.
     /// </summary>
     /// <exception cref="ArgumentException">A texture slot holds an id that this renderer did not create.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The cutoff of a <see cref="CutoutAlpha"/> or a <see cref="FringedAlpha"/> is not above 0 and at most 1.
+    /// </exception>
     public MaterialId CreateMaterial(MaterialDesc material)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -619,7 +642,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
-            materialCount: materials.Count,
+            materials: materials.Infos,
             environment: environment,
             region: region,
             scene: LastScene
@@ -748,6 +771,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             BrdfTableImages.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            scatterImages?.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
@@ -825,7 +849,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Resizes the render targets and the occlusion images, whose sets point at the targets, to
+    /// Resizes the render targets, and the occlusion and the scatter images, whose sets point at the targets, to
     /// <paramref name="extent"/>. The device must be idle. Internal for the tests of a size that no output takes.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
@@ -835,6 +859,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return;
         targets.Resize(extent);
         occlusionImages?.Resize(targets);
+        scatterImages?.Resize(targets);
     }
 
     /// <summary>
@@ -920,6 +945,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadNormals() => ReadLevel(image: targets.Normal, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The G-buffer's shading target of the last frame, RGBA per pixel, row by row from the top: a hair pixel's strand
+    /// code in RG, 0 in B, the shading model's code in A (<see cref="ShadingCode"/>, <see cref="StrandCode"/>). A test
+    /// hook, like <see cref="ReadDistance"/>.
+    /// </summary>
+    internal byte[] ReadShading() =>
+        [.. ReadLevel(image: targets.Shading, layer: 0, mip: 0).Values.Select(value => (byte)value)];
+
+    /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -930,6 +963,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// sky. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The scatter image of the last frame, RGBA per pixel, row by row from the top: D, pre-exposed, and 1 in a at a skin
+    /// pixel, 0 at every other pixel. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The scatter is off.</exception>
+    internal float[] ReadScatter() =>
+        ReadLevel(
+            image: (scatterImages ?? throw new InvalidOperationException("The skin scatter is off.")).Scatter,
+            layer: 0,
+            mip: 0
+        ).Values;
 
     /// <summary>
     /// Occlusion term A of the last frame at half resolution, RGBA per texel, row by row from the top: rgb the bounce,
@@ -1216,11 +1261,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         /// <summary>A 16-bit signed normalized integer, for −1 to 1.</summary>
         Snorm16,
+
+        /// <summary>An 8-bit unsigned integer, read as its value.</summary>
+        Uint8,
     }
 
     /// <summary>
-    /// Copies one mip of one layer of a color image of floats or of 16-bit signed normalized integers to the CPU, as
-    /// floats, channel by channel, row by row from the top, with the mip's size.
+    /// Copies one mip of one layer of a color image of floats, of 16-bit signed normalized integers or of 8-bit unsigned
+    /// integers to the CPU, as floats, channel by channel, row by row from the top, with the mip's size.
     /// </summary>
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
@@ -1232,6 +1280,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R32G32Sfloat => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             Format.R16G16SNorm => (2, StoredChannel.Snorm16),
+            Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1242,7 +1291,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: (ulong)(count * (stored is StoredChannel.Float ? 4 : 2)),
+            size: (ulong)(
+                count
+                * stored switch
+                {
+                    StoredChannel.Float => 4,
+                    StoredChannel.Half or StoredChannel.Snorm16 => 2,
+                    StoredChannel.Uint8 => 1,
+                }
+            ),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: $"{image.Name} readback"
@@ -1259,6 +1316,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
 
+        return (ValuesOf(buffer: buffer, stored: stored, count: count), (int)extent.Width, (int)extent.Height);
+    }
+
+    /// <summary>The <paramref name="count"/> channels that <paramref name="buffer"/> holds, each stored as <paramref name="stored"/> says, as floats.</summary>
+    private static float[] ValuesOf(GpuBuffer buffer, StoredChannel stored, int count)
+    {
         float[] values = new float[count];
         switch (stored)
         {
@@ -1276,11 +1339,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 for (int i = 0; i < count; i++)
                     values[i] = Math.Max(integers[i] / 32767f, -1f);
                 break;
+            case StoredChannel.Uint8:
+                var bytes = new ReadOnlySpan<byte>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = bytes[i];
+                break;
             default:
                 throw new UnreachableException();
         }
 
-        return (values, (int)extent.Width, (int)extent.Height);
+        return values;
     }
 
     /// <summary>
@@ -1458,7 +1526,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
     /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
     /// </summary>
-    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing, ReflectionSetting reflections)
+    private RenderTargets CreateTargets(
+        int glowLevels,
+        AntiAliasing antiAliasing,
+        ReflectionSetting reflections,
+        SubsurfaceSetting subsurface
+    )
     {
         SmaaTables? smaaTables = antiAliasing switch
         {
@@ -1478,9 +1551,48 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 {
                     NoReflections => null,
                     ConeTracedReflections on => on.Resolution,
-                }
+                },
+                subsurface: subsurface is SeparableSubsurface
             )
         );
+    }
+
+    /// <summary>The scatter images that <paramref name="setting"/> asks for, which the renderer owns, or null for none.</summary>
+    private ScatterImages? CreateScatterImages(SubsurfaceSetting setting) =>
+        setting switch
+        {
+            SeparableSubsurface separable => Own(
+                new ScatterImages(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    targets: targets,
+                    setting: separable
+                )
+            ),
+            NoSubsurface => null,
+        };
+
+    /// <summary>
+    /// Adds the scatter's two passes under <see cref="SeparableSubsurface"/>: the rows, then the columns, which read the row
+    /// image that the rows pass writes.
+    /// </summary>
+    private void AddScatterPasses(ShaderLibrary shaders)
+    {
+        if (scatterImages is not { } images)
+            return;
+        foreach (ScatterAxis axis in (ScatterAxis[])[ScatterAxis.Rows, ScatterAxis.Columns])
+            Graph.Add(
+                FrameGraph.Stage.SkinScatter,
+                new SkinScatterPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    images: images,
+                    constants: ShadingConstants,
+                    axis: axis
+                )
+            );
     }
 
     /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
@@ -1787,20 +1899,41 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
+    /// Adds the direct pass and the ambient pass, which write the scatter image too under
+    /// <see cref="SeparableSubsurface"/>.
+    /// </summary>
+    private void AddLightingPasses(ShaderLibrary shaders)
+    {
+        Graph.Add(
+            FrameGraph.Stage.DirectLight,
+            new DirectLightPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                constants: ShadingConstants,
+                scatter: scatterImages
+            )
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientLight,
+            new AmbientLightPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                constants: ShadingConstants,
+                scatter: scatterImages
+            )
+        );
+    }
+
+    /// <summary>
     /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
     /// on.
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
-        Graph.Add(
-            FrameGraph.Stage.DirectLight,
-            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
-        );
-        Graph.Add(
-            FrameGraph.Stage.AmbientLight,
-            new AmbientLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
-        );
+        AddLightingPasses(shaders);
         Graph.Add(
             FrameGraph.Stage.Transparent,
             new TransparentPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)

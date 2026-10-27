@@ -256,7 +256,7 @@ public sealed class StressTests(ITestOutputHelper output)
                 width: width,
                 height: height,
                 meshes: meshes,
-                materialCount: 8,
+                materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
                 scene: scene
@@ -269,7 +269,7 @@ public sealed class StressTests(ITestOutputHelper output)
                 width: width,
                 height: height,
                 meshes: meshes,
-                materialCount: 8,
+                materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
                 scene: scene

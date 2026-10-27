@@ -77,6 +77,9 @@ public static partial class ScriptCommand
         /// <summary>True to turn the renderer's environment map off, false to keep its default.</summary>
         public bool EnvironmentMapOff { get; init; }
 
+        /// <summary>True to turn the renderer's skin scatter off, false to keep its default.</summary>
+        public bool SubsurfaceOff { get; init; }
+
         /// <summary>Replaces the defaults of <paramref name="options"/> with these overrides.</summary>
         public void ApplyTo(RendererOptions options)
         {
@@ -96,6 +99,8 @@ public static partial class ScriptCommand
                 options.CascadedLights = cascadedLights;
             if (EnvironmentMapOff)
                 options.EnvironmentMap = new NoEnvironmentMap();
+            if (SubsurfaceOff)
+                options.Subsurface = new NoSubsurface();
         }
     }
 }

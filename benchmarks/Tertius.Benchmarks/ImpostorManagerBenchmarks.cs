@@ -20,7 +20,9 @@ public class ImpostorManagerBenchmarks
 {
     private const int Width = 1920;
     private const int Height = 1080;
-    private const int MaterialCount = 8;
+
+    /// <summary>The default material's slot and seven more, all opaque.</summary>
+    private static readonly MaterialInfo[] Materials = new MaterialInfo[8];
 
     private readonly SceneBatcher batcher = new(
         exposure: AutoExposure.Default,
@@ -57,7 +59,7 @@ public class ImpostorManagerBenchmarks
             width: Width,
             height: Height,
             meshes: SceneBatcherBenchmarks.Meshes,
-            materialCount: MaterialCount,
+            materials: Materials,
             environment: new(new WithoutMap()),
             region: DeformRegion.None,
             scene: scene

@@ -120,6 +120,7 @@ internal sealed class TestScene
             MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), roughness: 0.18f) with
             {
                 Reflectance = 1f,
+                Alpha = new GlassAlpha(),
             }
         );
         Station = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), roughness: 0.55f));
@@ -215,7 +216,6 @@ internal sealed class TestScene
                 material: Glass,
                 position: GreenGlass,
                 scale: new(0.5f),
-                flags: RenderFlags.Transparent,
                 chainDepth: TestChains.CamerasFrame
             )
         );

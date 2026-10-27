@@ -70,7 +70,8 @@ float beyondShadowMaps(vec3 position)
 }
 
 // The fraction of a light that its cascade set lets through at a world position. geometricNormal is the interpolated
-// vertex normal; NdotL is its cosine with the direction toward the light and must be positive.
+// vertex normal; NdotL is its cosine with the direction toward the light and must be at least 0, with 0 for a hair card
+// edge-on to the light.
 float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL)
 {
     uint count = frame.counts.z;
@@ -156,7 +157,8 @@ float beyondShadowMapsHolding(uint set, vec3 position)
 
 // The fraction of a light that its cascade set lets through at a world position, from the finest cascade whose box holds
 // it. In the coarsest box's outer tenth the map shadow fades out by the weight of beyondShadowMapsHolding. NdotL is the
-// cosine of geometricNormal with the direction toward the light and must be positive.
+// cosine of geometricNormal with the direction toward the light and must be at least 0, with 0 for a hair card edge-on to
+// the light.
 float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float NdotL)
 {
     uint count = frame.counts.z;
@@ -232,7 +234,8 @@ const float TileNormalOffsetTexels = 1.0;
 // the light to the position. The 4 × 4 hardware-PCF taps of the cascades, with the normal offset at the receiver's
 // distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is not linear across
 // it. Taps that leave the tile clamp to its edge. L is the unit direction toward the light and d its distance;
-// geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be positive.
+// geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at least 0, with 0 for a
+// hair card edge-on to the light.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
 {
     // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).

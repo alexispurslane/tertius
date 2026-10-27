@@ -14,14 +14,17 @@ namespace Tertius.Rendering;
 /// emission and no ambient light.</para>
 /// <para>A face looks along its map's axes (docs/plans/environment-maps-per-frame.md, decision 9), and keeps the lights of
 /// its map and the maps outside it (decision 13).</para>
-/// <para>A face is a mirror image of a right-handed camera, so the surface pipeline's front faces are clockwise.</para>
+/// <para>A face is a mirror image of a right-handed camera, so the surface pipelines' front faces are clockwise. Each range
+/// draws its solid run, then its cutout run, whose pipeline discards a texel below its material's cutoff: a face has no
+/// transparent pass, so it sees the core of a fringed material alone (docs/plans/skin-and-hair.md).</para>
 /// </remarks>
 internal sealed unsafe class EnvironmentFacePass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly EnvironmentMap map;
     private readonly Pipeline sky;
-    private readonly Pipeline surfaces;
+    private readonly SidedPipeline surfaces;
+    private readonly SidedPipeline cutoutSurfaces;
 
     public EnvironmentFacePass(
         VulkanDevice device,
@@ -38,30 +41,51 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = "environment_sky.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [EnvironmentMap.RadianceFormat],
+            ColorAttachments = [new(EnvironmentMap.RadianceFormat)],
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
+        var desc = new GraphicsPipelineDesc
+        {
+            Name = "environment faces",
+            VertexShader = "mesh.vert",
+            FragmentShader = "environment_face.frag",
+            Layout = layouts.SceneLayout,
+            ColorAttachments = [new(EnvironmentMap.RadianceFormat)],
+            DepthFormat = EnvironmentMap.FaceDepthFormat,
+            VertexInput = VertexInput.Mesh,
+            DepthTest = true,
+            DepthWrite = true,
+            DepthCompare = CompareOp.Greater,
+            FrontFace = FrontFace.Clockwise,
+        };
         try
         {
-            surfaces = new GraphicsPipelineDesc
-            {
-                Name = "environment faces",
-                VertexShader = "mesh.vert",
-                FragmentShader = "environment_face.frag",
-                Layout = layouts.SceneLayout,
-                ColorFormats = [EnvironmentMap.RadianceFormat],
-                DepthFormat = EnvironmentMap.FaceDepthFormat,
-                VertexInput = VertexInput.Mesh,
-                DepthTest = true,
-                DepthWrite = true,
-                DepthCompare = CompareOp.Greater,
-                FrontFace = FrontFace.Clockwise,
-            }.Create(device, shaders);
+            surfaces = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         }
         catch
         {
             device.Vk.DestroyPipeline(device.Device, sky, null);
+            throw;
+        }
+
+        try
+        {
+            // A face reads no ambient light, so its pipelines keep every other constant at its default, as the solid one does.
+            cutoutSurfaces = SidedPipeline.Create(
+                device: device,
+                shaders: shaders,
+                desc: desc with
+                {
+                    Name = "environment faces cutout",
+                    Constants = new ShaderConstants(EnvironmentMap: false) { CutoutAlpha = true },
+                }
+            );
+        }
+        catch
+        {
+            device.Vk.DestroyPipeline(device.Device, sky, null);
+            surfaces.Destroy(device);
             throw;
         }
     }
@@ -97,7 +121,8 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, sky, null);
-        device.Vk.DestroyPipeline(device.Device, surfaces, null);
+        surfaces.Destroy(device);
+        cutoutSurfaces.Destroy(device);
     }
 
     /// <summary>
@@ -128,18 +153,17 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
                 if (bindState)
                     BindState(context);
                 DrawSky(context, draw.Basis);
-                vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, surfaces);
             }
 
-            CommandRange commands = draw[range];
-            if (commands.Count > 0)
+            SidedRuns runs = draw[range];
+            if (runs.Count > 0)
             {
                 GeometryPass.PushDraw(
                     context: context,
                     viewProjection: CubeFaces.ViewProjection(draw.Basis, range),
                     map: draw.Map
                 );
-                GeometryPass.DrawIndirect(context, commands);
+                GeometryPass.DrawRuns(context: context, runs: runs, solid: surfaces, cutout: cutoutSurfaces);
             }
 
             vk.CmdEndRendering(commandBuffer);

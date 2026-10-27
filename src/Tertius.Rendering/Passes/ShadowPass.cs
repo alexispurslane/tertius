@@ -14,10 +14,12 @@ namespace Tertius.Rendering;
 /// culled against every cascade box of every set, extruded toward that set's light (<see cref="CascadeMask"/>), and gets
 /// one GPU instance per cascade that it touches. The
 /// casters are put in mesh order with a counting sort, then each cascade's instances are appended to the frame's instance
-/// buffer in that order, with one indirect command per run of one mesh. All of this is linear in the number of casters,
-/// sets and meshes, and allocates nothing in a steady state.</para>
-/// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with one depth-only
-/// vkCmdDrawIndexedIndirect, from the same global vertex, index and instance buffers as the G-buffer pass. It clears the
+/// buffer in that order, the solid casters' run first and the cutout casters' run after it, with one indirect command per
+/// stretch of one mesh. All of this is linear in the number of casters, sets and meshes, and allocates nothing in a
+/// steady state.</para>
+/// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with a depth-only
+/// vkCmdDrawIndexedIndirect per run, from the same global vertex, index and instance buffers as the G-buffer pass. The
+/// cutout run's pipeline discards a texel below its material's cutoff (docs/plans/skin-and-hair.md). It clears the
 /// layers of a set without casters too, because the shading passes sample every set that a light names. Depth clamping
 /// pancakes casters between a cascade box and its light onto the box's light side, and the rasterizer adds a slope-scaled
 /// depth bias. Faces are not culled, so single-sided meshes such as planes cast shadows too.</para>
@@ -41,6 +43,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     private readonly VulkanDevice device;
     private readonly ShadowMap map;
     private readonly Pipeline pipeline;
+    private readonly Pipeline cutoutPipeline;
     private Caster[] casters = new Caster[64];
     private int[] order = new int[64];
     private int[] meshStarts = new int[64];
@@ -49,23 +52,59 @@ internal sealed unsafe class ShadowPass : RenderPass
     {
         this.device = device;
         this.map = map;
-        pipeline = new GraphicsPipelineDesc
+        (pipeline, cutoutPipeline) = CreatePipelines(
+            device: device,
+            shaders: shaders,
+            desc: new()
+            {
+                Name = "shadow cascades",
+                VertexShader = "shadow.vert",
+                FragmentShader = null,
+                Layout = layouts.SceneLayout,
+                ColorAttachments = [],
+                DepthFormat = map.Format,
+                VertexInput = VertexInput.PositionOnly,
+                DepthTest = true,
+                DepthWrite = true,
+                DepthCompare = CompareOp.Greater,
+                DepthClamp = true,
+                CullMode = CullModeFlags.None,
+                // Reversed depth: a negative bias moves casters away from the light.
+                DepthBiasSlope = -SlopeBias,
+            }
+        );
+    }
+
+    /// <summary>
+    /// The solid pipeline of a shadow image, <paramref name="desc"/>, and its cutout pipeline: the same, with the
+    /// texture coordinate and a fragment stage that discards a texel below the material's cutoff. The cascades and the
+    /// local shadow atlas both use it. The caller destroys both.
+    /// </summary>
+    internal static (Pipeline Solid, Pipeline Cutout) CreatePipelines(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        GraphicsPipelineDesc desc
+    )
+    {
+        Pipeline solid = desc.Create(device, shaders);
+        try
         {
-            Name = "shadow cascades",
-            VertexShader = "shadow.vert",
-            FragmentShader = null,
-            Layout = layouts.SceneLayout,
-            ColorFormats = [],
-            DepthFormat = map.Format,
-            VertexInput = VertexInput.PositionOnly,
-            DepthTest = true,
-            DepthWrite = true,
-            DepthCompare = CompareOp.Greater,
-            DepthClamp = true,
-            CullMode = CullModeFlags.None,
-            // Reversed depth: a negative bias moves casters away from the light.
-            DepthBiasSlope = -SlopeBias,
-        }.Create(device, shaders);
+            Pipeline cutout = (
+                desc with
+                {
+                    Name = desc.Name + " cutout",
+                    VertexShader = "shadow_cutout.vert",
+                    FragmentShader = "shadow_cutout.frag",
+                    VertexInput = VertexInput.PositionAndTexCoord,
+                }
+            ).Create(device, shaders);
+            return (solid, cutout);
+        }
+        catch
+        {
+            device.Vk.DestroyPipeline(device.Device, solid, null);
+            throw;
+        }
     }
 
     public override string Name => "shadow maps";
@@ -124,17 +163,11 @@ internal sealed unsafe class ShadowPass : RenderPass
                 continue;
             if (casterCount == casters.Length)
                 Array.Resize(ref casters, casters.Length * 2);
-            // The depth-only pass reads no material and no map.
             casters[casterCount++] = new(
-                GpuInstance.From(
-                    position: caster.Position,
-                    rotation: caster.Rotation,
-                    scale: caster.Scale,
-                    material: MaterialStore.DefaultSlot,
-                    map: 0
-                ),
-                caster.Mesh,
-                mask
+                Instance: CasterInstance(caster),
+                Mesh: caster.Mesh,
+                Cutout: OpaqueRuns.InCutoutRun(caster.Alpha),
+                Mask: mask
             );
             instanceCount += BitOperations.PopCount((uint)mask);
         }
@@ -161,31 +194,73 @@ internal sealed unsafe class ShadowPass : RenderPass
             order[starts[casters[i].Mesh]++] = i;
     }
 
-    /// <summary>For each cascade of each set, appends its casters' instances in mesh order and one indirect command per mesh.</summary>
+    /// <summary>
+    /// The GPU instance of a caster in a shadow image: its transform and its material, whose cutoff the cutout pipeline
+    /// reads. The shadow images read no map.
+    /// </summary>
+    internal static GpuInstance CasterInstance(in PreparedInstance caster) =>
+        GpuInstance.From(
+            position: caster.Position,
+            rotation: caster.Rotation,
+            scale: caster.Scale,
+            material: caster.Material,
+            map: 0
+        );
+
+    /// <summary>
+    /// For each cascade of each set, appends its solid casters' instances in mesh order, then its cutout casters', with
+    /// one indirect command per stretch of one mesh in each run.
+    /// </summary>
     private void Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, int casterCount)
     {
-        ReadOnlySpan<int> sorted = order.AsSpan(0, casterCount);
         for (int layer = 0; layer < scene.CascadeSetCount * ShadowCascades.Count; layer++)
         {
-            int bit = 1 << layer,
-                currentMesh = -1,
-                rangeStart = scene.CommandCount;
-            foreach (int index in sorted)
-            {
-                ref readonly Caster caster = ref casters[index];
-                if ((caster.Mask & bit) == 0)
-                    continue;
-                AppendCaster(
-                    scene: scene,
-                    meshes: meshes,
-                    instance: caster.Instance,
-                    mesh: caster.Mesh,
-                    currentMesh: ref currentMesh
-                );
-            }
-
-            scene.ShadowCommands[layer] = new(rangeStart, scene.CommandCount - rangeStart);
+            // The solid run first: the order in which every opaque pass draws (docs/plans/skin-and-hair.md, decision 25).
+            CommandRange solid = EmitRun(
+                scene: scene,
+                meshes: meshes,
+                casterCount: casterCount,
+                layer: layer,
+                cutout: false
+            );
+            CommandRange cutout = EmitRun(
+                scene: scene,
+                meshes: meshes,
+                casterCount: casterCount,
+                layer: layer,
+                cutout: true
+            );
+            scene.ShadowCommands[layer] = new(Solid: solid, Cutout: cutout);
         }
+    }
+
+    /// <summary>Appends the instances of the casters of one run that touch <paramref name="layer"/>, in mesh order, and their commands.</summary>
+    private CommandRange EmitRun(
+        PreparedScene scene,
+        ReadOnlySpan<MeshInfo> meshes,
+        int casterCount,
+        int layer,
+        bool cutout
+    )
+    {
+        int bit = 1 << layer,
+            currentMesh = -1,
+            first = scene.CommandCount;
+        foreach (int index in order.AsSpan(0, casterCount))
+        {
+            ref readonly Caster caster = ref casters[index];
+            if ((caster.Mask & bit) == 0 || caster.Cutout != cutout)
+                continue;
+            AppendCaster(
+                scene: scene,
+                meshes: meshes,
+                instance: caster.Instance,
+                mesh: caster.Mesh,
+                currentMesh: ref currentMesh
+            );
+        }
+
+        return new(first, scene.CommandCount - first);
     }
 
     /// <summary>
@@ -276,8 +351,7 @@ internal sealed unsafe class ShadowPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
-        barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
-        barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+        BarrierCasterInputs(context);
         barriers.Image(map.Image, ImageUse.DepthAttachment, discard: true);
         barriers.Flush(vk, commandBuffer);
 
@@ -304,15 +378,15 @@ internal sealed unsafe class ShadowPass : RenderPass
                 PDepthAttachment = &depth,
             };
             vk.CmdBeginRendering(commandBuffer, &rendering);
-            // Every layer shares the pipeline, the frame set, the viewport and the geometry, which stay bound.
+            // Every layer shares the sets, the viewport and the geometry, which stay bound.
             if (layer == 0)
-                BindDepthOnly(context: context, pipeline: pipeline, extent: extent);
+                BindDepthOnly(context: context, extent: extent);
 
-            CommandRange commands = scene.ShadowCommands[layer];
-            if (commands.Count > 0)
+            OpaqueRuns runs = scene.ShadowCommands[layer];
+            if (runs.Count > 0)
             {
                 GeometryPass.PushDraw(context: context, viewProjection: scene.CascadeSets[set][cascade].ViewProjection);
-                GeometryPass.DrawIndirect(context, commands);
+                GeometryPass.DrawRuns(context: context, runs: runs, solid: pipeline, cutout: cutoutPipeline);
             }
 
             vk.CmdEndRendering(commandBuffer);
@@ -320,23 +394,35 @@ internal sealed unsafe class ShadowPass : RenderPass
     }
 
     /// <summary>
-    /// Binds what every layer of a depth-only shadow image shares: <paramref name="pipeline"/>, the frame set, a viewport
-    /// of <paramref name="extent"/> and the geometry. The cascades and the local shadow atlas both use it.
+    /// Adds the barriers for what the casters of a depth-only shadow pass read: the geometry, and the materials, whose
+    /// cutoffs the cutout casters' fragment stage reads. The cascades and the local shadow atlas both use it.
     /// </summary>
-    internal static void BindDepthOnly(FrameContext context, Pipeline pipeline, Extent2D extent)
+    internal static void BarrierCasterInputs(FrameContext context)
+    {
+        BarrierBatch barriers = context.Barriers;
+        barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
+        barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+        barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
+    }
+
+    /// <summary>
+    /// Binds what every layer of a depth-only shadow image shares: the frame set and the textures, which the cutout
+    /// pipeline samples, a viewport of <paramref name="extent"/> and the geometry. The cascades and the local shadow atlas
+    /// both use it, and their runs bind their pipelines.
+    /// </summary>
+    internal static void BindDepthOnly(FrameContext context, Extent2D extent)
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
-        // Only the frame set: the G-buffer set holds this very image as a sampled descriptor.
-        DescriptorSet frameSet = context.Frame.FrameSet;
+        // Not the G-buffer set: it holds this very image as a sampled descriptor.
+        DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
         vk.CmdBindDescriptorSets(
             commandBuffer: commandBuffer,
             pipelineBindPoint: PipelineBindPoint.Graphics,
             layout: context.Layouts.SceneLayout,
             firstSet: 0,
-            descriptorSetCount: 1,
-            pDescriptorSets: &frameSet,
+            descriptorSetCount: 2,
+            pDescriptorSets: sets,
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
@@ -344,8 +430,15 @@ internal sealed unsafe class ShadowPass : RenderPass
         GeometryPass.BindGeometry(context);
     }
 
-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+    public override void Dispose()
+    {
+        device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        device.Vk.DestroyPipeline(device.Device, cutoutPipeline, null);
+    }
 
-    /// <summary>A selected caster: its GPU instance, its mesh and a bit for each cascade of each set that it touches.</summary>
-    private readonly record struct Caster(GpuInstance Instance, int Mesh, int Mask);
+    /// <summary>
+    /// A selected caster: its GPU instance, its mesh, whether it draws in the cutout run, and a bit for each cascade of each
+    /// set that it touches.
+    /// </summary>
+    private readonly record struct Caster(GpuInstance Instance, int Mesh, bool Cutout, int Mask);
 }

@@ -17,10 +17,10 @@ internal readonly record struct MeshInfo(
 /// <summary>
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
 /// instances, once for every view, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one
-/// indirect command per run of instances that share a depth range and a mesh. It chooses the far lights' shadow slots,
-/// fits their cascade sets, and gives them their far shadows (docs/plans/local-light-shadows.md). The transparent instances
-/// and the puffs sort together back to front, and the batcher cuts that list into the runs of the transparent pass.
-/// Allocates nothing once its arrays have grown to the scene.
+/// indirect command per stretch of instances that share a depth range, an opaque run and a mesh. It chooses the far
+/// lights' shadow slots, fits their cascade sets, and gives them their far shadows (docs/plans/local-light-shadows.md).
+/// The glass instances, the fringes and the puffs sort together back to front, and the batcher cuts that list into the
+/// runs of the transparent pass. Allocates nothing once its arrays have grown to the scene.
 /// </summary>
 /// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
@@ -49,6 +49,27 @@ internal sealed class SceneBatcher(
     private const float SmallestScale = 8.6736174e-19f,
         LargestScale = 1.1529215e18f;
 
+    /// <summary>
+    /// The lowest of the two bits of an opaque draw item's key that name its run, so that the two read as one number:
+    /// twice <see cref="CutoutKeyBit"/>'s plus <see cref="TwoSidedKeyBit"/>'s.
+    /// </summary>
+    private const int RunKeyShift = 30;
+
+    /// <summary>
+    /// The bit of an opaque draw item's key that puts it into its range's cutout runs, below the range's bits and just
+    /// above <see cref="TwoSidedKeyBit"/>.
+    /// </summary>
+    internal const ulong CutoutKeyBit = TwoSidedKeyBit << 1;
+
+    /// <summary>
+    /// The bit of an opaque draw item's key that puts it into its range's two-sided runs, above the mesh's bits, which a
+    /// mesh index below 2³⁰ never reaches: no geometry buffer holds a billion meshes.
+    /// </summary>
+    internal const ulong TwoSidedKeyBit = 1UL << RunKeyShift;
+
+    /// <summary>The bits of an opaque draw item's key that name its run.</summary>
+    private const ulong RunKeyBits = CutoutKeyBit | TwoSidedKeyBit;
+
     private DrawItem[] opaque = new DrawItem[256];
     private readonly OpaqueSorter opaqueSorter = new();
 
@@ -58,7 +79,7 @@ internal sealed class SceneBatcher(
     private DrawItem[] transparent = new DrawItem[64];
 
     // The commands of one face per depth range, indexed by DepthRanges.
-    private readonly CommandRange[] faceRanges = new CommandRange[DepthRanges.Count];
+    private readonly SidedRuns[] faceRanges = new SidedRuns[DepthRanges.Count];
 
     // The puffs that this frame draws, in the order of the snapshot, before the sort puts them into PreparedScene.Puffs.
     private GpuPuff[] collectedPuffs = new GpuPuff[64];
@@ -78,8 +99,8 @@ internal sealed class SceneBatcher(
     /// <param name="width">Output width in pixels.</param>
     /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
-    /// <param name="materialCount">
-    /// Material slots on the GPU, the default included. <see cref="MaterialId.None"/> and ids that are not on the GPU
+    /// <param name="materials">
+    /// The material slots on the GPU, the default's first. <see cref="MaterialId.None"/> and ids that are not on the GPU
     /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
     /// </param>
     /// <param name="environment">
@@ -94,7 +115,7 @@ internal sealed class SceneBatcher(
         int width,
         int height,
         ReadOnlySpan<MeshInfo> meshes,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
         DeformRegion region,
         PreparedScene scene
@@ -123,7 +144,7 @@ internal sealed class SceneBatcher(
 
         // First, because every collector reads the frame meshes and their bounds.
         PoseInstances(snapshot: snapshot, alpha: alpha, meshes: meshes, region: region, scene: scene);
-        PlaceInstances(snapshot: snapshot, alpha: alpha, materialCount: materialCount, scene: scene);
+        PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
         CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
@@ -363,7 +384,12 @@ internal sealed class SceneBatcher(
     /// view copies the visible ones that it does not cull, with their depth, into its visible instances. The faces and the
     /// shadow views select theirs (ARCHITECTURE.md, "One placement per instance").
     /// </summary>
-    private void PlaceInstances(RenderSnapshot snapshot, float alpha, int materialCount, PreparedScene scene)
+    private void PlaceInstances(
+        RenderSnapshot snapshot,
+        float alpha,
+        ReadOnlySpan<MaterialInfo> materials,
+        PreparedScene scene
+    )
     {
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         scene.SubmittedInstances = instances.Length;
@@ -385,7 +411,7 @@ internal sealed class SceneBatcher(
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
-                materialCount: materialCount,
+                materials: materials,
                 maps: scene.MapCount
             );
             bool visible = (instance.Flags & RenderFlags.Visible) != 0;
@@ -426,10 +452,12 @@ internal sealed class SceneBatcher(
         in RenderInstance instance,
         Placement placement,
         float alpha,
-        int materialCount,
+        ReadOnlySpan<MaterialInfo> materials,
         int maps
-    ) =>
-        new()
+    )
+    {
+        uint material = MaterialStore.Resolve(instance.Material, materials.Length);
+        return new()
         {
             Position = placement.Position,
             Rotation = Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
@@ -437,12 +465,38 @@ internal sealed class SceneBatcher(
             Radius = placement.Radius,
             Distance = placement.Position.Length(),
             Mesh = placement.Mesh,
-            Material = MaterialStore.Resolve(instance.Material, materialCount),
+            Material = material,
+            Alpha = materials[(int)material].Alpha,
+            TwoSided = materials[(int)material].TwoSided,
             Flags = instance.Flags,
             EntityIndex = instance.EntityIndex,
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
             Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
+        };
+    }
+
+    /// <summary>
+    /// Whether an instance whose material draws as <paramref name="alpha"/> draws in the transparent pass alone: glass. The
+    /// shadow views still draw glass, from the placed instances that cast shadows (PreparedScene.Placed;
+    /// docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// </summary>
+    private static bool IsGlass(AlphaMode alpha) =>
+        alpha switch
+        {
+            GlassAlpha => true,
+            OpaqueAlpha or CutoutAlpha or FringedAlpha => false,
+        };
+
+    /// <summary>
+    /// Whether an instance whose material draws as <paramref name="alpha"/> draws in the transparent pass: glass, and the
+    /// fringe of a fringed material, whose core also draws in the opaque passes.
+    /// </summary>
+    private static bool InTransparentPass(AlphaMode alpha) =>
+        alpha switch
+        {
+            GlassAlpha or FringedAlpha => true,
+            OpaqueAlpha or CutoutAlpha => false,
         };
 
     /// <summary>
@@ -495,7 +549,7 @@ internal sealed class SceneBatcher(
             )
                 continue;
             int mask = DepthRanges.OpaqueMask(Vector3.Dot(instance.Position, basis.Forward), instance.Radius);
-            AppendOpaque(count: ref opaqueCount, mask: mask, mesh: instance.Mesh, index: i);
+            AppendOpaque(count: ref opaqueCount, mask: mask, instance: in instance, index: i);
         }
 
         opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
@@ -520,9 +574,12 @@ internal sealed class SceneBatcher(
         );
     }
 
-    /// <summary>Whether the maps draw a placed instance: it is visible and opaque.</summary>
+    /// <summary>
+    /// Whether the maps draw a placed instance: it is visible and not glass. A fringed instance draws its core, as in every
+    /// opaque pass (docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// </summary>
     private static bool DrawsInMaps(in PreparedInstance instance) =>
-        (instance.Flags & (RenderFlags.Visible | RenderFlags.Transparent)) == RenderFlags.Visible;
+        (instance.Flags & RenderFlags.Visible) != 0 && !IsGlass(instance.Alpha);
 
     /// <summary>
     /// Keeps each puff that is alive at the render age, interpolated by alpha, as a <see cref="GpuPuff"/>. With its look L,
@@ -595,22 +652,19 @@ internal sealed class SceneBatcher(
             ref PreparedInstance instance = ref visible[i];
             if ((uint)instance.Mesh >= (uint)meshes.Length)
                 continue;
-            if ((instance.Flags & RenderFlags.Transparent) != 0)
-            {
+            if (InTransparentPass(instance.Alpha))
                 Append(
                     ref transparent,
                     ref transparentCount,
                     new(TransparentKey(instance.Depth, instance.Distance), i)
                 );
-                continue;
-            }
-
-            AppendOpaque(
-                count: ref opaqueCount,
-                mask: DepthRanges.OpaqueMask(instance.Depth, instance.Radius),
-                mesh: instance.Mesh,
-                index: i
-            );
+            if (!IsGlass(instance.Alpha))
+                AppendOpaque(
+                    count: ref opaqueCount,
+                    mask: DepthRanges.OpaqueMask(instance.Depth, instance.Radius),
+                    instance: in instance,
+                    index: i
+                );
         }
 
         // A puff's index follows those of the visible instances, so at equal keys an instance draws first, and puffs keep the
@@ -648,17 +702,24 @@ internal sealed class SceneBatcher(
         );
     }
 
-    /// <summary>Adds one opaque draw item per depth range of <paramref name="mask"/>, keyed by the range and the mesh.</summary>
-    private void AppendOpaque(ref int count, int mask, int mesh, int index)
+    /// <summary>
+    /// Adds one opaque draw item of <paramref name="instance"/> per depth range of <paramref name="mask"/>, keyed by the
+    /// range, then the run, then the mesh. The runs go solid before cutout, and within each one-sided before two-sided, so
+    /// that each range's commands form its solid runs and then its cutout runs.
+    /// </summary>
+    private void AppendOpaque(ref int count, int mask, in PreparedInstance instance, int index)
     {
+        ulong run =
+            (OpaqueRuns.InCutoutRun(instance.Alpha) ? CutoutKeyBit : 0) | (instance.TwoSided ? TwoSidedKeyBit : 0);
         for (int range = 0; range < DepthRanges.Count; range++)
             if ((mask & (1 << range)) != 0)
-                Append(ref opaque, ref count, new(((ulong)range << 32) | (uint)mesh, index));
+                Append(ref opaque, ref count, new(((ulong)range << 32) | run | (uint)instance.Mesh, index));
     }
 
     /// <summary>
-    /// Cuts the sorted transparent list into the runs of each range: a stretch of transparent instances becomes one
-    /// <see cref="MeshCommands"/> run, with one indirect command per stretch of equal mesh, and a stretch of puffs becomes
+    /// Cuts the sorted transparent list into the runs of each range: a stretch of glass or of fringes, of one-sided or of
+    /// two-sided materials, becomes one <see cref="GlassCommands"/> or <see cref="FringeCommands"/> run, with one indirect
+    /// command per stretch of equal mesh, and a stretch of puffs becomes
     /// one <see cref="PuffSprites"/> run of <see cref="PreparedScene.Puffs"/>. An item whose index is
     /// <paramref name="firstPuff"/> or more is the puff of that index less <paramref name="firstPuff"/>.
     /// </summary>
@@ -673,22 +734,31 @@ internal sealed class SceneBatcher(
         int currentRange = -1,
             currentMesh = -1,
             runStart = 0;
-        bool puffRun = false;
+        TransparentKind currentKind = TransparentKind.Glass;
+        bool currentTwoSided = false;
         foreach (DrawItem item in items)
         {
             int range = (int)(item.Key >> 32);
-            bool isPuff = item.Index >= firstPuff;
-            if (range != currentRange || isPuff != puffRun)
+            TransparentKind kind = KindOf(scene: scene, index: item.Index, firstPuff: firstPuff);
+            bool twoSided = kind != TransparentKind.Puff && scene.Visible[item.Index].TwoSided;
+            if (range != currentRange || kind != currentKind || twoSided != currentTwoSided)
             {
                 if (currentRange >= 0)
-                    CloseRun(scene: scene, range: currentRange, puffRun: puffRun, runStart: runStart);
+                    CloseRun(
+                        scene: scene,
+                        range: currentRange,
+                        kind: currentKind,
+                        twoSided: currentTwoSided,
+                        runStart: runStart
+                    );
                 currentRange = range;
-                puffRun = isPuff;
+                currentKind = kind;
+                currentTwoSided = twoSided;
                 currentMesh = -1;
-                runStart = isPuff ? scene.PuffCount : scene.CommandCount;
+                runStart = kind == TransparentKind.Puff ? scene.PuffCount : scene.CommandCount;
             }
 
-            if (isPuff)
+            if (kind == TransparentKind.Puff)
                 scene.Puffs[scene.PuffCount++] = collectedPuffs[item.Index - firstPuff];
             else
                 AppendInstanceCommand(
@@ -700,18 +770,51 @@ internal sealed class SceneBatcher(
         }
 
         if (currentRange >= 0)
-            CloseRun(scene: scene, range: currentRange, puffRun: puffRun, runStart: runStart);
+            CloseRun(
+                scene: scene,
+                range: currentRange,
+                kind: currentKind,
+                twoSided: currentTwoSided,
+                runStart: runStart
+            );
     }
 
-    /// <summary>Adds the run of one kind that started at <paramref name="runStart"/> to the runs of its range.</summary>
-    private static void CloseRun(PreparedScene scene, int range, bool puffRun, int runStart) =>
+    /// <summary>
+    /// What the transparent item of <paramref name="index"/> draws: the puff of that index less
+    /// <paramref name="firstPuff"/>, or the fringe or the glass of that visible instance.
+    /// </summary>
+    private static TransparentKind KindOf(PreparedScene scene, int index, int firstPuff)
+    {
+        if (index >= firstPuff)
+            return TransparentKind.Puff;
+        return scene.Visible[index].Alpha switch
+        {
+            GlassAlpha => TransparentKind.Glass,
+            FringedAlpha => TransparentKind.Fringe,
+            OpaqueAlpha or CutoutAlpha => throw new UnreachableException(
+                "An opaque or cutout material draws in no transparent pass."
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Adds the run of one kind, and of one-sided or <paramref name="twoSided"/> materials, that started at
+    /// <paramref name="runStart"/> to the runs of its range.
+    /// </summary>
+    private static void CloseRun(PreparedScene scene, int range, TransparentKind kind, bool twoSided, int runStart)
+    {
+        var commands = new CommandRange(runStart, scene.CommandCount - runStart);
         scene
             .Transparent[range]
             .Add(
-                puffRun
-                    ? new PuffSprites(runStart, scene.PuffCount - runStart)
-                    : new MeshCommands(new(runStart, scene.CommandCount - runStart))
+                kind switch
+                {
+                    TransparentKind.Glass => new GlassCommands(Commands: commands, TwoSided: twoSided),
+                    TransparentKind.Fringe => new FringeCommands(Commands: commands, TwoSided: twoSided),
+                    TransparentKind.Puff => new PuffSprites(runStart, scene.PuffCount - runStart),
+                }
             );
+    }
 
     /// <summary>
     /// Writes the GPU instance of <paramref name="instance"/> next in the instance array, and adds it to the last command
@@ -754,39 +857,59 @@ internal sealed class SceneBatcher(
     }
 
     /// <summary>
-    /// Writes the GPU instances in sorted order and one indirect command per run of equal (range, mesh), with
-    /// firstInstance pointing at the run's first GPU instance. An item's index is its place in
-    /// <paramref name="instances"/>.
+    /// Writes the GPU instances in sorted order and one indirect command per run of equal (range, run, mesh), with
+    /// firstInstance pointing at the run's first GPU instance, and each range's four runs into <paramref name="ranges"/>.
+    /// An item's index is its place in <paramref name="instances"/>.
     /// </summary>
     private static void Emit(
         PreparedScene scene,
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<PreparedInstance> instances,
         ReadOnlySpan<DrawItem> items,
-        CommandRange[] ranges
+        SidedRuns[] ranges
     )
     {
         int currentRange = -1,
             currentMesh = -1,
-            rangeStart = scene.CommandCount;
+            runStart = scene.CommandCount;
+        ulong currentRun = 0;
         foreach (DrawItem item in items)
         {
             ref readonly PreparedInstance instance = ref instances[item.Index];
             int range = (int)(item.Key >> 32);
-            if (range != currentRange)
+            ulong run = item.Key & RunKeyBits;
+            if (range != currentRange || run != currentRun)
             {
                 if (currentRange >= 0)
-                    ranges[currentRange] = new(rangeStart, scene.CommandCount - rangeStart);
+                    CloseOpaqueRun(
+                        scene: scene,
+                        ranges: ranges,
+                        range: currentRange,
+                        run: currentRun,
+                        runStart: runStart
+                    );
                 currentRange = range;
+                currentRun = run;
                 currentMesh = -1;
-                rangeStart = scene.CommandCount;
+                runStart = scene.CommandCount;
             }
 
             AppendInstanceCommand(scene: scene, meshes: meshes, instance: in instance, currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)
-            ranges[currentRange] = new(rangeStart, scene.CommandCount - rangeStart);
+            CloseOpaqueRun(scene: scene, ranges: ranges, range: currentRange, run: currentRun, runStart: runStart);
+    }
+
+    /// <summary>
+    /// Sets the run of <paramref name="range"/> that the key bits <paramref name="run"/> name to the commands from
+    /// <paramref name="runStart"/>.
+    /// </summary>
+    private static void CloseOpaqueRun(PreparedScene scene, SidedRuns[] ranges, int range, ulong run, int runStart)
+    {
+        var commands = new CommandRange(runStart, scene.CommandCount - runStart);
+        ranges[range] = ranges[range]
+            .With(cutout: (run & CutoutKeyBit) != 0, twoSided: (run & TwoSidedKeyBit) != 0, commands: commands);
     }
 
     /// <summary>
@@ -1182,20 +1305,24 @@ internal sealed class SceneBatcher(
 
     /// <summary>
     /// Sorts a view's opaque draw items by key, and keeps their order at equal keys. A view appends its items in the
-    /// order of its instances, so this is the order of (key, index). A key is (range, mesh), one of
-    /// <see cref="DepthRanges.Count"/> × meshes, so the sorter counts the items of each key and moves each item once: a
+    /// order of its instances, so this is the order of (key, index). A key is (range, run, mesh), one of
+    /// <see cref="DepthRanges.Count"/> × 4 × meshes, so the sorter counts the items of each key and moves each item once: a
     /// counting sort, in time linear in the items and the meshes, where a comparison sort takes n log n comparisons.
     /// Allocates nothing once its arrays have grown to the view.
     /// </summary>
     internal sealed class OpaqueSorter
     {
+        /// <summary>The runs of a range: solid and cutout, each one-sided and two-sided.</summary>
+        private const int RunsPerRange = 4;
+
         private int[] starts = new int[64];
         private DrawItem[] sorted = new DrawItem[256];
 
         /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
         public void Sort(Span<DrawItem> items, int meshCount)
         {
-            int keys = DepthRanges.Count * meshCount;
+            // The four runs of each range.
+            int keys = DepthRanges.Count * RunsPerRange * meshCount;
             EnsureCapacity(ref starts, keys + 1);
             EnsureCapacity(ref sorted, items.Length);
             Span<int> start = starts.AsSpan(0, keys + 1);
@@ -1209,9 +1336,17 @@ internal sealed class SceneBatcher(
             sorted.AsSpan(0, items.Length).CopyTo(items);
         }
 
-        /// <summary>The place of an item's key in key order: its range, then its mesh.</summary>
-        private static int KeyIndex(DrawItem item, int meshCount) =>
-            (int)(item.Key >> 32) * meshCount + (int)(uint)item.Key;
+        /// <summary>
+        /// The place of an item's key in key order: its range, then its run, solid before cutout and one-sided before
+        /// two-sided, then its mesh.
+        /// </summary>
+        private static int KeyIndex(DrawItem item, int meshCount)
+        {
+            // The two run bits read as one number: twice the cutout bit plus the two-sided bit.
+            int run = (int)((item.Key & RunKeyBits) >> RunKeyShift);
+            int mesh = (int)((uint)item.Key & ~(uint)RunKeyBits);
+            return ((int)(item.Key >> 32) * RunsPerRange + run) * meshCount + mesh;
+        }
     }
 
     /// <summary>
@@ -1240,6 +1375,14 @@ internal sealed class SceneBatcher(
             // Against the static meshes only, so that an id never names a deformed copy.
             return MeshIndex(instance.Mesh, staticMeshCount);
         }
+    }
+
+    /// <summary>What a run of the transparent pass draws. No case carries a field, so it is an enum.</summary>
+    private enum TransparentKind
+    {
+        Glass,
+        Fringe,
+        Puff,
     }
 
     /// <summary>Where an instance draws relative to the eye, its bounding radius, and the index of its mesh on the GPU.</summary>

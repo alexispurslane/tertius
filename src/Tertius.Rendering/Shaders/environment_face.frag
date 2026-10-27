@@ -25,18 +25,8 @@ void main()
     // whose vertex normal has no direction faces the eye.
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading;
-    shading.baseColor = s.baseColor.rgb;
-    shading.normal = s.normal;
-    shading.geometricNormal = normalizedOr(inNormal, V);
-    shading.metallic = s.metallic;
-    shading.roughness = s.roughness;
-    shading.reflectance = s.reflectance;
-    // No ambient light reads them.
-    shading.skyFraction = 0.0;
-    shading.lobeSkyFraction = 0.0;
-    shading.reflectionFootprint = frame.params.z;
-    shading.map = draw.map;
+    // A face takes no ambient light, so nothing reads the sky shares or the footprint that forwardShading gives it.
+    ShadingInput shading = forwardShading(s, inPosition, vec4(0.0), draw.map, V);
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
     outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding, draw.map), 0.0);

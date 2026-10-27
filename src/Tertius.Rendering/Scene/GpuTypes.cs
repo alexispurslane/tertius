@@ -105,7 +105,7 @@ internal struct GpuInstance
     }
 }
 
-/// <summary>One material in the material storage buffer (std430). 52 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
+/// <summary>One material in the material storage buffer (std430). 60 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
@@ -114,6 +114,8 @@ internal struct GpuMaterial
 
     public Vector4 BaseColor;
     public Vector3 Emissive;
+
+    /// <summary>The metallic of a <see cref="StandardShading"/> model, 0 for every other model.</summary>
     public float Metallic;
 
     /// <summary>r₀, before the floor: the floor is the BRDF's.</summary>
@@ -131,6 +133,12 @@ internal struct GpuMaterial
 
     /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint MetallicRoughnessMap;
+
+    /// <summary><see cref="ShadingCode.Word"/> of the material's shading model.</summary>
+    public uint Shading;
+
+    /// <summary>The cutoff of a cutout or fringed material, 0 for an opaque or glass one, which nothing tests.</summary>
+    public float AlphaCutoff;
 }
 
 /// <summary>

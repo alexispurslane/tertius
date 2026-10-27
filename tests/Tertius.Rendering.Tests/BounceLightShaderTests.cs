@@ -276,7 +276,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 ? new(x: (float)Decoded(250), y: (float)Decoded(210), z: (float)Decoded(140), w: 1)
                 : new(x: (float)Decoded(200), y: (float)Decoded(60), z: (float)Decoded(40), w: 1),
             Roughness: smoothMetal ? 0.2f : 0.8f,
-            Metallic: smoothMetal ? 1 : 0,
+            Model: new StandardShading(Metallic: smoothMetal ? 1 : 0),
             Reflectance: Reflectance
         );
 
@@ -313,12 +313,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         double lobeSky =
             Math.Round(LobeSkyShare(normal: normal, toView: toView, roughness: desc.Roughness) * 255) / 255;
         double normalSky = (double)(Half)NormalSkyShare(normal);
-        var material = new MaterialSample(
-            BaseColor: new(desc.BaseColor.X, desc.BaseColor.Y, desc.BaseColor.Z),
-            Metallic: desc.Metallic,
-            Roughness: desc.Roughness,
-            Reflectance: desc.Reflectance
-        );
+        MaterialSample material = TestMaterials.SampleOf(desc);
         return material
             .ReflectedHemisphere(
                 normal: normal,

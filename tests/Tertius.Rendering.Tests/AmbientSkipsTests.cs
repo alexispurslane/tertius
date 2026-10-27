@@ -6,7 +6,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The ambient pass skips the work of the map's terms that add nothing to the image (docs/plans/environment-map.md,
 /// "Cost"): the footprint where the lobe alone ends the stars' fade, and the reflected stars where the lobe sees no open
-/// sky. The reference is the same pass built by this project with TERTIUS_EVERY_AMBIENT_TERM, which computes every term.
+/// sky. The reference is the same pass built by this project with TERTIUS_EVERY_AMBIENT_TERM, which computes every term:
+/// ambient.frag without the skin scatter, and ambient_scatter.frag, the default renderer's pass, under it.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class AmbientSkipsTests
@@ -28,7 +29,8 @@ public sealed class AmbientSkipsTests
     /// </summary>
     private static readonly float[] SphereRoughnesses = [0.07f, 0.08f, 0.2f, 0.6f];
 
-    private static VulkanRenderer Renderer() =>
+    /// <param name="scatter">True for <see cref="SeparableSubsurface.Default"/>, false for <see cref="NoSubsurface"/>.</param>
+    private static VulkanRenderer Renderer(bool scatter) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
@@ -39,6 +41,9 @@ public sealed class AmbientSkipsTests
                 Exposure = new FixedExposure(ExposureStops),
                 Bloom = new NoBloom(),
                 EnvironmentMap = SceneEnvironmentMap.Default with { FaceSize = 64 },
+                // The scene has no skin, so the scatter changes no pixel: under it, the pass draws from
+                // ambient_scatter.frag, which also adds to the scatter image, and without it from ambient.frag.
+                Subsurface = scatter ? SeparableSubsurface.Default : new NoSubsurface(),
             }
         );
 
@@ -57,7 +62,9 @@ public sealed class AmbientSkipsTests
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: renderer.CreateMesh(Primitives.Plane(40f)),
-                material: renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1)),
+                material: renderer.CreateMaterial(
+                    new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+                ),
                 position: new(0, -1, -20),
                 scale: Vector3.One,
                 chainDepth: TestChains.CamerasFrame
@@ -69,7 +76,11 @@ public sealed class AmbientSkipsTests
                 Gpu.Instance(
                     mesh: sphere,
                     material: renderer.CreateMaterial(
-                        new(BaseColor: Vector4.One, Roughness: SphereRoughnesses[index], Metallic: 1)
+                        new(
+                            BaseColor: Vector4.One,
+                            Roughness: SphereRoughnesses[index],
+                            Model: new StandardShading(Metallic: 1)
+                        )
                     ),
                     position: new(x: 2f * (index - 1.5f), y: -0.2f, z: -9),
                     scale: new(0.8f),
@@ -79,16 +90,19 @@ public sealed class AmbientSkipsTests
         return snapshot;
     }
 
-    /// <summary>The HDR image of the scene's second draw, by the engine's ambient pass or by the reference.</summary>
-    private static float[] HdrOfStarsInMetal(bool reference)
+    /// <summary>
+    /// The HDR image of the scene's second draw, by the engine's ambient pass or by the reference, with the skin scatter
+    /// on or off.
+    /// </summary>
+    private static float[] HdrOfStarsInMetal(bool reference, bool scatter)
     {
-        VulkanRenderer renderer = Renderer();
+        VulkanRenderer renderer = Renderer(scatter);
         try
         {
             if (reference)
             {
                 renderer.Graph.Skipped.Add("ambient light");
-                renderer.Graph.Add(FrameGraph.Stage.AmbientLight, new EveryTermAmbientPass());
+                renderer.Graph.Add(FrameGraph.Stage.AmbientLight, new EveryTermAmbientPass(renderer.ScatterImages));
             }
 
             RenderSnapshot snapshot = StarsInMetal(renderer);
@@ -102,11 +116,17 @@ public sealed class AmbientSkipsTests
         }
     }
 
-    [Fact]
-    public void TheSkipsKeepEveryBitOfTheImageOfStarsReflectedInSmoothAndRoughMetal()
+    /// <param name="scatter">
+    /// True for the skin scatter, whose ambient pass is ambient_scatter.frag, false for ambient.frag. Both include
+    /// ambient_pass.glsl, but each is its own compiled shader.
+    /// </param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheSkipsKeepEveryBitOfTheImageOfStarsReflectedInSmoothAndRoughMetal(bool scatter)
     {
-        float[] skipping = HdrOfStarsInMetal(reference: false);
-        float[] everyTerm = HdrOfStarsInMetal(reference: true);
+        float[] skipping = HdrOfStarsInMetal(reference: false, scatter: scatter);
+        float[] everyTerm = HdrOfStarsInMetal(reference: true, scatter: scatter);
 
         int differing = Enumerable
             .Range(0, skipping.Length)
@@ -119,7 +139,8 @@ public sealed class AmbientSkipsTests
     /// The ambient pass with the shaders of this project's build, which computes every term: an
     /// <see cref="AmbientLightPass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
-    private sealed class EveryTermAmbientPass : RenderPass
+    /// <param name="scatter">The renderer's scatter images under the skin scatter, or null without it.</param>
+    private sealed class EveryTermAmbientPass(ScatterImages? scatter) : RenderPass
     {
         private ShaderLibrary? shaders;
         private AmbientLightPass? pass;
@@ -135,7 +156,8 @@ public sealed class AmbientSkipsTests
                 device: context.Device,
                 shaders: shaders,
                 layouts: context.Layouts,
-                constants: new ShaderConstants(EnvironmentMap: true)
+                constants: new ShaderConstants(EnvironmentMap: true),
+                scatter: scatter
             );
         }
 

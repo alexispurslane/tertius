@@ -23,7 +23,7 @@ public sealed class HemisphereTests
     private static (Vector3 Right, Vector3 Left, Vector3 Top) Render(
         HemisphereUp up,
         string name,
-        RenderFlags flags = RenderFlags.None,
+        AlphaMode alpha = default,
         bool impostors = false
     )
     {
@@ -31,9 +31,8 @@ public sealed class HemisphereTests
             up: up,
             name: name,
             // A reflectance of 0: the lobe's share of the ambient light is small at these view angles.
-            material: new(BaseColor: Vector4.One, Roughness: 0.38f, Reflectance: 0),
+            material: new(BaseColor: Vector4.One, Roughness: 0.38f, Reflectance: 0, Alpha: alpha),
             pixels: [Toward(Vector3.UnitX), Toward(-Vector3.UnitX), Toward(Vector3.UnitY)],
-            flags: flags,
             impostors: impostors
         );
         return (colors[0], colors[1], colors[2]);
@@ -45,7 +44,6 @@ public sealed class HemisphereTests
         string name,
         MaterialDesc material,
         Vector2[] pixels,
-        RenderFlags flags,
         bool impostors
     )
     {
@@ -71,7 +69,7 @@ public sealed class HemisphereTests
                     boundingRadius: 1f,
                     hemisphere: up,
                     chainDepth: TestChains.CamerasFrame,
-                    flags: RenderFlags.Visible | flags,
+                    flags: RenderFlags.Visible,
                     entityIndex: 1
                 )
             );
@@ -156,7 +154,7 @@ public sealed class HemisphereTests
         (Vector3 right, Vector3 left, Vector3 top) = Render(
             up: HemisphereUp.Along(Vector3.UnitX),
             name: "hemisphere-transparent",
-            flags: RenderFlags.Transparent
+            alpha: new GlassAlpha()
         );
 
         ExpectSkyward(right, "right");
@@ -218,9 +216,13 @@ public sealed class HemisphereTests
         Vector3[] colors = Render(
             up: HemisphereUp.Along(Vector3.UnitY),
             name: $"hemisphere-metal-transparent-{transparent}-impostor-{impostor}",
-            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            material: new(
+                BaseColor: Vector4.One,
+                Roughness: (float)roughness,
+                Model: new StandardShading(Metallic: 1),
+                Alpha: transparent ? new GlassAlpha() : new OpaqueAlpha()
+            ),
             pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
-            flags: transparent ? RenderFlags.Transparent : RenderFlags.None,
             impostors: impostor
         );
 
@@ -235,9 +237,8 @@ public sealed class HemisphereTests
         Vector3[] colors = Render(
             up: HemisphereUp.Even,
             name: "hemisphere-metal-even",
-            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Model: new StandardShading(Metallic: 1)),
             pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
-            flags: RenderFlags.None,
             impostors: false
         );
 
@@ -253,9 +254,8 @@ public sealed class HemisphereTests
         Vector3[] colors = Render(
             up: HemisphereUp.AwayFrom(Vector3.Zero),
             name: "hemisphere-metal-away",
-            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Metallic: 1),
+            material: new(BaseColor: Vector4.One, Roughness: (float)roughness, Model: new StandardShading(Metallic: 1)),
             pixels: [WhereTheLobeRises(10, roughness), WhereTheLobeRises(-10, roughness)],
-            flags: RenderFlags.None,
             impostors: false
         );
 

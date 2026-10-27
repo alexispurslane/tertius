@@ -5,7 +5,6 @@
 #include "gbuffer_inputs.glsl"
 #include "material.glsl"
 #include "lighting.glsl"
-#include "reflection_footprint.glsl"
 
 // One object alone, rendered with mesh.vert into its impostor atlas tile (ImpostorPass.cs). draw.viewProj is a
 // perspective projection from the main view's eye, fitted to the bounding sphere's tangent cone, with clip w equal
@@ -28,23 +27,9 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading;
-    shading.baseColor = s.baseColor.rgb;
-    shading.normal = s.normal;
-    shading.geometricNormal = normalizedOr(inNormal, V);
-    shading.metallic = s.metallic;
-    shading.roughness = s.roughness;
-    shading.reflectance = s.reflectance;
-    // The capture bakes the light of the object's own map.
-    shading.map = inMaterialAndMap.y;
-    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
-    // Only the hemisphere reads the sky shares.
-    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
-    shading.lobeSkyFraction =
-        environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // A capture has no screen around it for the occlusion passes to search, so no estimate.
-    shading.occlusion = 1.0;
-    shading.bounce = vec3(0.0);
+    // The capture bakes the light of the object's own map. It has no screen around it for the occlusion passes to
+    // search, so it takes no estimate, as a forward surface does.
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, ShadowMapsNone, 1.0);
     outColor = vec4(color, 1.0);

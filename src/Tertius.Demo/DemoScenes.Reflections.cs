@@ -33,7 +33,7 @@ public static partial class DemoScenes
         new(BaseColor: StripGray, Roughness: 0.2f),
         new(BaseColor: StripGray, Roughness: 0.3f),
         new(BaseColor: StripGray, Roughness: 0.45f),
-        new(BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1), Roughness: 0.1f, Metallic: 1),
+        new(BaseColor: new(x: 1, y: 0.71f, z: 0.29f, w: 1), Roughness: 0.1f, Model: new StandardShading(Metallic: 1)),
     ];
 
     /// <summary>

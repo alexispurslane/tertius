@@ -23,6 +23,7 @@ public sealed class ScriptCommandOptionsTests
         ["--local-shadow-tiles", "8"],
         ["--cascaded-lights", "2"],
         ["--environment-map", "off"],
+        ["--subsurface", "off"],
     ];
 
     public static TheoryData<string[]> AcceptedCommandLines =>
@@ -66,6 +67,8 @@ public sealed class ScriptCommandOptionsTests
                     "--cascaded-lights",
                     "2",
                     "--environment-map",
+                    "off",
+                    "--subsurface",
                     "off",
                 ]
             },
@@ -415,6 +418,8 @@ public sealed class ScriptCommandOptionsTests
                 "2",
                 "--environment-map",
                 "off",
+                "--subsurface",
+                "off",
             ],
             out _
         );
@@ -429,6 +434,7 @@ public sealed class ScriptCommandOptionsTests
             LocalShadows = LocalShadowAtlas.Default with { Tiles = 8 },
             CascadedLights = 2,
             EnvironmentMapOff = true,
+            SubsurfaceOff = true,
         };
         options
             .Should()

@@ -17,4 +17,10 @@ vec3 normalizedOr(vec3 v, vec3 fallback)
     return lengthSq >= SmallestNormal ? v * inversesqrt(lengthSq) : fallback;
 }
 
+// n, or −n where it faces away from `direction`: the normal of the side of a surface that `direction` sees.
+vec3 turnedToward(vec3 n, vec3 direction)
+{
+    return dot(n, direction) < 0.0 ? -n : n;
+}
+
 #endif

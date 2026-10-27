@@ -32,7 +32,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     private readonly DescriptorLayouts layouts;
     private readonly ImpostorAtlas atlas;
     private readonly ImpostorManager manager;
-    private readonly Pipeline capturePipeline;
+    private readonly SidedPipeline capturePipeline;
+    private readonly SidedPipeline cutoutCapturePipeline;
     private readonly Pipeline billboardPipeline;
     private readonly PreparedCapture[] prepared = new PreparedCapture[ImpostorManager.CapturesPerFrame];
     private int preparedCount;
@@ -50,50 +51,84 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         this.layouts = layouts;
         this.atlas = atlas;
         this.manager = manager;
-        capturePipeline = new GraphicsPipelineDesc
+        var capture = new GraphicsPipelineDesc
         {
             Name = "impostor capture",
             VertexShader = "mesh.vert",
             FragmentShader = "impostor_capture.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [ImpostorAtlas.ColorFormat, ImpostorAtlas.DepthOffsetFormat],
+            ColorAttachments = [new(ImpostorAtlas.ColorFormat), new(ImpostorAtlas.DepthOffsetFormat)],
             DepthFormat = ImpostorAtlas.CaptureDepthFormat,
             VertexInput = VertexInput.Mesh,
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
             Constants = constants,
-        }.Create(device, shaders);
+        };
+        capturePipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: capture);
         try
         {
-            billboardPipeline = new GraphicsPipelineDesc
-            {
-                Name = "impostor billboards",
-                VertexShader = "impostor.vert",
-                FragmentShader = "impostor.frag",
-                Layout = layouts.ImpostorLayout,
-                ColorFormats = RenderTargets.GBufferFormats,
-                DepthFormat = RenderTargets.DepthFormat,
-                VertexInput = VertexInput.None,
-                DepthTest = true,
-                DepthWrite = true,
-                DepthCompare = CompareOp.Greater,
-                CullMode = CullModeFlags.None,
-            }.Create(device, shaders);
+            cutoutCapturePipeline = SidedPipeline.Create(
+                device: device,
+                shaders: shaders,
+                desc: capture with
+                {
+                    Name = "impostor capture cutout",
+                    Constants = constants with { CutoutAlpha = true },
+                }
+            );
         }
         catch
         {
-            device.Vk.DestroyPipeline(device.Device, capturePipeline, null);
+            capturePipeline.Destroy(device);
+            throw;
+        }
+
+        try
+        {
+            billboardPipeline = CreateBillboardPipeline(device: device, shaders: shaders, layouts: layouts);
+        }
+        catch
+        {
+            capturePipeline.Destroy(device);
+            cutoutCapturePipeline.Destroy(device);
             throw;
         }
     }
 
     public override string Name => "impostor captures";
 
+    /// <summary>The pipeline of the billboards, which draw in the G-buffer pass's depth ranges from both sides.</summary>
+    private static Pipeline CreateBillboardPipeline(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts
+    ) =>
+        new GraphicsPipelineDesc
+        {
+            Name = "impostor billboards",
+            VertexShader = "impostor.vert",
+            FragmentShader = "impostor.frag",
+            Layout = layouts.ImpostorLayout,
+            ColorAttachments = RenderTargets.GBufferAttachments,
+            DepthFormat = RenderTargets.DepthFormat,
+            VertexInput = VertexInput.None,
+            DepthTest = true,
+            DepthWrite = true,
+            DepthCompare = CompareOp.Greater,
+            CullMode = CullModeFlags.None,
+        }.Create(device, shaders);
+
     public override void Prepare(FrameContext context)
     {
-        PreparedScene scene = context.Scene;
-        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
+        PrepareCaptures(context.Scene);
+        PrepareBillboards(context.Scene);
+    }
+
+    /// <summary>Appends the GPU instance and the indirect command of each capture of this frame, and prepares its camera.</summary>
+    private void PrepareCaptures(PreparedScene scene)
+    {
+        ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
         preparedCount = 0;
         foreach (ref readonly ImpostorCapture capture in manager.Captures)
         {
@@ -119,9 +154,11 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 }
             );
             prepared[preparedCount++] = new(
-                capture.Tile,
-                command,
-                CaptureProjection(
+                Tile: capture.Tile,
+                Command: command,
+                Cutout: OpaqueRuns.InCutoutRun(capture.Alpha),
+                TwoSided: capture.TwoSided,
+                ViewProjection: CaptureProjection(
                     right: capture.Right,
                     up: capture.Up,
                     toward: capture.Toward,
@@ -131,7 +168,11 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 )
             );
         }
+    }
 
+    /// <summary>Appends the GPU instances of the billboards of each depth range, and their run per range.</summary>
+    private void PrepareBillboards(PreparedScene scene)
+    {
         ReadOnlySpan<ImpostorDraw> draws = manager.Draws;
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)
         {
@@ -273,6 +314,13 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         vk.CmdBeginRendering(commandBuffer, &rendering);
         if (bindState)
             BindCaptureState(context, extent);
+        // The capture of a cutout discards its texels below the cutoff, as the G-buffer pass does, and keeps its holes. A
+        // capture draws the back faces of a two-sided material, as the G-buffer pass does.
+        vk.CmdBindPipeline(
+            commandBuffer,
+            PipelineBindPoint.Graphics,
+            (capture.Cutout ? cutoutCapturePipeline : capturePipeline).For(capture.TwoSided)
+        );
 
         // The main view's eye (the origin), so that specular highlights are where the camera would see them.
         GeometryPass.PushDraw(context: context, viewProjection: capture.ViewProjection);
@@ -282,12 +330,11 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         GenerateMips(vk: vk, commandBuffer: commandBuffer, barriers: barriers, layer: layer);
     }
 
-    /// <summary>Binds what every capture of the frame shares: the pipeline, sets 0 and 1, the tile's viewport and the geometry.</summary>
+    /// <summary>Binds what every capture of the frame shares: sets 0 and 1, the tile's viewport and the geometry.</summary>
     private void BindCaptureState(FrameContext context, Extent2D extent)
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, capturePipeline);
         // Frame constants, instances and materials, and the textures. The G-buffer set is not used here.
         DescriptorSet* sets = stackalloc[] { context.Frame.FrameSet, context.Frame.TextureSet };
         vk.CmdBindDescriptorSets(
@@ -518,12 +565,22 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
 
     public override void Dispose()
     {
-        device.Vk.DestroyPipeline(device.Device, capturePipeline, null);
+        capturePipeline.Destroy(device);
+        cutoutCapturePipeline.Destroy(device);
         device.Vk.DestroyPipeline(device.Device, billboardPipeline, null);
     }
 
-    /// <summary>A capture ready to record: its tile, its indirect command and its view-projection matrix.</summary>
-    private readonly record struct PreparedCapture(int Tile, int Command, Matrix4x4 ViewProjection);
+    /// <summary>
+    /// A capture of this frame: its tile, its indirect command, whether it draws with the cutout pipeline and with the
+    /// two-sided one, and its camera.
+    /// </summary>
+    private readonly record struct PreparedCapture(
+        int Tile,
+        int Command,
+        bool Cutout,
+        bool TwoSided,
+        Matrix4x4 ViewProjection
+    );
 
     /// <summary>Enumerates the two atlas arrays without allocating.</summary>
     private readonly struct AtlasImages(ImpostorAtlas atlas)

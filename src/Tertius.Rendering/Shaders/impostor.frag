@@ -22,6 +22,7 @@ layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
+layout(location = 5) out uvec4 outShading;
 
 void main()
 {
@@ -59,4 +60,6 @@ void main()
     // The atlas holds radiance, which the billboard pre-exposes with this frame's exposure.
     outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);
     outDistance = length(world - draw.eye.xyz);
+    // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand.
+    outShading = uvec4(0u);
 }

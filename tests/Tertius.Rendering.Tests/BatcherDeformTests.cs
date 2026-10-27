@@ -99,7 +99,7 @@ public sealed class BatcherDeformTests
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
-                materialCount: 8,
+                materials: MaterialSlots.Of(8),
                 environment: environment,
                 region: region,
                 scene: scene
@@ -459,7 +459,7 @@ public sealed class BatcherDeformTests
 
         PreparedScene scene = Prepare(snapshot, Roomy, map);
 
-        CommandRange near = scene.EnvironmentFaces.Single().Near;
+        CommandRange near = scene.EnvironmentFaces.Single().Near.OneSided.Solid;
         near.Count.Should().Be(1);
         scene.Commands[near.First].VertexOffset.Should().Be(RegionBase);
     }
@@ -481,7 +481,7 @@ public sealed class BatcherDeformTests
         PreparedScene scene = Prepare(snapshot, Roomy, map);
 
         scene.VisibleCount.Should().Be(2, "the main view culls the box behind the camera");
-        CommandRange near = scene.EnvironmentFaces.Single().Near;
+        CommandRange near = scene.EnvironmentFaces.Single().Near.OneSided.Solid;
         near.Count.Should().Be(1);
         scene
             .Commands[near.First]
@@ -523,6 +523,8 @@ public sealed class BatcherDeformTests
 
         var scene = new PreparedScene();
         SceneBatcher batcher = Batchers.Default();
+        // Outside the frame, whose allocations the test counts.
+        MaterialInfo[] materials = MaterialSlots.Of(8);
         void Frame() =>
             batcher.Prepare(
                 snapshot: snapshot,
@@ -530,7 +532,7 @@ public sealed class BatcherDeformTests
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
-                materialCount: 8,
+                materials: materials,
                 environment: default,
                 region: Roomy,
                 scene: scene

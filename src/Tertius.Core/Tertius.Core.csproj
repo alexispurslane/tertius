@@ -21,5 +21,7 @@
     <!-- The script options of the host read and write vectors with JsonVectors, as the converter of InputEvent does, so that
          a vector has one form in every script and dump. -->
     <InternalsVisibleTo Include="Tertius.Host" />
+    <!-- The renderer's strand code folds a strand with OctahedralNormal, the C# twin of the shaders' octEncode. -->
+    <InternalsVisibleTo Include="Tertius.Rendering" />
   </ItemGroup>
 </Project>

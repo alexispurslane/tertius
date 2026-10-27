@@ -60,6 +60,9 @@ internal enum BufferUse
 
     /// <summary>Read and written as a storage buffer in a compute shader, as by atomic adds.</summary>
     ComputeWrite,
+
+    /// <summary>Read as a uniform buffer in a compute shader, as the scatter passes read the kernel.</summary>
+    ComputeUniformRead,
     TransferSource,
     TransferDestination,
 
@@ -163,6 +166,11 @@ internal static class ResourceUses
                 ImageLayout.Undefined,
                 PipelineStageFlags2.ComputeShaderBit,
                 AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
+            ),
+            BufferUse.ComputeUniformRead => new(
+                ImageLayout.Undefined,
+                PipelineStageFlags2.ComputeShaderBit,
+                AccessFlags2.UniformReadBit
             ),
             BufferUse.TransferSource => new(
                 ImageLayout.Undefined,

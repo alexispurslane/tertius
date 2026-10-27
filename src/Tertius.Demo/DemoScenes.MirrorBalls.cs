@@ -160,7 +160,11 @@ public static partial class DemoScenes
     /// <summary>A white metal of <paramref name="roughness"/>, as polished silver is nearly.</summary>
     private static MaterialId WhiteMetal(IRenderResources resources, float roughness) =>
         resources.CreateMaterial(
-            new(BaseColor: new(x: 0.95f, y: 0.95f, z: 0.95f, w: 1), Roughness: roughness, Metallic: 1)
+            new(
+                BaseColor: new(x: 0.95f, y: 0.95f, z: 0.95f, w: 1),
+                Roughness: roughness,
+                Model: new StandardShading(Metallic: 1)
+            )
         );
 
     /// <summary>

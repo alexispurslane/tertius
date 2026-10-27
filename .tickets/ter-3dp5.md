@@ -1,7 +1,7 @@
 ---
 id: ter-3dp5
 status: in_progress
-deps: [ter-hx3r]
+deps: [ter-hx3r, ter-xlp8]
 links: []
 created: 2026-10-26T19:32:57Z
 type: task

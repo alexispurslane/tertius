@@ -44,7 +44,7 @@ public sealed class ShadowPassTests
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
-                materialCount: 1,
+                materials: MaterialSlots.Of(1),
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
                 scene: scene

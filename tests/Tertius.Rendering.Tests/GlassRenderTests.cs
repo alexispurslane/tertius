@@ -75,11 +75,10 @@ public sealed class GlassRenderTests
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: square,
-                material: renderer.CreateMaterial(pane),
+                material: renderer.CreateMaterial(pane with { Alpha = new GlassAlpha() }),
                 position: PaneCenter,
                 scale: new(0.5f),
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2 - tilt * MathF.PI / 180),
-                flags: RenderFlags.Transparent,
                 radius: 0.75f,
                 chainDepth: TestChains.CamerasFrame
             )

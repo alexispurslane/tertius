@@ -77,8 +77,7 @@ public enum RenderFlags : uint
     /// </summary>
     CastsShadow = 1 << 1,
 
-    /// <summary>Alpha-blended with <see cref="MaterialDesc.BaseColor"/>.W as opacity. Never an impostor.</summary>
-    Transparent = 1 << 2,
+    // 1 << 2 was Transparent. A material's alpha mode says that now (docs/plans/skin-and-hair.md, decision 8).
 
     /// <summary>
     /// Never replace this object with an impostor. Use it for objects that must receive shadow-map shadows or that
@@ -384,19 +383,25 @@ public readonly record struct RenderRigPose(
 public sealed record TextureData(int Width, int Height, byte[] Rgba, bool Srgb = true);
 
 /// <summary>
-/// A metallic-roughness material (docs/plans/pbr-brdf.md). Colors are linear RGB. BaseColor.W is opacity, used only with
-/// <see cref="RenderFlags.Transparent"/>. A map left at its default is no map. The metallic-roughness map has glTF's
-/// layout: roughness in G, metallic in B. Each map channel multiplies its factor.
+/// A metallic-roughness material (docs/plans/pbr-brdf.md). Colors are linear RGB. A map left at its default is no map.
+/// The metallic-roughness map has glTF's layout: roughness in G, metallic in B, which only the standard model reads. Each
+/// map channel multiplies its factor.
 /// </summary>
+/// <param name="Model">How the surface sends light. The default is a standard non-metal.</param>
+/// <param name="Alpha">
+/// How the alpha draws. The default is opaque. BaseColor.W is the coverage under a cutout or fringed mode, the opacity
+/// under glass, and unread under opaque.
+/// </param>
 public sealed record MaterialDesc(
     Vector4 BaseColor,
     float Roughness,
-    float Metallic = 0f,
     float Reflectance = 0.5f,
     Vector3 Emissive = default,
     TextureId BaseColorMap = default,
     TextureId NormalMap = default,
-    TextureId MetallicRoughnessMap = default
+    TextureId MetallicRoughnessMap = default,
+    ShadingModel Model = default,
+    AlphaMode Alpha = default
 )
 {
     public static MaterialDesc Color(Vector4 color, float roughness) => new(BaseColor: color, Roughness: roughness);

@@ -31,15 +31,22 @@ const uint NoMap = 0xFFFFFFFFu;
 
 struct GpuMaterial
 {
-    vec4 baseColor;               // linear RGB, alpha for transparent objects
+    vec4 baseColor;               // linear RGB, alpha: coverage under cutout or fringed, opacity under glass
     vec3 emissive;                // linear RGB radiance
-    float metallic;
+    float metallic;               // a standard model's, 0 for skin and hair
     float roughness;              // r₀, before the floor
     float reflectance;
     uint baseColorMap;            // bindless indices, already resolved to the default textures
     uint normalMap;               // NoMap: none, so the shading normal is the vertex normal
     uint metallicRoughnessMap;    // glTF layout: roughness in G, metallic in B
-};                                // std430: 52 bytes of members, a stride of 64
+    uint shading;                 // ShadingCode.Word: bits 0 and 1 the model's code, bits 2 and 3 a hair's strand direction
+    float alphaCutoff;            // a cutout or fringed material's cutoff, 0 otherwise
+};                                // std430: 60 bytes of members, a stride of 64
+
+// The shading models' codes, ShadingCode in C#: bits 0 and 1 of GpuMaterial.shading, and the shading target's alpha.
+const uint ShadingStandard = 0u;
+const uint ShadingSkin = 1u;
+const uint ShadingHair = 2u;
 
 // The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
 const uint NoSlot = 0u;

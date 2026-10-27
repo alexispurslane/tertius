@@ -445,6 +445,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "depthClamp";
         if (!f.DualSrcBlend)
             return "dualSrcBlend";
+        if (!f.IndependentBlend)
+            return "independentBlend";
         if (!f.SamplerAnisotropy)
             return "samplerAnisotropy";
         if (!f.ShaderStorageImageExtendedFormats)
@@ -516,6 +518,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
             DepthClamp = true,
             // The transparent pass blends with a second output: what a pane lets through.
             DualSrcBlend = true,
+            // The ambient pass adds to the scatter image and writes the HDR image with no blend
+            // (docs/plans/skin-and-hair.md, decision 14).
+            IndependentBlend = true,
             SamplerAnisotropy = true,
             // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
             ShaderStorageImageExtendedFormats = true,
