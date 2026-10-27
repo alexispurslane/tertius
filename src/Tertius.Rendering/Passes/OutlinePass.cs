@@ -76,13 +76,12 @@ internal sealed class OutlinePass : RenderPass
             VertexShader = "outline.vert",
             FragmentShader = "outline.frag",
             Layout = layouts.OverlayLayout,
-            ColorFormats = [outputFormat],
+            ColorAttachments = [new(outputFormat, BlendMode.Alpha)],
             VertexInput = VertexInput.None,
             // A quad faces either way, by the direction of its segment on the screen.
             CullMode = CullModeFlags.None,
             // The vertex shader cuts each segment at the near plane, so no clipping is wanted there. No depth buffer is bound.
             DepthClamp = true,
-            Blend = BlendMode.Alpha,
         }.Create(device, shaders);
     }
 

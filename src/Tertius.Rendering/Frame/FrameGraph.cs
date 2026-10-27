@@ -68,6 +68,28 @@ internal sealed class FrameContext
     }
 
     /// <summary>
+    /// Flushes the barriers that the pass declared, then binds the compute <paramref name="pipeline"/>, this frame's sets
+    /// 0 to 2 and the pass's own <paramref name="passSet"/> as set 3, through <paramref name="layout"/>, whose first three
+    /// sets must be those of <see cref="DescriptorLayouts.SceneLayout"/>.
+    /// </summary>
+    public unsafe void BeginComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
+    {
+        Barriers.Flush(Vk, CommandBuffer);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Compute, pipeline);
+        BindSceneSets(PipelineBindPoint.Compute, layout);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Compute,
+            layout: layout,
+            firstSet: 3,
+            descriptorSetCount: 1,
+            pDescriptorSets: &passSet,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+    }
+
+    /// <summary>
     /// Begins rendering into <paramref name="target"/> alone, binds a full-screen <paramref name="pipeline"/> with its one
     /// descriptor set, and sets the full viewport. The target starts at zero when <paramref name="loadOp"/> is Clear;
     /// DontCare leaves it undefined, for a pass that writes every pixel.
@@ -80,7 +102,7 @@ internal sealed class FrameContext
         DescriptorSet set
     )
     {
-        BeginRenderingInto(target, loadOp);
+        BeginRenderingInto([(target, loadOp)]);
         Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
         Vk.CmdBindDescriptorSets(
             commandBuffer: CommandBuffer,
@@ -97,12 +119,13 @@ internal sealed class FrameContext
 
     /// <summary>
     /// Draws one full-screen triangle of <paramref name="pipeline"/>, whose layout is
-    /// <see cref="DescriptorLayouts.SceneLayout"/>, into <paramref name="target"/> alone, with this frame's sets 0 to 2.
-    /// The pipeline writes every pixel, so the target's old contents are not loaded.
+    /// <see cref="DescriptorLayouts.SceneLayout"/>, into <paramref name="targets"/> in the order of its color attachments,
+    /// with this frame's sets 0 to 2. Each target starts as its load op says: DontCare for a target whose every pixel the
+    /// pipeline replaces, Load for one that it blends onto.
     /// </summary>
-    public void DrawSceneFullScreen(GpuImage target, Pipeline pipeline)
+    public void DrawSceneFullScreen(Pipeline pipeline, ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
     {
-        BeginRenderingInto(target, AttachmentLoadOp.DontCare);
+        BeginRenderingInto(targets);
         Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
         BindSceneSets();
         SetFullViewport();
@@ -110,25 +133,32 @@ internal sealed class FrameContext
         Vk.CmdEndRendering(CommandBuffer);
     }
 
-    /// <summary>Begins rendering into <paramref name="target"/> alone, its whole extent, stored at the end.</summary>
-    private unsafe void BeginRenderingInto(GpuImage target, AttachmentLoadOp loadOp)
+    /// <summary>
+    /// Begins rendering into <paramref name="targets"/>, one or two color attachments of one size, their whole extent, each
+    /// stored at the end.
+    /// </summary>
+    private unsafe void BeginRenderingInto(ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
     {
-        var color = new RenderingAttachmentInfo
-        {
-            SType = StructureType.RenderingAttachmentInfo,
-            ImageView = target.View,
-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = loadOp,
-            StoreOp = AttachmentStoreOp.Store,
-            ClearValue = default,
-        };
+        const int mostTargets = 2;
+        RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[mostTargets];
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(targets.Length, mostTargets);
+        for (int i = 0; i < targets.Length; i++)
+            colors[i] = new RenderingAttachmentInfo
+            {
+                SType = StructureType.RenderingAttachmentInfo,
+                ImageView = targets[i].Image.View,
+                ImageLayout = ImageLayout.ColorAttachmentOptimal,
+                LoadOp = targets[i].LoadOp,
+                StoreOp = AttachmentStoreOp.Store,
+                ClearValue = default,
+            };
         var rendering = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new(new Offset2D(0, 0), target.Extent),
+            RenderArea = new(new Offset2D(0, 0), targets[0].Image.Extent),
             LayerCount = 1,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &color,
+            ColorAttachmentCount = (uint)targets.Length,
+            PColorAttachments = colors,
         };
         Vk.CmdBeginRendering(CommandBuffer, &rendering);
     }
@@ -196,8 +226,9 @@ internal abstract class RenderPass : IDisposable
 /// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
 /// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="VisibilityBitmaskLight"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>),
-/// SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
+/// <see cref="VisibilityBitmaskLight"/>), the skin scatter (<see cref="SkinScatterPass"/>, under
+/// <see cref="SeparableSubsurface"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass
+/// (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>), SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -255,6 +286,13 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>The ambient pass: after the occlusion passes, whose estimate target it reads, into the HDR image.</summary>
         AmbientLight,
+
+        /// <summary>
+        /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the ambient pass, so that the
+        /// scattered light holds the ambient light, the crease shadowing and the bounce, and before the reflections, so that
+        /// a mirror shows the scattered skin (docs/plans/skin-and-hair.md, decision 18).
+        /// </summary>
+        SkinScatter,
 
         /// <summary>
         /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the ambient pass,

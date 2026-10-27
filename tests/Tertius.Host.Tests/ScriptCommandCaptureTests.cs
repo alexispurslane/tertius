@@ -12,8 +12,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     /// <summary>
     /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
     /// shadows after the cascades, the environment map's faces and prefilter after them, the occlusion passes of the
-    /// screen-space light between the direct and the ambient pass, the reflections' half-resolution trace and its upsample
-    /// after the radiance pyramid, SMAA after the tone map.
+    /// screen-space light between the direct and the ambient pass, the skin scatter's two passes after the ambient pass, the
+    /// reflections' half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
@@ -30,6 +30,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "occlusion denoise",
         "occlusion upsample",
         "ambient light",
+        "scatter rows",
+        "scatter columns",
         "radiance pyramid",
         "reflection trace",
         "reflections",
@@ -501,6 +503,37 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         object expected = off ? new NoReflections() : new RendererOptions().Reflections.Value!;
+        settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--subsurface", "on" }, false)]
+    [InlineData(new[] { "--subsurface", "off" }, true)]
+    public void TheSubsurfaceOptionTurnsTheHeadlessRenderersSkinScatterOffAndOnKeepsTheRenderersDefault(
+        string[] subsurface,
+        bool off
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<object?>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. subsurface],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.Subsurface.Value);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        object expected = off ? new NoSubsurface() : new RendererOptions().Subsurface.Value!;
         settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 

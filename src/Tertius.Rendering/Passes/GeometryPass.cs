@@ -41,7 +41,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             VertexShader = "mesh.vert",
             FragmentShader = "gbuffer.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = RenderTargets.GBufferFormats,
+            ColorAttachments = RenderTargets.GBufferAttachments,
             DepthFormat = RenderTargets.DepthFormat,
             VertexInput = VertexInput.Mesh,
             DepthTest = true,

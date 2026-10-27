@@ -1,0 +1,24 @@
+#version 460
+// The skin scatter's pass along the columns, "scatter columns" (docs/plans/skin-and-hair.md, "The two passes"): the
+// scattered light S, the kernel's sum of the row image along the column, at each skin pixel, and HDR += S − D there.
+// Every other pixel keeps its value.
+#extension GL_GOOGLE_include_directive : require
+#include "skin_scatter.glsl"
+#include "exposure.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideScatter(pixel))
+        return;
+    vec4 diffuse = imageLoad(scatterImage, pixel);
+    if (diffuse.a <= 0.0)
+        return;
+    vec3 scattered = scatterAlong(pixel, ivec2(0, 1), imageLoad(rowImage, pixel).rgb);
+    vec4 lit = imageLoad(hdrImage, pixel);
+    // Every input is finite and at most 2 · MaxRadiance, so the clamp acts on finite values (docs/plans/skin-and-hair.md,
+    // "Portable Vulkan").
+    imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + scattered - diffuse.rgb, 0.0, MaxRadiance), lit.a));
+}

@@ -1,0 +1,18 @@
+#version 460
+// The skin scatter's pass along the rows, "scatter rows" (docs/plans/skin-and-hair.md, "The two passes"): the kernel's
+// sum of D along the row at each skin pixel, into the row image. Every other pixel of the row image gets 0, so the image
+// holds no value from an earlier frame.
+#extension GL_GOOGLE_include_directive : require
+#include "skin_scatter.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideScatter(pixel))
+        return;
+    vec4 diffuse = imageLoad(scatterImage, pixel);
+    vec4 rows = diffuse.a > 0.0 ? vec4(scatterAlong(pixel, ivec2(1, 0), diffuse.rgb), 1.0) : vec4(0.0);
+    imageStore(rowImage, pixel, rows);
+}

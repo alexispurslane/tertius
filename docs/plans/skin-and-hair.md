@@ -616,7 +616,8 @@ where
 
 - `k` = the exposure scale. `exposed(x, k)` = min(x, MaxRadiance / k) · k, at most MaxRadiance.
 - `outDirect`, `outColor` = the direct image and the HDR image, as the bounce light's design writes them.
-- `outScatter` = location 1 of each pass. The direct pass clears the scatter image and writes it. The ambient pass adds to it with the factors One and One. The HDR image takes no blend, so the two attachments of the ambient pass have different blend states.
+- `outScatter` = location 1 of each pass. The direct pass clears the scatter image and writes it. The ambient pass adds to it with the factors One and One. The HDR image takes no blend, so the two attachments of the ambient pass have different blend states, which `GraphicsPipelineDesc.ColorAttachments` gives per attachment.
+- The location exists only in the shader variants `direct_scatter.frag` and `ambient_scatter.frag`, which define `SCATTER_OUTPUT` before they include the passes' bodies, `direct_pass.glsl` and `ambient_pass.glsl`. Under `NoSubsurface` the pipelines use `direct.frag` and `ambient.frag`, which have one output for their one attachment. A specialization constant around the write is not enough: Vulkan's validation reports a fragment output that no attachment takes, even when a constant turns its write off.
 
 So the scatter image holds D = exposed(diffuse of the lights) + exposed(diffuse of the ambient light) at each skin pixel, at most 2 · MaxRadiance = 64,512, with 1 in alpha, and 0 everywhere else: at the sky, at an impostor billboard and at every pixel that is not skin.
 
@@ -657,7 +658,7 @@ where
 
 - `viewDepthAt(p)` = z at pixel p, from the distance target and the view ray.
 - `frame.viewport.y` = H. `length(frame.cameraUp.xyz)` = tan(φ_y / 2). So `pixelsPerMeter` = s(z).
-- `kernel[i]` = tap i of the kernel buffer: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0.
+- `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and 528 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
 - `rise` = the tap's depth step over the depth step of the slope limit across its offset. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
@@ -726,7 +727,7 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 | The scatter image | The direct pass (clears, writes D's direct part and the mask), the ambient pass (adds D's ambient part) | `DirectLight`, `AmbientLight` | The rows pass (taps), the columns pass (mask, D at the center), the test hook `ReadScatter` | `SkinScatter` | `ScatterImages.Scatter` | The bounce's direct image |
 | The row image | The rows pass | `SkinScatter` | The columns pass | `SkinScatter` | `ScatterImages.Rows` | Occlusion term B |
 | The HDR image at skin pixels | The columns pass adds S − D | `SkinScatter` | The radiance pyramid and every later pass | `Reflections` and later | `RenderTargets.Hdr` | The reflections' delta |
-| `RendererOptions.Subsurface` | The host (`--subsurface on|off`), tests | Before the renderer is made | `CheckOptions`, the pipelines of the direct and ambient passes, `ScatterImages`, the scatter passes | At creation | `RendererOptions` | `RendererOptions.Reflections` |
+| `RendererOptions.Subsurface` | The host (`--subsurface on|off`), tests | Before the renderer is made | `CheckOptions`, the choice of the direct and ambient passes' shader variants, `ScatterImages`, whose `Setting` alone gives the scatter passes their taps per side through `ShaderConstants.Subsurface`, the scatter passes | At creation | `RendererOptions` | `RendererOptions.Reflections` |
 
 Each ordering rule has its reason:
 
@@ -781,7 +782,7 @@ Every kind takes one path. Only the alpha mode's runs and the model's response d
 
 | Requirement | Why the renderer needs it | Why the Linux drivers offer it |
 |---|---|---|
-| `independentBlend`, new | The ambient pass blends its scatter output additively and writes the HDR image with no blend (decision 14) | A Vulkan 1.0 feature that NVIDIA, RADV and ANV offer on every GPU that they support, as Direct3D 10 and later require blend states per render target. lavapipe sets it, as llvmpipe blends each render target on its own. MoltenVK offers it on every Mac GPU. `VulkanDevice` checks it before it creates the device. The reviewer of Part 5 checks these claims against the drivers' feature tables. |
+| `independentBlend`, new | The ambient pass blends its scatter output additively and writes the HDR image with no blend (decision 14) | A Vulkan 1.0 feature that NVIDIA, RADV and ANV offer on every GPU that they support, as Direct3D 10.1 and later require a full blend state per render target, and every GPU these drivers support is Direct3D 11-class. lavapipe sets it, as llvmpipe blends each render target on its own. MoltenVK offers it on every Mac GPU. `VulkanDevice` checks it before it creates the device. The reviewer of Part 5 checks these claims against the drivers' feature tables. |
 | `R8G8B8A8_UINT` as a color attachment and a sampled image | The shading target | The spec requires both for this format of every device |
 | `R16G16B16A16_SFLOAT` as a blended color attachment and a storage image | The scatter image and the row image | The spec requires both for this format of every device. A storage image of this format needs no `shaderStorageImageExtendedFormats` |
 
@@ -928,7 +929,7 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 
 `SubsurfaceSettingTests` (new): `TheZeroValueIsNoSubsurface`, `TheDefaultTakesEightTapsPerSide`, `TapsOutsideOneToSixteenAreRefused`.
 
-`SkinScatterRenderTests` (new, GPU). The scenes: a skin sphere of radius 0.1 m, the size of a head, lit from the side by a spot light, with a small sphere in front as a nose. A skin plane beside an emissive plane that is not skin. A skin plane 0.5 m in front of another.
+`SkinScatterRenderTests` (new, GPU). The scenes: a skin sphere of radius 0.1 m, the size of a head, lit from the side by the sun, with a small sphere in front as a nose. A spot light at a finite distance moved the terminator by about 9 pixels from the one of a parallel light, so the test reads the columns beside the terminator of the sun. A skin plane beside an emissive plane that is not skin. A skin plane 0.5 m in front of another.
 
 - `TheScatterImageHoldsTheDiffuseLightOfSkinPixelsAndNothingElse`: against the C# copy of the BRDF and the ambient light.
 - `ThePassesMatchTheirCopyInCSharp`: HDR with the scatter minus HDR without it, against `SkinScatter` run on the read scatter image and distances.
@@ -963,7 +964,7 @@ At 1920 × 1080, 2,073,600 pixels:
 |---|---|---|
 | The shading target, always | 4 B × 2,073,600 | 8.3 MB |
 | The scatter image and the row image, under `SeparableSubsurface` | 2 × 8 B × 2,073,600 | 33.2 MB |
-| The kernel buffer | 17 × 16 B | 272 B |
+| The kernel buffer | 33 × 16 B, room for 16 taps per side | 528 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
 
@@ -1180,7 +1181,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
 
 ### Part 5: the skin scatter
 
-- Files: `src/Tertius.Rendering/SubsurfaceSetting.cs` (new, public), `RendererOptions.cs`, `Frame/ScatterImages.cs` (new: the two images, the kernel buffer, set 3), `Passes/SkinScatterPass.cs` (new, one class with the step `Rows` or `Columns`, as `ReflectionPass`), `Frame/FrameGraph.cs` (the stage), `Frame/DescriptorLayouts.cs` (`ScatterLayout`), `Frame/RenderTargets.cs` (the HDR image's storage usage), `Passes/DirectLightPass.cs`, `Passes/AmbientLightPass.cs` (the second attachment and its blend), `Vulkan/VulkanDevice.cs` (`independentBlend`), `ShaderConstants.cs` (`SubsurfaceOn`, `ScatterTapsPerSide`), `VulkanRenderer.cs` (`CheckOptions`, the wiring, the test hook `ReadScatter`); the shaders `skin_scatter.glsl`, `skin_scatter_rows.comp`, `skin_scatter_columns.comp` (new), `direct.frag`, `ambient.frag`; `src/Tertius.Host/ScriptCommand.cs` (`--subsurface on|off`); the test helpers `Gpu.Headless` and `GpuTesting.Headless` (`NoSubsurface`).
+- Files: `src/Tertius.Rendering/SubsurfaceSetting.cs` (new, public), `RendererOptions.cs`, `Frame/ScatterImages.cs` (new: the two images, the kernel buffer, set 3), `Passes/SkinScatterPass.cs` (new, one class with the step `Rows` or `Columns`, as `ReflectionPass`), `Frame/FrameGraph.cs` (the stage), `Frame/DescriptorLayouts.cs` (`ScatterLayout`), `Frame/RenderTargets.cs` (the HDR image's storage usage), `Passes/DirectLightPass.cs`, `Passes/AmbientLightPass.cs` (the second attachment and its blend), `Vulkan/GraphicsPipelineDesc.cs` (`ColorAttachment`: a format and a blend per attachment), `Vulkan/ResourceState.cs` (`BufferUse.ComputeUniformRead`), `Vulkan/VulkanDevice.cs` (`independentBlend`), `ShaderConstants.cs` (`ScatterTapsPerSide`, which only the scatter passes set, from `ScatterImages.Setting`), `VulkanRenderer.cs` (`CheckOptions`, the wiring, the test hook `ReadScatter`); the shaders `skin_scatter.glsl`, `skin_scatter_rows.comp`, `skin_scatter_columns.comp`, `direct_pass.glsl`, `ambient_pass.glsl`, `direct_scatter.frag`, `ambient_scatter.frag`, `subsurface.glsl` (new), `direct.frag`, `ambient.frag`; `src/Tertius.Host/ScriptCommand.cs` (`--subsurface on|off`); the test helpers `Gpu.Headless` and `GpuTesting.Headless` (`NoSubsurface`).
 - Tests first: Part 5's tests of "Tests".
 - Gives:
 

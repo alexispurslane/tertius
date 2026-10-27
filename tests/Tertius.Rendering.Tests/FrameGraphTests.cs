@@ -103,6 +103,26 @@ public sealed class FrameGraphTests
             );
     }
 
+    [Fact]
+    public void TheScatterRunsAfterTheAmbientLightAndBeforeTheReflections()
+    {
+        using var graph = new FrameGraph();
+        graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
+        graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
+        graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter rows"));
+        graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter columns"));
+        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
+        graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
+
+        graph
+            .Passes.Select(pass => pass.Name)
+            .Should()
+            .Equal(
+                ["direct light", "ambient light", "scatter rows", "scatter columns", "radiance pyramid", "transparent"],
+                "the scatter blurs the diffuse light that both lighting passes wrote, and a mirror shows the scattered skin"
+            );
+    }
+
     private sealed class NamedPass(string name) : RenderPass
     {
         public override string Name => name;

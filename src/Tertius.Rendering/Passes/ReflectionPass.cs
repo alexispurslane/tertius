@@ -99,21 +99,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         DeclareUses(context);
-        context.Barriers.Flush(vk, commandBuffer);
-
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);
-        context.BindSceneSets(PipelineBindPoint.Compute, layouts.ReflectionLayout);
-        DescriptorSet traceSet = targets.TraceSet;
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Compute,
-            layout: layouts.ReflectionLayout,
-            firstSet: 3,
-            descriptorSetCount: 1,
-            pDescriptorSets: &traceSet,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
+        context.BeginComputePass(pipeline: pipeline, layout: layouts.ReflectionLayout, passSet: targets.TraceSet);
         var push = ReflectionPushConstants.For(setting);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

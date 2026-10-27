@@ -300,7 +300,7 @@ bool viewKeeps(uint view, GpuLight light)
 // so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
 // take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
 // decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes it
-// into the direct image (Shaders/direct.frag).
+// into the direct image (Shaders/direct_pass.glsl).
 DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     DirectTerms sum;
