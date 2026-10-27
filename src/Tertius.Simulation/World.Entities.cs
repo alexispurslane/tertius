@@ -193,6 +193,28 @@ public sealed partial class World
     private SpawnPlan PrepareSpawn(SpawnDesc desc)
     {
         ArgumentNullException.ThrowIfNull(desc);
+        CheckSpawnFrame(desc);
+        CheckSpawnMotion(desc);
+        CheckSpawnAttachment(desc);
+        CheckSpawnBody(desc);
+        CheckSpawnFrameSpec(desc);
+        if (SpawnVelocityProblem(desc) is { } velocityProblem)
+            throw new ArgumentException(velocityProblem, nameof(desc));
+        if (FirstMoveProblem(desc) is { } firstMove)
+            throw new ArgumentException(
+                $"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.",
+                nameof(desc)
+            );
+        if (RigPoseProblem(desc) is { } rigPose)
+            throw new ArgumentException($"The new entity cannot take its rig pose: {rigPose}.", nameof(desc));
+        (IComponent[] components, EventMask[] wants) = ComponentsByPriority(desc);
+        Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
+        return new(components, wants, subscriptions);
+    }
+
+    /// <summary>Throws unless <paramref name="desc"/> names a live frame, or needs none as a root frame or an attached entity.</summary>
+    private void CheckSpawnFrame(SpawnDesc desc)
+    {
         if (desc.Frame.IsNull)
         {
             // An attached entity takes the frame of its parent when it becomes live.
@@ -206,7 +228,11 @@ public sealed partial class World
         {
             throw new ArgumentException($"Cannot spawn in {desc.Frame}: the frame is stale.", nameof(desc));
         }
+    }
 
+    /// <summary>Throws unless the pose and the velocities of <paramref name="desc"/> are ones that physics can take.</summary>
+    private static void CheckSpawnMotion(SpawnDesc desc)
+    {
         // Physics turns a pose or velocity that is not finite into NaN in its first step, and a zero rotation too.
         if (!desc.Pose.IsValid)
             throw new ArgumentException(
@@ -223,59 +249,63 @@ public sealed partial class World
                 $"Cannot spawn with the angular velocity {desc.AngularVelocity}: it must be finite.",
                 nameof(desc)
             );
-        if (!desc.AttachTo.IsNull)
-        {
-            if (desc.Body != null)
-                throw new ArgumentException("An attached entity cannot have a physics body.", nameof(desc));
-            if (desc.AsFrame != null)
-                throw new ArgumentException("An attached entity cannot be a frame.", nameof(desc));
-        }
+    }
 
-        if (desc.Body is { } body)
-        {
-            bool ownsFrame = desc.AsFrame is not null;
-            // The body of a frame owner is the frame's hull when the frame has a parent. A root frame has no hull.
-            BodyRole role = BodyRole.OwnsNoFrame;
-            if (ownsFrame)
-                role = desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
-            if (body.Problem(role) is { } problem)
-                throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
-            // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
-            if (Physics?.ShapeProblem(body.Shape) is { } shape)
-                throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
-            if (ownsFrame && body.InteriorShape is { } interior && Physics?.ShapeProblem(interior) is { } inside)
-                throw new ArgumentException(
-                    $"Physics cannot create this body: its interior shape {inside}.",
-                    nameof(desc)
-                );
-        }
+    /// <summary>Throws when an attached entity in <paramref name="desc"/> has a body or owns a frame.</summary>
+    private static void CheckSpawnAttachment(SpawnDesc desc)
+    {
+        if (desc.AttachTo.IsNull)
+            return;
+        if (desc.Body != null)
+            throw new ArgumentException("An attached entity cannot have a physics body.", nameof(desc));
+        if (desc.AsFrame != null)
+            throw new ArgumentException("An attached entity cannot be a frame.", nameof(desc));
+    }
 
-        if (desc.AsFrame is { } spec)
-        {
-            if (!(spec.Bounds.MinRadius > 0))
-                throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
-            if (!spec.Gravity.IsValid)
-                throw new ArgumentException(
-                    "A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).",
-                    nameof(desc)
-                );
-            if (!spec.Medium.IsValid)
-                throw new ArgumentException(
-                    "A frame needs a medium with numbers in their ranges: this medium is not valid (see MediumField.IsValid).",
-                    nameof(desc)
-                );
-        }
+    /// <summary>Throws unless physics can create the body of <paramref name="desc"/>, if it has one, in its role.</summary>
+    private void CheckSpawnBody(SpawnDesc desc)
+    {
+        if (desc.Body is not { } body)
+            return;
+        bool ownsFrame = desc.AsFrame is not null;
+        // The body of a frame owner is the frame's hull when the frame has a parent. A root frame has no hull.
+        BodyRole role = BodyRole.OwnsNoFrame;
+        if (ownsFrame)
+            role = desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
+        if (body.Problem(role) is { } problem)
+            throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
+        // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
+        if (Physics?.ShapeProblem(body.Shape) is { } shape)
+            throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
+        if (ownsFrame && body.InteriorShape is { } interior && Physics?.ShapeProblem(interior) is { } inside)
+            throw new ArgumentException($"Physics cannot create this body: its interior shape {inside}.", nameof(desc));
+    }
 
-        if (SpawnVelocityProblem(desc) is { } velocityProblem)
-            throw new ArgumentException(velocityProblem, nameof(desc));
-        if (FirstMoveProblem(desc) is { } firstMove)
+    /// <summary>Throws unless the frame tree can create the frame of <paramref name="desc"/>, if it owns one.</summary>
+    private static void CheckSpawnFrameSpec(SpawnDesc desc)
+    {
+        if (desc.AsFrame is not { } spec)
+            return;
+        if (!(spec.Bounds.MinRadius > 0))
+            throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
+        if (!spec.Gravity.IsValid)
             throw new ArgumentException(
-                $"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.",
+                "A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).",
                 nameof(desc)
             );
-        if (RigPoseProblem(desc) is { } rigPose)
-            throw new ArgumentException($"The new entity cannot take its rig pose: {rigPose}.", nameof(desc));
+        if (!spec.Medium.IsValid)
+            throw new ArgumentException(
+                "A frame needs a medium with numbers in their ranges: this medium is not valid (see MediumField.IsValid).",
+                nameof(desc)
+            );
+    }
 
+    /// <summary>
+    /// The components of <paramref name="desc"/> in a stable order of priority, and what each wants. Reads each component's
+    /// priority and wants once, and gives its type an id.
+    /// </summary>
+    private static (IComponent[] Components, EventMask[] Wants) ComponentsByPriority(SpawnDesc desc)
+    {
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];
         int[] priorities = new int[source.Count];
@@ -310,8 +340,7 @@ public sealed partial class World
             wants[at] = mask;
         }
 
-        Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
-        return new(components, wants, subscriptions);
+        return (components, wants);
     }
 
     /// <summary>
@@ -450,48 +479,12 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(
-                frameOwner: entity,
-                parent: frame,
-                localPose: pose,
-                frameBounds: spec.Bounds,
-                field: spec.Gravity,
-                medium: spec.Medium
-            );
-            // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
-            // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
-            if (!frame.IsNull && desc.Body is { } hullBody)
-                Frames.SetHullMotion(own, hullBody.Motion);
-            topics.AddFrame(own);
-            // Every new frame stands at the pose of its spawn description, with its velocities. Its first step runs before its
-            // components do, so a frame on rails follows the first motion intent of its spawn in that step, or without one
-            // holds still there, and the first sample of its rails component puts it on its rails in the second step
-            // (docs/plans/rails-components.md, "The first motion intent of a spawn").
-            Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
-            Frames.SetAngularVelocity(own, desc.AngularVelocity);
-            physicsChanges.FramesCreated.Add(own);
+            own = CreateOwnedFrame(entity: entity, desc: desc, spec: spec, parent: frame, pose: pose);
             row = FrameOwnerRow(own);
             velocity = Frames.LinearVelocity(own);
         }
 
-        foreach (IComponent component in plan.Components)
-            InitializeComponentType(component.GetType());
-        // The backend keeps the shape that it built for the description, so the center of mass costs no second build. The
-        // lever of every part of the entity is measured from it (docs/plans/parts.md).
-        Vector3 centerOfMass =
-            desc.Body is { } spawnBody && Physics != null ? Physics.ShapeCenterOfMass(spawnBody.Shape) : Vector3.Zero;
-        Entities.Activate(
-            entity: entity,
-            row: row,
-            render: desc.Render ?? new RenderData(),
-            components: plan.Components,
-            wants: plan.Wants,
-            body: desc.Body,
-            bodyCenterOfMass: centerOfMass,
-            ownedFrame: own
-        );
-        if (desc.RigPose is { } rigPose)
-            Entities.SetSpawnRigPose(entity, rigPose);
+        WriteSpawnRows(entity: entity, desc: desc, plan: plan, row: row, own: own);
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
         // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
@@ -514,6 +507,67 @@ public sealed partial class World
         _ = topics.MoveMember(entity, row.Frame);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
+    }
+
+    /// <summary>
+    /// Writes the rows of the reserved <paramref name="entity"/> in the entity table: its transform <paramref name="row"/>,
+    /// its render data, its components, its body and the frame <paramref name="own"/> that it owns, and its rig pose.
+    /// </summary>
+    private void WriteSpawnRows(Entity entity, SpawnDesc desc, SpawnPlan plan, in TransformRow row, FrameHandle own)
+    {
+        foreach (IComponent component in plan.Components)
+            InitializeComponentType(component.GetType());
+        // The backend keeps the shape that it built for the description, so the center of mass costs no second build. The
+        // lever of every part of the entity is measured from it (docs/plans/parts.md).
+        Vector3 centerOfMass =
+            desc.Body is { } spawnBody && Physics != null ? Physics.ShapeCenterOfMass(spawnBody.Shape) : Vector3.Zero;
+        Entities.Activate(
+            entity: entity,
+            row: row,
+            render: desc.Render ?? new RenderData(),
+            components: plan.Components,
+            wants: plan.Wants,
+            body: desc.Body,
+            bodyCenterOfMass: centerOfMass,
+            ownedFrame: own
+        );
+        if (desc.RigPose is { } rigPose)
+            Entities.SetSpawnRigPose(entity, rigPose);
+    }
+
+    /// <summary>
+    /// Creates the frame that <paramref name="entity"/> owns, below <paramref name="parent"/> at <paramref name="pose"/>,
+    /// with the bubble, the fields, the hull motion and the velocities of <paramref name="desc"/>, and its topic.
+    /// </summary>
+    private FrameHandle CreateOwnedFrame(
+        Entity entity,
+        SpawnDesc desc,
+        FrameSpec spec,
+        FrameHandle parent,
+        in DPose pose
+    )
+    {
+        FrameHandle own = Frames.Create(
+            frameOwner: entity,
+            parent: parent,
+            localPose: pose,
+            frameBounds: spec.Bounds,
+            field: spec.Gravity,
+            medium: spec.Medium
+        );
+        // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
+        // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
+        if (!parent.IsNull && desc.Body is { } hullBody)
+            Frames.SetHullMotion(own, hullBody.Motion);
+        topics.AddFrame(own);
+        // Every new frame stands at the pose of its spawn description, with its velocities. Its first step runs before its
+        // components do, so a frame on rails follows the first motion intent of its spawn in that step, or without one
+        // holds still there, and the first sample of its rails component puts it on its rails in the second step
+        // (docs/plans/rails-components.md, "The first motion intent of a spawn").
+        Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
+        Frames.SetAngularVelocity(own, desc.AngularVelocity);
+        physicsChanges.FramesCreated.Add(own);
+        return own;
     }
 
     /// <summary>
