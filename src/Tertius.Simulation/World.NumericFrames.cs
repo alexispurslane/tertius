@@ -108,6 +108,8 @@ public sealed partial class World
                 Position = row.Pose.Position,
                 HomePosition = row.HomePose.Position,
                 Velocity = SemanticVelocity(entity, row, own),
+                // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity.
+                Spawned = pendingCreates.Count > 0 && pendingCreates.ContainsKey(entity),
                 AngularVelocity = SemanticAngularVelocity(row, own),
                 CenterOfMassOffset = row.Pose.TransformDirection(Entities.BodyCenterOfMass(entity)),
                 Radius = Entities.BodyBoundingRadius(entity),

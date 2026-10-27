@@ -225,18 +225,15 @@ public sealed partial class FrameTree
             properAccelerationOut = local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
         }
 
-        Double3 acceleration = FieldTheStepFound(semantic.Index, position) + properAccelerationOut;
-        ref readonly FrameTurns semanticTurns = ref turns[semantic.Index];
-        if (semanticTurns.Turns)
-        {
-            // The rule reads the parent's rotation terms at the place where the step started, with the Coriolis term on the
-            // chord. The row keeps the instant velocity, which is the chord to half a step of the acceleration.
-            Double3 start = position - velocity * step;
-            acceleration +=
-                semanticTurns.Centrifugal(start) + semanticTurns.Euler(start, step) + semanticTurns.Coriolis(velocity);
-        }
-
-        Double3 chord = velocity - acceleration * (step / 2);
+        Double3 chord =
+            velocity
+            - InstantVelocityOverChord(
+                semantic: semantic,
+                position: position,
+                velocity: velocity,
+                properAcceleration: properAccelerationOut,
+                step: step
+            );
         FrameHandle following = CreateNumeric(
             parent: semantic,
             position: position,
@@ -254,6 +251,58 @@ public sealed partial class FrameTree
 
         Contract.Ensures(Anchors(following, body.Entity) && TreeParent(following) == semantic);
         return following;
+    }
+
+    /// <summary>
+    /// How much the instant velocity <paramref name="velocity"/> of a body at <paramref name="position"/> in
+    /// <paramref name="semantic"/> at the end of the step that ended exceeds the chord of its motion over that step, of
+    /// <paramref name="step"/> seconds: half a step of its acceleration, read backward from its
+    /// <paramref name="properAcceleration"/> in the semantic frame's axes (see <see cref="CreateFollowingFrame"/>).
+    /// </summary>
+    private Double3 InstantVelocityOverChord(
+        FrameHandle semantic,
+        Double3 position,
+        Double3 velocity,
+        Double3 properAcceleration,
+        double step
+    )
+    {
+        Double3 acceleration = FieldTheStepFound(semantic.Index, position) + properAcceleration;
+        ref readonly FrameTurns semanticTurns = ref turns[semantic.Index];
+        if (semanticTurns.Turns)
+        {
+            // The rule reads the parent's rotation terms at the place where the step started, with the Coriolis term on the
+            // chord. The row keeps the instant velocity, which is the chord to half a step of the acceleration.
+            Double3 start = position - velocity * step;
+            acceleration +=
+                semanticTurns.Centrifugal(start) + semanticTurns.Euler(start, step) + semanticTurns.Coriolis(velocity);
+        }
+
+        return acceleration * (step / 2);
+    }
+
+    /// <summary>
+    /// How much the velocity of <paramref name="body"/> exceeds its chord over the step that ended, of
+    /// <paramref name="step"/> seconds (see <see cref="NumericBody.InstantVelocityOverChord"/>). A body that physics creates
+    /// at this sync point has an instant velocity, which physics turns into a chord where the next step starts, so it takes
+    /// the derivation of a new following frame (see <see cref="CreateFollowingFrame"/>) with no proper acceleration, because
+    /// it has none yet. Every other body reports zero. A body that physics stepped reports Jolt's chord, and a hull its
+    /// frame's instant velocity, which runs half a step of its acceleration ahead (ter-5pd7). A static body fixes its group,
+    /// which then takes no chord. A kinematic hull fixes its group or anchors a following frame, which derives its own chord
+    /// (see <see cref="CreateFollowingFrame"/>), so no group chord of it is read, and a plain kinematic body takes no spawn
+    /// velocity.
+    /// </summary>
+    private Double3 InstantVelocityOverChord(in NumericBody body, double step)
+    {
+        if (!body.Spawned || body.Static || body.Kinematic)
+            return Double3.Zero;
+        return InstantVelocityOverChord(
+            semantic: body.Semantic,
+            position: body.Position,
+            velocity: body.Velocity,
+            properAcceleration: Double3.Zero,
+            step: step
+        );
     }
 
     /// <summary>
@@ -444,7 +493,8 @@ public sealed partial class FrameTree
     /// <summary>
     /// Fills <see cref="sortedBodies"/> with <paramref name="bodies"/>, sorted by semantic frame, each with the mode of its
     /// home and whether it thrusts, after its thrust clock has run over <paramref name="ticks"/> ticks (see
-    /// <see cref="Thrusts"/>), and with no ghost place that fixes it yet (see <see cref="NumericBody.MayTouchFixedGhost"/>).
+    /// <see cref="Thrusts"/>), how much its velocity exceeds its chord (see <see cref="NumericBody.InstantVelocityOverChord"/>),
+    /// and with no ghost place that fixes it yet (see <see cref="NumericBody.MayTouchFixedGhost"/>).
     /// </summary>
     private void SortBySemanticFrame(ReadOnlySpan<NumericBody> bodies, int ticks, int tickRate)
     {
@@ -474,11 +524,13 @@ public sealed partial class FrameTree
             NumericMode homeMode = body.Home == body.Semantic ? NumericMode.None : numeric[body.Home.Index];
             bool anchorsHome = homeMode == NumericMode.Following && anchor[body.Home.Index] == body.Entity;
             bool thrusts = Thrusts(body, ticks, tickRate);
+            Double3 instantVelocityOverChord = InstantVelocityOverChord(body, step: 1.0 / tickRate);
             sortedBodies.Add(
                 homeMode == body.HomeMode
                 && anchorsHome == body.AnchorsHome
                 && thrusts == body.Thrusts
                 && !body.MayTouchFixedGhost
+                && instantVelocityOverChord == body.InstantVelocityOverChord
                     ? body
                     : body with
                     {
@@ -486,6 +538,7 @@ public sealed partial class FrameTree
                         AnchorsHome = anchorsHome,
                         Thrusts = thrusts,
                         MayTouchFixedGhost = false,
+                        InstantVelocityOverChord = instantVelocityOverChord,
                     }
             );
         }
@@ -1166,7 +1219,7 @@ public sealed partial class FrameTree
             frameMode: mode,
             groupMode: group.Mode,
             frameVelocity: velocity,
-            groupVelocity: group.Motion.Velocity,
+            groupChord: group.Motion.Chord,
             options: NumericOptions
         );
         Double3 newPosition = NumericFrameRules.Origin(position, group.Motion.Center, NumericOptions);
@@ -1206,23 +1259,11 @@ public sealed partial class FrameTree
             home = semantic;
         else if (group.Keeps)
             home = group.Motion.Frame;
-        bool anyMoves = false;
-        for (int i = 0; i < members.Length; i++)
-            anyMoves |= !apart[group.Start + i] && members[i].Home != home;
-        if (!anyMoves)
+        if (!AnyMoves(group, members, home))
             return;
         if (home.IsNull)
         {
-            Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Velocity : Double3.Zero;
-            home =
-                group.Mode == NumericMode.Following
-                    ? CreateFollowingFrame(members[group.Motion.Anchor], step)
-                    : CreateNumeric(
-                        parent: semantic,
-                        position: group.Motion.Center,
-                        velocity: velocity,
-                        mode: group.Mode
-                    );
+            home = CreateGroupFrame(group, members, step);
             changes.FramesCreated.Add(home);
         }
 
@@ -1237,6 +1278,37 @@ public sealed partial class FrameTree
             );
             MoveBody(ref body, home);
         }
+    }
+
+    /// <summary>
+    /// True when a body of <paramref name="group"/>, whose members are <paramref name="members"/>, that does not live apart
+    /// from it is not in <paramref name="home"/>.
+    /// </summary>
+    private bool AnyMoves(in BodyGroup group, ReadOnlySpan<NumericBody> members, FrameHandle home)
+    {
+        for (int i = 0; i < members.Length; i++)
+            if (!apart[group.Start + i] && members[i].Home != home)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Makes the new frame of <paramref name="group"/>, of <paramref name="members"/>: the following frame of its anchor, for
+    /// a next step of <paramref name="step"/> seconds (see <see cref="CreateFollowingFrame"/>), or a falling or resting frame
+    /// at its center. A falling frame takes the group's chord, because a numeric frame's velocity is a chord
+    /// (ARCHITECTURE.md, "Instant velocities and chords").
+    /// </summary>
+    private FrameHandle CreateGroupFrame(in BodyGroup group, ReadOnlySpan<NumericBody> members, double step)
+    {
+        if (group.Mode == NumericMode.Following)
+            return CreateFollowingFrame(members[group.Motion.Anchor], step);
+        Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Chord : Double3.Zero;
+        return CreateNumeric(
+            parent: members[0].Semantic,
+            position: group.Motion.Center,
+            velocity: velocity,
+            mode: group.Mode
+        );
     }
 
     /// <summary>

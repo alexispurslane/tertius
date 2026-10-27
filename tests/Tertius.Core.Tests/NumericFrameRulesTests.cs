@@ -943,14 +943,14 @@ public sealed class NumericFrameRulesTests
             .Be(X(11));
 
     [Fact]
-    public void The_velocity_is_the_mass_weighted_mean_of_the_bodies() =>
-        Summary(Body(x: 0, vx: 100, mass: 3), Body(x: 1, vx: 200, mass: 1)).Velocity.Should().Be(X(125));
+    public void The_chord_is_the_mass_weighted_mean_of_the_chords_of_the_bodies() =>
+        Summary(Body(x: 0, vx: 100, mass: 3), Body(x: 1, vx: 200, mass: 1)).Chord.Should().Be(X(125));
 
     [Fact]
-    public void A_spinning_body_whose_center_of_mass_lies_off_its_origin_adds_the_velocity_of_its_center_of_mass() =>
+    public void A_spinning_body_whose_center_of_mass_lies_off_its_origin_adds_the_chord_of_its_center_of_mass() =>
         // Its origin moves at 100 m/s along X, and its center of mass, 3 m along X from it, turns at 0.5 rad/s about Y.
         Summary(Body(x: 0, vx: 100, mass: 3) with { AngularVelocity = new(0, 0.5f, 0), CenterOfMassOffset = X(3) })
-            .Velocity.Should()
+            .Chord.Should()
             .Be(new Double3(100, 0, -1.5), "the center of mass carries the momentum, not the origin, which circles it");
 
     [Fact]
@@ -964,7 +964,7 @@ public sealed class NumericFrameRulesTests
             .Be(X(10));
 
     [Fact]
-    public void A_group_with_a_kinematic_body_takes_the_center_and_the_velocity_of_its_center_of_mass()
+    public void A_group_with_a_kinematic_body_takes_the_center_and_the_chord_of_its_center_of_mass()
     {
         NumericGroup group = Summary(
             Body(x: 0, mass: 3),
@@ -976,23 +976,23 @@ public sealed class NumericFrameRulesTests
             }
         );
         group.Center.Should().Be(X(10));
-        group.Velocity.Should().Be(new Double3(0, 0, -1), "its origin rests, and its center of mass circles it");
+        group.Chord.Should().Be(new Double3(0, 0, -1), "its origin rests, and its center of mass circles it");
     }
 
     [Fact]
-    public void A_static_body_anchors_the_group_and_zeroes_its_velocity()
+    public void A_static_body_anchors_the_group_and_zeroes_its_chord()
     {
         NumericGroup group = Summary(Body(x: 0, vx: 100), Body(x: 1) with { Static = true });
         group.Anchored.Should().BeTrue();
-        group.Velocity.Should().Be(Double3.Zero);
+        group.Chord.Should().Be(Double3.Zero);
     }
 
     [Fact]
-    public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_velocity_and_its_center()
+    public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_chord_and_its_center()
     {
         // A crate of 25 kg at 60 m/s and a still door of 1 kg: the door decides, so the group does not fall.
         NumericGroup still = Summary(Body(x: -120, vx: 60, mass: 25), Body(x: 0, mass: 1) with { Kinematic = true });
-        still.Velocity.Should().Be(Double3.Zero);
+        still.Chord.Should().Be(Double3.Zero);
         still.Center.Should().Be(X(0));
         still.Anchored.Should().BeFalse("a kinematic body can take a velocity, so its group can fall with it");
         NumericGroup sliding = Summary(
@@ -1006,7 +1006,7 @@ public sealed class NumericFrameRulesTests
                 Kinematic = true,
             }
         );
-        sliding.Velocity.Should().Be(X(75), "the mass-weighted mean of the kinematic bodies alone");
+        sliding.Chord.Should().Be(X(75), "the mass-weighted mean of the kinematic bodies alone");
         sliding.Center.Should().Be(X(5));
     }
 
@@ -1024,7 +1024,7 @@ public sealed class NumericFrameRulesTests
                 }
             )
             .Should()
-            .Match<NumericGroup>(group => group.Velocity == Double3.Zero && group.Center == X(2));
+            .Match<NumericGroup>(group => group.Chord == Double3.Zero && group.Center == X(2));
 
     [Fact]
     public void A_fixed_body_fixes_the_whole_group() =>
@@ -1068,7 +1068,7 @@ public sealed class NumericFrameRulesTests
         group.Frame.Should().Be(Raft);
         group.FrameMass.Should().Be(double.PositiveInfinity, "only comparisons read the mass of a frame");
         group.Center.Should().Be(X(1));
-        group.Velocity.Should().Be(Double3.Zero);
+        group.Chord.Should().Be(Double3.Zero);
     }
 
     [Fact]
@@ -1286,23 +1286,23 @@ public sealed class NumericFrameRulesTests
         // The sleeper moves with the frame. The mover's 4 m/s, a quarter of the mass, is a common part of exactly 1 m/s.
         NumericBody sleeper = Body(x: 0, vx: OrbitSpeed.X, mass: 3, home: Pod),
             mover = Body(x: 1, vx: OrbitSpeed.X + 4, mass: 1, home: Pod);
-        Double3 common = Summary(sleeper, mover).Velocity;
+        Double3 common = Summary(sleeper, mover).Chord;
         DrainVelocity(
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Falling,
                 frameVelocity: OrbitSpeed,
-                groupVelocity: common,
+                groupChord: common,
                 options: Options
             )
             .Should()
             .Be(OrbitSpeed);
 
-        Double3 faster = Summary(sleeper, mover with { Velocity = X(OrbitSpeed.X + 4.04) }).Velocity;
+        Double3 faster = Summary(sleeper, mover with { Velocity = X(OrbitSpeed.X + 4.04) }).Chord;
         DrainVelocity(
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Falling,
                 frameVelocity: OrbitSpeed,
-                groupVelocity: faster,
+                groupChord: faster,
                 options: Options
             )
             .Should()
@@ -1315,31 +1315,31 @@ public sealed class NumericFrameRulesTests
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Falling,
                 frameVelocity: OrbitSpeed,
-                groupVelocity: OrbitSpeed + X(1),
+                groupChord: OrbitSpeed + X(1),
                 options: Options
             )
             .Should()
             .Be(OrbitSpeed);
 
     [Fact]
-    public void A_falling_frame_takes_its_members_velocity_above_the_drain_speed() =>
+    public void A_falling_frame_takes_its_members_chord_above_the_drain_speed() =>
         DrainVelocity(
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Falling,
                 frameVelocity: OrbitSpeed,
-                groupVelocity: OrbitSpeed + X(1.01),
+                groupChord: OrbitSpeed + X(1.01),
                 options: Options
             )
             .Should()
             .Be(OrbitSpeed + X(1.01));
 
     [Fact]
-    public void A_resting_frame_that_starts_to_fall_takes_its_members_velocity() =>
+    public void A_resting_frame_that_starts_to_fall_takes_its_members_chord() =>
         DrainVelocity(
                 frameMode: NumericMode.Resting,
                 groupMode: NumericMode.Falling,
                 frameVelocity: Double3.Zero,
-                groupVelocity: X(50.5),
+                groupChord: X(50.5),
                 options: Options
             )
             .Should()
@@ -1351,7 +1351,7 @@ public sealed class NumericFrameRulesTests
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Resting,
                 frameVelocity: OrbitSpeed,
-                groupVelocity: X(3),
+                groupChord: X(3),
                 options: Options
             )
             .Should()
