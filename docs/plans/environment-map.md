@@ -183,7 +183,7 @@ Decision 17. A face's surfaces get every light of the list with its shadows (far
 | Impostors | None in a face. Decision 21 |
 | Small objects | Not culled. Decision 21 |
 
-The batcher interpolates each instance it keeps by the frame's alpha, as for the main view, and writes its `GpuInstance` and its indirect commands after the main view's, into the same arrays. A face's commands per range go into `PreparedScene.EnvironmentFaces`.
+`CollectVisible` interpolates each instance by the frame's alpha once, for the main view and the map: the opaque instances that a face may draw go into the map's instances, before any face culls them. Each face culls the map's instances and writes its `GpuInstance` and its indirect commands after the main view's, into the same arrays. Part 6 measured an earlier state, in which each face looped over the snapshot and interpolated each instance it kept (see "What the cost turned out to be"). A face's commands per range go into `PreparedScene.EnvironmentFaces`.
 
 ### Which faces a frame draws
 
@@ -236,7 +236,7 @@ Everything in this section runs on the GPU in one compute pass, `EnvironmentPref
 
 ### The radiance map's mips
 
-The prefilter pass first rebuilds the mip chain of all six faces, from level 0 down to 1 × 1, with one dispatch per level of `environment_downsample.comp`. Each texel of level i + 1 is the mean of its four children in level i, weighted by each child's solid angle Ω (the formula of "The irradiance" below), in all four channels:
+The prefilter pass first rebuilds the mip chain of all six faces, from level 0 down to 1 × 1, with `environment_downsample.comp`. Each texel of level i + 1 is the mean of its four children in level i, weighted by each child's solid angle Ω (the formula of "The irradiance" below), in all four channels:
 
 ```
 texel of level i + 1 = Σ over its 4 children: child · Ω(child)  /  Σ over its 4 children: Ω(child)
@@ -246,7 +246,9 @@ The children's solid angles add up to the texel's own. So a texel of any level h
 
 A box filter, such as the linear blits that `ImpostorPass.GenerateMips` uses for a tile, weights the four children equally, by count. On a cube face that loses about half the light of a spot at a face's center at roughness 1, and doubles that of a spot toward a corner, so the map does not use it.
 
-The chain is rebuilt in every drawn frame, for the faces that the frame did not draw too, which gives the same bits for them. That keeps one rule for the whole pass and costs little: 6 × (64² + 32² + … + 1) = 32,766 texels of four reads each at W = 128, against 2.1 million samples of the specular levels. Each level reads the one above it, so a barrier separates the levels. The levels are storage images in the `General` layout during the chain, and the whole map is then read-only for the prefilter's samples.
+The chain is rebuilt in every drawn frame, for the faces that the frame did not draw too, which gives the same bits for them. That keeps one rule for the whole pass and costs little: 6 × (64² + 32² + … + 1) = 32,766 texels of four reads each at W = 128, against 2.1 million samples of the specular levels. The levels are storage images in the `General` layout during the chain, and the whole map is then read-only for the prefilter's samples.
+
+Each level reads the one above it. One dispatch makes a run of up to three levels, from the last level of the run before (`PrefilterLevels.LevelsOfDownsample`), and a barrier separates the runs. At W = 128 the runs are levels 1 to 3 from 0, 4 to 6 from 3, and 7 from 6: three dispatches and two barriers, where one per level took seven of each. A workgroup is 8 × 8 texels of the run's first level, one invocation per texel. Those texels are the children of the workgroup's 4 × 4 texels of the second level and its 2 × 2 of the third, so the workgroup makes them too. It reads its own texels back from the images, declared `coherent`, after `memoryBarrierImage` and `barrier`, so a level is the mean of the level above as the image stores it, in halves rounded as the device rounds them. A first try kept the texels in shared memory, rounded to halves by `packHalf2x16`, which need not round as an image store does. It changed the last bit of some texels of the second and third level of a run, and the captures of `mirror-balls`, `pbr-spheres` and `demo-surface` then differed by up to 27 levels of 255, in at most 25 isolated pixels of an image. Read back from the images, the captures are the same bits as with one dispatch per level. With the level that it reads, a dispatch binds four storage images, the specification's least limit (see "Portable Vulkan").
 
 ### The specular levels
 
@@ -278,7 +280,9 @@ where
 - The weight n·l is Karis's.
 - `sum` = a sum of all four channels. So the alpha of level k is the open-sky share along the lobe of roughness r_k, weighted as the color is (decision 13).
 
-Each texel sums its samples in the order of i, so the specular map is the same bits on every run on one GPU. The texels of a level are independent, so the dispatch is one invocation per texel: workgroups of 8 × 8 over (W_k, W_k, 6), where W_k = W / 2^k. A level of 4 or 8 texels fills part of one group, and the extra invocations write nothing.
+The texels of a level are independent. With n = v, a sample's direction l in the axes of n, its weight n·l and its lod depend only on i and the level, not on the texel. So a workgroup of 64 invocations first builds the level's table of samples in shared memory, one sample per invocation, and then each texel turns the table into its own axes. `PrefilterLevels.Lanes(k)` invocations share a texel: 1 at levels 0 and 1, then four times as many at each level of a quarter of the texels, up to one per sample (1, 1, 4, 16, 64 and 64 at W = 128). Lane j sums the samples j, j + lanes, and so on, in order, and lane 0 adds the lanes' sums in lane order, so the specular map is the same bits on every run on one GPU. So every level from 1 on has as many invocations as level 1, until each sample has its own, and a small level's texel waits on a chain of a few texture reads, not of all 64. A workgroup holds 64 / lanes texels that follow each other in layer, row and column order.
+
+One dispatch writes a run of up to four levels (`PrefilterLevels.LevelsOfDispatch`), each in a storage image of its own, and the workgroups of each level follow those of the level before (`PrefilterLevels.Workgroups`). The push constants give each level of the run its first workgroup, its size, its roughness and its lanes. At W = 128 the levels take two dispatches, 0 to 3 and 4 to 5, where one per level took six. At W = 1024 the first run needs 172,032 workgroups, more than the 65,535 along one dimension that every device allows, so the workgroups of a dispatch lie in rows of at most 65,535, as few rows as hold them (`PrefilterLevels.Grid`: 3 rows of 57,344 there). The shader rebuilds a workgroup's place as row × row length + column, and the few workgroups past the last return before any barrier, as a whole workgroup.
 
 Level L − 1 has faces of 4 texels, `PrefilterLevels.SmallestFaceSize`. Its lobe, roughness 1, spans about 90°, so it still covers about four texels across. A face of 2 or 1 texels holds it in fewer.
 
@@ -313,7 +317,9 @@ Why spherical harmonics and not an irradiance cube of 16 texels:
 - The average error is about 1 % for real environments (Ramamoorthi and Hanrahan).
 - The cost is ringing around one small bright source. For light from one direction alone, band 2 gives 6 % too much toward it, a dip to −4 % at 122° from it, which the clamp holds at 0, and 6 % on the far side, where the true value is 0.
 
-The projection is one dispatch of one workgroup of 128 invocations, the largest workgroup that the Vulkan specification guarantees. Invocation j sums the texels j, j + 128, j + 256 and so on of the six faces, in layer, row and column order. A tree of shared memory then sums the 128 partial sums in a fixed order, and invocation 0 writes the nine E_lm. The shared memory holds 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B, so it stores each coefficient as three floats, not as a `vec4`. So the irradiance is the same bits on every run on one GPU. At W = 128 each invocation reads 768 texels.
+The projection takes two dispatches. The first, `environment_irradiance.comp`, has one workgroup of 64 invocations per block of `Irradiance.BlockRows` (8) rows of one face, 6W / 8 blocks: 96 at W = 128. Invocation j of block b sums the block's texels j, j + 64 and so on, in row and column order, a tree of shared memory adds the 64 sums, and the workgroup writes the block's 27 floats into the buffer of partial sums. The second, `environment_irradiance_sum.comp`, is one workgroup of 128 invocations, the largest workgroup that the Vulkan specification guarantees. Invocation j sums the blocks j, j + 128 and so on, a tree adds the 128 sums, and the first nine invocations write the nine E_lm. The sum's shared memory holds 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B, so it stores each coefficient as three floats, not as a `vec4`. Every sum runs in a fixed order, so the irradiance is the same bits on every run on one GPU. The blocks only read the radiance map, so their dispatch runs beside the specular levels with no barrier between them. A barrier then separates the blocks from their sum.
+
+One workgroup once summed all 98,304 texels at W = 128 on one GPU core, 768 per invocation, which took about 0.86 ms of the prefilter's 1.27 ms. Summing the blocks in the workgroup that finishes last, with an atomic count, would save the second dispatch and its barrier, and gives the same bits. On the development Mac it made the prefilter slower, 0.461 ms against 0.43 ms, so the map does not do it.
 
 ### When they run
 
@@ -659,10 +665,11 @@ A face count of 6 makes the map draw every face from the frame that reads it, so
 | The radiance map | RGBA16F cube, W × W, 6 layers, log2(W) + 1 levels. RGB: plain radiance without the stars. A: the open-sky share. | 1.0 MB | Color attachment, sampled, storage (for its mips), transfer source (for the test hook), cube-compatible | The face pass: level 0 of the drawn faces. The prefilter pass: levels 1 and up | The prefilter pass |
 | The face views | One 2D view of level 0 of each layer | | | | The face pass's color attachment |
 | The specular map | RGBA16F cube, W × W, 6 layers, L levels. RGB: the prefiltered radiance. A: the prefiltered open-sky share. | 1.0 MB | Storage, sampled, transfer source (for the test hook), cube-compatible | The prefilter pass, every level | The impostor capture, the lighting pass, the transparent pass, SSR |
-| The specular level views | One 2D-array view of 6 layers per level | | | The prefilter's storage images | |
-| The radiance level views | One 2D-array view of 6 layers per level | | | The mips' storage images | The mips' storage images |
+| The specular level views | One 2D-array view of 6 layers per level | | | The prefilter's storage images, four to a levels set | |
+| The radiance level views | One 2D-array view of 6 layers per level | | | The mips' storage images, four to a levels set | The mips' storage images |
 | The face depth | D32, W × W | 64 KB | Depth attachment | The face pass, cleared per range | The face pass |
 | The irradiance buffer | 9 `vec4`, 144 B, `GpuOnly`. xyz: E_lm. w: 0. | 144 B | Storage, transfer source | The prefilter pass | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
+| The partial sums of the irradiance | 27 floats per block of 8 rows of a face, 6W / 8 blocks, `GpuOnly` | 10 KB | Storage | The blocks of the irradiance | The sum of the irradiance |
 | A readback buffer per frame slot | 144 B, `Readback` | 144 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
 
 The images take about 2.1 MB at W = 128 and about 134 MB at W = 1024.
@@ -678,8 +685,10 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 | A cube-compatible image of 6 layers, one cube view, a 2D view of each layer and a 2D-array view of each level | Core Vulkan. One cube, no cube array, so `imageCubeArray` is not needed. Vulkan filters every cube map across its faces, with no switch. |
 | `FaceSize` up to 1024 | The specification's least `maxImageDimensionCube` is 4096. `CheckOptions` still reads the device's limit. |
 | Partially bound descriptors in the frame set | `descriptorBindingPartiallyBound`, which the bindless texture set already requires |
-| Two storage images in one compute pipeline, and three bound descriptor sets | The specification's least `maxPerStageDescriptorStorageImages` is 4, its least `maxDescriptorSetStorageImages` 24, and its least `maxBoundDescriptorSets` 4. Each level of each cube has a level set of its own, written once, so a dispatch binds the level that it reads as set 1 and the level that it writes as set 2, and no set holds an array of levels. The layout is made at every start, with the map on or off. A test counts its storage images. |
-| A workgroup of 128 invocations and 13,824 B of shared memory for the irradiance | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B |
+| Four storage images in one compute pipeline, and two bound descriptor sets | The specification's least `maxPerStageDescriptorStorageImages` is 4, its least `maxDescriptorSetStorageImages` 24, and its least `maxBoundDescriptorSets` 4. Each dispatch of the mips and of the specular map has a levels set of its own, four storage images that are bindings of their own, written at creation and rewritten at each growth, and no set holds an array of levels. The layout is made at every start, with the map on or off. A test counts its storage images. |
+| A workgroup of 128 invocations and 13,824 B of shared memory for the sum of the irradiance, and workgroups of 64 for the rest | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B. The prefilter's workgroup holds 2,304 B of shared memory, and a block of the irradiance 6,912 B. |
+| At most 65,535 workgroups along each dimension of a dispatch | The specification's least `maxComputeWorkGroupCount` is 65,535 along each dimension, and ANV and lavapipe report it. The first dispatch of the specular map needs 172,032 workgroups at W = 1024, so it spreads them over rows of at most 65,535 (`PrefilterLevels.Grid`). The mips need at most 64 × 64 × 6 and the irradiance's blocks 768. A test checks every dispatch of the specular map at the smallest, the default and the largest face size. |
+| A workgroup that reads back the storage image texels that it wrote | Core Vulkan: the images are declared `coherent`, and `memoryBarrierImage` with `barrier` makes one invocation's writes visible to the others of its workgroup. Each image is declared `rgba16f`, so a read needs no `shaderStorageImageReadWithoutFormat`. |
 | Specialization constants, `dFdx` and `dFdy` in fragment shaders, storage buffers read in the vertex stage | Core Vulkan. Reading a storage buffer in the vertex stage needs no `vertexPipelineStoresAndAtomics`, which only writes need. |
 
 No pass of the map blends into a half-float target, so no result depends on a blend that stops at 65,504, which Metal does and other GPUs do not. No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SPIR-V leaves undefined. Instead, no step of the map makes a NaN or an infinity:
@@ -701,9 +710,10 @@ The descriptors:
 | 0 of `EnvironmentPrefilterLayout`, the prefilter set | 0 | Sampled image, cube | Compute | The radiance map, all levels | Once by `EnvironmentMap` |
 | The prefilter set | 1 | Sampler, immutable | Compute | `EnvironmentSampler` | At layout creation |
 | The prefilter set | 2 | Storage buffer | Compute | The irradiance buffer | Once by `EnvironmentMap` |
-| 1 and 2 of `EnvironmentPrefilterLayout`, a level set (`EnvironmentLevelSet`) | 0 | Storage image, one | Compute | One level view of one cube: one set per level of the radiance map, read as set 1 and written as set 2 by `environment_downsample.comp`, and one per level of the specular map, written as set 2 by `environment_prefilter.comp` | Once by `EnvironmentMap` |
+| The prefilter set | 3 | Storage buffer | Compute | The partial sums of the irradiance | Once by `EnvironmentMap` |
+| 1 of `EnvironmentPrefilterLayout`, a levels set (`EnvironmentLevelsSet`) | 0 to 3 | Storage image, one each | Compute | One level view in each binding, which spans the six layers of every map: for a dispatch of `environment_downsample.comp`, the level that it reads in binding 0 and its run in bindings 1 to 3, and for a dispatch of `environment_prefilter.comp`, its run in bindings 0 to 3. A binding past the run's last level holds that level again, and nothing writes it. | By `EnvironmentMap`, at creation and at each growth |
 
-The descriptor pool holds the level sets of the largest map, 11 + 9 at W = 1024. The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
+The descriptor pool holds the levels sets of the largest map, 4 + 3 at W = 1024. The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
 
 Push constants:
 
@@ -711,8 +721,8 @@ Push constants:
 |---|---|---|---|
 | Environment face (`mesh.vert`, `environment_face.frag`) | `DrawPushConstants`, as every mesh pass | 80 B | `viewProj`: the face's view-projection of the range. `eye`: 0 |
 | Environment sky (`fullscreen.vert`, `environment_sky.frag`) | `SkyFacePushConstants`, inside the scene layout's 80-byte range | 48 B | `Forward`, `Right`, `Up`: the face's basis as `Vector4`. `Forward.w` holds 1 / W, which turns the fragment's pixel coordinate into the face's st. The w of the others is 0 |
-| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`) | `EnvironmentPrefilterPushConstants` | 12 B | `LevelSize` (W_k), `Roughness` (r_k), `Samples`. Set 2 says which level k the dispatch writes. The irradiance shader reads none. |
-| Mips (`environment_downsample.comp`) | `EnvironmentDownsamplePushConstants`, inside the prefilter's range | 4 B | `LevelSize`, W_k of the level k ≥ 1 that set 2 holds, made from level k − 1 in set 1 |
+| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`, `environment_irradiance_sum.comp`) | `EnvironmentPrefilterPushConstants` | 80 B | `Levels`: for each level of the run, in binding order, an `EnvironmentPrefilterLevel` of `FirstGroup`, `LevelSize` (W_k), `Roughness` (r_k) and `Lanes`. Then `Samples`, `LevelCount` and `GroupCount`, the workgroups of the run's levels, past which the workgroups of the grid's last row return. Then `Map` at byte 76, the map whose layers and coefficients the dispatch writes. The irradiance shaders read only `Map`, and the pass pushes only its 4 bytes before them. |
+| Mips (`environment_downsample.comp`) | `EnvironmentDownsamplePushConstants`, inside the prefilter's range | 12 B | `LevelSize`, the size of the run's first level, `LevelCount`, the levels of the run, and `Map`, the map whose layers the dispatch reads and writes |
 
 ### Every reader and writer
 
@@ -810,10 +820,12 @@ Each barrier goes through `BarrierBatch`, which keeps each image's and buffer's 
 | Radiance map, a drawn face's level 0 | `ColorAttachment` | `SampledCompute`, read as storage too | Write to read | The mips read it |
 | Radiance map, level 0 | `SampledCompute` | `General`, storage read | Read to read | The mips read it as a storage image |
 | Radiance map, levels 1 and up | The last `SampledCompute` | `General`, storage write, discarding | Read to write | The mips rewrite every texel |
-| Radiance map, level i ≥ 1 | Storage write | Storage read, `General` | Write to read | Level i + 1 reads it |
+| Radiance map, the last level of a run of the mips | Storage write | Storage read, `General` | Write to read | The next run reads it |
 | Radiance map, every layer and level | `General` | `SampledCompute` | Write to read | The prefilter reads the whole map |
 | Specular map, every level | `SampledFragment` of the frame before (`SampledCompute` too, once SSR exists) | `StorageCompute`, discarding | Read to write | The prefilter rewrites every texel, and must not overwrite a level that an earlier frame still reads |
 | Irradiance buffer | `ShaderRead` of the frame before | `ComputeWrite` | Read to write | The same |
+| Partial sums of the irradiance | `ComputeRead` of the frame before | `ComputeWrite` | Read to write | The blocks rewrite every sum after the sum of the frame before read them |
+| Partial sums of the irradiance | `ComputeWrite` | `ComputeRead` | Write to read | The sum of the blocks reads them |
 | Irradiance buffer | `ComputeWrite` | `TransferSource` | Write to read | The readback copy |
 | The slot's readback buffer | The copy | `HostRead` | Write to host read | The CPU reads it after the slot's fence |
 | Irradiance buffer | `TransferSource` | `ShaderRead` | Read to read | A chain to the vertex and fragment stages of the readers |
@@ -997,9 +1009,24 @@ To measure in Part 6, by the recipe of [rendering-upgrade.md](rendering-upgrade.
 - One run with `SceneEnvironmentMap(128, 6)`, the cost of a refresh in every frame, which the snapshot tests epic needs to choose its tests' setting.
 - The refresh frames of `scripts/demo-surface.json`: its 7 stills each refresh six faces. Its 5 timed frames per run are noisy, so the report gives their largest frame against the base.
 
-The CPU cost of the extra culled view: `SceneBatcherBenchmarks` (`benchmarks/Tertius.Benchmarks`, new), one `SceneBatcher.Prepare` of a snapshot of 20,000 visible instances, the size that `RenderSnapshotBenchmarks` builds, with the map off, with one face, and with six faces. Release, one thread. It reports the median time and the allocations, which must be 0. Each face loops over the snapshot's instances and interpolates the ones it keeps, so one face is expected to add about a third of the main view's batching time, and a refresh twice the main view's.
+The CPU cost of the extra culled view: `SceneBatcherBenchmarks` (`benchmarks/Tertius.Benchmarks`, new), one `SceneBatcher.Prepare` of a snapshot of 20,000 visible instances, the size that `RenderSnapshotBenchmarks` builds, with the map off, with one face, and with six faces. Release, one thread. It reports the median time and the allocations, which must be 0. In the design that Part 6 measured, each face looped over the snapshot's instances and interpolated the ones it kept, so one face was expected to add about a third of the main view's batching time, and a refresh twice the main view's.
 
 Memory, by arithmetic: about 2.1 MB at W = 128 (see "Images and buffers"), and each light kept only for a face adds a distance test per pixel of the main view.
+
+### What the cost turned out to be
+
+Part 6 measured the prefilter at 1.23 to 1.27 ms on `demo-exit.json`, not 0.1 to 0.2 ms, and one face at 0.79 ms of the batcher, not a third of the main view's 0.81 ms. A profile followed (2026-10-26), with `tools/gpu-trace.sh` on the development Mac, an Apple M1 Max under MoltenVK. ARCHITECTURE.md, "The environment map", "Cost", has its tables. In short:
+
+- The irradiance took 0.86 ms: one workgroup summed all 98,304 texels on one GPU core. Blocks of 8 rows on every core, then a sum of the blocks, took it to about 0.1 ms ("The irradiance").
+- The prefilter is bound by latency, not by its work. Its encoders were busy for 1.16 ms with every limiter at 10 % or less. Each dispatch costs 17 to 30 µs and each barrier ends a Metal encoder, about 15 µs of fixed cost and 12 to 15 µs idle before the next. Runs of four specular levels and of three mips per dispatch removed eight dispatches and five barriers at W = 128 ("The radiance map's mips", "The specular levels"). The table of samples per workgroup and the lanes of the small levels shorten each texel's chain of texture reads.
+- The 64 samples are not the cost: 16 samples save 0.09 ms and 32 save 0.05 ms, and both change the rough reflections by up to 82 levels of 255. The default stays at 64.
+- A frame draws its share of faces, F, and no more.
+- After the changes the prefilter takes a mean of 0.428 to 0.437 ms over the 3,879 frames of `demo-exit.json`, median 0.430 ms, in two runs. Six encoders remain: three runs of mips, the specular levels with the irradiance's blocks (about 0.27 ms), the sum of the blocks and the readback copy. On NVIDIA, AMD and Intel a barrier waits within one command stream and ends no encoder, so each costs less there. Fewer dispatches and barriers still help there, because the GPU drains at each barrier and a small dispatch fills few of its cores.
+- The lighting pass grew by 0.5 to 0.75 ms on the deck window of `demo-exit.json`. The footprint's two extra reads of the G-buffer and the 27 star cells each take about 0.2 ms. Ticket ter-fhlb holds the follow-up.
+- The rows of workgroups that W = 1024 needs ("The specular levels") left the default unchanged: a mean of 0.431 and 0.434 ms in two more runs, and the captures bit for bit the same.
+- So the prefilter ends at 0.43 ms, above its target of 0.2 ms. In the trace after the changes, about 0.17 ms is the fixed cost of the six encoders, about 15 µs each, and the 12 to 15 µs of idle time before each. The other 0.27 ms is the one encoder of the irradiance's blocks with the specular levels, busy 263 to 269 µs, whose limiter is not measured: that trace holds no GPU counters. 32 and 16 samples would save only 0.05 and 0.09 ms for a change of up to 82 levels of 255. The whole-frame part of the coda ([rendering-performance.md](rendering-performance.md), "Order of the work", Part 3) weighs the rest with the other passes. Its rule 5 lowers a default only for the feature that saves the most time for the least change in the image.
+- The table of samples and the lanes gave no measurable gain on the M1 (0.517 and 0.521 ms against 0.523 ms, inside the spread between runs). They stay for GPUs bound by arithmetic or by the latency of a chain of texture reads, a reason not measured on NVIDIA, AMD or Intel GPUs.
+- The batcher no longer interpolates the snapshot a second time for the faces, and the opaque items sort by counting their keys. One face that keeps all 20,000 instances now adds about 0.68 ms to the main view's 0.87 ms, because it culls, sorts and writes its own GPU instances.
 
 ## Compared with a design from scratch
 

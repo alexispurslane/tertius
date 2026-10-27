@@ -12,6 +12,18 @@ internal readonly struct Irradiance
 {
     public const int Coefficients = 9;
 
+    /// <summary>
+    /// The rows of one face whose projection one workgroup of environment_irradiance.comp sums into one partial sum, its
+    /// block (docs/plans/environment-map.md, "The irradiance"). The GLSL copy is BlockRows in that shader.
+    /// </summary>
+    public const int BlockRows = 8;
+
+    /// <summary>The floats of one partial sum: the nine coefficients of three colors.</summary>
+    public const int PartialFloats = Coefficients * 3;
+
+    /// <summary>The blocks of a map of <paramref name="faceSize"/>, and so its partial sums: BlockRows rows of each face.</summary>
+    public static int Blocks(int faceSize) => CubeFaces.Count * faceSize / BlockRows;
+
     /// <summary>Y_00, the constant of band 0.</summary>
     private static readonly double Band0 = 0.5 * Math.Sqrt(1 / Math.PI);
 
