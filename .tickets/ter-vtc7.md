@@ -1,7 +1,7 @@
 ---
 id: ter-vtc7
 status: open
-deps: [ter-a24f, ter-k1ne]
+deps: [ter-a24f, ter-k1ne, ter-hx3r]
 links: []
 created: 2026-10-27T03:59:20Z
 type: bug
@@ -25,3 +25,7 @@ Stills and sheets: the session scratchpad, lampx-*.
 **2026-10-27T05:53:11Z**
 
 The specular part waits for skin and hair Part 4 (ter-k1ne), whose DirectTerms splits directLight's sum into its diffuse and specular parts in one loop; the emission part waits for the user.
+
+**2026-10-27T08:42:08Z**
+
+2026-10-27: now also waits for Part 5 (ter-hx3r), which separates the diffuse light D in the direct and ambient passes for the skin scatter. The specular part of this ticket reads the same split, so it builds on the epic branch after Part 5.
