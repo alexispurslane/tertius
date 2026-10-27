@@ -181,7 +181,9 @@ public sealed class SkinScatterRenderTests
             scatter[skin * 4 + 3].Should().Be(1, "the alpha of a skin pixel is the mask");
             int standard = Height / 2 * Width + 240;
             int sky = 2 * Width + 160;
-            scatter[(standard * 4)..(standard * 4 + 4)].Should().AllBeEquivalentTo(0f, "a standard pixel does not scatter");
+            scatter[(standard * 4)..(standard * 4 + 4)]
+                .Should()
+                .AllBeEquivalentTo(0f, "a standard pixel does not scatter");
             scatter[(sky * 4)..(sky * 4 + 4)].Should().AllBeEquivalentTo(0f, "the sky does not scatter");
         }
         finally
@@ -197,34 +199,13 @@ public sealed class SkinScatterRenderTests
         try
         {
             (float[] without, float[] with) = WithoutAndWith(renderer, Head(renderer));
-            ScatterField field = FieldOf(renderer);
-            ScatterKernel kernel = KernelAsTheGpuHoldsIt();
-            Double3[] rows = RowsOf(field, kernel);
 
-            int skinPixels = 0;
-            for (int pixel = 0; pixel < rows.Length; pixel++)
-            {
-                if (!field.Skin[pixel])
-                    continue;
-                skinPixels++;
-                Double3 scattered = SkinScatter.Pass(
-                    field: field,
-                    source: rows,
-                    x: pixel % Width,
-                    y: pixel / Width,
-                    axis: ScatterAxis.Columns,
-                    kernel: kernel
-                );
-                Double3 before = Rgb(without, pixel);
-                Double3 light = field.Light[pixel];
-                double largest = Math.Max(before.X, light.X);
-                ShouldBeNear(
-                    actual: Rgb(with, pixel),
-                    expected: before + scattered - light,
-                    tolerance: HalfRounding * largest + 1e-5,
-                    because: $"pixel {pixel % Width}, {pixel / Width}"
-                );
-            }
+            int skinPixels = SkinPixelsThatMatchTheCopyInCSharp(
+                renderer: renderer,
+                without: without,
+                with: with,
+                size: (Width, Height)
+            );
 
             skinPixels.Should().BeGreaterThan(4000, "the head fills a disk of about 45 px radius");
         }
@@ -234,26 +215,98 @@ public sealed class SkinScatterRenderTests
         }
     }
 
+    [Fact]
+    public void AResizedRendererStillScattersAtItsNewSize()
+    {
+        // Odd sides, so that the last workgroup of each axis reaches past the image.
+        const int newWidth = 401,
+            newHeight = 227;
+        VulkanRenderer renderer = Scattering();
+        try
+        {
+            RenderSnapshot head = Head(renderer);
+            renderer.Render(head, 1f);
+            renderer.Resize(newWidth, newHeight);
+            (float[] without, float[] with) = WithoutAndWith(renderer, head);
+
+            int skinPixels = SkinPixelsThatMatchTheCopyInCSharp(
+                renderer: renderer,
+                without: without,
+                with: with,
+                size: (newWidth, newHeight)
+            );
+
+            skinPixels.Should().BeGreaterThan(6000, "the head fills a disk of about 57 px radius at the new height");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Asserts that each skin pixel of <paramref name="with"/> is <paramref name="without"/>'s plus S − D of the C# copy
+    /// of the passes, and returns the count of skin pixels.
+    /// </summary>
+    private static int SkinPixelsThatMatchTheCopyInCSharp(
+        VulkanRenderer renderer,
+        float[] without,
+        float[] with,
+        (int Width, int Height) size
+    )
+    {
+        ScatterField field = FieldOf(renderer, size);
+        ScatterKernel kernel = KernelAsTheGpuHoldsIt();
+        Double3[] rows = RowsOf(field, kernel);
+
+        int skinPixels = 0;
+        for (int pixel = 0; pixel < rows.Length; pixel++)
+        {
+            if (!field.Skin[pixel])
+                continue;
+            skinPixels++;
+            Double3 scattered = SkinScatter.Pass(
+                field: field,
+                source: rows,
+                x: pixel % size.Width,
+                y: pixel / size.Width,
+                axis: ScatterAxis.Columns,
+                kernel: kernel
+            );
+            Double3 before = Rgb(without, pixel);
+            Double3 light = field.Light[pixel];
+            double largest = Math.Max(before.X, light.X);
+            ShouldBeNear(
+                actual: Rgb(with, pixel),
+                expected: before + scattered - light,
+                tolerance: HalfRounding * largest + 1e-5,
+                because: $"pixel {pixel % size.Width}, {pixel / size.Width}"
+            );
+        }
+
+        return skinPixels;
+    }
+
     /// <summary>The field as the passes read it: D and the mask of the scatter image, and z of the distance target.</summary>
-    private static ScatterField FieldOf(VulkanRenderer renderer)
+    private static ScatterField FieldOf(VulkanRenderer renderer, (int Width, int Height) size)
     {
         float[] scatter = renderer.ReadScatter();
         float[] distances = renderer.ReadDistance();
-        var light = new Double3[Width * Height];
-        var skin = new bool[Width * Height];
-        var depths = new double[Width * Height];
-        for (int y = 0; y < Height; y++)
-        for (int x = 0; x < Width; x++)
+        var light = new Double3[size.Width * size.Height];
+        var skin = new bool[size.Width * size.Height];
+        var depths = new double[size.Width * size.Height];
+        for (int y = 0; y < size.Height; y++)
+        for (int x = 0; x < size.Width; x++)
         {
-            int pixel = y * Width + x;
+            int pixel = y * size.Width + x;
             light[pixel] = Rgb(scatter, pixel);
             skin[pixel] = scatter[pixel * 4 + 3] > 0;
-            depths[pixel] = distances[pixel] * -Ray(new(x, y), Width, Height).Z;
+            depths[pixel] = distances[pixel] * -Ray(new(x, y), size.Width, size.Height).Z;
         }
 
         return new ScatterField(
-            Width: Width,
-            Height: Height,
+            Width: size.Width,
+            Height: size.Height,
             Light: light,
             Skin: skin,
             ViewDepth: depths,
@@ -263,29 +316,27 @@ public sealed class SkinScatterRenderTests
 
     /// <summary>The default kernel as the GPU holds it: singles.</summary>
     private static ScatterKernel KernelAsTheGpuHoldsIt() =>
-        new(
-            [
-                .. SkinProfile
-                    .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
-                    .Taps.Select(tap => new ScatterTap(
-                        Offset: (float)tap.Offset,
-                        Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
-                    )),
-            ]
-        );
+        new([
+            .. SkinProfile
+                .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
+                .Taps.Select(tap => new ScatterTap(
+                    Offset: (float)tap.Offset,
+                    Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
+                )),
+        ]);
 
     /// <summary>The row image of the C# copy at each skin pixel, rounded to half floats as the GPU stores it.</summary>
     private static Double3[] RowsOf(ScatterField field, ScatterKernel kernel)
     {
-        var rows = new Double3[Width * Height];
+        var rows = new Double3[field.Width * field.Height];
         for (int pixel = 0; pixel < rows.Length; pixel++)
             if (field.Skin[pixel])
             {
                 Double3 sum = SkinScatter.Pass(
                     field: field,
                     source: field.Light,
-                    x: pixel % Width,
-                    y: pixel / Width,
+                    x: pixel % field.Width,
+                    y: pixel / field.Width,
                     axis: ScatterAxis.Rows,
                     kernel: kernel
                 );
@@ -303,8 +354,6 @@ public sealed class SkinScatterRenderTests
         {
             (float[] without, float[] with) = WithoutAndWith(renderer, Head(renderer));
 
-            // Row 70 crosses the head above its nose, and column 158 lies 2 px past the terminator into the dark, where
-            // only the dim ambient light reaches the surface.
             // Row 70 crosses the head above its nose. Columns 158 and 159 lie past the terminator, in the dark, where only the
             // dim ambient light reaches the surface. The Lambert term rises from 0 at the terminator, so little light lies
             // within the kernel's reach of them.
@@ -312,7 +361,9 @@ public sealed class SkinScatterRenderTests
             {
                 Vector3 dark = At(without, x, 70);
                 Vector3 scattered = At(with, x, 70);
-                scattered.X.Should().BeGreaterThan(dark.X, "light from the lit side scatters past the terminator, x = {0}", x);
+                scattered
+                    .X.Should()
+                    .BeGreaterThan(dark.X, "light from the lit side scatters past the terminator, x = {0}", x);
                 (scattered.X / scattered.Z)
                     .Should()
                     .BeGreaterThan(dark.X / dark.Z, "red light scatters farther under the skin than blue, x = {0}", x);
@@ -320,7 +371,10 @@ public sealed class SkinScatterRenderTests
 
             At(with, 159, 70)
                 .X.Should()
-                .BeGreaterThan(1.02f * At(without, 159, 70).X, "the first pixel past the terminator gains a visible red");
+                .BeGreaterThan(
+                    1.02f * At(without, 159, 70).X,
+                    "the first pixel past the terminator gains a visible red"
+                );
         }
         finally
         {
@@ -340,7 +394,13 @@ public sealed class SkinScatterRenderTests
 
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
 
-            RowKeepsItsLight(without: without, with: with, fromX: 0, toX: Width - 1, because: "an even light scatters to itself, to the image's edges");
+            RowKeepsItsLight(
+                without: without,
+                with: with,
+                fromX: 0,
+                toX: Width - 1,
+                because: "an even light scatters to itself, to the image's edges"
+            );
         }
         finally
         {
@@ -360,8 +420,12 @@ public sealed class SkinScatterRenderTests
             snapshot.Instances.Add(
                 Instance(floor, Material(renderer, new StandardShading(0), SkinColor), new(0, -0.11f, -0.6f))
             );
+            snapshot.Instances.Add(Facing(square, Glow(renderer, new(4, 2, 1)), new(-0.12f, 0, -0.35f)));
+            // A standard square right above a skin square in one plane, so that the standard square's lowest rows lie
+            // within the kernel's reach of skin at the same depth along the columns pass's axis.
+            snapshot.Instances.Add(Facing(square, Skin(renderer), new(0.16f, 0, -0.35f)));
             snapshot.Instances.Add(
-                Facing(square, Glow(renderer, new(4, 2, 1)), new(-0.12f, 0, -0.35f))
+                Facing(square, Material(renderer, new StandardShading(0), SkinColor), new(0.16f, 0.1f, -0.35f))
             );
 
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
@@ -375,10 +439,17 @@ public sealed class SkinScatterRenderTests
                 others++;
                 with[(pixel * 4)..(pixel * 4 + 4)]
                     .Should()
-                    .Equal(without[(pixel * 4)..(pixel * 4 + 4)], "pixel {0}, {1} is not skin", pixel % Width, pixel / Width);
+                    .Equal(
+                        without[(pixel * 4)..(pixel * 4 + 4)],
+                        "pixel {0}, {1} is not skin",
+                        pixel % Width,
+                        pixel / Width
+                    );
             }
 
-            others.Should().BeGreaterThan(Width * Height / 2, "the floor, the glowing square and the sky fill most of the image");
+            others
+                .Should()
+                .BeGreaterThan(Width * Height / 2, "the floor, the glowing square and the sky fill most of the image");
         }
         finally
         {
@@ -401,7 +472,13 @@ public sealed class SkinScatterRenderTests
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
 
             // The kernel reaches about 8 px at this distance, so the skin's last 12 columns take taps on the glow.
-            RowKeepsItsLight(without: without, with: with, fromX: Width / 2 - 12, toX: Width / 2 - 1, because: "a tap on the glow takes the center's light");
+            RowKeepsItsLight(
+                without: without,
+                with: with,
+                fromX: Width / 2 - 12,
+                toX: Width / 2 - 1,
+                because: "a tap on the glow takes the center's light"
+            );
         }
         finally
         {
@@ -427,7 +504,13 @@ public sealed class SkinScatterRenderTests
 
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
 
-            RowKeepsItsLight(without: without, with: with, fromX: Width / 2 - 10, toX: Width / 2 + 10, because: "no tap crosses the step of 0.5 m");
+            RowKeepsItsLight(
+                without: without,
+                with: with,
+                fromX: Width / 2 - 10,
+                toX: Width / 2 + 10,
+                because: "no tap crosses the step of 0.5 m"
+            );
         }
         finally
         {
@@ -465,9 +548,7 @@ public sealed class SkinScatterRenderTests
         RenderSnapshot snapshot = Lit(toSun: Vector3.UnitZ, sunIrradiance: 3, ambient: 0);
         snapshot.Instances.Add(Facing(plane, Skin(renderer), new(-0.5f, 0, -viewDepth)));
         // Black and with no specular reflection, so that only the scatter lights it.
-        snapshot.Instances.Add(
-            Facing(plane, Black(renderer), new(0.5f, 0, -viewDepth))
-        );
+        snapshot.Instances.Add(Facing(plane, Black(renderer), new(0.5f, 0, -viewDepth)));
         (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
         float[] scatter = renderer.ReadScatter();
         // Half the light that the outermost tap carries from the lit side, in red, the channel that reaches farthest.

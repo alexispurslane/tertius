@@ -58,7 +58,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        context.BindComputePass(pipeline: pipeline, layout: layouts.OcclusionLayout, passSet: set);
+        context.BeginComputePass(pipeline: pipeline, layout: layouts.OcclusionLayout, passSet: set);
         var push = OcclusionPushConstants.For(setting: setting, lastDenoise: lastDenoise);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

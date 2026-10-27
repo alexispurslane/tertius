@@ -1695,15 +1695,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return (atlas, manager);
     }
 
-    /// <summary>
-    /// The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one, and skin
-    /// scatters exactly when the renderer has the scatter images.
-    /// </summary>
-    private ShaderConstants ShadingConstants =>
-        new(EnvironmentMap: environmentMap is not null)
-        {
-            Subsurface = scatterImages is { } scatter ? scatter.Setting : new NoSubsurface(),
-        };
+    /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
+    private ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
 
     /// <summary>
     /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas, which the renderer owns,

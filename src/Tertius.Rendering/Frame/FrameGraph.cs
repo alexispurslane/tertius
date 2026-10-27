@@ -68,12 +68,13 @@ internal sealed class FrameContext
     }
 
     /// <summary>
-    /// Binds the compute <paramref name="pipeline"/>, this frame's sets 0 to 2 and the pass's own <paramref name="passSet"/>
-    /// as set 3, through <paramref name="layout"/>, whose first three sets must be those of
-    /// <see cref="DescriptorLayouts.SceneLayout"/>.
+    /// Flushes the barriers that the pass declared, then binds the compute <paramref name="pipeline"/>, this frame's sets
+    /// 0 to 2 and the pass's own <paramref name="passSet"/> as set 3, through <paramref name="layout"/>, whose first three
+    /// sets must be those of <see cref="DescriptorLayouts.SceneLayout"/>.
     /// </summary>
-    public unsafe void BindComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
+    public unsafe void BeginComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
     {
+        Barriers.Flush(Vk, CommandBuffer);
         Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Compute, pipeline);
         BindSceneSets(PipelineBindPoint.Compute, layout);
         Vk.CmdBindDescriptorSets(

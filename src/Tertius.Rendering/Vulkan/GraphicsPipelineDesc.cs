@@ -61,6 +61,7 @@ internal sealed record GraphicsPipelineDesc
     public required string? FragmentShader { get; init; }
 
     public required PipelineLayout Layout { get; init; }
+
     /// <summary>The color attachments in the order of the fragment shader's outputs: empty for a depth-only pipeline.</summary>
     public required ColorAttachment[] ColorAttachments { get; init; }
     public Format DepthFormat { get; init; } = Format.Undefined;
@@ -233,29 +234,28 @@ internal sealed record GraphicsPipelineDesc
         Format* colorFormats = stackalloc Format[Math.Max(ColorAttachments.Length, 1)];
         for (int i = 0; i < ColorAttachments.Length; i++)
             colorFormats[i] = ColorAttachments[i].Format;
+
+        var rendering = new PipelineRenderingCreateInfo
         {
-            var rendering = new PipelineRenderingCreateInfo
-            {
-                SType = StructureType.PipelineRenderingCreateInfo,
-                ColorAttachmentCount = (uint)ColorAttachments.Length,
-                PColorAttachmentFormats = colorFormats,
-                DepthAttachmentFormat = DepthFormat,
-                StencilAttachmentFormat = Format.Undefined,
-            };
-            info.PNext = &rendering;
-            device
-                .Vk.CreateGraphicsPipelines(
-                    device: device.Device,
-                    pipelineCache: default,
-                    createInfoCount: 1,
-                    pCreateInfos: &info,
-                    pAllocator: null,
-                    pPipelines: out Pipeline pipeline
-                )
-                .Check($"vkCreateGraphicsPipelines({Name})");
-            device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
-            return pipeline;
-        }
+            SType = StructureType.PipelineRenderingCreateInfo,
+            ColorAttachmentCount = (uint)ColorAttachments.Length,
+            PColorAttachmentFormats = colorFormats,
+            DepthAttachmentFormat = DepthFormat,
+            StencilAttachmentFormat = Format.Undefined,
+        };
+        info.PNext = &rendering;
+        device
+            .Vk.CreateGraphicsPipelines(
+                device: device.Device,
+                pipelineCache: default,
+                createInfoCount: 1,
+                pCreateInfos: &info,
+                pAllocator: null,
+                pPipelines: out Pipeline pipeline
+            )
+            .Check($"vkCreateGraphicsPipelines({Name})");
+        device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
+        return pipeline;
     }
 
     /// <summary>

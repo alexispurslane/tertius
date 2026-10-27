@@ -99,9 +99,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         DeclareUses(context);
-        context.Barriers.Flush(vk, commandBuffer);
-
-        context.BindComputePass(pipeline: pipeline, layout: layouts.ReflectionLayout, passSet: targets.TraceSet);
+        context.BeginComputePass(pipeline: pipeline, layout: layouts.ReflectionLayout, passSet: targets.TraceSet);
         var push = ReflectionPushConstants.For(setting);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

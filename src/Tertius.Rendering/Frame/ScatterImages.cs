@@ -22,7 +22,10 @@ internal sealed unsafe class ScatterImages : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
-    // True from the creation until the first frame's uploads copy the kernel into its buffer.
+    // The kernel's 2n + 1 taps as the buffer holds them, computed in doubles when the images are made.
+    private readonly Vector4[] kernelTaps;
+
+    // False from the creation until the first frame's uploads copy the kernel into its buffer, then true.
     private bool kernelUploaded;
 
     /// <exception cref="NotSupportedException">A format cannot be drawn, blended and stored on the device.</exception>
@@ -39,6 +42,7 @@ internal sealed unsafe class ScatterImages : IDisposable
         this.allocator = allocator;
         this.layouts = layouts;
         Setting = setting;
+        kernelTaps = TapsOf(SkinProfile.Human.Kernel(setting.TapsPerSide));
         Kernel = GpuBuffer.Create(
             device: device,
             allocator: allocator,
@@ -77,7 +81,7 @@ internal sealed unsafe class ScatterImages : IDisposable
 
     /// <summary>
     /// Copies the kernel of <see cref="SkinProfile.Human"/> at the setting's taps into its buffer, in the first frame
-    /// only: the kernel never changes (docs/plans/skin-and-hair.md, decision 17).
+    /// only: the kernel never changes after the images are made (docs/plans/skin-and-hair.md, decision 17).
     /// </summary>
     public void Upload(CommandBuffer commandBuffer, StagingArena staging, BarrierBatch barriers)
     {
@@ -86,12 +90,7 @@ internal sealed unsafe class ScatterImages : IDisposable
         StagingSlice stage = staging.Allocate(Kernel.Size);
         Span<Vector4> taps = MemoryMarshal.Cast<byte, Vector4>(stage.Bytes);
         taps.Clear();
-        ScatterKernel kernel = SkinProfile.Human.Kernel(Setting.TapsPerSide);
-        for (int i = 0; i < kernel.Taps.Length; i++)
-        {
-            ScatterTap tap = kernel.Taps[i];
-            taps[i] = new(x: (float)tap.Weight.X, y: (float)tap.Weight.Y, z: (float)tap.Weight.Z, w: (float)tap.Offset);
-        }
+        kernelTaps.CopyTo(taps);
 
         barriers.Buffer(Kernel, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
@@ -105,6 +104,17 @@ internal sealed unsafe class ScatterImages : IDisposable
         );
         kernelUploaded = true;
     }
+
+    /// <summary>The taps of <paramref name="kernel"/> as <c>vec4</c>: rgb the weights and a the offset in m.</summary>
+    private static Vector4[] TapsOf(ScatterKernel kernel) =>
+        [
+            .. kernel.Taps.Select(tap => new Vector4(
+                x: (float)tap.Weight.X,
+                y: (float)tap.Weight.Y,
+                z: (float)tap.Weight.Z,
+                w: (float)tap.Offset
+            )),
+        ];
 
     [MemberNotNull(nameof(Scatter), nameof(Rows))]
     private void Create(RenderTargets targets)

@@ -42,8 +42,12 @@ internal sealed unsafe class SkinScatterPass : RenderPass
             Name = Name,
             Shader = shader,
             Layout = layouts.ScatterLayout,
-            // The taps per side; the shaders hold no other constant.
-            Constants = constants,
+            // The taps per side from the images, which hold the kernel of that many: the shaders' center tap is the
+            // kernel's tap at offset 0 only then.
+            Constants = constants with
+            {
+                Subsurface = images.Setting,
+            },
         }.Create(device, shaders);
     }
 
@@ -54,9 +58,7 @@ internal sealed unsafe class SkinScatterPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         DeclareUses(context);
-        context.Barriers.Flush(vk, commandBuffer);
-
-        context.BindComputePass(pipeline: pipeline, layout: layouts.ScatterLayout, passSet: images.Set);
+        context.BeginComputePass(pipeline: pipeline, layout: layouts.ScatterLayout, passSet: images.Set);
         Extent2D extent = context.Targets.Extent;
         vk.CmdDispatch(
             commandBuffer: commandBuffer,

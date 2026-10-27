@@ -27,9 +27,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public bool CutoutAlpha { get; init; }
 
     /// <summary>
-    /// The skin scatter of the renderer (docs/plans/skin-and-hair.md, "The two passes"): the scatter passes take the taps
-    /// per side of <see cref="SeparableSubsurface"/>. The lighting passes choose their shaders by the scatter instead, so
-    /// that no shader writes an output that has no attachment.
+    /// The skin scatter's taps per side (docs/plans/skin-and-hair.md, "The two passes"), which only
+    /// <see cref="SkinScatterPass"/> sets, from <see cref="ScatterImages.Setting"/>. Every other pipeline keeps
+    /// <see cref="NoSubsurface"/>: the lighting passes choose their shaders by the scatter images instead.
     /// </summary>
     public SubsurfaceSetting Subsurface { get; init; }
 
