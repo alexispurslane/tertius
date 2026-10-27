@@ -518,7 +518,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
             DepthClamp = true,
             // The transparent pass blends with a second output: what a pane lets through.
             DualSrcBlend = true,
-            // The ambient pass adds to the scatter image and writes the HDR image with no blend
+            // The ambient pass adds to the diffuse image and writes the HDR image with no blend
             // (docs/plans/skin-and-hair.md, decision 14).
             IndependentBlend = true,
             SamplerAnisotropy = true,

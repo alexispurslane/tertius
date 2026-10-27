@@ -49,7 +49,7 @@ namespace Tertius.Rendering;
 /// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
 /// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image and the hit depth image
 /// as storage images at bindings 4 and 5, for the trace and the upsample. One, rewritten on resize.</description></item>
-/// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the scatter image, the row image and the
+/// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the
 /// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
 /// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
@@ -309,7 +309,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout ReflectionLayout { get; }
 
     /// <summary>
-    /// Set 3 of <see cref="ScatterLayout"/>: the scatter image, the row image and the HDR image as storage images (bindings 0
+    /// Set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
     /// to 2), and the kernel as a uniform buffer (binding 3) (Shaders/skin_scatter.glsl).
     /// </summary>
     public DescriptorSetLayout ScatterSet { get; }

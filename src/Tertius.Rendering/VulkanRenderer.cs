@@ -40,7 +40,7 @@ namespace Tertius.Rendering;
 /// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
 /// the ambient light with the estimate target applied, capped.</item>
 /// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
-/// skin pixels, which the direct and ambient passes write into the scatter image, summed along the rows and then the
+/// skin pixels, which the direct and ambient passes write into the diffuse image, summed along the rows and then the
 /// columns, and the difference added to the lit image at skin pixels.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
@@ -1909,7 +1909,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the direct pass and the ambient pass, which write the scatter image too under
+    /// Adds the direct pass and the ambient pass. The direct pass writes the diffuse image too under
+    /// <see cref="SeparableSubsurface"/> or <see cref="VisibilityBitmaskLight"/>, and the ambient pass adds to it under
     /// <see cref="SeparableSubsurface"/>.
     /// </summary>
     private void AddLightingPasses(ShaderLibrary shaders)

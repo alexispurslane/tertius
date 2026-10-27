@@ -59,7 +59,7 @@ internal sealed unsafe class ScatterImages : IDisposable
     /// <summary>The setting that made the images, whose taps per side the kernel holds.</summary>
     public SeparableSubsurface Setting { get; }
 
-    /// <summary>The scatter image after the pass along the rows: 0 at every pixel that is not skin.</summary>
+    /// <summary>The diffuse image after the pass along the rows: 0 at every pixel that is not skin.</summary>
     public GpuImage Rows { get; private set; }
 
     /// <summary>The kernel's 2n + 1 taps as vec4, rgb the weights and a the offset in m, then zeros to <see cref="KernelTaps"/>.</summary>

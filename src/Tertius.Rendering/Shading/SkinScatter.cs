@@ -11,8 +11,8 @@ internal enum ScatterAxis
 /// The images that the scatter reads, each <paramref name="Width"/> × <paramref name="Height"/> pixels in rows from the
 /// top: D, the skin mask and the view depth.
 /// </summary>
-/// <param name="Light">D, the scatter image's rgb, pre-exposed: the rows' source.</param>
-/// <param name="Skin">The scatter image's alpha: whether a pixel is skin.</param>
+/// <param name="Light">D, the diffuse image's rgb, pre-exposed: the rows' source.</param>
+/// <param name="Skin">The diffuse image's alpha: whether a pixel is skin.</param>
 /// <param name="ViewDepth">z, each pixel's distance along the camera's forward axis, in meters.</param>
 /// <param name="TanHalfY">tan(φ_y / 2) of the vertical field of view.</param>
 internal sealed record ScatterField(

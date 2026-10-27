@@ -50,7 +50,7 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 | The fiber normal, n_f | The unit vector across the strand toward the eye: V − T (T·V), normalized. The side of the fiber that the eye sees. |
 | The longitudinal angle, θ | The signed angle of a direction from the plane at right angles to the strand, positive toward the tip: sin θ = T·d. θ_i for the light, θ_r for the eye, θ_h = (θ_i + θ_r) / 2. |
 | The azimuth, φ | The angle between the light and the eye around the strand, between their parts at right angles to it. 0 when both lie on one side. |
-| The shading target | The new G-buffer target, `R8G8B8A8_UINT`: R and G a hair pixel's strand, B 0, A the shading model's code. |
+| The shading target | The new G-buffer target, `R8G8B8A8_UINT`: R and G a hair pixel's strand, B 0, A the shading model's code. Since `ter-vtc7`, B holds the light mark: 1 where the pixel's entity holds a light (docs/plans/screen-space-illumination.md, "The bounce source"). |
 | The diffuse light, D | For a skin pixel, the diffuse part of the light that it sends toward the eye, pre-exposed: the diffuse terms of the lights and of the ambient light, with the occlusion and the bounce applied, all with the diffuse color in them. |
 | The scatter image | Full resolution, `RGBA16F`: D in rgb and 1 in a at a skin pixel, 0 at every other pixel. |
 | The row image | Full resolution, `RGBA16F`: the scatter image after the pass along the rows. |
@@ -289,6 +289,8 @@ The shading target's channels:
 | R, G | 0 | 0 | The strand's octahedral code, 8 bits each |
 | B | 0 | 0 | 0 |
 | A | 0 | 1 | 2 |
+
+Since `ter-vtc7`, B of every model holds the light mark: 1 where the pixel's entity holds a light, else 0 (docs/plans/screen-space-illumination.md, "The bounce source").
 
 ```glsl
 // The strand's octahedral code (docs/plans/skin-and-hair.md, "The shading target"). StrandCode is the C# twin. floor(x + 0.5)
