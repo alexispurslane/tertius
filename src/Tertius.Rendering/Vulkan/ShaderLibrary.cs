@@ -4,12 +4,17 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Loads the SPIR-V modules that the build compiled from Shaders/*.vert, Shaders/*.frag and Shaders/*.comp and embedded as
-/// resources named <c>Tertius.Rendering.Shaders.&lt;file&gt;.spv</c>. Modules are created once and cached.
+/// Loads the SPIR-V modules that a build compiled and embedded in <paramref name="source"/> as resources named
+/// <c>Tertius.Rendering.Shaders.&lt;file&gt;.spv</c>: the engine's from Shaders/*.vert, Shaders/*.frag and Shaders/*.comp
+/// in <see cref="EngineShaders"/>. Modules are created once and cached.
 /// </summary>
-internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
+internal sealed unsafe class ShaderLibrary(VulkanDevice device, Assembly source) : IDisposable
 {
+    /// <summary>The assembly that holds the engine's shaders.</summary>
+    public static Assembly EngineShaders => typeof(ShaderLibrary).Assembly;
+
     private readonly VulkanDevice device = device;
+    private readonly Assembly source = source;
     private readonly Dictionary<string, ShaderModule> modules = [];
 
     /// <summary>The module for a shader file name such as <c>mesh.vert</c>.</summary>
@@ -17,7 +22,7 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
     {
         if (modules.TryGetValue(file, out ShaderModule module))
             return module;
-        byte[] code = LoadSpirv(file);
+        byte[] code = LoadSpirv(source, file);
         fixed (byte* p = code)
         {
             var info = new ShaderModuleCreateInfo
@@ -60,11 +65,12 @@ internal sealed unsafe class ShaderLibrary(VulkanDevice device) : IDisposable
             PSpecializationInfo = constants,
         };
 
-    public static byte[] LoadSpirv(string file)
+    /// <summary>The SPIR-V of a shader <paramref name="file"/> that <paramref name="source"/> embeds.</summary>
+    public static byte[] LoadSpirv(Assembly source, string file)
     {
         string resource = $"Tertius.Rendering.Shaders.{file}.spv";
         using Stream stream =
-            Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)
+            source.GetManifestResourceStream(resource)
             ?? throw new FileNotFoundException($"The shader {resource} is not embedded. Was it compiled by the build?");
         byte[] code = new byte[stream.Length];
         stream.ReadExactly(code);

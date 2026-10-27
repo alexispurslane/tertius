@@ -134,20 +134,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             CheckOptionsOnDevice(options, device);
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
-            ShaderLibrary shaders = Own(new ShaderLibrary(device));
+            ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
             int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
                 new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
-            deforms = Own(
-                new DeformStore(
-                    device: device,
-                    allocator: Allocator,
-                    maxBytes: device.Properties.Limits.MaxStorageBufferRange
-                )
-            );
+            deforms = CreateDeforms();
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
@@ -160,14 +154,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 antiAliasing: options.AntiAliasing,
                 reflections: options.Reflections
             );
-            exposure = Own(
-                new ExposureResources(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    framesInFlight: options.FramesInFlight
-                )
-            );
+            exposure = CreateExposure(options.FramesInFlight);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             frames = CreateFrames(options.FramesInFlight);
@@ -1494,6 +1481,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
     }
+
+    /// <summary>The store of the deformed copies, as large as one storage buffer may be, which the renderer owns.</summary>
+    private DeformStore CreateDeforms() =>
+        Own(
+            new DeformStore(
+                device: device,
+                allocator: Allocator,
+                maxBytes: device.Properties.Limits.MaxStorageBufferRange
+            )
+        );
+
+    /// <summary>The exposure's buffers for each frame in flight, which the renderer owns.</summary>
+    private ExposureResources CreateExposure(int framesInFlight) =>
+        Own(
+            new ExposureResources(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                framesInFlight: framesInFlight
+            )
+        );
 
     /// <summary>The resources of each frame in flight, which the renderer owns.</summary>
     private FrameResources[] CreateFrames(int framesInFlight)

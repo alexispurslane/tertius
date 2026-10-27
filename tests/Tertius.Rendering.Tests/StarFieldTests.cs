@@ -345,6 +345,96 @@ public sealed class StarFieldTests
         (b * light).Should().BeApproximately(mean.Z, mean.Z * 0.01);
     }
 
+    /// <summary>
+    /// The footprint that the ambient pass skips (docs/plans/environment-map.md, "Cost"): wherever the lobe alone ends
+    /// the fade at the pixel angle p, every footprint of at least p gives the reflected stars of p.
+    /// </summary>
+    [Theory]
+    [InlineData(1e-4f)]
+    [InlineData(PixelAngle)]
+    [InlineData(4e-3f)]
+    public void WhereTheLobeAloneEndsTheFadeEveryFootprintGivesTheReflectedStarsOfThePixelAngle(float pixelAngle)
+    {
+        float[] footprints =
+        [
+            pixelAngle,
+            MathF.BitIncrement(pixelAngle),
+            1.5f * pixelAngle,
+            4 * pixelAngle,
+            30 * pixelAngle,
+            1,
+            MathF.PI,
+        ];
+        for (int step = 0; step <= 1000; step++)
+        {
+            float roughness = step / 1000f;
+            if (!StarField.LobeEndsFade(pixelAngle, roughness))
+                continue;
+            Vector3 direction = Fibonacci(step, 1001);
+            Vector3 atThePixelAngle = StarField.Reflected(
+                direction,
+                StarField.LobeWidth(pixelAngle, roughness),
+                pixelAngle
+            );
+            foreach (float footprint in footprints)
+                StarField
+                    .Reflected(direction, StarField.LobeWidth(footprint, roughness), pixelAngle)
+                    .Should()
+                    .Be(atThePixelAngle, $"roughness {roughness} and footprint {footprint}");
+        }
+    }
+
+    [Theory]
+    [InlineData(0.082f)]
+    [InlineData(0.3f)]
+    [InlineData(1f)]
+    public void ALobeWiderThanTwoCellsAtThePixelAngleEndsTheFadeAlone(float roughness) =>
+        StarField.LobeEndsFade(PixelAngle, roughness).Should().BeTrue();
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.058f)]
+    [InlineData(0.08f)]
+    public void ALobeNarrowerThanTwoCellsAtThePixelAngleLeavesTheFadeToTheFootprint(float roughness) =>
+        StarField.LobeEndsFade(PixelAngle, roughness).Should().BeFalse();
+
+    /// <summary>
+    /// Vulkan lets sqrt and a division err by a few ulps, each under 2⁻²⁰ of the value (ARCHITECTURE.md, "Portable
+    /// Vulkan"), so the shader's width and t may come out lower than the C# copy's.
+    /// </summary>
+    [Fact]
+    public void TheMarginEndsTheFadeUnderTheRoundingErrorsThatVulkanAllows()
+    {
+        const double error = 1.0 / (1 << 20);
+        // The smallest width at p that ends the fade alone, a wider footprint's width computed low by the error at both
+        // ends, and t's quotient low by it once more.
+        double width = 2.0 * Cell * StarField.FadeEndMargin * (1 - error) * (1 - error);
+        double t = (width - Cell) / Cell * (1 - error);
+
+        t.Should().BeGreaterThanOrEqualTo(1, "smoothstep's clamp then gives exactly 1, and the stars their mean");
+    }
+
+    /// <summary>
+    /// The stars that the ambient pass skips where the lobe sees no open sky: 0 times a finite value adds nothing, so
+    /// the skip keeps the image only while the reflected stars are finite.
+    /// </summary>
+    [Fact]
+    public void TheReflectedStarsAreFiniteAtEveryWidthOfALobe()
+    {
+        float narrowest = StarField.LobeWidth(footprint: 1e-5f, roughness: 0);
+        float widest = StarField.LobeWidth(footprint: MathF.PI, roughness: 1);
+        for (int step = 0; step <= 200; step++)
+        {
+            float width = narrowest * MathF.Pow(widest / narrowest, step / 200f);
+            for (int index = 0; index < 200; index++)
+            {
+                Vector3 stars = StarField.Reflected(Fibonacci(index, 200), width, PixelAngle);
+                bool finite = float.IsFinite(stars.X) && float.IsFinite(stars.Y) && float.IsFinite(stars.Z);
+                finite.Should().BeTrue($"width {width} and direction {index}");
+            }
+        }
+    }
+
     [Theory]
     [InlineData(2f)]
     [InlineData(2.5f)]
