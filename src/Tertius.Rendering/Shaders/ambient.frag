@@ -28,7 +28,7 @@ void main()
         return;
     }
 
-    ShadingInput s = surfaceAt(pixel);
+    ShadingInput s = ambientSurfaceAt(pixel);
     vec3 V = -direction;
     vec3 ambient = exposed(ambientLight(s, lobesOf(s, V), V), exposureScale());
     // Each part is finite and at most MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share

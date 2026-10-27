@@ -133,7 +133,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             CheckOptionsOnDevice(options, device);
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
-            ShaderLibrary shaders = Own(new ShaderLibrary(device));
+            ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
             int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
                 new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)

@@ -20,3 +20,7 @@ ter-of1p measured the lighting pass on a 120-frame window of demo-exit at 1920x1
 **2026-10-27T02:34:41Z**
 
 2026-10-26: waits for the bounce light (ter-a24f), whose lighting split moves the environment map's ambient into the ambient pass; this ticket then works on that pass.
+
+**2026-10-27T07:46:09Z**
+
+Built on branch ter-fhlb-map-cost (2026-10-27). The ambient pass reads its surface through ambientSurfaceAt, which leaves the footprint at p where w(p) >= 2c (1 + 2^-10) (lobeEndsStarFade, StarField.LobeEndsFade), and environmentSpecular skips the star cells where the specular map's open-sky share is 0. AmbientSkipsTests compares the HDR image bit for bit with a reference ambient pass built with TERTIUS_EVERY_AMBIENT_TERM. Traces at 1080p: the ambient pass 0.748 -> 0.438/0.425 ms on the deck window of demo-exit (the second base run, 0.888 ms, was disturbed: the load rose to 46), 0.858/0.854 -> 0.704/0.727 ms on mirror-balls; the footprint skip alone gives 0.404 and 0.681 ms, so the stars skip saves nothing measurable there. Captures byte for byte the base's.

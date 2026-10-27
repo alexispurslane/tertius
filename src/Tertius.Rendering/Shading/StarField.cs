@@ -81,6 +81,19 @@ internal static class StarField
     }
 
     /// <summary>
+    /// How far above 2c, as a factor, the width at the pixel angle must lie before <see cref="LobeEndsFade"/> holds:
+    /// 1 + 2⁻¹⁰, far more than the few ulps by which Vulkan lets a shader's sqrt and division err.
+    /// </summary>
+    public const float FadeEndMargin = 1 + 1f / 1024;
+
+    /// <summary>
+    /// Whether a lobe of <paramref name="roughness"/> alone ends the fade: its width at the footprint p,
+    /// <paramref name="pixelAngle"/>, is past 2c, so every footprint of at least p gives the stars' mean.
+    /// </summary>
+    public static bool LobeEndsFade(float pixelAngle, float roughness) =>
+        LobeWidth(pixelAngle, roughness) >= 2 * CellWidth * FadeEndMargin;
+
+    /// <summary>
     /// k(w): the share of a star's light that its window keeps at <paramref name="width"/>, for widths up to a few rad.
     /// In double, because the closed form cancels for wide stars.
     /// </summary>

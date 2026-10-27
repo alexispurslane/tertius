@@ -1861,7 +1861,7 @@ public sealed class BatcherTests
     [InlineData("puff.frag")]
     public void ShadersAreCompiledAndEmbedded(string file)
     {
-        byte[] spirv = ShaderLibrary.LoadSpirv(file);
+        byte[] spirv = ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, file);
         spirv.Length.Should().BeGreaterThan(100);
         (spirv.Length % 4).Should().Be(0, "SPIR-V is a stream of 32-bit words");
     }
