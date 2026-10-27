@@ -82,7 +82,7 @@ internal sealed unsafe class DeformPass : RenderPass
             size: (uint)sizeof(DeformPushConstants),
             pValues: &push
         );
-        (uint x, uint y) = Grid(push.Groups);
+        (uint x, uint y) = ComputeLimits.Grid(push.Groups);
         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: x, groupCountY: y, groupCountZ: 1);
         Dispatches = 1;
 
@@ -116,17 +116,5 @@ internal sealed unsafe class DeformPass : RenderPass
         }
 
         return low;
-    }
-
-    /// <summary>
-    /// The grid of a dispatch of <paramref name="groups"/> workgroups: as few rows as hold them with at most
-    /// <see cref="ComputeLimits.MaxGroupsPerDimension"/> per row, and rows as short as hold them. So the grid ends fewer
-    /// than <c>Y</c> workgroups past the last, which return at once.
-    /// </summary>
-    internal static (uint X, uint Y) Grid(uint groups)
-    {
-        const uint perRow = ComputeLimits.MaxGroupsPerDimension;
-        uint rows = (groups + perRow - 1) / perRow;
-        return ((groups + rows - 1) / rows, rows);
     }
 }

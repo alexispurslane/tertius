@@ -590,7 +590,7 @@ internal struct EnvironmentPrefilterPushConstants
     public uint LevelCount;
 
     /// <summary>
-    /// The workgroups of the dispatch's levels. Its grid (<see cref="PrefilterLevels.Grid"/>) may hold a few more, which
+    /// The workgroups of the dispatch's levels. Its grid (<see cref="ComputeLimits.Grid"/>) may hold a few more, which
     /// return at once.
     /// </summary>
     public uint GroupCount;
