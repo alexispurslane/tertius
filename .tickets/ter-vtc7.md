@@ -1,6 +1,6 @@
 ---
 id: ter-vtc7
-status: open
+status: in_progress
 deps: [ter-a24f, ter-k1ne, ter-hx3r, ter-3dp5]
 links: []
 created: 2026-10-27T03:59:20Z

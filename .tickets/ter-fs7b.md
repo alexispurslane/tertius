@@ -1,6 +1,6 @@
 ---
 id: ter-fs7b
-status: open
+status: in_progress
 deps: [ter-a24f]
 links: []
 created: 2026-10-25T20:07:19Z
