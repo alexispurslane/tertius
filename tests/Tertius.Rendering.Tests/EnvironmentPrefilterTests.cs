@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -18,7 +19,7 @@ public sealed class EnvironmentPrefilterTests
     private static RenderSnapshot Colorful(VulkanRenderer renderer)
     {
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        RenderSnapshot snapshot = Gpu.Snapshot(sunDirection: new(0.3f, 0.5f, 1f), sunIntensity: 3f);
+        RenderSnapshot snapshot = Gpu.Snapshot(starDirection: new(0.3f, 0.5f, 1f), starIrradiance: 3f);
         for (int layer = 0; layer < CubeFaces.Count; layer++)
             snapshot.Instances.Add(
                 EnvironmentScenes.Square(
@@ -39,13 +40,72 @@ public sealed class EnvironmentPrefilterTests
         return snapshot;
     }
 
-    /// <summary>The six faces of one level, in layer order, each RGBA, rows from the top.</summary>
-    private static Half[] AllFaces(VulkanRenderer renderer, int level, EnvironmentImage image)
+    /// <summary>The six faces of one level of map <paramref name="map"/>, in layer order, each RGBA, rows from the top.</summary>
+    private static Half[] AllFaces(VulkanRenderer renderer, int level, EnvironmentImage image, int map = 0)
     {
         var all = new List<Half>();
         for (int layer = 0; layer < CubeFaces.Count; layer++)
-            all.AddRange(renderer.ReadEnvironmentFace(map: 0, face: (CubeFace)layer, level: level, image: image));
+            all.AddRange(renderer.ReadEnvironmentFace(map: map, face: (CubeFace)layer, level: level, image: image));
         return [.. all];
+    }
+
+    /// <summary>
+    /// <see cref="Colorful"/> seen from a camera whose chain holds three frames, each turned from the one below, so that
+    /// each of the three maps holds the same scene in its own axes. Every object is in the root, so every map draws it.
+    /// </summary>
+    private static RenderSnapshot ColorfulInThreeFrames(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Colorful(renderer);
+        for (int i = 0; i < snapshot.Instances.Count; i++)
+            snapshot.Instances[i] = snapshot.Instances[i] with { ChainDepth = TestChains.Root };
+        TestChains.Of(
+            snapshot,
+            (2, Quaternion.Identity),
+            (1, Quaternion.CreateFromYawPitchRoll(0.6f, 0.2f, 0f)),
+            (0, Quaternion.CreateFromYawPitchRoll(-0.4f, 1.1f, 0.3f))
+        );
+        return snapshot;
+    }
+
+    /// <summary>A headless renderer with a map of <paramref name="faceSize"/> texels, 160 × 90.</summary>
+    private static VulkanRenderer Renderer(int faceSize) =>
+        Gpu.Headless(width: 160, height: 90, environmentMap: SceneEnvironmentMap.Default with { FaceSize = faceSize });
+
+    /// <summary>Every level of map <paramref name="map"/>'s radiance map, then each face in layer order, RGBA, rows from the top.</summary>
+    private static Half[][][] RadianceMips(VulkanRenderer renderer, int faceSize, int map = 0)
+    {
+        var mips = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
+        for (int level = 0; level < mips.Length; level++)
+        {
+            mips[level] = new Half[CubeFaces.Count][];
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                mips[level][layer] = renderer.ReadEnvironmentFace(
+                    map: map,
+                    face: (CubeFace)layer,
+                    level: level,
+                    image: EnvironmentImage.Radiance
+                );
+        }
+
+        return mips;
+    }
+
+    /// <summary>The mean of the four children of texel (x, y) of a face of <paramref name="size"/>, by their solid angles.</summary>
+    private static Vector4 ChildrenMean(Half[] children, int size, int x, int y)
+    {
+        Vector4 light = Vector4.Zero;
+        double solidAngle = 0;
+        for (int dy = 0; dy < 2; dy++)
+        for (int dx = 0; dx < 2; dx++)
+        {
+            double childAngle = CubeFaces.TexelSolidAngle(2 * x + dx, 2 * y + dy, 2 * size);
+            light +=
+                EnvironmentScenes.Texel(face: children, size: 2 * size, x: 2 * x + dx, y: 2 * y + dy)
+                * (float)childAngle;
+            solidAngle += childAngle;
+        }
+
+        return light / (float)solidAngle;
     }
 
     /// <summary>
@@ -78,6 +138,104 @@ public sealed class EnvironmentPrefilterTests
         }
 
         return (light, angle / light);
+    }
+
+    /// <summary>
+    /// Every texel of each rough level is Karis's sum over the level's samples, each a trilinear read of the radiance map at
+    /// the level that filtered importance sampling gives: the result of <see cref="PrefilterReference"/>, which reads the
+    /// radiance map that the GPU drew. So however the shader splits a texel's samples among its invocations, it takes each
+    /// sample once, in its own direction, weight and level. At 128 texels the levels take two dispatches, so the second
+    /// dispatch writes its own levels with their own lanes.
+    /// </summary>
+    [Theory]
+    [InlineData(Size)]
+    [InlineData(128)]
+    public void EveryTexelOfARoughLevelIsTheSumOverItsSamplesOfTheRadianceMap(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        int levels = PrefilterLevels.Count(faceSize);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
+            // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
+            float[] worstOfLevel = new float[levels];
+            for (int level = 1; level < levels; level++)
+            {
+                int size = faceSize >> level;
+                float roughness = PrefilterLevels.Roughness(level, levels);
+                float worst = 0;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                {
+                    Half[] face = renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: level,
+                        image: EnvironmentImage.Specular
+                    );
+                    for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+                        Vector4 expected = reference.Prefilter(n, roughness);
+                        Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
+                        worst = MathF.Max(worst, (read - expected).Length() / (1 + expected.Length()));
+                    }
+                }
+
+                worstOfLevel[level] = worst;
+            }
+
+            // Within 0.35 % of a texel's light: the GPU's filter weights and the halves of the stored levels.
+            worstOfLevel[1..]
+                .Should()
+                .OnlyContain(worst => worst < 3.5e-3f, "each level's texels sum over their samples");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Every texel of every mip of the radiance map is the mean of its four children in the level above, by their exact
+    /// solid angles. At 32 texels the chain takes two dispatches and at 128 three, so a dispatch makes each of its levels
+    /// from the one above, and reads the last level that the dispatch before made.
+    /// </summary>
+    [Theory]
+    [InlineData(Size)]
+    [InlineData(128)]
+    public void EveryMipTexelIsTheMeanOfItsChildrenByTheirSolidAngles(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            Half[][][] mips = RadianceMips(renderer, faceSize);
+            float[] worstOfLevel = new float[mips.Length];
+            for (int level = 1; level < mips.Length; level++)
+            {
+                int size = faceSize >> level;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    Vector4 expected = ChildrenMean(children: mips[level - 1][layer], size: size, x: x, y: y);
+                    Vector4 read = EnvironmentScenes.Texel(face: mips[level][layer], size: size, x: x, y: y);
+                    float error = (read - expected).Length() / (1 + expected.Length());
+                    worstOfLevel[level] = MathF.Max(worstOfLevel[level], error);
+                }
+            }
+
+            // Within 0.1 % of a texel's light: the halves of the stored levels.
+            worstOfLevel[1..].Should().OnlyContain(worst => worst < 1e-3f, "each mip texel is its children's mean");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     [Fact]
@@ -268,6 +426,66 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// On the largest map the first dispatch of the specular map spreads its 172,032 workgroups over three rows
+    /// (<see cref="PrefilterLevels.Grid"/>), so each workgroup rebuilds its place from its row and column. Level 0, whose
+    /// workgroups fill the first row and part of the second, is the radiance map texel for texel. Levels 1 to 3, whose
+    /// workgroups lie in the second and third rows, hold at texels spread over every face the sum over their samples.
+    /// </summary>
+    [Fact]
+    public void OnTheLargestMapEveryWorkgroupOfTheGridsRowsWritesItsOwnTexels()
+    {
+        const int faceSize = EnvironmentMapSetting.MaxFaceSize;
+        VulkanRenderer renderer = Renderer(faceSize);
+        int levels = PrefilterLevels.Count(faceSize);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            Half[] radiance = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance);
+            Half[] mirror = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Specular);
+            int differing = 0;
+            for (int i = 0; i < radiance.Length; i++)
+                if (!radiance[i].Equals(mirror[i]))
+                    differing++;
+            differing.Should().Be(0, "the mirror level reads the radiance map texel for texel");
+
+            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
+            for (int level = 1; level < PrefilterLevels.LevelsPerDispatch; level++)
+            {
+                int size = faceSize >> level;
+                float roughness = PrefilterLevels.Roughness(level, levels);
+                float worst = 0;
+                for (int layer = 0; layer < CubeFaces.Count; layer++)
+                {
+                    Half[] face = renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: level,
+                        image: EnvironmentImage.Specular
+                    );
+                    // About 200 texels spread over each face, in row order.
+                    int stride = Math.Max(1, size * size / 200 + 1);
+                    for (int texel = 0; texel < size * size; texel += stride)
+                    {
+                        int x = texel % size;
+                        int y = texel / size;
+                        Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+                        Vector4 expected = reference.Prefilter(n, roughness);
+                        Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
+                        worst = MathF.Max(worst, (read - expected).Length() / (1 + expected.Length()));
+                    }
+                }
+
+                worst.Should().BeLessThan(3.5e-3f, "level {0}'s workgroups write their own texels", level);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheIrradianceIsTheProjectionOfTheMapsTexels()
     {
@@ -291,6 +509,281 @@ public sealed class EnvironmentPrefilterTests
                     .Distance(read[i], expected[i])
                     .Should()
                     .BeLessThan(1e-4f * total, "coefficient {0}: the shader projects as Irradiance.Project does", i);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The irradiance of each frame is the projection of that frame's map, frame after frame: the blocks of every frame
+    /// add up into it, whichever block finishes last, and no frame's sum carries into the next. The six faces are drawn in
+    /// every frame, under a sun that moves between frames, so each frame's map differs from the one before.
+    /// </summary>
+    [Fact]
+    public void EachFramesIrradianceIsTheProjectionOfThatFramesMap()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
+        try
+        {
+            RenderSnapshot colorful = Colorful(renderer);
+            RenderSnapshot moved = Gpu.Snapshot(starDirection: new(-0.6f, 0.2f, 0.4f), starIrradiance: 1f);
+            moved.Instances.AddRange(colorful.Instances);
+            Irradiance? before = null;
+            foreach (RenderSnapshot snapshot in (RenderSnapshot[])[colorful, moved, colorful])
+            {
+                renderer.Render(snapshot, 1f);
+
+                var expected = Irradiance.Project(
+                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
+                    Size
+                );
+                Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
+                float total = 0;
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    total += expected[i].Length();
+                if (before is { } last)
+                    Vector3
+                        .Distance(last[0], expected[0])
+                        .Should()
+                        .BeGreaterThan(1e-2f * total, "the sun's move changes the map");
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    Vector3
+                        .Distance(read[i], expected[i])
+                        .Should()
+                        .BeLessThan(1e-4f * total, "coefficient {0} is this frame's projection", i);
+                before = expected;
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The smallest face size, the default and the largest: the projection's partial sums cover every texel of every
+    /// face, however many blocks of rows the face splits into.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(128)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void AtEveryFaceSizeTheIrradianceIsTheProjectionOfEveryTexel(int size)
+    {
+        VulkanRenderer renderer = Renderer(size);
+        try
+        {
+            renderer.Render(Colorful(renderer), 1f);
+
+            var faces = new List<Half>();
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                faces.AddRange(
+                    renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: 0,
+                        image: EnvironmentImage.Radiance
+                    )
+                );
+            var expected = Irradiance.Project([.. faces], size);
+            Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
+
+            float total = 0;
+            for (int i = 0; i < Irradiance.Coefficients; i++)
+                total += expected[i].Length();
+            total.Should().BeGreaterThan(0.1f, "the map holds light");
+            for (int i = 0; i < Irradiance.Coefficients; i++)
+                Vector3
+                    .Distance(read[i], expected[i])
+                    .Should()
+                    .BeLessThan(1e-4f * total, "coefficient {0} at face size {1} sums every texel", i, size);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Each map of a chain of three takes its mips from its own level 0: every mip texel of each map is the mean of its
+    /// children in the same map, through the three runs of mips at 128 texels, each of which every map takes in turn.
+    /// </summary>
+    [Fact]
+    public void EachMapsMipsAreTheMeansOfItsOwnChildren()
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
+
+            float[] worstOfMap = new float[3];
+            for (int map = 0; map < worstOfMap.Length; map++)
+            {
+                Half[][][] mips = RadianceMips(renderer, faceSize, map);
+                for (int level = 1; level < mips.Length; level++)
+                {
+                    int size = faceSize >> level;
+                    for (int layer = 0; layer < CubeFaces.Count; layer++)
+                    for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        Vector4 expected = ChildrenMean(children: mips[level - 1][layer], size: size, x: x, y: y);
+                        Vector4 read = EnvironmentScenes.Texel(face: mips[level][layer], size: size, x: x, y: y);
+                        worstOfMap[map] = MathF.Max(
+                            worstOfMap[map],
+                            (read - expected).Length() / (1 + expected.Length())
+                        );
+                    }
+                }
+            }
+
+            AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance, map: 1)
+                .Should()
+                .NotEqual(
+                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance, map: 2),
+                    "each map holds the scene in its own axes"
+                );
+            worstOfMap.Should().OnlyContain(worst => worst < 1e-3f, "each map's mip texel is its own children's mean");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Each map of a chain of three takes its rough levels from its own radiance map: at texels spread over every face of
+    /// every level, through the two dispatches of the specular levels at 128 texels, each map's texel is the sum over its
+    /// samples of that map's radiance map.
+    /// </summary>
+    [Fact]
+    public void EachMapsRoughLevelsAreTheSumsOverItsOwnRadianceMap()
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        int levels = PrefilterLevels.Count(faceSize);
+        try
+        {
+            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
+
+            float[] worstOfMap = new float[3];
+            for (int map = 0; map < worstOfMap.Length; map++)
+            {
+                var reference = new PrefilterReference(RadianceMips(renderer, faceSize, map), faceSize);
+                for (int level = 1; level < levels; level++)
+                {
+                    int size = faceSize >> level;
+                    float roughness = PrefilterLevels.Roughness(level, levels);
+                    for (int layer = 0; layer < CubeFaces.Count; layer++)
+                    {
+                        Half[] face = renderer.ReadEnvironmentFace(
+                            map: map,
+                            face: (CubeFace)layer,
+                            level: level,
+                            image: EnvironmentImage.Specular
+                        );
+                        // About 50 texels spread over each face, in row order.
+                        int stride = Math.Max(1, size * size / 50 + 1);
+                        for (int texel = 0; texel < size * size; texel += stride)
+                        {
+                            int x = texel % size;
+                            int y = texel / size;
+                            Vector3 n = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+                            Vector4 expected = reference.Prefilter(n, roughness);
+                            Vector4 read = EnvironmentScenes.Texel(face: face, size: size, x: x, y: y);
+                            worstOfMap[map] = MathF.Max(
+                                worstOfMap[map],
+                                (read - expected).Length() / (1 + expected.Length())
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Within 0.5 % of a texel's light. The turned maps measured up to 0.43 % at their roughest levels, where the
+            // map in the camera's axes measured 0.25 %, and a map's texels measure 3.7 % or more against the samples of
+            // another map's radiance map.
+            worstOfMap.Should().OnlyContain(worst => worst < 5e-3f, "each map's texels sum over its own samples");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Each map of a chain of three has the irradiance of its own level 0, in its own nine coefficients: the maps take turns
+    /// with the buffer of partial sums, and no map's blocks carry into another's sum.
+    /// </summary>
+    [Fact]
+    public void EachMapsIrradianceIsTheProjectionOfItsOwnFaces()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
+
+            var projections = new Irradiance[3];
+            for (int map = 0; map < projections.Length; map++)
+            {
+                projections[map] = Irradiance.Project(
+                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance, map: map),
+                    Size
+                );
+                Irradiance read = renderer.ReadEnvironmentIrradiance(map: map);
+                float total = 0;
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    total += projections[map][i].Length();
+                for (int i = 0; i < Irradiance.Coefficients; i++)
+                    Vector3
+                        .Distance(read[i], projections[map][i])
+                        .Should()
+                        .BeLessThan(1e-4f * total, "coefficient {0} of map {1} is its own projection", i, map);
+            }
+
+            Vector3
+                .Distance(projections[1][1], projections[2][1])
+                .Should()
+                .BeGreaterThan(1e-2f, "the maps lie in different axes, so their first band differs");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The prefilter records no barrier that the next one covers. For M drawn maps at 128 texels, whose mips take three
+    /// runs, the first frame's barriers are: one into the storage layout for the mips; one after each map's run but the
+    /// last drawn map's last run, whose writes the levels' barrier orders as it makes the mips read-only; that one; one
+    /// before each map's sum; one between two maps of the levels, none after the last, whose writes the specular map's
+    /// read-only barrier and the readback's barrier order; and the readback's two. So 5M + 2 in all. In the first frame
+    /// the buffers have no earlier use, so the pass's first barrier is empty and records nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void ThePrefilterRecordsNoBarrierThatTheNextOneCovers(int maps)
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            var before = new FlushProbe();
+            var after = new FlushProbe();
+            // The face pass and the prefilter were added first, so the probes record right after each of them.
+            renderer.Graph.Add(FrameGraph.Stage.EnvironmentFaces, before);
+            renderer.Graph.Add(FrameGraph.Stage.EnvironmentPrefilter, after);
+
+            renderer.Render(maps == 1 ? Colorful(renderer) : ColorfulInThreeFrames(renderer), 1f);
+
+            int runs = PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(faceSize));
+            int barriers = after.Flushes - before.Flushes;
+            runs.Should().Be(3, "the count below assumes three runs of mips");
+            barriers.Should().Be(5 * maps + 2, "the prefilter of {0} maps records each barrier once", maps);
         }
         finally
         {
@@ -389,5 +882,15 @@ public sealed class EnvironmentPrefilterTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>A pass that records nothing and keeps the frame's count of barriers at its place in the graph.</summary>
+    private sealed class FlushProbe : RenderPass
+    {
+        public int Flushes { get; private set; }
+
+        public override string Name => "flush probe";
+
+        public override void Record(FrameContext context) => Flushes = context.Barriers.FlushCount;
     }
 }

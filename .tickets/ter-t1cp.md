@@ -1,6 +1,6 @@
 ---
 id: ter-t1cp
-status: in_progress
+status: closed
 deps: [ter-wjib, ter-542e]
 links: []
 created: 2026-10-25T16:58:27Z
@@ -18,3 +18,9 @@ Part 7 of docs/plans/local-light-shadows.md on branch ter-s9cv-light-shadows, "O
 
 The part's tests pass in Checked and Release, with hand mutations of each new test, as the part's "Done" says.
 
+
+## Notes
+
+**2026-10-26T20:35:11Z**
+
+2026-10-26: reviewed and fixed (8b40dd67); merged with the epic in ef755699.

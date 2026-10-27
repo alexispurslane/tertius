@@ -134,9 +134,6 @@ public sealed class RenderSnapshotPuffTests
                     Time: tick * Step,
                     Camera: camera,
                     VerticalFov: 1,
-                    SunFrame: FrameHandle.Null,
-                    SunColor: Vector3.One,
-                    SunIntensity: 0,
                     Ambient: new(),
                     ShowFrameOutlines: false
                 ),

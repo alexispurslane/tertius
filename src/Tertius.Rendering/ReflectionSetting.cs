@@ -36,7 +36,10 @@ public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxS
 /// </summary>
 public enum TraceResolution
 {
-    /// <summary>One ray for each block of 2 × 2 pixels, from its top-left pixel; an upsample that respects depth and normal edges spreads the rays.</summary>
+    /// <summary>
+    /// One ray for each block of 2 × 2 pixels, from its top-left pixel; an upsample that respects depth and normal edges
+    /// spreads the rays. Where the blended rays hit different surfaces, at a reflected outline, a pixel traces its own ray.
+    /// </summary>
     Half,
 
     /// <summary>One ray for every pixel.</summary>

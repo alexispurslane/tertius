@@ -30,20 +30,27 @@ internal static class ShaderInput
     /// </summary>
     public const float RadianceLimit = 18446744073709551616f;
 
+    /// <summary>
+    /// The most irradiance per channel, 2^64 W/m², that one light gives a surface in the shaders: `IrradianceLimit` in
+    /// Shaders/lighting.glsl, where lightIrradiance caps it before the BRDF. Below it, the bound of
+    /// <see cref="RadianceLimit"/> holds for the sum of every light's product with the BRDF, its visibility and the exposure.
+    /// </summary>
+    public const float IrradianceLimit = 18446744073709551616f;
+
     /// <summary>The smallest normal single float, `SmallestNormal` in Shaders/vectors.glsl. A GPU may flush a smaller value to 0.</summary>
     public const float SmallestNormal = 1.17549435e-38f;
+
+    /// <summary>
+    /// The smallest normal half float, 2^−14, `SmallestNormalHalf` in Shaders/vectors.glsl. A GPU may flush a smaller value
+    /// to 0 when it stores it in a 16-bit image or loads it.
+    /// </summary>
+    public const float SmallestNormalHalf = 6.103515625e-5f;
 
     /// <summary>
     /// The farthest from the eye, 2^62 m, that a point of a surface, a puff, a light, an outline or a far shadow may lie.
     /// The shaders square the distance between two such points, at most 2^63, which stays inside the single float's range.
     /// </summary>
     public const float PositionLimit = 4611686018427387904f;
-
-    /// <summary>
-    /// The largest range of a point or spot light that the shaders read, 2^63 m, which they square. No distance between
-    /// two points within <see cref="PositionLimit"/> of the eye is longer.
-    /// </summary>
-    public const float RangeLimit = 9223372036854775808f;
 
     /// <summary>
     /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
@@ -80,15 +87,20 @@ internal static class ShaderInput
         position.Length() + extent
         <= PositionLimit;
 
-    /// <summary>A finite light range above 0 as the shaders read it: at most <see cref="RangeLimit"/>.</summary>
-    public static float Range(float range) => MathF.Min(range, RangeLimit);
-
     /// <summary>
     /// A radiance from the CPU as the shaders read it, per channel: its nearest value from 0 to
     /// <see cref="RadianceLimit"/>, and 0 for a NaN, which sends no light.
     /// </summary>
     public static Vector3 Radiance(Vector3 radiance) =>
         new(Radiance(radiance.X), Radiance(radiance.Y), Radiance(radiance.Z));
+
+    /// <summary>
+    /// A light's radiant intensity from the CPU, color × intensity in W/sr, as the shaders read it, per channel: its nearest
+    /// value from 0 to <see cref="LightUnits.MaxIntensity"/>, and 0 for a NaN. An intensity is not a radiance, so it has its
+    /// own limit: a star keeps its real intensity (docs/plans/local-light-shadows.md, "Main's limits and decision 17").
+    /// </summary>
+    public static Vector3 Intensity(Vector3 intensity) =>
+        new(Intensity(intensity.X), Intensity(intensity.Y), Intensity(intensity.Z));
 
     /// <summary>A fraction from the CPU, such as an albedo or a metallic factor: its nearest value from 0 to 1, and 0 for a NaN.</summary>
     public static float Fraction(float value) => value >= 0 ? MathF.Min(value, 1) : 0;
@@ -102,4 +114,7 @@ internal static class ShaderInput
 
     // A NaN fails the comparison, and MathF.Min takes +∞ to the limit.
     private static float Radiance(float value) => value >= 0 ? MathF.Min(value, RadianceLimit) : 0;
+
+    // A NaN fails the comparison, and MathF.Min takes +∞ to the limit.
+    private static float Intensity(float value) => value >= 0 ? MathF.Min(value, (float)LightUnits.MaxIntensity) : 0;
 }

@@ -111,7 +111,7 @@ The sun and each point and spot light add f(l, v) · E · (n·l) where n·l > 0.
 - The sun: `frame.sunRadiance` times the sun's visibility, the far shadows times the cascades (`sunReaches`).
 - A point or spot light: its radiance times the distance attenuation and the cone (`lightReaches`).
 
-The rule of the geometric normal stays: where the vertex normal faces away from the sun, the sun adds nothing, whatever the normal map says. Each light is still a point or a direction. A light with a size, whose highlight on a smooth surface shows its disc, waits for the radius of the lights plan (`ter-bpvl`, see "Compared with a design from scratch").
+The rule of the geometric normal stays: where the vertex normal faces away from the sun, the sun adds nothing, whatever the normal map says. The BRDF still treats each light as a point. Every light now has the radius of its sphere (the lights plan, `ter-bpvl`), and the widened lobe that shows a sized light's disc on a smooth surface is the ticket of its decision 47, `ter-gf0t` (see "Compared with a design from scratch").
 
 ### The roughness floor
 
@@ -567,7 +567,7 @@ A deferred renderer built from scratch around this BRDF would have the same mate
 |---|---|---|
 | Environment maps or probes, prefiltered along the lobe, and irradiance for the diffuse part | The two colors of the hemisphere ambient light, with the lobe-sky table in place of the prefiltered map | Probes and image-based lighting are out of the epic's scope. The table is the same split sum over the environment that the scenes define. |
 | The fourth channel of the material target holds a material value, such as occlusion or a shading model | It holds s_l, a value of the environment | Only the G-buffer pass knows the instance's up. The normal's share sits in the emissive alpha for the same reason. |
-| Lights with a size: a smooth surface shows the sun's disc and a lamp's bulb, and the radiance stays bounded | Points and a direction, so a very smooth surface shows a pinpoint, and the clamp bounds the stored value | The lights plan gives each light an emitter radius (`ter-bpvl`). A widened lobe for a sized light then fits into `brdf`. The demo's smoothest material has r = 0.18, whose lobe is wider than the sun. |
+| Lights with a size: a smooth surface shows the sun's disc and a lamp's bulb, and the radiance stays bounded | Points and a direction, so a very smooth surface shows a pinpoint, and the clamp bounds the stored value | The lights plan gave each light an emitter radius (`ter-bpvl`). A widened lobe for a sized light fits into `brdf`, and it is the ticket of the plan's decision 47, `ter-gf0t`. The demo's smoothest material has r = 0.18, whose lobe is wider than the sun. |
 | Glass that blends its diffuse part by opacity and keeps its specular part (Filament's transparent mode) | Alpha blending fades the whole color, the specular part too, as today | It is the blend of the transparent pass, not the BRDF. A change brightens both glasses' highlights about fivefold and undoes the canopy's tuning. It belongs to a later decision about glass. (2026-10-25: decided and built, see ARCHITECTURE.md, "Transparent objects".) |
 | A DFG table baked offline as an asset | Computed at start by the C# copy | (User) No asset pipeline exists yet, and the C# copy is the reference that the tests pin. |
 | Specular anti-aliasing on normal maps | None in the renderer | The asset pipeline widens the roughness of bumpy mips (Toksvig), and the demo has no normal maps. The anti-aliasing plan keeps it optional. |

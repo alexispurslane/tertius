@@ -179,7 +179,7 @@ The keys map to the members by these rules. Each rule names the error of a mista
 
 | Quantity | Unit in files | Notes |
 |---|---|---|
-| Length, position, radius, light range | m | Positions in a frame are doubles. Offsets are floats. |
+| Length, position, radius, light radius | m | Positions in a frame are doubles. Offsets are floats. |
 | Angle | rad, or a degree literal | This includes the field of view, cone half-angles and Kepler angles. |
 | Angular rate | rad/s | A degree literal turns deg/s into rad/s. |
 | Time, epoch, start time | s | An epoch is absolute simulation time. |
@@ -191,7 +191,8 @@ The keys map to the members by these rules. Each rule names the error of a mista
 | Gravitational parameter μ | m³/s² | |
 | Damping | 1/s | Jolt's unit |
 | Color | Linear RGB, 0 to 1 per channel | Emissive values can be above 1. A hex string is sRGB, and the converter turns it into linear values. |
-| Light intensity | 1 is 683 cd for point and spot lights | Irradiance at distance d is color × intensity / d². An intensity of 1 is a Blender point light of 4π W, about 12.6 W (see the asset pipeline design). |
+| Light power | W | The radiant power that leaves a light, which the color scales per channel. A spot light sends it through its outer cone. A light has no intensity and no range: the renderer derives both from the power ([local-light-shadows.md](local-light-shadows.md), "Units"). |
+| Radiance | W/(m²·sr) | Emissive colors and the ambient colors. |
 | Scale | A factor | It changes rendering only. Collision does not scale. |
 
 The degree literal `{"deg": x}` is a number literal. `FloatConverter` and `DoubleConverter` read it and give x × π / 180 in the member type. It is valid where a `float` or `double` is expected, and nowhere else. One converter for all `float` and `double` values is the simplest choice, because no angle member needs an attribute. Files keep radians for three reasons:
@@ -311,8 +312,9 @@ Four smaller blueprints from the same package show topics, inline primitives, an
   "render": {
     "mesh": { "kind": "sphere", "radius": 0.08 },
     "material": { "baseColor": "#ffb070", "emissive": [4, 2.4, 1.2] },
+    "flags": ["visible"],
     "light": {
-      "kind": "spot", "color": "#ffb070", "intensity": 30, "range": 8,
+      "kind": "spot", "color": "#ffb070", "power": 2.5, "radius": 0.05, "castsShadow": true,
       "innerConeAngle": { "deg": 25 }, "outerConeAngle": { "deg": 35 },
       "offset": { "rotation": { "axis": [1, 0, 0], "angle": { "deg": -90 } } }
     }
@@ -331,7 +333,7 @@ Four smaller blueprints from the same package show topics, inline primitives, an
 }
 ```
 
-The crew mesh is a piece with one material, and `viewOffset` is the eye of the camera entity. The lamp light reaches 8 m, and its offset turns the spot light down.
+The crew mesh is a piece with one material, and `viewOffset` is the eye of the camera entity. The lamp sends 2.5 W through its cone from a bulb 5 cm in radius and casts shadows, and its offset turns the spot light down. Its `flags` leave out `castsShadow`, so its sphere does not darken its own light.
 
 ### Sections
 
@@ -404,8 +406,9 @@ The light section maps to `LightData`, a union of two cases: a `PointLightData` 
 |---|---|---|
 | `kind` | `"point"` or `"spot"` | `"point"` |
 | `color` | Linear RGB | `[1, 1, 1]` |
-| `intensity` | 1 is 683 cd | 1 |
-| `range` | m | 10 |
+| `power` | W | 1 |
+| `radius` | m | 0 |
+| `castsShadow` | A boolean | `false` |
 | `innerConeAngle` | rad | 0.3 |
 | `outerConeAngle` | rad | 0.5 |
 | `offset` | A pose | Identity |
@@ -444,7 +447,6 @@ A scene file has these top-level keys.
 | `startTime` | s | 0 | `WorldOptions.StartTime`. The host reads it before it creates the `World`. |
 | `camera` | A scene id | None | `World.Camera` |
 | `verticalFov` | rad | π/3 | `World.VerticalFov` |
-| `sun` | `{"frame": id, "color": [r, g, b], "intensity": i}` | None | `SunFrame`, `SunColor`, `SunIntensity` |
 | `ambient` | `{"skyColor", "groundColor", "intensity"}` | The engine default | `World.Ambient` |
 | `entities` | An object: scene id to entity entry | None | The scene must have it (CT3009). |
 
@@ -469,7 +471,7 @@ Before it spawns anything, the preparer enforces these rules. Each broken rule i
 - An attached entity has no `frame`, `pose`, `velocity`, body or frame section (CT7004).
 - `frame` names a frame entity of the same scene (CT7002, CT7003).
 - The `frame` and `attachTo` references form no cycle (CT7001).
-- `camera` names an entity, and `sun.frame` names a frame entity (CT7008).
+- `camera` names an entity (CT7008).
 
 The spawner spawns every entity with `World.Spawn(SpawnDesc)`, root frames too. A root frame gets a `SpawnDesc` with `AsFrame` set and no `Frame`, so it keeps its components, subscriptions and render data. `World.CreateRootFrame` takes no components, so the spawner does not use it.
 
@@ -485,7 +487,6 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
   "startTime": 0,
   "camera": "pilot",
   "verticalFov": { "deg": 70 },
-  "sun": { "frame": "sol", "color": [1.0, 0.96, 0.9], "intensity": 1 },
   "ambient": { "skyColor": [0.02, 0.02, 0.03], "groundColor": [0.01, 0.01, 0.01], "intensity": 1 },
   "entities": {
     "sol": { "blueprint": "stars/sol" },
@@ -539,7 +540,7 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
 
 In this example:
 
-- `sol` is the root frame, with no `frame` and no pose. `stars/sol` has point gravity with μ 1.32712440018e20 m³/s² and a 1e13 m bubble.
+- `sol` is the root frame, with no `frame` and no pose. `stars/sol` has point gravity with μ 1.32712440018e20 m³/s² and a 1e13 m bubble. Its render section carries the Sun's light: a point light of 3.828e26 W and radius 6.957e8 m that casts shadows. A star is an entity with a light, not a value of the scene.
 - `planets/terra` lists `KeplerMotion`, and has point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit holds no μ: its `KeplerMotion` uses the μ of the point gravity of `sol`. It does not turn: its tilt makes its axes follow the equator.
 - `planets/terra-surface` lists `SpinMotion`, and has point gravity with the same μ, a bubble that ends at the top of the air, and the 6.371e6 m sphere as a kinematic hull. It turns once per sidereal day and holds the ground.
 - `corvette` orbits 400 km above the surface, in `terra`, not in `terra-surface`. A Kepler orbit is in the axes of its parent, so in the turning frame the orbit would turn once a day with the ground. The entities in the corvette's frame have poses in ship axes.
@@ -691,7 +692,7 @@ This plan owns the codes CT2xxx (JSON syntax), CT3xxx (values) and CT7xxx (scene
 | CT7003 | Unknown scene id |
 | CT7004 | The entry has a key that this kind of entity cannot have. |
 | CT7005 | The entry has no frame, no attachment parent and no frame section. |
-| CT7008 | `camera` or `sun.frame` names a wrong entity. |
+| CT7008 | `camera` names a wrong entity. |
 
 ### Code
 
@@ -861,8 +862,8 @@ public sealed class SceneInstance
 public static class SceneSpawner
 {
     /// <summary>
-    /// Spawns the scene into an empty world that was created with the scene's start time, and sets the camera,
-    /// sun and ambient light. Call it outside a tick. It runs no reflection and reads no JSON.
+    /// Spawns the scene into an empty world that was created with the scene's start time, and sets the camera
+    /// and the ambient light. Call it outside a tick. It runs no reflection and reads no JSON.
     /// </summary>
     public static SceneInstance Spawn(World world, PreparedScene scene);
 }

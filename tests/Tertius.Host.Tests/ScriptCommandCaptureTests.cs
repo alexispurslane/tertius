@@ -10,13 +10,15 @@ namespace Tertius.Host.Tests;
 public sealed class ScriptCommandCaptureTests : IDisposable
 {
     /// <summary>
-    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the environment map's faces and
-    /// prefilter after the shadow maps, the occlusion passes of the screen-space light between the direct and the ambient
-    /// pass, the reflections' half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
+    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the local shadows after the
+    /// cascades, the environment map's faces and prefilter after them, the occlusion passes of the screen-space light
+    /// between the direct and the ambient pass, the reflections' half-resolution trace and its upsample after the radiance
+    /// pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
         "shadow maps",
+        "local shadows",
         "environment faces",
         "environment prefilter",
         "G-buffer",
@@ -487,5 +489,86 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         chosen.Should().Equal(expected);
+    }
+
+    public static TheoryData<string[], LocalShadowSetting, int> ShadowOptions =>
+        new()
+        {
+            { [], LocalShadowAtlas.Default, 1 },
+            { ["--local-shadows", "off"], new NoLocalShadows(), 1 },
+            {
+                // The renderer is real, so its tiles stay within the 256 layers that Vulkan guarantees: 12 tiles, 12 MB.
+                ["--local-shadow-tiles", "12", "--cascaded-lights", "2"],
+                LocalShadowAtlas.Default with
+                {
+                    Tiles = 12,
+                },
+                2
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(ShadowOptions))]
+    public void TheShadowOptionsChooseTheShadowsOfTheHeadlessRendererWhichAreTheRenderersDefaultWithoutThem(
+        string[] shadows,
+        LocalShadowSetting expectedLocalShadows,
+        int expectedCascadedLights
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<(LocalShadowSetting LocalShadows, int CascadedLights)>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. shadows],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add((options.LocalShadows, options.CascadedLights));
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        chosen.Should().Equal((expectedLocalShadows, expectedCascadedLights));
+    }
+
+    [Fact]
+    public void ARendererLikeAScriptedRunsExposesLightsAndShadowsTheSceneAsTheHeadlessRendererOfAScriptedRunDoes()
+    {
+        // The Host tests read a demo scene through GpuTesting.LikeAScriptedRun, so its light must reach each surface as
+        // in a scripted run: a lamp that casts shadows must not light the far side of a wall in one and not the other.
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var chosen = new List<(object? Exposure, object? EnvironmentMap, object? LocalShadows, int CascadedLights)>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                chosen.Add(
+                    (
+                        options.Exposure.Value,
+                        options.EnvironmentMap.Value,
+                        options.LocalShadows.Value,
+                        options.CascadedLights
+                    )
+                );
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        RendererOptions like = LikeAScriptedRunOptions(width: 160, height: 90);
+        chosen
+            .Should()
+            .Equal((like.Exposure.Value, like.EnvironmentMap.Value, like.LocalShadows.Value, like.CascadedLights));
     }
 }

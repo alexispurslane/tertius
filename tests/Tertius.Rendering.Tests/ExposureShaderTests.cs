@@ -93,7 +93,7 @@ public sealed class ExposureShaderTests
         VulkanRenderer renderer = Renderer(AutoExposure.Default with { MinStops = 0, MaxStops = 0 });
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
             snapshot.Ambient.Intensity = 0;
             // Saturated hues, so that no star of the sky between the squares shows one of their colors.
             Vector3[] hues = [new(1, 0.2f, 0.2f), new(0.2f, 1, 0.2f), new(0.2f, 0.2f, 1), new(1, 1, 0.2f)];
@@ -148,10 +148,10 @@ public sealed class ExposureShaderTests
             RenderSnapshot snapshot = Sunlit();
             AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
             // Rising: the view settles in sunlight, and the sun goes out. Falling: the other way round.
-            float sun = snapshot.Sun.Intensity;
-            snapshot.Sun.Intensity = rising ? sun : 0;
+            float sun = Gpu.StarIrradiance(snapshot);
+            Gpu.Star(snapshot: snapshot, irradiance: rising ? sun : 0);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
-            snapshot.Sun.Intensity = rising ? 0 : sun;
+            Gpu.Star(snapshot: snapshot, irradiance: rising ? 0 : sun);
 
             const double frameTime = 1.0 / 30;
             snapshot.Time = frameTime;
@@ -208,7 +208,7 @@ public sealed class ExposureShaderTests
             RenderSnapshot snapshot = BrightObjectOverDarkGround(renderer);
             Still(renderer: renderer, snapshot: snapshot, time: 0);
             // Half the sun, so the square darkens by a stop and the target rises.
-            snapshot.Sun.Intensity /= 2;
+            Gpu.Star(snapshot: snapshot, irradiance: Gpu.StarIrradiance(snapshot) / 2);
 
             const double frameTime = 1.0 / 30;
             snapshot.Time = frameTime;
@@ -279,7 +279,7 @@ public sealed class ExposureShaderTests
     {
         RenderSnapshot snapshot = Sunlit();
         if (sunOut)
-            snapshot.Sun.Intensity = 0;
+            Gpu.Star(snapshot: snapshot, irradiance: 0);
         AddRampSquare(renderer: renderer, snapshot: snapshot, position: Ahead, rotation: FacingTheCamera);
         return snapshot;
     }

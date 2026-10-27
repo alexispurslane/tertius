@@ -1,8 +1,8 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The cone that stands for the specular lobe around a reflected ray (docs/plans/screen-space-reflections.md, "The
-/// cone"). The C# copy of coneLevel in reflection.glsl.
+/// The cone that stands for the specular lobe around a reflected ray and the gap to the next ray
+/// (docs/plans/screen-space-reflections.md, "The cone"). The C# copy of coneLevel in reflection.glsl.
 /// </summary>
 /// <param name="TanHalfAngle">tan θ_c, the tangent of the cone's half angle.</param>
 internal readonly record struct ReflectionCone(float TanHalfAngle)
@@ -17,6 +17,16 @@ internal readonly record struct ReflectionCone(float TanHalfAngle)
     /// <summary>The cone of a roughness r₀, floored as the BRDF floors it: tan θ_c = TangentPerAlpha · r².</summary>
     public static ReflectionCone OfRoughness(float roughness) =>
         new(TangentPerAlpha * (float)new GgxLobe(roughness).Alpha);
+
+    /// <summary>
+    /// The cone of a ray in a trace whose texels have the side s: tan θ_c is the larger of the lobe's spread and the
+    /// chord f · s to the next texel's ray, so that the read covers the gap between neighboring rays.
+    /// </summary>
+    /// <param name="roughness">The surface's roughness r₀, before the BRDF's floor.</param>
+    /// <param name="footprint">f, in rad: how far the pixel's reflection direction moves to the nearer neighbor along each axis.</param>
+    /// <param name="texelSide">s, in pixels: 1 for <see cref="TraceResolution.Full"/>, 2 for <see cref="TraceResolution.Half"/>.</param>
+    public static ReflectionCone Of(float roughness, float footprint, int texelSide) =>
+        new(MathF.Max(OfRoughness(roughness).TanHalfAngle, footprint * texelSide));
 
     /// <summary>log₂ of the cone's radius at the hit in pixels, clamped to 0 to topLevel.</summary>
     /// <param name="rayLength">The ray's length from its origin to the hit, in m.</param>

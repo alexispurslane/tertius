@@ -443,7 +443,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             // Bright, but below the cap on its own: the cap binds only on the sum of the two passes.
             snapshot.Ambient = new()
             {
@@ -452,13 +452,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 Intensity = 20_000,
             };
             snapshot.Lights.Add(
-                new PointRenderLight(
-                    Position: lamp,
-                    Color: Vector3.One,
-                    Intensity: 1e6f,
-                    Range: 50,
-                    ChainDepth: TestChains.CamerasFrame
-                )
+                Gpu.Lamp(position: lamp, color: Vector3.One, intensity: 1e6f, chainDepth: TestChains.CamerasFrame)
             );
             AddSlab(
                 snapshot: snapshot,
@@ -517,7 +511,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     /// </summary>
     private static RenderSnapshot RedWall(VulkanRenderer renderer, Quaternion view)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(SunDirection, sunIntensity: 3);
+        RenderSnapshot snapshot = Gpu.Snapshot(SunDirection, starIrradiance: 3);
         snapshot.Ambient = new()
         {
             SkyColor = Vector3.One,
@@ -597,7 +591,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     /// </summary>
     private static RenderSnapshot SunlitFloor(VulkanRenderer renderer)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.5f, 0.8f, -0.3f), sunIntensity: 3);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.5f, 0.8f, -0.3f), starIrradiance: 3);
         snapshot.Ambient = new()
         {
             SkyColor = Vector3.One,
@@ -650,7 +644,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         try
         {
             // The sun stands 30° high to the right, so the box's shadow falls 0.5 m and more to its left.
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.85f, 0.5f, 0.15f), sunIntensity: 3);
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.85f, 0.5f, 0.15f), starIrradiance: 3);
             snapshot.Ambient.Intensity = 0;
             MeshId box = UnitBox(renderer);
             MaterialId white = renderer.CreateMaterial(
@@ -687,7 +681,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     private static RenderSnapshot SunlitConvexEdge(VulkanRenderer renderer)
     {
         // Toward the sun: up, ahead and to the left, so it lights both faces.
-        RenderSnapshot snapshot = Gpu.Snapshot(new(-0.5f, 0.6f, 0.6f), sunIntensity: 3);
+        RenderSnapshot snapshot = Gpu.Snapshot(new(-0.5f, 0.6f, 0.6f), starIrradiance: 3);
         AddSlab(
             snapshot: snapshot,
             box: UnitBox(renderer),
@@ -710,7 +704,10 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         {
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Transform(new(0.5f, 0.8f, 0.3f), rotation), sunIntensity: 3);
+            RenderSnapshot snapshot = Gpu.Snapshot(
+                Vector3.Transform(new(0.5f, 0.8f, 0.3f), rotation),
+                starIrradiance: 3
+            );
             Look(snapshot, rotation);
             MeshId box = UnitBox(renderer);
             MaterialId matte = Matte(renderer);

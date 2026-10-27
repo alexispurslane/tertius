@@ -4,13 +4,17 @@
 // The upsample of the half-resolution trace (docs/plans/screen-space-reflections.md, "The half-resolution trace"): a
 // joint bilateral upsample of the rays of the up to four texels around each reflecting pixel, whose weights are cut by
 // each texel's distance from the pixel's tangent plane and by the turn of its geometric normal, and the delta of the
-// pixel from the mean. ReflectionUpsample in Shading/ is its C# copy.
-#include "reflection_pixel.glsl"
+// pixel from the mean. Where the rays of the texels that a pixel blends hit different surfaces, the pixel traces its own
+// ray instead, as the full-resolution trace does. ReflectionUpsample in Shading/ is its C# copy.
+#include "reflection_ray.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 3, rgba16f) uniform image2D hdrImage;              // the lit image, at this pixel only
 layout(set = 3, binding = 4, rgba16f) uniform readonly image2D tracedImage;   // ⌈W / 2⌉ × ⌈H / 2⌉
+layout(set = 3, binding = 5, r32f) uniform readonly image2D hitDepthImage;    // the same size
+
+const float OwnTexelSide = 1.0;  // in pixels: a pixel's own ray, as at full resolution
 
 // The cosine to the power of ReflectionUpsample.NormalPower, 8, by three squares: pow is exp2 of a log2, which is
 // infinite at 0 and which fast math may assume finite.
@@ -27,9 +31,10 @@ float normalWeight(float facing)
 const int GroupSide = 8;
 const int TileSide = GroupSide / 2 + 1;
 
-// For each texel of the tile: its ray, or a negative coverage for none, its representative pixel's view position and
-// that pixel's geometric normal.
+// For each texel of the tile: its ray, or a coverage of −1 for none, the view depth of the ray's hit, its
+// representative pixel's view position and that pixel's geometric normal.
 shared vec4 tileRays[TileSide * TileSide];
+shared float tileHitDepths[TileSide * TileSide];
 shared vec3 tilePositions[TileSide * TileSide];
 shared vec3 tileNormals[TileSide * TileSide];
 
@@ -46,6 +51,7 @@ void loadTile(ivec2 firstTexel, ivec2 halfSize)
         return;
     }
     tileRays[i] = imageLoad(tracedImage, texel);
+    tileHitDepths[i] = imageLoad(hitDepthImage, texel).r;
     ivec2 representative = 2 * texel;
     float representativeDistance = texelFetch(gbufferDistance, representative, 0).r;
     tilePositions[i] = normalize(viewRayThrough(vec2(representative) + 0.5)) * representativeDistance;
@@ -75,6 +81,11 @@ void main()
     vec2 weightsY = (pixel.y & 1) == 0 ? vec2(1.0, 0.0) : vec2(0.5);
     vec4 sum = vec4(0.0);
     float weights = 0.0;
+    // The blended texels' hits and misses, and the nearest and farthest view depth of their hits.
+    bool anyHit = false;
+    bool anyMiss = false;
+    float nearest = 0.0;
+    float farthest = 0.0;
     for (int b = 0; b < 2; b++)
     {
         for (int a = 0; a < 2; a++)
@@ -82,22 +93,41 @@ void main()
             float bilinear = weightsX[a] * weightsY[b];
             int i = (base.y + b) * TileSide + base.x + a;
             vec4 ray = tileRays[i];
-            // A negative coverage: the texel's representative pixel started no ray, or the texel lies past the edge.
-            if (bilinear == 0.0 || ray.a < 0.0)
+            // A coverage of −1: the texel's representative pixel started no ray, or the texel lies past the edge. The trace
+            // stores only −1, an exact 0 or at least 2^-14, so no flush or rounding moves a texel across these tests.
+            if (bilinear == 0.0 || ray.a < -0.5)
                 continue;
             float offPlane = abs(dot(p.s.geometricNormal, tilePositions[i] - position));
             float facing = max(0.0, dot(p.s.geometricNormal, tileNormals[i]));
             float weight = bilinear * max(0.0, 1.0 - offPlane / texelWidth) * normalWeight(facing);
+            // A weight below the smallest normal float counts as none: a GPU may flush it to 0. So the sum of the
+            // weights is 0 or at least 2^-126, the smallest divisor for which Vulkan bounds a division's error.
+            if (weight < SmallestNormal)
+                continue;
             sum += weight * ray;
             weights += weight;
+            float depth = tileHitDepths[i];
+            bool hit = ray.a > 0.0;
+            nearest = hit ? (anyHit ? min(nearest, depth) : depth) : nearest;
+            farthest = hit ? max(farthest, depth) : farthest;
+            anyHit = anyHit || hit;
+            anyMiss = anyMiss || !hit;
         }
     }
-    // No texel with a ray lies on the pixel's surface: the pixel keeps the ambient specular term. A sum below the
-    // smallest normal float counts as none: a GPU may flush it to 0, and Vulkan bounds the error of a division only for
-    // a divisor of at least 2^-126.
-    if (weights < SmallestNormal)
+    // No texel with a ray lies on the pixel's surface: the pixel keeps the ambient specular term.
+    if (!anyHit && !anyMiss)
         return;
-    vec3 delta = reflectionDelta(p, sum / weights);
+    // The texels' rays hit different surfaces: a hit beside a miss, or hits farther apart in depth than the trace's
+    // slab, which a surface at depth z fills to (1 + ThicknessShare) z. No blend places the outline between them.
+    bool raysDisagree = (anyHit && anyMiss) || farthest > (1.0 + ThicknessShare) * nearest;
+    vec4 rayResult = sum / weights;
+    if (raysDisagree)
+    {
+        float ownHitDepth;
+        if (!traceReflection(p, OwnTexelSide, rayResult, ownHitDepth))
+            return;
+    }
+    vec3 delta = reflectionDelta(p, rayResult);
     vec4 lit = imageLoad(hdrImage, pixel);
     imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
 }

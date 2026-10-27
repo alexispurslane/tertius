@@ -1,6 +1,6 @@
 ---
 id: ter-uhd8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-26T21:23:47Z
@@ -17,3 +17,9 @@ Found in ter-izsu (2026-10-26): no headless option selects VisibilityBitmaskLigh
 
 dotnet run --project src/Tertius.Demo -- --script scripts/demo-exit.json --headless --out <dir> with the option captures option B, and the default run option A, on one build; tools/gpu-trace.sh can pass it; a ScriptCommand test covers the parse and the refusal of an unknown value.
 
+
+## Notes
+
+**2026-10-27T00:23:21Z**
+
+2026-10-26: moot. The user downscoped the bounce light to the near sectors (ter-ehxp), so the far rays and FarRays.OnePerTexel go, and Part 7 has no option B to capture.

@@ -259,7 +259,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     /// <summary>The corner's lights: the sun, which lights the floor and both walls, and a dim sky and ground of distinct colors.</summary>
     private static RenderSnapshot LitCorner()
     {
-        RenderSnapshot lit = Gpu.Snapshot(SunDirection, sunIntensity: 1);
+        RenderSnapshot lit = Gpu.Snapshot(SunDirection, starIrradiance: 1);
         lit.Ambient = new()
         {
             SkyColor = Sky,

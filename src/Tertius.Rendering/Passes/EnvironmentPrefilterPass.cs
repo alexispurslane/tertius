@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -15,13 +16,14 @@ namespace Tertius.Rendering;
 /// maps go in index order, each writing only its own layers and coefficients (decision 25), with a barrier between two maps
 /// (see <see cref="AfterWrites"/>): first every drawn map's mips,
 /// then every drawn map's specular levels and irradiance, because a level view spans every map's layers and so holds one
-/// layout for all of them while it is bound. After the pass the specular
+/// layout for all of them while it is bound. The maps take turns with the buffer of the irradiance's partial sums. After
+/// the pass the specular
 /// maps are in <see cref="ImageUse.SampledFragment"/> and the irradiance buffer in <see cref="BufferUse.ShaderRead"/>, the
 /// states that their readers expect.
 /// </remarks>
 internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 {
-    /// <summary>The prefilter's workgroup: 8 by 8 texels of one face.</summary>
+    /// <summary>The downsample's workgroup: 8 by 8 texels of one face of the first level of its run.</summary>
     private const uint GroupSize = 8;
 
     private readonly VulkanDevice device;
@@ -30,6 +32,11 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     private readonly Pipeline downsample;
     private readonly Pipeline prefilter;
     private readonly Pipeline irradiance;
+    private readonly Pipeline irradianceSum;
+
+    /// <summary>The byte offset of <see cref="EnvironmentPrefilterPushConstants.Map"/>, 76.</summary>
+    private static readonly uint MapOffset = (uint)
+        Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Map));
 
     public EnvironmentPrefilterPass(
         VulkanDevice device,
@@ -46,6 +53,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             downsample = Create(name: "environment downsample", shader: "environment_downsample.comp");
             prefilter = Create(name: "environment prefilter", shader: "environment_prefilter.comp");
             irradiance = Create(name: "environment irradiance", shader: "environment_irradiance.comp");
+            irradianceSum = Create(name: "environment irradiance sum", shader: "environment_irradiance_sum.comp");
         }
         catch
         {
@@ -72,6 +80,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         PreparedScene scene = context.Scene;
         BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 0, sets: [map.PrefilterSet]);
         barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);
+        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         Span<bool> drawn = stackalloc bool[map.Capacity];
         bool anyDrawn = false;
@@ -102,8 +111,9 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     }
 
     /// <summary>
-    /// Rebuilds levels 1 and up of the radiance maps of each drawn map from its level 0, level by level, each from the one
-    /// above it, in map index order within a level. A level view spans every map's layers, and a storage image's layout
+    /// Rebuilds levels 1 and up of the radiance maps of each drawn map from its level 0, in runs of up to three levels,
+    /// each run from the last level of the run before (<see cref="PrefilterLevels.LevelsOfDownsample"/>), in map index
+    /// order within a run. A level view spans every map's layers, and a storage image's layout
     /// must hold for every layer of its view, so every layer of the radiance maps is in <see cref="ImageLayout.General"/>
     /// while the downsample runs. The maps that are not drawn keep their texels through the transitions. All levels end
     /// read-only for the prefilter's samples.
@@ -136,8 +146,17 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             );
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, downsample);
-        for (uint level = 1; level < levels; level++)
-            DownsampleLevel(vk: vk, commandBuffer: commandBuffer, barriers: barriers, level: level, drawn: drawn);
+        int runs = PrefilterLevels.DownsampleDispatches((int)levels);
+        for (int dispatch = 0; dispatch < runs; dispatch++)
+            DownsampleRun(
+                vk: vk,
+                commandBuffer: commandBuffer,
+                barriers: barriers,
+                dispatch: dispatch,
+                drawn: drawn,
+                lastRun: dispatch == runs - 1
+            );
+        // The levels' first barrier makes these levels read-only, which orders the last run's writes.
         barriers.ImageLevels(
             image: radiance,
             baseMip: 0,
@@ -151,35 +170,50 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         );
     }
 
-    /// <summary>Writes radiance level <paramref name="level"/> of each drawn map from the level above it.</summary>
-    private void DownsampleLevel(
+    /// <summary>
+    /// Writes the run of radiance levels of downsample dispatch <paramref name="dispatch"/> of each drawn map from the
+    /// level above the run. After the <paramref name="lastRun"/> of the last drawn map, the barrier that makes the mips
+    /// read-only orders the writes, so none follows.
+    /// </summary>
+    private void DownsampleRun(
         Vk vk,
         CommandBuffer commandBuffer,
         BarrierBatch barriers,
-        uint level,
-        ReadOnlySpan<bool> drawn
+        int dispatch,
+        ReadOnlySpan<bool> drawn,
+        bool lastRun
     )
     {
-        uint size = (uint)Math.Max(1, map.Setting.FaceSize >> (int)level);
-        BindSets(
-            vk: vk,
-            commandBuffer: commandBuffer,
-            firstSet: 1,
-            sets: [map.RadianceLevelSet((int)level - 1), map.RadianceLevelSet((int)level)]
-        );
+        int lastDrawn = drawn.LastIndexOf(true);
+        int levels = (int)map.Radiance.MipLevels;
+        (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: levels);
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.DownsampleSet(dispatch)]);
         for (int index = 0; index < drawn.Length; index++)
             if (drawn[index])
             {
-                var push = new EnvironmentDownsamplePushConstants { LevelSize = size, Map = (uint)index };
+                var push = new EnvironmentDownsamplePushConstants
+                {
+                    LevelSize = (uint)Math.Max(1, map.Setting.FaceSize >> (source + 1)),
+                    LevelCount = (uint)count,
+                    Map = (uint)index,
+                };
                 Push(
                     vk: vk,
                     commandBuffer: commandBuffer,
                     push: &push,
+                    offset: 0,
                     size: (uint)sizeof(EnvironmentDownsamplePushConstants)
                 );
-                Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
-                // The next level reads the one just written, and the next map writes through the same view.
-                AfterWrites(barriers: barriers, image: map.Radiance, baseMip: level, mipCount: 1);
+                Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize);
+                if (lastRun && index == lastDrawn)
+                    break;
+                // The next run reads the last level of this one, and the next map writes through the same views.
+                AfterWrites(
+                    barriers: barriers,
+                    image: map.Radiance,
+                    baseMip: (uint)(source + 1),
+                    mipCount: (uint)count
+                );
                 barriers.Flush(vk, commandBuffer);
             }
     }
@@ -205,13 +239,18 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
             );
         barriers.Flush(vk, commandBuffer);
+        int lastDrawn = drawn.LastIndexOf(true);
         for (int index = 0; index < drawn.Length; index++)
             if (drawn[index])
             {
-                RecordMap(vk: vk, commandBuffer: commandBuffer, index: index);
-                // The next map writes through the same level views and the same buffer binding.
+                RecordMap(vk: vk, commandBuffer: commandBuffer, barriers: barriers, index: index);
+                // After the last map, the specular map's read-only barrier and the readback's barrier order the writes.
+                if (index == lastDrawn)
+                    break;
+                // The next map writes through the same level views and the same buffer bindings.
                 AfterWrites(barriers: barriers, image: specular, baseMip: 0, mipCount: (uint)map.Levels);
                 barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);
+                barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
                 barriers.Flush(vk, commandBuffer);
             }
         ResourceState sampled = ResourceUses.Describe(ImageUse.SampledFragment);
@@ -228,16 +267,29 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         );
     }
 
-    /// <summary>Writes map <paramref name="index"/>'s specular levels, then its irradiance coefficients.</summary>
-    private void RecordMap(Vk vk, CommandBuffer commandBuffer, int index)
+    /// <summary>
+    /// Writes map <paramref name="index"/>'s specular levels and the partial sums of its irradiance, then sums them into
+    /// its irradiance coefficients.
+    /// </summary>
+    private void RecordMap(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, int index)
     {
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, prefilter);
-        // The levels write different images and read only the radiance map, so they need no barrier between them.
-        for (int level = 0; level < map.Levels; level++)
-            DispatchLevel(vk: vk, commandBuffer: commandBuffer, level: level, index: index);
+        // The irradiance's blocks and the specular levels write different resources and read only the radiance map, so
+        // they need no barrier between them, and they can run at once.
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradiance);
-        var push = new EnvironmentPrefilterPushConstants { Map = (uint)index };
-        Push(vk: vk, commandBuffer: commandBuffer, push: &push, size: (uint)sizeof(EnvironmentPrefilterPushConstants));
+        PushMap(vk: vk, commandBuffer: commandBuffer, index: index);
+        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: (uint)Irradiance.Blocks(map.Setting.FaceSize),
+            groupCountY: 1,
+            groupCountZ: 1
+        );
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, prefilter);
+        for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(map.Levels); dispatch++)
+            DispatchLevels(vk: vk, commandBuffer: commandBuffer, dispatch: dispatch, index: index);
+        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeRead);
+        barriers.Flush(vk, commandBuffer);
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradianceSum);
+        PushMap(vk: vk, commandBuffer: commandBuffer, index: index);
         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);
     }
 
@@ -274,6 +326,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         device.Vk.DestroyPipeline(device.Device, downsample, null);
         device.Vk.DestroyPipeline(device.Device, prefilter, null);
         device.Vk.DestroyPipeline(device.Device, irradiance, null);
+        device.Vk.DestroyPipeline(device.Device, irradianceSum, null);
     }
 
     /// <summary>
@@ -303,7 +356,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             layerCount: layers.Count
         );
 
-    /// <summary>One invocation per texel of a level's six faces of one map, of <paramref name="size"/> texels.</summary>
+    /// <summary>One invocation per texel of the six faces of one map, of <paramref name="size"/> texels, of a run's first level.</summary>
     private static void Dispatch(Vk vk, CommandBuffer commandBuffer, uint size)
     {
         uint groups = (size + GroupSize - 1) / GroupSize;
@@ -315,30 +368,69 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         );
     }
 
-    /// <summary>Dispatches one level of map <paramref name="index"/>'s specular map: one invocation per texel of its six faces.</summary>
-    private void DispatchLevel(Vk vk, CommandBuffer commandBuffer, int level, int index)
+    /// <summary>
+    /// Dispatches a run of levels of map <paramref name="index"/>'s specular map
+    /// (<see cref="PrefilterLevels.LevelsOfDispatch"/>): the workgroups of each level follow those of the level before,
+    /// with <see cref="PrefilterLevels.Lanes"/> invocations per texel of its six faces, in rows of at most 65,535
+    /// workgroups (<see cref="PrefilterLevels.Grid"/>).
+    /// </summary>
+    private void DispatchLevels(Vk vk, CommandBuffer commandBuffer, int dispatch, int index)
     {
-        uint size = (uint)(map.Setting.FaceSize >> level);
-        // The prefilter writes set 2 and reads no level set, so set 1 keeps what the mips left there.
-        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 2, sets: [map.SpecularLevelSet(level)]);
+        (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: map.Levels);
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.SpecularDispatchSet(dispatch)]);
         var push = new EnvironmentPrefilterPushConstants
         {
-            LevelSize = size,
-            Roughness = PrefilterLevels.Roughness(level, map.Levels),
             Samples = PrefilterLevels.SamplesPerTexel,
+            LevelCount = (uint)count,
             Map = (uint)index,
         };
-        Push(vk: vk, commandBuffer: commandBuffer, push: &push, size: (uint)sizeof(EnvironmentPrefilterPushConstants));
-        Dispatch(vk: vk, commandBuffer: commandBuffer, size: size);
+        uint groups = 0;
+        for (int binding = 0; binding < count; binding++)
+        {
+            int level = first + binding;
+            push.Levels[binding] = new EnvironmentPrefilterLevel
+            {
+                FirstGroup = groups,
+                LevelSize = (uint)(map.Setting.FaceSize >> level),
+                Roughness = PrefilterLevels.Roughness(level, map.Levels),
+                Lanes = (uint)PrefilterLevels.Lanes(level),
+            };
+            groups += (uint)PrefilterLevels.Workgroups(level: level, faceSize: map.Setting.FaceSize);
+        }
+
+        push.GroupCount = groups;
+        Push(
+            vk: vk,
+            commandBuffer: commandBuffer,
+            push: &push,
+            offset: 0,
+            size: (uint)sizeof(EnvironmentPrefilterPushConstants)
+        );
+        // The rows keep each count within the limit of every device.
+        (int x, int y) = PrefilterLevels.Grid((int)groups);
+        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: (uint)x, groupCountY: (uint)y, groupCountZ: 1);
     }
 
-    /// <summary>Pushes <paramref name="size"/> bytes at <paramref name="push"/> to the prefilter layout's compute range.</summary>
-    private void Push(Vk vk, CommandBuffer commandBuffer, void* push, uint size) =>
+    /// <summary>
+    /// Pushes only <see cref="EnvironmentPrefilterPushConstants.Map"/>, as <paramref name="index"/>: the one push constant
+    /// that the irradiance's two shaders read.
+    /// </summary>
+    private void PushMap(Vk vk, CommandBuffer commandBuffer, int index)
+    {
+        uint value = (uint)index;
+        Push(vk: vk, commandBuffer: commandBuffer, push: &value, offset: MapOffset, size: sizeof(uint));
+    }
+
+    /// <summary>
+    /// Pushes <paramref name="size"/> bytes at <paramref name="push"/> to the prefilter layout's compute range, from byte
+    /// <paramref name="offset"/>.
+    /// </summary>
+    private void Push(Vk vk, CommandBuffer commandBuffer, void* push, uint offset, uint size) =>
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.EnvironmentPrefilterLayout,
             stageFlags: ShaderStageFlags.ComputeBit,
-            offset: 0,
+            offset: offset,
             size: size,
             pValues: push
         );

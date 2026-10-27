@@ -4,7 +4,7 @@ Epic: `ter-4zt6`. Its first user is the demo's plumes (`ter-6u2m`). It builds on
 
 ## Goal
 
-A thrusting hull, a jet or a person's back pack leaves puffs behind it. Each puff leaves its emitter, flies on as a loose body would, fades and dies. A trail of puffs marks the path. Hot exhaust glows and rises in air. Cold gas is pale, lit by the sun and the lamps, and sinks in air. In vacuum both fall with the ship. Puffs only brighten what is behind them. The particle system is general, so it is efficient and minimal.
+A thrusting hull, a jet or a person's back pack leaves puffs behind it. Each puff leaves its emitter, flies on as a loose body would, fades and dies. A trail of puffs marks the path. Hot exhaust glows and rises in air. Cold gas is pale, lit by every light, and sinks in air. In vacuum both fall with the ship. Puffs only brighten what is behind them. The particle system is general, so it is efficient and minimal.
 
 ## The model
 
@@ -884,14 +884,14 @@ That is one rule for both fades: a puff fades within one radius of anything opaq
 
 The user chose on 2026-10-21 that a lit puff is lit once per puff, at its center. A puff has no surface and no normal. The model: a lit puff scatters the light that reaches its center equally in every direction. That is the mean, over every facing, of a matte surface lit by the same lights:
 
-- The sun and each point and spot light: a matte surface reflects albedo / π times the light's irradiance times the cosine of its angle, and the mean of the cosine over every facing is 1/4. So a puff scatters albedo / (4π) times the irradiance.
+- Each light, a star or a lamp: a matte surface reflects albedo / π times the light's irradiance times the cosine of its angle, and the mean of the cosine over every facing is 1/4. So a puff scatters albedo / (4π) times the irradiance.
 - The hemisphere ambient light: the mean of the sky's share over every facing is one half, so the puff takes the mean of the sky and the ground color.
 
-So L = albedo × (mean ambient + (E_sun · V_sun + Σ E_light) / (4π)), where
+So L = albedo × (mean ambient + Σ E_light · V_light / (4π)), where
 
 - mean ambient = the mean of the sky and the ground color of the ambient light.
-- E_sun = the sun's radiance as the shader holds it, and V_sun = its visibility at the puff's center: the far shadows times the cascades, sampled with the sun's direction as the normal, which gives the least bias.
-- E_light = the radiance of a point or spot light times its distance attenuation and its cone, at the puff's center.
+- E_light = the irradiance of a light at the puff's center: its intensity times its distance attenuation and its cone.
+- V_light = the light's visibility at the puff's center, from its shadow slot: a far light's far shadows times its cascade set, or a near light's tiles of the local shadow atlas, sampled with the light's direction as the normal, which gives the least bias (the lights plan, [local-light-shadows.md](local-light-shadows.md), made every light one kind, so the sun is no special term).
 
 The vertex shader computes L once per puff, at the center, from the same functions that `lighting.glsl` uses for surfaces. The cascades use `textureGrad` with zero gradients already (`src/Tertius.Rendering/Shaders/shadows.glsl:45-46`), which works in a vertex shader. The vertex stage needs two grants for it, which the validation layers asked for: the G-buffer set lets the vertex stage read the cascades and their sampler, and the transparent pass prepares the cascades with the image use `SampledVertexFragment`, so that the shadow pass's writes are visible to the vertex shader. Each of the 6 vertices of a puff computes the same value. So a lit puff in Earth's night is dark, a puff in the sun is pale, and a puff under a cabin lamp is lit by it. A puff casts no shadow and is not a light.
 

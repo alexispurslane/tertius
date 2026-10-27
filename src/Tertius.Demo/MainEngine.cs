@@ -50,7 +50,7 @@ public sealed class MainEngine(float maxThrust) : IComponent
                 StartRadius: 1,
                 EndRadius: 24,
                 TemperatureRatio: 3,
-                Shading: PuffShading.Glow(new(1.2f, 0.6f, 0.22f))
+                Shading: PuffShading.Glow(new(1630, 820, 300))
             ),
             FullRate: 240,
             Speed: 30,

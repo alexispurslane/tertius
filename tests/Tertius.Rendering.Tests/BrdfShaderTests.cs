@@ -57,7 +57,7 @@ public sealed class BrdfShaderTests
     /// <summary>The snapshot of the lit render: the test's sun, and the ambient light of <see cref="Sky"/> and <see cref="Ground"/>.</summary>
     private static RenderSnapshot Lit()
     {
-        RenderSnapshot lit = Gpu.Snapshot(SunDirection, sunIntensity: SunIntensity);
+        RenderSnapshot lit = Gpu.Snapshot(SunDirection, starIrradiance: SunIntensity);
         lit.Ambient = new()
         {
             SkyColor = Sky,
@@ -85,8 +85,8 @@ public sealed class BrdfShaderTests
             RenderFlags flags = transparent ? RenderFlags.Transparent : RenderFlags.None;
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.25f));
             RenderSnapshot lit = Lit();
-            Double3 sunIrradiance = lit.Sun.Color * lit.Sun.Intensity;
-            RenderSnapshot glowing = Gpu.Snapshot(SunDirection, sunIntensity: 0);
+            Double3 sunIrradiance = Gpu.StarIrradianceRgb(lit);
+            RenderSnapshot glowing = Gpu.Snapshot(SunDirection, starIrradiance: 0);
             glowing.Ambient.Intensity = 0;
             var pixels = new List<Vector2>();
             var expected = new List<Vector3>();
@@ -163,7 +163,7 @@ public sealed class BrdfShaderTests
             MaterialId material = renderer.CreateMaterial(
                 new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: roughness, Reflectance: 0)
             );
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             snapshot.Ambient = new()
             {
                 SkyColor = Vector3.One,

@@ -133,27 +133,136 @@ internal struct GpuMaterial
     public uint MetallicRoughnessMap;
 }
 
-/// <summary>One point or spot light in the light storage buffer. 56 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
-[StructLayout(LayoutKind.Sequential, Size = 64)]
+/// <summary>
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 96 bytes. <see cref="From"/> is the one
+/// place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot and its map for the shaders.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
 internal struct GpuLight
 {
-    /// <summary>xyz camera-relative position, w range.</summary>
-    public Vector4 PositionRange;
+    /// <summary>The kind of a point light in <see cref="IntensityKind"/>.w.</summary>
+    public const float PointKind = 0f;
 
-    /// <summary>rgb color × intensity, w kind: 0 point, 1 spot.</summary>
-    public Vector4 RadianceKind;
+    /// <summary>The kind of a spot light in <see cref="IntensityKind"/>.w.</summary>
+    public const float SpotKind = 1f;
 
-    /// <summary>xyz unit spot direction, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
+    /// <summary>The slot of a light without shadows, in <see cref="Shadow"/>.x.</summary>
+    public const uint NoSlot = 0;
+
+    /// <summary>The slot of a <see cref="CascadeSet"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint CascadeSetSlot = 1;
+
+    /// <summary>The slot of a <see cref="FarShadowsOnly"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint FarShadowsOnlySlot = 2;
+
+    /// <summary>The slot of <see cref="AtlasTiles"/>, in <see cref="Shadow"/>.x.</summary>
+    public const uint AtlasTilesSlot = 3;
+
+    /// <summary>xyz camera-relative position, w the reach in meters.</summary>
+    public Vector4 PositionReach;
+
+    /// <summary>rgb color × intensity in W/sr, w the kind: <see cref="PointKind"/> or <see cref="SpotKind"/>.</summary>
+    public Vector4 IntensityKind;
+
+    /// <summary>xyz the unit spot axis, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
     public Vector4 DirectionCosOuter;
 
-    /// <summary>cos(inner half-angle). Zero for a point light.</summary>
-    public float CosInner;
+    /// <summary>x cos(inner half-angle), zero for a point light; y the emitter's radius in meters.</summary>
+    public Vector4 SpotRadius;
+
+    /// <summary>x the slot; y the cascade set or the first tile view; z the tile views.</summary>
+    public UInt4 Shadow;
+
+    /// <summary>x the first occluder, y the occluders, z how many of the first ones the cascade set also draws.</summary>
+    public UInt3 Occluders;
 
     /// <summary>
     /// The light's map: the map of the entity that carries it. A face of map i keeps the light only when this is at most i
     /// (docs/plans/environment-maps-per-frame.md, decision 13).
     /// </summary>
     public uint Map;
+
+    /// <summary>
+    /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
+    /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
+    /// square stays finite.
+    /// </summary>
+    public static GpuLight From(in PreparedLight light)
+    {
+        (Vector4 axis, float cosInner, float kind) = light.Spread switch
+        {
+            Cone { Axis: var direction, CosInner: var inner, CosOuter: var outer } => (
+                new Vector4(direction, outer),
+                inner,
+                SpotKind
+            ),
+            EveryDirection => (Vector4.Zero, 0f, PointKind),
+        };
+        (UInt4 shadow, UInt3 occluders) = light.Shadow switch
+        {
+            CascadeSet { Set: var set, Occluders: var range, Mapped: var mapped } => (
+                new UInt4(X: CascadeSetSlot, Y: (uint)set, Z: 0, W: 0),
+                OccludersOf(range, mapped)
+            ),
+            FarShadowsOnly(var range) => (new UInt4(X: FarShadowsOnlySlot, Y: 0, Z: 0, W: 0), OccludersOf(range, 0)),
+            AtlasTiles { First: var first, Count: var count } => (
+                new UInt4(X: AtlasTilesSlot, Y: (uint)first, Z: (uint)count, W: 0),
+                default
+            ),
+            null => (default, default),
+        };
+        return new()
+        {
+            PositionReach = new(light.Position, light.Reach),
+            IntensityKind = new(ShaderInput.Intensity(light.RadiantIntensity), kind),
+            DirectionCosOuter = axis,
+            SpotRadius = new(x: cosInner, y: MathF.Min(light.Radius, ShaderInput.PositionLimit), z: 0, w: 0),
+            Shadow = shadow,
+            Occluders = occluders,
+            Map = (uint)light.Map,
+        };
+    }
+
+    private static UInt3 OccludersOf(OccluderRange range, int mapped) =>
+        new(X: (uint)range.Start, Y: (uint)range.Count, Z: (uint)mapped);
+}
+
+/// <summary>Four unsigned integers, laid out as a GLSL <c>uvec4</c>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct UInt4(uint X, uint Y, uint Z, uint W);
+
+/// <summary>Three unsigned integers, laid out as a GLSL <c>uvec3</c> that a 4-byte member follows in its 16 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct UInt3(uint X, uint Y, uint Z);
+
+/// <summary>
+/// One tile view of the frame in the tile storage buffer (std430, binding 15 of the frame set). 80 bytes. A light's
+/// <see cref="AtlasTiles"/> slot names its views, in cube face order for a point light. The last 4 bytes are unused.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Size = 80)]
+internal struct GpuShadowTile
+{
+    /// <summary>Camera-relative world space to the tile's clip space, row-vector form: reversed-Z, infinite far plane.</summary>
+    public Matrix4x4 ViewProjection;
+
+    /// <summary>The layer of the atlas that holds the tile.</summary>
+    public uint Layer;
+
+    /// <summary>The world size of one texel at 1 m from the light along the view axis.</summary>
+    public float TexelPerMeter;
+
+    /// <summary>The near plane, in meters from the light: max(radius, <see cref="DepthRanges.NearPlane"/>).</summary>
+    public float Near;
+
+    /// <summary>The GPU form of <paramref name="view"/> of <paramref name="light"/> in an atlas of <paramref name="tileSize"/>² tiles.</summary>
+    public static GpuShadowTile Of(in PreparedLight light, TileView view, int tileSize) =>
+        new()
+        {
+            ViewProjection = ShadowTiles.ViewProjection(light: light, aim: view.Aim, tileSize: tileSize),
+            Layer = (uint)view.Layer,
+            TexelPerMeter = ShadowTiles.TexelPerMeter(light: light, aim: view.Aim, tileSize: tileSize),
+            Near = ShadowTiles.NearPlane(light),
+        };
 }
 
 /// <summary>One frame outline in the outline storage buffer (std430). 48 bytes.</summary>
@@ -205,7 +314,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 1,392 bytes.</summary>
+/// <summary>The frame uniform block (std140). 2,224 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -217,8 +326,6 @@ internal struct GpuFrameConstants
     public Vector4 CameraRight;
     public Vector4 CameraUp;
     public Vector4 CameraForward;
-    public Vector4 SunDirection;
-    public Vector4 SunRadiance;
     public Vector4 AmbientSky;
     public Vector4 AmbientGround;
     public Vector4 Viewport;
@@ -228,35 +335,21 @@ internal struct GpuFrameConstants
     /// drawn, a share of <see cref="ShaderInput.PuffBudget"/>; y: time in s; z: angular size of one pixel; w: unused.
     /// </summary>
     public Vector4 Params;
-    public uint LightCount;
-    public uint OccluderCount;
 
-    /// <summary>Sun shadow cascades to sample: <see cref="ShadowCascades.Count"/>, or 0 when no cascade was drawn.</summary>
-    public uint ShadowCascadeCount;
+    /// <summary>
+    /// x: the lights; y: unused, because each light carries its own occluders; z: the cascades of each drawn cascade set,
+    /// <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
+    /// </summary>
+    public UInt4 Counts;
 
-    /// <summary>How many far shadows, at the front of the list, belong to casters that the shadow maps also draw.</summary>
-    public uint MappedOccluderCount;
-
-    /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
-    public ShadowMatrices ShadowViewProj;
-
-    /// <summary>The view depth where each cascade ends.</summary>
+    /// <summary>The view depth where each cascade ends, the same for every set.</summary>
     public Vector4 ShadowSplits;
 
     /// <summary>The view depth where each cascade starts to blend into the next one (or, for the last, to no shadow).</summary>
     public Vector4 ShadowBlendStart;
 
-    /// <summary>The world size of one shadow map texel in each cascade.</summary>
+    /// <summary>The world size of one shadow map texel in each cascade, the same for every set.</summary>
     public Vector4 ShadowTexel;
-
-    /// <summary>
-    /// xyz: the light-space x axis in world space (the z axis is the sun direction). w: the cascade boxes' lateral
-    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
-    /// </summary>
-    public Vector4 ShadowAxisX;
-
-    /// <summary>xyz: the light-space y axis in world space.</summary>
-    public Vector4 ShadowAxisY;
 
     /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
     public Vector4 ShadowParams;
@@ -264,11 +357,38 @@ internal struct GpuFrameConstants
     /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
     public Vector4 RootRotation;
 
+    /// <summary>The cascade sets of this frame; set i belongs to the light whose slot names it.</summary>
+    public CascadeSetArray CascadeSets;
+
     /// <summary>
     /// R_i, the axes of map i's frame in world axes, interpolated, as a unit quaternion (x, y, z, w), for the served maps,
     /// root first (docs/plans/environment-maps-per-frame.md, decision 9). The entries past the served maps are not read.
     /// </summary>
     public MapAxesArray MapAxes;
+}
+
+/// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuCascadeSet
+{
+    /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
+    public ShadowMatrices ViewProj;
+
+    /// <summary>
+    /// xyz: the light-space x axis in world space (the z axis points toward the light). w: the cascade boxes' lateral
+    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
+    /// </summary>
+    public Vector4 AxisX;
+
+    /// <summary>xyz: the light-space y axis in world space.</summary>
+    public Vector4 AxisY;
+}
+
+/// <summary>The cascade sets of the frame block, laid out as a std140 <c>GpuCascadeSet[4]</c>.</summary>
+[InlineArray(ShadowCascades.MaxSets)]
+internal struct CascadeSetArray
+{
+    private GpuCascadeSet element;
 }
 
 /// <summary>One quaternion per map, laid out as a std140 <c>vec4[42]</c>.</summary>
@@ -413,35 +533,77 @@ internal struct SkyFacePushConstants
 }
 
 /// <summary>
-/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k, of map
-/// <see cref="Map"/>. 16 bytes. environment_irradiance.comp reads only <see cref="Map"/>.
+/// One level of a dispatch of environment_prefilter.comp, k, in the binding of set 1 that its place in the dispatch
+/// names. 16 bytes, a std430 struct of four scalars.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct EnvironmentPrefilterPushConstants
+internal struct EnvironmentPrefilterLevel
 {
-    /// <summary>W_k = W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>The first workgroup of the dispatch that prefilters the level.</summary>
+    public uint FirstGroup;
+
+    /// <summary>W_k = W / 2^k: the texels along one side of each face of the level.</summary>
     public uint LevelSize;
 
     /// <summary>r_k = k / (L − 1): the roughness that the level holds.</summary>
     public float Roughness;
 
+    /// <summary>The invocations that share one texel's samples, <see cref="PrefilterLevels.Lanes"/> of the level.</summary>
+    public uint Lanes;
+}
+
+/// <summary>The levels of one dispatch of environment_prefilter.comp, a std430 array of four.</summary>
+[InlineArray(PrefilterLevels.LevelsPerDispatch)]
+internal struct EnvironmentPrefilterLevels
+{
+    private EnvironmentPrefilterLevel element;
+}
+
+/// <summary>
+/// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
+/// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>), of
+/// map <see cref="Map"/>. 80 bytes. environment_irradiance.comp and environment_irradiance_sum.comp read only
+/// <see cref="Map"/>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct EnvironmentPrefilterPushConstants
+{
+    /// <summary>The levels in binding order. Those past <see cref="LevelCount"/> are unused.</summary>
+    public EnvironmentPrefilterLevels Levels;
+
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
 
-    /// <summary>The map whose layers 6 · Map to 6 · Map + 5 and coefficients 9 · Map to 9 · Map + 8 the dispatch writes.</summary>
+    /// <summary>The levels of the dispatch, 1 to <see cref="PrefilterLevels.LevelsPerDispatch"/>.</summary>
+    public uint LevelCount;
+
+    /// <summary>
+    /// The workgroups of the dispatch's levels. Its grid (<see cref="PrefilterLevels.Grid"/>) may hold a few more, which
+    /// return at once.
+    /// </summary>
+    public uint GroupCount;
+
+    /// <summary>
+    /// The map whose layers 6 · Map to 6 · Map + 5 the prefilter writes, and whose coefficients 9 · Map to 9 · Map + 8
+    /// the irradiance's sum writes.
+    /// </summary>
     public uint Map;
 }
 
 /// <summary>
-/// The push constants of environment_downsample.comp, for the level of the radiance map that set 2 holds, k ≥ 1, made
-/// from level k − 1 in set 1, of map <see cref="Map"/>. 8 bytes, which fit in the prefilter layout's range of
+/// The push constants of environment_downsample.comp, for the run of levels of the radiance map that bindings 1 to 3 of
+/// set 1 hold, k + 1 to k + 3, made from level k in binding 0 (<see cref="PrefilterLevels.LevelsOfDownsample"/>), of map
+/// <see cref="Map"/>. 12 bytes, which fit in the prefilter layout's range of
 /// <see cref="EnvironmentPrefilterPushConstants"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentDownsamplePushConstants
 {
-    /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>W / 2^(k + 1): the texels along one side of each face of the run's first level.</summary>
     public uint LevelSize;
+
+    /// <summary>The levels of the run, 1 to <see cref="PrefilterLevels.LevelsPerDownsample"/>.</summary>
+    public uint LevelCount;
 
     /// <summary>The map whose layers 6 · Map to 6 · Map + 5 the dispatch reads and writes.</summary>
     public uint Map;

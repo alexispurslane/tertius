@@ -79,10 +79,11 @@ public static class GpuTesting
 
     /// <summary>
     /// A validating headless renderer with no impostors, as a scripted run makes one, with no screen-space light, so that
-    /// the tests see the ambient light in full, no environment map, and a fixed exposure of 0 stops, so that a pixel does
-    /// not depend on the frames before it. Reflections are off, as in the renderer tests' fixtures.
+    /// the tests see the ambient light in full, and no environment map. The exposure is fixed at 0 stops unless asked
+    /// for, so that a pixel does not depend on the frames before it. Reflections are off, as in the renderer tests'
+    /// fixtures. Local shadows are off, as the impostors are.
     /// </summary>
-    public static VulkanRenderer Headless(int width, int height) =>
+    public static VulkanRenderer Headless(int width, int height, ExposureSetting exposure = default) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
@@ -91,13 +92,40 @@ public static class GpuTesting
                 Height = height,
                 Impostors = false,
                 ScreenSpaceLight = new NoScreenSpaceLight(),
-                Exposure = new FixedExposure(0),
+                Exposure = exposure,
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,
+                LocalShadows = new NoLocalShadows(),
                 Reflections = new NoReflections(),
                 EnvironmentMap = new NoEnvironmentMap(),
             }
         );
+
+    /// <summary>
+    /// A validating headless renderer that shows a demo scene in SI units as a scripted run does: with the renderer's
+    /// default automatic exposure, environment map and shadows, so that a still after a long step shows the exposure
+    /// settled, the map lights a cabin from what lies around the camera, and a lamp that casts shadows lights no far side
+    /// of a wall. The other passes are off, as in <see cref="Headless"/>.
+    /// </summary>
+    public static VulkanRenderer LikeAScriptedRun(int width, int height) =>
+        VulkanRenderer.CreateHeadless(LikeAScriptedRunOptions(width, height));
+
+    /// <summary>
+    /// The options of <see cref="LikeAScriptedRun"/>: a scripted run's, which keep the renderer's defaults, with the
+    /// passes that the tests leave out turned off.
+    /// </summary>
+    public static RendererOptions LikeAScriptedRunOptions(int width, int height) =>
+        new()
+        {
+            Validation = true,
+            Width = width,
+            Height = height,
+            Impostors = false,
+            ScreenSpaceLight = new NoScreenSpaceLight(),
+            Bloom = new NoBloom(),
+            AntiAliasing = AntiAliasing.None,
+            Reflections = new NoReflections(),
+        };
 
     private static DQuaternion TurnAboutY(double degrees) =>
         DQuaternion.FromAxisAngle(new(0, 1, 0), degrees * Math.PI / 180);

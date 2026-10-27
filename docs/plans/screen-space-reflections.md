@@ -32,7 +32,7 @@ Today a glossy surface reflects only the lights and the ambient specular term. T
 | Entry share, q | Where the ray enters the slab of the pixel that it hits: 0 at the front of the slab, 1 at its back. |
 | The radiance pyramid | One RGBA16F image with levels 0 to L. Level 0 holds the lit image times the surface coverage in RGB, and the coverage in A. Each next level is a filtered half-size copy of the one before. |
 | Surface coverage, m | 1 for a pixel with D > 0, 0 for sky. |
-| The cone | The cone around the ray that stands for the specular lobe. Its half angle θ_c has tan θ_c = 1.7602 α. |
+| The cone | The cone around the ray that stands for the specular lobe and the gap to the next ray. Its half angle θ_c has tan θ_c = max(1.7602 α, f · s). |
 | Cone level, λ | The level of the radiance pyramid that the cone's footprint at the hit selects. |
 | Traced radiance C, traced coverage a | The RGB and the A of the radiance pyramid at the hit and the cone level. C is premultiplied by the coverage. |
 | The fade, f | The product of four factors from 0 to 1: the roughness fade, the surface fade, the edge fade and 1 − q. |
@@ -311,6 +311,18 @@ At the hit, the cone's radius is t tan θ_c in m, where t is the length of the r
 - D_hit and t come from the hit pixel's distance: X_hit = normalize(r(S_hit)) · D(hit pixel), t = |X_hit − O|. The ray's own inverse depth near a far hit has too little precision (see "Precision and determinism").
 - Example at 1080p and a vertical field of view of 60°, θ_px = 0.00097: a floor of roughness 0.2, 4 m from the eye, reflects a box 2 m away from the reflecting point. ρ_px = 2 · 0.0704 / (4 · 0.00097) = 36 px, so λ = 5.2.
 
+The cone also covers the gap to the next ray (ticket `ter-cuf9`, the user's choice of 2026-10-26: soft mirrors at half resolution over full-resolution rays). A mirror's lobe alone gives a point read, and the rays of neighboring texels hit points 2 or more pixels apart, so the point reads alias and reflected edges snap to the grid of the texels. The cone's tangent is the larger of two spreads, both lengths at the hit per metre of ray:
+
+```
+tan θ_c = max(1.7602 α, f · s)
+```
+
+- f is the pixel's reflection footprint (docs/plans/environment-map.md, decision 33): the chord from d to the d of a neighboring pixel. f · s is the distance between this ray's point and the next ray's point at the same length t, for small f · s.
+- s is the side of the trace's texel in pixels: 1 for the full-resolution trace, 2 for the half-resolution trace. Each trace passes its own s as a constant to the one `traceReflection`.
+- The rough lobe keeps its cone wherever its spread is the larger: a flat floor's f is about θ_px, so at r = 0.2 the lobe's 0.0704 passes f · s by 36 times or more.
+- The term holds the spread of the rays' directions, not of their origins, which lie s pixels apart on the surface. A flat mirror's cone covers s · t / D_hit pixels, so the reflections of far objects soften and a reflection near the contact stays sharp. A curved mirror's f is many times θ_px, and its cone covers the gap at both resolutions.
+- Where neighboring rays hit different surfaces, as at the outline of an object before a farther one in the reflection, the hits lie far apart and each cone blurs only its own surroundings, so no cone can place the outline between them. There the upsample traces each pixel's own ray (see "Rays at outlines").
+
 The trace reads the radiance pyramid once, at the hit position and the cone level, with a trilinear sampler:
 
 ```
@@ -457,17 +469,34 @@ At `Half`, two passes replace the trace:
 1. "reflection trace" (`reflection_half_trace.comp`): one invocation for each texel (i, j) of an RGBA16F image of ⌈W / 2⌉ × ⌈H / 2⌉ texels. The texel traces the ray of its representative pixel (2i, 2j), the top-left pixel of its block, through the same gates and the same trace as the full-resolution pass. `reflection_pixel.glsl` holds the gates and the delta, and `reflection_ray.glsl` the ray, and both passes include them. The texel stores the ray's result (C, a) times the ray's own fades, 0 for a miss, or a coverage of −1 when the representative pixel starts no ray.
 2. "reflections" (`reflection_upsample.comp`): one invocation for each pixel. A pixel that the gates let through takes the mean of the results of the up to four texels around it under the weight bilinear · max(0, 1 − h / p) · max(0, n · n_t)^8, and adds the delta of "8. The reflection replaces the ambient specular term" with that mean in place of its own ray. Here h is the distance of the texel's representative pixel from the pixel's tangent plane, p is the width of a texel at the pixel (2 pixel footprints), n is the pixel's geometric normal, and n_t the texel's. A texel with a coverage of −1 gets no weight. If no texel keeps a weight, the pixel keeps the ambient specular term, as for a ray that finds nothing. A sum of weights below the smallest normal float, 2^−126, counts as none: a GPU may flush it to 0, and Vulkan bounds a division's error only for a larger divisor.
 
-The delta's fallback k · T_s is the pixel's own, not a texel's. The pixel's gates read its surface through `surfaceAt`, which also sets the reflection's footprint f by `reflectionFootprintAt` (docs/plans/environment-map.md, decision 33), so `ambientTerms` gives the very term that the lighting pass added at that pixel: the map's specular term and its reflected stars while the map is on, the hemisphere's while it is off. Only the rays' results (C, a) cross from the texels to the pixel. The trace's texel reads its representative pixel through the same gates, so its footprint is that pixel's, but the trace adds no delta and so reads no ambient light. Its compiled code holds no access of the map.
+The delta's fallback k · T_s is the pixel's own, not a texel's. The pixel's gates read its surface through `surfaceAt`, which also sets the reflection's footprint f by `reflectionFootprintAt` (docs/plans/environment-map.md, decision 33), so `ambientTerms` gives the very term that the lighting pass added at that pixel: the map's specular term and its reflected stars while the map is on, the hemisphere's while it is off. Only the rays' results (C, a) cross from the texels to the pixel. The trace's texel reads its representative pixel through the same gates, so its footprint is that pixel's, which its cone reads ("The cone"), but the trace adds no delta and so reads no ambient light. Its compiled code holds no access of the map.
 
 The plane weight is SSAO's: a texel across a silhouette lies off the pixel's plane and gives it nothing. The normal weight is new, because a reflection turns with the normal and occlusion barely does: a texel across a crease lies on the pixel's plane at the crease, but its ray leaves a surface that faces another way. The power 8 keeps 0.89 of the weight for a turn of 10°, about the turn between two facets of a sphere of 32 segments, and 0.06 for 45°. The upsample computes it by three squarings, because `pow` is `exp2` of a `log2`, which is infinite at 0, and fast math can assume finite values. The fallback to the ambient specular term is the miss of decision 5, so the pure model needs no nearest-texel rule like SSAO's.
 
 Each workgroup of 8 × 8 pixels reads its 5 × 5 texels, their rays, positions and normals, into shared memory once, and waits at a barrier of the workgroup before any invocation returns. `ReflectionUpsample` in `src/Tertius.Rendering/Shading` is the C# copy of the weights, beside `OcclusionUpsample`, and both walk a block's texels through `OcclusionUpsample.BlockTexels`.
 
-The trace image adds 4.1 MB at 1080p. The set of the trace gains binding 4, the trace image as a storage image, which the trace writes and the upsample reads. The trace image is `StorageCompute` in both passes, and the trace discards its old content, because it writes every texel.
+The trace image adds 4.1 MB at 1080p, and the hit depth image of "Rays at outlines" 2.1 MB. The set of the trace gains bindings 4 and 5, the trace image and the hit depth image as storage images, which the trace writes and the upsample reads. Both are `StorageCompute` in both passes, and the trace discards their old content, because it writes every texel.
 
 The half-resolution trace changes the image where a reflection holds an edge finer than a block: reflected edges step by 2 pixels. The user saw the captures on 2026-10-26, the 2× crops of the mirror spheres and the cabin at both resolutions side by side, and accepted them: the half-resolution trace stays the default, and full resolution stays a setting. (User)
 
-`ReflectionTargets.Trace` holds the trace's image as a built-in union `ReflectionTrace` of `FullTrace`, with no image, and `HalfTrace(Traced)`, so no nullable image sits beside a resolution field. `ReflectionPass` takes the step `Trace` or `Upsample` and reads the case from the targets: `Trace` traces at the case's resolution, and the constructor refuses `Upsample` over a `FullTrace`. A resize remakes the image in the same case.
+`ReflectionTargets.Trace` holds the trace's images as a built-in union `ReflectionTrace` of `FullTrace`, with no image, and `HalfTrace(Traced, HitDepths)`, so no nullable image sits beside a resolution field. `ReflectionPass` takes the step `Trace` or `Upsample` and reads the case from the targets: `Trace` traces at the case's resolution, and the constructor refuses `Upsample` over a `FullTrace`. A resize remakes the images in the same case.
+
+### Rays at outlines
+
+Ticket `ter-cuf9` widened the cone to the gap between neighboring rays ("The cone"), which softens a reflection inside a reflected surface. But the outline of a reflected object still stepped by 2 pixels: there neighboring rays hit different surfaces, and no blend of their results places an edge between two different hits. On 2026-10-26 the user chose full-resolution rays at outlines only, over keeping the steps and over full-resolution rays on every mirror pixel. (User)
+
+The rule: in the upsample, a reflecting pixel traces its own ray, exactly as the full-resolution trace does (`reflectingPixel`, `traceReflection` with s = 1, `reflectionDelta`), when the rays of the texels that it blends disagree. A texel is blended when it has a ray and its weight is at least the smallest normal float, 2^−126; a smaller weight counts as none, because a GPU may flush it to 0, so every driver blends the same texels. The rays disagree when:
+
+- one of them hits and another misses: a coverage of at least 2^−14 beside a coverage of 0, or
+- the view depths of their hits differ by more than the trace's slab thickness: the farthest lies past (1 + 0.1) times the nearest ("4. The trace through the pyramid", where a surface at depth z fills z to 1.1 z). Then the hits lie on different surfaces.
+
+Otherwise the pixel keeps the blend. A pixel whose own ray misses keeps the ambient specular term, as at full resolution. The test is a product of the four texels' data that the upsample already reads, so a pixel inside a reflected surface, whose texels hit one surface, traces no ray. The upsample still costs more at every pixel: ARCHITECTURE.md, "Screen-space reflections", holds the measured cost and its likely causes. A color edge on one surface, such as a stripe on a wall, keeps the blend: its texels hit at one depth, and the cone softens it.
+
+The trace classes each texel once, by its coverage: −1 for no ray, an exact 0 for a miss, and at least 2^−14, the smallest normal half float, for a hit. A hit of smaller coverage stores as a miss, (0, 0, 0, 0) with a depth of 0, such as a ray that meets a slab from behind, whose q of 1 gives a coverage of exactly 0. A driver may flush a half float's denormal to 0 on its store or its load, and the rounding of the conversion is undefined, so one GPU would class such a texel as a hit and another as a miss, and a coverage a rounding below 0 would become no ray. The upsample tests no ray as `ray.a < -0.5`, with a margin from each stored value (found in the review of ticket `ter-cuf9`).
+
+The trace stores the view depth of each texel's hit, `hitDistance / length(viewRayThrough(hit))`, in a second image of the same size, R32F, 0 for a miss or no ray. View depth is the quantity that the slab thickness measures. A distance from the eye would differ between two hits on a wall that faces the eye, and a ray length does not say where the hit lies. R32F and not R16F: a half float overflows past 65,504 m, and a hit can lie on a far planet (`AFarPlanetShowsInANearMirror`), so the half float would hold an infinity, which the portable rules forbid at the source. Its memory, 2.1 MB at 1080p, is the price. A second image and not a change of the trace image's format: RGBA16F holds (C, a) in all four channels, and RGBA32F would double the trace image to 8.3 MB to hold the same four values.
+
+`traceReflection` gains an `out float hitDepth`, which the full-resolution trace and the upsample's own ray ignore. The upsample reads the hit depths into shared memory with the rays, binds the pyramids for its own rays, and declares them `SampledComputeGeneral`. `ReflectionUpsample.Ray` returns an `UpsampledRay`, a generated union of `TexelMean(Mean)`, `NoTexelOfWeight` and `OwnRay`, and a texel's ray is a `TexelRay`, a generated union of `TexelHit(Result, HitDepth)`, `TexelMiss` and `NoRay`, the coverages of at least 2^−14, of 0 and of −1 in the trace image. `ReflectionUpsample.RaysDisagree` is the pure predicate of the rule.
 
 ## The setting
 
@@ -572,6 +601,7 @@ The analogues:
 | The depth pyramid image | RG32F: R w_near, G w_far, in 1/m | 1024 × 1024 at its mip 0, padded (`ReflectionTargets.DepthImageExtent`); level 1, 960 × 540, fills its top left | Mips 0 to 10 hold levels 1 to 11 | 11.2 MB | Sampled, storage, transfer source | `ReflectionTargets.DepthImage` |
 | The radiance pyramid | RGBA16F: premultiplied pre-exposed radiance, coverage | 1920 × 1080 at mip 0 | Vulkan's full chain, each mip halved and rounded down: mips 0 to 10 hold levels 0 to 10, the last 1 × 1 | 22.1 MB | Sampled, storage, transfer source | `ReflectionTargets.RadianceImage` |
 | The half-resolution trace (ticket `ter-ff6y`) | RGBA16F: the ray's premultiplied pre-exposed radiance times its fades, its coverage times its fades or −1 for no ray | ⌈W / 2⌉ × ⌈H / 2⌉, 960 × 540 | 1 | 4.1 MB, only at `TraceResolution.Half` | Storage, transfer source | `HalfTrace.Traced` in `ReflectionTargets.Trace` |
+| The hit depths of the half-resolution trace (ticket `ter-cuf9`) | R32F: the view depth of the ray's hit in m, 0 for a miss or no ray | ⌈W / 2⌉ × ⌈H / 2⌉, 960 × 540 | 1 | 2.1 MB, only at `TraceResolution.Half` | Storage, transfer source | `HalfTrace.HitDepths` in `ReflectionTargets.Trace` |
 | The HDR image | RGBA16F, unchanged | Unchanged | 1 | 0 more | Gains storage, only while reflections are on | `RenderTargets.Hdr` |
 
 Both pyramids take 33.3 MB at 1080p. A Vulkan mip halves its image and rounds down, but a level of the depth pyramid halves the screen and rounds up (see "The depth pyramid"). So `DepthImageExtent` gives the smallest image whose mip m holds level m + 1 on each axis, with one mip per level, and the builds fill the padding with the empty bounds. At 1080p, level 10 is 2 × 2, which only a mip 9 of 2 × 2, from an image 1024 px a side, holds. The radiance pyramid's levels need no padding: its levels are the mips. Both live in the `General` layout for their whole life, because each dispatch of a build reads one mip and writes the next, and `BarrierBatch` keeps one state per image. Each has a sampled view of all its mips, for the trace, and a view of each mip, for the builds. `ReflectionTargets` makes the view of each mip with `GpuImage.CreateLayerView(0, mip)` and destroys it before the image, as `ShadowMap` does with its layer views. The view of all mips is the image's own `View`.
@@ -597,6 +627,8 @@ The trace set, set 3 of `ReflectionLayout`, with the push constants `ReflectionP
 | 1 | Sampled image, compute | The radiance pyramid, all mips, `General` |
 | 2 | Sampler, immutable | The impostor atlas's sampler: linear, linear between mips, clamped to the edge, no LOD clamp |
 | 3 | Storage image, compute | The HDR image, `General`, read and written at each invocation's own pixel |
+| 4 | Storage image, compute | At half resolution, the trace image (ticket `ter-ff6y`) |
+| 5 | Storage image, compute | At half resolution, the hit depth image (ticket `ter-cuf9`) |
 
 `ReflectionTargets` allocates its sets once, for the largest pyramid: 14 depth level sets (levels 1 to 14), 15 radiance level sets (levels 0 to 14) and one trace set. A 16,384 px side halves to 1 px in 14 levels. A device may allow a larger image, so under `ConeTracedReflections` the renderer refuses a side above `ReflectionTargets.MaxSide`, 16,384 px, with an `ArgumentOutOfRangeException`: `CheckOptions` for an explicit `Width` and `Height`, before the device, and `RenderTargets` at creation and at each resize, before it destroys a target. A resize rewrites the sets in use. The descriptor pool grows by 30 sets, 31 sampled images, 30 storage images and 1 sampler.
 
@@ -736,8 +768,8 @@ The frame with SSR on, from the steps of ARCHITECTURE.md, "The order of a render
 
 At `TraceResolution.Half` (ticket `ter-ff6y`), `VulkanRenderer` makes two `ReflectionPass` steps instead, each with the G-buffer targets and the occlusion target `SampledCompute`:
 
-1. "reflection trace": both pyramids `SampledComputeGeneral`, the trace image `StorageCompute` with its old content discarded. Bind `reflection_half_trace`. Dispatch ⌈⌈width / 2⌉ / 8⌉ × ⌈⌈height / 2⌉ / 8⌉.
-2. "reflections": the trace image and the HDR image `StorageCompute`, the exposure buffer `BufferUse.ComputeRead`. Bind `reflection_upsample`. Dispatch ⌈width / 8⌉ × ⌈height / 8⌉.
+1. "reflection trace": both pyramids `SampledComputeGeneral`, the trace image and the hit depth image `StorageCompute` with their old content discarded. Bind `reflection_half_trace`. Dispatch ⌈⌈width / 2⌉ / 8⌉ × ⌈⌈height / 2⌉ / 8⌉.
+2. "reflections": both pyramids `SampledComputeGeneral`, for the pixels that trace their own rays, the trace image, the hit depth image and the HDR image `StorageCompute`, the exposure buffer `BufferUse.ComputeRead`. Bind `reflection_upsample`. Dispatch ⌈width / 8⌉ × ⌈height / 8⌉.
 
 All workgroups are 8 × 8 invocations.
 
@@ -1045,11 +1077,14 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     return false;
 }
 
-// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The floor keeps log2
-// finite for a hit at the origin; any level below 0 reads level 0.
-float coneLevel(float alpha, float rayLength, float hitDistance, float topLevel)
+// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The cone's tangent is the
+// larger of the lobe's spread and the chord f · texelSide to the next texel's ray, so that the read covers the gap
+// between neighboring rays ("The cone"). The floor keeps log2 finite for a hit at the origin; any level below 0 reads
+// level 0.
+float coneLevel(float alpha, float footprint, float texelSide, float rayLength, float hitDistance, float topLevel)
 {
-    float radiusPixels = rayLength * ConeTangentPerAlpha * alpha / (hitDistance * frame.params.z);
+    float spread = max(ConeTangentPerAlpha * alpha, footprint * texelSide);
+    float radiusPixels = rayLength * spread / (hitDistance * frame.params.z);
     return clamp(log2(max(radiusPixels, 1e-6)), 0.0, topLevel);
 }
 
@@ -1093,6 +1128,8 @@ layout(push_constant, std430) uniform ReflectionPush
     uint maxSteps;
 } reflection;
 
+const float TexelSide = 1.0;  // in pixels: each pixel traces its own ray ("The cone")
+
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -1128,7 +1165,7 @@ void main()
     // The hit's surface point from its own distance, not from the ray's inverse depth, which is coarse far away.
     float hitDistance = texelFetch(gbufferDistance, hitPixel, 0).r;
     vec3 hitPoint = normalize(viewRayThrough(hit)) * hitDistance;
-    float level = coneLevel(alpha, length(hitPoint - origin), hitDistance,
+    float level = coneLevel(alpha, s.reflectionFootprint, TexelSide, length(hitPoint - origin), hitDistance,
         float(textureQueryLevels(radiancePyramid) - 1));
     vec4 traced = textureLod(sampler2D(radiancePyramid, mipSampler), hit * frame.viewport.zw, level);
 
@@ -1242,6 +1279,9 @@ internal readonly record struct ReflectionCone(float TanHalfAngle)
 
     /// <summary>The cone of a roughness r₀, floored as the BRDF floors it: tan θ_c = TangentPerAlpha · r².</summary>
     public static ReflectionCone OfRoughness(float roughness);
+
+    /// <summary>The cone of a ray in a trace of texel side s: tan θ_c = max(TangentPerAlpha · r², f · s).</summary>
+    public static ReflectionCone Of(float roughness, float footprint, int texelSide);
 
     /// <summary>log₂ of the cone's radius at the hit in pixels, clamped to 0 to topLevel.</summary>
     public float Level(float rayLength, float hitDistance, float pixelAngle, int topLevel);
@@ -1418,7 +1458,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 - `TheGpuTraceReflectsThePixelThatTheCSharpTraceHits`: a mirror floor of the roughness floor below a wall of 16 × 8 emissive tiles, each of its own color. For a grid of floor pixels, the test traces the C# `ScreenRay` over `DepthPyramid.FromInverseDepths` of the frame's distance, with the `CameraView` of the test's camera. Where the C# trace hits with f = 1, the floor's HDR value equals W times the `NoReflections` frame's value at the C# hit pixel, within 2 %. A wrong cell, axis or sign hits another tile.
 - `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: floors of roughness 0.3 and 0.5 reflecting a wall checkered at the period of one level of the pyramid, under a gray ambient light. Each floor pixel matches its lit value plus the C# delta from a trilinear sample of the read-back pyramid at `ReflectionCone.Level`, with its coverage, within 3 % of the bright squares' reflection. The checks make the read depend on the level and on the height of the hit, which the dominant direction decides.
-- `TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsample` (ticket `ter-ff6y`): at half resolution, the tiled wall's mirror floor with a white mirror sphere, a ramp in a crease of 20° with the floor and a slab 3 cm high, about one texel width. For every pixel to which the upsample adds light, the color that it adds matches, within 0.01 in each channel's share, the color of the C# `ReflectionUpsample.Ray` over the read-back trace image, distance and G-buffer normals (`ReadNormals`). The sphere's rim, the crease and the step give more than 200 pixels whose texels disagree, so a normal power of 1, a texel width of 4 pixel footprints or uneven bilinear weights each fail it.
+- `TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsampleOrTracesTheOwnRayThatItChooses` (ticket `ter-ff6y`, extended by `ter-cuf9`): at half resolution, the tiled wall's mirror floor with a white mirror sphere, a ramp in a crease of 20° with the floor and a slab 3 cm high, about one texel width. For every pixel to which the upsample adds light, the color that it adds matches, within 0.01 in each channel's share, the color of the C# `ReflectionUpsample.Ray` over the read-back trace image, distance and G-buffer normals (`ReadNormals`). The sphere's rim, the crease and the step give more than 200 pixels whose texels disagree, so a normal power of 1, a texel width of 4 pixel footprints or uneven bilinear weights each fail it. Since ticket `ter-cuf9`, a pixel for which the C# upsample, over the read-back hit depths too, chooses its own ray matches a full-resolution render of the scene within 10⁻³ of its value instead, and more than 100 pixels do (434 on this Mac), where a reflection passes from the wall to the sky or from one surface to another.
+- `EachTexelOfTheHalfResolutionTraceHoldsTheViewDepthOfItsRaysHit` (ticket `ter-cuf9`): every texel of the tiled wall's mirror floor whose ray hits holds 9.5 m, the view depth of the wall's front, within 10⁻³ of it, where the distances of the hit pixels from the eye grow toward the wall's sides and top.
+- `AtHalfResolutionTheReflectedOutlineOfABoxBeforeAFartherWallMatchesTheFullResolutionTrace` (ticket `ter-cuf9`): a red box 12 m ahead before a green wall 15 m ahead, on a mirror floor. Within 3 pixels of the box's two reflected side edges, on every row of the floor from 9.5 m to 11.5 m ahead, the half-resolution image matches the full-resolution image within 5 % of the radiance. Before the ticket, a pixel there differed by 1.69.
+- `AtHalfResolutionAColorEdgeOnOneReflectedSurfaceKeepsTheMeanOfItsTexelsRays` (ticket `ter-cuf9`): in the same scene, the wall turns from green to blue at an odd pixel boundary of its reflection. The odd pixel right of it shows more than a quarter of the radiance in green, which its own ray does not see: its texels hit the wall at one depth, so it keeps their mean.
 - `ReflectionTraceTests` (ticket `ter-ff6y`), with no render: a resize remakes the half-resolution trace's image at half the new size and keeps a full-resolution trace with no image, validation stays silent, and a `ReflectionPass` of the step `Upsample` over a `FullTrace` is refused when it is made.
 
 ### Hand mutations
@@ -1436,6 +1479,7 @@ Each builder breaks the line that each new test protects, watches the test fail,
 - Take `coneLevel` from the diameter.
 - Drop `traced.a` from the delta.
 - Drop `exposureScale()`.
+- Ticket `ter-cuf9`, in the upsample: never trace the own ray; always trace it; drop the depth rule; drop the hit-and-miss rule; trace the own ray at s = 2. In the trace: store the hit's distance instead of its view depth. In `ReflectionUpsample`: drop each rule, widen or drop the slab, keep the last hit's depth instead of the nearest, and blend a texel whose weight lies below the smallest normal float. Each fails a test. Counting a miss as a hit (`ray.a >= 0.0`) survives, and it is equivalent since the review's fix: the trace stores every miss with a depth of 0, a hit of coverage below 2^−14 included, and every hit with a depth above 0, so beside a hit the depth rule disagrees in its place, and texels that all miss blend zeros either way. Before the fix it was not equivalent, but untested: a ray that met a slab from behind stored a coverage of 0 at its real depth, and the mutant counted it as a hit on the same surface as its neighbors. The review's fixes: in the half trace, keep every hit, keep a hit of a coverage above 0 but below 2^−14 (the test's mirrors hold one of 2.9 · 10^−5), or keep a miss's depth; each fails `EachTexelOfTheHalfTraceHoldsNoRayOrAMissOfZerosOrAHitAtItsDepthWhoseCoverageAHalfFloatHoldsAsANormal`. In the footprint, step to the pixel itself in the first column, or in the first row; each fails the screen-edge star test. In `ReflectionUpsample`, blend a texel with no ray as a miss; that fails a unit test. Two survive. Testing no ray as `ray.a < 0.0` is equivalent: the trace stores no value between −1 and 0. Dropping the guard of the first column reads `texelFetch` at −1, which is undefined; MoltenVK returns 0 there, which reads as sky, so the step to it is a jump and the smaller step is the right one, and no test on this Mac can see it.
 
 ### Existing tests
 

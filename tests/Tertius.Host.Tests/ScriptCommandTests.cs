@@ -401,6 +401,66 @@ public sealed class ScriptCommandTests : IDisposable
         "--anti-aliasing",
         "fxaa"
     )]
+    [InlineData(
+        "--local-shadows needs a value",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--local-shadows"
+    )]
+    [InlineData(
+        "--local-shadows applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--local-shadows",
+        "off"
+    )]
+    [InlineData("--local-shadows applies to a headless run", "--scene", "no-such-scene", "--local-shadows", "off")]
+    [InlineData(
+        "--local-shadows needs off or on",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--local-shadows",
+        "soft"
+    )]
+    [InlineData(
+        "--local-shadow-tiles applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--local-shadow-tiles",
+        "16"
+    )]
+    [InlineData(
+        "--local-shadow-tiles sets the budget of local shadows, so leave out --local-shadows off",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--local-shadows",
+        "off",
+        "--local-shadow-tiles",
+        "16"
+    )]
+    [InlineData(
+        "--cascaded-lights applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--cascaded-lights",
+        "2"
+    )]
+    [InlineData("--cascaded-lights applies to a headless run", "--scene", "no-such-scene", "--cascaded-lights", "2")]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(
         string rule,
         params string[] args
@@ -424,6 +484,40 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain("--screen-space-light needs off or a radius").And.Contain($"'{value}'");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-3")]
+    [InlineData("2.5")]
+    [InlineData("many")]
+    public void ALocalShadowTilesOptionThatIsNotAWholeNumberOfOneOrMoreIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--local-shadow-tiles", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error
+            .ToString()
+            .Should()
+            .Contain("--local-shadow-tiles needs a whole number of 1 or more")
+            .And.Contain($"'{value}'");
+    }
+
+    [Theory]
+    [InlineData("5")]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("one")]
+    public void ACascadedLightsOptionThatIsNotAWholeNumberFromZeroToFourIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--cascaded-lights", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error
+            .ToString()
+            .Should()
+            .Contain("--cascaded-lights needs a whole number from 0 to 4")
+            .And.Contain($"'{value}'");
     }
 
     // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the
@@ -509,6 +603,46 @@ public sealed class ScriptCommandTests : IDisposable
 
         chosen.Should().NotBeNull(problem);
         chosen!.AntiAliasing.Should().Be(antiAliasing);
+    }
+
+    public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>
+        new()
+        {
+            { [], null },
+            { ["--local-shadows", "off"], new NoLocalShadows() },
+            { ["--local-shadows", "on"], LocalShadowAtlas.Default },
+            { ["--local-shadow-tiles", "384"], LocalShadowAtlas.Default with { Tiles = 384 } },
+            { ["--local-shadows", "on", "--local-shadow-tiles", "1"], LocalShadowAtlas.Default with { Tiles = 1 } },
+        };
+
+    [Theory]
+    [MemberData(nameof(LocalShadowOptions))]
+    public void TheLocalShadowOptionsTurnTheAtlasOffOrOnAndSetItsBudget(
+        string[] localShadows,
+        LocalShadowSetting? expected
+    )
+    {
+        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", .. localShadows],
+            out string? problem
+        );
+
+        chosen.Should().NotBeNull(problem);
+        chosen!.LocalShadows.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("4", 4)]
+    public void TheCascadedLightsOptionCarriesItsCount(string value, int count)
+    {
+        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--cascaded-lights", value],
+            out string? problem
+        );
+
+        chosen.Should().NotBeNull(problem);
+        chosen!.CascadedLights.Should().Be(count);
     }
 
     [Fact]

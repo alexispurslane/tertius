@@ -1,6 +1,6 @@
 ---
 id: ter-7lg5
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T18:16:23Z

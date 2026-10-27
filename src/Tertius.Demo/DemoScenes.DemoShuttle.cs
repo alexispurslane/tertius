@@ -160,17 +160,9 @@ public static partial class DemoScenes
         );
         world.Camera = camera;
 
-        // The sun frame's origin is where the light comes from: up, to the port side and aft of the shuttles.
-        Entity sun = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = new(new(-30, 50, 40), DQuaternion.Identity),
-                AsFrame = new(FrameBounds.Sphere(1)),
-            }
-        );
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
+        // The star's light comes from this direction: up, to the port side and aft of the shuttles.
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(-30, 50, 40));
+        world.Ambient = Daylight;
 
         scene.AddView("side-camera");
         scene.AddView("tail-camera");

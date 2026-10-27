@@ -151,6 +151,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
                     case HalfTrace half:
                         // Every texel is written in each frame, after the last frame's upsample read it.
                         barriers.Image(half.Traced, ImageUse.StorageCompute, discard: true);
+                        barriers.Image(half.HitDepths, ImageUse.StorageCompute, discard: true);
                         return;
                     case FullTrace:
                         break;
@@ -161,7 +162,11 @@ internal sealed unsafe class ReflectionPass : RenderPass
 
                 break;
             case ReflectionStep.Upsample:
-                barriers.Image(UpsampledImage(), ImageUse.StorageCompute);
+                HalfTrace upsampled = UpsampledTrace();
+                barriers.Image(upsampled.Traced, ImageUse.StorageCompute);
+                barriers.Image(upsampled.HitDepths, ImageUse.StorageCompute);
+                // A pixel whose texels' rays disagree traces its own ray through the pyramids.
+                DeclarePyramids(barriers);
                 break;
             default:
                 throw new UnreachableException();
@@ -184,11 +189,11 @@ internal sealed unsafe class ReflectionPass : RenderPass
         barriers.Image(targets.RadianceImage, ImageUse.SampledComputeGeneral);
     }
 
-    /// <summary>The image that the upsample reads: the half-resolution trace, which the constructor makes sure of.</summary>
-    private GpuImage UpsampledImage() =>
+    /// <summary>The images that the upsample reads: the half-resolution trace's, which the constructor makes sure of.</summary>
+    private HalfTrace UpsampledTrace() =>
         targets.Trace switch
         {
-            HalfTrace half => half.Traced,
+            HalfTrace half => half,
             FullTrace or null => throw new UnreachableException("The constructor refuses a full-resolution trace."),
         };
 

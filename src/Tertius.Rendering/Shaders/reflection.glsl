@@ -216,11 +216,14 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     return false;
 }
 
-// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The floor keeps log2
-// finite for a hit at the origin; any level below 0 reads level 0.
-float coneLevel(float alpha, float rayLength, float hitDistance, float topLevel)
+// The level of the radiance pyramid that the cone's radius at the hit selects (Uludag 2014). The cone's tangent is the
+// larger of the lobe's spread and the chord f · texelSide to the next texel's ray, so that the read covers the gap
+// between neighboring rays ("The cone"). The floor keeps log2 finite for a hit at the origin; any level below 0 reads
+// level 0.
+float coneLevel(float alpha, float footprint, float texelSide, float rayLength, float hitDistance, float topLevel)
 {
-    float radiusPixels = rayLength * ConeTangentPerAlpha * alpha / (hitDistance * frame.params.z);
+    float spread = max(ConeTangentPerAlpha * alpha, footprint * texelSide);
+    float radiusPixels = rayLength * spread / (hitDistance * frame.params.z);
     return clamp(log2(max(radiusPixels, 1e-6)), 0.0, topLevel);
 }
 

@@ -37,7 +37,7 @@ internal static class OcclusionScenes
     /// <summary>A snapshot whose only light is the ambient light of one white sky and ground, seen through <paramref name="view"/>.</summary>
     public static RenderSnapshot UnderWhiteAmbientLight(Quaternion view)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Ambient = new()
         {
             SkyColor = Vector3.One,

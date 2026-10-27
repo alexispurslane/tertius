@@ -18,7 +18,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
 | `ter-a24f` | Screen-space global illumination | PBR, SSAO, SSR | [screen-space-illumination.md](screen-space-illumination.md) |
 | `ter-jxv9` | Screen-space reflections | PBR, exposure | [screen-space-reflections.md](screen-space-reflections.md) |
-| `ter-s9cv` | Point and spot light shadows, and lights instead of one sun (`ter-bpvl`) | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
+| `ter-s9cv` | Shadows of every light: lights in SI units instead of one sun (`ter-bpvl`), and point and spot light shadows | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
 | `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
 | `ter-uy7y` | Environment maps per frame on the camera's chain, so that a lit interior does not light the outdoors seen through its windows | The environment map | [environment-maps-per-frame.md](environment-maps-per-frame.md) |
