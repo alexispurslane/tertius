@@ -55,6 +55,14 @@ internal sealed unsafe class VulkanDevice : IDisposable
         vk.GetPhysicalDeviceProperties(physicalDevice, out PhysicalDeviceProperties properties);
         Properties = properties;
         DeviceName = Marshal.PtrToStringUTF8((nint)properties.DeviceName) ?? "unknown";
+        var driver = new PhysicalDeviceDriverProperties { SType = StructureType.PhysicalDeviceDriverProperties };
+        var properties2 = new PhysicalDeviceProperties2
+        {
+            SType = StructureType.PhysicalDeviceProperties2,
+            PNext = &driver,
+        };
+        vk.GetPhysicalDeviceProperties2(physicalDevice, &properties2);
+        Driver = driver.DriverID;
         vk.GetPhysicalDeviceMemoryProperties(physicalDevice, out PhysicalDeviceMemoryProperties memory);
         MemoryProperties = memory;
         vk.GetDeviceQueue(device: device, queueFamilyIndex: queueFamily, queueIndex: 0, pQueue: out Queue queue);
@@ -76,6 +84,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
     public ValidationLog Log { get; }
     public bool Validation { get; }
     public string DeviceName { get; }
+
+    /// <summary>The driver of <see cref="PhysicalDevice"/>, by its Vulkan 1.2 driver id.</summary>
+    public DriverId Driver { get; }
 
     /// <summary>The clock of the timestamps that <see cref="Queue"/> writes.</summary>
     public TimestampClock Timestamps { get; }

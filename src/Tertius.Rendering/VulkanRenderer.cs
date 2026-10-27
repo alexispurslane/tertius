@@ -199,6 +199,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>True when the device writes timestamps, so <see cref="RenderStats.GpuTimings"/> reports the passes.</summary>
     public bool TimesPasses => timer.Supported;
 
+    /// <summary>
+    /// True on a driver that latches each pass's stamp after the next pass's work has started, so a pass's time can hold part
+    /// of the next pass's work: MoltenVK (ARCHITECTURE.md, "GPU timings").
+    /// </summary>
+    public bool StampsLatchLate => device.Driver == DriverId.Moltenvk;
+
     internal ShadowMap ShadowMap { get; }
 
     /// <summary>The BRDF tables on the GPU. A test hook.</summary>

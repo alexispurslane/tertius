@@ -319,6 +319,47 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
+    public void AHeadlessFilmOnADriverWhoseStampsLatchLateSaysBetweenThePassTimesAndTheSpanThatOnlySumsOfPassesHold()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        string[] lines = output.ToString().Split(Environment.NewLine);
+        int span = Array.FindIndex(lines, line => line.StartsWith("GPU frame span: ", StringComparison.Ordinal));
+        string[] expected = made[0].StampsLatchLate
+            ? [$"GPU {FramePasses[^1]}", ScriptCommand.LateStampsNote]
+            : [$"GPU {FramePasses[^1]}"];
+        lines[(span - expected.Length)..span]
+            .Select(line =>
+                line.StartsWith("GPU ", StringComparison.Ordinal)
+                    ? line[..line.IndexOf(": mean ", StringComparison.Ordinal)]
+                    : line
+            )
+            .Should()
+            .Equal(
+                expected,
+                "the note follows the last pass's time on a driver whose stamps latch late, and only there"
+            );
+    }
+
+    [Fact]
     public void TheSizeOptionReplacesTheSizeOfTheScriptsWindow()
     {
         string script = ScriptFile(

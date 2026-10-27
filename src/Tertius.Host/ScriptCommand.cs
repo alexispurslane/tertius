@@ -67,6 +67,11 @@ public static class ScriptCommand
     /// </summary>
     public const string GpuTimingsFile = "gpu-timings.json";
 
+    /// <summary>The line after the pass times of a run whose renderer's stamps latch late (ARCHITECTURE.md, "GPU timings").</summary>
+    public const string LateStampsNote =
+        "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes"
+        + " hold. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").";
+
     /// <summary>
     /// The file in the output folder of a headless run with a renderer that holds the exposure of each shown frame, in the
     /// order shown.
@@ -503,8 +508,8 @@ public static class ScriptCommand
 
     /// <summary>
     /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of the frames' GPU span and of each pass,
-    /// then its path, one line for each pass and one for the span to <paramref name="output"/>. Writes nothing when no
-    /// frame was timed.
+    /// then its path, one line for each pass, <see cref="LateStampsNote"/> on a renderer whose stamps latch late, and one
+    /// line for the span to <paramref name="output"/>. Writes nothing when no frame was timed.
     /// </summary>
     internal static void WriteGpuTimings(
         GpuTimingSummary timings,
@@ -539,6 +544,8 @@ public static class ScriptCommand
                     $"GPU {pass.Pass}: mean {pass.MeanMs:F3} ms, median {pass.MedianMs:F3} ms, p95 {pass.P95Ms:F3} ms over {pass.Frames} frames"
                 )
             );
+        if (renderer.StampsLatchLate)
+            output.WriteLine(LateStampsNote);
         output.WriteLine(
             FormattableString.Invariant(
                 $"GPU frame span: mean {frame.MeanMs:F3} ms, median {frame.MedianMs:F3} ms, p95 {frame.P95Ms:F3} ms over {frame.Frames} frames"
