@@ -263,8 +263,9 @@ public sealed class ContactAllocationCollection;
 
 /// <summary>
 /// Jolt reports every contact of every awake body in every step, on its worker threads, so the backend's callbacks for
-/// those reports must not allocate. The test counts the bytes that the whole process allocates, because the callbacks run
-/// on Jolt's threads, so it runs while no other test runs.
+/// those reports must not allocate. The gravity pass reads and writes every awake body in every step, so it must not
+/// allocate either. The tests count the bytes that the whole process allocates, because the callbacks run on Jolt's
+/// threads, so they run while no other test runs.
 /// </summary>
 [Collection(nameof(ContactAllocationTests))]
 public sealed class ContactAllocationTests
@@ -317,21 +318,20 @@ public sealed class ContactAllocationTests
             .Should()
             .Be(Columns * Rows, "every box rides the floor");
 
-        // The test counts the bytes per report, not in all. An allocation in a callback happens at every report, so it gives at
-        // least 1 byte per report. The runtime can compile a hot method again during one window, which allocates once, so the
-        // test takes the smaller window. It collects no garbage: the callbacks hold no managed objects that a collection could
-        // drop, while the backend's gravity pass looks up JoltPhysicsSharp's wrapper of each awake body, which a collection
-        // drops and the next step makes again.
+        // The test counts the bytes per tick, so an allocation that happens once in every step fails it as an allocation at
+        // every report does. The runtime can compile a hot method again during one window, which allocates once, so the test
+        // takes the smaller window. It collects the garbage before every tick, because a collection drops a managed wrapper of
+        // a Jolt body, such as JoltPhysicsSharp makes for a locked body, and the next lookup makes it again.
         const int Ticks = 200;
         const int ReportsPerTick = Columns * Rows + Rows * (Columns - 1);
-        long first = BytesPerReport(world, Ticks, ReportsPerTick);
-        long second = BytesPerReport(world, Ticks, ReportsPerTick);
+        long first = BytesPerTick(world, Ticks);
+        long second = BytesPerTick(world, Ticks);
 
         Math.Min(first, second)
             .Should()
             .Be(
                 0,
-                $"a report of a persisting contact must not allocate (the windows gave {first} and {second} bytes per report)"
+                $"a step with {ReportsPerTick} reports of persisting contacts must not allocate (the windows gave {first} and {second} bytes per tick)"
             );
         backend
             .PendingPairCount(ground)
@@ -412,12 +412,87 @@ public sealed class ContactAllocationTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A station of radius 150 m turns at 0.3 rad/s about its Y axis from its first step. 10 crates of 1 m in it rest in
+    /// inertial space, each on its own circle about the axis, 20 m to 65 m from it, so each goes round the axis in the
+    /// station and stays awake, and no two touch. So in every step each crate gets the two-turn update and the angular form
+    /// of the gravity pass, which read and write the body through the pointer of its lock. Such a step must allocate
+    /// nothing.
+    /// </summary>
+    [Fact]
+    public void StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread()
+    {
+        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        const double Rate = 0.3;
+        FrameHandle station = world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc { Frame = space, AsFrame = new(FrameBounds.Sphere(150)) }.Spinning(
+                    world,
+                    new(Tilt: DQuaternion.Identity, Rate: Rate),
+                    firstMove: true
+                )
+            )
+        );
+        const int Crates = 10;
+        for (int i = 0; i < Crates; i++)
+        {
+            double radius = 20 + 5 * i;
+            double angle = i * 2 * Math.PI / Crates;
+            var place = new Double3(radius * Math.Cos(angle), 0, radius * Math.Sin(angle));
+            world.Spawn(
+                new()
+                {
+                    Frame = station,
+                    Pose = new(place, DQuaternion.Identity),
+                    LinearVelocity = -Double3.Cross(new(0, Rate, 0), place),
+                    Body = Cube(),
+                }
+            );
+        }
+
+        // Two seconds: the runtime has compiled the hot methods.
+        Tick(world, 120);
+        backend
+            .BodiesIn(station)
+            .Count(body => body.Active && body.Motion == MotionType.Dynamic)
+            .Should()
+            .Be(Crates, "every crate goes round the axis in the station");
+
+        const int Ticks = 200;
+        long first = BytesPerTick(world, Ticks);
+        long second = BytesPerTick(world, Ticks);
+
+        Math.Min(first, second)
+            .Should()
+            .Be(
+                0,
+                $"a step of awake bodies in a turning frame must not allocate (the windows gave {first} and {second} bytes per tick)"
+            );
+        world.Errors.Should().BeEmpty();
+    }
+
     private static long BytesPerTick(World world, int ticks)
     {
-        long before = GC.GetTotalAllocatedBytes(precise: true);
+        long bytes = 0;
         for (int t = 0; t < ticks; t++)
-            world.Tick();
-        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ticks;
+            bytes += BytesOfATickAfterACollection(world);
+        return bytes / ticks;
+    }
+
+    /// <summary>
+    /// The bytes that the whole process allocates in a tick of <paramref name="world"/> after a full garbage collection,
+    /// which drops every managed object that nothing holds. The finalizers that the collection queues run before the count
+    /// starts, because they allocate on their own thread: after a full collection, .NET's shared array pools trim
+    /// themselves and read the memory load.
+    /// </summary>
+    private static long BytesOfATickAfterACollection(World world)
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        long before = GC.GetTotalAllocatedBytes(precise: true);
+        world.Tick();
+        return GC.GetTotalAllocatedBytes(precise: true) - before;
     }
 
     /// <summary>Counts the Collision and CollisionEnded events that its entity hears, without allocating.</summary>
@@ -438,13 +513,5 @@ public sealed class ContactAllocationTests
                 else if (events[i].Is<CollisionEnded>())
                     Ended++;
         }
-    }
-
-    private static long BytesPerReport(World world, int ticks, int reportsPerTick)
-    {
-        long before = GC.GetTotalAllocatedBytes(precise: true);
-        for (int t = 0; t < ticks; t++)
-            world.Tick();
-        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ((long)ticks * reportsPerTick);
     }
 }

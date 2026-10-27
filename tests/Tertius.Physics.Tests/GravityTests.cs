@@ -163,6 +163,48 @@ public sealed class GravityTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The gravity pass gives a body its weight as a force, which Jolt adds to the force of the intent. So a ball of 3 kg in a
+    /// field of 9.81 m/s² has, to the last bit in every step, the velocity of a ball without gravity that its intent pushes
+    /// with 3 kg · 9.81 m/s². The field and the push start in the same step from rest.
+    /// </summary>
+    [Fact]
+    public void AFallingBodyHasExactlyTheVelocityThatAForceOfItsWeightGivesABodyWithoutGravity()
+    {
+        using World world = NewWorld(backend: out _);
+        const float Mass = 3f;
+        const float G = 9.81f;
+        FrameHandle field = Ground(world, 0);
+        FrameHandle weightless = Ground(world, 0);
+        Entity falling = world.Spawn(new() { Frame = field, Body = BallBody(0.2f, Mass) });
+        var pilot = new Pilot();
+        Entity pushed = world.Spawn(
+            new()
+            {
+                Frame = weightless,
+                Body = BallBody(0.2f, Mass),
+                Components = [pilot],
+            }
+        );
+        world.Tick();
+        // The pilot's push of a tick goes into the step of the next tick, as a new field does.
+        pilot.EveryTick = body => body.AddForce(new(0, -Mass * G, 0));
+        world.Tick();
+        world.SetFrameGravity(field, GravityField.Uniform(new(0, -G, 0)));
+
+        for (int tick = 1; tick <= 30; tick++)
+        {
+            world.Tick();
+            world
+                .VelocityInOwnFrame(falling)
+                .Should()
+                .Be(world.VelocityInOwnFrame(pushed), $"both balls got the same force in each of {tick} steps");
+        }
+
+        world.VelocityInOwnFrame(falling).Y.Should().BeLessThan(-4, "the ball fell for half a second");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void UniformArtificialGravityActsInShipAxes()
     {
