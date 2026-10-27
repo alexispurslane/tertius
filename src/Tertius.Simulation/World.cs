@@ -242,8 +242,9 @@ public sealed partial class World : IDisposable
 
     /// <summary>
     /// The linear velocity of the entity's origin, the point that its pose names, relative to <paramref name="frame"/>, in its
-    /// axes, from the front snapshot. Throws
-    /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
+    /// axes, in doubles: a frame owner's from the frame tree, a body's that physics has not created yet from its creation,
+    /// else from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale entity and
+    /// <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Double3 VelocityIn(Entity entity, FrameHandle frame) =>
         VelocityIn(entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));

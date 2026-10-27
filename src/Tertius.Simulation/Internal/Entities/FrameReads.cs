@@ -24,33 +24,26 @@ internal static class FrameReads
     }
 
     /// <summary>
-    /// The linear velocity in <paramref name="to"/>, from <see cref="SemanticVelocity"/>. <paramref name="own"/> is the frame
-    /// that the entity owns, or null.
+    /// The linear velocity in <paramref name="to"/>, in doubles. <paramref name="own"/> is the frame that the entity owns, or
+    /// null. A frame owner's is its frame origin's, from the tree alone, whose double and parent are current, while the row
+    /// holds a float and the parent of the last mirror.
     /// </summary>
     public static Double3 VelocityIn(FrameTree frames, in TransformRow row, FrameHandle own, FrameHandle to) =>
-        row.Frame.IsNull
-            ? RootOwnerVelocityIn(frames: frames, own: own, to: to)
-            : SemanticVelocityIn(frames: frames, row: row, semantic: SemanticVelocity(frames, row, own), to: to);
+        own.IsNull
+            ? SemanticVelocityIn(
+                frames: frames,
+                row: row,
+                semantic: frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity,
+                to: to
+            )
+            : frames.ConvertVelocity(from: own, to: to, position: Double3.Zero, v: Double3.Zero);
 
-    /// <summary>
-    /// The linear velocity relative to the row frame, in its axes, in doubles. A frame owner's comes from its frame, which the
-    /// tree holds, because its row narrows it to a float, which at orbital speed steps by 0.5 mm/s.
-    /// </summary>
-    public static Double3 SemanticVelocity(FrameTree frames, in TransformRow row, FrameHandle own) =>
-        frames.HomeVelocity(row.PhysicsHome, row.Frame)
-        + (own.IsNull ? row.LinearVelocity : frames.TreeLinearVelocity(own));
-
-    /// <summary>The linear velocity in <paramref name="to"/> of an entity with a row frame whose velocity relative to that
-    /// frame is <paramref name="semantic"/>.</summary>
+    /// <summary>The linear velocity in <paramref name="to"/> of an entity that owns no frame and whose velocity relative to
+    /// its row frame, in its axes, is <paramref name="semantic"/>.</summary>
     public static Double3 SemanticVelocityIn(FrameTree frames, in TransformRow row, Double3 semantic, FrameHandle to) =>
         row.Frame == to
             ? semantic
             : frames.ConvertVelocity(from: row.Frame, to: to, position: row.Pose.Position, v: semantic);
-
-    /// <summary>The linear velocity in <paramref name="to"/> of the owner of the root frame <paramref name="own"/>, a point at
-    /// that frame's origin.</summary>
-    public static Double3 RootOwnerVelocityIn(FrameTree frames, FrameHandle own, FrameHandle to) =>
-        frames.ConvertVelocity(from: own, to: to, position: Double3.Zero, v: Double3.Zero);
 
     public static Vector3 AngularVelocityIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)
     {

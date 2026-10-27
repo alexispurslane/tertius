@@ -486,6 +486,8 @@ internal sealed class PuffTable
         // The owner of a root frame has no row frame: its puffs are born in the frame that it owns, at its origin.
         FrameHandle frame = row.Frame.IsNull ? own : row.Frame;
         DPose pose = FrameReads.PoseIn(frames: frames, entity: entity, row: row, to: frame);
+        // No body creation is pending at step 7c, because the flush of step 6c handed the batch to physics, so this read
+        // needs no case for one (see World.VelocityIn).
         Double3 velocity = FrameReads.VelocityIn(frames: frames, row: row, own: own, to: frame);
         LooseBodyStep loose = frames.LastLooseBodyStep(frame);
         int runStart = newbornCount;

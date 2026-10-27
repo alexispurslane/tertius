@@ -104,7 +104,7 @@ public sealed partial class World
                 Home = row.PhysicsHome,
                 Position = row.Pose.Position,
                 HomePosition = row.HomePose.Position,
-                Velocity = SemanticVelocity(entity, row, own),
+                Velocity = VelocityIn(entity: entity, row: row, to: row.Frame),
                 AngularVelocity = SemanticAngularVelocity(row, own),
                 CenterOfMassOffset = row.Pose.TransformDirection(Entities.BodyCenterOfMass(entity)),
                 Radius = Entities.BodyBoundingRadius(entity),
@@ -141,32 +141,22 @@ public sealed partial class World
 
     /// <summary>
     /// The linear velocity in <paramref name="to"/> of <paramref name="entity"/>, whose transform row is
-    /// <paramref name="row"/>, in doubles (see <see cref="SemanticVelocity"/>).
+    /// <paramref name="row"/>, in doubles: the one that the creation of its body carries while physics has not created it,
+    /// as before the first tick, or else the one of <see cref="FrameReads.VelocityIn"/>. A row narrows its velocity to a
+    /// float.
     /// </summary>
     internal Double3 VelocityIn(Entity entity, in TransformRow row, FrameHandle to)
     {
         FrameHandle own = Entities.OwnedFrame(entity);
-        return row.Frame.IsNull
-            ? FrameReads.RootOwnerVelocityIn(frames: Frames, own: own, to: to)
-            : FrameReads.SemanticVelocityIn(
-                frames: Frames,
-                row: row,
-                semantic: SemanticVelocity(entity, row, own),
-                to: to
-            );
-    }
-
-    /// <summary>
-    /// The velocity of <paramref name="entity"/> relative to its row frame, in doubles: the one that the creation of its body
-    /// carries while physics has not created it, as before the first tick, or else the one of
-    /// <see cref="FrameReads.SemanticVelocity"/>. A row narrows its velocity to a float.
-    /// </summary>
-    private Double3 SemanticVelocity(Entity entity, in TransformRow row, FrameHandle own)
-    {
         // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity: this runs for every body.
         if (own.IsNull && pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created))
-            return physicsChanges.BodiesCreated[created].LinearVelocity;
-        return FrameReads.SemanticVelocity(frames: Frames, row: row, own: own);
+            return FrameReads.SemanticVelocityIn(
+                frames: Frames,
+                row: row,
+                semantic: physicsChanges.BodiesCreated[created].LinearVelocity,
+                to: to
+            );
+        return FrameReads.VelocityIn(frames: Frames, row: row, own: own, to: to);
     }
 
     /// <summary>Adds <paramref name="create"/> to the batch for physics, and to the pending creations.</summary>
@@ -236,7 +226,7 @@ public sealed partial class World
         else
         {
             TransformRow row = Entities.BackRow(entity);
-            Double3 velocity = SemanticVelocity(entity, row, own);
+            Double3 velocity = VelocityIn(entity: entity, row: row, to: row.Frame);
             // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
             row.HomePosition =
                 home == semantic
