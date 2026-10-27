@@ -1220,7 +1220,9 @@ public sealed partial class JoltPhysicsBackend
     /// motion intent, exactly, or for a hull at the origin of a following frame without a motion intent, at that origin and
     /// at rest, where physics aimed it at its frame's still plan (see <see cref="AimStillAnchors"/>); and every static hull,
     /// or kinematic hull without a motion intent, that teleported in the step, at the teleport's pose in its home, at rest
-    /// there: a kinematic hull holds still in its home after a teleport too (see <see cref="ApplyBodyIntent"/>). Any other
+    /// there: a kinematic hull holds still in its semantic frame after a teleport too, and its home, its semantic parent or
+    /// its own following frame, holds still there with it (see <see cref="ApplyBodyIntent"/> and
+    /// <see cref="AimStillAnchors"/>). Any other
     /// static hull, and a kinematic hull without a motion intent that anchors no following frame, held still, and the sync
     /// point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the
     /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,

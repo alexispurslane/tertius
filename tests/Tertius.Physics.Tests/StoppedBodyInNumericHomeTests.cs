@@ -8,8 +8,9 @@ namespace Tertius.Physics.Tests;
 /// frames (docs/plans/numeric-frames.md, "Limits", and ticket ter-unpc). These tests pin it for a plain kinematic ball that
 /// lives as a member, not as an anchor, in the falling frame of a crate that thrusts: after its end poses stop, after a
 /// teleport, and after a move out of that frame or into one, where <see cref="Self.PoseAtNextStepStartIn"/> gives its pose
-/// now. They pin it for a dynamic box and a dynamic hull in such a frame after their steer targets stop. The world runs on
-/// the real backend.
+/// now. They pin it for a dynamic box and a dynamic hull in such a frame after their steer targets stop, also in a frame that
+/// falls with gravity, against the same scene without numeric frames, and they pin the limit of a damped body there. The
+/// world runs on the real backend.
 /// </summary>
 public sealed class StoppedBodyInNumericHomeTests
 {
@@ -370,48 +371,63 @@ public sealed class StoppedBodyInNumericHomeTests
         world.VelocityIn(box, space).Length.Should().BeLessThan(1e-6);
     }
 
-    /// <summary>What a stopped box did over the ten steps after the step that stopped it, in space.</summary>
-    private readonly record struct StoppedFall(Double3 Move, Double3 Velocity);
+    /// <summary>
+    /// What a stopped body did over the ten steps after the step that stopped it, in space, and the velocity of its home in
+    /// space at the end, which is zero without numeric frames.
+    /// </summary>
+    private readonly record struct StoppedFall(Double3 Move, Double3 Velocity, Double3 HomeVelocity);
 
     /// <summary>
-    /// A dynamic box without damping that steer targets hold in place in a weak uniform gravity of 0.1 m/s², beside a crate
-    /// that thrusts, under the membership rules <paramref name="options"/>, which put it in a home of <paramref name="homeMode"/>.
-    /// Then its steer targets stop, and the method gives how the box moves in space over the ten steps after
-    /// the last steer target's step.
+    /// A steered body, made by <paramref name="steered"/> in space with a <see cref="SteerAlong"/> at zero velocity, so that
+    /// steer targets hold it in place in a weak uniform gravity of 0.1 m/s², beside a crate that thrusts, under the
+    /// membership rules <paramref name="options"/>, which put it in a home of <paramref name="homeMode"/>. Then its steer
+    /// targets stop, and the method gives how the body moves in space over the ten steps after the last steer target's step.
     /// </summary>
-    private static StoppedFall StopInGravity(NumericFrameOptions options, NumericMode homeMode)
+    private static StoppedFall StopInGravity(
+        NumericFrameOptions options,
+        NumericMode homeMode,
+        Func<FrameHandle, SpawnDesc> steered
+    )
     {
         using World world = NewWorld(backend: out _);
         world.Frames.NumericOptions = options;
         FrameHandle space = Ground(world, 0.1f);
-        Entity box = world.Spawn(
-            new()
-            {
-                Frame = space,
-                Body = Undamped(Cube()),
-                Components = [new SteerAlong(Double3.Zero)],
-            }
-        );
+        Entity body = world.Spawn(steered(space));
         world.Spawn(
             new()
             {
                 Frame = space,
-                Pose = At(0, 0, 3),
+                Pose = At(0, 0, 4),
                 Body = Cube(),
                 Components = [new Thruster(10)],
             }
         );
         Tick(world, 60);
-        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(homeMode);
+        FrameHandle home = world.PhysicsHomeOf(body);
+        world.Frames.Numeric(home).Should().Be(homeMode);
 
-        StopSteering(world, box);
+        StopSteering(world, body);
         world.Tick();
-        DPose stopped = world.PoseIn(box, space);
+        DPose stopped = world.PoseIn(body, space);
         Tick(world, 10);
 
         world.Errors.Should().BeEmpty();
-        return new(world.PoseIn(box, space).Position - stopped.Position, world.VelocityIn(box, space));
+        world.PhysicsHomeOf(body).Should().Be(home, "the body still lives in the same home");
+        return new(
+            Move: world.PoseIn(body, space).Position - stopped.Position,
+            Velocity: world.VelocityIn(body, space),
+            HomeVelocity: world.Frames.HomeVelocity(home, space)
+        );
     }
+
+    /// <summary>A box of <paramref name="body"/> in <paramref name="space"/> that steer targets hold in place.</summary>
+    private static SpawnDesc SteeredBox(FrameHandle space, BodyDesc body) =>
+        new()
+        {
+            Frame = space,
+            Body = body,
+            Components = [new SteerAlong(Double3.Zero)],
+        };
 
     /// <summary>
     /// A dynamic box that physics stops in a home that falls with gravity starts to fall in space from rest, as it does
@@ -422,12 +438,78 @@ public sealed class StoppedBodyInNumericHomeTests
     [Fact]
     public void ADynamicBodyThatStopsInAHomeThatFallsWithGravityFallsAsWithoutNumericFrames()
     {
-        StoppedFall numeric = StopInGravity(ThrustingGroupsFall, NumericMode.Falling);
-        StoppedFall plain = StopInGravity(NumericFrameTesting.WithoutNumericFrames, NumericMode.None);
+        StoppedFall numeric = StopInGravity(
+            ThrustingGroupsFall,
+            NumericMode.Falling,
+            space => SteeredBox(space, Undamped(Cube()))
+        );
+        StoppedFall plain = StopInGravity(
+            NumericFrameTesting.WithoutNumericFrames,
+            NumericMode.None,
+            space => SteeredBox(space, Undamped(Cube()))
+        );
 
         plain.Move.Y.Should().BeLessThan(-1e-3, "the box falls 55 steps of g dt² in ten steps after the stop");
         (numeric.Move - plain.Move).Length.Should().BeLessThan(1e-7);
         (numeric.Velocity - plain.Velocity).Length.Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// A ship with a dynamic hull without damping, held in place by steer targets in a home that falls with gravity, stops
+    /// when its steer targets stop. Its frame, which takes its record from the hull, then falls in space from rest, as it
+    /// does without numeric frames. A hull's frame measures the stop's jolt as proper acceleration, so this pins the stop
+    /// and the cancellation of the home's acceleration for a frame that a stopped hull carries.
+    /// </summary>
+    [Fact]
+    public void ADynamicHullThatStopsInAHomeThatFallsWithGravityCarriesItsFrameAsWithoutNumericFrames()
+    {
+        static SpawnDesc Ship(FrameHandle space) =>
+            new()
+            {
+                Frame = space,
+                Body = Undamped(Ball()),
+                AsFrame = new(FrameBounds.Sphere(1)),
+                Components = [new SteerAlong(Double3.Zero)],
+            };
+        StoppedFall numeric = StopInGravity(ThrustingGroupsFall, NumericMode.Falling, Ship);
+        StoppedFall plain = StopInGravity(NumericFrameTesting.WithoutNumericFrames, NumericMode.None, Ship);
+
+        plain.Move.Y.Should().BeLessThan(-1e-3, "the ship falls 55 steps of g dt² in ten steps after the stop");
+        (numeric.Move - plain.Move).Length.Should().BeLessThan(1e-7);
+        (numeric.Velocity - plain.Velocity).Length.Should().BeLessThan(1e-6);
+    }
+
+    /// <summary>
+    /// A limit (docs/plans/numeric-frames.md, "Limits", ticket ter-u75o): Jolt damps a body's velocity in its home, so a box
+    /// with the default linear damping of 0.05/s that physics stops in a home that falls with gravity relaxes toward the
+    /// home's velocity, where without numeric frames it relaxes toward rest in space. The difference is the damping rate
+    /// times the home's velocity, summed over the steps: 0.71 mm/s and 63 µm in the ten steps after the stop, in a home at
+    /// 0.093 m/s. The test pins that size, so that a change of the stop or of the damping in a numeric home shows here.
+    /// </summary>
+    [Fact]
+    public void ADampedDynamicBodyThatStopsInAHomeThatFallsWithGravityDriftsTowardTheHomesVelocity()
+    {
+        const double damping = 0.05;
+        const double tenSteps = 10.0 / 60;
+        StoppedFall numeric = StopInGravity(
+            ThrustingGroupsFall,
+            NumericMode.Falling,
+            space => SteeredBox(space, Cube())
+        );
+        StoppedFall plain = StopInGravity(
+            NumericFrameTesting.WithoutNumericFrames,
+            NumericMode.None,
+            space => SteeredBox(space, Cube())
+        );
+
+        Double3 predicted = damping * tenSteps * numeric.HomeVelocity;
+        predicted.Length.Should().BeGreaterThan(5e-4, "the home falls at about 0.09 m/s");
+        (numeric.Velocity - plain.Velocity - predicted)
+            .Length.Should()
+            .BeLessThan(
+                0.15 * predicted.Length,
+                "the box gains the damping rate times the home's velocity, which grows over the ten steps"
+            );
     }
 
     /// <summary>
