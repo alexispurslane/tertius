@@ -11,9 +11,9 @@ public sealed class BatcherTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f),
-        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f, Deform: null),
     ];
 
     // Puffs. Each puff of the snapshot draws as one GpuPuff, at its interpolated place and render age, or not at all. The
@@ -47,6 +47,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: materials,
             environment: environment,
+            region: DeformRegion.None,
             scene: scene
         );
         return scene;
@@ -841,6 +842,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: MapOf(FaceMask.All),
+            region: DeformRegion.None,
             scene: scene
         );
         scene.EnvironmentFaces.Should().HaveCount(6);
@@ -853,10 +855,33 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: MapOf(FaceMask.NegativeY),
+            region: DeformRegion.None,
             scene: scene
         );
 
         scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
+    }
+
+    [Fact]
+    public void APlacedSlotHoldsNothingOfTheInstanceThatFilledItTheFrameBefore()
+    {
+        var scene = new PreparedScene();
+        scene.AddPlaced() = new()
+        {
+            Depth = 5f,
+            Mesh = 2,
+            Material = 3,
+            Map = 1,
+        };
+        scene.Reset();
+
+        PreparedInstance slot = scene.AddPlaced();
+
+        slot.Should()
+            .Be(
+                default(PreparedInstance),
+                "a caller that sets the fields one by one must not keep the last frame's others"
+            );
     }
 
     // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
@@ -1514,6 +1539,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
         scene.PuffCount.Should().Be(1);
@@ -1526,6 +1552,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
 

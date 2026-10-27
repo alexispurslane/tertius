@@ -93,7 +93,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     public override void Prepare(FrameContext context)
     {
         PreparedScene scene = context.Scene;
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         preparedCount = 0;
         foreach (ref readonly ImpostorCapture capture in manager.Captures)
         {

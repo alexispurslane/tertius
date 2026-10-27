@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
 using static Tertius.Host.Tests.GpuTesting;
@@ -90,6 +91,76 @@ public sealed class ScriptCommandVideoTests : IDisposable
         frames[0].Should().NotEqual(frames[4], "the box falls, so the order of the frames shows");
         Directory.EnumerateFiles(Out, "*.png").Should().BeEmpty("the captures of a video run go into the video only");
     }
+
+    [Fact]
+    public void AVideoNoneRunDrawsEachCaptureAndWritesNoImageAndNoVideo()
+    {
+        string script = ScriptFile(FiveCaptures);
+
+        int code = Run(script, "--video", "none");
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        using var exposures = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, ScriptCommand.ExposureFile)));
+        exposures
+            .RootElement.EnumerateArray()
+            .Select(frame => frame.GetProperty("capture").GetString())
+            .Should()
+            .Equal(FiveCaptureNames, "the renderer draws every capture, in the order of the steps");
+        Directory
+            .EnumerateFiles(folder, "*", SearchOption.AllDirectories)
+            .Select(Path.GetFileName)
+            .Should()
+            .BeSubsetOf(
+                ["script.json", ScriptCommand.ExposureFile, ScriptCommand.GpuTimingsFile],
+                "the captures go nowhere: no PNG file and no video"
+            );
+        output.ToString().Should().NotContain(".png").And.NotContain(VideoFile.Extension);
+    }
+
+    [Fact]
+    public void AVideoNoneRunTimesTheSamePassesOverTheSameFramesAsAVideoRun()
+    {
+        string script = ScriptFile(FiveCaptures);
+        string videoOut = Path.Combine(folder, "video-out");
+        var made = new List<VulkanRenderer>();
+        int RunTimed(string outFolder, string video) =>
+            ScriptCommand.Run(
+                args: ["--script", script, "--headless", "--out", outFolder, "--video", video],
+                scenes: [LitDropScene],
+                output: output,
+                error: error,
+                createRenderer: options =>
+                {
+                    made.Add(VulkanRenderer.CreateHeadless(options));
+                    return made[^1];
+                }
+            );
+
+        RunTimed(videoOut, Video).Should().Be(ScriptCommand.Ok, error.ToString());
+        int code = RunTimed(Out, "none");
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        string file = Path.Combine(Out, ScriptCommand.GpuTimingsFile);
+        output.ToString().Should().Contain(file);
+        using var discarded = JsonDocument.Parse(File.ReadAllText(file));
+        using var filmed = JsonDocument.Parse(File.ReadAllText(Path.Combine(videoOut, ScriptCommand.GpuTimingsFile)));
+        TimedFrames(discarded)
+            .Should()
+            .Equal(TimedFrames(filmed), "both runs draw and wait for each capture the same way")
+            .And.AllSatisfy(pass => pass.Frames.Should().Be(5, "the renderer times each of the five captures"));
+    }
+
+    // The name of each timed pass, and the frame span as "frame", with the count of frames that it was timed over.
+    private static (string Pass, int Frames)[] TimedFrames(JsonDocument timings) =>
+        [
+            ("frame", timings.RootElement.GetProperty("frame").GetProperty("frames").GetInt32()),
+            .. timings
+                .RootElement.GetProperty("passes")
+                .EnumerateArray()
+                .Select(pass => (pass.GetProperty("pass").GetString()!, pass.GetProperty("frames").GetInt32())),
+        ];
 
     [Fact]
     public void TwoVideoRunsOfOneScriptGiveTheSameDecodedFrames()

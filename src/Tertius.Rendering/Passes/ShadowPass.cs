@@ -9,9 +9,10 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para><see cref="Prepare"/> runs on the CPU. For each far light whose slot is a <see cref="CascadeSet"/>, it fits the
 /// four cascades of that set to this frame's camera along the light's own direction (<see cref="ShadowCascades"/>). It
-/// takes its casters from the frame's casters, which the batcher interpolated once (<see cref="PreparedScene.Casters"/>):
-/// every caster whose bounding sphere comes within 2 km of the camera, in view or not. Each caster is culled against every
-/// cascade box of every set, extruded toward that set's light, and gets one GPU instance per cascade that it touches. The
+/// takes its casters from the frame's placed instances, which the batcher interpolated once
+/// (<see cref="PreparedScene.Placed"/>): every one that casts shadows and whose bounding sphere comes within 2 km of the
+/// camera, in view or not. Each caster is culled against every cascade box of every set, extruded toward that set's light,
+/// and gets one GPU instance per cascade that it touches. The
 /// casters are put in mesh order with a counting sort, then each cascade's instances are appended to the frame's instance
 /// buffer in that order, with one indirect command per run of one mesh. All of this is linear in the number of casters,
 /// sets and meshes, and allocates nothing in a steady state.</para>
@@ -82,7 +83,7 @@ internal sealed unsafe class ShadowPass : RenderPass
         );
         if (scene.CascadeSetCount == 0)
             return;
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         int casterCount = SelectCasters(scene);
         // Without a caster the maps would shadow nothing, so none is drawn and the shaders skip them: the frame
         // constants keep 0 cascades per set.
@@ -128,7 +129,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// The cascades of every set that a caster touches, as a mask with the bit <see cref="ShadowMap.Layer"/> for each:
     /// its sphere overlaps the cascade box or the part of the set's light view in front of it, toward the light.
     /// </summary>
-    internal static int CascadeMask(PreparedScene scene, in ShadowCaster caster)
+    internal static int CascadeMask(PreparedScene scene, in PreparedInstance caster)
     {
         int mask = 0;
         for (int set = 0; set < scene.CascadeSetCount; set++)
@@ -155,9 +156,9 @@ internal sealed unsafe class ShadowPass : RenderPass
     {
         int casterCount = 0,
             instanceCount = 0;
-        foreach (ref readonly ShadowCaster caster in scene.CasterSpan)
+        foreach (ref readonly PreparedInstance caster in scene.PlacedSpan)
         {
-            if (!ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
                 continue;
             int mask = CascadeMask(scene, caster);
             if (mask == 0)

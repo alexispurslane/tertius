@@ -14,7 +14,8 @@
 #   --no-counters     records no GPU counters: a smaller trace with times and no limiters
 #   --keep-exports    keeps the XML tables that the report exports from the trace, in <out>/export
 # Arguments after the script go to the demo's headless run, such as --screen-space-light off.
-# Writes <out>/run.trace (open it in Instruments), <out>/run (the run's captures, gpu-timings.json and log),
+# Writes <out>/run.trace (open it in Instruments), <out>/run (the run's gpu-timings.json and exposure.json; --video none
+# draws each capture and writes no image),
 # <out>/passes.md (the table, also printed) and <out>/passes.json (every counter of every pass).
 set -euo pipefail
 if [[ "$(uname)" != Darwin ]]; then
@@ -62,7 +63,8 @@ if [[ -e "$out/run.trace" ]]; then
 fi
 mkdir -p "$out"
 
-# The built binary, not dotnet run, so that the trace holds no build.
+# The built binary, not dotnet run, so that the trace holds no build. --video none draws and waits for each frame as a
+# video run does, and writes no frame, so the frames follow each other as in the cost recipe, with no PNG encode between.
 dotnet build src/Tertius.Demo -c Release -v quiet -nologo > "$out/build.log" 2>&1 || { tail -20 "$out/build.log" >&2; exit 1; }
 demo=src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo
 
@@ -85,8 +87,8 @@ load=$(uptime | sed 's/.*load averages*: *//')
 echo "Load averages at the start (1, 5 and 15 minutes): $load"
 "$xcrun" xctrace record --template "Metal System Trace" "${instruments[@]}" --no-prompt --output "$out/run.trace" \
   "${env_args[@]}" --target-stdout "$out/run.log" \
-  --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" "${demo_options[@]}" > "$out/record.log" 2>&1 \
-  || record_code=$?
+  --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" --video none "${demo_options[@]}" \
+  > "$out/record.log" 2>&1 || record_code=$?
 if [[ "$record_code" -ne 0 ]]; then
   # xctrace saves the trace and exits with a code other than 0 when the demo fails, and the demo's errors go to run.log.
   if [[ -e "$out/run.trace" ]]; then

@@ -1,6 +1,6 @@
 ---
 id: ter-j1mf
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-26T01:57:15Z

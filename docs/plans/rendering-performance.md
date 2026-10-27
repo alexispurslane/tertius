@@ -8,7 +8,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 
 ## Terms
 
-- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes. The renderer's stamps each wait for all commands before them, so its pass times include those too. Each of its pass times is the difference of two neighbouring stamps, so they add up to the span (ARCHITECTURE.md, "GPU timings"). A Metal System Trace times each pass's encoders on their own, so its pass times leave the gaps out.
+- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes. The renderer's stamps each wait for all commands before them, so its pass times include those too. Each of its pass times is the difference of two neighbouring stamps, so they add up to the span (ARCHITECTURE.md, "GPU timings"). On MoltenVK a stamp can be written after the next pass's work has started, so there a pass's stamp time can hold part of the next pass's work, and only the span and the sums of neighbouring passes hold. A Metal System Trace times each pass's encoders on their own, so its pass times leave the gaps out, and they are the pass times that a profile of one pass reads.
 - GPU time per frame: the mean GPU span over the frames of a run.
 - Share: the part of the budget that one pass can take. Part 3 sets the shares.
 - Quiet machine: no other build, test or GPU run during the measurement. The report gives the one-minute load at the start of each run.

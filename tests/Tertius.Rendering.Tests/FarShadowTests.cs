@@ -15,7 +15,10 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 public sealed class FarShadowTests
 {
-    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f)];
+    private static readonly MeshInfo[] Meshes =
+    [
+        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
+    ];
     private static readonly MeshId Sphere = new(0);
 
     private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
@@ -46,6 +49,7 @@ public sealed class FarShadowTests
                 meshes: Meshes,
                 materialCount: 8,
                 environment: default,
+                region: DeformRegion.None,
                 scene: scene
             );
         return scene;

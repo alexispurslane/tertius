@@ -38,4 +38,20 @@ public sealed class DescriptorLayoutsTests
             .Should()
             .Be(DescriptorLayouts.FrameSetStorageBuffers, "the impostor atlas set adds no storage buffer");
     }
+
+    [Fact]
+    public void TheDeformLayoutBindsNoMoreStorageBuffersThanTheFrameSetNeedsOfEveryDevice()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+
+        layouts
+            .StorageBuffersOf(layouts.DeformLayout)
+            .Should()
+            .Be(5, "the window, the deform vertices, the morph deltas, the pose rows and the job table")
+            .And.BeLessThanOrEqualTo(
+                DescriptorLayouts.FrameSetStorageBuffers,
+                "the renderer refuses a device whose stages see fewer storage buffers than the frame set holds"
+            );
+    }
 }

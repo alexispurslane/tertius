@@ -1,6 +1,6 @@
 ---
 id: ter-fwsy
-status: open
+status: in_progress
 deps: [ter-4zt6]
 links: []
 created: 2026-10-21T16:10:45Z

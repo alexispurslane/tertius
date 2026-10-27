@@ -53,6 +53,12 @@ internal static class ShaderInput
     public const float PositionLimit = 4611686018427387904f;
 
     /// <summary>
+    /// The largest size of a morph weight that the deform pass reads, 1,024. With deltas at most 2 long for a normal or a
+    /// tangent, every sum of the morphs stays finite (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
+    /// </summary>
+    public const float LargestMorphWeight = 1024;
+
+    /// <summary>
     /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
     /// <paramref name="puffCount"/> puffs: an equal share of <see cref="PuffBudget"/>.
     /// </summary>
@@ -111,6 +117,14 @@ internal static class ShaderInput
     /// <summary><see cref="Fraction(float)"/> of each channel.</summary>
     public static Vector4 Fraction(Vector4 value) =>
         new(x: Fraction(value.X), y: Fraction(value.Y), z: Fraction(value.Z), w: Fraction(value.W));
+
+    /// <summary>A morph weight from the CPU as the deform pass reads it: its nearest value within ±<see cref="LargestMorphWeight"/>, and 0 for a NaN.</summary>
+    public static float MorphWeight(float weight)
+    {
+        if (float.IsNaN(weight))
+            return 0;
+        return Math.Clamp(weight, -LargestMorphWeight, LargestMorphWeight);
+    }
 
     // A NaN fails the comparison, and MathF.Min takes +∞ to the limit.
     private static float Radiance(float value) => value >= 0 ? MathF.Min(value, RadianceLimit) : 0;

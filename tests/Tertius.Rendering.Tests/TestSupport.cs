@@ -48,7 +48,7 @@ internal static class Gpu
     /// the zero case of the setting is off (docs/plans/screen-space-reflections.md, "Existing tests"). The environment map
     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
-    /// the renderer's default.
+    /// the renderer's default. The deformation is on unless asked for, the renderer's default.
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -62,7 +62,8 @@ internal static class Gpu
         ReflectionSetting reflections = default,
         EnvironmentMapSetting? environmentMap = null,
         int cascadedLights = 1,
-        LocalShadowSetting localShadows = default
+        LocalShadowSetting localShadows = default,
+        bool deformation = true
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -81,6 +82,7 @@ internal static class Gpu
                 Reflections = reflections,
                 EnvironmentMap = environmentMap ?? new NoEnvironmentMap(),
                 CascadedLights = cascadedLights,
+                Deformation = deformation,
             }
         );
 

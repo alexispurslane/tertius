@@ -12,7 +12,10 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 public sealed class BatcherLightTests
 {
-    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f)];
+    private static readonly MeshInfo[] Meshes =
+    [
+        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
+    ];
 
     private static readonly ExposureSetting TenStopsDown = new FixedExposure(-10);
 
@@ -41,6 +44,7 @@ public sealed class BatcherLightTests
             meshes: Meshes,
             materialCount: 8,
             environment: environment ?? new WithoutMap(),
+            region: DeformRegion.None,
             scene: scene
         );
         return scene;
@@ -94,6 +98,17 @@ public sealed class BatcherLightTests
         );
 
     private static Vector3 Xyz(Vector4 value) => new(value.X, value.Y, value.Z);
+
+    /// <summary>The casters of the frame: its placed instances that cast shadows, in the snapshot's order.</summary>
+    private static PreparedInstance[] Casters(PreparedScene scene) =>
+        [.. scene.PlacedSpan.ToArray().Where(placed => placed.CastsShadow)];
+
+    /// <summary>A unit instance of mesh 0 with <paramref name="flags"/> alone, named <paramref name="entity"/>.</summary>
+    private static RenderInstance Flagged(uint entity, Vector3 position, RenderFlags flags) =>
+        Gpu.Instance(mesh: new(0), material: new(0), position: position, scale: Vector3.One, entity: entity) with
+        {
+            Flags = flags,
+        };
 
     /// <summary>The occluders of the far light <paramref name="light"/>: its own run of the frame's occluders.</summary>
     private static Vector4[] OccludersOf(PreparedScene scene, in PreparedLight light) =>
@@ -386,6 +401,24 @@ public sealed class BatcherLightTests
         OccludersOf(scene, scene.Lights[1]).Should().Equal(new Vector4(x: 0, y: 0, z: -1e9f, w: 4.5e5f));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void AnInstanceThatCastsNoShadowIsNoFarShadow(int cascadedLights)
+    {
+        // A planet beyond the shadow maps, then a ship of 50 m 500 m away, which the maps would also draw: both drawn, and
+        // neither casts a shadow.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Star(Vector3.UnitY, irradiance: 3));
+        snapshot.Instances.Add(Caster(new(0, 0, -3e7f), 6e6f) with { Flags = RenderFlags.Visible });
+        snapshot.Instances.Add(Caster(new(0, 0, -500), 50) with { Flags = RenderFlags.Visible });
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: Batcher(cascadedLights: cascadedLights));
+
+        scene.VisibleCount.Should().Be(2);
+        OccludersOf(scene, scene.Lights[0]).Should().BeEmpty();
+    }
+
     [Fact]
     public void OnlyACascadeSetPutsItsMappedCastersFirst()
     {
@@ -442,13 +475,94 @@ public sealed class BatcherLightTests
 
         // A quarter of the way, the moving caster is at (0, 1,500, -5,000) and the camera at (0, 0, 6). The third
         // instance casts no shadow.
-        scene
-            .CasterSpan.ToArray()
+        Casters(scene)
             .Select(caster => caster.Position)
             .Should()
             .Equal(new Vector3(0, 1_500, -5_006), new Vector3(0, 0, -506));
         // Both lights read the one interpolated place.
         OccludersOf(scene, scene.Lights[0]).Should().Contain(new Vector4(x: 0, y: 1_500, z: -5_006, w: 1_000));
         OccludersOf(scene, scene.Lights[1]).Should().Contain(new Vector4(x: 0, y: 1_500, z: -5_006, w: 1_000));
+    }
+
+    [Fact]
+    public void EachInstanceThatSomeViewMayDrawIsPlacedOnceInTheSnapshotsOrder()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Flagged(entity: 1, position: new(0, 0, -10), flags: RenderFlags.Visible));
+        snapshot.Instances.Add(Flagged(entity: 2, position: new(0, 0, -10), flags: RenderFlags.CastsShadow));
+        snapshot.Instances.Add(
+            Flagged(entity: 3, position: new(0, 0, -10), flags: RenderFlags.Visible | RenderFlags.CastsShadow)
+        );
+        snapshot.Instances.Add(Flagged(entity: 4, position: new(0, 0, -10), flags: RenderFlags.None));
+        snapshot.Instances.Add(
+            Flagged(entity: 5, position: new(0, 0, -10), flags: RenderFlags.Visible) with
+            {
+                Mesh = MeshId.None,
+            }
+        );
+        // Behind the camera, so that the main view culls it.
+        snapshot.Instances.Add(Flagged(entity: 6, position: new(0, 0, 10), flags: RenderFlags.Visible));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene
+            .PlacedSpan.ToArray()
+            .Select(placed => placed.EntityIndex)
+            .Should()
+            .Equal([1u, 2u, 3u, 6u], "no view draws the fourth, and the fifth has no mesh on the GPU");
+        scene.VisibleSpan.ToArray().Select(visible => visible.EntityIndex).Should().Equal(1u, 3u);
+    }
+
+    [Fact]
+    public void AVisibleCasterCastsFromThePlaceAndTheTurnThatTheMainViewDraws()
+    {
+        RenderSnapshot snapshot = Dark();
+        RenderInstance moving = Caster(new(0, 0, -50), 1) with
+        {
+            PreviousPosition = new(4, 0, -50),
+            PreviousRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1f),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f),
+        };
+        snapshot.Instances.Add(moving);
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.25f);
+
+        PreparedInstance caster = Casters(scene).Should().ContainSingle().Subject;
+        PreparedInstance drawn = scene.VisibleSpan.ToArray().Should().ContainSingle().Subject;
+        (caster.Position, caster.Rotation).Should().Be((drawn.Position, drawn.Rotation));
+        caster.Position.Should().Be(new Vector3(3, 0, -50));
+    }
+
+    [Fact]
+    public void ACasterThatIsNotVisibleCastsFromItsInterpolatedTurn()
+    {
+        RenderSnapshot snapshot = Dark();
+        RenderInstance hidden = Caster(new(0, 0, -50), 1, visible: false) with
+        {
+            PreviousRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1f),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f),
+        };
+        snapshot.Instances.Add(hidden);
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.25f);
+
+        Quaternion turn = Casters(scene).Should().ContainSingle().Subject.Rotation;
+        Quaternion
+            .Dot(turn, Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.8f))
+            .Should()
+            .BeApproximately(1f, 1e-6f, "a quarter of the way from 1 rad to 0.2 rad is 0.8 rad");
+        scene.VisibleCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ACasterThatTheMainViewCullsStillCasts()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Caster(new(0, 0, 50), 1));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        Casters(scene).Select(caster => caster.Position).Should().Equal(new Vector3(0, 0, 50));
+        scene.VisibleCount.Should().Be(0, "the caster is behind the camera");
     }
 }

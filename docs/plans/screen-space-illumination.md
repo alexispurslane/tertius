@@ -735,7 +735,7 @@ Before decision 40 it held `FarSteps` and `FarRayPerTexel` too, 24 bytes.
 
 ### GPU timers
 
-"direct light" replaces "lighting", and "ambient light" and "occlusion sectors" (in place of "occlusion horizons") join `RenderStats.GpuTimings`. With every member of the epic, the graph holds about 25 passes, within `GpuTimer.MaxPasses`, 31. The last ticket of the epic to merge counts them.
+"direct light" replaces "lighting", and "ambient light" and "occlusion sectors" (in place of "occlusion horizons") join `RenderStats.GpuTimings`. With every member of the epic, the graph holds about 25 passes, within `GpuTimer.MaxPasses`, 31. The last ticket of the epic to merge counts them. After the merge of main's deformation (2026-10-27), a frame with the renderer's defaults holds 25 passes, the deformation first, every optional pass among them (`ScriptCommandCaptureTests.FramePasses`). On MoltenVK the timers hold only for the frame span and for the sum of a pass and its neighbour, because a stamp can latch after the next pass's work (ARCHITECTURE.md, "GPU timings", `VulkanRenderer.StampsLatchLate`). So the per-pass costs of this design come from Metal System Traces (`tools/gpu-trace.sh`), and a timer figure below is marked as one.
 
 ### Resize
 
@@ -1030,7 +1030,7 @@ The table gives the memory traffic per frame at 1080p and the default setting, b
 | Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.33 ms |
 | Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.67 ms |
 
-The two depths around each step's exact place (`ter-y1s7`) cost no time that the GPU timers could tell from the noise. On `demo-surface.json` at 1280 × 720 in Release on the M1 Max, two runs of 7 frames per build, with the 1-minute load from 7.9 to 11.1, the sectors pass took a mean of 2.304 and 2.054 ms (median 2.225 and 2.087 ms) before, and 2.304 and 2.310 ms (median 2.247 and 2.197 ms) after: the difference lies within the 0.25 ms between two runs of one build.
+The two depths around each step's exact place (`ter-y1s7`) cost no time that the GPU timers could tell from the noise. On `demo-surface.json` at 1280 × 720 in Release on the M1 Max, two runs of 7 frames per build, with the 1-minute load from 7.9 to 11.1, the sectors pass took a mean of 2.304 and 2.054 ms (median 2.225 and 2.087 ms) before, and 2.304 and 2.310 ms (median 2.247 and 2.197 ms) after: the difference lies within the 0.25 ms between two runs of one build. These are the renderer's timer, which on MoltenVK can move work between the sectors pass and its neighbours (see "GPU timers"), so they say only that the change is small.
 
 So the occlusion passes were expected to take 4.0 to 8.4 ms together, against 1.7 ms for GTAO's, and the split 0.3 to 0.7 ms more. As built they took 8.9 to 9.2 ms on the M1 Max at 1080p, over the expectation and far over the 1 ms limit of the crease shadowing. The split costs about nothing: the direct and the ambient pass took 2.85 to 2.88 ms together as built, and 2.5 to 2.8 ms after the changes below, where main's one lighting pass took 2.96 ms in a trace of the same frames. The expected 0.3 to 0.7 ms more came from the timers' 1.64 ms. The arithmetic still gives the reasons, and the counters of a GPU trace show where it missed:
 

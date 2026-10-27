@@ -207,6 +207,19 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mp4")]
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "mkv")]
     [InlineData("--fps applies to a video", "--script", "script.json", "--headless", "--out", "out", "--fps", "30")]
+    [InlineData("--video applies to a headless run", "--script", "script.json", "--out", "out", "--video", "none")]
+    [InlineData(
+        "--video none writes no video",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--video",
+        "none",
+        "--fps",
+        "30"
+    )]
     [InlineData(
         "--fps needs a value",
         "--script",
@@ -571,7 +584,16 @@ public sealed class ScriptCommandTests : IDisposable
             .Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 0.5));
         played
             .Should()
-            .Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: false, Speed: 1));
+            .Be(
+                new ScriptCommand.Options(
+                    Script: "s.json",
+                    Scene: null,
+                    Out: "o",
+                    Headless: false,
+                    Speed: 1,
+                    Target: new PngFolder("o")
+                )
+            );
     }
 
     [Fact]
@@ -733,7 +755,7 @@ public sealed class ScriptCommandTests : IDisposable
                     Out: "o",
                     Headless: true,
                     Speed: 1,
-                    Video: new("o/v.mkv", 24)
+                    Target: new VideoFile("o/v.mkv", 24)
                 )
             );
         plain
@@ -745,7 +767,7 @@ public sealed class ScriptCommandTests : IDisposable
                     Out: "o",
                     Headless: true,
                     Speed: 1,
-                    Video: new("o/v.mkv", 30)
+                    Target: new VideoFile("o/v.mkv", 30)
                 )
             );
     }
@@ -763,12 +785,46 @@ public sealed class ScriptCommandTests : IDisposable
             .NotBeNull(problem);
 
     [Fact]
-    public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg()
+    public void VideoNoneDiscardsTheCapturesOfAHeadlessRun()
+    {
+        ScriptCommand.Options? discarded = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--video", "none"],
+            out string? problem
+        );
+
+        discarded
+            .Should()
+            .Be(
+                new ScriptCommand.Options(
+                    Script: "s.json",
+                    Scene: null,
+                    Out: "o",
+                    Headless: true,
+                    Speed: 1,
+                    Target: new Discard()
+                ),
+                problem
+            );
+    }
+
+    [Fact]
+    public void TheUsageLineNamesVideoNoneBesideTheVideoFile()
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--video");
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("[--video none|<file.mkv> [--fps <rate>]]");
+    }
+
+    [Theory]
+    [InlineData("v.mkv")]
+    [InlineData("none")]
+    public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg(string name)
     {
         string script = ScriptFile(
             """{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 }, { "do": "dump", "name": "end" } ] }"""
         );
-        string video = Path.Combine(folder, "v.mkv");
+        string video = name == "none" ? name : Path.Combine(folder, name);
         int started = 0;
 
         int code = ScriptCommand.Run(

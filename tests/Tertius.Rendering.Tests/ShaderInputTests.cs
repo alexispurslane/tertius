@@ -13,8 +13,8 @@ public sealed class ShaderInputTests
     /// <summary>A box, and a mesh that reaches 10^21 m from its origin.</summary>
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f),
-        new(FirstIndex: 36, IndexCount: 36, VertexOffset: 24, Radius: 1e21f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 36, IndexCount: 36, VertexOffset: 24, Radius: 1e21f, Deform: null),
     ];
 
     private static PreparedScene Prepare(RenderSnapshot snapshot)
@@ -30,6 +30,7 @@ public sealed class ShaderInputTests
                 meshes: Meshes,
                 materialCount: 1,
                 environment: new WithoutMap(),
+                region: DeformRegion.None,
                 scene: scene
             );
         return scene;
@@ -58,6 +59,21 @@ public sealed class ShaderInputTests
         ShaderInput.Fraction(0.25f).Should().Be(0.25f);
         ShaderInput.Fraction(float.PositiveInfinity).Should().Be(1);
     }
+
+    [Fact]
+    public void MorphWeightTurnsNaNIntoZero() =>
+        ShaderInput.MorphWeight(float.NaN).Should().Be(0, "a NaN weight adds none of its target");
+
+    [Theory]
+    [InlineData(0.25f, 0.25f)]
+    [InlineData(-3f, -3f)]
+    [InlineData(1024f, 1024f)]
+    [InlineData(2000f, 1024f)]
+    [InlineData(float.PositiveInfinity, 1024f)]
+    [InlineData(-2000f, -1024f)]
+    [InlineData(float.NegativeInfinity, -1024f)]
+    public void MorphWeightClampsToTheLargestMorphWeight(float weight, float read) =>
+        ShaderInput.MorphWeight(weight).Should().Be(read);
 
     [Fact]
     public void AnIntensityIsReadAsItsNearestValueFromZeroToTheLargestIntensityAndANaNAsZero()
@@ -280,7 +296,7 @@ public sealed class ShaderInputTests
     [InlineData(0f, float.PositiveInfinity)]
     public void AMeshWithANumberThatIsNotFiniteIsRefused(float position, float texCoord)
     {
-        var queue = new UploadQueue(64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
         MeshData box = Primitives.Box(Vector3.One);
         Vertex[] vertices = [.. box.Vertices];
         vertices[0].Position.X = position;
@@ -295,7 +311,7 @@ public sealed class ShaderInputTests
     [Fact]
     public void AMeshWithANormalOrTangentThatIsNotFiniteIsRefused()
     {
-        var queue = new UploadQueue(64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
         MeshData box = Primitives.Box(Vector3.One);
         Vertex[] normal = [.. box.Vertices];
         normal[0].Normal.Y = float.NaN;

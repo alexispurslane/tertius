@@ -190,7 +190,8 @@ internal abstract class RenderPass : IDisposable
 
 /// <summary>
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
-/// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>, then
+/// they were added. The renderer fills <see cref="Stage.Deformation"/> (<see cref="DeformPass"/>, under
+/// <see cref="RendererOptions.Deformation"/>), <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>, then
 /// <see cref="LocalShadowPass"/> under <see cref="LocalShadowAtlas"/>), the environment map's
 /// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
 /// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
@@ -214,6 +215,11 @@ internal sealed class FrameGraph : IDisposable
 
     public enum Stage
     {
+        /// <summary>
+        /// The deform pass, under <see cref="RendererOptions.Deformation"/>: first, because every pass that draws a mesh
+        /// draws the deformed copies that it writes (docs/plans/skinning-and-morphs.md, "Barriers and the frame graph").
+        /// </summary>
+        Deformation,
         ShadowMaps,
 
         /// <summary>The environment map's faces of this frame, after the shadow maps, because a face samples this frame's cascades.</summary>

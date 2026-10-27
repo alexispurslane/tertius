@@ -428,7 +428,7 @@ public sealed class EnvironmentPrefilterTests
 
     /// <summary>
     /// On the largest map the first dispatch of the specular map spreads its 172,032 workgroups over three rows
-    /// (<see cref="PrefilterLevels.Grid"/>), so each workgroup rebuilds its place from its row and column. Level 0, whose
+    /// (<see cref="ComputeLimits.Grid"/>), so each workgroup rebuilds its place from its row and column. Level 0, whose
     /// workgroups fill the first row and part of the second, is the radiance map texel for texel. Levels 1 to 3, whose
     /// workgroups lie in the second and third rows, hold at texels spread over every face the sum over their samples.
     /// </summary>

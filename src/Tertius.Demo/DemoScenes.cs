@@ -226,6 +226,7 @@ public static partial class DemoScenes
         new("mirror-balls", MirrorBalls),
         .. ShadowScenes,
         .. BounceLightScenes,
+        .. RigScenes,
     ];
 
     /// <summary>

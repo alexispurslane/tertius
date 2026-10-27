@@ -152,7 +152,7 @@ public sealed class PrefilterLevelsTests
                 .Range(first, count)
                 .Sum(level => (long)PrefilterLevels.Workgroups(level: level, faceSize: faceSize));
 
-            (int x, int y) = PrefilterLevels.Grid((int)groups);
+            (uint x, uint y) = ComputeLimits.Grid((uint)groups);
 
             x.Should()
                 .BeInRange(
@@ -176,19 +176,6 @@ public sealed class PrefilterLevelsTests
             ((long)x * (y - 1)).Should().BeLessThan(groups, "the grid of dispatch {0} has no idle row", dispatch);
         }
     }
-
-    /// <summary>
-    /// The grid of any count of workgroups has as few rows as hold them at 65,535 per row, and rows as short as hold them,
-    /// so it holds every workgroup and ends fewer than a row's count of rows past the last.
-    /// </summary>
-    [Theory]
-    [InlineData(1, 1, 1)]
-    [InlineData(65535, 65535, 1)]
-    [InlineData(65536, 32768, 2)]
-    [InlineData(131071, 43691, 3)]
-    [InlineData(172032, 57344, 3)]
-    public void TheGridHoldsTheWorkgroupsInTheFewestAndShortestRows(int groups, int x, int y) =>
-        PrefilterLevels.Grid(groups).Should().Be((x, y));
 
     [Fact]
     public void LevelKHoldsRoughnessKOverTheLastLevel()

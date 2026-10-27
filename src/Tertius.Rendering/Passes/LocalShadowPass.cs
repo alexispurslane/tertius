@@ -55,7 +55,8 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         PreparedScene scene = context.Scene;
         Tiles.Update(
             lights: scene.LightSpan,
-            casters: scene.CasterSpan,
+            placed: scene.PlacedSpan,
+            deformed: scene.Deformed,
             originFrameId: context.Snapshot.OriginFrameId,
             views: views,
             draws: draws
@@ -63,7 +64,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         ReadOnlySpan<PreparedLight> lights = scene.LightSpan;
         foreach (TileView view in views)
             scene.AddShadowTile(GpuShadowTile.Of(light: lights[view.Light], view: view, tileSize: atlas.TileSize));
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         foreach (TileDraw draw in draws)
             scene.DrawnTiles.Add(new(View: draw.View, Commands: Emit(scene: scene, meshes: meshes, draw: draw)));
     }
@@ -73,10 +74,10 @@ internal sealed unsafe class LocalShadowPass : RenderPass
     {
         int first = scene.CommandCount,
             currentMesh = -1;
-        ReadOnlySpan<ShadowCaster> casters = scene.CasterSpan;
+        ReadOnlySpan<PreparedInstance> placed = scene.PlacedSpan;
         for (int i = draw.First; i < draw.First + draw.Count; i++)
         {
-            ref readonly ShadowCaster caster = ref casters[Tiles.CasterIndices[i]];
+            ref readonly PreparedInstance caster = ref placed[Tiles.CasterIndices[i]];
             // The depth-only pass reads no material and no map.
             var instance = GpuInstance.From(
                 position: caster.Position,

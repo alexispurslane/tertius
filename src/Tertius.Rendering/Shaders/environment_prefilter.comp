@@ -110,7 +110,7 @@ void store(uint binding, ivec3 texel, vec4 value)
 void main()
 {
     // The workgroup's place in the dispatch. The workgroups lie in rows of at most 65,535, the least
-    // maxComputeWorkGroupCount of the specification (PrefilterLevels.Grid), and those past the last row's end return
+    // maxComputeWorkGroupCount of the specification (ComputeLimits.Grid), and those past the last row's end return
     // before any barrier, as a whole workgroup.
     uint group = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
     if (group >= prefilter.groupCount)

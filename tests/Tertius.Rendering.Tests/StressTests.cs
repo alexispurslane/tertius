@@ -160,8 +160,8 @@ public sealed class StressTests(ITestOutputHelper output)
             // The CPU cost of the impostor decisions alone: batching the same snapshot with and without the manager.
             MeshInfo[] meshes =
             [
-                new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f)),
-                new(FirstIndex: 36, IndexCount: 3000, VertexOffset: 24, Radius: 0.5f),
+                new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: MathF.Sqrt(0.75f), Deform: null),
+                new(FirstIndex: 36, IndexCount: 3000, VertexOffset: 24, Radius: 0.5f, Deform: null),
             ];
 
             double Batch(bool withManager)
@@ -179,6 +179,7 @@ public sealed class StressTests(ITestOutputHelper output)
                         meshes: meshes,
                         materialCount: 8,
                         environment: default,
+                        region: DeformRegion.None,
                         scene: scene
                     );
                 var timer = Stopwatch.StartNew();
@@ -191,6 +192,7 @@ public sealed class StressTests(ITestOutputHelper output)
                         meshes: meshes,
                         materialCount: 8,
                         environment: default,
+                        region: DeformRegion.None,
                         scene: scene
                     );
                 return timer.Elapsed.TotalMilliseconds / 50;

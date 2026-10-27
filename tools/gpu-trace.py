@@ -274,7 +274,8 @@ def report(args) -> int:
 
     lines = [
         f"{timings['device']}, {timings['width']} x {timings['height']}: {frames} frames, {skipped} other command buffers.",
-        "Times are the GPU busy time of each pass's encoders, in milliseconds.",
+        "Times are the GPU busy time of each pass's encoders, in milliseconds. Read each pass's own time here: on MoltenVK the"
+        " pass times of gpu-timings.json hold only for the span and for sums of neighbouring passes (tools/README.md, \"GPU trace\").",
         "",
         "| Pass | Frames | Mean | Median | p95 | Top limiter | Second limiter | Read GB/s | Write GB/s |",
         "|---|---|---|---|---|---|---|---|---|",
