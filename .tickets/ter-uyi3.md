@@ -1,6 +1,6 @@
 ---
 id: ter-uyi3
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T22:20:03Z
