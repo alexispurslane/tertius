@@ -98,9 +98,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
-
-    /// <summary>The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter.</summary>
-    private readonly ScatterImages? scatterImages;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureResources exposure;
@@ -161,7 +158,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 subsurface: options.Subsurface
             );
             // Before every pass, whose shading constants say whether the scatter is on.
-            scatterImages = CreateScatterImages(options.Subsurface);
+            ScatterImages = CreateScatterImages(options.Subsurface);
             exposure = CreateExposure(options.FramesInFlight);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
@@ -220,7 +217,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter. A test hook.
     /// </summary>
-    internal ScatterImages? ScatterImages => scatterImages;
+    internal ScatterImages? ScatterImages { get; }
 
     internal SceneBatcher Batcher { get; }
 
@@ -771,7 +768,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             BrdfTableImages.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
-            scatterImages?.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
+            ScatterImages?.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
@@ -859,7 +856,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return;
         targets.Resize(extent);
         occlusionImages?.Resize(targets);
-        scatterImages?.Resize(targets);
+        ScatterImages?.Resize(targets);
     }
 
     /// <summary>
@@ -971,7 +968,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <exception cref="InvalidOperationException">The scatter is off.</exception>
     internal float[] ReadScatter() =>
         ReadLevel(
-            image: (scatterImages ?? throw new InvalidOperationException("The skin scatter is off.")).Scatter,
+            image: (ScatterImages ?? throw new InvalidOperationException("The skin scatter is off.")).Scatter,
             layer: 0,
             mip: 0
         ).Values;
@@ -1579,7 +1576,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void AddScatterPasses(ShaderLibrary shaders)
     {
-        if (scatterImages is not { } images)
+        if (ScatterImages is not { } images)
             return;
         foreach (ScatterAxis axis in (ScatterAxis[])[ScatterAxis.Rows, ScatterAxis.Columns])
             Graph.Add(
@@ -1911,7 +1908,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: scatterImages
+                scatter: ScatterImages
             )
         );
         Graph.Add(
@@ -1921,7 +1918,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: scatterImages
+                scatter: ScatterImages
             )
         );
     }

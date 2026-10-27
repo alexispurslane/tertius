@@ -211,7 +211,10 @@ public sealed class GpuTimingTests
             renderer
                 .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
                 .Should()
-                .NotContain(pass => pass.Pass.StartsWith("scatter"), "the renderer makes no scatter pass without the setting");
+                .NotContain(
+                    pass => pass.Pass.StartsWith("scatter"),
+                    "the renderer makes no scatter pass without the setting"
+                );
         }
         finally
         {
@@ -224,7 +227,7 @@ public sealed class GpuTimingTests
     {
         // Every pass that a setting adds, each with the most passes it can add: the half-resolution trace's upsample, the
         // three SMAA passes and the four occlusion passes among them.
-        using VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+        using var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
                 Validation = true,

@@ -82,7 +82,10 @@ internal sealed class RenderTargets : IDisposable
     ];
 
     /// <summary>The G-buffer color attachments of the passes that draw it, in the order of <see cref="GBufferFormats"/>, unblended.</summary>
-    public static readonly ColorAttachment[] GBufferAttachments = [.. GBufferFormats.Select(format => new ColorAttachment(format))];
+    public static readonly ColorAttachment[] GBufferAttachments =
+    [
+        .. GBufferFormats.Select(format => new ColorAttachment(format)),
+    ];
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;

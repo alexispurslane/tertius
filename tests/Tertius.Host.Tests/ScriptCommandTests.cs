@@ -359,15 +359,7 @@ public sealed class ScriptCommandTests : IDisposable
         "--environment-map",
         "dim"
     )]
-    [InlineData(
-        "--subsurface needs a value",
-        "--script",
-        "script.json",
-        "--headless",
-        "--out",
-        "out",
-        "--subsurface"
-    )]
+    [InlineData("--subsurface needs a value", "--script", "script.json", "--headless", "--out", "out", "--subsurface")]
     [InlineData(
         "--subsurface applies to a headless run",
         "--script",

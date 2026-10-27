@@ -293,8 +293,8 @@ public sealed class SkinScatterRenderTests
         float[] scatter = renderer.ReadScatter();
         float[] distances = renderer.ReadDistance();
         var light = new Double3[size.Width * size.Height];
-        var skin = new bool[size.Width * size.Height];
-        var depths = new double[size.Width * size.Height];
+        bool[] skin = new bool[size.Width * size.Height];
+        double[] depths = new double[size.Width * size.Height];
         for (int y = 0; y < size.Height; y++)
         for (int x = 0; x < size.Width; x++)
         {
