@@ -1,0 +1,9 @@
+{
+  "scene": "rigs-crowd",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "crowd" },
+    { "do": "film", "name": "timing", "frames": 600, "every": 1 }
+  ]
+}

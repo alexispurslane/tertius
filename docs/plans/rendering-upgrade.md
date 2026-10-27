@@ -22,6 +22,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
 | `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
 | `ter-uy7y` | Environment maps per frame on the camera's chain, so that a lit interior does not light the outdoors seen through its windows | The environment map | [environment-maps-per-frame.md](environment-maps-per-frame.md) |
+| `ter-4vzc` | Skinning and morph targets: meshes that deform by an entity's rig pose in every pass that draws a mesh, by one compute pass before the shadow maps (user, 2026-10-26) | The lights epic | [skinning-and-morphs.md](skinning-and-morphs.md) |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
 | `ter-pq5y` | The coda: profile every pass and hold the whole frame to 12 ms of GPU time at 1080p | Every member above | [rendering-performance.md](rendering-performance.md) |
