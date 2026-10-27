@@ -138,8 +138,8 @@ flowchart TB
 | glTF `MASK` draws as glass (asset-pipeline.md, AS3003) | `CutoutAlpha(Cutoff)` |
 | `GpuMaterial` holds 52 bytes of fields | 60 bytes: a shading word and the cutoff, in the same stride of 64 |
 | The batcher knows the material slots' count only | It reads each slot's `MaterialInfo`, its alpha mode |
-| One opaque command range per depth range, per cascade, per atlas tile and per face range | `OpaqueRuns(Solid, Cutout)` in each |
-| `TransparentRun` is `MeshCommands` or `PuffSprites` | `GlassCommands` (the renamed `MeshCommands`), `FringeCommands` or `PuffSprites` |
+| One opaque command range per depth range, per cascade, per atlas tile and per face range | `OpaqueRuns(Solid, Cutout)` in each, and in the main view and the faces a `SidedRuns(OneSided, TwoSided)` of two (decision 32) |
+| `TransparentRun` is `MeshCommands` or `PuffSprites` | `GlassCommands` (the renamed `MeshCommands`), `FringeCommands` or `PuffSprites`. The glass and fringe runs carry their sides, `TwoSided` (decision 32) |
 | Five G-buffer targets | Six: the shading target |
 | `brdf()` returns the reflected light of one light as one sum | `respond()` returns `DirectTerms` (diffuse, specular) by the shading model |
 | `ShadingInput` and `SurfaceSample` have no model | Both gain `model` and `strand` |
@@ -311,26 +311,29 @@ The target is a `UINT` format, so it holds integers and its codes need no rule f
 
 The batcher reads each instance's alpha mode once, from its material slot's `MaterialInfo`, into `PreparedInstance.Alpha`, and every decision of the frame reads that field:
 
-- The opaque sort key becomes (range, cutout, mesh), with solid before cutout, so each view's commands form a solid run and then a cutout run.
-- `PreparedScene.Opaque` per depth range, `ShadowCommands` per cascade, each atlas tile's commands and each `EnvironmentFaceDraw`'s `Far`, `Middle` and `Near` become an `OpaqueRuns`:
+- The opaque sort key becomes (range, cutout, two-sided, mesh), with solid before cutout and one-sided before two-sided, so each view's commands form the runs one-sided solid, two-sided solid, one-sided cutout and two-sided cutout. Decision 32 added the two-sided bit ("Both sides of a hair card").
+- `ShadowCommands` per cascade and each atlas tile's commands become an `OpaqueRuns`. `PreparedScene.Opaque` per depth range and each `EnvironmentFaceDraw`'s `Far`, `Middle` and `Near` become a `SidedRuns` of two `OpaqueRuns`, one per side (decision 32):
 
   ```csharp
   /// <summary>The opaque commands of one view: the solid draws, then the cutout draws.</summary>
   internal readonly record struct OpaqueRuns(CommandRange Solid, CommandRange Cutout);
+
+  /// <summary>The opaque commands of one view of a pass that shades: the runs of the one-sided materials and of the two-sided ones.</summary>
+  internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSided);
   ```
 
 - A fringed instance goes into the opaque list and into the transparent list. The transparent list sorts it with the glass and the puffs by its center, back to front, as today.
 - `TransparentRun` gains a case:
 
   ```csharp
-  internal readonly record struct GlassCommands(CommandRange Commands);   // the renamed MeshCommands
-  internal readonly record struct FringeCommands(CommandRange Commands);
+  internal readonly record struct GlassCommands(CommandRange Commands, bool TwoSided);   // the renamed MeshCommands
+  internal readonly record struct FringeCommands(CommandRange Commands, bool TwoSided);
 
   [GeneratedUnion(typeof(GlassCommands), typeof(FringeCommands), typeof(PuffSprites))]
   internal readonly partial struct TransparentRun;
   ```
 
-  The transparent pass draws a `FringeCommands` run with the fringe pipeline. It has the scene layout, so the sets and the push constants stay bound between runs, as for the puffs.
+  `TwoSided` is the sides of the run's materials (decision 32): a run breaks where the sides change, and the pass draws a two-sided run with the variant of its pipeline that culls no face. The transparent pass draws a `FringeCommands` run with the fringe pipeline. It has the scene layout, so the sets and the push constants stay bound between runs, as for the puffs.
 - `ImpostorManager` keeps out `NoImpostor` and `Celestial` instances by their flags, as today, and a glass or fringed instance by `PreparedInstance.Alpha`.
 
 ### The cutout test
@@ -369,7 +372,7 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inNormal, inHemisphere, inMaterialAndMap.y, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
     float coverage = s.baseColor.a;
     // The core drew in the G-buffer pass, and a clear texel covers nothing.
     if (coverage >= materials[inMaterialAndMap.x].alphaCutoff || coverage <= 0.0)
@@ -506,7 +509,7 @@ where
 - `alongV` = the direction in which the texture's v grows: the opposite of that frame's bitangent, cross(n, t) times the tangent's sign.
 - `cardNormal` = the shading normal. `strandOf` made T perpendicular to it, so it is across the strand.
 
-`sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, s.normal)`. Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.
+`sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, turnedToward(s.normal, V))`, with the card's normal turned toward the eye ("Both sides of a hair card"). Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.
 
 ### Both sides of a hair card
 
@@ -709,6 +712,10 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 | `PreparedInstance.Alpha` | `SceneBatcher`, from the slot's `MaterialInfo` | Batching | The opaque sort, the runs, the transparent list, `ImpostorManager` | Batching | The prepared scene | `PreparedInstance.Flags` |
 | `OpaqueRuns` of each view | `SceneBatcher`, `ShadowPass`, `LocalShadowPass` | Batching | `GeometryPass`, `ShadowPass`, `LocalShadowPass`, `EnvironmentFacePass` | `ShadowMaps`, `EnvironmentFaces`, `GBuffer` | `PreparedScene` | Today's `CommandRange` per view |
 | `MaterialInfo.TwoSided`, `PreparedInstance.TwoSided` (decision 32) | `MaterialStore.Upload`, then `SceneBatcher` | The uploads, batching | The opaque sort, the runs, the transparent runs, `ImpostorManager` | Batching | `MaterialStore.Infos`, the prepared scene | `PreparedInstance.Alpha` |
+| `ImpostorCapture.TwoSided` (decision 32) | `ImpostorManager`, from `PreparedInstance.TwoSided` | Batching | `ImpostorPass.PrepareCaptures` | `FrameGraph.Prepare`, before the stages | `ImpostorManager.Captures` | `ImpostorCapture.Alpha` |
+| `PreparedCapture.TwoSided` (decision 32) | `ImpostorPass.PrepareCaptures` | `FrameGraph.Prepare` | `ImpostorPass`, which binds the capture pipeline's variant by it | `ImpostorCaptures` | `ImpostorPass`'s prepared captures | `PreparedCapture.Cutout` |
+| `GlassCommands.TwoSided`, `FringeCommands.TwoSided` (decision 32) | `SceneBatcher`, from `PreparedInstance.TwoSided` | Batching | `TransparentPass`, which binds the glass or fringe pipeline's variant by it | `Transparent` | `PreparedScene.Transparent` | The run's kind |
+| The `SidedPipeline` variants (decision 32) | The constructors of `GeometryPass`, `EnvironmentFacePass`, `ImpostorPass` and `TransparentPass` | The renderer's creation | `GeometryPass.DrawRuns` for the main view and the faces, `ImpostorPass`, `TransparentPass` | `EnvironmentFaces`, `ImpostorCaptures`, `GBuffer`, `Transparent` | Each pass | The cutout pipelines |
 | `SidedRuns` of the main view and of each face (decision 32) | `SceneBatcher` | Batching | `GeometryPass`, `EnvironmentFacePass` | `EnvironmentFaces`, `GBuffer` | `PreparedScene` | `OpaqueRuns` |
 | `FringeCommands` runs | `SceneBatcher` | Batching | `TransparentPass` | `Transparent` | `PreparedScene.Transparent` | `MeshCommands` |
 | The kernel | `SkinProfile.Kernel`, once at creation, then uploaded | The first frame's uploads | The scatter passes | `SkinScatter` | The kernel buffer of `ScatterImages` | The BRDF tables |
@@ -1159,7 +1166,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
   // TransparentRun: GlassCommands, FringeCommands, PuffSprites
   ```
 
-  and in GLSL the constant `cutoutAlpha` and `ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)`.
+  and in GLSL the constant `cutoutAlpha` and `ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)`. Decision 32 removed `vertexNormal`: `forwardShading` takes `s.geometricNormal`, which `sampleMaterial` turns toward the eye for hair.
 - Takes: Part 1's `AlphaMode`, `MaterialInfo`, `GpuMaterial.AlphaCutoff`.
 - Done: a fringed card shows no rectangle, and a cutout casts the shadow of its core. The reviewer checks the Linux claims of the new site rows.
 

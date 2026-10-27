@@ -13,7 +13,8 @@ struct SurfaceSample
 {
     vec4 baseColor;       // linear RGB and alpha
     vec3 normal;          // unit world-space normal after normal mapping
-    vec3 geometricNormal; // the unit interpolated vertex normal: the surface that the shadow maps see
+    vec3 geometricNormal; // the unit interpolated vertex normal: the surface that the shadow maps see. For hair, turned
+                          // toward the eye (docs/plans/skin-and-hair.md, "Both sides of a hair card")
     float metallic;       // 0 to 1
     float roughness;      // r₀, 0 to 1, before the BRDF's floor
     float reflectance;    // 0 to 1: a non-metal's F0 is 0.16 times its square

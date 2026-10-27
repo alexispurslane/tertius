@@ -317,6 +317,23 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void AGlassHairMaterialDrawsInATwoSidedGlassRun()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Instances.Add(BoxOf(MaterialSlots.GlassHair, new(0, 0, -10)));
+        snapshot.Instances.Add(BoxOf(MaterialSlots.Glass, new(0, 0, -15)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, materials: 11);
+
+        // Glass has no core, so the glass commands start at 0, back to front, one run per side.
+        scene
+            .Transparent[DepthRanges.Near]
+            .Should()
+            .Equal(GlassRun(0, 1), new GlassCommands(Commands: new(1, 1), TwoSided: true));
+        Placed(scene, new CommandRange(1, 1)).Should().Equal(new Vector3(0, 0, -10));
+    }
+
+    [Fact]
     public void AFaceDrawsAHairMaterialInItsTwoSidedRun()
     {
         RenderSnapshot snapshot = Empty();

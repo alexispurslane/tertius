@@ -577,10 +577,13 @@ internal static class MaterialSlots
     /// <summary>The fringed hair material of the CPU tests, two-sided, with a cutoff of 0.5: slot 9 of <see cref="Of"/>.</summary>
     public static readonly MaterialId FringedHair = new(8);
 
+    /// <summary>The glass hair material of the CPU tests, two-sided: slot 10 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId GlassHair = new(9);
+
     /// <summary>
     /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque and one-sided but those
-    /// of <see cref="Cutout"/>, <see cref="Fringed"/>, <see cref="Glass"/>, <see cref="Hair"/> and
-    /// <see cref="FringedHair"/>, when there are such slots.
+    /// of <see cref="Cutout"/>, <see cref="Fringed"/>, <see cref="Glass"/>, <see cref="Hair"/>, <see cref="FringedHair"/>
+    /// and <see cref="GlassHair"/>, when there are such slots.
     /// </summary>
     public static MaterialInfo[] Of(int count = 8)
     {
@@ -590,6 +593,7 @@ internal static class MaterialSlots
         Set(slots, Glass, new(Alpha: new GlassAlpha(), TwoSided: false));
         Set(slots, Hair, new(Alpha: new OpaqueAlpha(), TwoSided: true));
         Set(slots, FringedHair, new(Alpha: new FringedAlpha(Cutoff: 0.5f), TwoSided: true));
+        Set(slots, GlassHair, new(Alpha: new GlassAlpha(), TwoSided: true));
         return slots;
     }
 

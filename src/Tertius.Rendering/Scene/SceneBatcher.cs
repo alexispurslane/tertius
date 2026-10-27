@@ -50,16 +50,22 @@ internal sealed class SceneBatcher(
         LargestScale = 1.1529215e18f;
 
     /// <summary>
-    /// The bit of an opaque draw item's key that puts it into its range's cutout runs, below the range's bits and above
-    /// <see cref="TwoSidedKeyBit"/>.
+    /// The lowest of the two bits of an opaque draw item's key that name its run, so that the two read as one number:
+    /// twice <see cref="CutoutKeyBit"/>'s plus <see cref="TwoSidedKeyBit"/>'s.
     /// </summary>
-    internal const ulong CutoutKeyBit = 1UL << 31;
+    private const int RunKeyShift = 30;
+
+    /// <summary>
+    /// The bit of an opaque draw item's key that puts it into its range's cutout runs, below the range's bits and just
+    /// above <see cref="TwoSidedKeyBit"/>.
+    /// </summary>
+    internal const ulong CutoutKeyBit = TwoSidedKeyBit << 1;
 
     /// <summary>
     /// The bit of an opaque draw item's key that puts it into its range's two-sided runs, above the mesh's bits, which a
     /// mesh index below 2³⁰ never reaches: no geometry buffer holds a billion meshes.
     /// </summary>
-    internal const ulong TwoSidedKeyBit = 1UL << 30;
+    internal const ulong TwoSidedKeyBit = 1UL << RunKeyShift;
 
     /// <summary>The bits of an opaque draw item's key that name its run.</summary>
     private const ulong RunKeyBits = CutoutKeyBit | TwoSidedKeyBit;
@@ -1337,7 +1343,7 @@ internal sealed class SceneBatcher(
         private static int KeyIndex(DrawItem item, int meshCount)
         {
             // The two run bits read as one number: twice the cutout bit plus the two-sided bit.
-            int run = (int)((item.Key & RunKeyBits) >> 30);
+            int run = (int)((item.Key & RunKeyBits) >> RunKeyShift);
             int mesh = (int)((uint)item.Key & ~(uint)RunKeyBits);
             return ((int)(item.Key >> 32) * RunsPerRange + run) * meshCount + mesh;
         }
