@@ -31,3 +31,7 @@ The acceptance read of the orbit scene (ter-fe04) measured the effect. At 60 tic
 **2026-10-27T07:02:36Z**
 
 2026-10-27: the orchestrator settled the design by the one-store rule. The one store is the tick rate. World.Time and TimeAt are StartTime + tick / (double)TickRate. DeltaTime becomes a double that is derived from the tick rate, not a second store beside a float. Jolt's float step casts at the physics seam.
+
+**2026-10-27T07:21:24Z**
+
+2026-10-27: the first builder stopped on a fork: the numeric-frame clocks summed dt, and 30 sums of 1/60 give 0.49999999999999994 < ThrustOnset 0.5, so the onset moved to tick 31. The orchestrator settled it: the numeric-frame clocks count whole ticks and compare as count / tick rate, the same rule as the world clock, so the onset stays at tick 30. The seam rule for Jolt: what feeds or predicts Jolt's step uses Jolt's float step; frame motion, inertial lines, Kepler places and time use the double tick.
