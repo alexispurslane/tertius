@@ -1,6 +1,6 @@
 ---
 id: ter-gk9o
-status: in_progress
+status: closed
 deps: [ter-4zt6, ter-yiii]
 links: []
 created: 2026-10-21T16:10:46Z
@@ -13,3 +13,9 @@ parent: ter-4zt6
 
 Task 9 of docs/plans/particles.md: the GPU time of the puff runs, measured with the GPU timer of ter-yiii. Split from the particle epic's build on 2026-10-21. It does not block the plumes.
 
+
+## Notes
+
+**2026-10-27T03:59:06Z**
+
+Merged as docs: about 0.3 ms per frame in puff-yard and 0.8 ms in blue-danube's ramp run, a fill cost that follows the pixels covered.
