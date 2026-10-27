@@ -100,39 +100,15 @@ internal sealed unsafe class ShadowPass : RenderPass
 
     /// <summary>
     /// The cascades of every set that draw an instance, as a mask with the bit <see cref="ShadowMap.Layer"/> for each
-    /// (<see cref="SetMask"/>).
+    /// (<see cref="ShadowCascades.SetMask"/>).
     /// </summary>
     internal static int CascadeMask(PreparedScene scene, in PreparedInstance caster)
     {
         int mask = 0;
         for (int set = 0; set < scene.CascadeSetCount; set++)
-            mask |= SetMask(scene, set, caster) << ShadowMap.Layer(set, 0);
-        return mask;
-    }
-
-    /// <summary>
-    /// The cascades of set <paramref name="set"/> that draw an instance, as a mask with bit i for cascade i: none unless it
-    /// casts shadows and the maps take it (<see cref="ShadowCascades.TakesCaster"/>), and then each cascade whose box its
-    /// sphere overlaps, or the part of the set's light view in front of the box, toward the light.
-    /// </summary>
-    internal static int SetMask(PreparedScene scene, int set, in PreparedInstance caster)
-    {
-        if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
-            return 0;
-        int mask = 0;
-        Vector3 lightPosition = scene.CascadeBases[set].ToLight(caster.Position);
-        for (int i = 0; i < ShadowCascades.Count; i++)
-        {
-            ref readonly ShadowCascade cascade = ref scene.CascadeSets[set][i];
-            float reach = cascade.HalfExtent + caster.Radius;
-            if (
-                MathF.Abs(lightPosition.X - cascade.Center.X) <= reach
-                && MathF.Abs(lightPosition.Y - cascade.Center.Y) <= reach
-                && lightPosition.Z + caster.Radius >= cascade.Center.Z - cascade.DepthHalfRange
-            )
-                mask |= 1 << i;
-        }
-
+            mask |=
+                ShadowCascades.SetMask(light: scene.CascadeBases[set], cascades: scene.CascadeSets[set], caster: caster)
+                << ShadowMap.Layer(set, 0);
         return mask;
     }
 

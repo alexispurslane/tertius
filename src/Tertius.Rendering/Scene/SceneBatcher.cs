@@ -1019,8 +1019,9 @@ internal sealed class SceneBatcher(
     /// is also a sphere of its bounding radius, which shadows the light for points outside it and never for points inside
     /// it (see <see cref="Eclipse.Visibility"/>). Only a sphere that can be noticed, by the light's own angular radius at
     /// the camera: a caster beyond the maps must cover a pixel or a fifth of that radius seen from the camera; a caster
-    /// that the maps take must hide 4% of the light from where its far receivers start, more than 2 km from the camera.
-    /// The casters that the light's <see cref="CascadeSet"/> draws (<see cref="ShadowPass.SetMask"/>) come first. For a
+    /// that the maps take must hide 4% of the light from 2 km from the camera, where the far receivers of a drawn caster
+    /// start (<see cref="AddInReach"/>).
+    /// The casters that the light's <see cref="CascadeSet"/> draws (<see cref="ShadowCascades.SetMask"/>) come first. For a
     /// <see cref="FarShadowsOnly"/> light every caster is beyond the maps.
     /// </summary>
     private static void CollectFarShadows(PreparedScene scene)
@@ -1063,8 +1064,10 @@ internal sealed class SceneBatcher(
     }
 
     /// <summary>
-    /// The far shadows of the casters that the maps take (<see cref="ShadowCascades.TakesCaster"/>) and that hide 4% of
-    /// the light from beyond the maps: those that cascade set <paramref name="set"/> draws, or those that it does not.
+    /// The far shadows of the casters in reach of the maps (<see cref="ShadowCascades.InReach"/>) that hide 4% of the
+    /// light from beyond the maps: those that cascade set <paramref name="set"/> draws, or those that it does not. A caster
+    /// that the set does not draw counts as a sphere at receivers nearer than 2 km too, where this size test drops a
+    /// shadow that can show; that is a known limit.
     /// </summary>
     private static void AddInReach(
         PreparedScene scene,
@@ -1074,15 +1077,19 @@ internal sealed class SceneBatcher(
         bool drawn
     )
     {
+        ref readonly LightBasis light = ref scene.CascadeBases[set];
+        ref readonly ShadowCascadeArray cascades = ref scene.CascadeSets[set];
         foreach (ref readonly PreparedInstance caster in placed)
         {
-            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+            // The size test comes before the box test, which most casters in reach fail. The far receivers lie beyond
+            // the maps, at least 2 km from the camera, so at least this far from the caster.
+            if (
+                !ShadowCascades.InReach(caster)
+                || caster.Radius < MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare
+            )
                 continue;
-            bool drawnBySet = ShadowPass.SetMask(scene, set, caster) != 0;
-            if (drawnBySet != drawn)
-                continue;
-            // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.
-            if (caster.Radius >= MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare)
+            bool drawnBySet = ShadowCascades.SetMask(light: light, cascades: cascades, caster: caster) != 0;
+            if (drawnBySet == drawn)
                 scene.AddOccluder(new(caster.Position, caster.Radius));
         }
     }
