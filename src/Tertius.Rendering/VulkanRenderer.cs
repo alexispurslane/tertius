@@ -939,6 +939,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadNormals() => ReadLevel(image: targets.Normal, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The G-buffer's shading target of the last frame, RGBA per pixel, row by row from the top: a hair pixel's strand
+    /// code in RG, 0 in B, the shading model's code in A (<see cref="ShadingCode"/>, <see cref="StrandCode"/>). A test
+    /// hook, like <see cref="ReadDistance"/>.
+    /// </summary>
+    internal byte[] ReadShading() =>
+        [.. ReadLevel(image: targets.Shading, layer: 0, mip: 0).Values.Select(value => (byte)value)];
+
+    /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1235,11 +1243,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         /// <summary>A 16-bit signed normalized integer, for −1 to 1.</summary>
         Snorm16,
+
+        /// <summary>An 8-bit unsigned integer, read as its value.</summary>
+        Uint8,
     }
 
     /// <summary>
-    /// Copies one mip of one layer of a color image of floats or of 16-bit signed normalized integers to the CPU, as
-    /// floats, channel by channel, row by row from the top, with the mip's size.
+    /// Copies one mip of one layer of a color image of floats, of 16-bit signed normalized integers or of 8-bit unsigned
+    /// integers to the CPU, as floats, channel by channel, row by row from the top, with the mip's size.
     /// </summary>
     private (float[] Values, int Width, int Height) ReadLevel(GpuImage image, int layer, int mip)
     {
@@ -1251,6 +1262,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R32G32Sfloat => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             Format.R16G16SNorm => (2, StoredChannel.Snorm16),
+            Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1261,7 +1273,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: (ulong)(count * (stored is StoredChannel.Float ? 4 : 2)),
+            size: (ulong)(
+                count
+                * stored switch
+                {
+                    StoredChannel.Float => 4,
+                    StoredChannel.Half or StoredChannel.Snorm16 => 2,
+                    StoredChannel.Uint8 => 1,
+                }
+            ),
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
             name: $"{image.Name} readback"
@@ -1278,6 +1298,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
 
+        return (ValuesOf(buffer: buffer, stored: stored, count: count), (int)extent.Width, (int)extent.Height);
+    }
+
+    /// <summary>The <paramref name="count"/> channels that <paramref name="buffer"/> holds, each stored as <paramref name="stored"/> says, as floats.</summary>
+    private static float[] ValuesOf(GpuBuffer buffer, StoredChannel stored, int count)
+    {
         float[] values = new float[count];
         switch (stored)
         {
@@ -1295,11 +1321,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 for (int i = 0; i < count; i++)
                     values[i] = Math.Max(integers[i] / 32767f, -1f);
                 break;
+            case StoredChannel.Uint8:
+                var bytes = new ReadOnlySpan<byte>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = bytes[i];
+                break;
             default:
                 throw new UnreachableException();
         }
 
-        return (values, (int)extent.Width, (int)extent.Height);
+        return values;
     }
 
     /// <summary>

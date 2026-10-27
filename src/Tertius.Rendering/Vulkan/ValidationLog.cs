@@ -11,6 +11,12 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed unsafe class ValidationLog
 {
+    // MoltenVK 1.4.2 reports this for every pipeline that draws into a color attachment of a format that cannot blend,
+    // whether or not the pipeline blends. The pipelines that draw into the G-buffer's integer target, the shading target,
+    // blend nothing (BlendMode.None), so the report is false.
+    private const string IntegerTargetBlendPrefix =
+        "VK_ERROR_FEATURE_NOT_PRESENT: Blending is enabled for attachment with format VK_FORMAT_";
+
     private readonly Lock gate = new();
     private readonly List<string> messages = [];
 
@@ -21,6 +27,14 @@ internal sealed unsafe class ValidationLog
             return [.. messages];
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="text"/> is MoltenVK's false report of blending on an attachment of an unsigned integer
+    /// format, which the log leaves out.
+    /// </summary>
+    public static bool IsFalseIntegerBlendReport(string text) =>
+        text.StartsWith(IntegerTargetBlendPrefix, StringComparison.Ordinal)
+        && text.Contains("_UINT, which does not support it.", StringComparison.Ordinal);
 
     public void Add(string message)
     {
@@ -60,6 +74,8 @@ internal sealed unsafe class ValidationLog
         {
             string id = data->PMessageIdName != null ? Marshal.PtrToStringUTF8((nint)data->PMessageIdName) ?? "" : "";
             string text = data->PMessage != null ? Marshal.PtrToStringUTF8((nint)data->PMessage) ?? "" : "";
+            if (IsFalseIntegerBlendReport(text))
+                return Vk.False;
             string level = "info";
             if ((severity & DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt) != 0)
                 level = "error";

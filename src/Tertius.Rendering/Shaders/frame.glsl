@@ -43,6 +43,11 @@ struct GpuMaterial
     float alphaCutoff;            // a cutout or fringed material's cutoff, 0 otherwise
 };                                // std430: 60 bytes of members, a stride of 64
 
+// The shading models' codes, ShadingCode in C#: bits 0 and 1 of GpuMaterial.shading, and the shading target's alpha.
+const uint ShadingStandard = 0u;
+const uint ShadingSkin = 1u;
+const uint ShadingHair = 2u;
+
 // The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
 const uint NoSlot = 0u;
 const uint CascadeSetSlot = 1u;

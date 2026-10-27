@@ -137,7 +137,8 @@ internal sealed unsafe class GeometryPass : RenderPass
                 ImageLayout = ImageLayout.ColorAttachmentOptimal,
                 LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
                 StoreOp = AttachmentStoreOp.Store,
-                // Zero everywhere: distance 0 marks sky for the direct and ambient passes.
+                // Zero everywhere: distance 0 marks sky for the direct and ambient passes, and the shading target's code 0
+                // the standard model. A float 0 has the bits of an integer 0, which the integer target takes.
                 ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
             };
         var depth = new RenderingAttachmentInfo

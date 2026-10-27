@@ -578,7 +578,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, and the direct image. The sampler
+    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the direct image and the shading
+    /// target, the sixth G-buffer image. The sampler
     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
@@ -605,6 +606,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Compute too, for the occlusion passes that gather the bounce from the direct image
             // (docs/plans/screen-space-illumination.md, "Push constants and sets").
             Image(binding: RenderTargets.DirectBinding, stages: shading),
+            // The reflections' compute passes read each pixel's surface, its model included.
+            Image(binding: RenderTargets.ShadingBinding, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
         flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;

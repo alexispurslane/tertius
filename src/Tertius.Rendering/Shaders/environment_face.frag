@@ -37,6 +37,8 @@ void main()
     shading.lobeSkyFraction = 0.0;
     shading.reflectionFootprint = frame.params.z;
     shading.map = draw.map;
+    shading.model = s.model;
+    shading.strand = s.strand;
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
     outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding, draw.map), 0.0);

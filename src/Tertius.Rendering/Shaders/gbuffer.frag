@@ -20,6 +20,7 @@ layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
+layout(location = 5) out uvec4 outShading;
 
 // The map code (docs/plans/environment-maps-per-frame.md, decision 20): map i owns the codes 255 − 2i and 256 − 2i of the
 // 8-bit alpha, and the value lies between them, so either rounding that the conversion to UNORM may take names map i.
@@ -35,8 +36,8 @@ void main()
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
     outBaseColor = vec4(s.baseColor.rgb, mapCode(inMaterialAndMap.y));
-    // The shading normal for lighting, and the vertex normal for shadow-map bias: a normal map does not move the
-    // surface that the shadow map sees.
+    // The shading normal for lighting, a hair's fiber normal, and the vertex normal for shadow-map bias: a normal map does
+    // not move the surface that the shadow map sees.
     outNormal = vec4(octEncode(s.normal), octEncode(normalizedOr(inNormal, V)));
     // The alphas: how much of the hemisphere ambient light the lobe and the normal get from the sky. Both need the
     // instance's up, which only this pass knows. Only the hemisphere reads them, so with the map on they hold 0.
@@ -47,4 +48,6 @@ void main()
     // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);
+    // The model's code, and a hair's strand (docs/plans/skin-and-hair.md, "The shading target").
+    outShading = uvec4(s.model == ShadingHair ? strandCode(s.strand) : uvec2(0u), 0u, s.model);
 }
