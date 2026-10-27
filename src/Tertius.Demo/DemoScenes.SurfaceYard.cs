@@ -69,6 +69,40 @@ public static partial class DemoScenes
             floorHalfExtents: YardFloorHalfExtents
         );
 
+        SpawnYardCrates(world: world, resources: resources, scene: scene, surface: surface);
+        SpawnYardPerson(world: world, resources: resources, scene: scene, surface: surface);
+
+        Entity yardCamera = world.Spawn(
+            ViewIn(surface, LookingAt(new(10, EarthRadius + 3, 4), new(0, EarthRadius + 0.8, 4)))
+        );
+        scene.Add("yard-camera", yardCamera);
+        scene.Add(
+            "stack-camera",
+            world.Spawn(ViewIn(surface, LookingAt(new(4, EarthRadius + 1.5, -0.5), new(0, EarthRadius + 0.7, -0.5))))
+        );
+
+        // The star's light comes from this direction: up, and to the cameras' side of the yard.
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(30, 50, 20));
+        world.Ambient = Daylight;
+
+        scene.AddView("yard-camera");
+        scene.AddView("stack-camera");
+        scene.AddView("person");
+        world.Camera = yardCamera;
+        return scene;
+    }
+
+    /// <summary>
+    /// Spawns the stack of the surface yard on <paramref name="surface"/>: the two heavy crates, and the light top crate
+    /// that overhangs them.
+    /// </summary>
+    private static void SpawnYardCrates(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle surface
+    )
+    {
         MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(YardCrateHalfSize)));
         var heavy = new CrateSpec(
             HalfExtents: new(YardCrateHalfSize),
@@ -113,7 +147,18 @@ public static partial class DemoScenes
                 }
             )
         );
+    }
 
+    /// <summary>
+    /// Spawns the person of the surface yard on <paramref name="surface"/>, a capsule that can carry a crate.
+    /// </summary>
+    private static void SpawnYardPerson(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle surface
+    )
+    {
         // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         scene.Add(
@@ -135,37 +180,6 @@ public static partial class DemoScenes
                 }
             )
         );
-
-        Entity yardCamera = world.Spawn(
-            new()
-            {
-                Frame = surface,
-                Pose = LookingAt(new(10, EarthRadius + 3, 4), new(0, EarthRadius + 0.8, 4)),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("yard-camera", yardCamera);
-        scene.Add(
-            "stack-camera",
-            world.Spawn(
-                new()
-                {
-                    Frame = surface,
-                    Pose = LookingAt(new(4, EarthRadius + 1.5, -0.5), new(0, EarthRadius + 0.7, -0.5)),
-                    Render = new RenderData(),
-                }
-            )
-        );
-
-        // The star's light comes from this direction: up, and to the cameras' side of the yard.
-        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(30, 50, 20));
-        world.Ambient = Daylight;
-
-        scene.AddView("yard-camera");
-        scene.AddView("stack-camera");
-        scene.AddView("person");
-        world.Camera = yardCamera;
-        return scene;
     }
 
     /// <summary>

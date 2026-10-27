@@ -235,65 +235,41 @@ public sealed class RenderLightUnionTests
 
     // ---- Equality ------------------------------------------------------------------------------------------------
 
+    /// <summary>A new point light and a new spot light with the same fields at each call, and the empty light.</summary>
+    private static RenderLight[] OneLightOfEachCaseAndTheEmptyLight() =>
+        [
+            new PointRenderLight(
+                EntityIndex: 7,
+                Position: Here,
+                PreviousPosition: Here,
+                Color: Warm,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
+                ChainDepth: TestChains.CamerasFrame
+            ),
+            new SpotRenderLight(
+                EntityIndex: 7,
+                Position: Here,
+                PreviousPosition: Here,
+                Direction: Down,
+                PreviousDirection: Down,
+                Color: Warm,
+                Power: 4,
+                Radius: 10,
+                CastsShadow: true,
+                InnerConeAngle: 0.3f,
+                OuterConeAngle: 0.5f,
+                ChainDepth: TestChains.CamerasFrame
+            ),
+            default,
+        ];
+
     [Fact]
     public void TwoLightsOfTheSameCaseWithTheSameFieldsAreEqualAndHashAlike()
     {
-        RenderLight[] first =
-        [
-            new PointRenderLight(
-                EntityIndex: 7,
-                Position: Here,
-                PreviousPosition: Here,
-                Color: Warm,
-                Power: 4,
-                Radius: 10,
-                CastsShadow: true,
-                ChainDepth: TestChains.CamerasFrame
-            ),
-            new SpotRenderLight(
-                EntityIndex: 7,
-                Position: Here,
-                PreviousPosition: Here,
-                Direction: Down,
-                PreviousDirection: Down,
-                Color: Warm,
-                Power: 4,
-                Radius: 10,
-                CastsShadow: true,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f,
-                ChainDepth: TestChains.CamerasFrame
-            ),
-            default,
-        ];
-        RenderLight[] second =
-        [
-            new PointRenderLight(
-                EntityIndex: 7,
-                Position: Here,
-                PreviousPosition: Here,
-                Color: Warm,
-                Power: 4,
-                Radius: 10,
-                CastsShadow: true,
-                ChainDepth: TestChains.CamerasFrame
-            ),
-            new SpotRenderLight(
-                EntityIndex: 7,
-                Position: Here,
-                PreviousPosition: Here,
-                Direction: Down,
-                PreviousDirection: Down,
-                Color: Warm,
-                Power: 4,
-                Radius: 10,
-                CastsShadow: true,
-                InnerConeAngle: 0.3f,
-                OuterConeAngle: 0.5f,
-                ChainDepth: TestChains.CamerasFrame
-            ),
-            default,
-        ];
+        RenderLight[] first = OneLightOfEachCaseAndTheEmptyLight();
+        RenderLight[] second = OneLightOfEachCaseAndTheEmptyLight();
 
         for (int i = 0; i < first.Length; i++)
         {

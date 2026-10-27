@@ -232,6 +232,33 @@ public static partial class DemoScenes
                 date: EarthDate.MarchEquinox
             );
 
+            FrameHandle frame = SpawnStation(world: world, resources: resources, scene: scene, earth: earth);
+
+            // Five cabin lamps under the roof, 6 m apart, placed as in the orbit scene's ship.
+            SpawnCabinLamps(world: world, resources: resources, frame: frame, spacing: 6);
+
+            SpawnAirlock(world: world, resources: resources, scene: scene, frame: frame);
+            SpawnPods(world: world, resources: resources, scene: scene, frame: frame);
+            SpawnWallAndCrate(world: world, resources: resources, scene: scene, frame: frame);
+
+            scene.Add("watch", world.Spawn(View(frame, eye: new(-13, -1, 23), target: new(-8, -1, 3))));
+            scene.Add("radiator-view", world.Spawn(View(frame, eye: new(-12, 7, 9), target: new(-19, -0.9, -2.5))));
+            scene.Add("cabin", world.Spawn(View(frame, eye: new(-2.6, 1.6, -3.5), target: new(2, -0.4, -9.6))));
+            scene.AddView("watch");
+            scene.AddView("radiator-view");
+            scene.AddView("cabin");
+            world.Camera = scene["watch"];
+            return scene;
+        }
+
+        /// <summary>Spawns the station on its orbit about <paramref name="earth"/>, and returns its frame.</summary>
+        private static FrameHandle SpawnStation(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle earth
+        )
+        {
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
             // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
             KeplerOrbit orbit = OrbitAt(world.Time);
@@ -273,10 +300,20 @@ public static partial class DemoScenes
             );
             scene.Add("station", station);
             FrameHandle frame = world.GetOwnedFrame(station);
+            return frame;
+        }
 
-            // Five cabin lamps under the roof, 6 m apart, placed as in the orbit scene's ship.
-            SpawnCabinLamps(world: world, resources: resources, frame: frame, spacing: 6);
-
+        /// <summary>
+        /// Spawns the doors of the airlock in <paramref name="frame"/>, the outer one open, and the airlock that cycles
+        /// them.
+        /// </summary>
+        private static void SpawnAirlock(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle frame
+        )
+        {
             // The outer door slides aft into the port wall beside the hatch, and the inner door up into the chamber's
             // inner wall. Each slides 0.1 m farther than its doorway is wide or tall, so that its edge hides in the wall.
             // The outer door spawns open, so that it never moves past the pods (see Station).
@@ -319,7 +356,14 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
+        /// <summary>
+        /// Spawns the glowing pods, each with its own small frame, that float through <paramref name="frame"/> at their
+        /// start velocities.
+        /// </summary>
+        private static void SpawnPods(World world, IRenderResources resources, SceneInstance scene, FrameHandle frame)
+        {
             var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
             RenderData pod = new()
             {
@@ -351,7 +395,18 @@ public static partial class DemoScenes
                         }
                     )
                 );
+        }
 
+        /// <summary>
+        /// Spawns the thin wall and the crate that can be launched at it in <paramref name="frame"/>.
+        /// </summary>
+        private static void SpawnWallAndCrate(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle frame
+        )
+        {
             scene.Add(
                 "wall",
                 world.Spawn(
@@ -395,15 +450,6 @@ public static partial class DemoScenes
                     }
                 )
             );
-
-            scene.Add("watch", world.Spawn(View(frame, eye: new(-13, -1, 23), target: new(-8, -1, 3))));
-            scene.Add("radiator-view", world.Spawn(View(frame, eye: new(-12, 7, 9), target: new(-19, -0.9, -2.5))));
-            scene.Add("cabin", world.Spawn(View(frame, eye: new(-2.6, 1.6, -3.5), target: new(2, -0.4, -9.6))));
-            scene.AddView("watch");
-            scene.AddView("radiator-view");
-            scene.AddView("cabin");
-            world.Camera = scene["watch"];
-            return scene;
         }
 
         /// <summary>

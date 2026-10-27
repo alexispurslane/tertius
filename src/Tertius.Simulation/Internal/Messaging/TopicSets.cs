@@ -223,48 +223,9 @@ internal sealed class TopicSets
         int[] memberSets = new int[capacity];
         int[] subscriberSets = new int[capacity];
         for (int index = 0; index < frameAt.Length; index++)
-        {
-            FrameHandle frame = frameAt[index];
-            Contract.Invariant(frame.IsNull || frame.Index == index);
-            if (frameMembers[index] is { } members)
-            {
-                members.AssertInvariants();
-                Contract.Invariant(!frame.IsNull || members.Items.IsEmpty);
-                foreach (Entity member in members.Items)
-                {
-                    Contract.Invariant(entities.IsAlive(member) && byEntity[member].Member == frame);
-                    memberSets[member.Index]++;
-                }
-            }
-
-            if (frameSubscribers[index] is { } subscribers)
-            {
-                subscribers.AssertInvariants();
-                Contract.Invariant(!frame.IsNull || subscribers.Items.IsEmpty);
-                foreach (Entity subscriber in subscribers.Items)
-                {
-                    Contract.Invariant(
-                        entities.IsAlive(subscriber)
-                            && byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true
-                    );
-                    subscriberSets[subscriber.Index]++;
-                }
-            }
-        }
-
+            AssertFrameSets(index, memberSets, subscriberSets);
         for (int id = 0; id < named.Count; id++)
-        {
-            if (named[id] is not { } subscribers)
-                continue;
-            subscribers.AssertInvariants();
-            foreach (Entity subscriber in subscribers.Items)
-            {
-                Contract.Invariant(
-                    entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(new(id)) == true
-                );
-                subscriberSets[subscriber.Index]++;
-            }
-        }
+            AssertNamedSet(id, subscriberSets);
 
         foreach (Entity entity in entities.LiveEntities)
         {
@@ -278,6 +239,57 @@ internal sealed class TopicSets
             if (subscriptions is not null)
                 for (int i = 0; i < subscriptions.Count; i++)
                     Contract.Invariant(subscriptions.IndexOf(subscriptions[i]) == i);
+        }
+    }
+
+    /// <summary>
+    /// Checks the member set and the subscriber set of the frame at <paramref name="index"/>, and counts each entity in
+    /// them into <paramref name="memberSets"/> and <paramref name="subscriberSets"/>, by entity index.
+    /// </summary>
+    private void AssertFrameSets(int index, int[] memberSets, int[] subscriberSets)
+    {
+        FrameHandle frame = frameAt[index];
+        Contract.Invariant(frame.IsNull || frame.Index == index);
+        if (frameMembers[index] is { } members)
+        {
+            members.AssertInvariants();
+            Contract.Invariant(!frame.IsNull || members.Items.IsEmpty);
+            foreach (Entity member in members.Items)
+            {
+                Contract.Invariant(entities.IsAlive(member) && byEntity[member].Member == frame);
+                memberSets[member.Index]++;
+            }
+        }
+
+        if (frameSubscribers[index] is { } subscribers)
+        {
+            subscribers.AssertInvariants();
+            Contract.Invariant(!frame.IsNull || subscribers.Items.IsEmpty);
+            foreach (Entity subscriber in subscribers.Items)
+            {
+                Contract.Invariant(
+                    entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(frame.Topic) == true
+                );
+                subscriberSets[subscriber.Index]++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks the subscriber set of the named topic <paramref name="id"/>, if it has one, and counts each subscriber into
+    /// <paramref name="subscriberSets"/>, by entity index.
+    /// </summary>
+    private void AssertNamedSet(int id, int[] subscriberSets)
+    {
+        if (named[id] is not { } subscribers)
+            return;
+        subscribers.AssertInvariants();
+        foreach (Entity subscriber in subscribers.Items)
+        {
+            Contract.Invariant(
+                entities.IsAlive(subscriber) && byEntity[subscriber].Subscriptions?.Contains(new(id)) == true
+            );
+            subscriberSets[subscriber.Index]++;
         }
     }
 

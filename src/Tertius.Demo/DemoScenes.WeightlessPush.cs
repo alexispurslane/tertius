@@ -39,42 +39,12 @@ public static partial class DemoScenes
         FrameHandle shipFrame = world.GetOwnedFrame(scene["ship"]);
 
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
-        Entity astronaut = world.Spawn(
-            new()
-            {
-                Frame = shipFrame,
-                Pose = new(AstronautStart, DQuaternion.Identity),
-                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-                Render = new RenderData
-                {
-                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                    Material = resources.CreateMaterial(
-                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
-                    ),
-                    BoundingRadius = 1,
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
-                },
-                Components = [new PersonControl(new(0, 0.75f, 0))],
-                Subscriptions = [Topics.Input],
-            }
-        );
+        Entity astronaut = SpawnAstronaut(world: world, resources: resources, shipFrame: shipFrame, capsule: capsule);
         scene.Add("astronaut", astronaut);
-
-        var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
-        var crate = new CrateSpec(
-            HalfExtents: PushedCrateHalfExtents,
-            Mass: PushedCrateMass,
-            Mesh: resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
-            Material: resources.CreateMaterial(
-                new(BaseColor: orange, Roughness: UsualRoughness, Emissive: MarkerGlow(orange))
-            )
+        scene.Add(
+            "free-crate",
+            SpawnCrateAhead(world: world, resources: resources, shipFrame: shipFrame, capsule: capsule)
         );
-        var cratePose = new DPose(
-            AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),
-            DQuaternion.Identity
-        );
-        scene.Add("free-crate", world.Spawn(crate.Spawn(shipFrame, cratePose, Double3.Zero)));
 
         // A view looks along its -Z. A quarter turn about +Y turns that to +X, toward the hull's port face, after a tilt
         // about the view's own +X has tipped it down by 10 degrees. It stands 8 m to port of the astronaut, 1.5 m above it,
@@ -99,5 +69,65 @@ public static partial class DemoScenes
         scene.AddView("side");
         world.Camera = astronaut;
         return scene;
+    }
+
+    /// <summary>
+    /// The weightless astronaut of weightless-push, a character of 70 kg in <paramref name="capsule"/>, which <see
+    /// cref="PersonControl"/> steers.
+    /// </summary>
+    private static Entity SpawnAstronaut(
+        World world,
+        IRenderResources resources,
+        FrameHandle shipFrame,
+        CapsuleShapeDesc capsule
+    )
+    {
+        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
+        return world.Spawn(
+            new()
+            {
+                Frame = shipFrame,
+                Pose = new(AstronautStart, DQuaternion.Identity),
+                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
+                    Material = resources.CreateMaterial(
+                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
+                    ),
+                    BoundingRadius = 1,
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                },
+                Components = [new PersonControl(new(0, 0.75f, 0))],
+                Subscriptions = [Topics.Input],
+            }
+        );
+    }
+
+    /// <summary>
+    /// The free crate of weightless-push, just ahead of the astronaut: its rear face 0.02 m from the astronaut's
+    /// <paramref name="capsule"/>.
+    /// </summary>
+    private static Entity SpawnCrateAhead(
+        World world,
+        IRenderResources resources,
+        FrameHandle shipFrame,
+        CapsuleShapeDesc capsule
+    )
+    {
+        var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
+        var crate = new CrateSpec(
+            HalfExtents: PushedCrateHalfExtents,
+            Mass: PushedCrateMass,
+            Mesh: resources.CreateMesh(Primitives.Box(PushedCrateHalfExtents)),
+            Material: resources.CreateMaterial(
+                new(BaseColor: orange, Roughness: UsualRoughness, Emissive: MarkerGlow(orange))
+            )
+        );
+        var cratePose = new DPose(
+            AstronautStart - new Double3(0, 0, capsule.Radius + 0.02 + PushedCrateHalfExtents.Z),
+            DQuaternion.Identity
+        );
+        return world.Spawn(crate.Spawn(shipFrame, cratePose, Double3.Zero));
     }
 }

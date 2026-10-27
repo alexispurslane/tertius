@@ -137,6 +137,70 @@ internal sealed class GraphicsPipelineDesc
         SpecializationStorage storage;
         SpecializationInfo* constants = ShaderConstants.Specialization(Constants, &storage);
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
+        uint stageCount = WriteStages(stages: stages, shaders: shaders, entry: entry, constants: constants);
+
+        var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
+        VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
+        WriteMeshAttributes(attributes);
+        PipelineVertexInputStateCreateInfo vertexInput = VertexInputState(&binding, attributes);
+        var inputAssembly = new PipelineInputAssemblyStateCreateInfo
+        {
+            SType = StructureType.PipelineInputAssemblyStateCreateInfo,
+            Topology = PrimitiveTopology.TriangleList,
+        };
+        var viewport = new PipelineViewportStateCreateInfo
+        {
+            SType = StructureType.PipelineViewportStateCreateInfo,
+            ViewportCount = 1,
+            ScissorCount = 1,
+        };
+        PipelineRasterizationStateCreateInfo rasterization = RasterizationState();
+        var multisample = new PipelineMultisampleStateCreateInfo
+        {
+            SType = StructureType.PipelineMultisampleStateCreateInfo,
+            RasterizationSamples = SampleCountFlags.Count1Bit,
+        };
+        PipelineDepthStencilStateCreateInfo depthStencil = DepthStencilState();
+        PipelineColorBlendAttachmentState* blends =
+            stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorFormats.Length, 1)];
+        PipelineColorBlendStateCreateInfo colorBlend = ColorBlendState(blends);
+        DynamicState* dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
+        var dynamic = new PipelineDynamicStateCreateInfo
+        {
+            SType = StructureType.PipelineDynamicStateCreateInfo,
+            DynamicStateCount = 2,
+            PDynamicStates = dynamicStates,
+        };
+
+        var info = new GraphicsPipelineCreateInfo
+        {
+            SType = StructureType.GraphicsPipelineCreateInfo,
+            StageCount = stageCount,
+            PStages = stages,
+            PVertexInputState = &vertexInput,
+            PInputAssemblyState = &inputAssembly,
+            PViewportState = &viewport,
+            PRasterizationState = &rasterization,
+            PMultisampleState = &multisample,
+            PDepthStencilState = &depthStencil,
+            PColorBlendState = &colorBlend,
+            PDynamicState = &dynamic,
+            Layout = Layout,
+        };
+        return CreateForAttachments(device, in info);
+    }
+
+    /// <summary>
+    /// Writes the vertex stage, and the fragment stage when there is one, into <paramref name="stages"/>, and gives how
+    /// many it wrote.
+    /// </summary>
+    private unsafe uint WriteStages(
+        PipelineShaderStageCreateInfo* stages,
+        ShaderLibrary shaders,
+        byte* entry,
+        SpecializationInfo* constants
+    )
+    {
         stages[0] = shaders.Stage(
             stage: ShaderStageFlags.VertexBit,
             file: VertexShader,
@@ -151,17 +215,22 @@ internal sealed class GraphicsPipelineDesc
                 entry: entry,
                 constants: constants
             );
+        return stageCount;
+    }
 
-        var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
-        VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        WriteMeshAttributes(attributes);
+    /// <summary>The vertex input of <see cref="VertexInput"/>, from the one binding and the four mesh attributes.</summary>
+    private unsafe PipelineVertexInputStateCreateInfo VertexInputState(
+        VertexInputBindingDescription* binding,
+        VertexInputAttributeDescription* attributes
+    )
+    {
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
-        var vertexInput = new PipelineVertexInputStateCreateInfo
+        return new()
         {
             SType = StructureType.PipelineVertexInputStateCreateInfo,
             VertexBindingDescriptionCount = hasVertices ? 1u : 0u,
-            PVertexBindingDescriptions = hasVertices ? &binding : null,
+            PVertexBindingDescriptions = hasVertices ? binding : null,
             VertexAttributeDescriptionCount = VertexInput switch
             {
                 VertexInput.Mesh => 4u,
@@ -170,19 +239,11 @@ internal sealed class GraphicsPipelineDesc
             },
             PVertexAttributeDescriptions = hasVertices ? attributes : null,
         };
-        var inputAssembly = new PipelineInputAssemblyStateCreateInfo
-        {
-            SType = StructureType.PipelineInputAssemblyStateCreateInfo,
-            Topology = PrimitiveTopology.TriangleList,
-        };
-        var viewport = new PipelineViewportStateCreateInfo
-        {
-            SType = StructureType.PipelineViewportStateCreateInfo,
-            ViewportCount = 1,
-            ScissorCount = 1,
-        };
-        // The projections flip y for Vulkan's y-down clip space, which keeps counterclockwise front faces.
-        var rasterization = new PipelineRasterizationStateCreateInfo
+    }
+
+    // The projections flip y for Vulkan's y-down clip space, which keeps counterclockwise front faces.
+    private PipelineRasterizationStateCreateInfo RasterizationState() =>
+        new()
         {
             SType = StructureType.PipelineRasterizationStateCreateInfo,
             DepthClampEnable = DepthClamp,
@@ -193,12 +254,9 @@ internal sealed class GraphicsPipelineDesc
             DepthBiasSlopeFactor = DepthBiasSlope,
             LineWidth = 1f,
         };
-        var multisample = new PipelineMultisampleStateCreateInfo
-        {
-            SType = StructureType.PipelineMultisampleStateCreateInfo,
-            RasterizationSamples = SampleCountFlags.Count1Bit,
-        };
-        var depthStencil = new PipelineDepthStencilStateCreateInfo
+
+    private PipelineDepthStencilStateCreateInfo DepthStencilState() =>
+        new()
         {
             SType = StructureType.PipelineDepthStencilStateCreateInfo,
             DepthTestEnable = DepthTest,
@@ -206,57 +264,45 @@ internal sealed class GraphicsPipelineDesc
             DepthCompareOp = DepthTest ? DepthCompare : CompareOp.Always,
         };
 
+    /// <summary>The blend state of the color attachments, whose blends it writes into <paramref name="blends"/>, one each.</summary>
+    private unsafe PipelineColorBlendStateCreateInfo ColorBlendState(PipelineColorBlendAttachmentState* blends)
+    {
         int colorCount = ColorFormats.Length;
-        PipelineColorBlendAttachmentState* blends =
-            stackalloc PipelineColorBlendAttachmentState[Math.Max(colorCount, 1)];
         for (int i = 0; i < colorCount; i++)
             blends[i] = BlendState(Blend);
-        var colorBlend = new PipelineColorBlendStateCreateInfo
+        return new()
         {
             SType = StructureType.PipelineColorBlendStateCreateInfo,
             AttachmentCount = (uint)colorCount,
             PAttachments = blends,
         };
-        DynamicState* dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
-        var dynamic = new PipelineDynamicStateCreateInfo
-        {
-            SType = StructureType.PipelineDynamicStateCreateInfo,
-            DynamicStateCount = 2,
-            PDynamicStates = dynamicStates,
-        };
+    }
 
+    /// <summary>
+    /// Creates the pipeline of <paramref name="info"/> for dynamic rendering into <see cref="ColorFormats"/> and
+    /// <see cref="DepthFormat"/>, and names it. It chains the rendering info onto a copy of <paramref name="info"/>, so the
+    /// caller's struct never points into this method's stack.
+    /// </summary>
+    private unsafe Pipeline CreateForAttachments(VulkanDevice device, in GraphicsPipelineCreateInfo info)
+    {
         fixed (Format* colorFormats = ColorFormats)
         {
             var rendering = new PipelineRenderingCreateInfo
             {
                 SType = StructureType.PipelineRenderingCreateInfo,
-                ColorAttachmentCount = (uint)colorCount,
+                ColorAttachmentCount = (uint)ColorFormats.Length,
                 PColorAttachmentFormats = colorFormats,
                 DepthAttachmentFormat = DepthFormat,
                 StencilAttachmentFormat = Format.Undefined,
             };
-            var info = new GraphicsPipelineCreateInfo
-            {
-                SType = StructureType.GraphicsPipelineCreateInfo,
-                PNext = &rendering,
-                StageCount = stageCount,
-                PStages = stages,
-                PVertexInputState = &vertexInput,
-                PInputAssemblyState = &inputAssembly,
-                PViewportState = &viewport,
-                PRasterizationState = &rasterization,
-                PMultisampleState = &multisample,
-                PDepthStencilState = &depthStencil,
-                PColorBlendState = &colorBlend,
-                PDynamicState = &dynamic,
-                Layout = Layout,
-            };
+            GraphicsPipelineCreateInfo withRendering = info;
+            withRendering.PNext = &rendering;
             device
                 .Vk.CreateGraphicsPipelines(
                     device: device.Device,
                     pipelineCache: default,
                     createInfoCount: 1,
-                    pCreateInfos: &info,
+                    pCreateInfos: &withRendering,
                     pAllocator: null,
                     pPipelines: out Pipeline pipeline
                 )

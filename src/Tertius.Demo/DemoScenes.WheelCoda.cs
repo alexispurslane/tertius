@@ -208,59 +208,52 @@ public static partial class DemoScenes
             for (int i = 0; i < BoxPlayState.Throws; i++)
             {
                 scene.Add(ThrowBoxId(i), world.Spawn(Box(colors[i]).Spawn(station, ThrowBoxPose(i), Double3.Zero)));
-                Double3 mark = FlatMark(i, PersonBody);
-                var plate = new Vector3(0.004f, 0.75f, 0.1f);
-                scene.Add(
-                    $"flat-mark-{i}",
-                    world.Spawn(
-                        new()
-                        {
-                            Frame = station,
-                            Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
-                            Render = Drawn(
-                                resources: resources,
-                                mesh: Primitives.Box(plate),
-                                color: colors[i],
-                                boundingRadius: plate.Length()
-                            ) with
-                            {
-                                Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                            },
-                        }
-                    )
+                SpawnFlatMark(
+                    world: world,
+                    station: station,
+                    scene: scene,
+                    resources: resources,
+                    index: i,
+                    color: colors[i]
                 );
             }
 
+            scene.Add("stack-camera", world.Spawn(ViewIn(station, StackCamera)));
+            scene.Add("spinward-camera", world.Spawn(ViewIn(station, SpinwardCamera)));
+            scene.Add("antispinward-camera", world.Spawn(ViewIn(station, AntispinwardCamera)));
+        }
+
+        /// <summary>
+        /// Spawns the flat mark of the throw <paramref name="index"/> on the floor of <paramref name="station"/>: a thin
+        /// plate of <paramref name="color"/>, the color of the box of that throw.
+        /// </summary>
+        private static void SpawnFlatMark(
+            World world,
+            FrameHandle station,
+            SceneInstance scene,
+            IRenderResources resources,
+            int index,
+            Vector4 color
+        )
+        {
+            Double3 mark = FlatMark(index, PersonBody);
+            var plate = new Vector3(0.004f, 0.75f, 0.1f);
             scene.Add(
-                "stack-camera",
+                $"flat-mark-{index}",
                 world.Spawn(
                     new()
                     {
                         Frame = station,
-                        Pose = StackCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
-            scene.Add(
-                "spinward-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = station,
-                        Pose = SpinwardCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
-            scene.Add(
-                "antispinward-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = station,
-                        Pose = AntispinwardCamera,
-                        Render = new RenderData(),
+                        Pose = new(mark - Floor.Normal(mark) * plate.X, Floor.FacetTurn(Floor.FacetIndex(mark))),
+                        Render = Drawn(
+                            resources: resources,
+                            mesh: Primitives.Box(plate),
+                            color: color,
+                            boundingRadius: plate.Length()
+                        ) with
+                        {
+                            Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
+                        },
                     }
                 )
             );

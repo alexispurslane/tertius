@@ -215,68 +215,116 @@ internal sealed class PhysicsQueryRunner(
                 end: end
             );
 
-            double limit = Limit(length, firstOnly);
-            foreach (ref readonly FrameLink link in links.AsSpan())
-            {
-                if (link.Parent != visit.Frame || link.Child == visit.CameFrom)
-                    continue;
-                DPose toChild = frames.Relative(request.Frame, link.Child);
-                if (link.Numeric)
-                {
-                    // A numeric frame has no bubble: its bodies are the frame's own, wherever they are.
-                    Query(
-                        backend: backend,
-                        frame: link.Child,
-                        request: request,
-                        toFrame: toChild,
-                        start: visit.Start,
-                        end: end
-                    );
-                    continue;
-                }
-
-                FrameBounds bubble = frames.Bounds(link.Child);
-                var region = new FrameBounds(
-                    bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius)
-                );
-                if (
-                    region.IntersectLine(origin: toChild.TransformPoint(from), direction: toChild.Rotation.Rotate(line))
-                    is not var (entry, exit)
-                )
-                    continue;
-                double start = Math.Max(0, entry),
-                    stop = Math.Min(limit, exit);
-                if (start <= stop)
-                    visits.Add(new(Frame: link.Child, Start: start, End: stop, CameFrom: visit.Frame, GoesUp: false));
-            }
-
-            FrameHandle parent = visit.GoesUp ? frames.Parent(visit.Frame) : FrameHandle.Null;
-            if (!parent.IsNull)
-            {
-                // The parent's part starts where the query first reaches out of this frame's bubble, or at once if it
-                // starts so: that is where it leaves the bubble shrunk by its reach.
-                double start = visit.Start;
-                FrameBounds bubble = frames.Bounds(visit.Frame);
-                double inner = 1 - reach / bubble.MinRadius;
-                if (
-                    inner > 0
-                    && new FrameBounds(bubble.Radii * (float)inner).IntersectLine(
-                        origin: toVisit.TransformPoint(from),
-                        direction: toVisit.Rotation.Rotate(line)
-                    )
-                        is var (entry, exit)
-                    && entry <= start
-                    && start < exit
-                )
-                    start = exit;
-                if (start <= end)
-                    visits.Add(new(Frame: parent, Start: start, End: end, CameFrom: visit.Frame, GoesUp: true));
-            }
+            QueryNumericChildrenAndQueueOthers(
+                backend: backend,
+                request: request,
+                visit: visit,
+                end: end,
+                limit: Limit(length, firstOnly),
+                from: from,
+                line: line,
+                reach: reach
+            );
+            QueueParentVisit(visit: visit, toVisit: toVisit, end: end, from: from, line: line, reach: reach);
         }
 
         filter.Skip(Entity.Null);
+        OrderHits(request);
+    }
+
+    /// <summary>
+    /// Queries each numeric child of the visited frame from <paramref name="visit"/>'s start to <paramref name="end"/>, and
+    /// queues a visit to each other child whose bubble's region the query's line crosses before <paramref name="limit"/>.
+    /// The line runs from <paramref name="from"/> along <paramref name="line"/>, in the query's frame, and the query reaches
+    /// <paramref name="reach"/> meters around it.
+    /// </summary>
+    private void QueryNumericChildrenAndQueueOthers(
+        IPhysicsBackend backend,
+        in PhysicsRequest request,
+        in Visit visit,
+        double end,
+        double limit,
+        Double3 from,
+        Double3 line,
+        double reach
+    )
+    {
+        foreach (ref readonly FrameLink link in links.AsSpan())
+        {
+            if (link.Parent != visit.Frame || link.Child == visit.CameFrom)
+                continue;
+            DPose toChild = frames.Relative(request.Frame, link.Child);
+            if (link.Numeric)
+            {
+                // A numeric frame has no bubble: its bodies are the frame's own, wherever they are.
+                Query(
+                    backend: backend,
+                    frame: link.Child,
+                    request: request,
+                    toFrame: toChild,
+                    start: visit.Start,
+                    end: end
+                );
+                continue;
+            }
+
+            FrameBounds bubble = frames.Bounds(link.Child);
+            var region = new FrameBounds(bubble.Radii * (float)(ContentScale(link.Child) + reach / bubble.MinRadius));
+            if (
+                region.IntersectLine(origin: toChild.TransformPoint(from), direction: toChild.Rotation.Rotate(line))
+                is not var (entry, exit)
+            )
+                continue;
+            double start = Math.Max(0, entry),
+                stop = Math.Min(limit, exit);
+            if (start <= stop)
+                visits.Add(new(Frame: link.Child, Start: start, End: stop, CameFrom: visit.Frame, GoesUp: false));
+        }
+    }
+
+    /// <summary>
+    /// Queues a visit to the parent of the visited frame when the visit goes up, from where the query reaches out of the
+    /// frame's bubble to <paramref name="end"/>. <paramref name="toVisit"/> maps the query's frame into the visited frame.
+    /// </summary>
+    private void QueueParentVisit(
+        in Visit visit,
+        in DPose toVisit,
+        double end,
+        Double3 from,
+        Double3 line,
+        double reach
+    )
+    {
+        FrameHandle parent = visit.GoesUp ? frames.Parent(visit.Frame) : FrameHandle.Null;
+        if (parent.IsNull)
+            return;
+        // The parent's part starts where the query first reaches out of this frame's bubble, or at once if it
+        // starts so: that is where it leaves the bubble shrunk by its reach.
+        double start = visit.Start;
+        FrameBounds bubble = frames.Bounds(visit.Frame);
+        double inner = 1 - reach / bubble.MinRadius;
+        if (
+            inner > 0
+            && new FrameBounds(bubble.Radii * (float)inner).IntersectLine(
+                origin: toVisit.TransformPoint(from),
+                direction: toVisit.Rotation.Rotate(line)
+            )
+                is var (entry, exit)
+            && entry <= start
+            && start < exit
+        )
+            start = exit;
+        if (start <= end)
+            visits.Add(new(Frame: parent, Start: start, End: end, CameFrom: visit.Frame, GoesUp: true));
+    }
+
+    /// <summary>
+    /// Puts the hits of a ray or a shape cast in order along the line, and keeps each entity that an overlap found once.
+    /// </summary>
+    private void OrderHits(in PhysicsRequest request)
+    {
         // The hits of a ray or a shape cast are in order along the line. An overlap's hits have no order.
-        bool alongLine = question switch
+        bool alongLine = request.Question switch
         {
             RayQuestion or ShapeCastQuestion => true,
             OverlapQuestion => false,
@@ -454,48 +502,69 @@ internal sealed class PhysicsQueryRunner(
         DPose toAsker = convert ? frames.Relative(request.Frame, askerFrame) : DPose.Identity;
         int count = question.FirstHitOnly ? Math.Min(1, hits.Count) : hits.Count;
         for (int i = 0; i < count; i++)
-        {
-            ref Hit hit = ref hits[i];
-            Double3 point = convert ? toAsker.TransformPoint(hit.Point) : hit.Point;
-            Vector3 normal = convert ? toAsker.Rotation.Rotate(hit.Normal) : hit.Normal;
-            router.AddEngineEvent(
-                question switch
-                {
-                    RayQuestion => AnswerTo(
-                        request.Asker,
-                        new RayHit
-                        {
-                            Entity = hit.Entity,
-                            Point = point,
-                            Distance = (float)hit.Distance,
-                            Tag = request.Tag,
-                            Normal = normal,
-                        }
-                    ),
-                    ShapeCastQuestion => AnswerTo(
-                        request.Asker,
-                        new ShapeHit
-                        {
-                            Entity = hit.Entity,
-                            Point = point,
-                            Distance = (float)hit.Distance,
-                            Tag = request.Tag,
-                            Normal = normal,
-                        }
-                    ),
-                    OverlapQuestion => AnswerTo(
-                        request.Asker,
-                        new OverlapHit { Entity = hit.Entity, Tag = request.Tag }
-                    ),
-                    null => throw new UnreachableException(
-                        "Run refuses a request without a question before it answers."
-                    ),
-                }
-            );
-        }
-
+            EmitHit(request: request, question: question, hit: hits[i], convert: convert, toAsker: toAsker);
         if (count > 0)
             return;
+        EmitMiss(request: request, question: question, frameAlive: frameAlive, convert: convert, toAsker: toAsker);
+    }
+
+    /// <summary>
+    /// Queues the answer that brings <paramref name="hit"/> to the asker, its point and normal mapped by
+    /// <paramref name="toAsker"/> when <paramref name="convert"/> is set.
+    /// </summary>
+    private void EmitHit(
+        in PhysicsRequest request,
+        in PhysicsQuestion question,
+        in Hit hit,
+        bool convert,
+        in DPose toAsker
+    )
+    {
+        Double3 point = convert ? toAsker.TransformPoint(hit.Point) : hit.Point;
+        Vector3 normal = convert ? toAsker.Rotation.Rotate(hit.Normal) : hit.Normal;
+        router.AddEngineEvent(
+            question switch
+            {
+                RayQuestion => AnswerTo(
+                    request.Asker,
+                    new RayHit
+                    {
+                        Entity = hit.Entity,
+                        Point = point,
+                        Distance = (float)hit.Distance,
+                        Tag = request.Tag,
+                        Normal = normal,
+                    }
+                ),
+                ShapeCastQuestion => AnswerTo(
+                    request.Asker,
+                    new ShapeHit
+                    {
+                        Entity = hit.Entity,
+                        Point = point,
+                        Distance = (float)hit.Distance,
+                        Tag = request.Tag,
+                        Normal = normal,
+                    }
+                ),
+                OverlapQuestion => AnswerTo(request.Asker, new OverlapHit { Entity = hit.Entity, Tag = request.Tag }),
+                null => throw new UnreachableException("Run refuses a request without a question before it answers."),
+            }
+        );
+    }
+
+    /// <summary>
+    /// Queues the miss of a query without a hit: at the end of the query, mapped by <paramref name="toAsker"/> when
+    /// <paramref name="convert"/> is set, or at the origin when the query's frame is gone.
+    /// </summary>
+    private void EmitMiss(
+        in PhysicsRequest request,
+        in PhysicsQuestion question,
+        bool frameAlive,
+        bool convert,
+        in DPose toAsker
+    )
+    {
         Double3 end = question.Origin + question.Direction * question.Length;
         Double3 missPoint = default;
         if (frameAlive)

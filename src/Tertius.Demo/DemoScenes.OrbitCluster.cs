@@ -96,29 +96,7 @@ public static partial class DemoScenes
         FrameHandle earth = world.GetOwnedFrame(scene["earth"]);
         FrameHandle shipFrame = world.GetOwnedFrame(scene["ship"]);
 
-        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        (DPose walkerPose, Double3 walkerVelocity) = BesideTheShip(SpacewalkerStart, world.Time);
-        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
-        Entity spacewalker = world.Spawn(
-            new()
-            {
-                Frame = earth,
-                Pose = walkerPose,
-                LinearVelocity = walkerVelocity,
-                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-                Render = new RenderData
-                {
-                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
-                    Material = resources.CreateMaterial(
-                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
-                    ),
-                    BoundingRadius = 1,
-                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
-                },
-                Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
-                Subscriptions = [Topics.Input],
-            }
-        );
+        Entity spacewalker = SpawnSpacewalker(world, resources, earth);
         scene.Add("spacewalker", spacewalker);
 
         var orange = new Vector4(x: 1, y: 0.45f, z: 0.1f, w: 1);
@@ -147,24 +125,46 @@ public static partial class DemoScenes
         // about the view's own +X has tipped it down by WatchTilt. The view stands 160 m from the point 95 m ahead of the
         // ship's center, back along its line of sight: 138.6 m to port and 80 m up. So the spacewalker's whole way, from
         // the hatch to 225 m ahead, and both crates fit in it.
-        scene.Add(
-            "watch",
-            world.Spawn(
-                new()
-                {
-                    Frame = shipFrame,
-                    Pose = new(
-                        new(-138.6, 80, -95),
-                        DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2)
-                            * DQuaternion.FromAxisAngle(Double3.UnitX, -WatchTilt)
-                    ),
-                    Render = new RenderData(),
-                }
-            )
+        var watch = new DPose(
+            new(-138.6, 80, -95),
+            DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2)
+                * DQuaternion.FromAxisAngle(Double3.UnitX, -WatchTilt)
         );
+        scene.Add("watch", world.Spawn(ViewIn(shipFrame, watch)));
         scene.AddView("spacewalker");
         scene.AddView("watch");
         world.Camera = spacewalker;
         return scene;
+    }
+
+    /// <summary>
+    /// The spacewalker of orbit-cluster, at the hatch beside the ship in <paramref name="earth"/>, moving with the ship: a
+    /// character of 70 kg that <see cref="PersonControl"/> steers and that can carry.
+    /// </summary>
+    private static Entity SpawnSpacewalker(World world, IRenderResources resources, FrameHandle earth)
+    {
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
+        (DPose walkerPose, Double3 walkerVelocity) = BesideTheShip(SpacewalkerStart, world.Time);
+        var suit = new Vector4(x: 0.95f, y: 0.8f, z: 0.2f, w: 1);
+        return world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = walkerPose,
+                LinearVelocity = walkerVelocity,
+                Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(Primitives.Box(new(0.3f, 0.9f, 0.3f))),
+                    Material = resources.CreateMaterial(
+                        new(BaseColor: suit, Roughness: UsualRoughness, Emissive: MarkerGlow(suit))
+                    ),
+                    BoundingRadius = 1,
+                    Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+                },
+                Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+                Subscriptions = [Topics.Input],
+            }
+        );
     }
 }

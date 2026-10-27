@@ -107,26 +107,7 @@ public static partial class DemoScenes
                 Intensity = 1,
             };
 
-            MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(CrateHalfSize)));
-            var orange = new CrateSpec(
-                HalfExtents: new(CrateHalfSize),
-                Mass: CrateMass,
-                Mesh: crateMesh,
-                Material: resources.CreateMaterial(
-                    MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1), UsualRoughness)
-                )
-            );
-            CrateSpec green = orange with
-            {
-                Material = resources.CreateMaterial(
-                    MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1), UsualRoughness)
-                ),
-            };
-            scene.Add(
-                "crate-a",
-                world.Spawn(orange.Spawn(space, InYard(-CrateSpacing / 2, 0), Drift + new Double3(CrateSpeed, 0, 0)))
-            );
-            scene.Add("crate-b", world.Spawn(green.Spawn(space, InYard(CrateSpacing / 2, 0), Drift)));
+            SpawnCrates(world: world, resources: resources, scene: scene, space: space);
 
             // The capsule is 1.8 m tall, and the eye is 0.75 m above its center.
             scene.Add(
@@ -152,6 +133,34 @@ public static partial class DemoScenes
             scene.AddView("person");
             world.Camera = scene["person"];
             return scene;
+        }
+
+        /// <summary>
+        /// The orange <c>crate-a</c>, which moves toward the green <c>crate-b</c> at <see cref="CrateSpeed"/> on top of
+        /// the yard's drift.
+        /// </summary>
+        private static void SpawnCrates(World world, IRenderResources resources, SceneInstance scene, FrameHandle space)
+        {
+            MeshId crateMesh = resources.CreateMesh(Primitives.Box(new(CrateHalfSize)));
+            var orange = new CrateSpec(
+                HalfExtents: new(CrateHalfSize),
+                Mass: CrateMass,
+                Mesh: crateMesh,
+                Material: resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 1, y: 0.45f, z: 0.1f, w: 1), UsualRoughness)
+                )
+            );
+            CrateSpec green = orange with
+            {
+                Material = resources.CreateMaterial(
+                    MaterialDesc.Color(new(x: 0.3f, y: 0.6f, z: 0.25f, w: 1), UsualRoughness)
+                ),
+            };
+            scene.Add(
+                "crate-a",
+                world.Spawn(orange.Spawn(space, InYard(-CrateSpacing / 2, 0), Drift + new Double3(CrateSpeed, 0, 0)))
+            );
+            scene.Add("crate-b", world.Spawn(green.Spawn(space, InYard(CrateSpacing / 2, 0), Drift)));
         }
 
         /// <summary>A pose at <paramref name="x"/> and <paramref name="z"/> from the yard's center, in meters, facing -Z.</summary>

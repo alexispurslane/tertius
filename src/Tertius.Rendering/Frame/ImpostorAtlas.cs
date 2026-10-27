@@ -49,52 +49,30 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
     public ImpostorAtlas(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, int tiles)
     {
         this.device = device;
-        uint maxLayers = device.Properties.Limits.MaxImageArrayLayers;
-        if (tiles < 1 || tiles > maxLayers)
-            throw new ArgumentOutOfRangeException(nameof(tiles), $"The impostor atlas needs 1 to {maxLayers} tiles.");
-        foreach (Format format in (ReadOnlySpan<Format>)[ColorFormat, DepthOffsetFormat])
-            if ((device.FormatProperties(format).OptimalTilingFeatures & RequiredFeatures) != RequiredFeatures)
-                throw new NotSupportedException(
-                    $"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}."
-                );
-
+        CheckSupport(device, tiles);
         Tiles = tiles;
         colorViews = new ImageView[tiles];
         depthOffsetViews = new ImageView[tiles];
-        var extent = new Extent2D(TileSize, TileSize);
-        const ImageUsageFlags usage =
-            ImageUsageFlags.ColorAttachmentBit
-            | ImageUsageFlags.SampledBit
-            | ImageUsageFlags.TransferSrcBit
-            | ImageUsageFlags.TransferDstBit;
         try
         {
-            Color = GpuImage.Create(
+            Color = CreateTileArray(
                 device: device,
                 allocator: allocator,
-                extent: extent,
                 format: ColorFormat,
-                usage: usage,
-                mipLevels: MipLevels,
                 name: "impostor atlas color",
-                arrayLayers: (uint)tiles,
-                arrayView: true
+                tiles: tiles
             );
-            DepthOffset = GpuImage.Create(
+            DepthOffset = CreateTileArray(
                 device: device,
                 allocator: allocator,
-                extent: extent,
                 format: DepthOffsetFormat,
-                usage: usage,
-                mipLevels: MipLevels,
                 name: "impostor atlas depth offset",
-                arrayLayers: (uint)tiles,
-                arrayView: true
+                tiles: tiles
             );
             CaptureDepth = GpuImage.Create(
                 device: device,
                 allocator: allocator,
-                extent: extent,
+                extent: new(TileSize, TileSize),
                 format: CaptureDepthFormat,
                 usage: ImageUsageFlags.DepthStencilAttachmentBit,
                 mipLevels: 1,
@@ -152,4 +130,40 @@ internal sealed unsafe class ImpostorAtlas : IDisposable
         DepthOffset?.Dispose();
         Color?.Dispose();
     }
+
+    /// <summary>Throws unless the device holds <paramref name="tiles"/> layers and can filter and blit both atlas formats.</summary>
+    private static void CheckSupport(VulkanDevice device, int tiles)
+    {
+        uint maxLayers = device.Properties.Limits.MaxImageArrayLayers;
+        if (tiles < 1 || tiles > maxLayers)
+            throw new ArgumentOutOfRangeException(nameof(tiles), $"The impostor atlas needs 1 to {maxLayers} tiles.");
+        foreach (Format format in (ReadOnlySpan<Format>)[ColorFormat, DepthOffsetFormat])
+            if ((device.FormatProperties(format).OptimalTilingFeatures & RequiredFeatures) != RequiredFeatures)
+                throw new NotSupportedException(
+                    $"{format} cannot be a filtered, blittable impostor atlas on {device.DeviceName}."
+                );
+    }
+
+    /// <summary>One of the two tile arrays: a layer of <paramref name="format"/> per tile, with a full mip chain.</summary>
+    private static GpuImage CreateTileArray(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        Format format,
+        string name,
+        int tiles
+    ) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: new(TileSize, TileSize),
+            format: format,
+            usage: ImageUsageFlags.ColorAttachmentBit
+                | ImageUsageFlags.SampledBit
+                | ImageUsageFlags.TransferSrcBit
+                | ImageUsageFlags.TransferDstBit,
+            mipLevels: MipLevels,
+            name: name,
+            arrayLayers: (uint)tiles,
+            arrayView: true
+        );
 }

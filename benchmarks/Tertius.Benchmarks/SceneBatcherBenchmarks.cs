@@ -45,7 +45,7 @@ public class SceneBatcherBenchmarks
     private static readonly MeshData Chain = ChainTube();
 
     /// <summary>The unit cube of the grid, then the posed tube.</summary>
-    private static readonly MeshInfo[] Meshes =
+    internal static readonly MeshInfo[] Meshes =
     [
         new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
         new(
@@ -131,7 +131,7 @@ public class SceneBatcherBenchmarks
     /// <summary>
     /// The grid, under a chain of <paramref name="chainLength"/> frames in the root's axes, every instance in the root.
     /// </summary>
-    private static RenderSnapshot Grid(int chainLength)
+    internal static RenderSnapshot Grid(int chainLength)
     {
         var grid = new RenderSnapshot
         {

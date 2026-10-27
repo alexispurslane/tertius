@@ -6,6 +6,18 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
+    /// The look of the flame's orange puffs: three times as hot as the air, from 0.25 m to 1.2 m over 3 s.
+    /// </summary>
+    private static PuffLook FlameLook { get; } =
+        new(
+            Life: 3,
+            StartRadius: 0.25f,
+            EndRadius: 1.2f,
+            TemperatureRatio: 3,
+            Shading: PuffShading.Glow(new(5100, 2040, 510))
+        );
+
+    /// <summary>
     /// A yard of glow puffs in air, to see the puffs of the engine (ticket ter-4zt6) through the real renderer.
     /// <list type="bullet">
     /// <item>The root frame <c>ground</c> has a uniform gravity of 9.81 m/s² along -Y and air of 1.225 kg/m³ with a drag of
@@ -48,13 +60,29 @@ public static partial class DemoScenes
             )
         );
 
-        var flame = new PuffLook(
-            Life: 3,
-            StartRadius: 0.25f,
-            EndRadius: 1.2f,
-            TemperatureRatio: 3,
-            Shading: PuffShading.Glow(new(5100, 2040, 510))
-        );
+        SpawnPuffJets(world: world, resources: resources, scene: scene, ground: ground);
+        SpawnTossedBox(world: world, resources: resources, scene: scene, ground: ground);
+
+        Entity camera = world.Spawn(ViewIn(ground, new(new(0, 4, 22), DQuaternion.FromAxisAngle(new(1, 0, 0), -0.08))));
+        scene.Add("camera", camera);
+        world.Camera = camera;
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 40));
+        // The glow puffs and the ambient light, in W/(m²·sr), keep the share of the Sun's light that the scene was judged
+        // with, beside sunlight of 0.4 W/m².
+        world.Ambient = new()
+        {
+            SkyColor = new(270),
+            GroundColor = new(100),
+            Intensity = 1,
+        };
+        return scene;
+    }
+
+    /// <summary>
+    /// The <c>flame</c>, the <c>blue-jet</c> and the <c>cold-jet</c> of the puff yard, each on a post on the floor.
+    /// </summary>
+    private static void SpawnPuffJets(World world, IRenderResources resources, SceneInstance scene, FrameHandle ground)
+    {
         var blue = new PuffLook(
             Life: 2.5f,
             StartRadius: 0.15f,
@@ -77,7 +105,7 @@ public static partial class DemoScenes
                 frame: ground,
                 place: new(-6, 0, 0),
                 direction: Double3.UnitY,
-                emitter: new(Rate: 60, Speed: 6, Spread: 0.15f, Look: flame)
+                emitter: new(Rate: 60, Speed: 6, Spread: 0.15f, Look: FlameLook)
             )
         );
         scene.Add(
@@ -102,14 +130,29 @@ public static partial class DemoScenes
                 emitter: new(Rate: 50, Speed: 5, Spread: 0.25f, Look: cold)
             )
         );
+    }
 
+    /// <summary>
+    /// The <c>tossed-box</c> of the puff yard, which leaves a trail of orange puffs on its arc over the yard.
+    /// </summary>
+    private static void SpawnTossedBox(World world, IRenderResources resources, SceneInstance scene, FrameHandle ground)
+    {
         RenderData box = Drawn(
             resources: resources,
             mesh: Primitives.Box(new(0.5f)),
             color: new(x: 1, y: 0.45f, z: 0.1f, w: 1),
             boundingRadius: 0.87f
         );
-        box.Emitter = new(Rate: 90, Speed: 1, Spread: MathF.PI / 2, Look: flame with { Life = 2, EndRadius = 0.8f });
+        box.Emitter = new(
+            Rate: 90,
+            Speed: 1,
+            Spread: MathF.PI / 2,
+            Look: FlameLook with
+            {
+                Life = 2,
+                EndRadius = 0.8f,
+            }
+        );
         scene.Add(
             "tossed-box",
             world.Spawn(
@@ -123,27 +166,6 @@ public static partial class DemoScenes
                 }
             )
         );
-
-        Entity camera = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = new(new(0, 4, 22), DQuaternion.FromAxisAngle(new(1, 0, 0), -0.08)),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("camera", camera);
-        world.Camera = camera;
-        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 40));
-        // The glow puffs and the ambient light, in W/(m²·sr), keep the share of the Sun's light that the scene was judged
-        // with, beside sunlight of 0.4 W/m².
-        world.Ambient = new()
-        {
-            SkyColor = new(270),
-            GroundColor = new(100),
-            Intensity = 1,
-        };
-        return scene;
     }
 
     /// <summary>

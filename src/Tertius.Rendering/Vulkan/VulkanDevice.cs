@@ -24,31 +24,26 @@ internal sealed unsafe class VulkanDevice : IDisposable
     private bool disposed;
 
     private VulkanDevice(
-        Vk vk,
-        Instance instance,
+        in DeviceHandles handles,
         ValidationLog log,
-        GCHandle logHandle,
-        ExtDebugUtils? debugUtils,
-        DebugUtilsMessengerEXT messenger,
-        KhrSurface? surfaceApi,
-        SurfaceKHR surface,
         PhysicalDevice physicalDevice,
         uint queueFamily,
-        Device device,
         KhrSwapchain? swapchainApi,
         bool validation
     )
     {
+        Vk vk = handles.Vk;
         Vk = vk;
-        Instance = instance;
+        Instance = handles.Instance;
         Log = log;
-        this.logHandle = logHandle;
-        this.debugUtils = debugUtils;
-        this.messenger = messenger;
-        SurfaceApi = surfaceApi;
-        Surface = surface;
+        logHandle = handles.LogHandle;
+        debugUtils = handles.DebugUtils;
+        messenger = handles.Messenger;
+        SurfaceApi = handles.SurfaceApi;
+        Surface = handles.Surface;
         PhysicalDevice = physicalDevice;
         QueueFamily = queueFamily;
+        Device device = handles.Device;
         Device = device;
         SwapchainApi = swapchainApi;
         Validation = validation;
@@ -109,163 +104,210 @@ internal sealed unsafe class VulkanDevice : IDisposable
     {
         var vk = Vk.GetApi();
         var log = new ValidationLog();
-        var logHandle = GCHandle.Alloc(log);
+        var handles = new DeviceHandles { Vk = vk, LogHandle = GCHandle.Alloc(log) };
         var strings = new NativeStrings();
-        Instance instance = default;
-        DebugUtilsMessengerEXT messenger = default;
-        ExtDebugUtils? debugUtils = null;
-        KhrSurface? surfaceApi = null;
-        SurfaceKHR surface = default;
-        Device device = default;
         try
         {
-            HashSet<string> available = InstanceExtensions(vk, null);
-            if (validation && !HasLayer(vk, ValidationLayer))
-                throw new NotSupportedException($"{ValidationLayer} is not installed. Check VK_LAYER_PATH.");
-
-            var extensions = new List<string>(surfaceExtensions);
-            bool portability = available.Contains("VK_KHR_portability_enumeration");
-            if (portability)
-                extensions.Add("VK_KHR_portability_enumeration");
-            if (validation)
-            {
-                extensions.Add(ExtDebugUtils.ExtensionName);
-                // The validation layer provides VK_EXT_layer_settings itself.
-                extensions.Add("VK_EXT_layer_settings");
-            }
-
-            byte* appName = strings.Get("Tertius");
-            var app = new ApplicationInfo
-            {
-                SType = StructureType.ApplicationInfo,
-                PApplicationName = appName,
-                ApplicationVersion = Vk.MakeVersion(0, 1, 0),
-                PEngineName = appName,
-                EngineVersion = Vk.MakeVersion(0, 1, 0),
-                ApiVersion = Vk.Version13,
-            };
-
-            DebugUtilsMessengerCreateInfoEXT messengerInfo = ValidationLog.CreateInfo(logHandle);
-            byte* layer = strings.Get(ValidationLayer);
-            // Synchronization validation checks barriers, semaphores and fences against the actual accesses. The two
-            // extra checks are off by default in the layer: attachment loads after a store in an earlier rendering
-            // instance (the G-buffer and HDR targets are loaded across passes), and shader accesses through
-            // descriptors (the instance, material and light buffers and the textures).
-            uint enabled = Vk.True;
-            ReadOnlySpan<string> syncSettings =
-            [
-                "validate_sync",
-                "syncval_load_op_after_store_op_validation",
-                "syncval_shader_accesses_heuristic",
-            ];
-            LayerSettingEXT* settings = stackalloc LayerSettingEXT[syncSettings.Length];
-            for (int i = 0; i < syncSettings.Length; i++)
-                settings[i] = new()
-                {
-                    PLayerName = layer,
-                    PSettingName = strings.Get(syncSettings[i]),
-                    Type = LayerSettingTypeEXT.Bool32Ext,
-                    ValueCount = 1,
-                    PValues = &enabled,
-                };
-            var layerSettings = new LayerSettingsCreateInfoEXT
-            {
-                SType = StructureType.LayerSettingsCreateInfoExt,
-                PNext = &messengerInfo,
-                SettingCount = (uint)syncSettings.Length,
-                PSettings = settings,
-            };
-
-            byte** extensionNames = strings.Array(extensions);
-            var instanceInfo = new InstanceCreateInfo
-            {
-                SType = StructureType.InstanceCreateInfo,
-                // Chaining the messenger here also reports problems inside vkCreateInstance and vkDestroyInstance.
-                PNext = validation ? &layerSettings : null,
-                Flags = portability ? InstanceCreateFlags.EnumeratePortabilityBitKhr : 0,
-                PApplicationInfo = &app,
-                EnabledLayerCount = validation ? 1u : 0u,
-                PpEnabledLayerNames = validation ? &layer : null,
-                EnabledExtensionCount = (uint)extensions.Count,
-                PpEnabledExtensionNames = extensionNames,
-            };
-            vk.CreateInstance(&instanceInfo, null, out instance).Check("vkCreateInstance");
-
-            if (validation)
-            {
-                if (!vk.TryGetInstanceExtension(instance, out debugUtils) || debugUtils is null)
-                    throw new NotSupportedException("VK_EXT_debug_utils is not available.");
-                debugUtils
-                    .CreateDebugUtilsMessenger(
-                        instance: instance,
-                        pCreateInfo: &messengerInfo,
-                        pAllocator: null,
-                        pMessenger: out messenger
-                    )
-                    .Check("vkCreateDebugUtilsMessengerEXT");
-            }
-
+            CreateInstanceAndMessenger(
+                validation: validation,
+                surfaceExtensions: surfaceExtensions,
+                strings: strings,
+                handles: ref handles
+            );
             if (createSurface != null)
             {
-                if (!vk.TryGetInstanceExtension(instance, out surfaceApi))
+                if (!vk.TryGetInstanceExtension(handles.Instance, out handles.SurfaceApi))
                     throw new NotSupportedException("VK_KHR_surface is not available.");
-                surface = createSurface(instance);
+                handles.Surface = createSurface(handles.Instance);
             }
 
             (PhysicalDevice physicalDevice, uint queueFamily) = ChoosePhysicalDevice(
                 vk: vk,
-                instance: instance,
-                surfaceApi: surfaceApi,
-                surface: surface
+                instance: handles.Instance,
+                surfaceApi: handles.SurfaceApi,
+                surface: handles.Surface
             );
-            device = CreateLogicalDevice(
+            handles.Device = CreateLogicalDevice(
                 vk: vk,
                 physicalDevice: physicalDevice,
                 queueFamily: queueFamily,
-                swapchain: surface.Handle != 0,
+                swapchain: handles.Surface.Handle != 0,
                 strings: strings
             );
-
-            KhrSwapchain? swapchainApi = null;
-            return
-                surface.Handle != 0
-                && !vk.TryGetDeviceExtension(instance: instance, device: device, ext: out swapchainApi)
-                ? throw new NotSupportedException("VK_KHR_swapchain is not available.")
-                : new(
-                    vk: vk,
-                    instance: instance,
-                    log: log,
-                    logHandle: logHandle,
-                    debugUtils: debugUtils,
-                    messenger: messenger,
-                    surfaceApi: surfaceApi,
-                    surface: surface,
-                    physicalDevice: physicalDevice,
-                    queueFamily: queueFamily,
-                    device: device,
-                    swapchainApi: swapchainApi,
-                    validation: validation
-                );
+            return new(
+                handles: handles,
+                log: log,
+                physicalDevice: physicalDevice,
+                queueFamily: queueFamily,
+                swapchainApi: SwapchainApiOf(handles),
+                validation: validation
+            );
         }
         catch
         {
-            if (device.Handle != 0)
-                vk.DestroyDevice(device, null);
-            // A surface comes only from the surface extension, and a messenger only from the debug extension.
-            if (surface.Handle != 0)
-                surfaceApi?.DestroySurface(instance, surface, null);
-            if (messenger.Handle != 0)
-                debugUtils?.DestroyDebugUtilsMessenger(instance, messenger, null);
-            if (instance.Handle != 0)
-                vk.DestroyInstance(instance, null);
-            logHandle.Free();
-            vk.Dispose();
+            handles.Destroy();
             throw;
         }
         finally
         {
             strings.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Creates the instance into <paramref name="handles"/>, and with validation the messenger of the validation log, which
+    /// also reports problems inside the creation of the instance.
+    /// </summary>
+    private static void CreateInstanceAndMessenger(
+        bool validation,
+        IReadOnlyList<string> surfaceExtensions,
+        NativeStrings strings,
+        ref DeviceHandles handles
+    )
+    {
+        Vk vk = handles.Vk;
+        (List<string> extensions, bool portability) = InstanceExtensionNames(
+            vk: vk,
+            validation: validation,
+            surfaceExtensions: surfaceExtensions
+        );
+        DebugUtilsMessengerCreateInfoEXT messengerInfo = ValidationLog.CreateInfo(handles.LogHandle);
+        CreateInstance(
+            vk: vk,
+            validation: validation,
+            extensions: extensions,
+            portability: portability,
+            strings: strings,
+            messengerInfo: &messengerInfo,
+            instance: out handles.Instance
+        );
+        if (!validation)
+            return;
+        if (!vk.TryGetInstanceExtension(handles.Instance, out handles.DebugUtils) || handles.DebugUtils is null)
+            throw new NotSupportedException("VK_EXT_debug_utils is not available.");
+        handles
+            .DebugUtils.CreateDebugUtilsMessenger(
+                instance: handles.Instance,
+                pCreateInfo: &messengerInfo,
+                pAllocator: null,
+                pMessenger: out handles.Messenger
+            )
+            .Check("vkCreateDebugUtilsMessengerEXT");
+    }
+
+    /// <summary>The swapchain extension of the device in <paramref name="handles"/> when it has a surface, or null.</summary>
+    private static KhrSwapchain? SwapchainApiOf(in DeviceHandles handles)
+    {
+        KhrSwapchain? swapchainApi = null;
+        return
+            handles.Surface.Handle != 0
+            && !handles.Vk.TryGetDeviceExtension(
+                instance: handles.Instance,
+                device: handles.Device,
+                ext: out swapchainApi
+            )
+            ? throw new NotSupportedException("VK_KHR_swapchain is not available.")
+            : swapchainApi;
+    }
+
+    /// <summary>
+    /// The instance extensions to enable: <paramref name="surfaceExtensions"/>, portability enumeration where the loader
+    /// offers it, and the debug and layer-settings extensions with validation. Throws when validation is asked for and its
+    /// layer is not installed.
+    /// </summary>
+    private static (List<string> Extensions, bool Portability) InstanceExtensionNames(
+        Vk vk,
+        bool validation,
+        IReadOnlyList<string> surfaceExtensions
+    )
+    {
+        HashSet<string> available = InstanceExtensions(vk, null);
+        if (validation && !HasLayer(vk, ValidationLayer))
+            throw new NotSupportedException($"{ValidationLayer} is not installed. Check VK_LAYER_PATH.");
+
+        var extensions = new List<string>(surfaceExtensions);
+        bool portability = available.Contains("VK_KHR_portability_enumeration");
+        if (portability)
+            extensions.Add("VK_KHR_portability_enumeration");
+        if (validation)
+        {
+            extensions.Add(ExtDebugUtils.ExtensionName);
+            // The validation layer provides VK_EXT_layer_settings itself.
+            extensions.Add("VK_EXT_layer_settings");
+        }
+
+        return (extensions, portability);
+    }
+
+    /// <summary>
+    /// Creates the instance with <paramref name="extensions"/>, and with validation the validation layer, its
+    /// synchronization checks and the messenger of <paramref name="messengerInfo"/>, into <paramref name="instance"/>.
+    /// </summary>
+    private static void CreateInstance(
+        Vk vk,
+        bool validation,
+        List<string> extensions,
+        bool portability,
+        NativeStrings strings,
+        DebugUtilsMessengerCreateInfoEXT* messengerInfo,
+        out Instance instance
+    )
+    {
+        byte* appName = strings.Get("Tertius");
+        var app = new ApplicationInfo
+        {
+            SType = StructureType.ApplicationInfo,
+            PApplicationName = appName,
+            ApplicationVersion = Vk.MakeVersion(0, 1, 0),
+            PEngineName = appName,
+            EngineVersion = Vk.MakeVersion(0, 1, 0),
+            ApiVersion = Vk.Version13,
+        };
+
+        byte* layer = strings.Get(ValidationLayer);
+        // Synchronization validation checks barriers, semaphores and fences against the actual accesses. The two
+        // extra checks are off by default in the layer: attachment loads after a store in an earlier rendering
+        // instance (the G-buffer and HDR targets are loaded across passes), and shader accesses through
+        // descriptors (the instance, material and light buffers and the textures).
+        uint enabled = Vk.True;
+        ReadOnlySpan<string> syncSettings =
+        [
+            "validate_sync",
+            "syncval_load_op_after_store_op_validation",
+            "syncval_shader_accesses_heuristic",
+        ];
+        LayerSettingEXT* settings = stackalloc LayerSettingEXT[syncSettings.Length];
+        for (int i = 0; i < syncSettings.Length; i++)
+            settings[i] = new()
+            {
+                PLayerName = layer,
+                PSettingName = strings.Get(syncSettings[i]),
+                Type = LayerSettingTypeEXT.Bool32Ext,
+                ValueCount = 1,
+                PValues = &enabled,
+            };
+        var layerSettings = new LayerSettingsCreateInfoEXT
+        {
+            SType = StructureType.LayerSettingsCreateInfoExt,
+            PNext = messengerInfo,
+            SettingCount = (uint)syncSettings.Length,
+            PSettings = settings,
+        };
+
+        byte** extensionNames = strings.Array(extensions);
+        var instanceInfo = new InstanceCreateInfo
+        {
+            SType = StructureType.InstanceCreateInfo,
+            // Chaining the messenger here also reports problems inside vkCreateInstance and vkDestroyInstance.
+            PNext = validation ? &layerSettings : null,
+            Flags = portability ? InstanceCreateFlags.EnumeratePortabilityBitKhr : 0,
+            PApplicationInfo = &app,
+            EnabledLayerCount = validation ? 1u : 0u,
+            PpEnabledLayerNames = validation ? &layer : null,
+            EnabledExtensionCount = (uint)extensions.Count,
+            PpEnabledExtensionNames = extensionNames,
+        };
+        vk.CreateInstance(&instanceInfo, null, out instance).Check("vkCreateInstance");
     }
 
     private static (PhysicalDevice Device, uint QueueFamily) ChoosePhysicalDevice(
@@ -715,15 +757,51 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (disposed)
             return;
         disposed = true;
-        Vk.DestroyDevice(Device, null);
-        if (Surface.Handle != 0)
-            SurfaceApi?.DestroySurface(Instance, Surface, null);
-        if (messenger.Handle != 0)
-            debugUtils?.DestroyDebugUtilsMessenger(Instance, messenger, null);
-        Vk.DestroyInstance(Instance, null);
-        // The messenger chained into vkCreateInstance stays active until vkDestroyInstance returns.
-        logHandle.Free();
-        Vk.Dispose();
+        // The handles' own teardown is the one copy of the order, for a failed Create and a disposed device alike.
+        new DeviceHandles
+        {
+            Vk = Vk,
+            LogHandle = logHandle,
+            Instance = Instance,
+            DebugUtils = debugUtils,
+            Messenger = messenger,
+            SurfaceApi = SurfaceApi,
+            Surface = Surface,
+            Device = Device,
+        }.Destroy();
+    }
+
+    /// <summary>
+    /// The handles that <see cref="Create"/> has made so far, null until made. A failure destroys them, and the new device
+    /// takes them over and gives them back to <see cref="Destroy"/> when it is disposed.
+    /// </summary>
+    private struct DeviceHandles
+    {
+        public Vk Vk;
+        public GCHandle LogHandle;
+        public Instance Instance;
+        public ExtDebugUtils? DebugUtils;
+        public DebugUtilsMessengerEXT Messenger;
+        public KhrSurface? SurfaceApi;
+        public SurfaceKHR Surface;
+        public Device Device;
+
+        /// <summary>Destroys every handle made so far, in the reverse order of creation, then frees the log and the API.</summary>
+        public void Destroy()
+        {
+            if (Device.Handle != 0)
+                Vk.DestroyDevice(Device, null);
+            // A surface comes only from the surface extension, and a messenger only from the debug extension.
+            if (Surface.Handle != 0)
+                SurfaceApi?.DestroySurface(Instance, Surface, null);
+            if (Messenger.Handle != 0)
+                DebugUtils?.DestroyDebugUtilsMessenger(Instance, Messenger, null);
+            if (Instance.Handle != 0)
+                Vk.DestroyInstance(Instance, null);
+            // The messenger chained into vkCreateInstance stays active until vkDestroyInstance returns.
+            LogHandle.Free();
+            Vk.Dispose();
+        }
     }
 
     /// <summary>Null-terminated UTF-8 copies of strings for Vulkan create infos, freed together.</summary>
