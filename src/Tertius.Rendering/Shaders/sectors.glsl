@@ -79,8 +79,16 @@ uint runSectors(SectorRun run)
     return sectorRun(run.first, run.end);
 }
 
-// The angles of the part `part`, a set of the run's sectors that is not empty, from its first sector to its last:
-// each sector stands at the angle that its place in the run takes in proportion between low and high
+// The unbroken piece of the set `sectors` that holds its lowest sector, up to the first sector that the set leaves out;
+// none for an empty set. The sum with the lowest bit carries through the piece and clears it, and a piece that ends at
+// sector 31 wraps the sum to 0, which unsigned GLSL arithmetic does (SectorMask.LowestPiece).
+uint lowestPiece(uint sectors)
+{
+    return sectors & ~(sectors + (sectors & (~sectors + 1u)));
+}
+
+// The angles of the part `part`, an unbroken piece of the run's sectors that is not empty, from its first sector to its
+// last: each sector stands at the angle that its place in the run takes in proportion between low and high
 // (docs/plans/screen-space-illumination.md, decision 41).
 vec2 partAngles(SectorRun run, uint part)
 {

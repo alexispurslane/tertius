@@ -700,6 +700,52 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
+    public void AStepWhoseNewlyBlockedSectorsLieOnBothSidesOfANearerPoleReadsTheMapOnceForEachUnbrokenPiece()
+    {
+        // The pole's slab covers the directions from about 52° to 62°, the wall's from 45° to the edge at 90°, so the
+        // wall newly blocks two pieces, one on each side of the pole. Steps that stand on their slice's view rays never
+        // come in this order, but a step that stands at the point that its texel read, off its ray, can
+        // (docs/plans/screen-space-illumination.md, decision 42).
+        NearStep pole = FacingStep(position: new(0.7, 0, 1.45), light: Red);
+        NearStep wall = FacingStep(position: new(0.15, 0, 1.85), light: Green);
+        SectorMask poleSectors = Covered(Facing, pole, ThicknessShare);
+        SectorMask fresh = Covered(Facing, wall, ThicknessShare).Except(poleSectors);
+        SectorMask below = fresh.Except(
+            SectorMask.Run(start: BitOperations.TrailingZeroCount(poleSectors.Bits), end: 32)
+        );
+        SectorMask above = fresh.Except(below);
+        below.Count.Should().BePositive("the test needs fresh sectors below the pole");
+        above.Count.Should().BePositive("the test needs fresh sectors above the pole");
+        var reads = new List<Double3>();
+
+        Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, _) =>
+            {
+                reads.Add(direction);
+                return Red;
+            },
+            pole,
+            wall
+        );
+
+        reads.Should().HaveCount(3, "the pole reads once, and the wall once for each piece that it newly blocks");
+        foreach (
+            (Double3 read, SectorMask piece) in (ReadOnlySpan<(Double3 Read, SectorMask Piece)>)
+                [(reads[1], below), (reads[2], above)]
+        )
+            Facing
+                .MeasureFraction(AngleInSlice(Facing, read))
+                .Should()
+                .BeInRange(
+                    (double)BitOperations.TrailingZeroCount(piece.Bits) / SliceSectors.Count,
+                    (double)(SliceSectors.Count - BitOperations.LeadingZeroCount(piece.Bits)) / SliceSectors.Count,
+                    "a read stands for its own piece, not for the pole's directions between the pieces"
+                );
+    }
+
+    [Fact]
     public void TheReceiversOwnSurfaceReadsTheMapAlongTheMiddleOfTheAnglesBelowItWithALobeAsWideAsThem()
     {
         // The shading normal leans 0.5 rad toward +x from the geometric normal, which faces the eye, so the directions

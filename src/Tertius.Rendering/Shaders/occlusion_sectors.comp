@@ -11,13 +11,21 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-// M of a part of a run: the map's light along the middle of its angles, read with a lobe that keeps to them
-// (docs/plans/screen-space-illumination.md, decision 41). SectorSearch.Near is the C# copy.
+// M of a part of a run: for each unbroken piece of the part, its count times the map's light along the middle of its
+// angles, read with a lobe that keeps to them (docs/plans/screen-space-illumination.md, decision 42). A nearer step can
+// block sectors amid the run, so the part can fall in pieces. SectorSearch.Near is the C# copy.
 vec3 mapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
 {
-    vec2 angles = partAngles(run, part);
-    vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
-    return environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+    vec3 light = vec3(0.0);
+    for (uint rest = part; rest != 0u;)
+    {
+        uint piece = lowestPiece(rest);
+        rest &= ~piece;
+        vec2 angles = partAngles(run, piece);
+        vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
+        light += float(bitCount(piece)) * environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+    }
+    return light;
 }
 
 void main()
@@ -61,7 +69,7 @@ void main()
         // M: the map's light along the blocked directions, which their blockers' light replaces.
         vec3 mapLight = vec3(0.0);
         if (readsMap && blocked != 0u)
-            mapLight += float(bitCount(blocked)) * mapLightOf(g, ownSurface, blocked, map);
+            mapLight += mapLightOf(g, ownSurface, blocked, map);
         // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
         // the C# copy of this loop: change both together.
         for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
@@ -102,7 +110,7 @@ void main()
                 light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
                                                             setup.center - samplePosition);
                 if (readsMap)
-                    mapLight += float(bitCount(fresh)) * mapLightOf(g, run, fresh, map);
+                    mapLight += mapLightOf(g, run, fresh, map);
             }
         }
         totalWeight += g.weight;

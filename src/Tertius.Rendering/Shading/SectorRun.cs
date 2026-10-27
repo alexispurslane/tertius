@@ -12,12 +12,13 @@ internal readonly record struct SectorRun(int First, int End, double Low, double
     public SectorMask Sectors => SectorMask.Run(start: First, end: End);
 
     /// <summary>
-    /// The middle and the width of the angles of <paramref name="part"/>, a set of this run's sectors that is not empty,
-    /// from its first sector to its last: each sector stands at the angle that its place in the run takes in proportion
-    /// between <see cref="Low"/> and <see cref="High"/>.
+    /// The middle and the width of the angles of <paramref name="part"/>, an unbroken piece of this run's sectors that is
+    /// not empty, from its first sector to its last: each sector stands at the angle that its place in the run takes in
+    /// proportion between <see cref="Low"/> and <see cref="High"/>.
     /// </summary>
     public (double Middle, double Width) PartAngles(SectorMask part)
     {
+        Contract.Requires(part.Count > 0 && part.LowestPiece == part);
         double perSector = (High - Low) / (End - First);
         double start = Low + (BitOperations.TrailingZeroCount(part.Bits) - First) * perSector;
         double end = Low + (SliceSectors.Count - BitOperations.LeadingZeroCount(part.Bits) - First) * perSector;
