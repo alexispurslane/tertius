@@ -93,12 +93,13 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
                 radiusInTexels: radiusInTexels,
                 halfSize: HalfSize,
                 rayThrough: RayAt,
-                texelAt: FloorAt
+                texelAt: FloorAt,
+                ownSurface: new OwnPlane(Up)
             );
             NearSlice near = SectorSearch.Near(
                 sectors: sectors,
                 center: center,
-                geometricNormal: Up,
+                ownSurface: new OwnPlane(Up),
                 radius: setting.RadiusMeters,
                 thicknessShare: CellBounds.ThicknessShare,
                 steps: [.. steps]

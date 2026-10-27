@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 using static Tertius.Rendering.Tests.OcclusionScenes;
 
@@ -87,6 +88,28 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         new(SideWallX, FloorHeight + 0.1f, BackWallZ + 0.3f),
     ];
 
+    /// <summary>
+    /// A hair card standing on the floor, 0.8 m square, whose strands run up and whose normal is turned 40° about them
+    /// from the back wall's: half of its own points lie above the plane of a hair pixel's fiber normal.
+    /// </summary>
+    private static readonly Vector3 HairCardCenter = new(0.4f, FloorHeight + 0.4f, -3);
+
+    private static readonly Vector3 HairCardNormal = new(MathF.Sin(0.7f), 0, MathF.Cos(0.7f));
+
+    /// <summary>Three points of the hair card: by the floor, at its middle and 0.2 m to its side.</summary>
+    private static readonly Vector3[] OnTheHairCard =
+    [
+        HairCardCenter + new Vector3(0, -0.3f, 0),
+        HairCardCenter,
+        HairCardCenter + 0.2f * Vector3.Cross(HairCardNormal, Vector3.UnitY),
+    ];
+
+    /// <summary>The camera's unit axes in the world: XeGTAO's view space has x right, y up and z forward.</summary>
+    private static readonly Vector3 Right = Vector3.Transform(Vector3.UnitX, CornerView);
+
+    private static readonly Vector3 Up = Vector3.Transform(Vector3.UnitY, CornerView);
+    private static readonly Vector3 Forward = Vector3.Transform(-Vector3.UnitZ, CornerView);
+
     [Fact]
     public void TheSectorPassGathersWhatTheCSharpCopyGathers()
     {
@@ -137,6 +160,63 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             {
                 (int X, int Y) texel = TexelOf(point);
                 NearTexel expected = images.Near(texel, setting, everyBlockerFaces: false);
+                ShouldMatch(gpu: gpu, texel: texel, expected: expected, brightest: brightest, point: point);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver()
+    {
+        VisibilityBitmaskLight setting = VisibilityBitmaskLight.Default;
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
+        try
+        {
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
+            RenderSnapshot scene = Corner(renderer, Matte(renderer), LitCorner());
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Plane(0.4f)),
+                    material: renderer.CreateMaterial(
+                        MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.8f) with
+                        {
+                            Model = new HairShading(StrandDirection.PlusV),
+                        }
+                    ),
+                    position: HairCardCenter,
+                    scale: Vector3.One,
+                    rotation: PlaneTurnedTo(normal: HairCardNormal, strand: Vector3.UnitY),
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            renderer.Render(scene, 1f);
+            (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
+            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
+            byte[] shading = renderer.ReadShading();
+            var images = new HairCardImages(
+                ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
+                HalfSize: (Width: halfWidth, Height: halfHeight),
+                Direct: renderer.ReadDirect(),
+                Normals: renderer.ReadNormals(),
+                SubPixelPrecisionBits: (int)renderer.SubPixelPrecisionBits
+            );
+            double brightest = images.Direct.Where((_, i) => i % 4 != 3).Max();
+
+            foreach (Vector3 point in OnTheHairCard)
+            {
+                (int X, int Y) texel = TexelOf(point);
+                shading[(2 * texel.Y * Width + 2 * texel.X) * 4 + 3]
+                    .Should()
+                    .Be((byte)ShadingCode.Hair, "the receiver at {0} is a hair pixel", point);
+                (NearTexel expected, int onOwnCard) = images.NearHair(texel, setting);
+                onOwnCard.Should().BePositive("the test needs steps that read the receiver's own card at {0}", point);
+                expected
+                    .Estimate.Occlusion.Should()
+                    .BeLessThan(1, "the test needs another surface that blocks the receiver at {0}", point);
                 ShouldMatch(gpu: gpu, texel: texel, expected: expected, brightest: brightest, point: point);
             }
         }
@@ -204,6 +284,47 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 NormalMap = renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: TiltedMapTexel, Srgb: false)),
             }
         );
+
+    /// <summary>
+    /// The rotation that turns the plane mesh's front, +Y, to the unit <paramref name="normal"/>, and its +Z, along which
+    /// its texture's v grows, to the unit <paramref name="strand"/>, which must be at right angles to it.
+    /// </summary>
+    private static Quaternion PlaneTurnedTo(Vector3 normal, Vector3 strand)
+    {
+        var alongU = Vector3.Cross(normal, strand);
+        var basis = new Matrix4x4(
+            m11: alongU.X,
+            m12: alongU.Y,
+            m13: alongU.Z,
+            m14: 0,
+            m21: normal.X,
+            m22: normal.Y,
+            m23: normal.Z,
+            m24: 0,
+            m31: strand.X,
+            m32: strand.Y,
+            m33: strand.Z,
+            m34: 0,
+            m41: 0,
+            m42: 0,
+            m43: 0,
+            m44: 1
+        );
+        return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(basis));
+    }
+
+    /// <summary>
+    /// The world normal that the normals target <paramref name="normals"/> stores at <paramref name="pixel"/> in the two
+    /// channels from <paramref name="channel"/>: the C# copy of octDecode in octahedral.glsl.
+    /// </summary>
+    private static Vector3 StoredNormal(float[] normals, int pixel, int channel)
+    {
+        var e = new Double3(normals[pixel * 4 + channel], normals[pixel * 4 + channel + 1], 0);
+        Double3 n = e with { Z = 1 - Math.Abs(e.X) - Math.Abs(e.Y) };
+        if (n.Z < 0)
+            n = n with { X = (1 - Math.Abs(e.Y)) * (e.X >= 0 ? 1 : -1), Y = (1 - Math.Abs(e.X)) * (e.Y >= 0 ? 1 : -1) };
+        return n.Normalized().ToVector3();
+    }
 
     /// <summary>The half-resolution texel whose representative pixel's block holds the projection of <paramref name="point"/>.</summary>
     private static (int X, int Y) TexelOf(Vector3 point)
@@ -329,6 +450,72 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             .ToVector3();
     }
 
+    private static double TanHalfX => Math.Tan(Gpu.Fov / 2) * Width / Height;
+
+    /// <summary>
+    /// The view position at view depth <paramref name="z"/> on the ray through the place <paramref name="place"/>
+    /// in half-resolution texels, where whole numbers are a texel's representative pixel.
+    /// </summary>
+    private static Double3 ViewPosition((double X, double Y) place, double z)
+    {
+        double tanHalfY = Math.Tan(Gpu.Fov / 2);
+        double screenX = (2 * place.X + 0.5) / Width;
+        double screenY = (2 * place.Y + 0.5) / Height;
+        return new Double3((2 * screenX - 1) * TanHalfX, (1 - 2 * screenY) * tanHalfY, 1) * z;
+    }
+
+    private static Double3 ToView(Vector3 world) =>
+        new(Vector3.Dot(world, Right), Vector3.Dot(world, Up), Vector3.Dot(world, Forward));
+
+    /// <summary>
+    /// The sectors next to a boundary that lies within <see cref="TieTolerance"/> of a tie: an edge of an own
+    /// plane in the slice, or an end of a step within the radius.
+    /// </summary>
+    private static SectorMask Ties(
+        SliceSectors sectors,
+        Double3 center,
+        OwnSurface ownSurface,
+        double radius,
+        List<NearStep> steps
+    )
+    {
+        SectorMask ties = SectorMask.None;
+        if (ownSurface is OwnPlane(var geometricNormal))
+        {
+            double planeAngle = Math.Atan2(
+                Double3.Dot(geometricNormal, sectors.Slice.TowardPlusSide),
+                Double3.Dot(geometricNormal, sectors.Slice.ToEye)
+            );
+            ties = TiesAt(sectors, planeAngle - Math.PI / 2, planeAngle + Math.PI / 2);
+        }
+        foreach (NearStep step in steps.Where(step => Double3.Distance(step.Position, center) < radius))
+        {
+            (double front, double back) = SectorSearch.StepAngles(
+                center: center,
+                toEye: sectors.Slice.ToEye,
+                position: step.Position,
+                side: step.Side,
+                thicknessShare: CellBounds.ThicknessShare
+            );
+            ties = ties.Union(TiesAt(sectors, front, back));
+        }
+        return ties;
+    }
+
+    /// <summary>The sectors next to the boundary 32 m + ½ of each angle that lies within <see cref="TieTolerance"/> of a tie.</summary>
+    private static SectorMask TiesAt(SliceSectors sectors, params ReadOnlySpan<double> angles)
+    {
+        SectorMask ties = SectorMask.None;
+        foreach (double angle in angles)
+        {
+            double boundary = SliceSectors.Count * sectors.MeasureFraction(angle) + 0.5;
+            int nearest = (int)Math.Round(boundary);
+            if (Math.Abs(boundary - nearest) < TieTolerance && nearest >= 1)
+                ties = ties.Union(SectorMask.Run(start: nearest - 1, end: nearest));
+        }
+        return ties;
+    }
+
     /// <summary>The sector pass's term A, as the renderer read it back, for a half image <paramref name="HalfWidth"/> texels wide.</summary>
     private sealed record SectorPassOutput(float[] Term, int HalfWidth);
 
@@ -348,12 +535,6 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     /// </summary>
     private sealed record CornerImages(float[] ViewDepth, (int Width, int Height) HalfSize, float[] Direct)
     {
-        /// <summary>The camera's unit axes in the world: XeGTAO's view space has x right, y up and z forward.</summary>
-        private static readonly Vector3 Right = Vector3.Transform(Vector3.UnitX, CornerView);
-
-        private static readonly Vector3 Up = Vector3.Transform(Vector3.UnitY, CornerView);
-        private static readonly Vector3 Forward = Vector3.Transform(-Vector3.UnitZ, CornerView);
-
         /// <summary>
         /// The near slices of <paramref name="texel"/> by the C# copy: the steps of each slice of GTAO, then
         /// <see cref="SectorSearch.Near"/> with each step's view position, geometric normal and direct light. With
@@ -385,7 +566,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     radiusInTexels: radiusInTexels,
                     halfSize: HalfSize,
                     rayThrough: place => ViewPosition(place, 1),
-                    texelAt: StepTexelAt
+                    texelAt: StepTexelAt,
+                    ownSurface: new OwnPlane(geometricNormal)
                 );
                 if (everyBlockerFaces)
                     steps =
@@ -395,7 +577,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 slices[slice] = SectorSearch.Near(
                     sectors: sectors,
                     center: center,
-                    geometricNormal: geometricNormal,
+                    ownSurface: new OwnPlane(geometricNormal),
                     radius: setting.RadiusMeters,
                     thicknessShare: CellBounds.ThicknessShare,
                     steps: [.. steps]
@@ -403,7 +585,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 ties[slice] = Ties(
                     sectors: sectors,
                     center: center,
-                    geometricNormal: geometricNormal,
+                    ownSurface: new OwnPlane(geometricNormal),
                     radius: setting.RadiusMeters,
                     steps: steps
                 );
@@ -411,53 +593,6 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
             return new(Slices: slices, OwnSurface: ownSurface, Ties: ties);
         }
-
-        /// <summary>
-        /// The sectors next to a boundary that lies within <see cref="TieTolerance"/> of a tie: an edge of the own
-        /// surface's plane in the slice, or an end of a step within the radius.
-        /// </summary>
-        private static SectorMask Ties(
-            SliceSectors sectors,
-            Double3 center,
-            Double3 geometricNormal,
-            double radius,
-            List<NearStep> steps
-        )
-        {
-            double planeAngle = Math.Atan2(
-                Double3.Dot(geometricNormal, sectors.Slice.TowardPlusSide),
-                Double3.Dot(geometricNormal, sectors.Slice.ToEye)
-            );
-            SectorMask ties = TiesAt(sectors, planeAngle - Math.PI / 2, planeAngle + Math.PI / 2);
-            foreach (NearStep step in steps.Where(step => Double3.Distance(step.Position, center) < radius))
-            {
-                (double front, double back) = SectorSearch.StepAngles(
-                    center: center,
-                    toEye: sectors.Slice.ToEye,
-                    position: step.Position,
-                    side: step.Side,
-                    thicknessShare: CellBounds.ThicknessShare
-                );
-                ties = ties.Union(TiesAt(sectors, front, back));
-            }
-            return ties;
-        }
-
-        /// <summary>The sectors next to the boundary 32 m + ½ of each angle that lies within <see cref="TieTolerance"/> of a tie.</summary>
-        private static SectorMask TiesAt(SliceSectors sectors, params ReadOnlySpan<double> angles)
-        {
-            SectorMask ties = SectorMask.None;
-            foreach (double angle in angles)
-            {
-                double boundary = SliceSectors.Count * sectors.MeasureFraction(angle) + 0.5;
-                int nearest = (int)Math.Round(boundary);
-                if (Math.Abs(boundary - nearest) < TieTolerance && nearest >= 1)
-                    ties = ties.Union(SectorMask.Run(start: nearest - 1, end: nearest));
-            }
-            return ties;
-        }
-
-        private static double TanHalfX => Math.Tan(Gpu.Fov / 2) * Width / Height;
 
         /// <summary>What a step reads at <paramref name="texel"/>, or null for sky.</summary>
         private StepTexel? StepTexelAt((int X, int Y) texel)
@@ -474,18 +609,6 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         }
 
         private double DepthAt((int X, int Y) texel) => ViewDepth[texel.Y * HalfSize.Width + texel.X];
-
-        /// <summary>
-        /// The view position at view depth <paramref name="z"/> on the ray through the place <paramref name="place"/>
-        /// in half-resolution texels, where whole numbers are a texel's representative pixel.
-        /// </summary>
-        private static Double3 ViewPosition((double X, double Y) place, double z)
-        {
-            double tanHalfY = Math.Tan(Gpu.Fov / 2);
-            double screenX = (2 * place.X + 0.5) / Width;
-            double screenY = (2 * place.Y + 0.5) / Height;
-            return new Double3((2 * screenX - 1) * TanHalfX, (1 - 2 * screenY) * tanHalfY, 1) * z;
-        }
 
         /// <summary>The view-space geometric normal of the surface at the view position <paramref name="position"/>.</summary>
         private static Double3 NormalAt(Double3 position) => ToView(GeometricNormalAt(ToWorld(position)));
@@ -510,9 +633,6 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
         private static Vector3 ToWorld(Double3 position) =>
             (Right * (float)position.X) + (Up * (float)position.Y) + (Forward * (float)position.Z);
-
-        private static Double3 ToView(Vector3 world) =>
-            new(Vector3.Dot(world, Right), Vector3.Dot(world, Up), Vector3.Dot(world, Forward));
 
         /// <summary>
         /// The world normal of the face nearest <paramref name="world"/> of the box at <paramref name="center"/> of
@@ -545,5 +665,106 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 normal = Vector3.UnitZ;
             return normal;
         }
+    }
+
+    /// <summary>
+    /// The images of the corner with the hair card that the sector pass reads, as the renderer read them back: the view
+    /// depth of each half-resolution texel, the direct image and the normals target, whose normals the C# copy decodes
+    /// as the pass does, and the device's sub-pixel precision.
+    /// </summary>
+    private sealed record HairCardImages(
+        float[] ViewDepth,
+        (int Width, int Height) HalfSize,
+        float[] Direct,
+        float[] Normals,
+        int SubPixelPrecisionBits
+    )
+    {
+        /// <summary>
+        /// The near slices of the hair receiver at <paramref name="texel"/> by the C# copy, whose own surface is its
+        /// card, and how many of its steps read a point of the card's plane.
+        /// </summary>
+        public (NearTexel Texel, int OnOwnCard) NearHair((int X, int Y) texel, VisibilityBitmaskLight setting)
+        {
+            double z = DepthAt(texel);
+            Double3 center = ViewPosition(texel, z * HorizonSearch.CenterBias);
+            Double3 toEye = (-center).Normalized();
+            int pixel = 2 * texel.Y * Width + 2 * texel.X;
+            Double3 fiberNormal = ToView(StoredNormal(Normals, pixel, channel: 0));
+            Double3 geometricNormal = ToView(StoredNormal(Normals, pixel, channel: 2));
+            OwnCard card = CardOf(receiverPoint: ViewPosition(texel, z), geometricNormal: geometricNormal);
+            (float sliceNoise, float stepNoise) = OcclusionNoise.At((uint)texel.X, (uint)texel.Y);
+            double radiusInTexels = setting.RadiusMeters / HorizonSearch.TexelWidth(z, TanHalfX, Width);
+            var slices = new NearSlice[setting.Slices];
+            var ties = new SectorMask[setting.Slices];
+            int onOwnCard = 0;
+            for (int slice = 0; slice < setting.Slices; slice++)
+            {
+                double angle = HorizonSearch.SliceAngle(slice, setting.Slices, sliceNoise);
+                var sectors = new SliceSectors(new HorizonSlice(toEye, fiberNormal, angle));
+                List<NearStep> Steps(OwnSurface ownSurface) =>
+                    SectorSearch.SliceSteps(
+                        texel: texel,
+                        slice: slice,
+                        sliceAngle: angle,
+                        stepsPerSide: setting.StepsPerSide,
+                        stepNoise: stepNoise,
+                        radiusInTexels: radiusInTexels,
+                        halfSize: HalfSize,
+                        rayThrough: place => ViewPosition(place, 1),
+                        texelAt: StepTexelAt,
+                        ownSurface: ownSurface
+                    );
+                List<NearStep> steps = Steps(card);
+                onOwnCard += Steps(new OwnPlane(geometricNormal)).Count - steps.Count;
+                slices[slice] = SectorSearch.Near(
+                    sectors: sectors,
+                    center: center,
+                    ownSurface: card,
+                    radius: setting.RadiusMeters,
+                    thicknessShare: CellBounds.ThicknessShare,
+                    steps: [.. steps]
+                );
+                ties[slice] = Ties(
+                    sectors: sectors,
+                    center: center,
+                    ownSurface: card,
+                    radius: setting.RadiusMeters,
+                    steps: steps
+                );
+            }
+
+            // A hair receiver's own surface blocks no sector.
+            return (
+                Texel: new(Slices: slices, OwnSurface: new SectorMask[setting.Slices], Ties: ties),
+                OnOwnCard: onOwnCard
+            );
+        }
+
+        /// <summary>The own card of a hair receiver at <paramref name="receiverPoint"/>, as the sectors pass tests it on this device.</summary>
+        private OwnCard CardOf(Double3 receiverPoint, Double3 geometricNormal) =>
+            new(
+                Point: receiverPoint,
+                Normal: geometricNormal,
+                VertexSnap: OwnCard.SnapPerMeter(
+                    pixelWidth: 2 * TanHalfX / Width,
+                    subPixelPrecisionBits: SubPixelPrecisionBits
+                )
+            );
+
+        /// <summary>What a step reads at <paramref name="texel"/>, or null for sky: its geometric normal as the normals target stores it.</summary>
+        private StepTexel? StepTexelAt((int X, int Y) texel)
+        {
+            if (DepthAt(texel) >= HorizonSearch.SkyDepth)
+                return null;
+            int pixel = 2 * texel.Y * Width + 2 * texel.X;
+            return new StepTexel(
+                Position: ViewPosition(texel, DepthAt(texel)),
+                GeometricNormal: ToView(StoredNormal(Normals, pixel, channel: 2)),
+                DirectLight: new(Direct[pixel * 4], Direct[pixel * 4 + 1], Direct[pixel * 4 + 2])
+            );
+        }
+
+        private double DepthAt((int X, int Y) texel) => ViewDepth[texel.Y * HalfSize.Width + texel.X];
     }
 }

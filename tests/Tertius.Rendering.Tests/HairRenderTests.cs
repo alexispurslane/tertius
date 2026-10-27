@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
@@ -287,14 +288,24 @@ public sealed class HairRenderTests
         }
     }
 
-    [Fact]
-    public void TwoCardsWithOneStrandAndDifferentNormalsShadeAlike()
+    /// <summary>The screen-space light of a test: the renderer's default, or off.</summary>
+    private static ScreenSpaceLightSetting ScreenSpaceLight(bool on) =>
+        on ? VisibilityBitmaskLight.Default : new NoScreenSpaceLight();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TwoCardsWithOneStrandAndDifferentNormalsShadeAlike(bool screenSpaceLight)
     {
         // The same strand, +Y, and a card turned 40° about it.
         Quaternion turned = CardWith(normal: new(MathF.Sin(0.7f), 0, MathF.Cos(0.7f)), strand: Vector3.UnitY);
-        static Vector3 ShownAhead(bool hair, Quaternion rotation)
+        Vector3 ShownAhead(bool hair, Quaternion rotation)
         {
-            VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+            VulkanRenderer renderer = Gpu.Headless(
+                width: Width,
+                height: Height,
+                screenSpaceLight: ScreenSpaceLight(screenSpaceLight)
+            );
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
@@ -316,13 +327,85 @@ public sealed class HairRenderTests
         ShouldBeNear(
             actual: ShownAhead(hair: true, turned),
             expected: facing,
-            relative: 4 * HalfRounding,
+            // Under the screen-space light, 1%: the tolerance of TheHairsAmbientLightIsTheSourcesAtTheFiberNormal.
+            relative: screenSpaceLight ? 0.01f : 4 * HalfRounding,
             because: "a fiber's light does not depend on its card's plane"
         );
         Vector3 standardFacing = ShownAhead(hair: false, FacingTheCamera);
         LargestChannelDifference(ShownAhead(hair: false, turned), standardFacing)
             .Should()
             .BeGreaterThan(0.05f * standardFacing.X, "the same cards as standard shade apart, so the test can fail");
+    }
+
+    [Fact]
+    public void UnderTheScreenSpaceLightTheShadingTargetIsVisibleToTheComputeReadsOfTheOcclusionSectorsPass()
+    {
+        // No reflections, whose compute passes read the shading target too: the sectors pass reads it alone.
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenSpaceLight: VisibilityBitmaskLight.Default
+        );
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            Rendered(renderer, AmbientOnly(), Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera));
+
+            renderer
+                .ShadingTargetState.Stages.HasFlag(PipelineStageFlags2.ComputeShaderBit)
+                .Should()
+                .BeTrue(
+                    "the sectors pass reads a hair receiver's model code in a compute shader (Vulkan spec, memory dependencies)"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt()
+    {
+        // A card of half size 0.5, 0.2 m in front of the other and beside the line of sight ahead, from 0.1 m to its
+        // right: within the default radius of 1 m.
+        static Vector3 ShownAhead(bool withCardInFront)
+        {
+            VulkanRenderer renderer = Gpu.Headless(
+                width: Width,
+                height: Height,
+                screenSpaceLight: VisibilityBitmaskLight.Default
+            );
+            try
+            {
+                MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+                MaterialId hair = Hair(renderer);
+                RenderInstance behind = Card(plane: plane, material: hair, rotation: FacingTheCamera);
+                RenderInstance[] cards = withCardInFront
+                    ?
+                    [
+                        behind,
+                        Card(
+                            plane: plane,
+                            material: hair,
+                            rotation: FacingTheCamera,
+                            center: new(0.6f, 0, -2.8f),
+                            scale: new(0.5f)
+                        ),
+                    ]
+                    : [behind];
+                return At(Rendered(renderer, AmbientOnly(), cards), Ahead);
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        Vector3 alone = ShownAhead(withCardInFront: false);
+        ShownAhead(withCardInFront: true)
+            .X.Should()
+            .BeLessThan(0.95f * alone.X, "the card in front blocks a part of the ambient light of the card behind it");
     }
 
     /// <summary>A dark, smooth hair: its primary highlight stands out along a card's middle column.</summary>
@@ -474,9 +557,11 @@ public sealed class HairRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TheHairsAmbientLightIsTheSourcesAtTheFiberNormal(bool environmentMap)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void TheHairsAmbientLightIsTheSourcesAtTheFiberNormal(bool environmentMap, bool screenSpaceLight)
     {
         // A strand tilted 45° toward the eye, on a card turned 37° about it: its fiber normal looks down, its card's
         // normal sideways and down by other amounts.
@@ -492,8 +577,8 @@ public sealed class HairRenderTests
         Vector3 ShownAhead(bool hair)
         {
             VulkanRenderer renderer = environmentMap
-                ? EnvironmentScenes.Renderer()
-                : Gpu.Headless(width: Width, height: Height);
+                ? EnvironmentScenes.Renderer(screenSpaceLight: ScreenSpaceLight(screenSpaceLight))
+                : Gpu.Headless(width: Width, height: Height, screenSpaceLight: ScreenSpaceLight(screenSpaceLight));
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1));

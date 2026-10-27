@@ -30,6 +30,8 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute);
         // The texel setup's normals. The steps read the depth pass's copies.
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
+        // A receiver's model code: a hair receiver's own card blocks nothing.
+        barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(images.Direct, ImageUse.StorageCompute);
         barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);

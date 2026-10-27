@@ -74,6 +74,10 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 4. No technique blends a pixel across frames: no temporal accumulation, no TAA, no temporal denoise or upscaling. (User, 2026-10-25, [rendering-performance.md](rendering-performance.md), decision 8) This rules out the dithered and hashed transparency of hair that most engines use.
 5. The renderer runs on regular Vulkan on Linux, not only on MoltenVK. (User, 2026-10-25)
 
+Made at the fix of Part 4's darkened cards (`ter-qsfz`), and so numbered after the decisions below:
+
+33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and other surfaces still block it and give it their bounce. (User, 2026-10-27, option A of `ter-qsfz`) The card's plane is the plane at right angles to the pixel's geometric normal, the card's, which the normals target holds beside the fiber normal, so the rule needs no new target. Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. A card whose strip bends, or whose vertex normals lean off its triangles, is not one plane (`ter-3yy5`).
+
 ### Settled by this design
 
 Each by the user's decisions and the project's rules, with its reason.
@@ -82,7 +86,7 @@ Each by the user's decisions and the project's rules, with its reason.
 7. A material's alpha mode is a second closed set: the generated union `AlphaMode` of `OpaqueAlpha`, `CutoutAlpha(Cutoff)`, `FringedAlpha(Cutoff)` and `GlassAlpha`, with opaque as its zero value. It is orthogonal to the shading model: a hair card is a hair model with a fringed alpha, a leaf a standard model with a cutout, a face a skin model, opaque. Reason: the pure model has two independent questions, how a surface sends light and how much of a texel it covers, and every pair of answers has a meaning.
 8. Glass moves into the alpha mode as `GlassAlpha`, and `RenderFlags.Transparent` goes (fork 2, settled as A on 2026-10-26). Reason: one store of how a material's alpha draws. With the flag kept, a transparent instance with a fringed material has two answers.
 9. The G-buffer gets a sixth target, the shading target, `R8G8B8A8_UINT` (see "The shading target", which gives the cost of the other place). Reason: every channel of the five targets has a job, and the free codes of the map code would tie the number of models to the number of maps.
-10. A hair pixel stores its fiber normal as its shading normal, and its strand in the shading target. Reason: every reader of the shading normal, the ambient light, the occlusion passes, the bounce light and the reflections, then works for hair unchanged and sees the fiber, not the card's plane.
+10. A hair pixel stores its fiber normal as its shading normal, and its strand in the shading target. Reason: every reader of the shading normal, the ambient light, the occlusion passes, the bounce light and the reflections, then works for hair unchanged and sees the fiber, not the card's plane. The occlusion sectors pass is the one reader that also needs to know a hair pixel: its own card blocks nothing there (decision 33).
 11. Skin scatters by the separable screen-space method of Jimenez et al. 2015 ("Separable Subsurface Scattering", Computer Graphics Forum 34(6)), with the skin profile of d'Eon, Luebke and Enderton 2007 ("Efficient Rendering of Human Skin", EGSR; GPU Gems 3, chapter 14). Reason: it is the spatial method that needs no temporal step: two passes of a fixed kernel, the same image in every frame. Burley's normalized diffusion in screen space (Golubev 2018) samples a disk with few taps and noise, and relies on temporal accumulation (decision 4). Texture-space diffusion (d'Eon 2007) needs an irradiance texture per object and passes over every skinned mesh's unwrap. A pre-integrated table is out by decision 1.
 12. The scatter blurs the diffuse light with the diffuse color in it, "pre-scatter texturing" in d'Eon's terms. Reason: the lighting passes already compute the diffuse terms with the color, so the scatter needs no division by the color and the composite no read of it. Its cost: detail of the skin image softens a little, most in red, where the profile is widest. Post-scatter texturing is under "Later".
 13. The scatter adds a difference to the HDR image: HDR += S − D at each skin pixel. Reason: the lighting passes keep writing the whole light of skin, so the bounce light's direct image keeps the direct light that a skin blocker bounces, and a renderer with the scatter off draws skin with no second path. It has the form of the reflections' delta, which adds W · C − a · k · T_s.
@@ -528,7 +532,7 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 |---|---|
 | G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
-| Occlusion and bounce | As any surface, around n_f |
+| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
 | Reflections | As any surface, along the dominant direction about n_f |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |
@@ -919,13 +923,26 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 `HairRenderTests` (new, GPU), with a card facing the eye whose strands run along +v:
 
 - `AHairPixelSendsTheLightThatHairFiberGives`: a point light and the sun at several angles, against the C# copy, within the half float's rounding.
-- `TwoCardsWithOneStrandAndDifferentNormalsShadeAlike`: the acceptance of "the planes do not show". The same cards as standard shade apart.
+- `TwoCardsWithOneStrandAndDifferentNormalsShadeAlike`: the acceptance of "the planes do not show", with the screen-space light off, within the half float's rounding, and under the default screen-space light, within 1% (decision 33). The same cards as standard shade apart.
+- `UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt`: one card still shadows another (decision 33).
+- `UnderTheScreenSpaceLightTheShadingTargetIsVisibleToTheComputeReadsOfTheOcclusionSectorsPass`: the sectors pass declares its read of the shading target, so its barrier makes the G-buffer pass's writes visible to the compute stage.
 - `TheHighlightMovesAlongTheStrandAsTheLightMoves`
 - `AHairPixelTakesLightFromBehindItsCard`
-- `TheHairsAmbientLightIsTheSourcesAtTheFiberNormal`, with the map on and off.
+- `TheHairsAmbientLightIsTheSourcesAtTheFiberNormal`, with the map on and off, and with the screen-space light off and on, within 1%.
 - `TheFringeShadesAsTheCoreBesideIt`: with an occlusion of 1, a fringe texel's light over its coverage equals a core pixel's of the same strand.
 - `AnEnvironmentFaceAndACaptureShadeHairAsFibers`
 - `StandardPixelsKeepTheirLight`: within the existing tests' tolerances. The six reference images pass.
+
+`SectorSearchTests` (existing, C#), for decision 33:
+
+- `AHairReceiverTakesNoStepThatReadsItsOwnCard`
+- `AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn`
+- `AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane`
+- `AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane`
+- `AHairReceiversCardHoldsAPointThatTheRasterizersSnappingPutsOffItsPlane`
+- `AHairReceiversOwnSurfaceBlocksNoSector`
+
+`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard`. `OcclusionPushConstantsTests` (existing): `TheSubPixelPrecisionComesFromTheDevice`.
 
 ### Part 5: the skin scatter
 
@@ -1041,6 +1058,8 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The fringe casts no shadow, and the fringe takes no crease shadowing: its occlusion is 1.
 - The highlights lose the light that Marschner's 1 / cos² θ_d returns at views along the strand. A card is rarely seen along its strands.
 - A fringed instance never becomes an impostor, so a far human's hair draws as geometry.
+- Under the screen-space light, the rule that a hair pixel's own card blocks nothing holds for a flat card. On a card strip that bends, or a smooth-shaded card whose vertex normals lean off its triangles, the card's own points block its pixels again (`ter-3yy5`).
+- A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
 
 ## Compared with a design from scratch
 
