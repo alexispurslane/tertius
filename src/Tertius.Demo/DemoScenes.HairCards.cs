@@ -86,8 +86,10 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The sky and ground colors of the pbr-spheres scene, which the hair and skin review scenes share, so that no side of
-    /// a card or of a head is black.
+    /// The sky and ground colors of the pbr-spheres scene, which the hair and skin review scenes share. They light the
+    /// scene only under <c>--environment-map off</c>, where the hemisphere is the ambient light, so that no side of a
+    /// card or of a head is black. Under the default environment map the map is the ambient light and these colors have
+    /// no effect.
     /// </summary>
     private static void ReviewSky(World world) =>
         world.Ambient = new()

@@ -217,6 +217,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
     internal ImpostorManager? Impostors { get; }
 
+    /// <summary>
+    /// The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter. A test hook.
+    /// </summary>
+    internal ScatterImages? ScatterImages => scatterImages;
+
     internal SceneBatcher Batcher { get; }
 
     internal FrameGraph Graph { get; } = new();

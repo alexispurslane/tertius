@@ -300,7 +300,7 @@ public static partial class DemoScenes
             scene: scene,
             surface: surface,
             name: "hair-camera",
-            eye: AboveFloor(-0.2, 1.6, 5.6),
+            eye: AboveFloor(0.3, 1.6, 5.6),
             target: AboveFloor(-3, 1.3, 5.6)
         );
     }

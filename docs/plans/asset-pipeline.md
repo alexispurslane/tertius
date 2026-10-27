@@ -2063,7 +2063,7 @@ Other tests:
   - `AssetStore.AssertInvariants`: each loaded sub-asset has one id, the id tables and the asset tables agree, and `Shapes` holds exactly the shapes that the store made.
 - Lock-in tests for the decisions:
   - The front turn and the light unit of 683.
-  - Reflectance 0.5 for the default dielectric, Toksvig on by default, and MASK drawn as BLEND.
+  - Reflectance 0.5 for the default dielectric, Toksvig on by default, and MASK maps to `CutoutAlpha(alphaCutoff)`.
   - Provenance outside the key, and the configuration precedence.
   - The static collision of a ship piece holds no solid hulls.
   - The license list, and no download from `fetch` without `--approved`.
@@ -2085,7 +2085,6 @@ The user accepted every recommendation of this section on 2026-10-10.
 - Skeletal animation: clips, blending and state machines. Skinning and morph targets exist ([skinning-and-morphs.md](skinning-and-morphs.md)), and a component writes an entity's rig pose by hand. A later animation epic adds a clip format and becomes one more writer of the rig pose. glTF animations stay ignored until then (AS2005).
 - Animated textures and node animation from glTF.
 - Vertex colors, a second UV set and ambient occlusion maps. Each needs a renderer change.
-- Alpha cutout in the renderer. It needs a discard in the G-buffer, shadow and impostor pipelines. MASK materials draw as BLEND until then.
 - Hand-made LODs, meshlets and quantized vertices.
 - Cooked Jolt shapes. A small C++ shim in `native/joltc.nix` can wrap `Shape::SaveWithChildren` and `Shape::sRestoreWithChildren`. The cooked data must then carry the Jolt version, because the format changes between versions. Measure load times first.
 - CoACD as a second decomposition method. It needs pinned sources for zlib, boost, openvdb, spdlog and eigen.
