@@ -37,9 +37,14 @@ public sealed class AmbientEstimateTests
         SliceSectors[] sectors = ThreeSlices(TiltedNormal);
         NearSlice[] near =
         [
-            new(Sectors: sectors[0], Blocked: SectorMask.Run(start: 20, end: 32), Light: Red * 12),
-            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero),
-            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Sky * 3),
+            new(
+                Sectors: sectors[0],
+                Blocked: SectorMask.Run(start: 20, end: 32),
+                Light: Red * 12,
+                MapLight: Double3.Zero
+            ),
+            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
+            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Sky * 3, MapLight: Double3.Zero),
         ];
         double total = TotalWeight(sectors);
 
@@ -71,7 +76,8 @@ public sealed class AmbientEstimateTests
                 .. sectors.Select(slice => new NearSlice(
                     Sectors: slice,
                     Blocked: new SectorMask((uint)random.NextInt64(1L << 32)),
-                    Light: Double3.Zero
+                    Light: Double3.Zero,
+                    MapLight: Double3.Zero
                 )),
             ];
             double nearShare = Enumerable
@@ -93,7 +99,12 @@ public sealed class AmbientEstimateTests
         SliceSectors[] sectors = ThreeSlices(new Double3(Math.Sin(tilt) * 0.6, Math.Sin(tilt) * 0.8, -Math.Cos(tilt)));
         NearSlice[] near =
         [
-            .. sectors.Select(slice => new NearSlice(Sectors: slice, Blocked: SectorMask.None, Light: Double3.Zero)),
+            .. sectors.Select(slice => new NearSlice(
+                Sectors: slice,
+                Blocked: SectorMask.None,
+                Light: Double3.Zero,
+                MapLight: Double3.Zero
+            )),
         ];
 
         AmbientEstimate
@@ -107,7 +118,10 @@ public sealed class AmbientEstimateTests
     {
         // The normal lies at right angles to the only slice's plane, so the slice has no weight.
         var sectors = new SliceSectors(new HorizonSlice(toEye: TowardTheEye, normal: Double3.UnitY, angle: 0));
-        NearSlice[] near = [new(Sectors: sectors, Blocked: SectorMask.Run(start: 4, end: 20), Light: Red * 16)];
+        NearSlice[] near =
+        [
+            new(Sectors: sectors, Blocked: SectorMask.Run(start: 4, end: 20), Light: Red * 16, MapLight: Double3.Zero),
+        ];
         sectors.Weight.Should().Be(0, "the test needs a slice with no weight");
 
         AmbientEstimate.OfSlices(near).Should().Be(AmbientEstimate.Open, "a texel with no information is open");
@@ -149,7 +163,8 @@ public sealed class AmbientEstimateTests
                     geometricNormal: TiltedNormal,
                     radius: 1,
                     thicknessShare: 0.1,
-                    steps: steps
+                    steps: steps,
+                    mapLight: null
                 );
             }
             var estimate = AmbientEstimate.OfSlices(near);
@@ -161,5 +176,82 @@ public sealed class AmbientEstimateTests
                 because: $"trial {trial}: no direction counts twice and none is lost"
             );
         }
+    }
+
+    [Fact]
+    public void WithTheMapTheBounceIsTheBlockersLightLessTheMapsLightThatTheyReplace()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        NearSlice[] near =
+        [
+            new(Sectors: sectors[0], Blocked: SectorMask.Run(start: 20, end: 32), Light: Red * 12, MapLight: Sky * 12),
+            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
+            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Double3.Zero, MapLight: Sky * 8),
+        ];
+        double total = TotalWeight(sectors);
+
+        var estimate = AmbientEstimate.OfSlices(near);
+
+        ShouldBeNear(
+            actual: estimate.Bounce,
+            expected: ((Red - Sky) * (12 * sectors[0].Weight) - Sky * (8 * sectors[2].Weight)) / (32 * total),
+            tolerance: 1e-15,
+            because: "a blocked direction brings its blocker's light in place of the map's"
+        );
+    }
+
+    [Fact]
+    public void InAFurnaceUnderAUniformMapTheMapsIrradianceAndTheNetBounceSumToTheMapsLight()
+    {
+        // Every blocker emits the map's radiance and faces the center.
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        Double3 center = new(0, 0, 2);
+        var random = new Random(7);
+        for (int trial = 0; trial < 50; trial++)
+        {
+            NearSlice[] near =
+            [
+                .. sectors.Select(slice =>
+                    SectorSearch.Near(
+                        sectors: slice,
+                        center: center,
+                        geometricNormal: TiltedNormal,
+                        radius: 1,
+                        thicknessShare: 0.1,
+                        steps:
+                        [
+                            .. Enumerable
+                                .Range(0, 4)
+                                .Select(i =>
+                                    FacingSkyStep(slice: slice.Slice, center: center, index: i, random: random)
+                                ),
+                        ],
+                        mapLight: (_, _) => Sky
+                    )
+                ),
+            ];
+            near.Sum(slice => slice.Blocked.Count).Should().BePositive("the test needs blockers");
+
+            var estimate = AmbientEstimate.OfSlices(near);
+
+            ShouldBeNear(
+                actual: Sky + estimate.Bounce,
+                expected: Sky,
+                tolerance: 1e-14,
+                because: $"trial {trial}: the map's irradiance is the map's light, and each blocker replaces it in kind"
+            );
+        }
+    }
+
+    /// <summary>A step that emits <see cref="Sky"/> and faces <paramref name="center"/>, on the side that <paramref name="index"/> picks, at a random angle and distance.</summary>
+    private static NearStep FacingSkyStep(HorizonSlice slice, Double3 center, int index, Random random)
+    {
+        SliceSide side = index % 2 == 0 ? SliceSide.Plus : SliceSide.Minus;
+        double angle = 0.2 + 1.6 * random.NextDouble();
+        Double3 position =
+            center
+            + (slice.ToEye * Math.Cos(angle) + slice.TowardPlusSide * ((int)side * Math.Sin(angle)))
+                * (0.1 + 0.8 * random.NextDouble());
+        return new(Position: position, GeometricNormal: (center - position).Normalized(), DirectLight: Sky, Side: side);
     }
 }

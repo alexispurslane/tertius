@@ -44,14 +44,6 @@ float reflectionFootprintAt(ivec2 pixel)
     return max(frame.params.z, max(alongX, alongY));
 }
 
-// The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
-// alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
-// which no caller passes here.
-uint mapOfCode(float alpha)
-{
-    return (256u - uint(round(alpha * 255.0))) >> 1;
-}
-
 // The surface without the estimate, with V = 1 and G = 0, and with the footprint at its floor p, for the direct light,
 // which reads none of them. The direct pass reads the surface only through it, so it never reads the estimate target,
 // which the occlusion passes write after it.

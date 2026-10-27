@@ -2,14 +2,16 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The occlusion sectors pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/screen-space-illumination.md, "A
-/// near step"): the edges image and term A, the estimate of the bounce and the occlusion.
+/// near step"): the edges image and term A, the estimate of the net bounce and the occlusion. While the environment map
+/// is on, it reads the map along the blocked directions (decision 41).
 /// </summary>
 internal sealed class OcclusionSectorsPass(
     VulkanDevice device,
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    VisibilityBitmaskLight setting
+    VisibilityBitmaskLight setting,
+    ShaderConstants constants
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(
@@ -18,7 +20,8 @@ internal sealed class OcclusionSectorsPass(
         layouts: layouts,
         images: images,
         setting: setting,
-        shader: "occlusion_sectors"
+        shader: "occlusion_sectors",
+        constants: constants
     );
 
     public override string Name => "occlusion sectors";
@@ -34,6 +37,14 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
+        // The map code of each texel names its map, whose specular levels the blocked directions read, and the exposure
+        // turns the map's light into the estimate's pre-exposed light.
+        if (context.Environment is { } map)
+        {
+            barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
+            barriers.Image(map.Specular, ImageUse.SampledCompute);
+            barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+        }
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, images.HalfExtent);
     }

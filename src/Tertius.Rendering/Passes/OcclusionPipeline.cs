@@ -20,13 +20,15 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
     private readonly Pipeline pipeline;
 
     /// <param name="shader">The shader's name without its extension, such as <c>occlusion_depth</c>.</param>
+    /// <param name="constants">The shading constants, for a shader that reads the environment map; null for one that declares none.</param>
     public OcclusionPipeline(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         OcclusionImages images,
         VisibilityBitmaskLight setting,
-        string shader
+        string shader,
+        ShaderConstants? constants
     )
     {
         this.device = device;
@@ -38,6 +40,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
             Name = shader,
             Shader = shader + ".comp",
             Layout = layouts.OcclusionLayout,
+            Constants = constants,
         }.Create(device, shaders);
     }
 

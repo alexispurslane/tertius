@@ -37,17 +37,33 @@ internal readonly record struct SliceSectors
 
     /// <summary>The sectors whose centers lie between the two angles: floor(32 m + ½) at each end.</summary>
     public SectorMask Covering(double angleA, double angleB) =>
-        SectorMask.Run(
-            start: Boundary(MeasureFraction(Math.Min(angleA, angleB))),
-            end: Boundary(MeasureFraction(Math.Max(angleA, angleB)))
+        RunBetween(Math.Min(angleA, angleB), Math.Max(angleA, angleB)).Sectors;
+
+    /// <summary>The run of the sectors whose centers lie between the angles <paramref name="low"/> and <paramref name="high"/>, low ≤ high.</summary>
+    public SectorRun RunBetween(double low, double high)
+    {
+        double lowEdge = Slice.NormalAngle - Math.PI / 2;
+        double highEdge = Slice.NormalAngle + Math.PI / 2;
+        return new(
+            First: Boundary(MeasureFraction(low)),
+            End: Boundary(MeasureFraction(high)),
+            Low: Math.Clamp(low, lowEdge, highEdge),
+            High: Math.Clamp(high, lowEdge, highEdge)
         );
+    }
 
     /// <summary>
     /// The sectors whose centers lie below the receiver's own geometric plane, at right angles to the unit view-space
     /// <paramref name="geometricNormal"/>: those that its surface blocks (docs/plans/screen-space-illumination.md,
     /// decision 39). None when the normal has no part in the slice plane.
     /// </summary>
-    public SectorMask BelowPlane(Double3 geometricNormal)
+    public SectorMask BelowPlane(Double3 geometricNormal) => RunBelowPlane(geometricNormal).Sectors;
+
+    /// <summary>
+    /// The run of <see cref="BelowPlane"/>. The plane's angle γ_g lies within π of γ, so its edges in the slice are
+    /// γ_g ± π/2, and only one of them lies inside the hemisphere: the lower where γ_g &gt; γ, the upper where γ_g &lt; γ.
+    /// </summary>
+    public SectorRun RunBelowPlane(Double3 geometricNormal)
     {
         double normalAngle = Slice.NormalAngle;
         Double3 shading = DirectionAt(normalAngle);
@@ -58,12 +74,11 @@ internal readonly record struct SliceSectors
             Math.Sqrt(alongShadingPart * alongShadingPart + acrossShadingPart * acrossShadingPart)
             < HorizonSlice.MinProjectedNormalLength;
         if (holdsTheSlice)
-            return SectorMask.None;
-        // γ_g within π of γ, so the plane's edges in the slice are γ_g ± π/2 and m's clamp takes care of the rest.
+            return new(First: 0, End: 0, Low: normalAngle, High: normalAngle);
         double planeAngle = normalAngle + Math.Atan2(acrossShadingPart, alongShadingPart);
-        return SectorMask
-            .Run(start: 0, end: Boundary(MeasureFraction(planeAngle - Math.PI / 2)))
-            .Union(SectorMask.Run(start: Boundary(MeasureFraction(planeAngle + Math.PI / 2)), end: Count));
+        return planeAngle > normalAngle
+            ? RunBetween(normalAngle - Math.PI / 2, planeAngle - Math.PI / 2)
+            : RunBetween(planeAngle + Math.PI / 2, normalAngle + Math.PI / 2);
     }
 
     /// <summary>cos θ V̂ + sin θ ô, in view space.</summary>

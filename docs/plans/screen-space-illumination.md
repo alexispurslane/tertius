@@ -33,7 +33,9 @@ Today a surface gets light only straight from the sun, from local lights and fro
 | Crease shadowing | The darkening of the ambient light where surfaces on the screen hide it: 1 − V. ARCHITECTURE.md calls it ambient occlusion. |
 | The bounce, G | The cosine-weighted mean radiance that reaches a surface point from the surfaces that block its hemisphere within R. The diffuse light that it adds is c_diff · G. The images hold it pre-exposed, `ShadingInput.bounce` holds it as plain radiance. |
 | The occlusion, V | The share of the cosine-weighted hemisphere above a surface point, around its shading normal, that no surface on the screen blocks within R. 1 means fully open. As in [ambient-occlusion.md](ambient-occlusion.md), V counts only blockers within the radius (decision 40). `ShadingInput.occlusion` holds it. |
-| The estimate | The pair (G, V) of one half-resolution texel or one full-resolution pixel. |
+| The map's light along the blocked directions, M | While the environment map is on: the cosine-weighted sum, over the blocked sectors, of the map's light along each (decision 41). Their blockers' light G replaces it. |
+| The net bounce, G − M | What the blocked directions add to the ambient source's whole diffuse term while the map is on: their blockers' light less the map's light along them. While the map is off, M is not read, and the net bounce is G. |
+| The estimate | The pair (G − M, V) of one half-resolution texel or one full-resolution pixel. |
 | The direct light | The light that a surface sends toward the eye from the sun, the point and spot lights and its emission, pre-exposed: no ambient light. |
 | The direct image | The full-resolution RGBA16F image of the direct light of each pixel, 0 for sky. The direct pass writes it. |
 | The direct pass | The fullscreen pass that writes the direct image. Today's lighting pass without the ambient light. |
@@ -56,8 +58,8 @@ Today a surface gets light only straight from the sun, from local lights and fro
 | A slab | The depths that one visible surface point fills under κ: from the point to the point times (1 + κ), in view space with the eye at the origin. |
 | A blocker | A surface point that blocks some directions of the center: the surface of a near step. |
 | Faces the receiver | A blocker's geometric normal has a positive cosine with the direction from the blocker toward the center. |
-| The estimate target | The full-resolution RGBA16F image of the estimate: rgb the bounce, pre-exposed, and a the occlusion. It replaces the occlusion target. |
-| Terms A and B | The two half-resolution RGBA16F images of the estimate that the occlusion passes write in turn, rgb the bounce and a the occlusion. |
+| The estimate target | The full-resolution RGBA16F image of the estimate: rgb the net bounce, pre-exposed, and a the occlusion. It replaces the occlusion target. |
+| Terms A and B | The two half-resolution RGBA16F images of the estimate that the occlusion passes write in turn, rgb the net bounce and a the occlusion. |
 | The occlusion passes | The compute passes "occlusion depth", "occlusion sectors", "occlusion denoise" and "occlusion upsample", in that order. |
 | The exposure scale, k | 2 to the power of the frame's exposure in stops. Pre-exposed light is radiance times k. |
 | `MaxRadiance`, c | 32,256 on the audit's branch, 65,504 before it: the most light that a surface writes into a pixel of the HDR image. |
@@ -80,7 +82,9 @@ Today a surface gets light only straight from the sun, from local lights and fro
 
 The user downscoped the design after the cost and the captures of `ter-izsu`:
 
-40. The bounce light keeps only the near range. (User, 2026-10-26: "Let's just downscope bounce light to just the local stuff.") It replaces decision 1's far range and decision 4. The far rays through the depth pyramid go, with fork 2 and the option B of `ter-izsu`. Within R, the sector masks work as decision 1 says. Beyond R, an open sector takes the ambient light, as the crease shadowing's open directions did before Part 5. Where the near range holds no step (decision 21), the estimate is open except for the sectors below the receiver's own geometric plane (decision 39), so (0, 1) where the shading normal is the geometric one. So each direction is one of two, blocked nearby or open, and the shares still sum to 1. The user also said: "I'm perfectly fine to have it be the whole hemisphere along the normal for now". So the open share takes the ambient source's mean light over the hemisphere around the normal (decision 31), until `ter-fs7b` reads the environment map in each open direction. The user decided after two results of `ter-izsu`: the far rays took 6.2 ms of the 9.1 ms of the occlusion passes at 1080p, 2.6 ms at a third of the rays, and they left a white speckle in the lamp-lit cabin. "Later" keeps the far rays.
+40. The bounce light keeps only the near range. (User, 2026-10-26: "Let's just downscope bounce light to just the local stuff.") It replaces decision 1's far range and decision 4. The far rays through the depth pyramid go, with fork 2 and the option B of `ter-izsu`. Within R, the sector masks work as decision 1 says. Beyond R, an open sector takes the ambient light, as the crease shadowing's open directions did before Part 5. Where the near range holds no step (decision 21), the estimate is open except for the sectors below the receiver's own geometric plane (decision 39), so (0, 1) where the shading normal is the geometric one. So each direction is one of two, blocked nearby or open, and the shares still sum to 1. The user also said: "I'm perfectly fine to have it be the whole hemisphere along the normal for now". So the open share took the ambient source's mean light over the hemisphere around the normal (decision 31), until decision 41 read the environment map in each open direction. The user decided after two results of `ter-izsu`: the far rays took 6.2 ms of the 9.1 ms of the occlusion passes at 1080p, 2.6 ms at a third of the rays, and they left a white speckle in the lamp-lit cabin. "Later" keeps the far rays.
+
+41. Each direction around a surface point is blocked nearby, and brings the light of the surface that blocks it, or open, and brings the ambient source's light from that direction, so no direction counts twice and none is lost. (User, 2026-10-27: read the environment map in each open direction, so that the open share takes the light of the directions that it holds.) While the map is on, the open share takes the map's light along its own directions, which replaces decision 31 for the map. The map, captured at the camera, already holds the near walls, and its mean counted b (1 − b) of a wall's light twice and lost as much far light. With the map off, the hemisphere has no direction at the estimate's texels, so the open share keeps its mean light (decision 31). Nothing accumulates over frames (decision 3). Decision 42 settles how the map is read.
 
 ### Settled by this design
 
@@ -108,7 +112,7 @@ Each by the user's decisions and the project's rules, with its reason.
 28. The bounce enters the ambient light in `occludedAmbient`, the one place where the estimate applies. The diffuse term becomes T_d · V + c_diff · G. The specular term becomes T_s · V_s, with V_s from V by Lagarde's fit as before. The bounce is diffuse light only. Light that the screen reflects is SSR's.
 29. The transparent pass and the impostor capture shade with V = 1 and G = 0. A pane is not in the G-buffer, and the estimate at its pixel belongs to the opaque surface behind it, which takes that estimate. A capture has no screen around it. The environment faces take no ambient light at all (environment-map.md, decision 17). A lit puff keeps the mean ambient light of `scatteredLight`, because it has no surface and no slices.
 30. Exactly one bounce: the direct image holds no ambient light, so no ambient light bounces. One exception: an impostor billboard's pixel holds its captured light, which includes the capture's ambient light, and that light bounces. Impostors are smaller than 200 px, so the extra is small, and no capture holds a direct part apart.
-31. An open direction takes the ambient source's mean light, T_d · V, as GTAO's decision 14 has it. The paper's ambient light per open cone needs the source along each open direction, and the hemisphere source has no up at the estimate's texels. "Known limits" names what this costs with the environment map on.
+31. With the hemisphere as the source, an open direction takes the source's mean light, T_d · V, as GTAO's decision 14 has it. Decision 41 replaces it while the map is on. The paper's ambient light per open cone needs the source along each open direction, and the hemisphere source has no up at the estimate's texels. "Known limits" names what this costs with the environment map on.
 32. The direct and ambient passes run in both cases of the setting (fork 3). With `NoScreenSpaceLight`, the estimate target holds (0, 0, 0, 1), and the ambient pass applies it exactly.
 33. Replaced by decision 40. It gave the depth pyramid its own owner for its two readers, the reflections and the far rays. With no far rays, the pyramid stays SSR's, in `ReflectionTargets`, which exists only with the reflections on.
 34. Masks are 32-bit words, read and written with `bitCount` and `bitfieldInsert`. Vulkan allows its core bit instructions only on 32-bit integers, which these are. No shift by 32, which GLSL leaves undefined.
@@ -117,6 +121,14 @@ Each by the user's decisions and the project's rules, with its reason.
 37. The headless host's `--screen-space-light off|<meters>` replaces `--ambient-occlusion off|<meters>`.
 38. No new device feature. The formats and the limits are in "Portable Vulkan".
 39. The receiver's own geometric surface blocks the sectors whose centers lie below it, with no light, before the near steps (review of Part 4). It is decision 13's one model of what is solid: the receiver's own surface is solid below its plane. Only a normal map or a smooth-shaded mesh tilts the shading hemisphere below the geometric plane. Without the rule, the receiver's own steps, which lie in that plane, block those sectors, and the facing test of decision 15 gives them the surface's own direct light or none by the sign of a dot product of about 0, which rounding decides from pixel to pixel. A plane that holds the slice, whose normal projects to less than 10⁻⁶ in it, blocks nothing.
+42. While the map is on, the open share's light is the map's irradiance less the map's light along the blocked directions: D(n) − M, where M is the sum over the blocked sectors of each sector's weight times the map's light along it (decision 41). The estimate's rgb holds the net bounce G − M, pre-exposed, and the ambient pass adds it under the diffuse color to the whole diffuse term, which V no longer scales. The sectors pass reads the map once for each part of a run that a step newly blocks, and once for the run below the receiver's own plane: along the middle of the part's angles, from the specular map at the roughness whose GGX lobe puts at most 5 % of its weight beyond either end of the part, α = 0.121 w for a part w rad wide (`roughnessForWidth`). The reasons:
+    - An open point is exact. No part is blocked, M = 0, and the diffuse term is the map's irradiance at the pixel's own normal: the same bits as with the setting off. Reads along the open directions would sum to the irradiance only within their quadrature, so every open floor would change.
+    - The cost follows the blocked parts, which are few, and not the open ones, which are most of the hemisphere: at most one read per step that blocks, plus one for the receiver's own surface. They add about 0.1 ms at 1080p in the deck of `demo-exit` and 0.14 ms in the cabin of `demo-surface` ("Cost", "Decision 41").
+    - The irradiance keeps its home, the spherical harmonics at the pixel's full-resolution normal, so a normal map keeps its detail in the open light. M is a correction at half resolution.
+    - The specular map holds the map's light per direction. The spherical harmonics hold only band 2, whose radiance at a wall's edge is far from the wall's: for a wall that fills half the sky, the band-2 radiance is ½ + ¾ cos of the angle from the wall's normal, and its mean over the blocked half is 0.82 of the wall's light, which would leave a fifth of the double count.
+    - The lobe. A read stands for its part, w rad wide along its slice. A lobe whose full width at half maximum is w puts 23 % of its weight beyond the part's ends, because GGX's weight across a line x from its axis falls only as (a² + x²)^(−3/2), with a = 2α. So a part beside the horizon, below which the map holds the dark floor, read a quarter of the floor, and in `AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce` the floor beside the wall kept 5.9 % more light than the floor away from it. Lobes with a full width at half maximum of w / 2 and w / 4 kept 3.2 % and 1.9 %, and sharp reads, at level 0, 0.2 %, but sharp reads would carry a small bright part of the map, such as a lamp panel, into the fixed noise of the slices unblurred. The lobe with 5 % beyond either end, about 0.31 w wide at half maximum, keeps 2.2 % (and 2.0 % in the test of the dark wall, against 21 % with the map's mean in both).
+    - The net bounce lies in [−c, c]: G lies in [0, c], and M is exposed and capped at c by `exposed`, so term A and the estimate target hold it in half floats. The ambient pass clamps the diffuse term at 0, where M at half resolution exceeds the irradiance at a pixel's own normal.
+    - An unlit texel, an impostor's, has no map code, so it reads no map, and its net bounce is G.
 
 ## Sources
 
@@ -140,9 +152,11 @@ flowchart TD
 Every slice has 32 sectors. A near step blocks some of them, in the order of the steps, nearest first, so the nearest blocker of a direction owns it. So every sector of every slice ends as exactly one of two: blocked nearby with a light, or open. The diffuse ambient light of the point is
 
 ```
-L_diffuse = c_diff · (V · D(n) + G)
+L_diffuse = c_diff · (V · D(n) + G)                  the hemisphere as the source
+L_diffuse = c_diff · max(D(n) − M + G, 0)            the environment map as the source (decision 41)
 
 V = Σ over open sectors of the sector's weight          G = Σ over blocked sectors of the sector's weight × its light
+M = Σ over blocked sectors of the sector's weight × the map's light along it
 ```
 
 where
@@ -151,8 +165,11 @@ where
 - `D(n)` = the ambient diffuse radiance of the ambient source at the shading normal: the hemisphere's mix today, the environment map's irradiance over π while the map is on.
 - the sector's weight = W / (32 · ΣW): the slice's weight over the texel's total, shared evenly by its 32 sectors. The weights of all the sectors of a texel sum to 1.
 - its light = the direct light of the sector's blocker, or 0 when the blocker does not face the receiver.
+- the map's light along it = the specular map's light along the middle of the part of the run that holds the sector, read with a lobe that keeps to the part (decision 42).
 
-In a furnace, every blocker's light is D(n), so L_diffuse = c_diff · D(n) · (V + blocked shares) = c_diff · D(n) whatever blocks the point. That is the test of "nothing counted twice or lost" (see "Tests").
+The hemisphere has no direction at the estimate's texels, so its light along every blocked direction is its mean, D(n), and D(n) − (1 − V) D(n) = V · D(n): the two lines are one model.
+
+In a furnace, every blocker's light is D(n), so L_diffuse = c_diff · D(n) · (V + blocked shares) = c_diff · D(n) whatever blocks the point. Under a uniform map, M is the blocked share times D(n), so G − M = 0 and L_diffuse = c_diff · D(n) too. That is the test of "nothing counted twice or lost" (see "Tests").
 
 ### The slice and its sectors
 
@@ -235,7 +252,8 @@ The receiver's own surface comes first, so a step gives no light to a direction 
 ΣW = Σ over slices of W_k
 V  = Σ_k W_k · bitCount(~blocked_k) / (32 · ΣW)
 G  = Σ_k W_k · light_k / (32 · ΣW)
-ΣW ≤ 10⁻⁶: (G, V) = (0, 1)
+M  = Σ_k W_k · mapLight_k / (32 · ΣW)          only while the map is on, and only at a lit texel
+ΣW ≤ 10⁻⁶: (G − M, V) = (0, 1)
 ```
 
 where
@@ -243,8 +261,9 @@ where
 - `W_k` = the weight of slice k.
 - `blocked_k` = the slice's sector mask after its near steps.
 - `light_k` = the slice's sum of newly blocked sectors times their light.
+- `mapLight_k` = the slice's sum, over the receiver's own run below its plane and each step's newly blocked part, of the part's sector count times the map's light along the part's middle (decision 42).
 
-The sectors pass writes this estimate into term A. It normalizes by ΣW, so V lies in [0, 1], and the open and the blocked shares sum to 1 in every texel. An open sector takes the ambient light whatever lies beyond R along it (decision 40). The two blurs and the upsample average V with non-negative weights that sum to 1, and the upsample's clamp removes the rounding of their sums.
+The sectors pass writes this estimate into term A: rgb the net bounce G − M, pre-exposed, and a V. M is exposed with `exposed`, which caps it at c, and G is a mean of pre-exposed direct light, at most c, so the net bounce lies in [−c, c], within the half floats. The texel's map is the one that the base color's alpha names at its representative pixel (`mapOfCode`). An unlit texel, an impostor's, takes no ambient light, so it reads no map, and its net bounce is G. It normalizes by ΣW, so V lies in [0, 1], and the open and the blocked shares sum to 1 in every texel. An open sector takes the ambient light whatever lies beyond R along it (decision 40). The two blurs and the upsample average V with non-negative weights that sum to 1, and the upsample's clamp removes the rounding of their sums.
 
 ### At infinite thickness: GTAO's horizons
 
@@ -315,33 +334,78 @@ uint sectorRun(uint start, uint end)
 }
 
 // θ of a direction in the slice, from V̂. side, +1 or −1, is the side of the step whose point the direction reaches.
+// The clamp keeps acos defined where rounding puts the cosine of two unit vectors past ±1.
 float sliceAngle(SliceGeometry g, vec3 direction, float side)
 {
     return side * acos(clamp(dot(normalize(direction), g.toEye), -1.0, 1.0));
 }
 
-// The sectors whose centers lie between the directions to a step's surface point and to the back of its slab.
-uint stepSectors(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
+// cos θ V̂ + sin θ ô: the unit view-space direction at the angle θ in the slice.
+vec3 sliceDirection(SliceGeometry g, float angle)
+{
+    return cos(angle) * g.toEye + sin(angle) * g.side;
+}
+
+// A run of a slice's sectors, first to end − 1, whose centers lie between the angles low and high, both within the
+// hemisphere (SectorRun). An empty run has end ≤ first.
+struct SectorRun
+{
+    uint first;
+    uint end;
+    float low;
+    float high;
+};
+
+// The run of the sectors whose centers lie between the angles a and b, a ≤ b.
+SectorRun runBetween(SliceGeometry g, float a, float b)
+{
+    SectorRun run;
+    run.first = sectorBoundary(measureFraction(g, a));
+    run.end = sectorBoundary(measureFraction(g, b));
+    run.low = clamp(a, g.normalAngle - GtaoHalfPi, g.normalAngle + GtaoHalfPi);
+    run.high = clamp(b, g.normalAngle - GtaoHalfPi, g.normalAngle + GtaoHalfPi);
+    return run;
+}
+
+uint runSectors(SectorRun run)
+{
+    return sectorRun(run.first, run.end);
+}
+
+// The angles of the part `part`, a set of the run's sectors that is not empty, from its first sector to its last:
+// each sector stands at the angle that its place in the run takes in proportion between low and high
+// (docs/plans/screen-space-illumination.md, decision 41).
+vec2 partAngles(SectorRun run, uint part)
+{
+    float perSector = (run.high - run.low) / float(run.end - run.first);
+    vec2 places = vec2(float(findLSB(part)), float(findMSB(part) + 1)) - float(run.first);
+    return run.low + places * perSector;
+}
+
+// The run of the sectors whose centers lie between the directions to a step's surface point and to the back of its
+// slab.
+SectorRun stepRun(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
 {
     float front = sliceAngle(g, samplePosition - center, side);
     float back = sliceAngle(g, samplePosition * (1.0 + ThicknessShare) - center, side);
-    return sectorRun(sectorBoundary(measureFraction(g, min(front, back))),
-                     sectorBoundary(measureFraction(g, max(front, back))));
+    return runBetween(g, min(front, back), max(front, back));
 }
 
-// The sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no light
-// (decision 39). The plane's angle in the slice, γ_g, is taken within π of γ, so its edges in the slice are γ_g ± π/2.
-// A normal with no part in the slice plane blocks nothing, and atan(0, 0) is undefined.
-uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
+// The run of the sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no
+// light (docs/plans/screen-space-illumination.md, decision 39). The plane's angle in the slice, γ_g, is taken within π
+// of γ, so its edges in the slice are γ_g ± π/2, and only one of them lies inside the hemisphere: the lower one where
+// γ_g > γ, the upper one where γ_g < γ. A normal with no part in the slice plane blocks nothing, and atan(0, 0) is
+// undefined.
+SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
 {
-    vec3 shading = cos(g.normalAngle) * g.toEye + sin(g.normalAngle) * g.side;
-    vec3 acrossShading = cos(g.normalAngle) * g.side - sin(g.normalAngle) * g.toEye;
+    vec3 shading = sliceDirection(g, g.normalAngle);
+    vec3 acrossShading = sliceDirection(g, g.normalAngle + GtaoHalfPi);
     vec2 inSlice = vec2(dot(geometricNormal, shading), dot(geometricNormal, acrossShading));
     if (length(inSlice) < MinProjectedNormalLength)
-        return 0u;
+        return SectorRun(0u, 0u, g.normalAngle, g.normalAngle);
     float planeAngle = g.normalAngle + atan(inSlice.y, inSlice.x);
-    return sectorRun(0u, sectorBoundary(measureFraction(g, planeAngle - GtaoHalfPi)))
-           | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
+    return planeAngle > g.normalAngle ? runBetween(g, g.normalAngle - GtaoHalfPi, planeAngle - GtaoHalfPi)
+                                      : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
 // The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
@@ -391,15 +455,38 @@ vec3 blockerLight(vec3 direct, vec3 geometricNormal, vec3 towardReceiver)
 #endif
 ```
 
-`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoExactStepOffset(slice, step, ...)`, which computes the offset of today before its snap (`ter-rxjr`). `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`:
+`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoExactStepOffset(slice, step, ...)`, which computes the offset of today before its snap (`ter-rxjr`). `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`, and its reads of the map (decision 42), after the texel setup. `environmentLobe` and `roughnessForWidth` are in `environment.glsl`, `fromViewAxes` in `occlusion.glsl`:
 
 ```glsl
+// M of a part of a run: the map's light along the middle of its angles, read with a lobe that keeps to them
+// (docs/plans/screen-space-illumination.md, decision 41). SectorSearch.Near is the C# copy.
+vec3 mapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
+{
+    vec2 angles = partAngles(run, part);
+    vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
+    return environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+}
+
+// Only a lit texel names its map. An unlit one, an impostor's, takes no ambient light, and its estimate holds the
+// blockers' light alone.
+float mapCode = environmentMapOn ? texelFetch(gbufferBaseColor, 2 * texel, 0).a : 0.0;
+bool readsMap = mapCode > 0.0;
+uint map = readsMap ? mapOfCode(mapCode) : 0u;
+float totalWeight = 0.0;
+float open = 0.0;
+vec3 bounce = vec3(0.0);
+vec3 replaced = vec3(0.0);
 for (int slice = 0; slice < slices; slice++)
 {
     SliceGeometry g = gtaoSliceGeometry(setup, slice);
     // The receiver's own surface first, so no step gives light to a direction below it.
-    uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
+    SectorRun ownSurface = ownSurfaceRun(g, setup.geometricNormal);
+    uint blocked = runSectors(ownSurface);
     vec3 light = vec3(0.0);
+    // M: the map's light along the blocked directions, which their blockers' light replaces.
+    vec3 mapLight = vec3(0.0);
+    if (readsMap && blocked != 0u)
+        mapLight += float(bitCount(blocked)) * mapLightOf(g, ownSurface, blocked, map);
     // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
     // the C# copy of this loop: change both together.
     for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
@@ -432,28 +519,41 @@ for (int slice = 0; slice < slices; slice++)
             // GTAO's hard edge: a step blocks only within the radius.
             if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                 continue;
-            uint fresh = stepSectors(g, setup.center, samplePosition, side) & ~blocked;
+            SectorRun run = stepRun(g, setup.center, samplePosition, side);
+            uint fresh = runSectors(run) & ~blocked;
             if (fresh == 0u)
                 continue;
             blocked |= fresh;
             light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
                                                         setup.center - samplePosition);
+            if (readsMap)
+                mapLight += float(bitCount(fresh)) * mapLightOf(g, run, fresh, map);
         }
     }
     totalWeight += g.weight;
     // Beyond the radius, an open sector takes the ambient light (decision 40).
     open += g.weight * float(bitCount(~blocked));
     bounce += g.weight * light;
+    replaced += g.weight * mapLight;
 }
-// Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17).
-vec4 estimate = totalWeight > MinTotalWeight ? vec4(bounce, open) / (float(SectorCount) * totalWeight)
-                                             : vec4(0.0, 0.0, 0.0, 1.0);
-imageStore(occlusionTermA, texel, estimate);
+if (!(totalWeight > MinTotalWeight))
+{
+    imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
+    return;
+}
+// Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17). The bounce, a mean of
+// pre-exposed direct light, lies in [0, c], and the map's light is exposed and capped at c, so the net bounce lies in
+// [−c, c], within the half floats.
+float scale = float(SectorCount) * totalWeight;
+vec3 netBounce = bounce / scale;
+if (readsMap)
+    netBounce -= exposed(replaced / scale, exposureScale());
+imageStore(occlusionTermA, texel, vec4(netBounce, open / scale));
 ```
 
 ### The denoise and the upsample
 
-Both stay XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurs the vec4 with the edges' weights, so the bounce and the occlusion of a texel take the same neighbors. The upsample's weights stay those of the tangent plane and the bilinear footprint, and they apply to all four channels. It writes (rgb, clamp(a, 0, 1)) into the estimate target, and the clamp keeps the rounding of the blurs' sums within [0, 1]. The rgb needs no clamp: it is a sum of non-negative weights times direct light of at most c, over a total weight, and each blur and the upsample average it with non-negative weights that sum to 1.
+Both stay XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurs the vec4 with the edges' weights, so the bounce and the occlusion of a texel take the same neighbors. The upsample's weights stay those of the tangent plane and the bilinear footprint, and they apply to all four channels. It writes (rgb, clamp(a, 0, 1)) into the estimate target, and the clamp keeps the rounding of the blurs' sums within [0, 1]. The rgb, the net bounce, needs no clamp: it lies in [−c, c] ("The estimate of a texel"), and each blur and the upsample average it with non-negative weights that sum to 1, so the mean stays in [−c, c].
 
 ## The lighting split
 
@@ -528,18 +628,24 @@ s.bounce = estimate.rgb / exposureScale();
 and `occludedAmbient` in `lighting.glsl` applies the estimate in its one place:
 
 ```glsl
-// The one place where the estimate applies (docs/plans/screen-space-illumination.md): the open share V of the source's
-// diffuse term, plus the bounce G under the diffuse color, and the specular term by V_s. It reads nothing about the
-// source of the terms.
+// The one place where the estimate applies (docs/plans/screen-space-illumination.md, decision 41): the source's diffuse
+// term less its light along the blocked directions, plus the net bounce under the diffuse color, and the specular term
+// by V_s. The map's light along them is in the net bounce, G − M, so its whole term stays. The hemisphere has no
+// direction at the estimate's texels, so it gives the blocked directions its mean, and the open share V keeps the rest.
+// The max holds the map's term where the half-resolution M exceeds the irradiance at the pixel's own normal. It keeps
+// the terms apart, because SSR replaces the occluded specular term where its ray hits.
 AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
 {
-    terms.diffuse = terms.diffuse * s.occlusion + lobes.diffuseColor * s.bounce;
+    terms.diffuse = environmentMapOn ? max(terms.diffuse + lobes.diffuseColor * s.bounce, vec3(0.0))
+                                     : terms.diffuse * s.occlusion + lobes.diffuseColor * s.bounce;
     terms.specular *= specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
     return terms;
 }
 ```
 
-`ShadingInput` gains `vec3 bounce; // G, plain radiance: 0 where no estimate exists`.
+`ShadingInput` gains `vec3 bounce; // G − M, the net bounce, plain radiance: 0 where no estimate exists`. While the map is off, M is not read, and the net bounce is G.
+
+The max is the one exception to the model, and the pure model misbehaves without it: the estimate is made at half resolution and blurred, so at a pixel whose own normal differs from its texel's, M can exceed the map's irradiance at the pixel's normal by a little, and the diffuse term would go below zero. A surface sends no negative light.
 
 ### The cap at `MaxRadiance`
 
@@ -672,6 +778,8 @@ Every compute shader keeps the local size 8 × 8. The depth, sectors and denoise
 | | The normals target, the distance target | `SampledCompute` | | Read to read |
 | | The copies of the direct light and the geometric normal | `StorageCompute` | | The depth pass's writes |
 | | The edges image, term A | `StorageCompute` | Yes | The last frame's reads |
+| | While the map is on: the base color target, the map's specular image | `SampledCompute` | | Read to read, after the G-buffer pass and the faces' prefilter |
+| | While the map is on: the exposure buffer | `ComputeRead` | | Read to read |
 | Occlusion denoise | Term A, term B, the edges image | As today | | As today |
 | Occlusion upsample | Term A, the view depth image | `StorageCompute` | | The last denoise write |
 | | The estimate target | `StorageCompute` | Yes | The last frame's ambient pass read, and SSR's trace read |
@@ -709,6 +817,8 @@ The G-buffer set changes:
 | 9 (new) | The direct image | Fragment, compute |
 
 Binding 8 is the lights' shadow atlas (local-light-shadows.md, decision 46), so the direct image takes 9 whatever merges first.
+
+The sectors pipeline takes the specialization constant `environmentMapOn`, as the ambient pass does, and while it is on reads the map's specular image through the frame set and the base color's map code through the G-buffer set (decision 42). The depth, denoise and upsample pipelines take no constants.
 
 `OcclusionPushConstants` keeps only the setting, 16 bytes:
 
@@ -787,16 +897,16 @@ flowchart TD
     S -- "yes: sky" --> SK["Direct image 0. No estimate. Ambient pass: the star field"]
     S -- no --> I{"Base color alpha 0?"}
     I -- "yes: an impostor billboard" --> IM["Direct image: its baked light. Its estimate goes unread. Ambient pass: copies the direct image"]
-    I -- "no: a lit surface" --> L["Direct image: direct light and emission. Estimate from its slices within R. Ambient pass: direct + ambient with V and G"]
+    I -- "no: a lit surface" --> L["Direct image: direct light and emission. Estimate from its slices within R. Ambient pass: direct + ambient with V and the net bounce"]
     G["A pane of glass or a puff"] --> TP["Not in the G-buffer: no estimate, blocks nothing, bounces nothing. The transparent pass shades it with V = 1, G = 0"]
 ```
 
 | Kind | As a center | As a near blocker | What the ambient pass does |
 |---|---|---|---|
-| An opaque surface in the near range | Near steps within R. Its open sectors take the ambient light | Its slab blocks, and its direct light bounces where it faces the receiver | Direct + ambient with V and G |
+| An opaque surface in the near range | Near steps within R. Its open sectors take the ambient light. While the map is on, its estimate also holds M, the map's light along its blocked parts (decision 41) | Its slab blocks, and its direct light bounces where it faces the receiver | Direct + ambient with V and the net bounce |
 | An opaque surface where R spans at most 1.3 texels: the middle and far ranges, the near range beyond about 360 m | No step: open except for the sectors below its own geometric plane (decision 39), so (0, 1) where the shading normal is the geometric one, as GTAO's 1 | Beyond R of every near point, so never a near blocker of another's | The same |
 | An emissive surface, a lamp | As an opaque surface. Its base color is black, so the bounce and the ambient light give it nothing | Its emission is in the direct image, so it lights the surfaces near it | Its emission is in the direct image |
-| An impostor billboard | Estimated, unread | Its distance blocks as its object's shape does, and its baked light bounces, the capture's ambient light included | Copies the direct image: the baked light |
+| An impostor billboard | Estimated, unread. It reads no map: its alpha names none | Its distance blocks as its object's shape does, and its baked light bounces, the capture's ambient light included | Copies the direct image: the baked light |
 | Sky | None: the depth pass writes `SkyDepth`, and the sectors pass the open estimate | 10¹⁸ m away, never within R | The star field |
 | Glass | None | None: not in the distance target | The transparent pass, after the ambient pass and SSR, with V = 1 and G = 0. The surface behind it has its own estimate |
 | A puff | None | None | The transparent pass adds it. `scatteredLight` is unchanged |
@@ -813,8 +923,8 @@ flowchart TD
 | Term B | The first denoise | The same | The last denoise | The same | `OcclusionImages.TermB` | GTAO's |
 | The estimate target | `RecordEstimateClear` (first frame after a creation), the upsample (every frame under `VisibilityBitmaskLight`) | Before the graph, then stage `AmbientOcclusion` | The ambient pass, SSR's trace through `surfaceAt`, the test hook `ReadEstimate` | The same frame | `RenderTargets.Estimate`, G-buffer binding 7 | The occlusion target, which it replaces |
 | `ShadingInput.occlusion` | `surfaceAt` from the estimate's a. `transparent.frag` and `impostor_capture.frag`: 1 | Per pixel | `occludedAmbient` | Per pixel | None: a value in the shader | Unchanged in form and in meaning: blockers within R |
-| `ShadingInput.bounce` | `surfaceAt` from the estimate's rgb over k. `transparent.frag` and `impostor_capture.frag`: 0 | Per pixel | `occludedAmbient` | Per pixel | None | `ShadingInput.occlusion` |
-| `AmbientTerms` after `occludedAmbient` | `occludedAmbient` | Per pixel | `ambientLight`, SSR's trace | Per pixel | None | Unchanged: its diffuse term gains the bounce |
+| `ShadingInput.bounce`, the net bounce | `surfaceAt` from the estimate's rgb over k. `transparent.frag` and `impostor_capture.frag`: 0 | Per pixel | `occludedAmbient` | Per pixel | None | `ShadingInput.occlusion` |
+| `AmbientTerms` after `occludedAmbient` | `occludedAmbient` | Per pixel | `ambientLight`, SSR's trace | Per pixel | None | Unchanged: its diffuse term gains the net bounce, and while the map is on V no longer scales it |
 | `OcclusionPushConstants` | Each occlusion pass, from the setting | Each dispatch | The occlusion shaders | The dispatch | Push constants | `ReflectionPushConstants`: the setting alone |
 | The occlusion sets | `OcclusionImages` | At creation and on every resize | The occlusion passes | Every frame | `OcclusionImages.SetAToB`, `SetBToA` | GTAO's occlusion and denoise sets |
 | The noise | None: a fixed function of the texel | | The sectors pass | | None | GTAO's noise |
@@ -878,7 +988,7 @@ This design has the same parts, with these differences:
 | Rays for every direction, near and far (the design that the user did not choose) | Sector masks within R, and the ambient light beyond it | (User) Rays alone make creases noisy: a crease needs many rays to resolve, while the masks resolve it from the steps that GTAO already takes. The far rays went for their cost and their speckle (decision 40, "Later"). |
 | Stochastic rays turned every frame, with temporal accumulation and reprojection | Fixed noise, two blurs, nothing kept | (User) Each frame stands alone: determinism and stability, at the cost of a fixed pattern that the blur does not remove in full. |
 | Multi-bounce by feeding the last frame's indirect light back into the light buffer, as the paper does | One bounce of this frame's direct light | (User) The same image in every run and no history to go wrong. Interiors that only bounced light reaches stay dark. |
-| The ambient light sampled along each open direction (the paper's several cones, or a bent normal) | The source's mean light times the open share | Decision 31. The hemisphere has no up at the estimate's texels, and the environment map's ambient source is a separate design. "Known limits" names the cost. |
+| The ambient light sampled along each open direction (the paper's several cones, or a bent normal) | The source's whole diffuse term, less the map's light along the blocked directions, one read per blocked part (decisions 41 and 42). The hemisphere: its mean times the open share | Exact where every direction is open, and the reads grow with the blocked parts, not with the open ones. The hemisphere has no up at the estimate's texels (decision 31). |
 | A shared depth hierarchy for every screen-space effect | GTAO's view depth image for the near steps, SSR's min-max pyramid for the reflections alone | The near steps want one exact depth per texel, which GTAO's view depth image holds. |
 | A thickness from a pass of back faces | κ of the view depth, SSR's | (SSR's decision 7, the user's) One model of what is solid for the near steps and the reflections, with no second geometry pass. |
 | A full-resolution gather | Half resolution with GTAO's upsample | (GTAO's decision 2, the user's) |
@@ -888,7 +998,10 @@ This design has the same parts, with these differences:
 
 ## Known limits
 
-- With the environment map on, the open share takes the map's mean light, and the map holds the near surfaces too. Take a wall that blocks a share b of a point's hemisphere, and that the map at the camera also sees over a share b. The open share 1 − b then takes b of its light from the wall, in place of the far field. So b (1 − b) of the wall's light counts twice, and as much of the far field's light is lost: a quarter at most, at b = ½. With the hemisphere as the source, no surface is in the source. The fix samples the source along the open directions, the paper's several cones, which needs the source per direction at the estimate's texels: a later ticket.
+- With the environment map on, each blocked part reads the map with a lobe that puts up to 5 % of its weight beyond either end of the part (decision 42). So up to a twentieth of the map's light just beyond a blocker's edge is taken away with the blocker's directions, or a twentieth of the blocker's own light in the map stays. The tests of a wall that the map also holds measure 2 % of the light away from the wall. Before decision 41, the open share took the map's mean light, and a wall that blocked a share b of a point's hemisphere and that the map also held counted b (1 − b) of its light twice: a quarter at most.
+- The map is drawn from the camera's position, so it shows a near blocker from a different place than the receiver sees it. Where a blocker within R lies between the receiver and a part of the map that the camera sees past it, M takes the map's light of that part, which can be brighter or darker than what the blocker hides from the receiver. The difference shrinks as R shrinks against the distance to the camera.
+- While the map is on, the diffuse term of a pixel stops at 0 ("The ambient pass"): M is made at half resolution and blurred, so at a pixel whose own normal differs from its texel's, it can exceed the map's irradiance at the pixel's normal.
+- The passes' half floats can store V of an open texel as 1 − 2⁻¹¹, the largest half below 1, where a device rounds a store toward zero, as this Mac's does: the blurs' sums of ones come to just below 1. With the map on, only the specular occlusion reads V, which moves an open pixel by less than one step of the HDR image's half floats. With the hemisphere, V scales the diffuse term, and an open pixel is one such step darker than with the screen-space light off.
 - A blocker beyond R neither darkens nor bounces: its directions take the ambient light (decision 40). The upper part of a tall wall, a building across a street and a cliff behind a valley give no bounce, and their hidden sky still lights the point. The far rays of "Later" would close it.
 - Light passes between two steps within R: a wall that lies between the floor's last step and the wall's first, at a low elevation, blocks no sector there. More steps close the gap. The captures choose the steps.
 - κ z is one thickness for everything: a thin pole 20 m away is 2 m thick, and a thick wall 0.5 m away is 5 cm thick, so light leaks behind it there.
@@ -939,6 +1052,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt`.
 - `AnOpenSectorBeyondTheRadiusTakesTheAmbientLight`: a wall whose steps lie beyond R blocks nothing, the estimate is open, and the occluded diffuse term is the source's (decision 40).
 - `ATexelWhoseNearRangeHoldsNoStepTakesTheAmbientLight`: where R spans at most the nearest step, the slice holds no step, and on a receiver whose shading normal is its geometric one the estimate is open (decisions 21 and 40).
+- The map's light along the blocked parts (decisions 41 and 42): `InAUniformMapASlicesMapLightIsItsBlockedCountTimesTheMapsLight`, `ASliceThatBlocksNothingReadsNoMapLight`, `AStepReadsTheMapAlongThePartOfItsRunThatNoNearerStepBlocked`, `TheReceiversOwnSurfaceReadsTheMapAlongTheMiddleOfTheAnglesBelowItWithALobeAsWideAsThem` and `APartOfARunStandsAtTheAnglesThatItsPlaceInTheRunTakesInProportion`.
 
 `FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy, whose step loop is `SectorSearch.SliceSteps` (`ter-rxjr`).
 
@@ -952,12 +1066,15 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AnOpenSurfaceHasFullVisibilityAndNoBounceAtAnyTilt`.
 - `ATexelWhoseSlicesHaveNoWeightIsOpen`.
 - `InAFurnaceTheSkyLightAndTheBounceSumToTheSkyLight`: every blocker's light equals the sky's, so V · L + G = L for any blockers.
+- `WithTheMapTheBounceIsTheBlockersLightLessTheMapsLightThatTheyReplace`, and `InAFurnaceUnderAUniformMapTheMapsIrradianceAndTheNetBounceSumToTheMapsLight`: L + (G − M) = L for any blockers (decision 41).
 
 Before decision 40, `AmbientEstimateTests` also pinned the far outcomes, and `FarRayTests` and `TexelFarRayTests` pinned the far ray's trace. They went with the far rays ("Later").
 
 `OcclusionUpsampleTests`: the existing tests over the four channels, and `TheBounceTakesTheWeightsOfTheOcclusion`.
 
-`AmbientTermsTests`: `TheOccludedDiffuseTermAddsTheBounceUnderTheDiffuseColor`, and `WithNoBounceTheOccludedTermsAreThoseOfBefore` (the same bits).
+`AmbientTermsTests`: `TheOccludedDiffuseTermAddsTheBounceUnderTheDiffuseColor`, and `WithNoBounceTheOccludedTermsAreThoseOfBefore` (the same bits). With the map on (decision 41): `WithTheMapOnTheNetBounceAddsUnderTheDiffuseColorToTheWholeDiffuseTerm`, `WithTheMapOnTheDiffuseTermNeverFallsBelowZero`, `WithTheMapOnTheSpecularTermTakesTheSpecularOcclusionOfV` and `WithTheMapOnAnOpenEstimateLeavesTheTermsAsTheyAre`.
+
+`GgxLobeTests`: `TheLobeForAWidthPutsAtMostATwentiethOfItsWeightBeyondEitherEndOfThePart`, by quadrature of the lobe's marginal across the part, for widths of 0.1, 0.5 and 1.5 rad (decision 42).
 
 `MaterialSampleTests`: `ReflectedHemisphere` with a bounce: `TheBounceAddsItsLightTimesTheDiffuseColor`.
 
@@ -989,6 +1106,12 @@ Before decision 40, `AmbientEstimateTests` also pinned the far outcomes, and `Fa
 - `AResizedRendererStillBouncesLightAtItsNewSize`: the red wall at 640 × 360, then at 800 × 450. Each floor point 0.1 to 0.3 m from the wall, at x of −3.5, 0 and 3.5 m, which at the new size reach past the old 640 pixels, keeps its red share within 0.01.
 - `ThePassesKeepAPixelWithinTheSurfacesShare`: a lamp's mirror highlight at the cap with a bright ambient light, below c on its own: the direct image and the HDR image are c at the highlight, and no HDR value lies above c.
 
+`BounceLightMapRenderTests`, the map on (decision 41), at 640 × 360 with no sun and no hemisphere light, so only the map lights the floor's ambient light. A wall 400 m high and 800 m long stands 1 m left of the eye, and the floor points 0.15 m from it are compared with floor points 2.5 m from it, beyond R:
+
+- `AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce`: within 3 % (the doc comment derives it). Before decision 41, the point beside the wall got 1.21 times the light away from it.
+- `AFloorPointBesideADarkWallGetsTheLightOfTheBrightPartOfTheMapThatItsOpenDirectionsFace`: the near wall black, a glowing wall 41 m away on the other side. Within 3 %. Before decision 41: 0.79 times.
+- `AFloorPointWithEverySectorOpenTakesTheMapsIrradianceAsWithTheScreenSpaceLightOff`: the estimate's rgb is 0 bit for bit, and the HDR pixel lies within one half-float step, 2⁻¹¹ of its value, of the pixel with `NoScreenSpaceLight` ("Known limits" on V of 1 − 2⁻¹¹). Before decision 41 it lay one step below, which the test's bound excludes.
+
 In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass`, and `WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass`.
 
 ### Existing tests
@@ -996,6 +1119,7 @@ In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetween
 | Test | Rule | What changes |
 |---|---|---|
 | `AnInnerCornerGetsLessAmbientLightThanTheOpenFloor` | Keeps its meaning | The scene has only the ambient light, so no bounce. The walls block within R. |
+| `UnderTheEnvironmentMapAnInnerCornerGetsLessAmbientLightThanWithoutOcclusion` | Changes its meaning by decision 41: `UnderTheEnvironmentMapAnInnerCornerLosesTheMapsLightAlongTheDirectionsThatItsWallsHide` | The walls have no direct light, and the map, drawn from the camera, shows the glowing ceiling along many of their directions. The floor at the corner loses that light, 12 of 255 steps, where V scaled the map's term before. Without M it would keep the map's irradiance to within one step |
 | `AnOpenFloorKeepsItsAmbientLight` | Keeps its meaning: nothing within R of the floor's middle | Under the far rays its rule was widened to "nothing on the screen that a ray from the floor's middle meets". Decision 40 brings it back |
 | `NoDarkHaloAppearsBesideANearSilhouette` | Keeps its meaning | The box's slab, 0.2 m deep, lies 10 m in front of the wall, beyond R of every wall point |
 | `AFloorBesideAWallLosesTheShareOfItsHemisphereThatTheWallHidesWithinTheRadius` | Splits in two | `AFloorBesideALowWallLosesTheShareThatTheWallHides`: a wall 0.4 m tall and 0.8 m long, whose every point lies within R of the measured lines, against the C# quadrature for a ray length of R with the slab model. And `AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius`: today's 40 m wall, against the quadrature over rays that block only where they meet the wall within R (decision 40). Both at 16 slices and 16 steps, within 0.03. Under the far rays, the tall wall's test also counted the rays that met the wall beyond R on the screen |
@@ -1097,6 +1221,17 @@ What the table shows:
 - The direct pass takes 7.6 to 8.8 ms in every run, the setting off included. It is the lights epic's cost of the lamps in `demo-exit`, not a cost of the bounce light: main's ARCHITECTURE.md gives the lighting pass 7.2 to 7.3 ms there by the timers after the lights epic, and 9.906 ms in a trace ("GPU timings"). So the frame span is far above the 14.2 ms of the near-only run above, and the cost of the bounce light is read from the occlusion sum and from the span against the setting off.
 - Two runs of one setting differ by 0.05 ms in the occlusion sum and by 0.7 ms in the frame span (the default's runs 1 and 2), so spans closer than that do not tell the settings apart.
 
+### Decision 41
+
+`ter-fs7b` measured the reads of the map with the renderer's own GPU timers (`gpu-timings.json` of a headless run), not with `xctrace`: its recording did not end after the app exited on this machine. Two Release builds, the base `46190f6e` and the branch, ran in turn at 1920 × 1080 on the Apple M1 Max through MoltenVK, each over 120 filmed frames: the deck of `demo-exit` after 399 ticks, and the cabin of `demo-surface` after its terminal and apron views, at the default setting with the map on. Other agents built and tested at the same time, so the load average was 8 to 30. The table gives the medians over the pairs of runs, where a pair is the base run and the branch run straight after it.
+
+| Scene | Pairs | Four occlusion passes and the ambient pass, base | The same, branch | Difference per pair: median, mean, quartiles | Sectors pass difference, median |
+|---|---|---|---|---|---|
+| `demo-exit`, the deck | 21 | 2.28 ms | 2.38 ms | 0.10, 0.10, −0.01 to 0.15 ms | 0.14 ms |
+| `demo-surface`, the cabin | 26 | 2.51 ms | 2.64 ms | 0.14, 0.18, 0.05 to 0.33 ms | 0.18 ms |
+
+The reads add about 0.1 ms in the deck and 0.14 ms in the cabin, whose near walls and seats block more parts. Single pairs spread from −0.13 to 0.57 ms, and one batch of five cabin pairs gave a median of 0.41 ms, so a single pair does not tell the cost. A build without the reads along the steps' parts, only the receiver's own surface read, took 0.03 ms less than the branch in the median of five cabin pairs: the base color read, the constant and the subtraction cost about as much as the reads.
+
 ## Doc changes
 
 | Doc | Change |
@@ -1119,7 +1254,7 @@ What the table shows:
 |---|---|---|
 | SSR (`ter-jxv9`) | κ, `surfaceAt`, `ambientTerms`, the compute stage on sets 0 and 2, `BindSceneSets` at the compute bind point | Merges first. This ticket moves κ to `CellBounds`, and `surfaceAt` reads the estimate target. Part 5 moved the depth pyramid to `DepthPyramidImage` for the far rays, and `ter-ehxp` moved it back (decision 40) |
 | The environment map (`ter-nl5u`) | `ambientTerms`, `environmentAmbient`, the reflected stars' footprint, `directLight` | Its lighting pass becomes the ambient pass, which takes the footprint from the G-buffer through `surfaceAt`. Its known limit of the map's near surfaces meets decision 31 |
-| The map in each open direction (`ter-fs7b`) | The open share's light | Reads the environment map along the open directions in place of its mean light (decision 40) |
+| The map in each open direction (`ter-fs7b`) | The open share's light, the estimate, `occludedAmbient` | Built: each open direction takes the map's light from that direction, as the map's whole term less its light along the blocked parts (decisions 41 and 42) |
 | The lights (`ter-s9cv`) | `directLight`'s one loop, G-buffer binding 8 | Its loop runs in the direct pass. The direct image takes binding 9 |
 | The shader audit (`ter-lozc`) | `MaxRadiance`, `exposed` | The two passes keep the surfaces' share by "The cap at `MaxRadiance`". Its tables gain this doc's rows |
 | XeGTAO's tuned set (`ter-sdks`) | The seven constants | The user chose none of it (fork 1). `ter-sdks` closes unbuilt |
@@ -1386,4 +1521,4 @@ A return needs a cheaper trace and a far share with less variance per texel, wit
 
 ### The environment map in each open direction
 
-`ter-fs7b`: the open share takes the map's light along its open directions in place of the map's mean light. "Known limits" names what the mean costs.
+Built by `ter-fs7b` (decisions 41 and 42).

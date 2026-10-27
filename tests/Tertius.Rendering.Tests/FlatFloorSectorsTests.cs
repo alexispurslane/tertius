@@ -101,7 +101,8 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
                 geometricNormal: Up,
                 radius: setting.RadiusMeters,
                 thicknessShare: CellBounds.ThicknessShare,
-                steps: [.. steps]
+                steps: [.. steps],
+                mapLight: null
             );
             yield return (sectors, near);
         }

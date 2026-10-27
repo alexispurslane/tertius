@@ -19,7 +19,8 @@ internal sealed class OcclusionDepthPass(
         layouts: layouts,
         images: images,
         setting: setting,
-        shader: "occlusion_depth"
+        shader: "occlusion_depth",
+        constants: null
     );
 
     public override string Name => "occlusion depth";

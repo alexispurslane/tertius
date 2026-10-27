@@ -47,29 +47,72 @@ float sliceAngle(SliceGeometry g, vec3 direction, float side)
     return side * acos(clamp(dot(normalize(direction), g.toEye), -1.0, 1.0));
 }
 
-// The sectors whose centers lie between the directions to a step's surface point and to the back of its slab.
-uint stepSectors(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
+// cos θ V̂ + sin θ ô: the unit view-space direction at the angle θ in the slice.
+vec3 sliceDirection(SliceGeometry g, float angle)
+{
+    return cos(angle) * g.toEye + sin(angle) * g.side;
+}
+
+// A run of a slice's sectors, first to end − 1, whose centers lie between the angles low and high, both within the
+// hemisphere (SectorRun). An empty run has end ≤ first.
+struct SectorRun
+{
+    uint first;
+    uint end;
+    float low;
+    float high;
+};
+
+// The run of the sectors whose centers lie between the angles a and b, a ≤ b.
+SectorRun runBetween(SliceGeometry g, float a, float b)
+{
+    SectorRun run;
+    run.first = sectorBoundary(measureFraction(g, a));
+    run.end = sectorBoundary(measureFraction(g, b));
+    run.low = clamp(a, g.normalAngle - GtaoHalfPi, g.normalAngle + GtaoHalfPi);
+    run.high = clamp(b, g.normalAngle - GtaoHalfPi, g.normalAngle + GtaoHalfPi);
+    return run;
+}
+
+uint runSectors(SectorRun run)
+{
+    return sectorRun(run.first, run.end);
+}
+
+// The angles of the part `part`, a set of the run's sectors that is not empty, from its first sector to its last:
+// each sector stands at the angle that its place in the run takes in proportion between low and high
+// (docs/plans/screen-space-illumination.md, decision 41).
+vec2 partAngles(SectorRun run, uint part)
+{
+    float perSector = (run.high - run.low) / float(run.end - run.first);
+    vec2 places = vec2(float(findLSB(part)), float(findMSB(part) + 1)) - float(run.first);
+    return run.low + places * perSector;
+}
+
+// The run of the sectors whose centers lie between the directions to a step's surface point and to the back of its
+// slab.
+SectorRun stepRun(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
 {
     float front = sliceAngle(g, samplePosition - center, side);
     float back = sliceAngle(g, samplePosition * (1.0 + ThicknessShare) - center, side);
-    return sectorRun(sectorBoundary(measureFraction(g, min(front, back))),
-                     sectorBoundary(measureFraction(g, max(front, back))));
+    return runBetween(g, min(front, back), max(front, back));
 }
 
-// The sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no light
-// (docs/plans/screen-space-illumination.md, decision 39). The plane's angle in the slice, γ_g, is taken within π of γ,
-// so its edges in the slice are γ_g ± π/2. A normal with no part in the slice plane blocks nothing, and atan(0, 0) is
+// The run of the sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no
+// light (docs/plans/screen-space-illumination.md, decision 39). The plane's angle in the slice, γ_g, is taken within π
+// of γ, so its edges in the slice are γ_g ± π/2, and only one of them lies inside the hemisphere: the lower one where
+// γ_g > γ, the upper one where γ_g < γ. A normal with no part in the slice plane blocks nothing, and atan(0, 0) is
 // undefined.
-uint ownSurfaceSectors(SliceGeometry g, vec3 geometricNormal)
+SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
 {
-    vec3 shading = cos(g.normalAngle) * g.toEye + sin(g.normalAngle) * g.side;
-    vec3 acrossShading = cos(g.normalAngle) * g.side - sin(g.normalAngle) * g.toEye;
+    vec3 shading = sliceDirection(g, g.normalAngle);
+    vec3 acrossShading = sliceDirection(g, g.normalAngle + GtaoHalfPi);
     vec2 inSlice = vec2(dot(geometricNormal, shading), dot(geometricNormal, acrossShading));
     if (length(inSlice) < MinProjectedNormalLength)
-        return 0u;
+        return SectorRun(0u, 0u, g.normalAngle, g.normalAngle);
     float planeAngle = g.normalAngle + atan(inSlice.y, inSlice.x);
-    return sectorRun(0u, sectorBoundary(measureFraction(g, planeAngle - GtaoHalfPi)))
-           | sectorRun(sectorBoundary(measureFraction(g, planeAngle + GtaoHalfPi)), SectorCount);
+    return planeAngle > g.normalAngle ? runBetween(g, g.normalAngle - GtaoHalfPi, planeAngle - GtaoHalfPi)
+                                      : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
 // The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two

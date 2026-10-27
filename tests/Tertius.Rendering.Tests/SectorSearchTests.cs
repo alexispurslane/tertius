@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -42,13 +44,26 @@ public sealed class SectorSearchTests
 
     /// <summary>The near steps of a receiver whose geometric normal is its shading normal, which lies in the slice plane.</summary>
     private static NearSlice Near(SliceSectors sectors, double thicknessShare, params NearStep[] steps) =>
+        Near(sectors, thicknessShare, mapLight: null, steps);
+
+    /// <summary>
+    /// The near steps of a receiver whose geometric normal is its shading normal, under the map whose light along a
+    /// view-space direction, read with a lobe of a width in rad, <paramref name="mapLight"/> gives.
+    /// </summary>
+    private static NearSlice Near(
+        SliceSectors sectors,
+        double thicknessShare,
+        Func<Double3, double, Double3>? mapLight,
+        params NearStep[] steps
+    ) =>
         SectorSearch.Near(
             sectors: sectors,
             center: Center,
             geometricNormal: sectors.DirectionAt(sectors.Slice.NormalAngle),
             radius: Radius,
             thicknessShare: thicknessShare,
-            steps: steps
+            steps: steps,
+            mapLight: mapLight
         );
 
     /// <summary>The sectors that the slab of <paramref name="step"/> covers alone.</summary>
@@ -182,16 +197,19 @@ public sealed class SectorSearchTests
                 geometricNormal: TowardTheEye,
                 radius: radius,
                 thicknessShare: ThicknessShare,
-                steps: [step]
+                steps: [step],
+                mapLight: null
             );
 
         Within(0.625)
             .Should()
             .Be(
-                new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero),
+                new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
                 "the edge at the radius is hard"
             );
-        Within(0.5).Should().Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero));
+        Within(0.5)
+            .Should()
+            .Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero));
         Within(0.626).Blocked.Count.Should().BePositive();
     }
 
@@ -215,7 +233,8 @@ public sealed class SectorSearchTests
             bounce: estimate.Bounce,
             diffuseColor: new(0.7, 0.4, 0.2),
             nDotV: 0.7,
-            lobe: lobe
+            lobe: lobe,
+            environmentMapOn: false
         );
 
         estimate
@@ -253,7 +272,8 @@ public sealed class SectorSearchTests
             geometricNormal: TowardTheEye,
             radius: 1,
             thicknessShare: ThicknessShare,
-            steps: [.. steps]
+            steps: [.. steps],
+            mapLight: null
         );
 
         steps.Should().BeEmpty("the near range holds no step (decision 21)");
@@ -292,7 +312,8 @@ public sealed class SectorSearchTests
             geometricNormal: TowardTheEye,
             radius: Radius,
             thicknessShare: ThicknessShare,
-            steps: []
+            steps: [],
+            mapLight: null
         );
 
         near.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye));
@@ -321,7 +342,8 @@ public sealed class SectorSearchTests
             geometricNormal: TowardTheEye,
             radius: Radius,
             thicknessShare: ThicknessShare,
-            steps: [ownPlane]
+            steps: [ownPlane],
+            mapLight: null
         );
 
         near.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye), "the slab covers only what the surface blocks");
@@ -600,4 +622,124 @@ public sealed class SectorSearchTests
         (near.Blocked.Bits >> 16).Should().Be(0u, "facing the eye, the minus side holds sectors 0 to 15");
         near.Light.Should().Be(Red * near.Blocked.Count);
     }
+
+    [Fact]
+    public void InAUniformMapASlicesMapLightIsItsBlockedCountTimesTheMapsLight()
+    {
+        // A normal map tilts the shading normal, so the receiver's own surface blocks sectors too.
+        Double3 mapRadiance = new(0.4, 0.7, 1.3);
+
+        NearSlice near = SectorSearch.Near(
+            sectors: Tilted(0.5),
+            center: Center,
+            geometricNormal: TowardTheEye,
+            radius: Radius,
+            thicknessShare: ThicknessShare,
+            steps: [FacingStep(position: new(-0.2, 0, 1.8), light: Red) with { Side = SliceSide.Minus }],
+            mapLight: (_, _) => mapRadiance
+        );
+
+        near.Blocked.Count.Should().BeGreaterThan(near.Sectors.BelowPlane(TowardTheEye).Count, "the test needs a step");
+        (near.MapLight - mapRadiance * near.Blocked.Count)
+            .Length.Should()
+            .BeLessThan(1e-12, "each blocked sector takes away the map's light along it once, the own surface's too");
+    }
+
+    [Fact]
+    public void ASliceThatBlocksNothingReadsNoMapLight()
+    {
+        var reads = new List<Double3>();
+
+        NearSlice near = Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, _) =>
+            {
+                reads.Add(direction);
+                return Red;
+            }
+        );
+
+        reads.Should().BeEmpty("every sector is open, so the map's irradiance stands as it is");
+        near.MapLight.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void AStepReadsTheMapAlongThePartOfItsRunThatNoNearerStepBlocked()
+    {
+        // The nearer step's slab covers sectors 24 to 31, the farther one's 22 to 25, so the farther one newly blocks
+        // 22 and 23.
+        NearStep nearer = FacingStep(position: new(0.2, 0, 1.8), light: Red);
+        NearStep farther = FacingStep(position: new(0.3, 0, 1.6), light: Green);
+        SectorMask fresh = Covered(Facing, farther, ThicknessShare).Except(Covered(Facing, nearer, ThicknessShare));
+        var reads = new List<Double3>();
+
+        Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, _) =>
+            {
+                reads.Add(direction);
+                return Red;
+            },
+            nearer,
+            farther
+        );
+
+        reads.Should().HaveCount(2, "each step that blocks a sector reads the map once");
+        double measure = Facing.MeasureFraction(AngleInSlice(Facing, reads[1]));
+        int first = BitOperations.TrailingZeroCount(fresh.Bits);
+        int end = SliceSectors.Count - BitOperations.LeadingZeroCount(fresh.Bits);
+        measure
+            .Should()
+            .BeInRange(
+                (double)first / SliceSectors.Count,
+                (double)end / SliceSectors.Count,
+                "the farther step stands for the sectors that it newly blocks, not for its whole run"
+            );
+    }
+
+    [Fact]
+    public void TheReceiversOwnSurfaceReadsTheMapAlongTheMiddleOfTheAnglesBelowItWithALobeAsWideAsThem()
+    {
+        // The shading normal leans 0.5 rad toward +x from the geometric normal, which faces the eye, so the directions
+        // from π/2 to π/2 + 0.5 lie below the surface.
+        SliceSectors sectors = Tilted(0.5);
+        var reads = new List<(Double3 Direction, double Width)>();
+
+        SectorSearch.Near(
+            sectors: sectors,
+            center: Center,
+            geometricNormal: TowardTheEye,
+            radius: Radius,
+            thicknessShare: ThicknessShare,
+            steps: [],
+            mapLight: (direction, width) =>
+            {
+                reads.Add((direction, width));
+                return Red;
+            }
+        );
+
+        reads.Should().ContainSingle();
+        AngleInSlice(sectors, reads[0].Direction).Should().BeApproximately(Math.PI / 2 + 0.25, 1e-12);
+        reads[0].Width.Should().BeApproximately(0.5, 1e-12);
+    }
+
+    [Fact]
+    public void APartOfARunStandsAtTheAnglesThatItsPlaceInTheRunTakesInProportion()
+    {
+        var run = new SectorRun(First: 10, End: 30, Low: 0.2, High: 1.2);
+
+        (double middle, double width) = run.PartAngles(SectorMask.Run(start: 12, end: 16));
+
+        middle
+            .Should()
+            .BeApproximately(0.4, 1e-15, "sectors 12 to 15 take the angles from 0.3 to 0.5 of the run's 0.2 to 1.2");
+        width.Should().BeApproximately(0.2, 1e-15);
+    }
+
+    /// <summary>θ of a view-space direction in the slice: its angle from V̂, positive toward ô.</summary>
+    private static double AngleInSlice(SliceSectors sectors, Double3 direction) =>
+        Math.Atan2(Double3.Dot(direction, sectors.Slice.TowardPlusSide), Double3.Dot(direction, sectors.Slice.ToEye));
 }

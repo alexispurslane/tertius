@@ -185,6 +185,35 @@ public sealed class GgxLobeTests
         smooth.SpecularOcclusion(nDotV: 1, occlusion: occlusion).Should().BeGreaterThan(occlusion);
         smooth.SpecularOcclusion(nDotV: 0.05, occlusion: occlusion).Should().BeLessThan(occlusion);
     }
+
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(0.5)]
+    [InlineData(1.5)]
+    public void TheLobeForAWidthPutsAtMostATwentiethOfItsWeightBeyondEitherEndOfThePart(double width)
+    {
+        // The prefilter's kernel with n = v, over the light directions l: D (n·h) / (4 v·h) times n·l, with h halfway
+        // between l and n. A direction lies beyond the part's end where its angle from n along x exceeds width / 2.
+        var lobe = new GgxLobe(GgxLobe.RoughnessForWidth(width));
+        const int polarCount = 1500;
+        const int azimuthCount = 360;
+        double total = 0;
+        double beyond = 0;
+        for (int i = 0; i < polarCount; i++)
+        {
+            double polar = (i + 0.5) / polarCount * Math.PI / 2;
+            double weight = lobe.Distribution(Math.Cos(polar / 2)) / 4 * Math.Cos(polar) * Math.Sin(polar);
+            for (int j = 0; j < azimuthCount; j++)
+            {
+                double azimuth = (j + 0.5) / azimuthCount * 2 * Math.PI;
+                total += weight;
+                if (Math.Atan2(Math.Sin(polar) * Math.Cos(azimuth), Math.Cos(polar)) > width / 2)
+                    beyond += weight;
+            }
+        }
+
+        (beyond / total).Should().BeInRange(0.015, 0.05, "the read keeps to its part, and still blurs over it");
+    }
 }
 
 /// <summary>

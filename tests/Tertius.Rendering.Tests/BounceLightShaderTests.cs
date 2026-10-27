@@ -403,7 +403,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     geometricNormal: geometricNormal,
                     radius: setting.RadiusMeters,
                     thicknessShare: CellBounds.ThicknessShare,
-                    steps: [.. steps]
+                    steps: [.. steps],
+                    mapLight: null
                 );
                 ties[slice] = Ties(
                     sectors: sectors,
