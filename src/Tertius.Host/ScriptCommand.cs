@@ -40,7 +40,7 @@ namespace Tertius.Host;
 /// </list>
 /// Each run builds its scene in a new world on the Jolt backend.
 /// </summary>
-public static class ScriptCommand
+public static partial class ScriptCommand
 {
     /// <summary>The run finished, or the user closed its window.</summary>
     public const int Ok = 0;
@@ -115,6 +115,54 @@ public static class ScriptCommand
         "--environment-map",
     ];
 
+    // The options of the headless renderer, in the order of the usage line.
+    private static readonly string[] RendererOverrideOptions =
+    [
+        "--tone-curve",
+        "--screen-space-light",
+        "--screen-space-light-steps",
+        "--bloom",
+        "--reflections",
+        "--anti-aliasing",
+        "--local-shadows",
+        "--local-shadow-tiles",
+        "--cascaded-lights",
+        "--environment-map",
+    ];
+
+    // Each option that only some runs take, with the problem when a run that does not take it is given it. A command line
+    // with several such options gets the problem of the first, so the options that choose the run come first, then the
+    // rest in the order of the usage line. Declared after RendererOverrideOptions, which its initializer reads.
+    private static readonly (string Option, string Problem)[] StrayProblems =
+    [
+        ("--headless", "--scene is free play, and free play needs the window. Leave out --headless."),
+        ("--out", "--out applies to a script. Free play writes only the file that --record names."),
+        ("--record", "--record applies to free play, so give --scene. A script is a record already."),
+        ("--speed", "--speed applies to the window. A headless run runs its ticks back to back."),
+        (
+            "--video",
+            "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video."
+        ),
+        ("--fps", "--fps applies to a video, so give --video too."),
+        ("--size", "--size applies to a script, so give --script."),
+        .. RendererOverrideOptions.Select(option =>
+            (Option: option, Problem: $"{option} applies to a headless run, so add --headless.")
+        ),
+    ];
+
+    // The options of StrayProblems that each run takes. Declared after RendererOverrideOptions, which they read.
+    private static readonly string[] FreePlayOptions = ["--speed", "--record"];
+    private static readonly string[] WindowOptions = ["--out", "--speed", "--size"];
+    private static readonly string[] HeadlessOptions =
+    [
+        "--headless",
+        "--out",
+        "--video",
+        "--fps",
+        "--size",
+        .. RendererOverrideOptions,
+    ];
+
     /// <summary>
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image, or of the video, to
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
@@ -150,13 +198,35 @@ public static class ScriptCommand
             return CommandLineError;
         }
 
-        if (options.Scene is { } sceneName)
-            return RunFreePlay(options: options, sceneName: sceneName, scenes: scenes, output: output, error: error);
+        return options switch
+        {
+            FreePlay free => RunFreePlay(free: free, scenes: scenes, output: output, error: error),
+            ScriptRun run => RunScript(
+                run: run,
+                scenes: scenes,
+                createRenderer: createRenderer,
+                startVideo: startVideo ?? FfmpegVideoSink.Start,
+                output: output,
+                error: error
+            ),
+            null => throw new UnreachableException("ReadOptions gives free play or a script run."),
+        };
+    }
 
-        // ReadOptions gives a run that is not free play its script, its output folder and its capture target.
-        if (options is not { Script: { } scriptPath, Out: { } outFolder, Target: { } target })
-            throw new UnreachableException("A script run has its script, its output folder and its capture target.");
-        Result<Script, RunFailure> loaded = ScriptOf(scriptPath: scriptPath, target: target, options: options);
+    /// <summary>
+    /// Runs a script in a window or headless, after it loads the script and finds its scene. Makes a headless renderer
+    /// with <paramref name="createRenderer"/> only for a script with a capture or film step.
+    /// </summary>
+    private static int RunScript(
+        ScriptRun run,
+        IReadOnlyList<Scene> scenes,
+        Func<RendererOptions, VulkanRenderer> createRenderer,
+        Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
+        TextWriter output,
+        TextWriter error
+    )
+    {
+        Result<Script, RunFailure> loaded = ScriptOf(run);
         if (loaded.Problem is { Code: var code, Message: var message })
         {
             error.WriteLine(message);
@@ -164,68 +234,70 @@ public static class ScriptCommand
         }
 
         Script script = loaded.Ok ?? throw new UnreachableException("A result without a problem holds its script.");
-        bool captures = HasCaptures(script);
         Scene? scene = scenes.FirstOrDefault(s => s.Name == script.Scene);
         if (scene is null)
         {
             error.WriteLine(
-                $"{options.Script}: no scene is named '{script.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
+                $"{run.Script}: no scene is named '{script.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
             );
             return ScriptError;
         }
 
-        if (!options.Headless)
-            return WindowHost.Run(
+        return run.Display switch
+        {
+            InWindow(var speed) => WindowHost.Run(
                 sceneToBuild: scene,
                 script: script,
-                scriptPath: options.Script,
-                outputFolder: options.Out,
-                speed: options.Speed,
+                scriptPath: run.Script,
+                outputFolder: run.Out,
+                speed: speed,
                 recordPath: null,
                 output: output,
                 error: error
-            );
-        return RunHeadless(
-            options: options,
-            script: script,
-            scene: scene,
-            outFolder: outFolder,
-            target: target,
-            createRenderer: captures ? createRenderer : null,
-            startVideo: startVideo ?? FfmpegVideoSink.Start,
-            output: output,
-            error: error
-        );
+            ),
+            Headless headless => RunHeadless(
+                run: run,
+                headless: headless,
+                script: script,
+                scene: scene,
+                createRenderer: HasCaptures(script) ? createRenderer : null,
+                startVideo: startVideo,
+                output: output,
+                error: error
+            ),
+            null => throw new UnreachableException("ReadOptions gives a script run its display."),
+        };
     }
 
     /// <summary>
-    /// The script at <paramref name="scriptPath"/> with the window of <c>--size</c>, or why the run cannot use it: it cannot
-    /// be read, or <paramref name="target"/> takes captures that the script does not have.
+    /// The script of <paramref name="run"/> with the window of <c>--size</c>, or why the run cannot use it: it cannot be
+    /// read, or the run's video takes captures that the script does not have.
     /// </summary>
-    private static Result<Script, RunFailure> ScriptOf(string scriptPath, CaptureTarget target, Options options)
+    private static Result<Script, RunFailure> ScriptOf(ScriptRun run)
     {
         Script script;
         try
         {
-            script = Script.Load(scriptPath);
+            script = Script.Load(run.Script);
         }
         catch (ScriptException ex)
         {
-            return new RunFailure(ScriptError, $"{options.Script}: {ex.Message}");
+            return new RunFailure(ScriptError, $"{run.Script}: {ex.Message}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new RunFailure(FileError, $"Cannot read the script {options.Script}: {ex.Message}");
+            return new RunFailure(FileError, $"Cannot read the script {run.Script}: {ex.Message}");
         }
 
-        if (target is VideoFile or Discard && !HasCaptures(script))
+        bool takesCaptures = run.Display is Headless { Target: VideoFile or Discard };
+        if (takesCaptures && !HasCaptures(script))
             return new RunFailure(
                 CommandLineError,
-                $"--video takes the captures, into a video or into nothing, and {options.Script} has no capture or film step."
+                $"--video takes the captures, into a video or into nothing, and {run.Script} has no capture or film step."
                     + Environment.NewLine
                     + Usage
             );
-        return options.Size is { } size ? script with { Window = size } : script;
+        return run.Size is { } size ? script with { Window = size } : script;
     }
 
     /// <summary>True if the script draws a frame: it has a capture or a film step.</summary>
@@ -236,11 +308,10 @@ public static class ScriptCommand
     /// null for a script with no capture or film step, and a playback that draws the captures into the run's target.
     /// </summary>
     private static int RunHeadless(
-        Options options,
+        ScriptRun run,
+        Headless headless,
         Script script,
         Scene scene,
-        string outFolder,
-        CaptureTarget target,
         Func<RendererOptions, VulkanRenderer>? createRenderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
         TextWriter output,
@@ -257,7 +328,8 @@ public static class ScriptCommand
             renderer = StartRenderer(
                 createRenderer: createRenderer,
                 size: script.Window,
-                options: options,
+                overrides: headless.Renderer,
+                scriptPath: run.Script,
                 error: error
             );
             if (renderer is null)
@@ -266,11 +338,10 @@ public static class ScriptCommand
 
         using VulkanRenderer? rendererToDispose = renderer;
         return Play(
-            options: options,
+            run: run,
+            target: headless.Target,
             script: script,
             scene: scene,
-            outFolder: outFolder,
-            target: target,
             world: world,
             renderer: renderer,
             startVideo: startVideo,
@@ -284,11 +355,10 @@ public static class ScriptCommand
     /// null, then writes the files of the run and the readings of the renderer. Returns the exit code.
     /// </summary>
     private static int Play(
-        Options options,
+        ScriptRun run,
+        CaptureTarget target,
         Script script,
         Scene scene,
-        string outFolder,
-        CaptureTarget target,
         World world,
         VulkanRenderer? renderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
@@ -306,7 +376,7 @@ public static class ScriptCommand
                 target: target,
                 startVideo: startVideo,
                 readings: readings,
-                options: options
+                scriptPath: run.Script
             );
             if (started.Problem is { Code: var code, Message: var message })
             {
@@ -329,25 +399,25 @@ public static class ScriptCommand
                 script: script,
                 world: world,
                 scene: scene.Build(world, renderer ?? RenderResources.None),
-                outputFolder: options.Out,
+                outputFolder: run.Out,
                 playback: playback
             );
             playback?.Finish();
-            WriteFiles(result: result, outputFolder: outFolder, target: target, output: output);
+            WriteFiles(result: result, outputFolder: run.Out, target: target, output: output);
             if (renderer != null)
                 WriteReadings(
                     readings: readings,
                     renderer: renderer,
                     size: script.Window,
                     captures: result.Captures,
-                    outputFolder: outFolder,
+                    outputFolder: run.Out,
                     output: output
                 );
             return Ok;
         }
         catch (Exception ex)
         {
-            (int failure, string message) = Failure(ex, options);
+            (int failure, string message) = Failure(ex, run);
             error.WriteLine(message);
             return failure;
         }
@@ -383,7 +453,7 @@ public static class ScriptCommand
         CaptureTarget target,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
         FrameReadings readings,
-        Options options
+        string scriptPath
     )
     {
         try
@@ -402,13 +472,13 @@ public static class ScriptCommand
         {
             return new RunFailure(
                 ToolError,
-                $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}"
+                $"Cannot start ffmpeg for the video {file.Path} of {scriptPath}: {ex.Message}"
             );
         }
         // The folder of the video cannot be made: a file problem, as for a dump or an image.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && target is VideoFile file)
         {
-            return new RunFailure(FileError, $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
+            return new RunFailure(FileError, $"Cannot write the video {file.Path} of {scriptPath}: {ex.Message}");
         }
     }
 
@@ -419,7 +489,8 @@ public static class ScriptCommand
     private static VulkanRenderer? StartRenderer(
         Func<RendererOptions, VulkanRenderer> createRenderer,
         ScriptWindow size,
-        Options options,
+        RendererOverrides overrides,
+        string scriptPath,
         TextWriter error
     )
     {
@@ -429,60 +500,39 @@ public static class ScriptCommand
             Height = size.Height,
             Impostors = false,
         };
-        if (options.ToneCurve is { } curve)
-            rendererOptions.ToneCurve = curve;
-        if (options.ScreenSpaceLight is { } screenSpaceLight)
-            rendererOptions.ScreenSpaceLight = screenSpaceLight;
-        if (options.BloomOff)
-            rendererOptions.Bloom = new NoBloom();
-        if (options.ReflectionsOff)
-            rendererOptions.Reflections = new NoReflections();
-        if (options.AntiAliasing is { } antiAliasing)
-            rendererOptions.AntiAliasing = antiAliasing;
-        if (options.LocalShadows is { } localShadows)
-            rendererOptions.LocalShadows = localShadows;
-        if (options.CascadedLights is { } cascadedLights)
-            rendererOptions.CascadedLights = cascadedLights;
-        if (options.EnvironmentMapOff)
-            rendererOptions.EnvironmentMap = new NoEnvironmentMap();
+        overrides.ApplyTo(rendererOptions);
         try
         {
             return createRenderer(rendererOptions);
         }
         catch (Exception ex)
         {
-            error.WriteLine($"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}");
+            error.WriteLine($"Cannot start the headless renderer for the captures of {scriptPath}: {ex.Message}");
             return null;
         }
     }
 
     /// <summary>The exit code and the message of an exception that stopped a headless run after it started.</summary>
-    private static (int Code, string Message) Failure(Exception ex, Options options) =>
+    private static (int Code, string Message) Failure(Exception ex, ScriptRun run) =>
         ex switch
         {
-            ScriptException => (ScriptError, $"{options.Script}: {ex.Message}"),
+            ScriptException => (ScriptError, $"{run.Script}: {ex.Message}"),
             // ffmpeg failed, and the message gives the video, ffmpeg's exit code and its last error lines.
-            VideoStreamException => (FileError, $"Cannot write the video of {options.Script}: {ex.Message}"),
+            VideoStreamException => (FileError, $"Cannot write the video of {run.Script}: {ex.Message}"),
             // A dump or an image that cannot be written: the same words as in the window.
-            IOException or UnauthorizedAccessException => (FileError, $"Cannot write into {options.Out}: {ex.Message}"),
+            IOException or UnauthorizedAccessException => (FileError, $"Cannot write into {run.Out}: {ex.Message}"),
             // A bug, such as a broken contract that escapes World.Tick: the same exit code as in the window.
             _ => (InternalError, $"The run failed: {ex}"),
         };
 
-    /// <summary>Runs the scene named <paramref name="sceneName"/> live in a window, after it finds the scene before a window opens.</summary>
-    private static int RunFreePlay(
-        Options options,
-        string sceneName,
-        IReadOnlyList<Scene> scenes,
-        TextWriter output,
-        TextWriter error
-    )
+    /// <summary>Runs the scene of <paramref name="free"/> live in a window, after it finds the scene before a window opens.</summary>
+    private static int RunFreePlay(FreePlay free, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error)
     {
-        Scene? live = scenes.FirstOrDefault(s => s.Name == sceneName);
+        Scene? live = scenes.FirstOrDefault(s => s.Name == free.Scene);
         if (live is null)
         {
             error.WriteLine(
-                $"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
+                $"No scene is named '{free.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}."
             );
             return ScriptError;
         }
@@ -492,8 +542,8 @@ public static class ScriptCommand
             script: null,
             scriptPath: null,
             outputFolder: null,
-            speed: options.Speed,
-            recordPath: options.Record,
+            speed: free.Speed,
+            recordPath: free.Record,
             output: output,
             error: error
         );
@@ -617,77 +667,35 @@ public static class ScriptCommand
         IReadOnlyList<PassSummary> Passes
     );
 
-    /// <param name="Script">The script file, or null for free play.</param>
-    /// <param name="Scene">The scene of free play, or null for a script.</param>
-    /// <param name="Out">The output folder of a script.</param>
-    /// <param name="Headless">True to run a script with no window.</param>
-    /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
-    /// <param name="Record">The file that free play writes its session to as a script, or null to record nothing.</param>
-    /// <param name="Target">Where a script run's captures go, the PNG files of <paramref name="Out"/> without --video, or null for free play.</param>
-    /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
-    /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
-    /// <param name="ScreenSpaceLight">The setting that replaces the headless renderer's default, or null to keep it.</param>
-    /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
-    /// <param name="ReflectionsOff">True to turn the headless renderer's reflections off, false to keep its default.</param>
-    /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
-    /// <param name="LocalShadows">The local shadows that replace the headless renderer's default, or null to keep it.</param>
-    /// <param name="CascadedLights">The count of far lights with cascades that replaces the renderer's default, or null.</param>
-    /// <param name="EnvironmentMapOff">True to turn the headless renderer's environment map off, false to keep its default.</param>
-    internal sealed record Options(
-        string? Script,
-        string? Scene,
-        string? Out,
-        bool Headless,
-        double Speed,
-        string? Record = null,
-        CaptureTarget? Target = null,
-        ScriptWindow? Size = null,
-        ToneCurve? ToneCurve = null,
-        ScreenSpaceLightSetting? ScreenSpaceLight = null,
-        bool BloomOff = false,
-        bool ReflectionsOff = false,
-        AntiAliasing? AntiAliasing = null,
-        LocalShadowSetting? LocalShadows = null,
-        int? CascadedLights = null,
-        bool EnvironmentMapOff = false
-    );
-
-    /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
-    internal static Options? ReadOptions(string[] args, out string? problem)
+    /// <summary>
+    /// The options, or null and the problem for an unknown option, a missing value, an option that the run does not take,
+    /// or a value that the option does not take.
+    /// </summary>
+    internal static RunOptions? ReadOptions(string[] args, out string? problem)
     {
         if (Gather(args, out problem) is not { } given)
             return null;
-        problem = PlayProblem(given) ?? ValueProblem(given);
-        if (problem is not null)
-            return null;
-        string? outFolder = given.Value("--out");
-        return new Options(
-            Script: given.Value("--script"),
-            Scene: given.Value("--scene"),
-            Out: outFolder,
-            Headless: given.Headless,
-            Speed: SpeedOf(given.Value("--speed")) ?? 1,
-            Record: given.Value("--record"),
-            Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
-            Size: SizeOf(given.Value("--size")),
-            ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
-            ScreenSpaceLight: ScreenSpaceLightOf(
-                given.Value("--screen-space-light"),
-                given.Value("--screen-space-light-steps")
-            ),
-            BloomOff: given.Value("--bloom") == "off",
-            ReflectionsOff: given.Value("--reflections") == "off",
-            AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
-            LocalShadows: LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
-            CascadedLights: CascadedLightsOf(given.Value("--cascaded-lights")),
-            EnvironmentMapOff: given.Value("--environment-map") == "off"
-        );
+        Result<RunOptions, string> read = Read(given);
+        problem = read.Problem;
+        return read.Ok;
     }
 
     /// <summary>The options of a command line as given, before the rules between them: the value of each option, and <c>--headless</c>.</summary>
     private sealed record GivenOptions(IReadOnlyDictionary<string, string> Values, bool Headless)
     {
         public string? Value(string option) => Values.GetValueOrDefault(option);
+
+        /// <summary>
+        /// The problem with the first option of <see cref="StrayProblems"/> that the command line gives and that a run with
+        /// the options <paramref name="taken"/> does not take, or null.
+        /// </summary>
+        public string? StrayProblem(string[] taken) =>
+            StrayProblems
+                .Where(stray => Gives(stray.Option) && !taken.Contains(stray.Option))
+                .Select(stray => stray.Problem)
+                .FirstOrDefault();
+
+        private bool Gives(string option) => option == "--headless" ? Headless : Values.ContainsKey(option);
     }
 
     /// <summary>The options as given, or null and the problem for an unknown option or a missing value.</summary>
@@ -723,28 +731,55 @@ public static class ScriptCommand
         return new(values, headless);
     }
 
-    /// <summary>The problem with the choice between a script and free play, and with the options that belong to one of them, or null.</summary>
-    private static string? PlayProblem(GivenOptions given) =>
+    /// <summary>The run that the options as given choose, free play or a script run, or the problem with them.</summary>
+    private static Result<RunOptions, string> Read(GivenOptions given) =>
         (given.Value("--script"), given.Value("--scene")) switch
         {
             (null, null) => "Give --script or --scene.",
             (not null, not null) => "Give --script or --scene, not both.",
-            (null, not null) when given.Headless =>
-                "--scene is free play, and free play needs the window. Leave out --headless.",
-            (null, not null) when given.Value("--out") != null =>
-                "--out applies to a script. Free play writes only the file that --record names.",
-            (not null, null) when given.Value("--record") != null =>
-                "--record applies to free play, so give --scene. A script is a record already.",
-            (not null, null) when given.Value("--out") is null => "The option --out is missing.",
-            _ => null,
+            (null, { } scene) => ReadFreePlay(given, scene),
+            ({ } script, null) => ReadScriptRun(given, script),
         };
 
-    /// <summary>The problem with the value of an option, or with an option that another option needs, or null.</summary>
-    private static string? ValueProblem(GivenOptions given) =>
-        SpeedProblem(given)
-        ?? VideoProblem(given)
-        ?? SizeProblem(given)
-        ?? ToneCurveProblem(given)
+    private static Result<RunOptions, string> ReadFreePlay(GivenOptions given, string scene)
+    {
+        if ((given.StrayProblem(FreePlayOptions) ?? SpeedProblem(given)) is { } problem)
+            return problem;
+        return new RunOptions(
+            new FreePlay(Scene: scene, Speed: SpeedOf(given.Value("--speed")) ?? 1, Record: given.Value("--record"))
+        );
+    }
+
+    private static Result<RunOptions, string> ReadScriptRun(GivenOptions given, string script)
+    {
+        // The missing output folder is the first problem of a script run, because every script run needs it.
+        if (given.Value("--out") is not { } outFolder)
+            return "The option --out is missing.";
+        if (ScriptRunProblem(given) is { } problem)
+            return problem;
+        ScriptDisplay display = given.Headless
+            ? new Headless(
+                Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
+                Renderer: RendererOverridesOf(given)
+            )
+            : new InWindow(Speed: SpeedOf(given.Value("--speed")) ?? 1);
+        return new RunOptions(
+            new ScriptRun(Script: script, Out: outFolder, Size: SizeOf(given.Value("--size")), Display: display)
+        );
+    }
+
+    /// <summary>
+    /// The problem with an option that a script run in the window or headless does not take, or with the value of an
+    /// option that it takes, or null.
+    /// </summary>
+    private static string? ScriptRunProblem(GivenOptions given) =>
+        given.Headless
+            ? given.StrayProblem(HeadlessOptions) ?? VideoProblem(given) ?? SizeProblem(given) ?? RendererProblem(given)
+            : given.StrayProblem(WindowOptions) ?? SpeedProblem(given) ?? SizeProblem(given);
+
+    /// <summary>The problem with the value of an option of the headless renderer, or null.</summary>
+    private static string? RendererProblem(GivenOptions given) =>
+        ToneCurveProblem(given)
         ?? ScreenSpaceLightProblem(given)
         ?? OnOffProblem(given, "--bloom")
         ?? OnOffProblem(given, "--reflections")
@@ -753,12 +788,27 @@ public static class ScriptCommand
         ?? CascadedLightsProblem(given)
         ?? OnOffProblem(given, "--environment-map");
 
+    /// <summary>The overrides of the headless renderer that the options as given choose.</summary>
+    private static RendererOverrides RendererOverridesOf(GivenOptions given) =>
+        new()
+        {
+            ToneCurve = ToneCurveOf(given.Value("--tone-curve")),
+            ScreenSpaceLight = ScreenSpaceLightOf(
+                given.Value("--screen-space-light"),
+                given.Value("--screen-space-light-steps")
+            ),
+            BloomOff = given.Value("--bloom") == "off",
+            ReflectionsOff = given.Value("--reflections") == "off",
+            AntiAliasing = AntiAliasingOf(given.Value("--anti-aliasing")),
+            LocalShadows = LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
+            CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
+            EnvironmentMapOff = given.Value("--environment-map") == "off",
+        };
+
     private static string? SpeedProblem(GivenOptions given)
     {
         if (given.Value("--speed") is not { } speed)
             return null;
-        if (given.Headless)
-            return "--speed applies to the window. A headless run runs its ticks back to back.";
         if (SpeedOf(speed) is null)
             return $"--speed needs a positive number, such as 0.5 or 2, not '{speed}'.";
         return null;
@@ -768,8 +818,6 @@ public static class ScriptCommand
     {
         string? video = given.Value("--video"),
             fps = given.Value("--fps");
-        if (video != null && !given.Headless)
-            return "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.";
         if (video is not (null or NoVideo) && !VideoFile.HasVideoExtension(video))
             return $"--video needs {NoVideo} or a file whose name ends in {VideoFile.Extension}, not '{video}'.";
         if (fps != null && video is null)
@@ -785,8 +833,6 @@ public static class ScriptCommand
     {
         if (given.Value("--size") is not { } size)
             return null;
-        if (given.Value("--script") is null)
-            return "--size applies to a script, so give --script.";
         if (SizeOf(size) is null)
             return $"--size needs a width and a height of 1 to {ScriptWindow.MaxSide} pixels, such as 1920x1080, not '{size}'.";
         return null;
@@ -796,8 +842,6 @@ public static class ScriptCommand
     {
         if (given.Value("--tone-curve") is not { } curve)
             return null;
-        if (!given.Headless)
-            return "--tone-curve applies to a headless run, so add --headless.";
         if (ToneCurveOf(curve) is null)
             return $"--tone-curve needs aces or hable, not '{curve}'.";
         return null;
@@ -807,14 +851,6 @@ public static class ScriptCommand
     {
         string? light = given.Value("--screen-space-light"),
             steps = given.Value("--screen-space-light-steps");
-        if (light is null && steps is null)
-            return null;
-        if (!given.Headless)
-        {
-            string option = light is null ? "--screen-space-light-steps" : "--screen-space-light";
-            return $"{option} applies to a headless run, so add --headless.";
-        }
-
         bool lightReads = light is null or "off" || RadiusOf(light) is not null;
         if (!lightReads)
             return $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
@@ -830,8 +866,6 @@ public static class ScriptCommand
     {
         if (given.Value(option) is not { } value)
             return null;
-        if (!given.Headless)
-            return $"{option} applies to a headless run, so add --headless.";
         if (value is not ("on" or "off"))
             return $"{option} needs on or off, not '{value}'.";
         return null;
@@ -841,8 +875,6 @@ public static class ScriptCommand
     {
         if (given.Value("--anti-aliasing") is not { } antiAliasing)
             return null;
-        if (!given.Headless)
-            return "--anti-aliasing applies to a headless run, so add --headless.";
         if (AntiAliasingOf(antiAliasing) is null)
             return $"--anti-aliasing needs off or smaa, not '{antiAliasing}'.";
         return null;
@@ -852,14 +884,6 @@ public static class ScriptCommand
     {
         string? localShadows = given.Value("--local-shadows"),
             tiles = given.Value("--local-shadow-tiles");
-        if (localShadows is null && tiles is null)
-            return null;
-        if (!given.Headless)
-        {
-            string option = localShadows is null ? "--local-shadow-tiles" : "--local-shadows";
-            return $"{option} applies to a headless run, so add --headless.";
-        }
-
         if (localShadows is not (null or "off" or "on"))
             return $"--local-shadows needs off or on, not '{localShadows}'.";
         if (tiles is not null && TilesOf(tiles) is null)
@@ -873,8 +897,6 @@ public static class ScriptCommand
     {
         if (given.Value("--cascaded-lights") is not { } count)
             return null;
-        if (!given.Headless)
-            return "--cascaded-lights applies to a headless run, so add --headless.";
         if (CascadedLightsOf(count) is null)
             return $"--cascaded-lights needs a whole number from 0 to {RendererOptions.MaxCascadedLights}, not '{count}'.";
         return null;
@@ -897,18 +919,15 @@ public static class ScriptCommand
         WholeNumberOf(text: text, least: VideoFile.MinFramesPerSecond, most: VideoFile.MaxFramesPerSecond);
 
     /// <summary>
-    /// The capture target of a script run: <see cref="Discard"/> for <c>--video none</c>, the video that <c>--video</c>
-    /// names at its frame rate, or the PNG files of <paramref name="outFolder"/> without <c>--video</c>. Null for free
-    /// play, which has no output folder.
+    /// The capture target of a headless run: <see cref="Discard"/> for <c>--video none</c>, the video that <c>--video</c>
+    /// names at its frame rate, or the PNG files of <paramref name="outFolder"/> without <c>--video</c>.
     /// </summary>
-    private static CaptureTarget? TargetOf(string? video, string? fps, string? outFolder)
+    private static CaptureTarget TargetOf(string? video, string? fps, string outFolder)
     {
         if (video is NoVideo)
             return new Discard();
         if (video is not null)
             return new VideoFile(video, FpsOf(fps) ?? VideoFile.DefaultFramesPerSecond);
-        if (outFolder is null)
-            return null;
         return new PngFolder(outFolder);
     }
 

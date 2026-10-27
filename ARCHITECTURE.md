@@ -2821,7 +2821,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 
 ## Host and scripted runs
 
-`Tertius.Host` wires the modules into a program. `ScriptCommand.Run` reads the command line and starts one of three runs. The design is in `docs/plans/host-and-scripted-runs.md`.
+`Tertius.Host` wires the modules into a program. `ScriptCommand.Run` reads the command line and starts one of three runs. The design is in `docs/plans/host-and-scripted-runs.md`. `ScriptCommand.ReadOptions` parses the command line once into `RunOptions`, a generated union of `FreePlay` and `ScriptRun`. The `Display` of a `ScriptRun` is a union of `InWindow` and `Headless`, so each case holds only the options that its run reads: the speed only in a window, the capture target and the renderer's overrides only headless. An option that the chosen run does not take is refused with its own problem, and `Run` switches on the union with one method per case.
 
 | Run | Command line | What it does |
 |---|---|---|

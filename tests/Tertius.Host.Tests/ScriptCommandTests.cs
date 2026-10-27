@@ -577,35 +577,51 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void TheWindowOptionsCarryTheirValues()
     {
-        ScriptCommand.Options? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
-        ScriptCommand.Options? played = ScriptCommand.ReadOptions(["--script", "s.json", "--out", "o"], out _);
+        ScriptCommand.RunOptions? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
+        ScriptCommand.RunOptions? played = ScriptCommand.ReadOptions(["--script", "s.json", "--out", "o"], out _);
 
         free.Should()
-            .Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 0.5));
+            .Be(new ScriptCommand.RunOptions(new ScriptCommand.FreePlay("drop-box", Speed: 0.5, Record: null)));
         played
             .Should()
             .Be(
-                new ScriptCommand.Options(
-                    Script: "s.json",
-                    Scene: null,
-                    Out: "o",
-                    Headless: false,
-                    Speed: 1,
-                    Target: new PngFolder("o")
+                new ScriptCommand.RunOptions(
+                    new ScriptCommand.ScriptRun(
+                        Script: "s.json",
+                        Out: "o",
+                        Size: null,
+                        Display: new ScriptCommand.InWindow(Speed: 1)
+                    )
                 )
             );
     }
 
+    /// <summary>The script run of a command line that ReadOptions takes.</summary>
+    private static ScriptCommand.ScriptRun ScriptRunOf(string[] args)
+    {
+        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(args, out string? problem);
+        options.Should().NotBeNull(problem);
+        return options.Value.Value.Should().BeOfType<ScriptCommand.ScriptRun>().Subject;
+    }
+
+    /// <summary>The headless display of a script run's command line that ReadOptions takes.</summary>
+    private static ScriptCommand.Headless HeadlessOf(string[] args) =>
+        ScriptRunOf(args).Display.Value.Should().BeOfType<ScriptCommand.Headless>().Subject;
+
     [Fact]
     public void TheSizeOptionCarriesTheWidthAndTheHeight()
     {
-        ScriptCommand.Options? sized = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--size", "1920x1080"],
-            out string? problem
-        );
+        ScriptCommand.ScriptRun sized = ScriptRunOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--size",
+            "1920x1080",
+        ]);
 
-        sized.Should().NotBeNull(problem);
-        sized!.Size.Should().Be(new ScriptWindow(1920, 1080));
+        sized.Size.Should().Be(new ScriptWindow(1920, 1080));
     }
 
     [Theory]
@@ -613,13 +629,17 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("hable", ToneCurve.Hable)]
     public void TheToneCurveOptionCarriesTheCurveThatItNames(string name, ToneCurve curve)
     {
-        ScriptCommand.Options? toned = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--tone-curve", name],
-            out string? problem
-        );
+        ScriptCommand.Headless toned = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--tone-curve",
+            name,
+        ]);
 
-        toned.Should().NotBeNull(problem);
-        toned!.ToneCurve.Should().Be(curve);
+        toned.Renderer.ToneCurve.Should().Be(curve);
     }
 
     [Theory]
@@ -656,13 +676,17 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("smaa", AntiAliasing.Smaa)]
     public void TheAntiAliasingOptionCarriesTheChoiceThatItNames(string name, AntiAliasing antiAliasing)
     {
-        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--anti-aliasing", name],
-            out string? problem
-        );
+        ScriptCommand.Headless chosen = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--anti-aliasing",
+            name,
+        ]);
 
-        chosen.Should().NotBeNull(problem);
-        chosen!.AntiAliasing.Should().Be(antiAliasing);
+        chosen.Renderer.AntiAliasing.Should().Be(antiAliasing);
     }
 
     public static TheoryData<string[], ScreenSpaceLightSetting?> ScreenSpaceLightOptions =>
@@ -689,13 +713,16 @@ public sealed class ScriptCommandTests : IDisposable
         ScreenSpaceLightSetting? expected
     )
     {
-        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", .. screenSpaceLight],
-            out string? problem
-        );
+        ScriptCommand.Headless chosen = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            .. screenSpaceLight,
+        ]);
 
-        chosen.Should().NotBeNull(problem);
-        chosen!.ScreenSpaceLight.Should().Be(expected);
+        chosen.Renderer.ScreenSpaceLight.Should().Be(expected);
     }
 
     public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>
@@ -715,13 +742,9 @@ public sealed class ScriptCommandTests : IDisposable
         LocalShadowSetting? expected
     )
     {
-        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", .. localShadows],
-            out string? problem
-        );
+        ScriptCommand.Headless chosen = HeadlessOf(["--script", "s.json", "--headless", "--out", "o", .. localShadows]);
 
-        chosen.Should().NotBeNull(problem);
-        chosen!.LocalShadows.Should().Be(expected);
+        chosen.Renderer.LocalShadows.Should().Be(expected);
     }
 
     [Theory]
@@ -729,51 +752,45 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("4", 4)]
     public void TheCascadedLightsOptionCarriesItsCount(string value, int count)
     {
-        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--cascaded-lights", value],
-            out string? problem
-        );
+        ScriptCommand.Headless chosen = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--cascaded-lights",
+            value,
+        ]);
 
-        chosen.Should().NotBeNull(problem);
-        chosen!.CascadedLights.Should().Be(count);
+        chosen.Renderer.CascadedLights.Should().Be(count);
     }
 
     [Fact]
     public void TheVideoOptionsCarryTheFileAndTheFrameRateWhichIs30WithoutFps()
     {
-        ScriptCommand.Options? rated = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv", "--fps", "24"],
-            out _
-        );
-        ScriptCommand.Options? plain = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv"],
-            out _
-        );
+        ScriptCommand.Headless rated = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--video",
+            "o/v.mkv",
+            "--fps",
+            "24",
+        ]);
+        ScriptCommand.Headless plain = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--video",
+            "o/v.mkv",
+        ]);
 
-        rated
-            .Should()
-            .Be(
-                new ScriptCommand.Options(
-                    Script: "s.json",
-                    Scene: null,
-                    Out: "o",
-                    Headless: true,
-                    Speed: 1,
-                    Target: new VideoFile("o/v.mkv", 24)
-                )
-            );
-        plain
-            .Should()
-            .Be(
-                new ScriptCommand.Options(
-                    Script: "s.json",
-                    Scene: null,
-                    Out: "o",
-                    Headless: true,
-                    Speed: 1,
-                    Target: new VideoFile("o/v.mkv", 30)
-                )
-            );
+        rated.Target.Should().Be(new CaptureTarget(new VideoFile("o/v.mkv", 24)));
+        plain.Target.Should().Be(new CaptureTarget(new VideoFile("o/v.mkv", 30)));
     }
 
     [Theory]
@@ -791,24 +808,17 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void VideoNoneDiscardsTheCapturesOfAHeadlessRun()
     {
-        ScriptCommand.Options? discarded = ScriptCommand.ReadOptions(
-            ["--script", "s.json", "--headless", "--out", "o", "--video", "none"],
-            out string? problem
-        );
+        ScriptCommand.Headless discarded = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--video",
+            "none",
+        ]);
 
-        discarded
-            .Should()
-            .Be(
-                new ScriptCommand.Options(
-                    Script: "s.json",
-                    Scene: null,
-                    Out: "o",
-                    Headless: true,
-                    Speed: 1,
-                    Target: new Discard()
-                ),
-                problem
-            );
+        discarded.Target.Should().Be(new CaptureTarget(new Discard()));
     }
 
     [Fact]
@@ -855,7 +865,7 @@ public sealed class ScriptCommandTests : IDisposable
     [Fact]
     public void TheRecordOptionOfFreePlayCarriesItsPath()
     {
-        ScriptCommand.Options? recorded = ScriptCommand.ReadOptions(
+        ScriptCommand.RunOptions? recorded = ScriptCommand.ReadOptions(
             ["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"],
             out _
         );
@@ -863,13 +873,8 @@ public sealed class ScriptCommandTests : IDisposable
         recorded
             .Should()
             .Be(
-                new ScriptCommand.Options(
-                    Script: null,
-                    Scene: "drop-box",
-                    Out: null,
-                    Headless: false,
-                    Speed: 2,
-                    Record: "sessions/today.json"
+                new ScriptCommand.RunOptions(
+                    new ScriptCommand.FreePlay("drop-box", Speed: 2, Record: "sessions/today.json")
                 )
             );
     }
