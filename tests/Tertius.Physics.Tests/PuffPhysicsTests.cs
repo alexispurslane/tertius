@@ -101,6 +101,117 @@ internal static class PuffTesting
                 Components = components,
             }
         );
+
+    /// <summary>The render snapshot that the last sync point of <paramref name="world"/> published.</summary>
+    public static RenderSnapshot Latest(World world)
+    {
+        world.RenderSnapshots.AcquireLatest().Should().NotBeNull();
+        return world.RenderSnapshots.ReadBuffer;
+    }
+
+    /// <summary>A hash of the puff table of <paramref name="world"/>: every row, every range and each field of each look, in order.</summary>
+    public static ulong TableHash(World world)
+    {
+        PuffView view = world.Puffs.View;
+        ulong hash = 0;
+        foreach (Puff row in view.Rows)
+        {
+            hash = WorldHash.Mix(hash, row.Place.X);
+            hash = WorldHash.Mix(hash, row.Place.Y);
+            hash = WorldHash.Mix(hash, row.Place.Z);
+            hash = WorldHash.Mix(hash, row.Chord.X);
+            hash = WorldHash.Mix(hash, row.Chord.Y);
+            hash = WorldHash.Mix(hash, row.Chord.Z);
+            hash = WorldHash.Mix(hash, BitConverter.SingleToUInt32Bits(row.Age));
+            hash = WorldHash.Mix(hash, (ulong)row.Look);
+        }
+
+        foreach (PuffRange range in view.Ranges)
+            hash = WorldHash.Mix(
+                WorldHash.Mix(WorldHash.Mix(hash, range.Frame.Entity.Raw), (ulong)range.Start),
+                (ulong)range.Count
+            );
+        // Each field of each look, because the hash code of a union mixes with a seed that changes from process to process.
+        foreach (PuffLook look in view.Looks)
+        {
+            hash = WorldHash.Mix(WorldHash.Mix(hash, look.Life), look.TemperatureRatio);
+            hash = WorldHash.Mix(WorldHash.Mix(hash, look.StartRadius), look.EndRadius);
+            if (look.Shading.TryGetValue(out GlowPuffs glow))
+                hash = WorldHash.Mix(WorldHash.Mix(hash, 1UL), glow.Radiance);
+            else if (look.Shading.TryGetValue(out LitPuffs lit))
+                hash = WorldHash.Mix(WorldHash.Mix(hash, 2UL), lit.Albedo);
+        }
+
+        return hash;
+    }
+
+    /// <summary>
+    /// The busy scene of the puff tests in air under gravity, with a cap that binds, seen from a camera on the ground: a
+    /// ball that drops on the floor with a jet on it, a thrusting hull with a jet below it and one in its own frame, and an
+    /// emitter whose look changes every tick.
+    /// </summary>
+    public static World BusySceneWithCamera(int maxDegreeOfParallelism = 1)
+    {
+        World world = NewWorld(
+            backend: out _,
+            configure: options =>
+            {
+                options.PuffCapacity = 500;
+                options.MaxDegreeOfParallelism = maxDegreeOfParallelism;
+            }
+        );
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)), MediumField.Uniform(1.225f, 2))
+        );
+        Floor(world, ground);
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 5),
+                Body = Ball(),
+                Render = new RenderData { Emitter = new(Rate: 90, Speed: 8, Spread: 0.4f, Look: Hot) },
+            }
+        );
+        var thruster = new Thruster(1000) { Acceleration = 2, Direction = Vector3.UnitY };
+        Entity hull = Hull(world: world, space: ground, place: new(30, 3, 0), components: thruster);
+        AttachEmitter(
+            world: world,
+            parent: hull,
+            offset: new(0, -2, 0),
+            emitter: new(Rate: 120, Speed: 20, Spread: 0.2f, Look: Hot)
+        );
+        SpawnEmitter(
+            world: world,
+            frame: world.GetOwnedFrame(hull),
+            place: new(0, 1, 0),
+            emitter: new(Rate: 30, Speed: 3, Spread: 1.5f, Look: Cold)
+        );
+        var changer = new SelfPilot
+        {
+            EveryTick = self =>
+                self.Render.Emitter = new(
+                    Rate: 60,
+                    Speed: 5,
+                    Spread: 0.1f,
+                    Look: Cold with
+                    {
+                        TemperatureRatio = 0.5f + self.Tick / 50 * 0.25f,
+                        Life = 1.5f,
+                    }
+                ),
+        };
+        SpawnEmitter(world: world, frame: ground, place: new(-20, 10, 0), emitter: default, changer);
+        world.Camera = world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(10, 2, 40),
+                Render = new RenderData(),
+            }
+        );
+        return world;
+    }
 }
 
 /// <summary>
