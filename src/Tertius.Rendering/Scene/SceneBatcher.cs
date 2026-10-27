@@ -453,7 +453,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// Whether an instance whose material draws as <paramref name="alpha"/> draws in the transparent pass alone: glass. The
-    /// shadow maps still draw glass, from the casters (docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// shadow views still draw glass, from the placed instances that cast shadows (PreparedScene.Placed;
+    /// docs/plans/skin-and-hair.md, "The alpha modes in the passes").
     /// </summary>
     private static bool IsGlass(AlphaMode alpha) =>
         alpha switch

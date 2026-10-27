@@ -560,8 +560,8 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>
-    /// A caster as a tile record holds it: its static mesh, its position relative to the light, and its pose rows,
-    /// TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
+    /// A caster as a tile record holds it: its static mesh, its material, which decides which texels cast, its position
+    /// relative to the light, and its pose rows, TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
     /// </summary>
     private readonly record struct RecordedCaster(
         uint EntityIndex,
