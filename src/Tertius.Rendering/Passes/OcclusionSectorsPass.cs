@@ -35,8 +35,6 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
-        // After the last frame's reads of the masks.
-        barriers.Buffer(images.SectorMasks, BufferUse.ComputeWrite);
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, images.HalfExtent);
     }

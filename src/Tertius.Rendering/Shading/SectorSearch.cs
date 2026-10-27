@@ -28,28 +28,15 @@ internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNor
 /// <summary>A slice after its near steps: its sectors, its blocked sectors and the sum of newly blocked sectors times their light.</summary>
 internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light);
 
-/// <summary>What a far ray decides for its slice's open sectors: the share it blocks, from 0 to 1, and that share times its light.</summary>
-internal readonly record struct FarOutcome(double Blocked, Double3 Light)
-{
-    /// <summary>A trace that leaves the screen, reaches the near plane or its vanishing point, or runs out of steps.</summary>
-    public static FarOutcome Open => new(0, Double3.Zero);
-
-    /// <summary>A ray that points into its own geometric surface, which blocks it and shows it no light.</summary>
-    public static FarOutcome IntoItsOwnSurface => new(1, Double3.Zero);
-}
-
 /// <summary>
 /// The search of one slice's sectors: the near steps, which block what their slabs cover and give it their direct
-/// light, and the pick of the far ray's open sector (docs/plans/screen-space-illumination.md, "A near step" and "The far
-/// ray of a slice"). sectors.glsl and occlusion_sectors.comp compute the same.
+/// light (docs/plans/screen-space-illumination.md, "A near step"). sectors.glsl and occlusion_sectors.comp compute the
+/// same.
 /// </summary>
 internal static class SectorSearch
 {
     /// <summary>The total slice weight at or below which a texel holds no estimate and is open.</summary>
     public const double MinTotalWeight = 1e-6;
-
-    // The golden ratio's inverse, the R1 sequence of the steps, in single floats as the shader holds it.
-    private const float StepSequence = 0.6180339887498948482f;
 
     // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
     private static readonly SliceSide[] SidesInOrder = [SliceSide.Plus, SliceSide.Minus];
@@ -240,62 +227,6 @@ internal static class SectorSearch
                 light += step.DirectLight * fresh.Count;
         }
         return new(Sectors: sectors, Blocked: blocked, Light: light);
-    }
-
-    /// <summary>η: the next value of the slice's R1 sequence past its steps, index slice + n² for n steps per side.</summary>
-    public static float FarRayNoise(float stepNoise, int slice, int stepsPerSide)
-    {
-        float shift = stepNoise + (slice + stepsPerSide * stepsPerSide) * StepSequence;
-        return shift - MathF.Floor(shift);
-    }
-
-    /// <summary>
-    /// The open sector of rank min(floor(η · count), count − 1), from sector 0: a cosine-weighted pick, because the
-    /// sectors are equal shares. Null when no sector is open: the slice traces no far ray.
-    /// </summary>
-    public static int? FarRaySector(SectorMask blocked, float farRayNoise)
-    {
-        SectorMask open = blocked.Open;
-        int count = open.Count;
-        if (count == 0)
-            return null;
-        return open.SectorOfRank(Math.Min((int)(farRayNoise * count), count - 1));
-    }
-
-    /// <summary>
-    /// The slice and the open sector of a texel's one far ray under <see cref="FarRays.OnePerTexel"/>: rank ⌊η Σ W c⌋ of
-    /// the texel's open sectors in slice order, where each open sector of slice k counts W_k, so the pick follows each
-    /// sector's share of the estimate. Null when no slice of weight above 0 has an open sector: the texel traces no ray.
-    /// </summary>
-    /// <param name="farRayNoise">η, from 0 to 1: <see cref="FarRayNoise"/> of slice 0.</param>
-    public static (int Slice, int Sector)? TexelFarRay(ReadOnlySpan<NearSlice> slices, float farRayNoise)
-    {
-        double openWeight = 0;
-        foreach (NearSlice slice in slices)
-            openWeight += slice.Sectors.Weight * slice.Blocked.Open.Count;
-        double target = farRayNoise * openWeight;
-        // The loop only picks the slice and the rank, as the shader does, which finds the direction once after it.
-        int picked = -1;
-        int rank = 0;
-        for (int k = 0; k < slices.Length; k++)
-        {
-            int count = slices[k].Blocked.Open.Count;
-            double weight = slices[k].Sectors.Weight;
-            double share = weight * count;
-            if (!(share > 0))
-                continue;
-            picked = k;
-            if (target < share)
-            {
-                // target < W · count, so the quotient is below the count up to a rounding.
-                rank = Math.Min((int)(target / weight), count - 1);
-                break;
-            }
-            // A noise that rounds up to 1 falls through every slice and keeps the last open sector of the last open slice.
-            rank = count - 1;
-            target -= share;
-        }
-        return picked < 0 ? null : (Slice: picked, Sector: slices[picked].Blocked.Open.SectorOfRank(rank));
     }
 
     /// <summary>σ acos(V̂ · d / |d|): the signed angle of the direction <paramref name="direction"/> in the slice.</summary>

@@ -1,9 +1,9 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The estimate of a texel, the occlusion V and the bounce G, from its slices' near sectors and their far rays
+/// The estimate of a texel, the occlusion V and the bounce G, from its slices' near sectors
 /// (docs/plans/screen-space-illumination.md, "The estimate of a texel"): its shares sum to one, and a furnace gives
-/// every direction the same light. The tests build each far outcome: FarRayTests pin how a trace decides it.
+/// every direction the same light.
 /// </summary>
 public sealed class AmbientEstimateTests
 {
@@ -60,28 +60,7 @@ public sealed class AmbientEstimateTests
     }
 
     [Fact]
-    public void AFarRayDecidesItsSlicesOpenWeightOverTheTexelsTotalWeight()
-    {
-        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
-        NearSlice[] near =
-        [
-            new(Sectors: sectors[0], Blocked: SectorMask.Run(start: 20, end: 32), Light: Red * 12),
-            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero),
-            new(Sectors: sectors[2], Blocked: new SectorMask(uint.MaxValue), Light: Sky * 32),
-        ];
-        double total = TotalWeight(sectors);
-
-        AmbientEstimate.TotalWeight(near).Should().BeApproximately(total, 1e-15);
-        AmbientEstimate
-            .OpenShare(near[0], total)
-            .Should()
-            .BeApproximately(sectors[0].Weight * 20 / (32 * total), 1e-15);
-        AmbientEstimate.OpenShare(near[1], total).Should().BeApproximately(sectors[1].Weight / total, 1e-15);
-        AmbientEstimate.OpenShare(near[2], total).Should().Be(0, "a slice with no open sector has no share to decide");
-    }
-
-    [Fact]
-    public void TheOpenTheNearAndTheFarSharesOfATexelSumToOne()
+    public void TheOpenAndTheBlockedSharesOfATexelSumToOne()
     {
         SliceSectors[] sectors = ThreeSlices(TiltedNormal);
         var random = new Random(11);
@@ -99,19 +78,8 @@ public sealed class AmbientEstimateTests
                 .Range(0, 3)
                 .Sum(k => sectors[k].Weight * near[k].Blocked.Count / (SliceSectors.Count * TotalWeight(sectors)));
             var estimate = AmbientEstimate.OfSlices(near);
-            double farShare = 0;
-            for (int k = 0; k < 3; k++)
-            {
-                double blocked = random.NextDouble();
-                double openShare = AmbientEstimate.OpenShare(near[k], AmbientEstimate.TotalWeight(near));
-                estimate = estimate.WithFarRay(
-                    openShare: openShare,
-                    outcome: new(Blocked: blocked, Light: Double3.Zero)
-                );
-                farShare += openShare * blocked;
-            }
 
-            (estimate.Occlusion + nearShare + farShare).Should().BeApproximately(1, 1e-14, $"trial {trial}");
+            (estimate.Occlusion + nearShare).Should().BeApproximately(1, 1e-14, $"trial {trial}");
         }
     }
 
@@ -148,7 +116,7 @@ public sealed class AmbientEstimateTests
     [Fact]
     public void InAFurnaceTheSkyLightAndTheBounceSumToTheSkyLight()
     {
-        // Every blocker, near or far, emits the sky's radiance and faces the center.
+        // Every blocker emits the sky's radiance and faces the center.
         SliceSectors[] sectors = ThreeSlices(TiltedNormal);
         Double3 center = new(0, 0, 2);
         var random = new Random(5);
@@ -185,14 +153,6 @@ public sealed class AmbientEstimateTests
                 );
             }
             var estimate = AmbientEstimate.OfSlices(near);
-            for (int k = 0; k < 3; k++)
-            {
-                double blocked = random.NextDouble();
-                estimate = estimate.WithFarRay(
-                    openShare: AmbientEstimate.OpenShare(near[k], AmbientEstimate.TotalWeight(near)),
-                    outcome: new(Blocked: blocked, Light: Sky * blocked)
-                );
-            }
 
             ShouldBeNear(
                 actual: Sky * estimate.Occlusion + estimate.Bounce,
@@ -201,40 +161,5 @@ public sealed class AmbientEstimateTests
                 because: $"trial {trial}: no direction counts twice and none is lost"
             );
         }
-    }
-
-    [Fact]
-    public void AFarOutcomeMovesItsBlockedShareOfTheOpenShareFromOpenToItsLight()
-    {
-        var estimate = new AmbientEstimate(Bounce: new(0.5, 0.25, 0.125), Occlusion: 0.75);
-        const double edgeFade = 0.375;
-
-        AmbientEstimate after = estimate.WithFarRay(
-            openShare: 0.5,
-            outcome: new(Blocked: edgeFade, Light: Red * edgeFade)
-        );
-
-        after
-            .Should()
-            .Be(new AmbientEstimate(Bounce: new(0.5 + 0.5 * 0.375 * 3, 0.25, 0.125), Occlusion: 0.75 - 0.5 * 0.375));
-    }
-
-    [Fact]
-    public void TheOpenOutcomeLeavesTheEstimateAsItIs()
-    {
-        var estimate = new AmbientEstimate(Bounce: new(0.5, 0.25, 0.125), Occlusion: 0.75);
-
-        estimate.WithFarRay(openShare: 0.5, outcome: FarOutcome.Open).Should().Be(estimate);
-    }
-
-    [Fact]
-    public void TheOutcomeIntoItsOwnSurfaceBlocksTheOpenShareWithoutLight()
-    {
-        var estimate = new AmbientEstimate(Bounce: new(0.5, 0.25, 0.125), Occlusion: 0.75);
-
-        estimate
-            .WithFarRay(openShare: 0.5, outcome: FarOutcome.IntoItsOwnSurface)
-            .Should()
-            .Be(new AmbientEstimate(Bounce: new(0.5, 0.25, 0.125), Occlusion: 0.25));
     }
 }

@@ -4,8 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The GPU plumbing of the occlusion passes (docs/plans/screen-space-illumination.md, "Images and buffers" and "Push
-/// constants and sets"): the half-resolution images, the sector masks buffer, their sets, a resize, and the layout that
-/// the five shaders share.
+/// constants and sets"): the half-resolution images, their sets, a resize, and the layout that the four shaders share.
 /// Validation is on.
 /// </summary>
 public sealed class OcclusionImagesTests
@@ -50,29 +49,6 @@ public sealed class OcclusionImagesTests
     }
 
     [Fact]
-    public void TheSectorMasksBufferHoldsOneWordForEachSliceOfEachTexel()
-    {
-        using var plumbing = new Plumbing(641, 361);
-        using OcclusionImages images = plumbing.CreateImages(slices: 5);
-
-        images
-            .SectorMasks.Size.Should()
-            .Be(321ul * 181 * 5 * sizeof(uint), "occlusion.glsl's maskIndex reads this many");
-    }
-
-    [Fact]
-    public void AResizeRecreatesTheSectorMasksBufferForTheNewHalfSize()
-    {
-        using var plumbing = new Plumbing(640, 360);
-        using OcclusionImages images = plumbing.CreateImages(slices: 3);
-
-        plumbing.Resize(new(801, 451));
-        images.Resize(plumbing.Targets);
-
-        images.SectorMasks.Size.Should().Be(401ul * 226 * 3 * sizeof(uint));
-    }
-
-    [Fact]
     public void MakingTheImagesAndWritingTheirSetsReportsNothingToValidation()
     {
         ValidationLog log;
@@ -83,36 +59,6 @@ public sealed class OcclusionImagesTests
         }
 
         log.Snapshot().Should().BeEmpty("the sets must match their layouts and every image must be released");
-    }
-
-    [Fact]
-    public void ASectorMasksBufferPastTheDevicesStorageBufferRangeIsRefused()
-    {
-        using var plumbing = new Plumbing(641, 361);
-        int slices = OneSlicePastTheRange(plumbing.Device, halfTexels: 321ul * 181);
-
-        Action create = () => plumbing.CreateImages(slices: slices).Dispose();
-
-        create
-            .Should()
-            .Throw<NotSupportedException>(
-                "one descriptor of a storage buffer reaches at most maxStorageBufferRange bytes"
-            )
-            .WithMessage("*maxStorageBufferRange*");
-    }
-
-    [Fact]
-    public void AResizePastTheDevicesStorageBufferRangeIsRefused()
-    {
-        using var plumbing = new Plumbing(1, 1);
-        using OcclusionImages images = plumbing.CreateImages(
-            slices: OneSlicePastTheRange(plumbing.Device, halfTexels: 321ul * 181)
-        );
-
-        plumbing.Resize(new(641, 361));
-        Action resize = () => images.Resize(plumbing.Targets);
-
-        resize.Should().Throw<NotSupportedException>().WithMessage("*maxStorageBufferRange*");
     }
 
     [Fact]
@@ -146,7 +92,6 @@ public sealed class OcclusionImagesTests
     [Theory]
     [InlineData("occlusion_depth.comp")]
     [InlineData("occlusion_sectors.comp")]
-    [InlineData("occlusion_far_rays.comp")]
     [InlineData("occlusion_denoise.comp")]
     [InlineData("occlusion_upsample.comp")]
     public unsafe void EachOcclusionShaderMakesAPipelineWithTheOcclusionLayout(string shader)
@@ -170,13 +115,6 @@ public sealed class OcclusionImagesTests
             .BeEmpty("the layout must hold every binding and push constant of the shader, and the device its features");
     }
 
-    /// <summary>
-    /// The fewest slices whose masks over <paramref name="halfTexels"/> pass the device's maxStorageBufferRange: about
-    /// 18,500 at 321 × 181 on a device of 2³² − 1 bytes, and 578 at the spec's least, 2²⁷.
-    /// </summary>
-    private static int OneSlicePastTheRange(VulkanDevice device, ulong halfTexels) =>
-        (int)(device.Properties.Limits.MaxStorageBufferRange / (halfTexels * sizeof(uint))) + 1;
-
     /// <summary>A validating headless device with the descriptor layouts and the render targets of one output size.</summary>
     private sealed class Plumbing : IDisposable
     {
@@ -192,8 +130,7 @@ public sealed class OcclusionImagesTests
                 extent: new(width, height),
                 glowLevels: 0,
                 smaaTables: null,
-                reflections: null,
-                screenSpaceLight: true
+                reflections: null
             );
         }
 
@@ -202,15 +139,8 @@ public sealed class OcclusionImagesTests
         public DescriptorLayouts Layouts { get; }
         public RenderTargets Targets { get; }
 
-        public OcclusionImages CreateImages(int slices = 3) =>
-            new(
-                device: Device,
-                allocator: Allocator,
-                layouts: Layouts,
-                targets: Targets,
-                depthPyramid: Targets.DepthPyramidImage!,
-                slices: slices
-            );
+        public OcclusionImages CreateImages() =>
+            new(device: Device, allocator: Allocator, layouts: Layouts, targets: Targets);
 
         /// <summary>Resizes the targets, as the renderer does, with the device idle.</summary>
         public void Resize(Extent2D extent)

@@ -180,7 +180,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
 
     private void DeclarePyramids(BarrierBatch barriers)
     {
-        barriers.Image(targets.DepthPyramidImage.Image, ImageUse.SampledComputeGeneral);
+        barriers.Image(targets.DepthImage, ImageUse.SampledComputeGeneral);
         barriers.Image(targets.RadianceImage, ImageUse.SampledComputeGeneral);
     }
 

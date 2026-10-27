@@ -54,7 +54,7 @@ void main()
         }
     }
     vec4 estimate = weights > 0.0 ? sum / weights : nearestEstimate;
-    // The bounce needs no clamp: a mean of non-negative light with non-negative weights. The clamp of V removes the
-    // rounding below 0 of the far rays' subtraction.
+    // The bounce needs no clamp: a mean of non-negative light with non-negative weights. The clamp of V keeps the
+    // rounding of the blurs' sums within [0, 1].
     imageStore(estimateTarget, pixel, vec4(estimate.rgb, clamp(estimate.a, 0.0, 1.0)));
 }

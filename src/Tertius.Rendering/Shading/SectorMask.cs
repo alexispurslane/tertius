@@ -31,16 +31,6 @@ internal readonly record struct SectorMask(uint Bits)
     /// <summary>The sectors in this set and not in <paramref name="other"/>.</summary>
     public SectorMask Except(SectorMask other) => new(Bits & ~other.Bits);
 
-    /// <summary>The sector of the rank-th set bit, counted from bit 0. The set holds more than rank sectors.</summary>
-    public int SectorOfRank(int rank)
-    {
-        Contract.Requires(rank >= 0 && rank < Count);
-        uint bits = Bits;
-        for (int i = 0; i < rank; i++)
-            bits &= bits - 1;
-        return BitOperations.TrailingZeroCount(bits);
-    }
-
     // The generated ToString would print Open, whose Open it would print in turn, without end.
     public override string ToString() => $"SectorMask {{ Bits = {Bits:B32} }}";
 }

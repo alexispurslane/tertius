@@ -15,26 +15,18 @@ layout(set = 3, binding = 0, r32f) uniform image2D viewDepth;          // half: 
 layout(set = 3, binding = 1, r8) uniform image2D occlusionEdges;       // half: XeGTAO's packed edges
 layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the bounce G, pre-exposed, a V
 layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
-// Slices words per half-resolution texel, row by row: each slice's mask of the sectors that its near steps block.
-layout(set = 3, binding = 4, std430) buffer SectorMasks
-{
-    uint sectorMasks[];
-};
-layout(set = 3, binding = 5) uniform texture2D depthPyramid;           // SSR's pyramid, General: mip m = level m + 1
-layout(set = 3, binding = 6, rgba16f) uniform image2D denoiseSource;
-layout(set = 3, binding = 7, rgba16f) uniform image2D denoiseDestination;
-layout(set = 3, binding = 8, rgba16f) uniform image2D occlusionDirect;  // half: the direct image at pixel 2t
+layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
+layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
+layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionDirect;  // half: the direct image at pixel 2t
 // half: the octahedral world geometric normal at pixel 2t, the normals target's ba
-layout(set = 3, binding = 9, rg16_snorm) uniform image2D occlusionGeometricNormal;
+layout(set = 3, binding = 7, rg16_snorm) uniform image2D occlusionGeometricNormal;
 
 layout(push_constant, std430) uniform OcclusionPush
 {
     float radiusMeters;
     uint slices;
     uint stepsPerSide;
-    uint farSteps;
     uint lastDenoise;
-    uint farRayPerTexel;
 } occlusion;
 
 // (t_x, t_y): the tangents of half the horizontal and half the vertical field of view. The frame constants carry them
@@ -61,13 +53,6 @@ bool insideHalf(ivec2 texel)
     return all(greaterThanEqual(texel, ivec2(0))) && all(lessThan(texel, halfSize()));
 }
 
-// The index of a slice's mask in the sector masks buffer. The texel lies inside the half image, so the index lies inside
-// the buffer, which holds Slices words per texel.
-uint maskIndex(ivec2 texel, int slice)
-{
-    return (uint(texel.y) * uint(halfSize().x) + uint(texel.x)) * occlusion.slices + uint(slice);
-}
-
 // The screen position of the center of a full-resolution pixel, from (0, 0) at the top left to (1, 1).
 vec2 pixelScreenPosition(ivec2 pixel)
 {
@@ -86,14 +71,6 @@ vec3 toViewAxes(vec3 world)
     vec2 tangents = cameraTangents();
     return vec3(dot(world, frame.cameraRight.xyz / tangents.x), dot(world, frame.cameraUp.xyz / tangents.y),
                 dot(world, frame.cameraForward.xyz));
-}
-
-// A view-space vector in the camera-relative world axes of SSR's trace: the inverse of toViewAxes.
-vec3 toWorldAxes(vec3 view)
-{
-    vec2 tangents = cameraTangents();
-    return view.x * frame.cameraRight.xyz / tangents.x + view.y * frame.cameraUp.xyz / tangents.y
-           + view.z * frame.cameraForward.xyz;
 }
 
 // The view-space shading normal of a full-resolution pixel.

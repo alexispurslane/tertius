@@ -8,8 +8,6 @@
 #include "depth_pyramid.glsl"
 
 const uint SectorCount = 32u;
-// The halvings of the search for the angle at a sector's center: π / 4,096 at the end (SliceSectors.AngleHalvings).
-const int AngleHalvings = 12;
 // The total slice weight at or below which a texel holds no estimate (SectorSearch.MinTotalWeight).
 const float MinTotalWeight = 1e-6;
 
@@ -121,33 +119,6 @@ bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 
 vec3 blockerLight(vec3 direct, vec3 geometricNormal, vec3 towardReceiver)
 {
     return dot(geometricNormal, towardReceiver) > 0.0 ? direct : vec3(0.0);
-}
-
-// θ at the center of a sector: the inverse of measureFraction at (sector + ½) / 32, by halving, since m has no closed
-// inverse (SliceSectors.CenterAngle).
-float sectorCenterAngle(SliceGeometry g, uint sector)
-{
-    float target = (float(sector) + 0.5) / float(SectorCount);
-    float low = g.normalAngle - GtaoHalfPi;
-    float high = g.normalAngle + GtaoHalfPi;
-    for (int i = 0; i < AngleHalvings; i++)
-    {
-        float middle = 0.5 * (low + high);
-        if (measureFraction(g, middle) < target)
-            low = middle;
-        else
-            high = middle;
-    }
-    return 0.5 * (low + high);
-}
-
-// The open sector of a rank, counted from sector 0 (SectorMask.SectorOfRank). open has more than rank bits set, so
-// findLSB never meets 0, where it returns −1.
-uint openSectorOfRank(uint open, uint rank)
-{
-    for (uint i = 0u; i < rank; i++)
-        open &= open - 1u;
-    return uint(findLSB(open));
 }
 
 #endif

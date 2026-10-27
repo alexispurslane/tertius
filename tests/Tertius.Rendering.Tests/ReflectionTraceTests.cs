@@ -84,8 +84,7 @@ public sealed class ReflectionTraceTests
                 extent: new(640, 360),
                 glowLevels: 0,
                 smaaTables: null,
-                reflections: resolution,
-                screenSpaceLight: false
+                reflections: resolution
             );
         }
 

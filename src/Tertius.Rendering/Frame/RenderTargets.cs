@@ -5,9 +5,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct image, the estimate
-/// target, the HDR target, the bloom levels, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), when the
-/// reflections or the screen-space light read it, the depth pyramid (<see cref="DepthPyramidImage"/>), and under
-/// <see cref="ConeTracedReflections"/>, the radiance pyramid of the reflections (<see cref="ReflectionTargets"/>).
+/// target, the HDR target, the bloom levels, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -80,8 +79,6 @@ internal sealed class RenderTargets : IDisposable
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
-    /// <param name="screenSpaceLight">True to make the depth pyramid for the far rays, under <see cref="VisibilityBitmaskLight"/>.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The depth pyramid is made, and a side is above <see cref="DepthPyramidImage.MaxSide"/>.</exception>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -89,14 +86,11 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        TraceResolution? reflections,
-        bool screenSpaceLight
+        TraceResolution? reflections
     )
     {
-        // One condition for the depth pyramid's existence: any reader (docs/plans/screen-space-illumination.md, decision 33).
-        bool depthPyramid = reflections is not null || screenSpaceLight;
-        if (depthPyramid)
-            CheckPyramidScreen(extent);
+        if (reflections is not null)
+            CheckReflectedScreen(extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
@@ -109,17 +103,14 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent: extent, hdrStorage: reflections is not null);
-        if (depthPyramid)
-            DepthPyramidImage = new(device: device, allocator: allocator, layouts: layouts, extent: extent);
-        if (reflections is { } resolution && DepthPyramidImage is { } pyramid)
+        if (reflections is { } resolution)
             Reflections = new(
                 device: device,
                 allocator: allocator,
                 layouts: layouts,
                 extent: extent,
                 hdr: Hdr,
-                resolution: resolution,
-                depthPyramid: pyramid
+                resolution: resolution
             );
         if (smaaTables is not null)
             Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
@@ -146,11 +137,8 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The images of SMAA, or null when SMAA is off.</summary>
     public SmaaTargets? Smaa { get; }
 
-    /// <summary>The radiance pyramid and the trace set of the reflections, or null under <see cref="NoReflections"/>.</summary>
+    /// <summary>The pyramids of the reflections, or null under <see cref="NoReflections"/>.</summary>
     public ReflectionTargets? Reflections { get; }
-
-    /// <summary>The depth pyramid, or null when neither the reflections nor the screen-space light read it.</summary>
-    public DepthPyramidImage? DepthPyramidImage { get; }
 
     /// <summary>Set 2: the G-buffer, the estimate target and the direct image, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -174,26 +162,24 @@ internal sealed class RenderTargets : IDisposable
     public DescriptorSet[] GlowSources { get; }
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The depth pyramid exists, and a side is above <see cref="DepthPyramidImage.MaxSide"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
     public void Resize(Extent2D extent)
     {
         if (extent.Width == Extent.Width && extent.Height == Extent.Height)
             return;
         // Before anything is destroyed, so that a refused size leaves every target as it was.
-        if (DepthPyramidImage is not null)
-            CheckPyramidScreen(extent);
+        if (Reflections is not null)
+            CheckReflectedScreen(extent);
         DestroyImages();
         Create(extent: extent, hdrStorage: Reflections is not null);
-        // The depth pyramid before the reflections, whose trace set reads it.
-        DepthPyramidImage?.Resize(extent);
         // The trace keeps its resolution across a resize.
         Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
         Smaa?.Resize(extent);
     }
 
-    private static void CheckPyramidScreen(Extent2D extent)
+    private static void CheckReflectedScreen(Extent2D extent)
     {
-        if (DepthPyramidImage.ScreenProblem(extent.Width, extent.Height) is { } problem)
+        if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(extent), problem);
     }
 
@@ -361,15 +347,23 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// The build writes the radiance pyramid as a storage image and the trace samples it trilinearly, and the trace writes
-    /// the HDR target as a storage image. <see cref="DepthPyramidImage"/> checks its own format and its tail's limit.
+    /// The builds write both pyramids as storage images and the trace samples them, the radiance pyramid trilinearly, and
+    /// the trace writes the HDR target as a storage image. The depth pyramid's tail binds more storage images in one stage
+    /// than Vulkan guarantees.
     /// </summary>
     private static void CheckReflectionFormats(VulkanDevice device)
     {
-        const FormatFeatureFlags radiance =
-            FormatFeatureFlags.SampledImageBit
-            | FormatFeatureFlags.StorageImageBit
-            | FormatFeatureFlags.SampledImageFilterLinearBit;
+        if (
+            DepthPyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
+            { } storageImages
+        )
+            throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
+        const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
+        const FormatFeatureFlags radiance = pyramid | FormatFeatureFlags.SampledImageFilterLinearBit;
+        if ((device.FormatProperties(ReflectionTargets.DepthFormat).OptimalTilingFeatures & pyramid) != pyramid)
+            throw new NotSupportedException(
+                $"{ReflectionTargets.DepthFormat} cannot be sampled and stored on {device.DeviceName}."
+            );
         if ((device.FormatProperties(ReflectionTargets.RadianceFormat).OptimalTilingFeatures & radiance) != radiance)
             throw new NotSupportedException(
                 $"{ReflectionTargets.RadianceFormat} cannot be stored and filtered linearly on {device.DeviceName}."
@@ -394,6 +388,5 @@ internal sealed class RenderTargets : IDisposable
     {
         Smaa?.Dispose();
         DestroyImages();
-        DepthPyramidImage?.Dispose();
     }
 }

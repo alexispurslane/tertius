@@ -1,8 +1,8 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The near steps of one slice, which block the sectors that their slabs cover and give them their light, and the pick
-/// of the far ray's open sector (docs/plans/screen-space-illumination.md, "A near step" and "The far ray of a slice").
+/// The near steps of one slice, which block the sectors that their slabs cover and give them their light, and the
+/// estimate of the sectors that they leave open (docs/plans/screen-space-illumination.md, "A near step").
 /// The slice lies in the plane y = 0, around a center 2 m ahead at the middle of the screen, so the plus side is +x.
 /// </summary>
 public sealed class SectorSearchTests
@@ -63,11 +63,6 @@ public sealed class SectorSearchTests
         );
         return sectors.Covering(front, back);
     }
-
-    /// <summary>The signed angle θ of a view-space direction in the slice, from V̂ toward ô.</summary>
-    private static double AngleOf(SliceSectors sectors, Double3 direction) =>
-        Math.Sign(Double3.Dot(direction, sectors.Slice.TowardPlusSide))
-        * Math.Acos(Math.Clamp(Double3.Dot(direction, sectors.Slice.ToEye), -1, 1));
 
     /// <summary>
     /// The near steps of the slice at φ = 0, which runs along a row, from <paramref name="texel"/> of a 320 × 180 half
@@ -198,6 +193,69 @@ public sealed class SectorSearchTests
             );
         Within(0.5).Should().Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero));
         Within(0.626).Blocked.Count.Should().BePositive();
+    }
+
+    [Fact]
+    public void AnOpenSectorBeyondTheRadiusTakesTheAmbientLight()
+    {
+        // A lit red wall that faces the center, 45° toward the plus side from the eye, 1.5 m to 2.5 m away: every step
+        // lies inside the hemisphere and beyond R.
+        NearStep[] wall =
+        [
+            .. new[] { 1.5, 2, 2.5 }.Select(d =>
+                FacingStep(position: Center + new Double3(1, 0, -1) * (d / Math.Sqrt(2)), light: Red)
+            ),
+        ];
+        var lobe = new GgxLobe(0.4);
+        var source = new AmbientTerms(Diffuse: new(0.31, 0.57, 0.83), Specular: new(0.05, 0.11, 0.23));
+
+        var estimate = AmbientEstimate.OfSlices([Near(Facing, ThicknessShare, wall)]);
+        AmbientTerms occluded = source.Occluded(
+            occlusion: estimate.Occlusion,
+            bounce: estimate.Bounce,
+            diffuseColor: new(0.7, 0.4, 0.2),
+            nDotV: 0.7,
+            lobe: lobe
+        );
+
+        estimate.Should().Be(AmbientEstimate.Open, "no far ray continues an open sector past the radius");
+        occluded.Diffuse.Should().Be(source.Diffuse, "an open sector takes the ambient source's light, not the wall's");
+    }
+
+    [Fact]
+    public void ATexelWhoseNearRangeHoldsNoStepTakesTheAmbientLight()
+    {
+        // The radius spans exactly the nearest step's 1.3 texels: no step of the red wall falls within it.
+        List<NearStep> steps = SectorSearch.SliceSteps(
+            texel: (160, 90),
+            slice: 0,
+            sliceAngle: 0,
+            stepsPerSide: 3,
+            stepNoise: 0,
+            radiusInTexels: HorizonSearch.NearestStepTexels,
+            halfSize: (Width: 320, Height: 180),
+            rayThrough: WallRayThrough,
+            texelAt: place => new StepTexel(
+                Position: WallRayThrough(place) * 5,
+                GeometricNormal: TowardTheEye,
+                DirectLight: Red
+            )
+        );
+        var center = new Double3(0, 0, 5);
+        NearSlice near = SectorSearch.Near(
+            sectors: Facing,
+            center: center,
+            geometricNormal: TowardTheEye,
+            radius: 1,
+            thicknessShare: ThicknessShare,
+            steps: [.. steps]
+        );
+
+        steps.Should().BeEmpty("the near range holds no step (decision 21)");
+        AmbientEstimate
+            .OfSlices([near])
+            .Should()
+            .Be(AmbientEstimate.Open, "with no step and no far ray, the whole hemisphere takes the ambient light");
     }
 
     [Fact]
@@ -536,80 +594,5 @@ public sealed class SectorSearchTests
         near.Blocked.Count.Should().BePositive();
         (near.Blocked.Bits >> 16).Should().Be(0u, "facing the eye, the minus side holds sectors 0 to 15");
         near.Light.Should().Be(Red * near.Blocked.Count);
-    }
-
-    [Fact]
-    public void TheFarRayGoesThroughTheCenterOfAnOpenSector()
-    {
-        SliceSectors sectors = Tilted(0.5);
-        var blocked = new SectorMask(0b1111_0000_1111_0000_1010_1010_0101_0101u);
-
-        foreach (float noise in new[] { 0f, 0.13f, 0.5f, 0.77f, 0.999f })
-        {
-            int sector = SectorSearch.FarRaySector(blocked, noise)!.Value;
-            Double3 direction = sectors.DirectionAt(sectors.CenterAngle(sector));
-
-            ((blocked.Bits >> sector) & 1).Should().Be(0u, $"noise {noise}: the far ray runs only in an open sector");
-            (sectors.MeasureFraction(AngleOf(sectors, direction)) * SliceSectors.Count - sector)
-                .Should()
-                .BeApproximately(0.5, 0.01, $"noise {noise}: the ray goes through the center of sector {sector}");
-        }
-    }
-
-    [Fact]
-    public void TheNoisePicksTheOpenSectorOfItsShareOfTheOpenCount()
-    {
-        // Sectors 0 to 15 are blocked, so the open sectors 16 to 31 have the ranks 0 to 15.
-        var blocked = SectorMask.Run(start: 0, end: 16);
-
-        SectorSearch.FarRaySector(blocked, 0).Should().Be(16);
-        SectorSearch.FarRaySector(blocked, 0.5f).Should().Be(24);
-        SectorSearch.FarRaySector(blocked, 0.99f).Should().Be(31);
-    }
-
-    [Fact]
-    public void ANoiseThatRoundsUpToOnePicksTheLastOpenSector()
-    {
-        // Correctly rounded single floats keep fract and its product with the count below the count, but GLSL lets a
-        // driver's fract and product err by an ulp. With 17 open sectors, a noise of 1 is one rank past the last.
-        var blocked = SectorMask.Run(start: 0, end: 15);
-
-        SectorSearch.FarRaySector(blocked, 1).Should().Be(31);
-    }
-
-    [Fact]
-    public void TheFarRayOfASliceWithNoOpenSectorIsNotTraced()
-    {
-        var blocked = new SectorMask(uint.MaxValue);
-
-        foreach (float noise in new[] { 0f, 0.5f, 1f })
-            SectorSearch
-                .FarRaySector(blocked, noise)
-                .Should()
-                .BeNull($"noise {noise}: a slice whose every sector is blocked nearby has no open sector to trace");
-    }
-
-    [Theory]
-    [InlineData(0f, 0, 3)]
-    [InlineData(0.4f, 1, 3)]
-    [InlineData(0.9f, 2, 3)]
-    [InlineData(0.25f, 5, 6)]
-    public void TheFarRayTakesTheNextValueOfItsSlicesStepSequence(float stepNoise, int slice, int stepsPerSide)
-    {
-        // Step j of slice k takes index k + j n of the R1 sequence, so step n would take the next value past the steps.
-        const double radiusInTexels = 1e6;
-        double nextStep = HorizonSearch.StepFraction(
-            step: stepsPerSide,
-            slice: slice,
-            stepsPerSide: stepsPerSide,
-            stepNoise: stepNoise,
-            radiusInTexels: radiusInTexels
-        );
-        double nextValue = (nextStep - HorizonSearch.NearestStepTexels / radiusInTexels) * stepsPerSide - stepsPerSide;
-
-        SectorSearch
-            .FarRayNoise(stepNoise: stepNoise, slice: slice, stepsPerSide: stepsPerSide)
-            .Should()
-            .BeApproximately((float)nextValue, 1e-5f);
     }
 }

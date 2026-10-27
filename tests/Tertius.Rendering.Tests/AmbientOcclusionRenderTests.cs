@@ -14,6 +14,14 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
 {
+    /// <summary>The surfaces that each depth range holds farther than the default radius covers in one texel.</summary>
+    public enum DistantSurface
+    {
+        InnerCornerInTheNearRange,
+        CliffInTheMiddleRange,
+        PlanetLimbInTheFarRange,
+    }
+
     /// <summary>The setting of the tests of the floor beside a wall: dense slices and steps, so little noise is left.</summary>
     private static readonly VisibilityBitmaskLight Dense = VisibilityBitmaskLight.Default with
     {
@@ -139,7 +147,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [InlineData(0.15)]
     [InlineData(0.3)]
     [InlineData(0.6)]
-    public void AFloorBesideATallWallLosesTheShareThatTheScreenShowsTheWallHiding(double distance)
+    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance)
     {
         (double measured, double rowDistance) = FloorBesideAWall(
             wallCenter: TallWallCenter,
@@ -154,77 +162,59 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .BeApproximately(
                 expected,
                 0.03,
-                "the near sectors find the wall within the radius and the far rays beyond it, as far as the screen shows"
+                "the near sectors find the wall within the radius, and beyond it an open sector takes the ambient light"
             );
     }
 
     [Theory]
-    [InlineData(200f)]
-    [InlineData(50_000f)]
-    public void AnInnerCornerFarAwayIsDarkerThanTheOpenGroundBesideIt(float distance)
+    [InlineData(DistantSurface.InnerCornerInTheNearRange)]
+    [InlineData(DistantSurface.CliffInTheMiddleRange)]
+    [InlineData(DistantSurface.PlanetLimbInTheFarRange)]
+    public void ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight(DistantSurface surface)
     {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
-        try
-        {
-            RenderSnapshot snapshot = UnderWhiteAmbientLight(Quaternion.Identity);
-            AddDistantCorner(renderer: renderer, snapshot: snapshot, distance: distance);
-            renderer.Render(snapshot, 1f);
-            float[] estimate = renderer.ReadEstimate();
-            float[] occlusion = ReadOcclusion(renderer);
+        (Capture on, Capture off) = OnAndOff(
+            renderer =>
+            {
+                RenderSnapshot snapshot = UnderWhiteAmbientLight(Quaternion.Identity);
+                switch (surface)
+                {
+                    case DistantSurface.InnerCornerInTheNearRange:
+                        AddDistantCorner(renderer: renderer, snapshot: snapshot, distance: 200);
+                        break;
+                    case DistantSurface.CliffInTheMiddleRange:
+                        AddDistantCorner(renderer: renderer, snapshot: snapshot, distance: 50_000);
+                        break;
+                    case DistantSurface.PlanetLimbInTheFarRange:
+                        // Its nearest point lies 3,600 km away, and its limb crosses both sides of the image.
+                        snapshot.Instances.Add(
+                            Gpu.Instance(
+                                mesh: renderer.CreateMesh(Primitives.Sphere(1)),
+                                material: Matte(renderer),
+                                position: new(0, 0, -1e7f),
+                                scale: new(6.4e6f),
+                                flags: RenderFlags.Celestial,
+                                radius: 6.4e6f
+                            )
+                        );
+                        break;
+                    default:
+                        throw new UnreachableException();
+                }
 
-            // The corner point lies 1 % of the distance from both walls, and the open point 12.5 % of it from the
-            // back wall and half of it from the side wall. At 200 m, in the near range, a texel spans 1.3 m, and at
-            // 50 km, in the middle range, 320 m. So the radius of 1 m holds no near step: the far rays give the whole
-            // estimate.
-            float scale = distance / 200;
-            float atTheCorner = OcclusionAt(
-                occlusion,
-                PixelOf(new Vector3(-58, -40, -198) * scale, Quaternion.Identity)
+                return snapshot;
+            },
+            $"occlusion-distant-{surface}"
+        );
+
+        // The near range holds no step, so the sectors pass writes the open estimate, but the denoise's sums round in
+        // single floats, and a store into the half floats of term A and the estimate target may round toward zero, which
+        // the Vulkan spec allows: one step below 1, 2⁻¹¹.
+        LargestDifference(on, off, EveryPixel())
+            .Should()
+            .BeLessThanOrEqualTo(
+                1,
+                "with no near step and no far ray, the texel takes the ambient light, to within a half float's step"
             );
-            float open = OcclusionAt(occlusion, PixelOf(new Vector3(40, -40, -175) * scale, Quaternion.Identity));
-            output.WriteLine($"V at the far corner {atTheCorner:0.000}, on the open ground {open:0.000}");
-            EstimateShouldHoldNoNaNAndAVisibilityFrom0To1(estimate);
-            (open - atTheCorner)
-                .Should()
-                .BeGreaterThanOrEqualTo(0.1f, "the far rays reach as far as the screen shows, at any distance");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void APlanetsLimbInTheFarRangeGetsAFiniteEstimateFromItsFarRays()
-    {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
-        try
-        {
-            RenderSnapshot snapshot = UnderWhiteAmbientLight(Quaternion.Identity);
-            // Its nearest point lies 3,600 km away, and its limb crosses both sides of the image. There a texel spans
-            // 23 km, and the far rays start from an origin offset of about 20 km.
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: renderer.CreateMesh(Primitives.Sphere(1)),
-                    material: Matte(renderer),
-                    position: new(0, 0, -1e7f),
-                    scale: new(6.4e6f),
-                    flags: RenderFlags.Celestial,
-                    radius: 6.4e6f
-                )
-            );
-            renderer.Render(snapshot, 1f);
-            float[] estimate = renderer.ReadEstimate();
-
-            float atTheCenter = estimate[(Height / 2 * Width + Width / 2) * 4 + 3];
-            output.WriteLine($"V at the planet's center {atTheCenter:0.000}");
-            EstimateShouldHoldNoNaNAndAVisibilityFrom0To1(estimate);
-            atTheCenter.Should().BeGreaterThanOrEqualTo(0.9f, "the planet's face toward the eye is open to the sky");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
     }
 
     [Fact]
@@ -511,30 +501,6 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         );
     }
 
-    /// <summary>
-    /// Asserts that every pixel of <paramref name="estimate"/>, the estimate target, holds a finite bounce of at least
-    /// 0 and a V from 0 to 1.
-    /// </summary>
-    private static void EstimateShouldHoldNoNaNAndAVisibilityFrom0To1(float[] estimate)
-    {
-        for (int i = 0; i < estimate.Length; i += 4)
-        {
-            (int x, int y) = (i / 4 % Width, i / 4 / Width);
-            for (int channel = 0; channel < 3; channel++)
-                estimate[i + channel]
-                    .Should()
-                    .Match(
-                        g => float.IsFinite(g) && g >= 0,
-                        "the bounce is a sum of direct light, at ({0}, {1})",
-                        x,
-                        y
-                    );
-            estimate[i + 3]
-                .Should()
-                .BeInRange(0f, 1f, "the open share lies between none and all of the hemisphere, at ({0}, {1})", x, y);
-        }
-    }
-
     /// <summary>The pixels of a square of 2 <paramref name="halfSize"/> + 1 pixels around a center.</summary>
     private static IEnumerable<(int X, int Y)> Block(int centerX, int centerY, int halfSize)
     {
@@ -703,9 +669,8 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
 
     /// <summary>
     /// V at a floor point <paramref name="distance"/> m in front of the tall wall: the cosine-weighted share of the
-    /// hemisphere above the floor whose rays meet no wall. A ray that meets the wall within <paramref name="radius"/> is
-    /// blocked. Beyond it, a ray is blocked by the edge fade where the screen shows the meeting point, and open where the
-    /// screen does not. By the midpoint rule over the polar angle θ from the normal and the azimuth φ.
+    /// hemisphere above the floor whose rays meet the wall within <paramref name="radius"/>. A ray that meets it only
+    /// beyond the radius is open. By the midpoint rule over the polar angle θ from the normal and the azimuth φ.
     /// </summary>
     private static double VisibilityBesideATallWall(double distance, double radius)
     {
@@ -713,7 +678,6 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             azimuthSteps = 800;
         const double polarStep = Math.PI / 2 / polarSteps,
             azimuthStep = 2 * Math.PI / azimuthSteps;
-        CameraView camera = ScreenTesting.Camera(width: Width, height: Height, pitchDown: MathF.PI / 6);
         var floorPoint = new Double3(0, FloorHeight, BackWallZ + distance);
         double blocked = 0;
         for (int i = 0; i < polarSteps; i++)
@@ -732,29 +696,15 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                     continue;
                 double along = -distance / direction.Z;
                 Double3 meeting = floorPoint + direction * along;
-                bool onTheWall =
-                    Math.Abs(meeting.X) <= TallWallSize.X / 2 && meeting.Y <= TallWallCenter.Y + TallWallSize.Y / 2;
-                if (!onTheWall)
-                    continue;
-                blocked += cosineWeight * BlockedShare(meeting.ToVector3(), along < radius, camera);
+                bool onTheWallWithinTheRadius =
+                    along < radius
+                    && Math.Abs(meeting.X) <= TallWallSize.X / 2
+                    && meeting.Y <= TallWallCenter.Y + TallWallSize.Y / 2;
+                if (onTheWallWithinTheRadius)
+                    blocked += cosineWeight;
             }
         }
 
         return 1 - blocked * polarStep * azimuthStep / Math.PI;
-    }
-
-    /// <summary>
-    /// The share of a ray that a wall point blocks: all of it within the radius, and the edge fade there beyond it,
-    /// where the screen shows the point, or none where it does not.
-    /// </summary>
-    private static double BlockedShare(Vector3 meeting, bool withinTheRadius, in CameraView camera)
-    {
-        if (withinTheRadius)
-            return 1;
-        if (Vector3.Dot(meeting, camera.Forward) <= DepthRanges.NearPlane)
-            return 0;
-        Vector2 pixel = camera.PixelOf(meeting);
-        bool onTheScreen = pixel.X >= 0 && pixel.X <= Width && pixel.Y >= 0 && pixel.Y <= Height;
-        return onTheScreen ? camera.EdgeFade(pixel) : 0;
     }
 }

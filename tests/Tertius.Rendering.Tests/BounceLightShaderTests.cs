@@ -7,7 +7,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The tests that pin the bounce light's shaders to the C# copy (docs/plans/screen-space-illumination.md, "GPU tests of
 /// the acceptance criteria"), in the corner under the sun and a dim sky and ground of distinct colors: the sector pass
-/// blocks the sectors and gathers the light that <see cref="SectorSearch"/> does from the same images, and the ambient
+/// gives the estimate that <see cref="SectorSearch"/> gives from the same images, and the ambient
 /// pass adds what <see cref="MaterialSample.ReflectedHemisphere"/> gives at the estimate that the estimate target holds.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -95,7 +95,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         try
         {
             // The term that the sector pass leaves, before the blur overwrites it.
-            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             MaterialId matte = Matte(renderer);
             RenderSnapshot scene = Corner(renderer, matte, LitCorner());
             MeshId box = UnitBox(renderer);
@@ -109,7 +109,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             );
             renderer.Render(scene, 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
-            var gpu = new SectorPassOutput(Term: term, Masks: renderer.ReadSectorMasks(), HalfWidth: halfWidth);
+            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
@@ -213,9 +213,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Pins the sector pass at <paramref name="texel"/> to the C# copy: each slice's mask bit for bit, but for a
-    /// sector next to a boundary within <see cref="TieTolerance"/> of a tie, and the near estimate within the half
-    /// floats of term A and the share of those flipped sectors.
+    /// Pins the sector pass at <paramref name="texel"/> to the C# copy: the estimate within the half floats of term A and
+    /// the share of the sectors next to a boundary within <see cref="TieTolerance"/> of a tie, which the GPU may flip.
     /// </summary>
     private void ShouldMatch(
         SectorPassOutput gpu,
@@ -228,23 +227,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         double totalWeight = AmbientEstimate.TotalWeight(expected.Slices);
         double flippedShare = 0;
         for (int slice = 0; slice < expected.Slices.Length; slice++)
-        {
-            uint mask = gpu.Masks[(texel.Y * gpu.HalfWidth + texel.X) * expected.Slices.Length + slice];
-            uint flips = mask ^ expected.Slices[slice].Blocked.Bits;
-            output.WriteLine($"{point}, slice {slice}: GPU {mask:B32}, C# {expected.Slices[slice].Blocked.Bits:B32}");
-            (flips & ~expected.Ties[slice].Bits)
-                .Should()
-                .Be(
-                    0u,
-                    "slice {0} at {1} blocks the C# copy's sectors, but where a boundary lies at a tie",
-                    slice,
-                    point
-                );
             flippedShare +=
-                BitOperations.PopCount(flips)
-                * expected.Slices[slice].Sectors.Weight
-                / (SliceSectors.Count * totalWeight);
-        }
+                expected.Ties[slice].Count * expected.Slices[slice].Sectors.Weight / (SliceSectors.Count * totalWeight);
 
         int i = (texel.Y * gpu.HalfWidth + texel.X) * 4;
         var bounce = new Double3(gpu.Term[i], gpu.Term[i + 1], gpu.Term[i + 2]);
@@ -350,8 +334,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             .ToVector3();
     }
 
-    /// <summary>The sector pass's term A and sector masks, as the renderer read them back, for a half image <paramref name="HalfWidth"/> texels wide.</summary>
-    private sealed record SectorPassOutput(float[] Term, uint[] Masks, int HalfWidth);
+    /// <summary>The sector pass's term A, as the renderer read it back, for a half image <paramref name="HalfWidth"/> texels wide.</summary>
+    private sealed record SectorPassOutput(float[] Term, int HalfWidth);
 
     /// <summary>
     /// The C# copy's near slices of a texel, the sectors of each slice below the texel's own surface, and in each slice

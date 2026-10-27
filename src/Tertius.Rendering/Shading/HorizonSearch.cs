@@ -38,8 +38,8 @@ internal static class HorizonSearch
 
     /// <summary>
     /// Whether a radius of <paramref name="radiusInTexels"/> texels holds any near step: only beyond the nearest step.
-    /// Below it the far rays give the whole estimate (docs/plans/screen-space-illumination.md, "Where the near range is
-    /// empty").
+    /// Below it the texel takes the ambient light in full (docs/plans/screen-space-illumination.md, "Where the near range
+    /// is empty").
     /// </summary>
     public static bool NearRangeHoldsSteps(double radiusInTexels) => radiusInTexels > NearestStepTexels;
 

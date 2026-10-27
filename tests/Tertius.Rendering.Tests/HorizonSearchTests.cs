@@ -24,7 +24,7 @@ public sealed class HorizonSearchTests
             .NearRangeHoldsSteps(radiusInTexels)
             .Should()
             .BeFalse(
-                "the far rays give the whole estimate there (docs/plans/screen-space-illumination.md, decision 21)"
+                "the texel takes the ambient light in full there (docs/plans/screen-space-illumination.md, decision 21)"
             );
 
     [Theory]

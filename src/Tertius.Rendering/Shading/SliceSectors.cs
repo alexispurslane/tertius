@@ -9,9 +9,6 @@ internal readonly record struct SliceSectors
     /// <summary>The sectors of a slice: the bits of one 32-bit word, the width of Vulkan's core bit instructions.</summary>
     public const int Count = 32;
 
-    /// <summary>The halvings of the search for a sector's center angle: π / 4,096 at the end.</summary>
-    public const int AngleHalvings = 12;
-
     public SliceSectors(HorizonSlice slice)
     {
         Slice = slice;
@@ -36,23 +33,6 @@ internal readonly record struct SliceSectors
         double low = Slice.NormalAngle - Math.PI / 2;
         double clamped = Math.Clamp(angle, low, Slice.NormalAngle + Math.PI / 2);
         return (SignedArc(clamped) - SignedArc(low)) / Arc;
-    }
-
-    /// <summary>The angle where m is (sector + ½) / 32, by AngleHalvings halvings.</summary>
-    public double CenterAngle(int sector)
-    {
-        double target = (sector + 0.5) / Count;
-        double low = Slice.NormalAngle - Math.PI / 2;
-        double high = Slice.NormalAngle + Math.PI / 2;
-        for (int i = 0; i < AngleHalvings; i++)
-        {
-            double middle = 0.5 * (low + high);
-            if (MeasureFraction(middle) < target)
-                low = middle;
-            else
-                high = middle;
-        }
-        return 0.5 * (low + high);
     }
 
     /// <summary>The sectors whose centers lie between the two angles: floor(32 m + ½) at each end.</summary>

@@ -11,14 +11,13 @@ public sealed class ScreenSpaceLightSettingTests
         (default(ScreenSpaceLightSetting) is NoScreenSpaceLight).Should().BeTrue("the zero case is the open estimate");
 
     [Fact]
-    public void RendererOptionsDefaultToVisibilityBitmaskLightOfOneMeterThreeSlicesOfThreeStepsPerSideAndSixtyFourFarSteps() =>
+    public void RendererOptionsDefaultToVisibilityBitmaskLightWithARadiusOfOneMeterAndThreeSlicesOfThreeStepsPerSide() =>
         (
             new RendererOptions().ScreenSpaceLight is VisibilityBitmaskLight
             {
                 RadiusMeters: 1,
                 Slices: 3,
-                StepsPerSide: 3,
-                FarSteps: 64
+                StepsPerSide: 3
             }
         )
             .Should()
@@ -32,14 +31,12 @@ public sealed class ScreenSpaceLightSettingTests
             RadiusMeters = float.Epsilon,
             Slices = 1,
             StepsPerSide = 1,
-            FarSteps = 1,
         };
         VisibilityBitmaskLight largest = VisibilityBitmaskLight.Default with
         {
             RadiusMeters = ScreenSpaceLightSetting.MaxRadiusMeters,
             Slices = ScreenSpaceLightSetting.MaxSlices,
             StepsPerSide = ScreenSpaceLightSetting.MaxStepsPerSide,
-            FarSteps = ScreenSpaceLightSetting.MaxFarSteps,
         };
 
         new ScreenSpaceLightSetting(VisibilityBitmaskLight.Default).Problem.Should().BeNull();
@@ -85,20 +82,6 @@ public sealed class ScreenSpaceLightSettingTests
             .Problem.Should()
             .Contain("StepsPerSide");
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1025)]
-    public void FarStepsOutsideOneToOneThousandTwentyFourAreRefused(int steps) =>
-        new ScreenSpaceLightSetting(VisibilityBitmaskLight.Default with { FarSteps = steps })
-            .Problem.Should()
-            .Contain("FarSteps");
-
-    [Fact]
-    public void AFarRayCountThatTheEnumDoesNotNameIsRefused() =>
-        new ScreenSpaceLightSetting(VisibilityBitmaskLight.Default with { FarRays = (FarRays)2 })
-            .Problem.Should()
-            .Contain("FarRays");
-
     // CreateHeadless refuses a width of 0 just before it makes the device. So the message names the slices only when
     // the setting's refusal comes before that, and so before the device.
     [Fact]
@@ -118,25 +101,4 @@ public sealed class ScreenSpaceLightSettingTests
             .Should()
             .ThrowExactly<ArgumentOutOfRangeException>()
             .WithMessage("*Slices*");
-
-    // The depth pyramid's sets are allocated for a side of 16,384 px, and the far rays read the pyramid with the
-    // reflections off. A device may allow a larger image, so the refusal comes before the device.
-    [Fact]
-    public void TheRendererRefusesTheScreenSpaceLightOnAScreenWithASideAbove16384PxBeforeItMakesADevice() =>
-        FluentActions
-            .Invoking(() =>
-                VulkanRenderer.CreateHeadless(
-                    new()
-                    {
-                        Width = 16_385,
-                        Height = 64,
-                        Impostors = false,
-                        Reflections = new NoReflections(),
-                        ScreenSpaceLight = VisibilityBitmaskLight.Default,
-                    }
-                )
-            )
-            .Should()
-            .ThrowExactly<ArgumentOutOfRangeException>()
-            .WithMessage("*16384 px a side*");
 }

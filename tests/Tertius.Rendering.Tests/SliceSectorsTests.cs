@@ -147,24 +147,6 @@ public sealed class SliceSectorsTests
     }
 
     [Fact]
-    public void TheCenterAngleOfASectorIsWhereItsMeasureFractionIsItsCenter()
-    {
-        foreach (double normalAngle in NormalAngles)
-        {
-            SliceSectors sectors = Tilted(normalAngle);
-            for (int sector = 0; sector < SliceSectors.Count; sector++)
-                sectors
-                    .CenterAngle(sector)
-                    .Should()
-                    .BeApproximately(
-                        AngleAt(sectors, (sector + 0.5) / SliceSectors.Count),
-                        Math.PI / 4096,
-                        $"sector {sector}, γ = {normalAngle}"
-                    );
-        }
-    }
-
-    [Fact]
     public void AnIntervalBlocksTheSectorsWhoseCentersItCovers()
     {
         // The interval's ends lie at 3.4 and 7.6 sectors, so it covers the centers of sectors 3 to 7.
@@ -244,7 +226,10 @@ public sealed class SliceSectorsTests
 
                 for (int sector = 0; sector < SliceSectors.Count; sector++)
                 {
-                    double cosine = Double3.Dot(sectors.DirectionAt(sectors.CenterAngle(sector)), geometric);
+                    double cosine = Double3.Dot(
+                        sectors.DirectionAt(AngleAt(sectors, (sector + 0.5) / SliceSectors.Count)),
+                        geometric
+                    );
                     if (Math.Abs(cosine) < 1e-3)
                         continue;
                     bool blocked = (below.Bits & (1u << sector)) != 0;

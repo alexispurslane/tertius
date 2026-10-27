@@ -36,7 +36,7 @@ public sealed class DepthPyramidTailTests
 
     [Fact]
     public void TheTailOfA1080pDepthPyramidStartsAtItsMipOf16By16() =>
-        // At 1920 × 1080 the depth image is padded to 1024 × 1024 (DepthPyramidImage.ImageExtent).
+        // At 1920 × 1080 the depth image is padded to 1024 × 1024 (ReflectionTargets.DepthImageExtent).
         DepthPyramidTail.FirstMip(new Extent2D(1024, 1024), mipCount: 11).Should().Be(6, "mip 5 is 32 × 32");
 
     [Theory]

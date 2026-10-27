@@ -1,8 +1,8 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The 32-bit mask of a slice's blocked sectors: its runs, its counts and its open sector of a rank
-/// (docs/plans/screen-space-illumination.md, "A near step" and "The far ray of a slice").
+/// The 32-bit mask of a slice's blocked sectors: its runs, its counts, its unions and its exceptions
+/// (docs/plans/screen-space-illumination.md, "A near step").
 /// </summary>
 public sealed class SectorMaskTests
 {
@@ -44,15 +44,4 @@ public sealed class SectorMaskTests
     [Fact]
     public void AnExceptionKeepsTheSectorsThatTheOtherDoesNotBlock() =>
         new SectorMask(0b0111u).Except(new SectorMask(0b0110u)).Should().Be(new SectorMask(0b0001u));
-
-    [Fact]
-    public void TheOpenSectorOfRankRIsTheRthOpenBitFromSectorZero()
-    {
-        // The open sectors are 2, 5, 6 and 31.
-        var open = new SectorMask(0b110_0100u | 0x8000_0000u);
-
-        int[] sectors = [open.SectorOfRank(0), open.SectorOfRank(1), open.SectorOfRank(2), open.SectorOfRank(3)];
-
-        sectors.Should().Equal(2, 5, 6, 31);
-    }
 }

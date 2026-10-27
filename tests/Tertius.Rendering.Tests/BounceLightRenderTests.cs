@@ -6,8 +6,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The acceptance criteria of the bounce light on the GPU (docs/plans/screen-space-illumination.md, "GPU tests of the
-/// acceptance criteria"): a lit surface lights the surfaces near it with its own color, near and through the far rays
-/// beyond the radius, a lit surface off the screen gives no light, no direct light gives no bounce, and in a furnace the
+/// acceptance criteria"): a lit surface lights the surfaces within the radius with its own color, a lit surface beyond
+/// the radius or off the screen gives no light, no direct light gives no bounce, and in a furnace the
 /// open and the blocked shares sum to the light of an open surface. A still scene has the same bounce in every frame, a
 /// resized renderer bounces light at its new size, and the direct and the ambient passes keep a pixel within the
 /// surfaces' share of the HDR image. At 640 × 360 under <see cref="VisibilityBitmaskLight.Default"/>, unless a test says
@@ -50,131 +50,36 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays()
+    public void AWallBeyondTheRadiusGivesTheFloorNoBounceAndLeavesItOpen()
     {
         // The floor 2.9 to 3.1 m in front of the red wall, six times the radius away from it, seen by a camera turned
-        // down 15°, so that the screen shows the wall up to 2.8 m above the floor.
+        // down 15°, so that the screen shows the wall up to 2.8 m above the floor. Beyond the radius, an open sector
+        // takes the ambient light (decision 40).
         Quaternion view = Gpu.PitchDown(MathF.PI / 12);
         Vector2[] measured = FloorPixels(fromTheWall: [2.9f, 3f, 3.1f], view: view);
-        float[] on = RedWallHdr(VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f }, view);
-        float[] off = RedWallHdr(new NoScreenSpaceLight(), view);
-
-        double redOn = MeanRedShare(on, measured);
-        double redOff = MeanRedShare(off, measured);
-        output.WriteLine($"red share 3 m from the wall {redOn:0.0000} (off {redOff:0.0000})");
-        // The screen shows the wall over about a fifth of the floor's cosine-weighted hemisphere, and the wall's red
-        // light is about a third of the floor's own: about 0.01 to 0.015 more red share. With no far ray, the near range
-        // holds nothing there, and the share is the same as with the setting off.
-        redOn
-            .Should()
-            .BeGreaterThanOrEqualTo(
-                redOff + 0.005,
-                "the far rays from the floor meet the lit red wall beyond the radius and bring its light"
-            );
-    }
-
-    [Fact]
-    public void WithOneFarRayPerTexelTheFarRaysLeaveEachTexelAllOpenOrAllBlocked()
-    {
-        // Fork 2's option B: the texel's one ray decides its whole open share, which is the near V. So where the ray
-        // meets a wall well inside the screen, V falls to 0, and where it meets nothing, V stays.
-        (int blocked, int partly) = TexelsThatTheFarRaysBlock(
-            VisibilityBitmaskLight.Default with
+        VulkanRenderer renderer = Gpu.Headless(
+            screenSpaceLight: VisibilityBitmaskLight.Default with
             {
-                RadiusMeters = 0.25f,
-                FarRays = FarRays.OnePerTexel,
+                RadiusMeters = 0.5f,
             }
         );
-
-        // The edge fade lets a hit near the screen's edge block part of the share. Measured on 2026-10-26: 14 % of the
-        // blocked texels keep part of their share.
-        partly
-            .Should()
-            .BeLessThan(blocked / 4, "one ray decides a texel's whole open share, except where the edge fades it");
-    }
-
-    [Fact]
-    public void TheRenderersDefaultTracesAFarRayPerSliceSoABlockedTexelKeepsTheShareOfItsOpenSlices()
-    {
-        // Fork 2's option A, the default until Part 7 decides: each of three slices decides its own share, and a texel
-        // whose slices disagree keeps part of its open share. Measured on 2026-10-26: 99 % of the blocked texels.
-        (int blocked, int partly) = TexelsThatTheFarRaysBlock(
-            VisibilityBitmaskLight.Default with
-            {
-                RadiusMeters = 0.25f,
-            }
-        );
-
-        partly.Should().BeGreaterThan(blocked / 2, "each slice's far ray decides only that slice's open share");
-    }
-
-    [Fact]
-    public void OneFarRayPerTexelLeavesTheSameMeanOpenShareAsOnePerSlice()
-    {
-        // Fork 2's option B picks each open sector with the probability of its share of the estimate, W_k / (32 ΣW) per
-        // sector, so over many texels it leaves the mean open share that option A leaves, which traces each slice. A
-        // pick that weighed the slices otherwise would favor some slices' directions and move the mean.
-        VisibilityBitmaskLight perSlice = VisibilityBitmaskLight.Default with { RadiusMeters = 0.25f };
-        double meanA = MeanOpenShareAfterTheFarRays(perSlice);
-        double meanB = MeanOpenShareAfterTheFarRays(perSlice with { FarRays = FarRays.OnePerTexel });
-
-        output.WriteLine($"mean open share after the far rays: one per slice {meanA:0.0000}, one per texel {meanB:0.0000}");
-        // Measured on 2026-10-26: 0.7916 and 0.7935, 0.0019 apart. Three wrong weightings of the pick moved option B's
-        // mean by 0.008 to 0.047.
-        meanB.Should().BeApproximately(meanA, 0.004, "both options are unbiased estimates of the same open share");
-    }
-
-    /// <summary>The mean of term A's open share over the matte corner's texels under white ambient light, after the far rays.</summary>
-    private static double MeanOpenShareAfterTheFarRays(VisibilityBitmaskLight setting)
-    {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
-            RenderSnapshot scene = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
-            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
-            renderer.Render(scene, 1f);
-            float[] term = renderer.ReadOcclusionTerm().Rgba;
-            double sum = 0;
-            for (int i = 3; i < term.Length; i += 4)
-                sum += term[i];
-            return sum / (term.Length / 4);
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
+            renderer.Render(RedWall(renderer, view), 1f);
+            float[] estimate = renderer.ReadEstimate();
 
-    /// <summary>
-    /// The texels of the matte corner under white ambient light whose far rays block some of their near open share, and of
-    /// them those that keep more than a tenth of it, from term A before and after the far ray pass.
-    /// </summary>
-    private (int Blocked, int Partly) TexelsThatTheFarRaysBlock(VisibilityBitmaskLight setting)
-    {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
-        try
-        {
-            RenderSnapshot scene = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
-            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
-            renderer.Render(scene, 1f);
-            float[] near = renderer.ReadOcclusionTerm().Rgba;
-            renderer.Graph.Skipped.Remove("occlusion far rays");
-            renderer.Render(scene, 1f);
-            float[] far = renderer.ReadOcclusionTerm().Rgba;
-
-            int blocked = 0;
-            int partly = 0;
-            for (int i = 3; i < near.Length; i += 4)
+            foreach (Vector2 pixel in measured)
             {
-                if (near[i] < 0.1f || far[i] > near[i] - 0.01f)
-                    continue;
-                blocked++;
-                if (far[i] > 0.1f * near[i])
-                    partly++;
+                int i = ((int)pixel.Y * Width + (int)pixel.X) * 4;
+                var bounce = new Vector3(estimate[i], estimate[i + 1], estimate[i + 2]);
+                output.WriteLine($"{pixel}: bounce {bounce}, V {estimate[i + 3]:0.0000}");
+                bounce
+                    .Should()
+                    .Be(Vector3.Zero, "the lit wall lies beyond the radius, and the floor bounces nothing on itself");
+                estimate[i + 3]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(0.999f, "every sector that no near step blocks is open, at {0}", pixel);
             }
-            output.WriteLine($"texels whose far rays block: {blocked}, of them partly: {partly}");
-            blocked.Should().BeGreaterThan(1000, "the test needs far rays that meet the walls");
-            return (blocked, partly);
         }
         finally
         {
@@ -214,19 +119,14 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            // The term and the masks that the sector pass leaves: the far rays add nothing where no ray meets a surface.
-            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            // The term that the sector pass leaves, before the blur averages it.
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             renderer.Render(SunlitFloor(renderer), 1f);
             (float[] term, int halfWidth, _) = renderer.ReadOcclusionTerm();
-            uint[] masks = renderer.ReadSectorMasks();
             float[] depths = renderer.ReadOcclusionViewDepth().Depths;
-            int slices = VisibilityBitmaskLight.Default.Slices;
 
             int[] floor = [.. Enumerable.Range(0, depths.Length).Where(i => depths[i] < (float)HorizonSearch.SkyDepth)];
-            int[] blocking =
-            [
-                .. floor.Where(i => Enumerable.Range(0, slices).Any(slice => masks[i * slices + slice] != 0)),
-            ];
+            int[] blocking = [.. floor.Where(i => BlocksASector(term, i))];
             int[] bouncing = [.. floor.Where(i => term[i * 4] != 0 || term[i * 4 + 1] != 0 || term[i * 4 + 2] != 0)];
             output.WriteLine(
                 $"of {floor.Length} floor texels, {blocking.Length} block sectors and {bouncing.Length} bounce light"
@@ -253,23 +153,18 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            // The term and the masks that the sector pass leaves: the far rays add nothing where no ray meets a surface.
-            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            // The term that the sector pass leaves, before the blur averages it.
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             renderer.Render(SunlitConvexEdge(renderer), 1f);
             (float[] term, int halfWidth, _) = renderer.ReadOcclusionTerm();
-            uint[] masks = renderer.ReadSectorMasks();
             float[] depths = renderer.ReadOcclusionViewDepth().Depths;
-            int slices = VisibilityBitmaskLight.Default.Slices;
 
             // The side face lies 6 cm and more behind the front face at every texel that shows it.
             int[] front =
             [
                 .. Enumerable.Range(0, depths.Length).Where(i => Math.Abs(depths[i] - FrontFaceDepth) < 0.01f),
             ];
-            int[] blocking =
-            [
-                .. front.Where(i => Enumerable.Range(0, slices).Any(slice => masks[i * slices + slice] != 0)),
-            ];
+            int[] blocking = [.. front.Where(i => BlocksASector(term, i))];
             int[] bouncing = [.. front.Where(i => term[i * 4] != 0 || term[i * 4 + 1] != 0 || term[i * 4 + 2] != 0)];
             output.WriteLine(
                 $"of {front.Length} texels of the front face, {blocking.Length} block sectors and {bouncing.Length} get a bounce"
@@ -298,16 +193,16 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         // Turned 63°, the wall's normal is no longer a view axis, so the rounding of its decoded normal moves each
         // step's surface point off the wall's one view depth by about 10⁻⁷ of it. Without the depths' precision, such a
         // step would stand at its texel's own point, off its slice.
-        long straight = BlockedSectorsBeforeASquareWall(turn: 0);
-        long turned = BlockedSectorsBeforeASquareWall(turn: 1.1f);
-        output.WriteLine($"blocked sectors: {straight} with the camera along −Z, {turned} turned 63°");
+        double straight = BlockedShareBeforeASquareWall(turn: 0);
+        double turned = BlockedShareBeforeASquareWall(turn: 1.1f);
+        output.WriteLine($"blocked share: {straight:0.000} with the camera along −Z, {turned:0.000} turned 63°");
 
-        straight.Should().BeGreaterThan(100_000, "the wall blocks the floor before it");
+        straight.Should().BeGreaterThan(1_000, "the wall blocks the floor before it");
         turned
             .Should()
-            .BeCloseTo(
+            .BeApproximately(
                 straight,
-                (ulong)(straight / 10_000),
+                straight / 10_000,
                 "the same scene in view space blocks the same sectors: the depths' precision keeps every step on its slice"
             );
     }
@@ -521,15 +416,16 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     mappedTexels++;
             }
 
-            directAtTexels.Count(value => value > 0).Should().BeGreaterThan(1000, "the sun lights the wall and the floor");
+            directAtTexels
+                .Count(value => value > 0)
+                .Should()
+                .BeGreaterThan(1000, "the sun lights the wall and the floor");
             mappedTexels.Should().BeGreaterThan(100, "the sphere's shading normals differ from its geometric normals");
             directCopyRgb.Should().Equal(directAtTexels, "a half float stores back as itself on every driver");
             // The spec lets a driver round a float to SNORM16 other than to the nearest value, so the stored k / 32767
             // may come back one step off (ARCHITECTURE.md, "Portable Vulkan").
             const float snormStep = 1f / 32767;
-            normalCopy
-                .Should()
-                .Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
+            normalCopy.Should().Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
         }
         finally
         {
@@ -803,16 +699,16 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The number of blocked sectors of all the sector masks, the far rays skipped, when the camera and a scene turn
+    /// The sum over the texels of term A of the blocked share, 1 − V, before the blur, when the camera and a scene turn
     /// together by <paramref name="turn"/> rad about the vertical: the floor 1.5 m below the eye, and a wall square to
     /// the view 3 m ahead.
     /// </summary>
-    private static long BlockedSectorsBeforeASquareWall(float turn)
+    private static double BlockedShareBeforeASquareWall(float turn)
     {
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            renderer.Graph.Skipped.UnionWith(["occlusion far rays", "occlusion denoise", "occlusion upsample"]);
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Transform(new(0.5f, 0.8f, 0.3f), rotation), sunIntensity: 3);
             Look(snapshot, rotation);
@@ -836,13 +732,23 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     )
                 );
             renderer.Render(snapshot, 1f);
-            return renderer.ReadSectorMasks().Sum(mask => (long)BitOperations.PopCount(mask));
+            float[] term = renderer.ReadOcclusionTerm().Rgba;
+            double blocked = 0;
+            for (int i = 3; i < term.Length; i += 4)
+                blocked += 1 - term[i];
+            return blocked;
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
     }
+
+    /// <summary>
+    /// Whether texel <paramref name="index"/> of the sector pass's <paramref name="term"/> blocks a sector: V below 1 by
+    /// more than the half floats' step. One sector of one slice of 3 takes about 1/96 of the share.
+    /// </summary>
+    private static bool BlocksASector(float[] term, int index) => term[index * 4 + 3] < 1 - 1e-3f;
 
     /// <summary>The pixels of the box's bottom face, 0.1 m and more inside its edges.</summary>
     private static IEnumerable<Vector2> UndersidePixels() =>

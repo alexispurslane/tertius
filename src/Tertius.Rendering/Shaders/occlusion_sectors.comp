@@ -1,7 +1,7 @@
 #version 460
 // The occlusion sectors pass (docs/plans/screen-space-illumination.md, "A near step" and "The estimate of a texel"): the
-// edges image, each slice's mask of the sectors that its near steps block, and term A, the near estimate: the open
-// share and the bounce of the blockers' direct light, over the texel's total slice weight. Engine glue after the shape
+// edges image, and term A, the estimate: the share of the sectors that no near step blocks, which takes the ambient
+// light, and the bounce of the blockers' direct light, over the texel's total slice weight. Engine glue after the shape
 // of vaGTAO.hlsl. XeGTAO's copyright and permission notice are in gtao.glsl.
 #extension GL_GOOGLE_include_directive : require
 #include "sectors.glsl"
@@ -18,7 +18,7 @@ void main()
     vec4 edges = gtaoEdges(z, viewDepthAt(texel + ivec2(-1, 0)), viewDepthAt(texel + ivec2(1, 0)),
                            viewDepthAt(texel + ivec2(0, -1)), viewDepthAt(texel + ivec2(0, 1)));
     imageStore(occlusionEdges, texel, vec4(gtaoPackEdges(edges)));
-    // Sky holds no estimate, and no pass reads its masks.
+    // Sky holds no estimate.
     if (z >= SkyDepth)
     {
         imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
@@ -79,8 +79,8 @@ void main()
                                                             setup.center - samplePosition);
             }
         }
-        sectorMasks[maskIndex(texel, slice)] = blocked;
         totalWeight += g.weight;
+        // Beyond the radius, an open sector takes the ambient light (decision 40).
         open += g.weight * float(bitCount(~blocked));
         bounce += g.weight * light;
     }

@@ -164,7 +164,7 @@ public sealed class OcclusionUpsampleTests
             .Should()
             .Be(
                 new AmbientEstimate(Bounce: BounceColor * 1.2, Occlusion: 1),
-                "the upsample clamps the occlusion that the far rays' rounding moves past its range, and only the occlusion"
+                "the upsample clamps the occlusion that the blurs' rounding moves past its range, and only the occlusion"
             );
     }
 

@@ -109,7 +109,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithVisibilityBitmaskLightTheFiveOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
+    public void WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
     {
         VulkanRenderer renderer = TimedRenderer(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
@@ -121,22 +121,20 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(9)
+                .Take(7)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
-                        "depth pyramid",
                         "direct light",
                         "occlusion depth",
                         "occlusion sectors",
-                        "occlusion far rays",
                         "occlusion denoise",
                         "occlusion upsample",
                         "ambient light",
                     ],
-                    "the occlusion passes read the finished G-buffer and the direct image, the far rays the depth "
-                        + "pyramid, and the ambient pass reads their estimate target"
+                    "the occlusion passes read the finished G-buffer and the direct image, no pass of theirs reads the "
+                        + "depth pyramid, and the ambient pass reads their estimate target"
                 );
         }
         finally

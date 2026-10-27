@@ -26,15 +26,14 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
-/// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/> or
-/// <see cref="VisibilityBitmaskLight"/>: the min-max inverse depth of the distance target, level by level, and its small
-/// mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
+/// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
+/// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of the sun
 /// and of the point and spot lights plus the emission, pre-exposed and capped.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
-/// the surfaces that block its hemisphere, nearby and through the far rays beyond, and the share that nothing blocks, in
-/// the estimate target.</item>
+/// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
+/// target.</item>
 /// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
 /// the ambient light with the estimate target applied, capped.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
@@ -138,8 +137,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets = CreateTargets(
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,
-                reflections: options.Reflections,
-                screenSpaceLight: options.ScreenSpaceLight
+                reflections: options.Reflections
             );
             ShadowMap = Own(new ShadowMap(device, Allocator, options.ShadowMapSize));
             exposure = Own(
@@ -156,7 +154,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors) = AddPassesThroughGeometry(shaders, options);
-            AddDepthPyramidPass(shaders);
             occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
@@ -332,12 +329,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.ScreenSpaceLight.Problem
         ?? options.Bloom.Problem
         ?? options.Reflections.Problem
-        ?? (ReadsTheDepthPyramid(options) ? DepthPyramidImage.ScreenProblem(options.Width, options.Height) : null)
+        ?? (
+            options.Reflections is ConeTracedReflections
+                ? ReflectionTargets.ScreenProblem(options.Width, options.Height)
+                : null
+        )
         ?? options.EnvironmentMap.Problem;
-
-    /// <summary>Whether a reader of the depth pyramid is on: the reflections or the screen-space light.</summary>
-    private static bool ReadsTheDepthPyramid(RendererOptions options) =>
-        options.Reflections is ConeTracedReflections || options.ScreenSpaceLight is VisibilityBitmaskLight;
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -769,7 +766,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// Resizes the render targets and the occlusion images, whose sets point at the targets, to
     /// <paramref name="extent"/>. The device must be idle. Internal for the tests of a size that no output takes.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The depth pyramid exists, and a side is above <see cref="DepthPyramidImage.MaxSide"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
     internal void ResizeTargets(Extent2D extent)
     {
         if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
@@ -889,14 +886,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Neither the reflections nor the screen-space light read the pyramid.</exception>
+    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
     internal (float[] Bounds, int Width, int Height) ReadDepthPyramidLevel(int level)
     {
-        DepthPyramidImage pyramid =
-            targets.DepthPyramidImage ?? throw new InvalidOperationException("No reader of the depth pyramid is on.");
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramid.TopLevel);
-        return ReadLevel(image: pyramid.Image, layer: 0, mip: level - 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
+        return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
     }
 
     /// <summary>
@@ -934,29 +930,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The 256 counts of the exposure's histogram of the last metered frame, by bin. A test hook: it waits for the device
     /// to be idle and submits its own copy.
     /// </summary>
-    internal uint[] ReadExposureHistogram() => ReadWords(exposure.Histogram);
-
-    /// <summary>
-    /// The sector masks of the last frame: <see cref="VisibilityBitmaskLight.Slices"/> words per half-resolution texel,
-    /// row by row from the top, bit j for sector j. A test hook: it waits for the device to be idle and submits its own
-    /// copy.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal uint[] ReadSectorMasks() => ReadWords(OcclusionImagesOrThrow().SectorMasks);
-
-    /// <summary>Copies a storage buffer to the CPU as 32-bit words.</summary>
-    private uint[] ReadWords(GpuBuffer source)
+    internal uint[] ReadExposureHistogram()
     {
+        GpuBuffer histogram = exposure.Histogram;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: source.Size,
+            size: histogram.Size,
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
-            name: $"{source.Name} readback"
+            name: "histogram readback"
         );
-        SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: source, buffer: buffer));
-        return new ReadOnlySpan<uint>(buffer.Mapped, (int)(source.Size / sizeof(uint))).ToArray();
+        SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: histogram, buffer: buffer));
+        return new ReadOnlySpan<uint>(buffer.Mapped, ExposureMeter.Bins).ToArray();
     }
 
     /// <summary>
@@ -1324,12 +1310,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
     /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
     /// </summary>
-    private RenderTargets CreateTargets(
-        int glowLevels,
-        AntiAliasing antiAliasing,
-        ReflectionSetting reflections,
-        ScreenSpaceLightSetting screenSpaceLight
-    )
+    private RenderTargets CreateTargets(int glowLevels, AntiAliasing antiAliasing, ReflectionSetting reflections)
     {
         SmaaTables? smaaTables = antiAliasing switch
         {
@@ -1349,8 +1330,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 {
                     NoReflections => null,
                     ConeTracedReflections on => on.Resolution,
-                },
-                screenSpaceLight: screenSpaceLight is VisibilityBitmaskLight
+                }
             )
         );
     }
@@ -1460,21 +1440,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the depth pyramid pass to the graph when the targets hold the pyramid, which they make only when a reader is
-    /// on: the reflections or the screen-space light.
-    /// </summary>
-    private void AddDepthPyramidPass(ShaderLibrary shaders)
-    {
-        if (targets.DepthPyramidImage is not { } pyramid)
-            return;
-        Graph.Add(
-            FrameGraph.Stage.DepthPyramid,
-            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
-        );
-    }
-
-    /// <summary>
-    /// Under <see cref="VisibilityBitmaskLight"/>, makes the occlusion images, which the renderer owns, and adds the five
+    /// Under <see cref="VisibilityBitmaskLight"/>, makes the occlusion images, which the renderer owns, and adds the four
     /// occlusion passes to the graph. Returns the images, or null under <see cref="NoScreenSpaceLight"/>.
     /// </summary>
     private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, ScreenSpaceLightSetting setting) =>
@@ -1485,41 +1451,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Makes the occlusion images, which the renderer owns, and adds the five occlusion passes of
+    /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
     /// <paramref name="setting"/> to the graph. Returns the images.
     /// </summary>
     private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, VisibilityBitmaskLight setting)
     {
-        // The targets make the depth pyramid under VisibilityBitmaskLight, for the far rays.
-        DepthPyramidImage pyramid =
-            targets.DepthPyramidImage ?? throw new UnreachableException("The screen-space light has no depth pyramid.");
         OcclusionImages images = Own(
-            new OcclusionImages(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                targets: targets,
-                depthPyramid: pyramid,
-                slices: setting.Slices
-            )
+            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
         );
-        foreach (
-            RenderPass pass in OcclusionPasses(shaders: shaders, setting: setting, images: images, pyramid: pyramid)
-        )
+        foreach (RenderPass pass in OcclusionPasses(shaders: shaders, setting: setting, images: images))
             Graph.Add(FrameGraph.Stage.AmbientOcclusion, pass);
         return images;
     }
 
     /// <summary>
-    /// The five occlusion passes of <paramref name="setting"/> over <paramref name="images"/>, in the order of their
-    /// reads: the far rays read the sectors pass's masks and near estimate, and the denoise blurs the estimate that the
-    /// far rays finish.
+    /// The four occlusion passes of <paramref name="setting"/> over <paramref name="images"/>, in the order of their
+    /// reads: the sectors pass reads the depth pass's view depth and copies, and the denoise blurs the estimate that the
+    /// sectors pass writes.
     /// </summary>
     private RenderPass[] OcclusionPasses(
         ShaderLibrary shaders,
         VisibilityBitmaskLight setting,
-        OcclusionImages images,
-        DepthPyramidImage pyramid
+        OcclusionImages images
     ) =>
         [
             new OcclusionDepthPass(
@@ -1534,14 +1487,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
-                setting: setting
-            ),
-            new OcclusionFarRaysPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                images: images,
-                depthPyramid: pyramid,
                 setting: setting
             ),
             new OcclusionDenoisePass(
@@ -1562,13 +1507,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Adds the passes of <see cref="ConeTracedReflections"/> over the targets' pyramids, which the targets make only
-    /// under that setting: the radiance pyramid and the trace after the ambient pass. The depth pyramid pass comes from
-    /// <see cref="AddDepthPyramidPass"/>.
+    /// under that setting: the depth pyramid after the G-buffer, then the radiance pyramid and the trace after the
+    /// ambient pass.
     /// </summary>
     private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
     {
         if (targets.Reflections is not { } pyramids || reflections is not ConeTracedReflections setting)
             return;
+        Graph.Add(
+            FrameGraph.Stage.DepthPyramid,
+            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
+        );
         Graph.Add(
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
