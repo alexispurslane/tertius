@@ -81,6 +81,10 @@ public sealed partial class JoltPhysicsBackend
 
     // ---- Intents ----
 
+    // Walking characters that a teleport of this step put at a new place. Each looks up its contacts there once every
+    // intent of the step is applied (see LookUpContactsOfTeleportedCharacters).
+    private readonly List<BodyRecord> teleportedCharacters = [];
+
     private void ApplyIntents(in PhysicsStepContext context)
     {
         (kinematicMoversLast, kinematicMovers) = (kinematicMovers, kinematicMoversLast);
@@ -134,6 +138,26 @@ public sealed partial class JoltPhysicsBackend
         }
 
         AimStillAnchors(intents);
+        LookUpContactsOfTeleportedCharacters();
+    }
+
+    /// <summary>
+    /// Looks up the contacts of each walking character that a teleport of this step put at a new place, so that its update
+    /// in this step takes the ground of that place: a character teleported off its ground no longer stands on the ground of
+    /// its old place. The look-up waits until every intent of the step is applied, because a teleport moves a body in Jolt
+    /// at once: so a character finds every body that teleports in this step at its new place, whatever the order in which
+    /// the entities wrote their intents.
+    /// </summary>
+    private void LookUpContactsOfTeleportedCharacters()
+    {
+        foreach (BodyRecord record in teleportedCharacters)
+        {
+            // Nothing between the intents and this pass removes a body or switches a character's form.
+            Contract.Assert(record.HasPrimary && record.Character is not null);
+            record.Character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: record.World.System);
+        }
+
+        teleportedCharacters.Clear();
     }
 
     /// <summary>
@@ -535,6 +559,7 @@ public sealed partial class JoltPhysicsBackend
             character.LinearVelocity = LocalVelocity(record, Double3.Zero).ToVector3();
             record.InstantVelocityStep = stepIndex;
             record.PendingVelocityChange = Vector3.Zero;
+            teleportedCharacters.Add(record);
             world.WakeAround(character.InnerBodyID);
         }
 
@@ -1138,7 +1163,9 @@ public sealed partial class JoltPhysicsBackend
     /// character in the rigid form is a dynamic body, which Jolt moves in the update of its system (see
     /// <see cref="NextCharacterMotion"/>), so a walking character nearly always has the gravity to stand. The character
     /// stands when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable
-    /// ground under it in its last update, and it does not move away from that ground along the ground's normal (see
+    /// ground under it in its last update or in its last look-up of contacts at a new place since then (a teleport, a
+    /// hand-off, a move between numeric frames, a growth of its system or a switch to the walking form), and it
+    /// does not move away from that ground along the ground's normal (see
     /// <see cref="GroundFaceNormal"/>). Then it takes the ground's velocity plus the part of its desired velocity across its
     /// up, turned into the ground plane at the same speed (see <see cref="InGroundPlane"/>), and can jump, and Jolt's ExtendedUpdate moves it, which sticks
     /// it to the floor and climbs stairs. A character that does not stand, in the air or on steep ground, keeps its
@@ -1152,7 +1179,8 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="StartVelocity"/> and <see cref="NextCharacterVelocity"/>). After the update, a character that did not stand loses
     /// its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the
     /// semantic gravity, with the centrifugal and the Euler term of a turning frame, whether the character touches anything
-    /// or not (docs/plans/spin-gravity.md, fork F5): at once when it touched anything in its last update, and at most at
+    /// or not (docs/plans/spin-gravity.md, fork F5): at once when it touched anything in its last update, or in its last
+    /// look-up of contacts at a new place since then, and at most at
     /// <see cref="JoltBackendOptions.CharacterAirUpTurnRate"/> when it touched nothing. So a character that tumbled lands
     /// upright and can stand, a person who jumps across a spinning station comes down feet first on the far floor, and a
     /// flip of the felt gravity for one step does not turn a floating person over. Below the zero-gravity threshold up stays.
@@ -1167,7 +1195,7 @@ public sealed partial class JoltPhysicsBackend
         Double3 linear = frames.LinearGravity(world.Frame, position);
         Double3 effective = frames.AddRotationTerms(world.Frame, position, linear);
         bool underGravity = effective.ToVector3().Length() >= FrameTree.ZeroGravityThreshold;
-        // The ground state comes from the last update.
+        // Jolt's ground state comes from the last update, or from the last look-up of contacts at a new place since then.
         GroundState groundState = character.GroundState;
         Vector3 up = TurnCharacterUp(world: world, record: record, character: character, position: position);
         // Platforms may have changed velocity since the last update.
@@ -1231,7 +1259,8 @@ public sealed partial class JoltPhysicsBackend
     {
         // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
         // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
-        // A character that touched anything in its last update, also with its side or its head, turns its up at once. One
+        // A character that touched anything in its last update, or in its last look-up of contacts at a new place since
+        // then, also with its side or its head, turns its up at once. One
         // that touched nothing turns it at most at the air rate (the user's choice of 2026-10-20), so a flip of its felt
         // gravity for one step, such as a hull's jolt, does not turn a floating person over.
         var semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();

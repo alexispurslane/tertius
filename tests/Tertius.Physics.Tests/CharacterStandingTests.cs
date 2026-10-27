@@ -767,4 +767,253 @@ public sealed class CharacterStandingTests
             world.Errors.Should().BeEmpty();
         }
     }
+
+    [Fact]
+    public void AStandingCharacterTeleportedIntoTheAirDoesNotStandInTheStepOfTheTeleportAndFallsFromRestThere()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor before the teleport");
+            var top = new Double3(0, 10, 0);
+            Send(world, pilot, body => body.Teleport(new(top, DQuaternion.Identity)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeFalse("nothing is under the character at its new place");
+            // A teleport leaves the character at rest, so in one step of 1/60 s it falls g t² / 2, as a character that
+            // spawned there at rest falls (InstantVelocityTests).
+            double dt = world.DeltaTime;
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(top.Y - 9.81f * dt * dt / 2, 1e-4, "the character falls in the step of the teleport");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void ACharacterInTheAirTeleportedOntoGroundStandsInTheStepOfTheTeleport()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 200, 0), pilot: pilot);
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeFalse("the character falls before the teleport");
+            Send(world, pilot, body => body.Teleport(At(0, StandingHeight, 0)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeTrue("the floor is under the character at its new place");
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(StandingHeight, 1e-3, "the character stands on the floor at its new place");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void AStandingCharacterTeleportedOntoOtherGroundStandsThereInTheStepOfTheTeleport()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            // A platform whose top is 5 m above the floor, 30 m away from the character.
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(30, 4.5, 0),
+                    Body = StaticBox(new(2, 0.5f, 2)),
+                }
+            );
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor before the teleport");
+            Send(world, pilot, body => body.Teleport(At(30, 5 + StandingHeight, 0)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeTrue("the platform is under the character at its new place");
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(5 + StandingHeight, 1e-3, "the character stands on the platform at its new place");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A crate and a person both teleport in one tick, the person onto the top of the crate at its new place. The step
+    /// applies the intents in the order in which the entities wrote them, which follows here the order of their spawns
+    /// (<paramref name="personFirst"/>). The person looks up its ground once every teleport of the step is applied, so it
+    /// stands on the crate in the step of the teleport in either order.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACharacterTeleportedOntoACrateThatTeleportsInTheSameStepStandsOnTheCrateAtItsNewPlace(bool personFirst)
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var personPilot = new Pilot();
+            var cratePilot = new Pilot();
+            Entity person = personFirst
+                ? SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: personPilot)
+                : default;
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(-10, 0.5, 0),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f, 0.5f, 0.5f)), Motion: BodyMotion.Dynamic, Mass: 50),
+                    Components = [cratePilot],
+                }
+            );
+            if (!personFirst)
+                person = SpawnPerson(
+                    world: world,
+                    frame: ground,
+                    pose: At(0, StandingHeight + 0.02, 0),
+                    pilot: personPilot
+                );
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor before the teleport");
+            cratePilot.Once = body => body.Teleport(At(10, 0.5, 0));
+            personPilot.Once = body => body.Teleport(At(10, 1 + StandingHeight, 0));
+            // This tick writes both teleports, and the step of the next tick applies them.
+            world.Tick();
+
+            world.Tick();
+
+            world
+                .Snapshot.IsStanding(person)
+                .Should()
+                .BeTrue("the crate's top is under the character at its new place");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A person teleports onto the top of a crate in the tick in which the crate teleports away, in either order of
+    /// their intents (<paramref name="personFirst"/>). The person looks up its ground once every teleport of the step is
+    /// applied, so it does not stand on the crate's old place: it falls from rest in the step of the teleport.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACharacterTeleportedOntoACrateThatTeleportsAwayInTheSameStepFallsFromRestThere(bool personFirst)
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var personPilot = new Pilot();
+            var cratePilot = new Pilot();
+            Entity person = personFirst
+                ? SpawnPerson(world: world, frame: ground, pose: At(0, StandingHeight + 0.02, 0), pilot: personPilot)
+                : default;
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(10, 0.5, 0),
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f, 0.5f, 0.5f)), Motion: BodyMotion.Dynamic, Mass: 50),
+                    Components = [cratePilot],
+                }
+            );
+            if (!personFirst)
+                person = SpawnPerson(
+                    world: world,
+                    frame: ground,
+                    pose: At(0, StandingHeight + 0.02, 0),
+                    pilot: personPilot
+                );
+            Tick(world, 30);
+            cratePilot.Once = body => body.Teleport(At(-10, 0.5, 0));
+            double top = 1 + StandingHeight;
+            personPilot.Once = body => body.Teleport(At(10, top, 0));
+            // This tick writes both teleports, and the step of the next tick applies them.
+            world.Tick();
+
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeFalse("nothing is under the character at its new place");
+            double dt = world.DeltaTime;
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(top - 9.81f * dt * dt / 2, 1e-4, "the character falls in the step of the teleport");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A character teleports onto the floor and then walks at 3 m/s into a stair 0.3 m high, as in
+    /// <see cref="AStandingCharacterThatWalksIntoAStairClimbsByTheStairsHeightOnly"/>. It looks up its contacts at its new
+    /// place only in the step of the teleport. With a look-up before every later update too, the climb lifted the character
+    /// 0.036 m past the stair's height (measured on 2026-10-27).
+    /// </summary>
+    [Fact]
+    public void ACharacterTeleportedOntoTheFloorClimbsAStairByTheStairsHeightOnly()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(8, 0.15),
+                    Body = StaticBox(new(5, 0.15f, 5)),
+                }
+            );
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(-20, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
+            Tick(world, 30);
+            Send(world, pilot, body => body.Teleport(At(0, StandingHeight, 0)));
+            pilot.EveryTick = body => body.MoveCharacter(new(3, 0, 0));
+            double highest = 0,
+                last = 0;
+            for (int tick = 0; tick < 150; tick++)
+            {
+                world.Tick();
+                double y = world.PoseInOwnFrame(person).Position.Y;
+                highest = Math.Max(highest, y);
+                last = y;
+            }
+
+            world.PoseInOwnFrame(person).Position.X.Should().BeGreaterThan(5, "the character walked onto the stair");
+            last.Should().BeApproximately(0.3 + StandingHeight, 0.03, "the character stands on the stair");
+            highest
+                .Should()
+                .BeLessThan(0.3 + StandingHeight + 0.03, "the climb lifts the character by the stair's height only");
+            world.Errors.Should().BeEmpty();
+        }
+    }
 }
