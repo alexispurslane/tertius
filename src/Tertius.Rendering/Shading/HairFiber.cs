@@ -16,15 +16,15 @@ internal readonly record struct HairFiber(Double3 BaseColor, double Roughness, d
 
     /// <summary>
     /// T, the strand from root to tip: the axis of the shading frame of <paramref name="normal"/> and the vertex
-    /// tangent that <paramref name="direction"/> names. The tangent, made perpendicular to the normal, is +u, and the
-    /// bitangent n × t times the sign is +v.
+    /// tangent that <paramref name="direction"/> names. The tangent, made perpendicular to the normal, is +u. v shrinks
+    /// along the bitangent n × t times the sign, as in glTF, so +v is t × n times the sign.
     /// </summary>
     /// <param name="normal">The unit shading normal, after the normal map.</param>
     public static Double3 Strand(Double3 normal, Double3 tangent, double bitangentSign, StrandDirection direction)
     {
         Double3 across = tangent - normal * Double3.Dot(normal, tangent);
         Double3 alongU = across.LengthSquared > NoTangent ? across.Normalized() : AnyPerpendicular(normal);
-        Double3 alongV = Double3.Cross(normal, alongU) * (bitangentSign < 0 ? -1 : 1);
+        Double3 alongV = Double3.Cross(alongU, normal) * (bitangentSign < 0 ? -1 : 1);
         return direction switch
         {
             StrandDirection.PlusU => alongU,

@@ -56,13 +56,14 @@ vec3 normalMapped(uint normalMap, vec2 uv, vec3 n, vec4 vertexTangent)
 
 // T, the strand from root to tip (docs/plans/skin-and-hair.md, "The strand and the fiber normal"): the axis of the shading
 // frame of the unit shading normal `n`, after the normal map, that the strand direction's code names: 0 +u, 1 −u, 2 +v,
-// 3 −v. HairFiber.Strand is the C# copy.
+// 3 −v. v shrinks along the frame's bitangent, as in glTF, so +v is the bitangent's opposite. HairFiber.Strand is the C#
+// copy.
 vec3 strandOf(uint direction, vec3 n, vec4 vertexTangent)
 {
     vec3 t = frameTangent(n, vertexTangent);
-    vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 alongU = direction < 2u ? t : b;
-    return (direction & 1u) == 0u ? alongU : -alongU;
+    vec3 alongV = cross(t, n) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
+    vec3 axis = direction < 2u ? t : alongV;
+    return (direction & 1u) == 0u ? axis : -axis;
 }
 
 // n_f: across the strand toward the eye. A strand along the line of sight takes the card's normal, which is across it.

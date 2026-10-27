@@ -170,8 +170,8 @@ vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
 
 // The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
 // direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, turned toward
-// the light, and geometricNdotL its cosine with L, which must be positive, or 0 for a hair card edge-on to the light. The impostor capture, ShadowMapsNone, takes the far shadows
-// alone with weight 1, and no tiles.
+// the light, and geometricNdotL its cosine with L, which must be positive, or 0 for a hair card edge-on to the light.
+// The impostor capture, ShadowMapsNone, takes the far shadows alone with weight 1, and no tiles.
 float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float geometricNdotL,
     uint shadowMaps)
 {
@@ -391,11 +391,11 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 #include "reflection_footprint.glsl"
 
 // The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
-// the fringe of the transparent pass, and the impostor captures (docs/plans/skin-and-hair.md, "The fringe"). The reflection's footprint comes from
-// the screen derivatives, so the caller calls this before any discard. The sky shares serve the hemisphere alone. A
-// forward surface is not in the G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and
-// the bounce 0, and the surface behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The
-// passes that keep V = 1").
+// the fringe of the transparent pass, the environment faces and the impostor captures (docs/plans/skin-and-hair.md, "The
+// fringe"). The reflection's footprint comes from the screen derivatives, so the caller calls this before any discard.
+// The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
+// G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and the bounce 0, and the surface
+// behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;

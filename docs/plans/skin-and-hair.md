@@ -98,7 +98,7 @@ Each by the user's decisions and the project's rules, with its reason.
 25. In each view of an opaque pass, the cutout draws run after the solid draws, with a pipeline whose fragment shader can discard. Reason: the solid pipeline keeps its early depth writes, and the solid surfaces drawn first hide many hair fragments before their shader runs.
 26. Hair shades as fibers: a diffuse part along the strand (Kajiya and Kay 1989), normalized so that an even light returns the fiber's color, and two highlights shifted along the strand (Scheuermann 2004), each a Gaussian of unit area in the longitudinal angle with Marschner's azimuthal term (Marschner, Jensen, Cammarano, Worley and Hanrahan 2003). Its ambient light is the ambient source's at the fiber normal. Reason: the light then depends on the strand, the eye and the light, never on the card's plane, and the ambient light, its occlusion and the reflections need no hair path.
 27. A hair pixel takes the light of every light, from either side of its card, and its shadow lookups use the geometric normal turned toward the light. Reason: a fiber is lit from every side. The shadow maps, in which the cards cast, say what hides it.
-28. The strand comes from the shading frame of the vertex: the vertex tangent, made perpendicular to the shading normal, along +u, and the bitangent along +v, as `normalMapped` builds them. The strand direction picks one of the four. A normal map tilts the strand with the frame. Reason: glTF meshes carry tangents, and the importer makes them where a file has none (asset-pipeline.md, "Meshes"), so the vertex format does not change.
+28. The strand comes from the shading frame of the vertex: the vertex tangent, made perpendicular to the shading normal, along +u, and the opposite of the bitangent along +v, in the frame that `normalMapped` builds. v shrinks along that bitangent, in glTF and on the engine's own meshes, such as `Primitives.Plane`. The strand direction picks one of the four. A normal map tilts the strand with the frame. Reason: glTF meshes carry tangents, and the importer makes them where a file has none (asset-pipeline.md, "Meshes"), so the vertex format does not change.
 29. The setting is `RendererOptions.Subsurface`, the generated union `SubsurfaceSetting` of `NoSubsurface`, its zero case, and `SeparableSubsurface(TapsPerSide)`. The default is `SeparableSubsurface.Default`: 8 taps per side, 17 per pass, as Jimenez's high setting. The test helpers set `NoSubsurface`, as they set `NoReflections`. Reason: the rule of every member, a switch and its measured cost.
 30. No renderer switch for the fringe or for the hair model. Reason: a material chooses them, and a switch beside the material would be a second store that can disagree with it. A `CutoutAlpha` in place of a `FringedAlpha` turns a fringe off.
 31. The importer names a material's shading model and its fringe through glTF `extras` (see "The importer's mapping from glTF"). Reason: no ratified KHR extension describes a diffusion profile or a hair fiber.
@@ -486,9 +486,9 @@ vec3 strandOf(uint direction, vec3 n, vec4 vertexTangent)
     vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
     float tangentLengthSq = dot(t, t);
     t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);
-    vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 alongU = direction < 2u ? t : b;
-    return (direction & 1u) == 0u ? alongU : -alongU;
+    vec3 alongV = cross(t, n) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
+    vec3 axis = direction < 2u ? t : alongV;
+    return (direction & 1u) == 0u ? axis : -axis;
 }
 
 // n_f: across the strand toward the eye. A strand along the line of sight takes the card's normal, which is across it.
@@ -501,7 +501,8 @@ vec3 fiberNormal(vec3 strand, vec3 V, vec3 cardNormal)
 where
 
 - `direction` = the strand direction's code: 0 +u, 1 −u, 2 +v, 3 −v.
-- `n` = the shading normal, after the normal map. `t` and `b` are the frame that `normalMapped` builds, so a normal map tilts the strand.
+- `n` = the shading normal, after the normal map. `t` is the tangent of the frame that `normalMapped` builds, so a normal map tilts the strand.
+- `alongV` = the direction in which the texture's v grows: the opposite of that frame's bitangent, cross(n, t) times the tangent's sign.
 - `cardNormal` = the shading normal. `strandOf` made T perpendicular to it, so it is across the strand.
 
 `sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, s.normal)`. Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.

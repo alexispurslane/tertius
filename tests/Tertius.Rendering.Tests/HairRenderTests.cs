@@ -38,12 +38,12 @@ public sealed class HairRenderTests
     private static readonly Vector3 Ground = new(0.35f, 0.2f, 0.08f);
 
     /// <summary>
-    /// The rotation that turns the plane mesh's front, +Y, to the unit <paramref name="normal"/>, and its −Z, the +v of its
-    /// tangent frame, to the unit <paramref name="strand"/>, which must be at right angles to it.
+    /// The rotation that turns the plane mesh's front, +Y, to the unit <paramref name="normal"/>, and its +Z, along which
+    /// its texture's v grows, to the unit <paramref name="strand"/>, which must be at right angles to it.
     /// </summary>
     private static Quaternion CardWith(Vector3 normal, Vector3 strand)
     {
-        var alongU = Vector3.Cross(strand, normal);
+        var alongU = Vector3.Cross(normal, strand);
         var basis = new Matrix4x4(
             m11: alongU.X,
             m12: alongU.Y,
@@ -53,9 +53,9 @@ public sealed class HairRenderTests
             m22: normal.Y,
             m23: normal.Z,
             m24: 0,
-            m31: -strand.X,
-            m32: -strand.Y,
-            m33: -strand.Z,
+            m31: strand.X,
+            m32: strand.Y,
+            m33: strand.Z,
             m34: 0,
             m41: 0,
             m42: 0,
@@ -245,6 +245,33 @@ public sealed class HairRenderTests
                 relative: HalfRounding,
                 because: "the direct pass shades the stored strand as the C# fiber does"
             );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void APlusVCardStoresAStrandThatRunsTheWayItsTextureVGrows()
+    {
+        // A quarter turn about +X: the plane's front, +Y, faces the camera, and its +Z, where v grows, turns to -Y.
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        Vertex[] vertices = Primitives.Plane(1).Vertices;
+        Vector3 vGrows = Vector3.Normalize(
+            vertices.Single(each => each.TexCoord == new Vector2(0, 1)).Position
+                - vertices.Single(each => each.TexCoord == new Vector2(0, 0)).Position
+        );
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            Rendered(renderer, SunOnly(Vector3.UnitZ), Card(plane: plane, material: Hair(renderer), rotation: rotation));
+
+            Double3
+                .Dot(StoredAt(renderer, Ahead).Strand, Vector3.Transform(vGrows, rotation))
+                .Should()
+                .BeGreaterThan(0.99, "the strand of a PlusV card runs from the texture's v = 0 toward its v = 1");
         }
         finally
         {

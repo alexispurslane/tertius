@@ -12,8 +12,8 @@ namespace Tertius.Rendering;
 internal sealed unsafe class ValidationLog
 {
     // MoltenVK 1.4.2 reports this for every pipeline that draws into a color attachment of a format that cannot blend,
-    // whether or not the pipeline blends. The pipelines that draw into the G-buffer's integer target, the shading target,
-    // blend nothing (BlendMode.None), so the report is false.
+    // whether or not the pipeline blends. GraphicsPipelineDesc.Create refuses a pipeline that blends into an integer
+    // format, so every such report is false.
     private const string IntegerTargetBlendPrefix =
         "VK_ERROR_FEATURE_NOT_PRESENT: Blending is enabled for attachment with format VK_FORMAT_";
 

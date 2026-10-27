@@ -90,6 +90,25 @@ internal sealed record GraphicsPipelineDesc
     /// <summary>How the output blends into every color attachment.</summary>
     public BlendMode Blend { get; init; }
 
+    /// <summary>
+    /// Throws if the pipeline blends into an integer format, which Vulkan cannot blend. The refusal also keeps true
+    /// reports of it out of what <see cref="ValidationLog.IsFalseIntegerBlendReport"/> drops.
+    /// </summary>
+    private void RefuseBlendIntoAnInteger()
+    {
+        Format integer = ColorFormats.FirstOrDefault(IsInteger);
+        bool blendsAnInteger = Blend != BlendMode.None && integer != Format.Undefined;
+        if (blendsAnInteger)
+            throw new ArgumentException($"The pipeline {Name} blends into an attachment of {integer}, an integer format.");
+    }
+
+    /// <summary>Whether <paramref name="format"/> holds unsigned or signed integers, which no blend can mix.</summary>
+    private static bool IsInteger(Format format)
+    {
+        string name = format.ToString();
+        return name.Contains("Uint", StringComparison.Ordinal) || name.Contains("Sint", StringComparison.Ordinal);
+    }
+
     /// <summary>The blend state of one color attachment for <paramref name="mode"/>.</summary>
     internal static PipelineColorBlendAttachmentState BlendState(BlendMode mode)
     {
@@ -137,8 +156,10 @@ internal sealed record GraphicsPipelineDesc
     }
 
     /// <summary>Creates the pipeline. The caller destroys it.</summary>
+    /// <exception cref="ArgumentException">The pipeline blends into a color attachment of an integer format.</exception>
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
+        RefuseBlendIntoAnInteger();
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
         SpecializationStorage storage;
         SpecializationInfo* constants = ShaderConstants.Specialization(Constants, &storage);

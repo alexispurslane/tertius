@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -22,10 +24,10 @@ public sealed class HairFiberTests
         {
             { StrandDirection.PlusU, 1, Double3.UnitX },
             { StrandDirection.MinusU, 1, -Double3.UnitX },
-            { StrandDirection.PlusV, 1, Double3.UnitY },
-            { StrandDirection.MinusV, 1, -Double3.UnitY },
-            { StrandDirection.PlusV, -1, -Double3.UnitY },
-            { StrandDirection.MinusV, -1, Double3.UnitY },
+            { StrandDirection.PlusV, 1, -Double3.UnitY },
+            { StrandDirection.MinusV, 1, Double3.UnitY },
+            { StrandDirection.PlusV, -1, Double3.UnitY },
+            { StrandDirection.MinusV, -1, -Double3.UnitY },
         };
 
     private static double Radians(double degrees) => degrees * Math.PI / 180;
@@ -268,7 +270,29 @@ public sealed class HairFiberTests
             actual: strand,
             expected: expected,
             tolerance: 1e-15,
-            because: "+v is the bitangent n × t times its sign"
+            because: "v shrinks along the bitangent n × t times its sign, so +v is the bitangent's opposite"
+        );
+    }
+
+    [Fact]
+    public void APlusVStrandRunsTheWayThePlanesTextureVGrows()
+    {
+        Vertex[] vertices = Primitives.Plane(1).Vertices;
+        Vertex low = vertices.Single(each => each.TexCoord == new Vector2(0, 0));
+        Vertex high = vertices.Single(each => each.TexCoord == new Vector2(0, 1));
+
+        Double3 strand = HairFiber.Strand(
+            normal: low.Normal,
+            tangent: new Vector3(low.Tangent.X, low.Tangent.Y, low.Tangent.Z),
+            bitangentSign: low.Tangent.W,
+            direction: StrandDirection.PlusV
+        );
+
+        ShouldBeNear(
+            actual: strand,
+            expected: ((Double3)(high.Position - low.Position)).Normalized(),
+            tolerance: 1e-15,
+            because: "a strand along +v runs from the texture's v = 0 toward its v = 1 on the engine's own mesh"
         );
     }
 
