@@ -6,10 +6,9 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// <see cref="Self.PoseAtNextStepStartIn"/> gives the pose where the entity starts the next step, which is where the step
 /// that runs beside the tick leaves it (docs/plans/rails-components.md, "The motion intent, PhysicsIntent.Move"). A kinematic
-/// body without a motion intent in that step holds still in its home, hull or not, so it ends the step where its home
-/// carries it. A numeric home that moves over the step carries it, so the read moves the pose now with the home (see
-/// <c>FrameTree.HomeMoveOver</c>), and a rails component that starts from the read starts where the body stands. The
-/// following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
+/// body without a motion intent in that step holds still in its semantic frame, whatever numeric frame holds it, so a rails
+/// component that starts from the read starts where the body stands (see also
+/// <see cref="StoppedKinematicBodyInNumericHomeTests"/>). The following frame of a kinematic body without a motion intent holds still in its semantic frame in that step (ticket
 /// ter-zsku), so the read gives the pose now there. The world runs on the real backend.
 /// </summary>
 public sealed class PoseAtNextStepStartTests

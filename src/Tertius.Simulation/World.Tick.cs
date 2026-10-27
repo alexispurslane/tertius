@@ -648,13 +648,14 @@ public sealed partial class World
 
     /// <summary>
     /// Where <paramref name="entity"/>, whose step beside the tick applies no end pose, full sample or teleport, stands at
-    /// the end of that step, from its pose now, with the frame that the pose is in. A body that is kinematic in that step
-    /// holds still in its home, hull or not: a hull in its frame's tree parent, a plain body in its physics home. So it ends
-    /// the step where its home carries it, which a numeric home moves over the step (see
-    /// <see cref="FrameTree.HomeMoveOver"/>). Its inputs, the numeric frames' places, velocities and step accelerations,
-    /// stay fixed during the tick, because physics converts its kinematic targets with them while the step runs. Any other
-    /// entity keeps its pose now: an entity without a body, a static body, an attached entity and a frame without a hull
-    /// live in their semantic frame, and physics moves a dynamic body or a character, which the read does not predict.
+    /// the end of that step, from its pose now, with the frame that the pose is in. A plain body that is kinematic in that
+    /// step holds still in its semantic frame, whatever numeric frame holds it, so it keeps its pose now. A kinematic hull
+    /// holds still in its frame's tree parent, so it ends the step where that parent carries it, which a numeric parent
+    /// moves over the step (see <see cref="FrameTree.HomeMoveOver"/>). The inputs, the numeric frames' places, velocities
+    /// and step accelerations, stay fixed during the tick, because physics converts its kinematic targets with them while
+    /// the step runs. Any other entity keeps its pose now: an entity without a body, a static body, an attached entity and
+    /// a frame without a hull live in their semantic frame, and physics moves a dynamic body or a character, which the read
+    /// does not predict.
     /// </summary>
     private (DPose Pose, FrameHandle From) PoseNowAtRunningStepEnd(Entity entity, ReadOnlySpan<PhysicsIntent> front)
     {
@@ -662,10 +663,7 @@ public sealed partial class World
         if (own.IsNull)
         {
             ref readonly TransformRow row = ref Entities.FrontRow(entity);
-            if (Entities.Body(entity) is not { Motion: BodyMotion.Kinematic })
-                return (row.Pose, row.Frame);
-            Double3 move = Frames.HomeMoveOver(row.PhysicsHome, row.Frame, DeltaTime);
-            return (new(row.Pose.Position + move, row.Pose.Rotation), row.Frame);
+            return (row.Pose, row.Frame);
         }
 
         DPose local = Frames.LocalPose(own);
