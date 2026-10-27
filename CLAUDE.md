@@ -15,7 +15,7 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 - Push main to `origin` without asking, at least after each epic merges. The user decided on 2026-10-24 that a regular push is better than none.
 - The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
 - At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
-- Read the Jolt pitfalls in project memory before you touch Jolt interop. The double-precision Jolt library comes from `native/joltc.nix`.
+- Read the Jolt pitfalls in project memory, `~/.claude/projects/-Users-alexispurslane-Development-tertius/memory/tertius-jolt-pitfalls.md`, before you touch Jolt interop. A subagent gets no memory, so it reads that file. The double-precision Jolt library comes from `native/joltc.nix`.
 
 ## Style
 
@@ -42,7 +42,7 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 - `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
 - Mutation testing is not a gate on every epic, because a Stryker run over the whole vertical slice took hours.
-  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. A plain incremental build picks up a mutation, in src and in the analyzers alike (measured on 2026-10-24: 1 to 4 s per build), so mutation builds do not use `--no-incremental`. A mutation can make a loop that never ends, and the tests have no time limit. So each mutation builds only its test project and runs only the test class that covers it, under `timeout 120`. A run that the timeout stops counts as killed.
+  - Every implementation brief asks for hand mutations. For each new test, the agent breaks the line that the test protects, watches the test fail, and restores the line. The report names each mutation. A plain incremental build picks up a mutation, in src and in the analyzers alike (measured on 2026-10-24: 1 to 4 s per build), so mutation builds do not use `--no-incremental`. A mutation can make a loop that never ends, and the tests have no time limit. So each mutation builds only its test project and runs only the test class that covers it, under `timeout 120`. A run that the timeout stops counts as killed. A script that restores a mutated file touches it afterwards, because a restored file with its old time leaves a stale build.
   - Each epic runs coverage on its changed lines before the merge.
   - Stryker runs only on Core, Simulation and Physics, scoped to files or to changed lines.
 - A snapshot test proves only that nothing changed. So the first approval of a reference image is a real review against the scene description. If an agent adds or re-approves a reference image, or sees a snapshot fail, it opens three images with the Read tool. They are the reference, the actual image and the FLIP heat map, and its report describes them.
